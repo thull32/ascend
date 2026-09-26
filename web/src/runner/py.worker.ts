@@ -104,6 +104,9 @@ def _encode(v, depth=0):
 
 def _norm(v):
     v = _encode(v)
+    if isinstance(v, dict) and len(v) == 1:
+        for tag in ("$list", "$tree", "$graph"):
+            if tag in v and v[tag] == []: return None
     if isinstance(v, list): return [_norm(x) for x in v]
     if isinstance(v, dict): return {k: _norm(x) for k, x in sorted(v.items())}
     return v

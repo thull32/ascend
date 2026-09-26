@@ -7,6 +7,10 @@ export function canon(v: unknown): string {
 
 export function normalise(v: unknown): unknown {
   if (v === undefined) return null;
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    for (const tag of ["$list", "$tree", "$graph"]) if (tag in o && Array.isArray(o[tag]) && (o[tag] as unknown[]).length === 0) return null;
+  }
   if (typeof v === "number" && Number.isInteger(v)) return v;
   if (typeof v === "number") return Math.round(v * 1e6) / 1e6;
   if (Array.isArray(v)) return v.map(normalise);

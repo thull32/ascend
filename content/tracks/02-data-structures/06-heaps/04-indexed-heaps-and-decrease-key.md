@@ -111,6 +111,12 @@ class IndexedMinPQ:
 
 The two data structures must stay consistent through every operation, which is why the indexed heap is about three times the code of a plain one and where the bugs live. Go's `container/heap` exposes this design directly: your `Swap` method is where you update the index field on your items, and `heap.Fix(h, i)` sifts item `i` in whichever direction it needs after you have changed its priority. Rust's `BinaryHeap::peek_mut` gives you the same for the *top* element only, which covers the common "adjust the minimum" case.
 
+### A worked decrease-key
+
+Insert `a:5`, `b:3`, `c:8`. After sift-ups the heap array is `[b, a, c]` with `pos = {b: 0, a: 1, c: 2}`. Now `decrease(c, 1)`: set `pri[c] = 1` and sift up from `pos[c] = 2`. Parent of index 2 is index 0 (`b`, priority 3); 1 < 3, so swap: array `[c, a, b]`, and the swap writes `pos[c] = 0`, `pos[b] = 2`. Index 0 has no parent; done, two array writes and two map writes. A `pop` now returns `c`: swap root with last (`[b, a, c]`, `pos[b] = 0`, `pos[c] = 2`), drop `c`, sift `b` down: its only child `a` has priority 5 > 3, so it stays. The map is consistent after every operation, which is the invariant the tests below check by interleaving `decrease` with `pop` and `contains`.
+
+The subtle case is `delete` of a middle element: after swapping it with the last element and shrinking, the swapped-in element may need to go *up* (it came from a different branch and may be smaller than its new parent) or *down*. Calling both sift-up and sift-down is correct because at most one of them will move it.
+
 Dijkstra with an indexed heap holds exactly V entries and runs in O(E log V) with V pushes, V pops and up to E decrease-keys. Compared with lazy deletion, memory drops from O(E) to O(V), the number of heap operations drops (decrease-key does not add an entry), and the constant per operation rises (the `pos` updates on every swap). Benchmarks on sparse road-network graphs typically show the two within 20% of each other; on dense graphs the indexed version wins on memory.
 
 The indexed heap is also what a **cancellable timer wheel** needs when it is a heap: libuv keeps timers in a heap with a stored index so `uv_timer_stop` can remove one in O(log n) rather than marking it dead.

@@ -189,6 +189,26 @@ def build(preorder, inorder):
 
 Reconstruction needs inorder plus one of the others; preorder plus postorder alone is ambiguous whenever a node has a single child.
 
+## Recursing on two trees at once
+
+Some problems take two trees, or two halves of one tree, and the recursion advances through both in lockstep. **Same tree**: both null returns true; exactly one null returns false; values differ returns false; otherwise recurse on both left subtrees and both right subtrees. **Symmetric tree** is the same function applied to a tree's left and right subtrees with the children *mirrored*: compare `left.left` with `right.right` and `left.right` with `right.left`. **Subtree of another tree** calls same-tree at every node of the larger tree, which is O(n · m) and acceptable for interview sizes; the serialisation trick in the [next lesson](/learn/data-structures/trees/n-ary-trees-and-serialization) makes it linear.
+
+```python
+def same(a, b):
+    if a is None or b is None:
+        return a is b                       # both None, or exactly one
+    return a.val == b.val and same(a.left, b.left) and same(a.right, b.right)
+
+def symmetric(root):
+    def mirror(l, r):
+        if l is None or r is None:
+            return l is r
+        return l.val == r.val and mirror(l.left, r.right) and mirror(l.right, r.left)
+    return root is None or mirror(root.left, root.right)
+```
+
+The pattern is the same contract discipline: the function's contract is about a *pair* of nodes, the base case handles the pair being unequal in shape, and short-circuit evaluation stops at the first mismatch, so the cost is O(min(n₁, n₂)). Merge-two-trees and "flip equivalent" are the same skeleton with a different combine step.
+
 ## The pitfalls, named
 
 | Pitfall | Symptom | Fix |

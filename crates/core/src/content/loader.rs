@@ -176,7 +176,14 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
     let mut problems: Vec<Arc<Problem>> = Vec::new();
     let mut problems_by_slug: HashMap<String, Arc<Problem>> = HashMap::new();
     for (path, text) in files.iter().filter(|(p, _)| p.starts_with("problems/")) {
-        let (fm, body): (ProblemFm, String) = parse(path, text)?;
+        let (fm, body): (ProblemFm, String) = match parse(path, text) {
+            Ok(v) => v,
+            Err(e) if lenient() => {
+                eprintln!("warning: skipping {path}: {e} (lenient mode)");
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
         let (statement, solution) = split_solution(&body);
         if fm.signatures.is_empty() {
             return Err(ContentError::Invalid { file: path.clone(), reason: "needs at least one signature".into() });
@@ -226,10 +233,21 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
 
     for (ti, track_dir) in track_dirs.keys().enumerate() {
         let track_file = format!("tracks/{track_dir}/track.md");
-        let track_text = files
-            .get(&track_file)
-            .ok_or_else(|| ContentError::Invalid { file: track_file.clone(), reason: "missing track.md".into() })?;
-        let (tfm, tintro): (TrackFm, String) = parse(&track_file, track_text)?;
+        let Some(track_text) = files.get(&track_file) else {
+            if lenient() {
+                eprintln!("warning: skipping track dir {track_dir}: missing track.md (lenient mode)");
+                continue;
+            }
+            return Err(ContentError::Invalid { file: track_file.clone(), reason: "missing track.md".into() });
+        };
+        let (tfm, tintro): (TrackFm, String) = match parse(&track_file, track_text) {
+            Ok(v) => v,
+            Err(e) if lenient() => {
+                eprintln!("warning: skipping track {track_file}: {e} (lenient mode)");
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
 
         let mut module_dirs: BTreeMap<String, ()> = BTreeMap::new();
         for path in files.keys().filter(|p| p.starts_with(&format!("tracks/{track_dir}/"))) {
@@ -242,10 +260,21 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
         let mut modules: Vec<Module> = Vec::new();
         for module_dir in module_dirs.keys() {
             let module_file = format!("tracks/{track_dir}/{module_dir}/module.md");
-            let module_text = files
-                .get(&module_file)
-                .ok_or_else(|| ContentError::Invalid { file: module_file.clone(), reason: "missing module.md".into() })?;
-            let (mfm, mintro): (ModuleFm, String) = parse(&module_file, module_text)?;
+            let Some(module_text) = files.get(&module_file) else {
+                if lenient() {
+                    eprintln!("warning: skipping module dir {module_dir}: missing module.md (lenient mode)");
+                    continue;
+                }
+                return Err(ContentError::Invalid { file: module_file.clone(), reason: "missing module.md".into() });
+            };
+            let (mfm, mintro): (ModuleFm, String) = match parse(&module_file, module_text) {
+                Ok(v) => v,
+                Err(e) if lenient() => {
+                    eprintln!("warning: skipping module {module_file}: {e} (lenient mode)");
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
             let module_slug = format!("{}/{}", tfm.slug, mfm.slug);
 
             let mut lesson_files: Vec<&String> = files
@@ -258,7 +287,14 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
 
             let mut summaries = Vec::new();
             for (li, lfile) in lesson_files.iter().enumerate() {
-                let (lfm, lbody): (LessonFm, String) = parse(lfile, &files[*lfile])?;
+                let (lfm, lbody): (LessonFm, String) = match parse(lfile, &files[*lfile]) {
+                    Ok(v) => v,
+                    Err(e) if lenient() => {
+                        eprintln!("warning: skipping lesson {lfile}: {e} (lenient mode)");
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                };
                 let slug = format!("{module_slug}/{}", lfm.slug);
                 if let Some(prev) = lesson_slug_to_file.insert(slug.clone(), (*lfile).clone()) {
                     return Err(ContentError::DuplicateSlug { slug, a: prev, b: (*lfile).clone() });
@@ -272,7 +308,15 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
                         return Err(ContentError::DanglingRef { file: (*lfile).clone(), kind: "problem", slug: p.clone() });
                     }
                 }
-                let extracted = blocks::extract(lfile, &lbody)?;
+                let extracted = match blocks::extract(lfile, &lbody) {
+                    Ok(v) => v,
+                    Err(e) if lenient() => {
+                        eprintln!("warning: skipping lesson {lfile}: {e} (lenient mode)");
+                        lesson_slug_to_file.remove(&slug);
+                        continue;
+                    }
+                    Err(e) => return Err(ContentError::Block(e)),
+                };
                 let toc = blocks::headings(&extracted.public_body);
                 let summary = LessonSummary {
                     slug: slug.clone(),
@@ -317,6 +361,10 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
                 lessons: summaries,
                 estimated_hours: (hours * 10.0).round() / 10.0,
             });
+        }
+        if modules.is_empty() && lenient() {
+            eprintln!("warning: track {} has no modules yet (lenient mode)", tfm.slug);
+            continue;
         }
         let lesson_count = modules.iter().map(|m| m.lessons.len()).sum();
         let hours: f32 = modules.iter().map(|m| m.estimated_hours).sum();
@@ -364,9 +412,14 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
     // Validate problem -> lesson references now that lessons exist.
     for p in &problems {
         if let Some(ls) = &p.lesson
-            && !lessons.contains_key(ls) {
-                return Err(ContentError::DanglingRef { file: format!("problems/{}.md", p.slug), kind: "lesson", slug: ls.clone() });
+            && !lessons.contains_key(ls)
+        {
+            if lenient() {
+                eprintln!("warning: problems/{}.md: unknown lesson '{ls}' (lenient mode)", p.slug);
+                continue;
             }
+            return Err(ContentError::DanglingRef { file: format!("problems/{}.md", p.slug), kind: "lesson", slug: ls.clone() });
+        }
     }
 
     // Patterns: derived from problems, titled from the pattern lesson if any.

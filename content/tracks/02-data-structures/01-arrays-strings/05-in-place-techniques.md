@@ -47,10 +47,6 @@ Swapping rather than overwriting keeps the zeroes alive so that the array ends i
 
 The same skeleton solves "remove duplicates from a sorted array" (keep `a[read]` when it differs from `a[write−1]`), "remove all occurrences of `x`", and "compact a buffer". The stability property, that kept elements retain their relative order, comes for free because `read` visits them in order and `write` places them in order.
 
-```viz
-{"type": "array", "algorithm": "remove-duplicates", "values": [1, 1, 2, 2, 2, 3, 4, 4], "title": "Remove duplicates from a sorted array"}
-```
-
 ## Opposite-direction two pointers
 
 Start `lo = 0`, `hi = n − 1`, and move them toward each other. Which one moves is decided by a comparison, and the invariant says something about the elements outside `[lo, hi]`.

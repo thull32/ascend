@@ -4,7 +4,7 @@ title: "Segment trees: range queries on data that keeps changing"
 description: How a segment tree stores interval summaries in an array, why point update and range query are both O(log n), and the iterative bottom-up version you can write from memory.
 minutes: 32
 difficulty: medium
-tags: [segment-tree, range-query, prefix-sum, trees, pattern:segment-tree]
+tags: [segment-tree, range-query, prefix-sum, trees]
 problems: [range-sum-query-immutable, sliding-window-maximum]
 ---
 You keep a per-second request count for the last day, 86,400 integers, and a dashboard asks "how many requests between 09:14:03 and 11:02:57" a few hundred times a second while new counts land every second. A prefix-sum array answers each query with one subtraction, but every new second invalidates every later prefix, and rebuilding costs `O(n)`. A plain array makes updates free and every query `O(n)`. Both are wrong at 86,400 elements and hundreds of queries per second; both are catastrophic at a billion.

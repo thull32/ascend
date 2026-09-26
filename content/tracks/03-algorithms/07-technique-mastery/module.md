@@ -1,7 +1,7 @@
 ---
 slug: technique-mastery
 title: Technique mastery
-description: The linear-time toolbox behind most medium interview problems, taken to the depth where you can derive the shrink condition, prove the invariant, and recognise the trick in disguise: sliding windows, two pointers, prefix sums and hashing, meet-in-the-middle, randomisation and bit tricks.
+description: "The linear-time toolbox behind most medium interview problems, taken to the depth where you can derive the shrink condition, prove the invariant, and recognise the trick in disguise: sliding windows, two pointers, prefix sums and hashing, meet-in-the-middle, randomisation and bit tricks."
 prerequisites: [algorithms/sorting-searching, data-structures/hashing]
 ---
 Most medium-difficulty interview problems are not about a clever algorithm. They are about a handful of techniques that turn an $O(n^2)$ pair of loops into a single $O(n)$ pass, and the difference between an engineer who has memorised the template and one who has mastered the technique shows up the moment the problem is phrased in an unfamiliar way. The memoriser recognises "longest substring without repeating characters" and produces the code; the master recognises "the property I am tracking is monotone under extending the window", which is why the same code works, and then notices that "at most k distinct" is the same technique with a different counter.

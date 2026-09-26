@@ -42,6 +42,10 @@ PY_FENCE = re.compile(r"```python\n(.*?)```", re.S)
 
 
 def normalise(v):
+    if isinstance(v, dict) and len(v) == 1:
+        for tag in ("$list", "$tree", "$graph"):
+            if tag in v and v[tag] == []:
+                return None
     if isinstance(v, tuple):
         return [normalise(x) for x in v]
     if isinstance(v, list):

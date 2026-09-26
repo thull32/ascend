@@ -1,7 +1,7 @@
 ---
 slug: probabilistic-structures
 title: Probabilistic data structures
-description: Bloom filters, count-min sketches, HyperLogLog and MinHash: trade a bounded, calculable error for a thousand-fold saving in memory.
+description: "Bloom filters, count-min sketches, HyperLogLog and MinHash: trade a bounded, calculable error for a thousand-fold saving in memory."
 prerequisites: [foundations/math-for-engineers]
 ---
 Every structure you have built so far gives exact answers. That exactness has a price: to answer "have I seen this key?" exactly you must store every key, and to answer "how many distinct users today?" exactly you must store every user. At a billion keys that is tens of gigabytes per question, per node.
