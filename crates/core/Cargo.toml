@@ -1,0 +1,38 @@
+[package]
+name = "ascend-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "Domain layer for Ascend: content engine, auth, AI coach, progress services."
+
+[dependencies]
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+argon2 = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+secrecy = { workspace = true }
+validator = { workspace = true }
+include_dir = { workspace = true }
+gray_matter = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+eventsource-stream = { workspace = true }
+futures = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+async-stream = { workspace = true }
+moka = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

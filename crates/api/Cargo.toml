@@ -1,0 +1,42 @@
+[package]
+name = "ascend-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "HTTP server for Ascend: Axum routes, middleware, and static SPA hosting."
+
+[[bin]]
+name = "ascend-api"
+path = "src/main.rs"
+
+[dependencies]
+ascend-core = { path = "../core" }
+migration = { path = "../../migration" }
+axum = { workspace = true }
+axum-extra = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+sea-orm = { workspace = true }
+sea-orm-migration = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+secrecy = { workspace = true }
+governor = { workspace = true }
+moka = { workspace = true }
+dotenvy = { workspace = true }
+include_dir = { workspace = true }
+sha2 = { workspace = true }
+time = "0.3"
