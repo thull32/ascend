@@ -180,6 +180,12 @@ def validate(path: Path) -> list[str]:
         errors.append(f"{path}: slug '{fm['slug']}' != filename")
     if fm["difficulty"] not in ("easy", "medium", "hard"):
         errors.append(f"{path}: difficulty must be easy|medium|hard")
+    for i, h in enumerate(fm.get("hints", []) or []):
+        if not isinstance(h, str):
+            errors.append(f"{path}: hint {i} is not a string (a ': ' inside an unquoted YAML scalar makes a dict; wrap the hint in double quotes)")
+    for key in ("patterns", "lists", "companies"):
+        if any(not isinstance(x, str) for x in (fm.get(key) or [])):
+            errors.append(f"{path}: {key} must be a list of strings")
     sig = fm["signatures"].get("python")
     if not sig:
         errors.append(f"{path}: no python signature")

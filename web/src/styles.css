@@ -1,0 +1,96 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@import "katex/dist/katex.min.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #0b1020;
+  --bg-elev: #111832;
+  --bg-elev-2: #182042;
+  --border: #253055;
+  --fg: #e6e9f2;
+  --fg-muted: #9aa5c4;
+  --accent: #7c9cff;
+  --accent-strong: #5b7cff;
+  --success: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --code-bg: #0d1428;
+  color-scheme: dark;
+}
+html.light {
+  --bg: #f7f8fc;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #eef1f8;
+  --border: #d9deec;
+  --fg: #111629;
+  --fg-muted: #4f5a7a;
+  --accent: #3b5bdb;
+  --accent-strong: #2f4ccf;
+  --success: #059669;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --code-bg: #f1f3fa;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-elev-2: var(--bg-elev-2);
+  --color-line: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-code: var(--code-bg);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* Lesson prose overrides on top of @tailwindcss/typography */
+.prose-ascend { --tw-prose-body: var(--fg); --tw-prose-headings: var(--fg); --tw-prose-links: var(--accent); --tw-prose-bold: var(--fg); --tw-prose-code: var(--fg); --tw-prose-quotes: var(--fg-muted); --tw-prose-th-borders: var(--border); --tw-prose-td-borders: var(--border); --tw-prose-hr: var(--border); --tw-prose-counters: var(--fg-muted); --tw-prose-bullets: var(--fg-muted); --tw-prose-pre-bg: var(--code-bg); --tw-prose-pre-code: var(--fg); }
+.prose-ascend :where(code):not(:where(pre *))::before, .prose-ascend :where(code):not(:where(pre *))::after { content: none; }
+.prose-ascend :where(code):not(:where(pre *)) { background: var(--bg-elev-2); padding: 0.1em 0.35em; border-radius: 0.3em; font-size: 0.9em; }
+.prose-ascend pre { border: 1px solid var(--border); border-radius: 0.75rem; font-size: 0.85rem; line-height: 1.55; }
+.prose-ascend table { display: block; overflow-x: auto; font-size: 0.9em; }
+.prose-ascend h2 { scroll-margin-top: 5rem; margin-top: 2.2em; }
+.prose-ascend h3 { scroll-margin-top: 5rem; }
+.prose-ascend img { border-radius: 0.5rem; }
+.prose-ascend .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+/* highlight.js theme (compact, matches the palette) */
+.hljs { color: var(--fg); }
+.hljs-comment, .hljs-quote { color: #7e8bb0; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-built_in { color: #c792ea; }
+.hljs-string, .hljs-title.function_ { color: #a5d6a7; }
+.hljs-title, .hljs-title.class_ { color: #ffcb6b; }
+.hljs-number, .hljs-attr, .hljs-variable, .hljs-template-variable { color: #f78c6c; }
+.hljs-function .hljs-params, .hljs-params { color: var(--fg); }
+.hljs-type, .hljs-meta { color: #82aaff; }
+.hljs-symbol, .hljs-bullet, .hljs-link { color: #89ddff; }
+html.light .hljs-comment, html.light .hljs-quote { color: #6b7280; }
+html.light .hljs-keyword, html.light .hljs-literal, html.light .hljs-built_in { color: #7c3aed; }
+html.light .hljs-string, html.light .hljs-title.function_ { color: #047857; }
+html.light .hljs-title, html.light .hljs-title.class_ { color: #b45309; }
+html.light .hljs-number, html.light .hljs-attr, html.light .hljs-variable { color: #c2410c; }
+html.light .hljs-type, html.light .hljs-meta { color: #1d4ed8; }
+
+/* Mermaid */
+.mermaid-host svg { max-width: 100%; height: auto; }
+
+/* CodeMirror sizing */
+.cm-editor { font-family: var(--font-mono); font-size: 0.875rem; }
+.cm-editor.cm-focused { outline: none; }
+
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none; } }
+.animate-fade-in { animation: fade-in 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .animate-fade-in { animation: none; } }
