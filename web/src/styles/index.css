@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+/*
+ * Design tokens. Dark is the default (the app is used late at night);
+ * `.light` on <html> flips the palette. Everything downstream uses the
+ * semantic names, never raw colours, so themes stay consistent.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-bg: #0b1020;
+  --color-bg-elev: #121a2e;
+  --color-bg-sunk: #070b16;
+  --color-line: #223052;
+  --color-line-strong: #33466f;
+  --color-fg: #e7ecf7;
+  --color-fg-muted: #9aa8c7;
+  --color-fg-faint: #6b7a9c;
+  --color-accent: #7c9cff;
+  --color-accent-strong: #5f84ff;
+  --color-accent-soft: #1b2a55;
+  --color-violet: #c4b5fd;
+  --color-ok: #4ade80;
+  --color-ok-soft: #10331f;
+  --color-warn: #fbbf24;
+  --color-warn-soft: #3a2c08;
+  --color-bad: #f87171;
+  --color-bad-soft: #3a1414;
+  --color-viz-1: #7c9cff;
+  --color-viz-2: #f59e0b;
+  --color-viz-3: #34d399;
+  --color-viz-4: #f472b6;
+  --color-viz-5: #a78bfa;
+  --color-viz-6: #22d3ee;
+  --radius-card: 14px;
+}
+
+html.light {
+  --color-bg: #f7f8fc;
+  --color-bg-elev: #ffffff;
+  --color-bg-sunk: #eef1f8;
+  --color-line: #dfe4f0;
+  --color-line-strong: #c3ccdf;
+  --color-fg: #101527;
+  --color-fg-muted: #4b5670;
+  --color-fg-faint: #7d879f;
+  --color-accent: #3b63f5;
+  --color-accent-strong: #2a4fd6;
+  --color-accent-soft: #e6ecff;
+  --color-violet: #6d4de6;
+  --color-ok: #15803d;
+  --color-ok-soft: #dcfce7;
+  --color-warn: #b45309;
+  --color-warn-soft: #fef3c7;
+  --color-bad: #b91c1c;
+  --color-bad-soft: #fee2e2;
+}
+
+html { color-scheme: dark; }
+html.light { color-scheme: light; }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+::selection { background: color-mix(in oklab, var(--color-accent) 35%, transparent); }
+
+/* ---------- prose (lesson bodies) ---------- */
+.prose { font-size: 1.02rem; line-height: 1.75; max-width: 78ch; }
+.prose > * + * { margin-top: 1.1em; }
+.prose h2 { font-size: 1.55rem; font-weight: 700; margin-top: 2.4em; letter-spacing: -0.01em; scroll-margin-top: 90px; }
+.prose h3 { font-size: 1.2rem; font-weight: 650; margin-top: 1.8em; scroll-margin-top: 90px; }
+.prose p, .prose li { color: var(--color-fg); }
+.prose a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in oklab, var(--color-accent) 40%, transparent); }
+.prose a:hover { text-decoration-color: var(--color-accent); }
+.prose strong { font-weight: 650; }
+.prose ul { list-style: disc; padding-left: 1.4em; }
+.prose ol { list-style: decimal; padding-left: 1.4em; }
+.prose li + li { margin-top: 0.35em; }
+.prose blockquote { border-left: 3px solid var(--color-accent); padding: 0.2em 1em; color: var(--color-fg-muted); background: color-mix(in oklab, var(--color-accent) 6%, transparent); border-radius: 0 8px 8px 0; }
+.prose code:not(pre code) { font-family: var(--font-mono); font-size: 0.88em; background: var(--color-bg-sunk); border: 1px solid var(--color-line); border-radius: 6px; padding: 0.1em 0.4em; }
+.prose pre { background: var(--color-bg-sunk); border: 1px solid var(--color-line); border-radius: 12px; padding: 1rem 1.1rem; overflow-x: auto; font-size: 0.86rem; line-height: 1.6; }
+.prose pre code { font-family: var(--font-mono); background: none; border: 0; padding: 0; }
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.92rem; display: block; overflow-x: auto; }
+.prose th, .prose td { border: 1px solid var(--color-line); padding: 0.5em 0.75em; text-align: left; vertical-align: top; }
+.prose th { background: var(--color-bg-sunk); font-weight: 600; }
+.prose hr { border: 0; border-top: 1px solid var(--color-line); }
+.prose img { border-radius: 10px; }
+.prose .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3em 0; }
+.prose .mermaid svg { max-width: 100%; height: auto; }
+
+/* shiki dual theme */
+html:not(.light) .shiki, html:not(.light) .shiki span { color: var(--shiki-dark) !important; }
+html.light .shiki, html.light .shiki span { color: var(--shiki-light) !important; }
+.shiki { background: transparent !important; }
+
+/* ---------- editor ---------- */
+.cm-editor { height: 100%; font-family: var(--font-mono); font-size: 0.88rem; background: var(--color-bg-sunk); }
+.cm-editor.cm-focused { outline: none; }
+.cm-scroller { font-family: var(--font-mono) !important; line-height: 1.6; }
+.cm-gutters { background: var(--color-bg-sunk) !important; border-right: 1px solid var(--color-line) !important; color: var(--color-fg-faint) !important; }
+.cm-activeLine { background: color-mix(in oklab, var(--color-accent) 8%, transparent) !important; }
+.cm-activeLineGutter { background: transparent !important; }
+.cm-content { color: var(--color-fg); caret-color: var(--color-accent); }
+.cm-cursor { border-left-color: var(--color-accent) !important; }
+.cm-selectionBackground, .cm-editor ::selection { background: color-mix(in oklab, var(--color-accent) 30%, transparent) !important; }
+html.light .cm-selectionBackground { background: color-mix(in oklab, var(--color-accent) 20%, transparent) !important; }
+
+/* ---------- misc ---------- */
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: var(--color-line-strong) transparent; }
+.card { background: var(--color-bg-elev); border: 1px solid var(--color-line); border-radius: var(--radius-card); }
+.btn { display: inline-flex; align-items: center; gap: 0.45rem; border-radius: 10px; padding: 0.55rem 0.95rem; font-weight: 600; font-size: 0.9rem; border: 1px solid var(--color-line); background: var(--color-bg-elev); color: var(--color-fg); transition: background 120ms, border-color 120ms, transform 60ms; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--color-line-strong); background: color-mix(in oklab, var(--color-bg-elev) 80%, var(--color-fg) 4%); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.btn-primary:hover { background: var(--color-accent-strong); border-color: var(--color-accent-strong); }
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-ghost:hover { background: color-mix(in oklab, var(--color-fg) 6%, transparent); border-color: transparent; }
+.btn-sm { padding: 0.35rem 0.65rem; font-size: 0.82rem; border-radius: 8px; }
+.input { width: 100%; border-radius: 10px; border: 1px solid var(--color-line); background: var(--color-bg-sunk); color: var(--color-fg); padding: 0.6rem 0.8rem; font-size: 0.95rem; outline: none; transition: border-color 120ms, box-shadow 120ms; }
+.input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 25%, transparent); }
+.chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.74rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid var(--color-line); color: var(--color-fg-muted); background: var(--color-bg-sunk); white-space: nowrap; }
+.chip-accent { color: var(--color-accent); border-color: color-mix(in oklab, var(--color-accent) 40%, transparent); background: var(--color-accent-soft); }
+.chip-ok { color: var(--color-ok); background: var(--color-ok-soft); border-color: transparent; }
+.chip-warn { color: var(--color-warn); background: var(--color-warn-soft); border-color: transparent; }
+.chip-bad { color: var(--color-bad); background: var(--color-bad-soft); border-color: transparent; }
+
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-up { animation: fade-up 220ms ease-out both; }
+@keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.pulse-soft { animation: pulse-soft 1.4s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+
+/* viz svg text should never be selectable while stepping */
+.viz-svg text { user-select: none; font-family: var(--font-mono); }
+.viz-svg { touch-action: pan-y; }
+
+@media (max-width: 640px) { .prose { font-size: 0.98rem; } .prose h2 { font-size: 1.35rem; } }

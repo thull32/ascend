@@ -55,6 +55,19 @@ blog, while staying readable on a phone during a commute.
   must pass all tests. Use the tagged `{"$list": ...}` / `{"$tree": ...}` /
   `{"$graph": ...}` forms for node arguments.
 
+## Resource safety (mandatory)
+
+A previous authoring run crashed the machine because a buggy reference
+solution looped forever allocating memory. Therefore:
+
+- Never run `python3` or `node` directly on ad-hoc test code. Use
+  `scripts/safe_py.sh your_script.py` (2 GiB / 60 s limits) or
+  `timeout 30 node ...` prefixed with `ulimit -v 2097152`.
+- `scripts/validate_problems.py` already enforces limits; prefer it.
+- Trace tricky solutions by hand before executing them; check loop
+  termination conditions (especially resize/grow loops) explicitly.
+- Run at most one validation/test process at a time.
+
 ## Final report
 
 List the files written with approximate word counts, any outline items you

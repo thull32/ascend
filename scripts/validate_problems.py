@@ -10,8 +10,26 @@ from __future__ import annotations
 
 import json
 import re
+import resource
+import signal
 import sys
 from pathlib import Path
+
+# Hard safety limits: a buggy reference solution must never take the machine
+# down. 2 GiB of address space and 10 s wall clock per test case.
+resource.setrlimit(resource.RLIMIT_AS, (2 * 1024 ** 3, 2 * 1024 ** 3))
+sys.setrecursionlimit(20_000)
+
+
+class TestTimeout(Exception):
+    pass
+
+
+def _alarm(_signum, _frame):
+    raise TestTimeout("test exceeded 10 s")
+
+
+signal.signal(signal.SIGALRM, _alarm)
 
 try:
     import yaml  # type: ignore
@@ -192,6 +210,7 @@ def validate(path: Path) -> list[str]:
         errors.append(f"{path}: no hidden tests")
     for i, t in enumerate(tests):
         args = t.get("args", [])
+        signal.alarm(10)
         try:
             if isinstance(entry, type):
                 # Class replay: args is a list of [method, *params]
@@ -209,9 +228,11 @@ def validate(path: Path) -> list[str]:
                 actual = outs
             else:
                 actual = encode(entry(*decode(json.loads(json.dumps(args)))))
-        except Exception as e:  # noqa: BLE001
+        except (Exception, MemoryError, RecursionError, TestTimeout) as e:  # noqa: BLE001
             errors.append(f"{path}: test {i} raised {e!r}")
             continue
+        finally:
+            signal.alarm(0)
         if not matches(t["expected"], actual, bool(t.get("any_order"))):
             errors.append(f"{path}: test {i} expected {t['expected']!r} got {actual!r}")
     return errors
