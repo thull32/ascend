@@ -172,31 +172,31 @@ Blameless analysis applies when an agent caused the incident too. "The AI made a
 ```quiz
 - q: >-
     During an incident you have 400 MB of logs. What should you give the model?
-  options: ["The single most recent error line, since it best reflects the current state", "Normalised error signatures with counts and first-seen times, plus recent changes", "As much of the raw log as fits in the context window, newest lines first", "A random sample of raw lines, so the model sees a representative slice"]
-  answer: 1
+  options: ["Normalised error signatures with counts and first-seen times, plus recent changes", "As much of the raw log as fits in the context window, newest lines first", "A random sample of raw lines, so the model sees a representative slice", "The single most recent error line, since it best reflects the current state"]
+  answer: 0
   explanation: >-
     Signatures with variable parts normalised compress millions of lines into the patterns that matter, first- and last-seen times line up with the change timeline of deploys and config changes, and normalisation keeps identifiers out of the prompt. Raw logs, whole or sampled, waste context, bury the signal and leak data; one line lacks the pattern.
 - q: >-
     The AI states that the root cause is connection pool exhaustion after the 02:04 deploy. What should you do next?
-  options: ["Roll back the 02:04 deploy at once, since the AI has identified the cause", "Check a prediction that could refute it, such as pool wait time around 02:04", "Restart the database to release the exhausted connections and watch errors", "Ask the AI how confident it is, and act on it if it rates the cause as likely"]
+  options: ["Ask the AI how confident it is, and act on it if it rates the cause as likely", "Check a prediction that could refute it, such as pool wait time around 02:04", "Roll back the 02:04 deploy at once, since the AI has identified the cause", "Restart the database to release the exhausted connections and watch errors"]
   answer: 1
   explanation: >-
     A root cause is a hypothesis until a prediction is confirmed with data you looked at: here, pool wait time and active connections before and after 02:04, and errors on instances still on the old version. The check is quick and discriminating. A rollback may well be the right mitigation, but deciding it on an unverified story is how the second incident starts, and the model's confidence is not evidence.
 - q: >-
     An agent fixes an intermittently failing test by adding sleep(0.5) before the assertion. The test now passes 100 times in a row. What is the right call?
-  options: ["Accept it, since 100 passes in a row is strong evidence the race is gone", "Mark the test as flaky and skip it, since the code itself passes", "Reject it and ask for the interleaving that causes the failure", "Raise the sleep to 2 seconds, so the margin covers slower CI machines"]
-  answer: 2
+  options: ["Accept it, since 100 passes in a row is strong evidence the race is gone", "Reject it and ask for the interleaving that causes the failure", "Mark the test as flaky and skip it, since the code itself passes", "Raise the sleep to 2 seconds, so the margin covers slower CI machines"]
+  answer: 1
   explanation: >-
     A timing change makes a race rarer, not absent, so a race fixed by delay will return under different load or hardware however many passes you see. The fix must remove the bad ordering, for example by waiting on the actual condition or synchronising the shared state.
 - q: >-
     A regression appeared somewhere in the last 1,000 commits and the agent has written a reliable reproduction script. About how many test runs will git bisect run need?
-  options: ["About 500", "About 10", "About 100", "About 1,000"]
-  answer: 1
+  options: ["About 100", "About 1,000", "About 10", "About 500"]
+  answer: 2
   explanation: >-
     Bisect halves the range each step, so it needs about log2(1000), roughly 10 runs. That is why a deterministic binary search beats asking a model which commit looks suspicious.
 - q: >-
     An agent has been told in its instructions not to touch production during a code freeze, but its environment holds production database credentials with write access. What is the real control?
-  options: ["Repeat the instruction in capital letters at the top of every prompt", "Remove the write-capable credentials from the agent's environment", "Require it to ask for confirmation before running each command", "Monitor its actions closely and alert on any production writes"]
+  options: ["Monitor its actions closely and alert on any production writes", "Remove the write-capable credentials from the agent's environment", "Repeat the instruction in capital letters at the top of every prompt", "Require it to ask for confirmation before running each command"]
   answer: 1
   explanation: >-
     Instructions can be ignored or overridden by later context, and approvals suffer fatigue. An agent without a credential that can write to production cannot write to production. Monitoring tells you after the fact.

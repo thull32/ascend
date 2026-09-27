@@ -243,32 +243,32 @@ hints:
 ```quiz
 - q: >-
     Summing a large row-major matrix with the column index in the outer loop and the row index in the inner loop is much slower than the reverse. Why?
-  options: ["Strided access mispredicts the loop branch on almost every iteration", "Each inner step jumps `cols` elements, so each access hits a new cache line", "Column sums need extra additions to combine each column's partial result", "The inner loop runs more iterations, so loop overhead dominates the total"]
+  options: ["The inner loop runs more iterations, so loop overhead dominates the total", "Each inner step jumps `cols` elements, so each access hits a new cache line", "Strided access mispredicts the loop branch on almost every iteration", "Column sums need extra additions to combine each column's partial result"]
   answer: 1
   explanation: >-
     The number of additions and iterations is identical either way. Row-major storage makes consecutive elements of a row adjacent, so row-wise scanning is sequential and prefetchable, one new cache line per 16 ints; column-wise scanning is strided, touching a new cache line (and often a new page) per element and defeating the cache.
 - q: >-
     After `g = [[0] * 3] * 2; g[1][2] = 5`, what is `g`?
-  options: ["[[0, 0, 0], [0, 0, 5]]", "[[5, 5, 5], [5, 5, 5]]", "[[0, 0, 5], [0, 0, 5]]", "An IndexError is raised"]
-  answer: 2
+  options: ["An IndexError is raised", "[[0, 0, 5], [0, 0, 5]]", "[[0, 0, 0], [0, 0, 5]]", "[[5, 5, 5], [5, 5, 5]]"]
+  answer: 1
   explanation: >-
     The outer multiplication copies the reference to one inner list twice, so both rows are the same object and a write through either is visible through both. The inner `[0] * 3` is fine because integers are immutable.
 - q: >-
     Rotating an n × n matrix 90° clockwise in place is usually done as transpose then reverse each row. What is the complexity?
-  options: ["O(n log n) time, O(n) extra space", "O(n²) time, O(1) extra space", "O(n) time, O(1) extra space", "O(n²) time, O(n²) extra space"]
+  options: ["O(n²) time, O(n²) extra space", "O(n²) time, O(1) extra space", "O(n log n) time, O(n) extra space", "O(n) time, O(1) extra space"]
   answer: 1
   explanation: >-
     Both passes touch every cell once, so O(n²) time (linear in the number of cells), and both reflections swap in place, so no extra matrix is needed. O(n²) extra space is the cost of the simpler version that writes into a second matrix.
 - q: >-
     Which statement about a grid treated as a graph is correct?
-  options: ["A bounds-checked neighbours function serves as the adjacency list", "Traversal costs O((rows × cols)²), since any cell can reach any other", "BFS on a grid needs a priority queue to find the shortest path", "You must build an explicit adjacency list before running BFS on it"]
-  answer: 0
+  options: ["BFS on a grid needs a priority queue to find the shortest path", "You must build an explicit adjacency list before running BFS on it", "Traversal costs O((rows × cols)²), since any cell can reach any other", "A bounds-checked neighbours function serves as the adjacency list"]
+  answer: 3
   explanation: >-
     The graph is implicit: nodes are cells and edges are in-bounds neighbours generated on demand. Each cell has at most 4 (or 8) edges, so BFS/DFS cost O(rows × cols), linear in the number of cells. A priority queue is only needed for weighted shortest paths.
 - q: >-
     In the O(1)-space set-matrix-zeroes algorithm, what goes wrong if you clear the first row before processing the interior?
-  options: ["Nothing, since the two saved flags already record every zero column", "It zeroes the first column twice, which double-counts its marker", "It forces O(rows + cols) extra space to hold the markers elsewhere", "It destroys the column markers stored in the first row"]
-  answer: 3
+  options: ["It destroys the column markers stored in the first row", "Nothing, since the two saved flags already record every zero column", "It zeroes the first column twice, which double-counts its marker", "It forces O(rows + cols) extra space to hold the markers elsewhere"]
+  answer: 0
   explanation: >-
     The first row is borrowed as the set of columns to clear. Overwriting it early destroys that information before it is consumed: if the first row was flagged and is zeroed first, every column marker reads 0 and every interior cell gets wiped. The two flags only record whether the first row and column themselves need clearing. Process the interior using the markers, then clear the first row and column.
 ```

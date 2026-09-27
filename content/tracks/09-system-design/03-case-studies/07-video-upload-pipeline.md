@@ -250,32 +250,32 @@ Autoscale on queue age per priority class. Keep a baseline of reserved capacity 
 ```quiz
 - q: >-
     Uploads average 300 Gbps of ingest. What is the main reason to have clients write directly to object storage with pre-signed URLs?
-  options: ["It avoids a byte-copying fleet whose deploys kill in-flight uploads", "The object store transcodes and compresses the video as it arrives", "It removes the need for a metadata database to track upload sessions", "Pre-signed URLs are a stronger form of authentication than API tokens"]
+  options: ["It avoids a byte-copying fleet whose deploys kill in-flight uploads", "Pre-signed URLs are a stronger form of authentication than API tokens", "The object store transcodes and compresses the video as it arrives", "It removes the need for a metadata database to track upload sessions"]
   answer: 0
   explanation: >-
     At hundreds of Gbps and tens of thousands of long-lived sessions, application servers would exist only to copy bytes, every deploy would interrupt uploads, and the store already handles durability. Pre-signed URLs are a scoping mechanism, not a stronger form of auth; the metadata database is still needed for sessions and status.
 - q: >-
     An object store allows at most 10,000 parts per multipart upload, minimum 5 MiB each. Files can be up to 50 GB. Which part size is the best default?
-  options: ["16 MiB, about 3,000 parts at 50 GB and seconds of rework per failure", "256 MiB, about 200 parts at 50 GB and far fewer signed part requests", "5 MiB, the minimum, so each failure wastes the least transfer", "1 GiB, because the fewest parts means the fewest signed requests"]
+  options: ["16 MiB, about 3,000 parts at 50 GB and seconds of rework per failure", "5 MiB, the minimum, so each failure wastes the least transfer", "1 GiB, because the fewest parts means the fewest signed requests", "256 MiB, about 200 parts at 50 GB and far fewer signed part requests"]
   answer: 0
   explanation: >-
     At 5 MiB a 50 GB file needs about 10,000 parts, right at the limit. At 256 MiB or 1 GiB a dropped connection on a phone wastes minutes of transfer. 16 MiB leaves ample headroom under the limit and loses about 9 seconds of a 15 Mbps uplink per failure.
 - q: >-
     A transcode worker is preempted after uploading its output but before reporting success. The task is redelivered. What makes this safe?
-  options: ["The queue deduplicates the redelivery, so the task runs only once", "A deterministic output key makes the retry rewrite identical bytes", "The worker holds a distributed lock on the video until it reports back", "The orchestrator deletes the partial output before it retries"]
-  answer: 1
+  options: ["A deterministic output key makes the retry rewrite identical bytes", "The worker holds a distributed lock on the video until it reports back", "The queue deduplicates the redelivery, so the task runs only once", "The orchestrator deletes the partial output before it retries"]
+  answer: 0
   explanation: >-
     Queues deliver at least once; safety comes from idempotent tasks. The output key is derived from the input hash, chunk, rendition and encoder version, so the retry overwrites the same object with the same content and it does not matter whether the first attempt finished. Locks do not help when the lock holder is the process that died.
 - q: >-
     After an outage, 500,000 catalogue re-encode tasks are queued and new uploads are waiting 40 minutes to become playable. What is the right structural fix?
-  options: ["Autoscale the worker fleet on CPU utilisation until it drains", "Split queues by priority, scaling each on oldest-message age", "Reject new uploads with 503 until the re-encode backlog drains", "Add a priority field to each message in the shared FIFO queue"]
-  answer: 1
+  options: ["Autoscale the worker fleet on CPU utilisation until it drains", "Reject new uploads with 503 until the re-encode backlog drains", "Split queues by priority, scaling each on oldest-message age", "Add a priority field to each message in the shared FIFO queue"]
+  answer: 2
   explanation: >-
     Separate queues, with reserved capacity for first-playable work, isolate the classes, and queue age maps directly onto the SLO. A priority field inside one FIFO does not let new work jump a backlog that is already ahead of it, and CPU is always saturated on an encoding fleet, so it says nothing about latency.
 - q: >-
     A new codec saves 35% of bits but costs 10 times the encode compute. Which policy follows from the economics of a user-generated platform?
-  options: ["Add the new codec only once a video's views pass break-even", "Never use it, because compute is the dominant elastic cost", "Use it for every upload's 1080p rung only, where bits are largest", "Encode every upload in the new codec, because egress dominates"]
-  answer: 0
+  options: ["Never use it, because compute is the dominant elastic cost", "Encode every upload in the new codec, because egress dominates", "Use it for every upload's 1080p rung only, where bits are largest", "Add the new codec only once a video's views pass break-even"]
+  answer: 3
   explanation: >-
     Savings scale with views and costs are paid once per video. Because views are heavily skewed, most videos never repay the extra encode cost, even on one rung, while popular ones repay it many times over. Encoding everything in the cheap codec first and adding the new one on a view-count trigger captures most of the savings at a small fraction of the compute.
 ```

@@ -191,32 +191,32 @@ hints:
 ```quiz
 - q: >-
     You replace a linear scan over a 12-element list of small integers with a hash-set lookup and the code gets slower. What is the most likely explanation?
-  options: ["Hashing costs more than a dozen cached comparisons", "Python lists are always faster than sets for integer data", "Hash sets degrade to O(n) for small integer keys", "The set was built with the wrong load factor for 12 keys"]
+  options: ["Hashing costs more than a dozen cached comparisons", "The set was built with the wrong load factor for 12 keys", "Hash sets degrade to O(n) for small integer keys", "Python lists are always faster than sets for integer data"]
   answer: 0
   explanation: >-
     At n = 12 the scan is a handful of comparisons that sit in one or two cache lines and predict perfectly. The set lookup pays for hashing, a modulo, a probe and a key comparison; it is still O(1), just with a bigger constant. The asymptotic advantage only shows up once n is large enough for the scan's n comparisons to exceed that fixed overhead, typically in the tens.
 - q: >-
     A benchmark of a JavaScript function reports that the first run took 4 ms and subsequent runs take 0.02 ms. Which number should you report as the function's cost?
-  options: ["The mean of all runs, so both regimes are represented", "4 ms, because the worst case is the honest number", "Neither; a 200× gap means the function is broken", "0.02 ms; the first run was pre-JIT with cold caches"]
-  answer: 3
+  options: ["Neither; a 200× gap means the function is broken", "0.02 ms; the first run was pre-JIT with cold caches", "The mean of all runs, so both regimes are represented", "4 ms, because the worst case is the honest number"]
+  answer: 1
   explanation: >-
     V8 runs new code in the interpreter, then compiles hot functions. The first-run time is a warm-up artefact (interpreter plus cold caches), not the code's steady-state cost. The mean is skewed by that one outlier; report the minimum or median after warm-up, and separately note the cold-start cost if it matters for your use.
 - q: >-
     A request spends 150 ms in a database call, 40 ms in serialisation and 10 ms in an O(n²) loop you can make O(n). By Amdahl's law, what is the maximum overall speed-up from fixing the loop?
-  options: ["About 2×, because quadratic to linear is a big win", "It depends on n, since the loop's cost grows as n²", "About 1.05×, since the loop is only 5% of the time", "About 20×, as the loop was the only O(n²) code"]
-  answer: 2
+  options: ["About 1.05×, since the loop is only 5% of the time", "It depends on n, since the loop's cost grows as n²", "About 20×, as the loop was the only O(n²) code", "About 2×, because quadratic to linear is a big win"]
+  answer: 0
   explanation: >-
     The loop is 10 of 200 ms. Even at infinite speed-up of that part, the total drops to 190 ms: a 1.05× improvement, whatever n is today. The database call is where the time is. Profile first, then apply Amdahl's law to decide what is worth optimising.
 - q: >-
     Which benchmark defect makes an optimising compiler report that a computation takes almost zero time?
-  options: ["Not warming up the JIT before timing the loop", "Running on a laptop that throttles its clock speed", "Reporting the mean of the runs rather than the minimum", "Ignoring the result, so the compiler deletes the work"]
-  answer: 3
+  options: ["Ignoring the result, so the compiler deletes the work", "Running on a laptop that throttles its clock speed", "Not warming up the JIT before timing the loop", "Reporting the mean of the runs rather than the minimum"]
+  answer: 0
   explanation: >-
     If the result is unobservable, the compiler is entitled to remove the work that produced it (dead-code elimination). Passing the result through a black-box function or accumulating a checksum keeps the computation alive. Skipping warm-up makes timings too slow, not too fast, and the other defects add noise or bias but do not make work vanish.
 - q: >-
     Why do production sorting routines such as Timsort and pdqsort switch to insertion sort for short runs?
-  options: ["Its small constant wins below roughly 16–64 elements", "Short runs in real data are almost always pre-sorted", "Insertion sort becomes O(n log n) on short inputs", "It uses less memory, and memory bounds sorting speed"]
-  answer: 0
+  options: ["It uses less memory, and memory bounds sorting speed", "Short runs in real data are almost always pre-sorted", "Insertion sort becomes O(n log n) on short inputs", "Its small constant wins below roughly 16–64 elements"]
+  answer: 3
   explanation: >-
     The crossover is empirical: at small n the recursive sorts pay for calls, buffers and scattered writes that insertion sort avoids (it works on adjacent memory with few mispredictions). Its growth class stays O(n²); the constant factor decides at small n. Memory savings are real but not the reason, and short runs are not assumed sorted.
 ```

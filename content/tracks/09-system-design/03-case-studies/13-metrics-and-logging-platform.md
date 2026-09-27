@@ -255,26 +255,26 @@ Measure it per team and per log line pattern first; logging cost is always conce
     Series count is the product of label cardinalities, so a new label multiplies rather than adds. Ingester memory, index size and query cost all scale with distinct series. The tempting "adds 50,000" answer is the mistake that causes cardinality outages.
 - q: >-
     Thirty pods each report their own p99 latency. Which approach gives a correct fleet-wide p99?
-  options: ["Average the 30 per-pod p99 values, weighted by traffic", "Sum the pods' histogram buckets, then take the quantile", "Take the median of the 30 p99 values to damp outliers", "Take the maximum of the 30 p99 values as the fleet p99"]
-  answer: 1
+  options: ["Average the 30 per-pod p99 values, weighted by traffic", "Take the maximum of the 30 p99 values as the fleet p99", "Take the median of the 30 p99 values to damp outliers", "Sum the pods' histogram buckets, then take the quantile"]
+  answer: 3
   explanation: >-
     Quantiles are not additive; the mean (weighted or not) or median of per-pod p99s is not a p99 of anything. Histograms (or mergeable sketches) can be summed across pods and the quantile computed from the merged distribution. The maximum is an upper-bound heuristic, not the fleet p99.
 - q: >-
     Why does the design make alert evaluation read only from the in-memory ingesters rather than from object storage?
-  options: ["Alerts use recent windows, so paging survives a history outage", "Ingesters hold more complete data than the object store does", "Reading from memory is cheaper per query than object storage", "Object storage cannot hold time-series data in a queryable form"]
+  options: ["Alerts use recent windows, so paging survives a history outage", "Object storage cannot hold time-series data in a queryable form", "Reading from memory is cheaper per query than object storage", "Ingesters hold more complete data than the object store does"]
   answer: 0
   explanation: >-
     Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. Designing the most critical path to have the fewest dependencies is the point; per-query cost is a side effect, not the reason.
 - q: >-
     Logs are stored as compressed chunks indexed only by labels. Which query becomes cheap once each chunk carries a Bloom filter of trace IDs?
-  options: ["Count all error lines across every service for a month", "Full-text search for any word in any log line this week", "Find all lines for one trace_id across services in a day", "Compute p99 latency from the duration field in log lines"]
-  answer: 2
+  options: ["Compute p99 latency from the duration field in log lines", "Count all error lines across every service for a month", "Full-text search for any word in any log line this week", "Find all lines for one trace_id across services in a day"]
+  answer: 3
   explanation: >-
     A Bloom filter answers "definitely not here" for most chunks, so the querier fetches only chunks that might contain that trace ID, plus about 1% false positives. It does nothing for aggregate scans or arbitrary words that were not put in the filter.
 - q: >-
     The 1-minute rollup tier for 13 months is about 110 TB while raw 15-day data is about 2.6 TB. What is the design consequence?
-  options: ["Drop rollups and keep raw data for 13 months instead", "Shard the rollups across a larger fleet of replicated SSD nodes", "Move old blocks to object storage and downsample further", "Compress the rollups with gzip before writing to SSD"]
-  answer: 2
+  options: ["Compress the rollups with gzip before writing to SSD", "Move old blocks to object storage and downsample further", "Drop rollups and keep raw data for 13 months instead", "Shard the rollups across a larger fleet of replicated SSD nodes"]
+  answer: 1
   explanation: >-
     The long-term tier dominates storage, so its cost per GB decides the design: replicated SSD for that tier would cost roughly ten times more. Object storage provides durability without triple replication at a fraction of the SSD price, and 5-minute rollups for older ranges shrink it further. Keeping raw data for 13 months would be larger still.
 ```

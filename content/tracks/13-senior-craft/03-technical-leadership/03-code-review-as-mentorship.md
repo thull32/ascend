@@ -160,31 +160,31 @@ Mentorship extends beyond review, of course: regular one-to-ones, stretch assign
 ```quiz
 - q: >-
     You open a 700-line pull request and immediately see a fundamental problem with the approach. What should you do first?
-  options: ["Rewrite it yourself on a branch, since explaining the problem would take longer", "Post the design concern alone first, so the author does not polish doomed code", "Comment on every line first, then raise the approach once the details are fixed", "Approve it to keep things moving and open a follow-up ticket for the design"]
-  answer: 1
+  options: ["Rewrite it yourself on a branch, since explaining the problem would take longer", "Approve it to keep things moving and open a follow-up ticket for the design", "Comment on every line first, then raise the approach once the details are fixed", "Post the design concern alone first, so the author does not polish doomed code"]
+  answer: 3
   explanation: >-
     Design feedback determines whether the lines matter at all. Leading with line comments wastes the author's effort and buries the important point; approving defers a known problem, and rewriting it yourself removes the author's learning and ownership.
 - q: >-
     A mid-level engineer's PR introduces an early return for unknown emails in login. What makes this worth a blocking comment?
-  options: ["It changes the error message, so the client can no longer show a friendly error", "Unknown emails now answer faster than wrong passwords, so timing reveals accounts", "It adds a database query to the login path, which slows every sign-in down", "let-else is harder to read than match, and the team style guide prefers match"]
+  options: ["let-else is harder to read than match, and the team style guide prefers match", "Unknown emails now answer faster than wrong passwords, so timing reveals accounts", "It changes the error message, so the client can no longer show a friendly error", "It adds a database query to the login path, which slows every sign-in down"]
   answer: 1
   explanation: >-
     Argon2 verification is deliberately slow, so skipping it creates a measurable timing difference; the dummy-hash path in password.rs exists to equalise it. The PR adds no query and keeps the same error message, and let-else versus match is taste, which never earns a blocking label.
 - q: >-
     You have left the same "use the shared retry helper" comment on five pull requests this month. What is the senior move?
-  options: ["Keep leaving it on every PR, because repetition is how a team learns rules", "Stop reviewing that team's code, since they are clearly not reading comments", "Block every PR that misses it until the team stops making the mistake", "Encode it in a lint rule, template or review guide so tooling catches it"]
+  options: ["Block every PR that misses it until the team stops making the mistake", "Stop reviewing that team's code, since they are clearly not reading comments", "Keep leaving it on every PR, because repetition is how a team learns rules", "Encode it in a lint rule, template or review guide so tooling catches it"]
   answer: 3
   explanation: >-
     Repeated comments are a signal that a rule belongs in automation or documentation. That frees review for problems only humans can spot, instead of turning it into a toll booth for a rule a machine could check.
 - q: >-
     A junior engineer's PR has a subtle race condition in a non-urgent background job. Which comment teaches best?
-  options: ["\"blocking: this is racy; add a lock around the job pickup before merge.\"", "Push a fix to their branch yourself, so the race never reaches main", "Approve now and quietly fix the race yourself in a later pull request", "\"question: what happens if two workers pick up the same job at once?\""]
-  answer: 3
+  options: ["\"blocking: this is racy; add a lock around the job pickup before merge.\"", "\"question: what happens if two workers pick up the same job at once?\"", "Approve now and quietly fix the race yourself in a later pull request", "Push a fix to their branch yourself, so the race never reaches main"]
+  answer: 1
   explanation: >-
     For a non-urgent issue, a leading question lets the author find the race and remember it. Stating the fix is right for urgent or security problems, but here it skips the learning; pushing a fix or quietly fixing it later removes both the learning and the author's ownership.
 - q: >-
     One senior engineer performs about 60% of a team's code reviews and is praised for their thoroughness. What is the concern?
-  options: ["Thorough reviews are wasted on routine changes, so they should review less deeply", "None; thorough reviews are always good, whoever happens to be doing them", "Seniors should not review code at all, because their time is better spent on design work", "They are a bottleneck and single point of failure, and review skill is not spreading"]
+  options: ["Seniors should not review code at all, because their time is better spent on design work", "None; thorough reviews are always good, whoever happens to be doing them", "Thorough reviews are wasted on routine changes, so they should review less deeply", "They are a bottleneck and single point of failure, and review skill is not spreading"]
   answer: 3
   explanation: >-
     Concentrated review delays everyone when that person is busy or away and keeps others from learning to review. The depth of the reviews is not the problem; leverage means making the team capable of good review, with rotation and written guidance, not doing it all personally.

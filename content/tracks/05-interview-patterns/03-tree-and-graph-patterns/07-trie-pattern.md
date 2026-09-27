@@ -364,32 +364,32 @@ hints:
 ```quiz
 - q: >-
     After insert("apple") only, a trie's search("app") returns true. What is the bug?
-  options: ["insert skipped creating the node for the second p", "search walks one letter too few before checking", "The trie compares letters case-sensitively by default", "search checks that the node exists, not its end flag"]
-  answer: 3
+  options: ["The trie compares letters case-sensitively by default", "search walks one letter too few before checking", "search checks that the node exists, not its end flag", "insert skipped creating the node for the second p"]
+  answer: 2
   explanation: >-
     Every prefix of a stored word has a node, so app is reachable even though it is not a stored word. Only the final node of each inserted word carries the end flag, and search must test it. starts_with is the operation that ignores the flag.
 - q: >-
     In Design Add and Search Words, search(".a") after adding bad, dad and mad returns:
-  options: ["An error, because . may only appear as the last character", "true, because three words match the first two letters", "true only if the words were inserted in sorted order", "false, since it ends on nodes whose end flag is unset"]
+  options: ["true only if the words were inserted in sorted order", "An error, because . may only appear as the last character", "true, because three words match the first two letters", "false, since it ends on nodes whose end flag is unset"]
   answer: 3
   explanation: >-
     The wildcard branches to b, d and m; each has an a child, but the pattern is exhausted there and those nodes are not word ends. The end-of-pattern base case must return node.end, not true.
 - q: >-
     Word Search II with 5,000 words on a 12 x 12 board. Compared with running single-word Word Search per word, what does the trie change?
-  options: ["It mainly reduces memory compared with a word list", "It speeds up each individual word search by a constant", "One DFS per cell advances through all words at once", "It removes the need to mark cells visited during DFS"]
-  answer: 2
+  options: ["One DFS per cell advances through all words at once", "It mainly reduces memory compared with a word list", "It removes the need to mark cells visited during DFS", "It speeds up each individual word search by a constant"]
+  answer: 0
   explanation: >-
     Carrying a trie node through the DFS means every step is a single child lookup that either continues (some word has this prefix) or stops, abandoning the path as soon as no word continues. That removes the factor of W: the 5,000 separate searches would each re-explore the same board paths. Visited marking is still needed.
 - q: >-
     Why does storing the whole word at its end node, and clearing it once found, matter in Word Search II?
-  options: ["It makes each lookup O(1) regardless of word length", "It skips rebuilding strings and stops duplicate reports", "It is purely stylistic and changes nothing measurable", "It turns the trie into a hash set of the found words"]
-  answer: 1
+  options: ["It turns the trie into a hash set of the found words", "It makes each lookup O(1) regardless of word length", "It is purely stylistic and changes nothing measurable", "It skips rebuilding strings and stops duplicate reports"]
+  answer: 3
   explanation: >-
     Storing the word avoids rebuilding it from the path, and clearing it prevents reporting the same word twice when it is reachable from different start cells; deleting dead leaves afterwards also shrinks the trie so later branches stop sooner. Together these turn a solution that times out on the large tests into one that passes, and duplicate reporting is also a correctness issue when the expected output is a set.
 - q: >-
     A candidate is asked whether a pattern occurs anywhere inside a long text and proposes a trie of the text's prefixes. What is wrong?
-  options: ["Nothing, since a trie of prefixes indexes every substring", "Tries index prefixes; substrings need suffixes or KMP", "Tries only work when the text is lowercase letters", "The text is too long to fit in a trie's hash maps"]
-  answer: 1
+  options: ["Nothing, since a trie of prefixes indexes every substring", "The text is too long to fit in a trie's hash maps", "Tries index prefixes; substrings need suffixes or KMP", "Tries only work when the text is lowercase letters"]
+  answer: 2
   explanation: >-
     Prefix structures answer starts-with questions. A substring is a prefix of some suffix, so substring search needs either every suffix indexed (suffix tree or array) or a linear-time matcher such as KMP or a rolling hash. Recognising the boundary of the pattern is the senior skill.
 ```

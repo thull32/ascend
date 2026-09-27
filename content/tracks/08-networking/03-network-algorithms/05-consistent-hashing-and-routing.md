@@ -294,38 +294,38 @@ hints:
 ```quiz
 - q: >-
     A cache tier grows from 10 to 11 servers and clients use hash(key) % N. Roughly what fraction of keys now map to a different server?
-  options: ["About 9%", "About 50%", "About 91%", "About 0%"]
-  answer: 2
+  options: ["About 0%", "About 50%", "About 9%", "About 91%"]
+  answer: 3
   explanation: >-
     A key keeps its server only when h mod 10 equals h mod 11, which holds for 1 value in 11, however good the hash is. So about 10/11 ≈ 91% of keys move and the hit rate collapses. A consistent hash moves only about 1/11 ≈ 9%, all onto the new server.
 - q: >-
     A ring with one point per node loses a node. What happens to that node's keys, and why do virtual nodes help?
-  options: ["They spread evenly; vnodes only speed up lookups", "They go to the node that currently holds the fewest keys", "They are lost until the failed node comes back", "One successor gets them all; vnodes spread the arcs"]
+  options: ["They are lost until the failed node comes back", "They spread evenly; vnodes only speed up lookups", "They go to the node that currently holds the fewest keys", "One successor gets them all; vnodes spread the arcs"]
   answer: 3
   explanation: >-
     Each arc is inherited by the next point clockwise. With one point per node that is a single successor, whose load doubles and which can overload and cascade. With V points per node the failed node's many small arcs have V different successors, so its load spreads across the cluster.
 - q: >-
     With 100 virtual nodes per server placed at random, how close to the average load does a server typically stay, and what would get you to about 3%?
-  options: ["Within about 10%; roughly 1,000 vnodes per server", "Within about 1%, so nothing further is needed", "Exactly average, since vnodes guarantee balance", "Within about 50%; switch the whole tier to mod N"]
-  answer: 0
+  options: ["Within about 1%, so nothing further is needed", "Exactly average, since vnodes guarantee balance", "Within about 50%; switch the whole tier to mod N", "Within about 10%; roughly 1,000 vnodes per server"]
+  answer: 3
   explanation: >-
     A server's share is a sum of V random arcs, so its relative spread shrinks like 1/sqrt(V): about 10% for V = 100 and about 3% for V = 1,000. Getting exact balance needs deliberate placement (token allocation, Maglev tables or fixed slots), not more randomness.
 - q: >-
     Using rendezvous hashing across 8 nodes, one node is removed. Where do its keys go?
-  options: ["All to the node with the next-highest name", "Each to its runner-up, spread across all 7", "To a randomly chosen survivor on each request", "They are rehashed across the rest with mod 7"]
-  answer: 1
+  options: ["All to the node with the next-highest name", "To a randomly chosen survivor on each request", "They are rehashed across the rest with mod 7", "Each to its runner-up, spread across all 7"]
+  answer: 3
   explanation: >-
     Every key has a full ranking of nodes by score. Removing the winner promotes the runner-up (second-highest score) for that key, and runners-up are independent across keys, so the load spreads evenly across all 7 survivors without virtual nodes. Keys owned by other nodes do not move at all.
 - q: >-
     A consistent-hash load balancer keeps sending one viral video's requests to a single, overloaded cache node. Which change actually helps?
-  options: ["Add more virtual nodes per server to the ring", "Widen the hash output from 32 to 64 bits", "Replicate the hot key and spread its reads", "Switch from the ring to rendezvous hashing instead"]
-  answer: 2
+  options: ["Add more virtual nodes per server to the ring", "Widen the hash output from 32 to 64 bits", "Switch from the ring to rendezvous hashing instead", "Replicate the hot key and spread its reads"]
+  answer: 3
   explanation: >-
     Every consistent-hashing scheme maps one key to one owner by design, so no amount of better hashing, more virtual nodes or a different scheme splits a single hot key. Replicating it to several nodes and spreading its reads, key splitting, request coalescing or a small cache in front address traffic skew; bounded-load hashing can also overflow requests to the next node.
 - q: >-
     What does consistent hashing with bounded loads (capacity factor 1.25) trade away to guarantee that no node exceeds 125% of the average load?
-  options: ["Simplicity, as each request needs a central coordinator", "Determinism, since requests are assigned at random", "Some locality, since overflow goes to the next node", "Nothing, since it is strictly better than plain hashing"]
-  answer: 2
+  options: ["Some locality, since overflow goes to the next node", "Simplicity, as each request needs a central coordinator", "Nothing, since it is strictly better than plain hashing", "Determinism, since requests are assigned at random"]
+  answer: 0
   explanation: >-
     The owner is still found on the ring, but a node at capacity is skipped and the request walks clockwise to the next node with room. Those overflow requests lose their cache affinity; in exchange the maximum load is capped. Routing stays deterministic and needs no coordinator.
 ```

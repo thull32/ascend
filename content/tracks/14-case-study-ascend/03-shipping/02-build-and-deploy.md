@@ -353,31 +353,31 @@ hints:
 ```quiz
 - q: >-
     Which change causes the cargo chef cook layer to rebuild all dependencies?
-  options: ["Adding a crate to Cargo.toml, which changes the dependency recipe", "Editing a lesson in content/, which the binary embeds when it compiles", "Changing a React component, which changes the SPA embedded in the binary", "Editing a Rust source file in crates/api, such as a route handler"]
+  options: ["Adding a crate to Cargo.toml, which changes the dependency recipe", "Changing a React component, which changes the SPA embedded in the binary", "Editing a lesson in content/, which the binary embeds when it compiles", "Editing a Rust source file in crates/api, such as a route handler"]
   answer: 0
   explanation: >-
     The cook layer's only input is recipe.json, derived from the manifests and the lockfile. Source, content and SPA changes invalidate only the later layers that compile the workspace crates, which is why a content-only deploy takes about a minute.
 - q: >-
     Railway now waits for CI, and CI validates content strictly. Why does the Dockerfile still run --check-content?
-  options: ["The Docker step also executes every problem's reference solution", "It is redundant now, and it stays only because nobody has got round to removing it", "It checks the exact content embedded in this binary, on the path that builds it", "CI validates content in lenient mode, so only the Docker check is strict"]
+  options: ["The Docker step also executes every problem's reference solution", "CI validates content in lenient mode, so only the Docker check is strict", "It checks the exact content embedded in this binary, on the path that builds it", "It is redundant now, and it stays only because nobody has got round to removing it"]
   answer: 2
   explanation: >-
     Validation belongs on the path that produces the artifact: the Docker check runs the freshly built binary against the curriculum compiled into it, not a checkout that might differ, and it holds even if a deploy ever bypasses CI. CI's validate_content step is strict too, and reference solutions are executed by a separate CI job.
 - q: >-
     A release renames a column in its migration. The new version passes readiness, then starts returning errors, and you roll back to the previous deployment. What happens?
-  options: ["The rollback restores the old schema automatically before starting", "Railway refuses to roll back any deployment whose migration succeeded", "The old binary starts but then fails on every query that uses the old column name", "Nothing, because SeaORM maps the old and new column names to each other"]
+  options: ["Nothing, because SeaORM maps the old and new column names to each other", "Railway refuses to roll back any deployment whose migration succeeded", "The old binary starts but then fails on every query that uses the old column name", "The rollback restores the old schema automatically before starting"]
   answer: 2
   explanation: >-
     Migrations ran forward on boot and nothing runs them backward, so rollback redeploys code, not schema. Rollback safety requires expand and contract: add the new column in one release, move reads and writes, and remove the old one in a later release.
 - q: >-
     The rate limiter originally used the first X-Forwarded-For entry as the client IP. What could an attacker do?
-  options: ["Send a new fake address each time and get a fresh bucket every time", "Bypass the CSRF check by claiming the site's own origin in that same header", "Only slow down their own requests, since the limiter keys on them", "Nothing, because Railway strips the header before the app sees it"]
+  options: ["Send a new fake address each time and get a fresh bucket every time", "Only slow down their own requests, since the limiter keys on them", "Nothing, because Railway strips the header before the app sees it", "Bypass the CSRF check by claiming the site's own origin in that same header"]
   answer: 0
   explanation: >-
     Proxies append to X-Forwarded-For, so its first entry is client-supplied. Keying a limiter on it lets the client choose its own key, which made every IP-keyed limit, login included, meaningless. Trusting only a header the edge overwrites, configured explicitly, fixes it.
 - q: >-
     Readiness returns 200 when SELECT 1 succeeds. Which bad deploy does it let through?
-  options: ["A container that cannot reach Postgres over the network", "A deploy whose ANTHROPIC_API_KEY has been revoked", "A binary that panics during boot before it binds its port", "A migration that fails part-way through and exits the process"]
+  options: ["A migration that fails part-way through and exits the process", "A deploy whose ANTHROPIC_API_KEY has been revoked", "A container that cannot reach Postgres over the network", "A binary that panics during boot before it binds its port"]
   answer: 1
   explanation: >-
     A failing migration or a boot panic never binds the port, and an unreachable database makes readyz return 503. The ai field only says a key is configured, not that it works, so a revoked key goes live; a boot-time probe would catch it without calling a paid API on every health poll.

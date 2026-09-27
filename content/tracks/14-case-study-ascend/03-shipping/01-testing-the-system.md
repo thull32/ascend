@@ -14,8 +14,8 @@ This lesson reads the portfolio as it is (`crates/api/tests/api.rs`, the Rust un
 
 | Layer | Where | What it proves | Runs in CI |
 |---|---|---|---|
-| Rust unit tests | `#[test]` in `crates/core` | Pure logic: role collapsing, streaks, password and token helpers, quiz answer stripping, the embedded curriculum loads | Yes |
-| API integration | `crates/api/tests/api.rs` (20 tests) | The production router, every middleware layer, real PostgreSQL | Yes, with a Postgres service |
+| Rust unit tests | `#[test]` in `crates/core` and `crates/api/src` | Pure logic: role collapsing, streaks, the history window, heading ids, password and token helpers, quiz validation, CSRF decisions, error mapping, the embedded curriculum loads; plus the AI client against a one-shot local server | Yes |
+| API integration | `crates/api/tests/api.rs` (22 tests) | The production router, every middleware layer, real PostgreSQL | Yes, with a Postgres service |
 | Content validation | `validate_content` example; `ascend-api --check-content` in the Docker build | Typed front matter, block syntax, every cross-reference | Yes, strict |
 | Problem validation | `scripts/validate_problems.py` | Every reference solution passes every one of its tests | Yes |
 | Web unit | Vitest: family tests beside the viz families, `viz/content.test.ts`, `lib/markdown.test.ts` | Generators produce valid, pure, independent frames; every curriculum animation renders; currency and maths parse | Yes |
@@ -76,9 +76,9 @@ let n: i64 = rows[0].try_get("", "n").unwrap();
 assert_eq!(n, 0, "raw session token found in the database");
 ```
 
-A mock would assert what you believe the database does. The real one asserts what it does. The tests read like a security checklist: cookies are `HttpOnly` and `SameSite=Lax`; wrong-password and unknown-email login responses are byte-identical; a mutating request without `X-Requested-With`, or with a foreign `Origin`, gets 403; lesson payloads contain no quiz answers or explanations; an `If-None-Match` with the lesson's ETag gets 304; submissions with a test count that does not match the problem are rejected; AI endpoints return `ai_disabled` when no key is configured. The newest ones are races, which is the part worth copying: 30 budget reservations against a limit of 10, four registrations for one email, five interview starts for one learner, each fired concurrently (as spawned tasks or with `futures::future::join_all`) and each asserting the invariant rather than a particular winner. A concurrency fix that arrives without the concurrent test that would have caught it is a claim, not a fix.
+A mock would assert what you believe the database does. The real one asserts what it does. The tests read like a security checklist: cookies are `HttpOnly` and `SameSite=Lax`; wrong-password and unknown-email login responses are byte-identical; a mutating request without `X-Requested-With`, or with a foreign `Origin`, gets 403; lesson payloads contain no quiz answers or explanations; an `If-None-Match` with the lesson's ETag gets 304; submissions with a test count that does not match the problem are rejected; AI endpoints return `ai_disabled` when no key is configured. The newest ones are races, which is the part worth copying: 30 budget reservations against a limit of 10, four registrations for one email, five interview starts for one learner, twenty transcript appends to one interview and two racing finishes, each fired concurrently (as spawned tasks or with `futures::future::join_all`) and each asserting the invariant rather than a particular winner. A concurrency fix that arrives without the concurrent test that would have caught it is a claim, not a fix.
 
-Two honest caveats, one of them now closed. When `TEST_DATABASE_URL` is unset the tests print a notice and *pass*, so `cargo test` works offline. That used to be as true in CI as on a laptop, so a misconfigured job would have reported green having tested nothing. The code-review commit added the `assert!` you can see above: offline runs may still skip, but with `CI` set a missing database fails the run. A skip that is silent everywhere is a false green waiting to happen; a skip that is loud where it matters is a convenience. The other caveat stands: the AI streaming path has no integration test at all. The test config sets no API key and points the AI base URL at `127.0.0.1:9`, so the AI assertions cover graceful degradation, the solo-interview lock and the per-session limiter in front of model calls, never a stream. The most intricate code in the backend (the tracked persistence task, budget settlement, the error event path) is covered only by the live, opt-in browser suite.
+Two honest caveats, one of them now closed. When `TEST_DATABASE_URL` is unset the tests print a notice and *pass*, so `cargo test` works offline. That used to be as true in CI as on a laptop, so a misconfigured job would have reported green having tested nothing. The code-review commit added the `assert!` you can see above: offline runs may still skip, but with `CI` set a missing database fails the run. A skip that is silent everywhere is a false green waiting to happen; a skip that is loud where it matters is a convenience. The other caveat has narrowed but stands. The API test config sets no API key and points the AI base URL at `127.0.0.1:9`, so the integration tests cover graceful degradation, the solo-interview lock, the budget and the per-session limiter in front of model calls, never a stream through a route. The client itself is now tested against a real socket: two unit tests in `ai/anthropic.rs` start a one-shot local HTTP server that replays a canned response, one a stream ending in a provider `error` event, one a 429, and check what reaches the caller. That is the stub-server idea at the smallest useful scale, and it is how the error-text fix was proven. The route-level code around it (the tracked persistence task, budget settlement after a disconnect, the SSE error event reaching the browser) is still covered only by the live, opt-in browser suite.
 
 ## Validators that execute content
 
@@ -200,14 +200,13 @@ Look closely at *what* it tests, though: `./target/debug/ascend-api`, a debug bu
 
 In priority order, with the failure each one would catch:
 
-1. **A stub Anthropic server** (a tiny local HTTP server that replays recorded SSE) for API tests of the streaming path: a disconnect mid-stream still persists the reply and records usage; an upstream `error` event reaches the browser; a truncated stream still settles; shutdown waits for a stream in flight.
-2. **A transcript race test**: interleave an interviewer append and an assistant append and assert no entry is lost. The SQL append fixed the bug; nothing proves it.
-3. **A cross-language harness conformance corpus** run by the TypeScript harness, the Pyodide harness and `validate_problems.py`. The float drift between them was fixed by hand, and half-way rounding still differs.
-4. **Stronger assertions in the content scan**: `content.test.ts` already runs every `viz` block on its real input; adding the `undefined`/`NaN`, purity and snapshot-independence checks would give every embedded animation the protection the first system pack has.
-5. **Unit tests for the SSE parser and the runner's time budget**, the two pieces of frontend logic with sharp edge cases and no tests.
-6. **Smoke against the built image, and the crawl on a schedule**, so the artifact that ships is the artifact that was tested, and table-of-contents links are checked more often than by hand.
+1. **The stub server, promoted to the API tests.** The one-shot server in the client's unit tests, pointed at by the integration config's AI base URL, would let the API tests drive a real stream through the routes: a disconnect mid-stream still persists the reply and records usage; a truncated stream still settles; shutdown waits for a stream in flight.
+2. **A cross-language harness conformance corpus** run by the TypeScript harness, the Pyodide harness and `validate_problems.py`. The float drift between them was fixed by hand, and half-way rounding still differs.
+3. **Stronger assertions in the content scan**: `content.test.ts` already runs every `viz` block on its real input; adding the `undefined`/`NaN`, purity and snapshot-independence checks would give every embedded animation the protection the first system pack has.
+4. **Unit tests for the SSE parser and the runner's time budget**, the two pieces of frontend logic with sharp edge cases and no tests.
+5. **Smoke against the built image, and the crawl on a schedule**, so the artifact that ships is the artifact that was tested, and table-of-contents links are checked more often than by hand.
 
-Two items have dropped off this list since it was first written, and they show what "done" looks like: a concurrent test for the budget (`ai_budget_reservation_cannot_be_overshot_by_concurrency`) and Playwright in CI. Notice what the remaining items have in common: each targets a seam (process and network, two languages, content and code, concurrent requests) rather than a function. The pure functions in this codebase are few and simple; the bugs live between things.
+Three items have dropped off this list since it was first written, and they show what "done" looks like: a concurrent test for the budget (`ai_budget_reservation_cannot_be_overshot_by_concurrency`), a concurrent test for the transcript (`transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries`), and Playwright in CI. The first item has started to move too: the stub server exists, one layer down. Notice what the remaining items have in common: each targets a seam (process and network, two languages, content and code, concurrent requests) rather than a function. The pure functions in this codebase are few and simple; the bugs live between things.
 
 ## Exercise
 
@@ -286,19 +285,19 @@ hints:
 ```quiz
 - q: >-
     Why do Ascend's API tests run against a real PostgreSQL rather than a mocked repository layer?
-  options: ["SeaORM's entities cannot be mocked, so a real database is the only option available", "GitHub Actions offers no way to run tests without a Postgres service container", "Mocked repositories are slower than a local Postgres once many tests run in parallel", "The behaviours worth testing are database semantics that a mock would only restate"]
-  answer: 3
+  options: ["SeaORM's entities cannot be mocked, so a real database is the only option available", "The behaviours worth testing are database semantics that a mock would only restate", "Mocked repositories are slower than a local Postgres once many tests run in parallel", "GitHub Actions offers no way to run tests without a Postgres service container"]
+  answer: 1
   explanation: >-
     ON CONFLICT upserts, partial unique indexes, cascades and what actually lands in a column are properties of Postgres. A mock encodes your belief about the database; a real one checks it. The session test that queries sessions for the raw token is a good example: no mock could prove the raw token never reaches the table.
 - q: >-
     A reference solution's grow loop allocates a larger array on every pass and never terminates. The validator sets RLIMIT_AS to 2 GiB and a 10-second alarm per test. Which limit stops it, and how?
-  options: ["RLIMIT_AS: the oversized allocation fails inside the process as a MemoryError", "Neither; only the kernel's OOM killer can stop a runaway allocation", "sys.setrecursionlimit, which caps how deep the growth loop can go", "The alarm, which interrupts the loop after ten seconds of wall-clock time"]
-  answer: 0
+  options: ["The alarm, which interrupts the loop after ten seconds of wall-clock time", "RLIMIT_AS: the oversized allocation fails inside the process as a MemoryError", "sys.setrecursionlimit, which caps how deep the growth loop can go", "Neither; only the kernel's OOM killer can stop a runaway allocation"]
+  answer: 1
   explanation: >-
     A doubling allocation reaches gigabytes in milliseconds, so the alarm is far too late. The address-space limit turns the allocation into an exception in the offending process instead of letting the OOM killer pick a victim. The alarm is for loops that spin without allocating, and the loop here is not recursive.
 - q: >-
     Twenty validators run in parallel, each with RLIMIT_AS of 2 GiB, on a machine with 16 GiB of RAM. Is the machine safe?
-  options: ["Yes: the kernel shares memory pages between the Python processes anyway", "No: limits do not compose; bound the job with a cgroup or a queue", "No: RLIMIT_AS has no effect on a process that is running Python code", "Yes: each process is individually limited, so the total is bounded too"]
+  options: ["Yes: each process is individually limited, so the total is bounded too", "No: limits do not compose; bound the job with a cgroup or a queue", "Yes: the kernel shares memory pages between the Python processes anyway", "No: RLIMIT_AS has no effect on a process that is running Python code"]
   answer: 1
   explanation: >-
     RLIMIT_AS bounds one address space, so twenty of them may still demand 40 GiB together. The fix at the machine level is to bound the job, which is why the authoring rules say to run one validation process at a time and to use safe_py.sh for anything ad hoc. RLIMIT_AS works fine under Python; that is how MemoryError arises.
@@ -310,8 +309,8 @@ hints:
     An unquoted colon followed by a space makes a mapping. It is valid YAML, just not the shape you meant, so only a loader that knows the expected type can reject it: hints is Vec<String> in Rust. The problem validator also checks for it explicitly and tells the author to quote the hint.
 - q: >-
     The live AI Playwright suite costs tokens and is not run in CI. What is the best way to keep its value?
-  options: ["Schedule it with a small budget, and put a stub-server stream test in CI", "Run it on every push with retries enabled, so that flaky failures stay quiet", "Delete it, because a model's output is nondeterministic and cannot be tested", "Make it assert the exact reply text, so that any regression is caught at once"]
-  answer: 0
+  options: ["Delete it, because a model's output is nondeterministic and cannot be tested", "Schedule it with a small budget, and put a stub-server stream test in CI", "Make it assert the exact reply text, so that any regression is caught at once", "Run it on every push with retries enabled, so that flaky failures stay quiet"]
+  answer: 1
   explanation: >-
     It found a real remount bug and the per-IP throttling of learners behind one NAT, so deleting it throws away proven value. Exact-text assertions would make it flaky, and retries would hide the flakiness. A stub server moves the deterministic part (persistence, settlement, error events) into every CI run.
 ```

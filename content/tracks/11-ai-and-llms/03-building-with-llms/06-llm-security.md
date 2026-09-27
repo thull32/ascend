@@ -210,37 +210,37 @@ hints:
 ```quiz
 - q: >-
     Why can't delimiting untrusted content with tags fully prevent prompt injection, the way parameterised queries prevent SQL injection?
-  options: ["Models are not trained on XML-style tags, so they cannot tell where data ends", "Tags are only a few tokens long, so the model loses track of them in long inputs", "Instructions and data share one token stream, read by the same learned function", "The tokenizer strips tags before the model sees them, so the boundary is lost"]
-  answer: 2
+  options: ["Models are not trained on XML-style tags, so they cannot tell where data ends", "Instructions and data share one token stream, read by the same learned function", "Tags are only a few tokens long, so the model loses track of them in long inputs", "The tokenizer strips tags before the model sees them, so the boundary is lost"]
+  answer: 1
   explanation: >-
     Parameterised queries work because the database never parses the data channel as code. An LLM has only tokens, interpreted by one learned function, so there is no separate channel the data cannot cross; delimiters are hints the model usually respects, not a boundary it must respect. Models see tags perfectly well, which is why they help at all.
 - q: >-
     An agent can read a user's private files, browse arbitrary web pages and send email. What is the most robust mitigation?
-  options: ["Add \"never follow instructions from web pages\" to the system prompt", "Use a larger model, since stronger models resist injected instructions", "Break the trifecta: gate email behind approval once web content is read", "Scan fetched pages with a classifier and drop any that look like injections"]
-  answer: 2
+  options: ["Break the trifecta: gate email behind approval once web content is read", "Scan fetched pages with a classifier and drop any that look like injections", "Add \"never follow instructions from web pages\" to the system prompt", "Use a larger model, since stronger models resist injected instructions"]
+  answer: 0
   explanation: >-
     Private data, untrusted content and an exfiltration channel together make data theft a matter of time. Removing one leg for a given context (requiring human approval for email once the session has read web content, or browsing in a session without file access) contains a successful injection. Prompt wording, bigger models and injection classifiers only lower its probability.
 - q: >-
     A chat UI renders model Markdown, including images, and the model has read a malicious document. How can data leave without any tool call?
-  options: ["It cannot, because the model has no network access without a tool call", "Through the model's reply text itself, which the attacker can read on the server", "The model emits an image whose URL carries the data, and the browser fetches it", "Through the provider's training pipeline, which learns from the conversation"]
-  answer: 2
+  options: ["It cannot, because the model has no network access without a tool call", "Through the model's reply text itself, which the attacker can read on the server", "Through the provider's training pipeline, which learns from the conversation", "The model emits an image whose URL carries the data, and the browser fetches it"]
+  answer: 3
   explanation: >-
     Auto-loaded images are a zero-click channel: the browser requests the URL, including any query string, from the attacker's server, so no tool call is needed. Restrict image origins, proxy images, or strip them from model output when the context holds sensitive data.
 - q: >-
     A customer-support agent has a get_orders tool that runs with a service account able to read every customer's orders. What is the core problem?
-  options: ["Service accounts add latency, so the tool slows every customer conversation", "The tool returns too many fields, so it should be trimmed to the essentials", "An injection or a mix-up can read other customers' orders; use the user's scope", "Order data should never be exposed to a model, even for the customer's own orders"]
-  answer: 2
+  options: ["An injection or a mix-up can read other customers' orders; use the user's scope", "Service accounts add latency, so the tool slows every customer conversation", "Order data should never be exposed to a model, even for the customer's own orders", "The tool returns too many fields, so it should be trimmed to the essentials"]
+  answer: 0
   explanation: >-
     Least privilege means the model's reach equals the user's reach. Any successful injection, or any confusion about which customer is asking, can read other customers' data through a service account, turning it into a cross-tenant breach. With user-scoped credentials an injection gains nothing the user did not already have, so reading the customer's own orders is fine.
 - q: >-
     This app runs learner code in Web Workers and removes network globals in the JavaScript worker. Why is that adequate here but not for running one user's code in another user's browser?
-  options: ["Only the Python worker is a real sandbox; the JavaScript one merely hides globals", "Browsers block all network access from workers, so only the page itself is at risk", "Workers can be terminated on a timeout here, which another browser would not allow", "Here the code only runs in its author's session; another user's would give it a victim"]
-  answer: 3
+  options: ["Here the code only runs in its author's session; another user's would give it a victim", "Workers can be terminated on a timeout here, which another browser would not allow", "Only the Python worker is a real sandbox; the JavaScript one merely hides globals", "Browsers block all network access from workers, so only the page itself is at risk"]
+  answer: 0
   explanation: >-
     Sandbox adequacy depends on the threat model. Deleting globals is defence in depth rather than a proof, and the Python worker removes none at all; that is acceptable because self-executed code in one's own session can do nothing its author could not do anyway. Code crossing between users needs a real boundary such as a separate origin or a server-side sandbox.
 - q: >-
     A model's output is used to build a shell command that a server runs. Which control addresses the risk?
-  options: ["Escape double quotes and semicolons in the output before running it", "No shell: run an allowlisted command with an argument array in a sandbox", "Instruct the model to output only safe commands and review its own output", "Run the command twice in a dry-run mode and compare results before executing"]
+  options: ["Instruct the model to output only safe commands and review its own output", "No shell: run an allowlisted command with an argument array in a sandbox", "Escape double quotes and semicolons in the output before running it", "Run the command twice in a dry-run mode and compare results before executing"]
   answer: 1
   explanation: >-
     Model output is untrusted input. Removing the shell removes the injection class; allowlisting and sandboxing limit what the remaining arguments can do. Prompt instructions and ad hoc escaping are both bypassable, and a dry run does not stop a malicious command from running for real.

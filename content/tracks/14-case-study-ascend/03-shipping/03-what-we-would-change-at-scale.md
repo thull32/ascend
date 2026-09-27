@@ -17,7 +17,7 @@ This lesson is the design review of the codebase you have been reading. It assum
 | App servers | 1 replica, stateless except the rate limiter | `.railway/railway.ts`, `middleware/rate_limit.rs` |
 | Database | One Postgres, 50 GB volume, 20-connection pool per replica | `railway.ts`, `state.rs` |
 | Hot reads (curriculum, lessons, problems) | From memory, never touch Postgres | `content/` loader, ETags |
-| AI | `claude-opus-5-5`; per user per UTC day, 150 requests, 120,000 output tokens and 2,000,000 uncached input tokens (a default); 20 model calls per minute per session | `railway.ts`, `config.rs`, `ai/budget.rs` |
+| AI | `claude-opus-5-5`; per user per UTC day, 150 requests, 120,000 output tokens and 2,000,000 billed input tokens (a default; cache writes count 1.25x, reads 0.1x); 20 model calls per minute per session | `railway.ts`, `config.rs`, `ai/budget.rs` |
 | Code execution | In the learner's browser, results self-reported | ADR 0003 |
 | Observability | JSON logs with request IDs, one line per request; volume alerts | `telemetry.rs`, `railway.ts` |
 | Deploys | Push to `main`, build on Railway once CI passes, readiness-gated | `railway.ts` |
@@ -50,13 +50,17 @@ ADR 0004 says: "The worst-case daily cost is bounded by (active users) x (daily 
 
 $$\min(150 \times M,\; 120{,}000 - 1 + M)$$
 
-where $M$ is the call's `max_tokens`. For the coach ($M = 4{,}000$) that is 123,999 tokens, or **$2.48 per user per day** on output. If every one of 10,000 DAU did it, about $24,800 a day; at 100,000 DAU, about $248,000 a day. That is the bound the ADR describes, and the input limit bounds uncached input the same way.
+where $M$ is the call's `max_tokens`. For the coach ($M = 4{,}000$) that is 123,999 tokens, or **$2.48 per user per day** on output. If every one of 10,000 DAU did it, about $24,800 a day; at 100,000 DAU, about $248,000 a day. That is the bound the ADR describes for output, and the input limit now bounds input the same way.
 
-It is not the bound on the bill, and the reason is instructive. When this review was first written, input tokens were not budgeted at all, and in a chat product input is where the tokens are. A coach request carries a system prompt of up to roughly 10,000 tokens (persona and curriculum map, up to 24,000 characters of lesson, up to 12,000 characters of code) and up to 30 history messages (user messages up to 8,000 characters, assistant replies up to 4,000 tokens). A long conversation can put roughly 100,000 input tokens in every request; at 150 requests, 15 million input tokens a day, uncounted. The AI hardening commit added the daily input limit and conversation caching in the same change, and the two interact. The limit compares against `input_tokens`, which the provider reports as the *uncached* remainder. With a cache breakpoint on the last message, nearly every input token of a coach or interview turn is billed as a cache read or a cache write instead, so the metered column barely moves. A client that sends different editor contents with every message (the API accepts them) turns each request into a near-complete cache write: 15 million tokens at $5 per million is **$75 per user per day**, recorded in `cache_write_tokens` and checked against nothing. The fuse is still on the smaller wire; it moved from "not metered" to "metered in the wrong column". The exercise at the end computes the bound the budget does enforce.
+For most of this review's life, the output bound was not the bound on the bill, and how that changed is instructive. When the review was first written, input tokens were not budgeted at all, and in a chat product input is where the tokens are. A coach request carries a system prompt of up to roughly 10,000 tokens (persona and curriculum map, up to 24,000 characters of lesson, up to 12,000 characters of code) and up to 30 history messages (user messages up to 8,000 characters, assistant replies up to 4,000 tokens). A long conversation can put roughly 100,000 input tokens in every request; at 150 requests, 15 million input tokens a day, uncounted.
+
+The AI hardening commit then added a daily input limit and conversation caching in the same change, and the two interacted. The limit compared against `input_tokens`, which the provider reports as the *uncached* remainder, and with a cache breakpoint on the last message nearly every input token of a coach or interview turn is billed as a cache read or a cache write instead, so the metered column barely moved. A client that sent different editor contents with every message (the API accepts them) could make each request a near-complete cache write: 15 million tokens at $5 per million, **$75 per user per day**, recorded in `cache_write_tokens` and checked against nothing. The fuse had moved from "not metered" to "metered in the wrong column".
+
+The latest fixes put it on the right wire. The limit now counts *billed* input, `input_tokens + cache_write_tokens * 5 / 4 + cache_read_tokens / 10`, so a billed token costs at most the plain input price ($4 per million; reads bill at 0.05x, so counting them at 0.1x errs on the safe side). The same arithmetic as for output then applies: for calls whose input bills at up to 100,000 tokens, a learner's day holds at most 2,099,999 billed input tokens, about $8.40, which with the $2.48 of output bounds the worst day at about **$10.90 per user**, roughly $109,000 a day if all 10,000 DAU maxed out and $1.09 million at 100,000. That is a bound you can reason about, and it is the one the exercise at the end computes. Two things still escape it: calls already in flight when a limit is reached (each can overshoot by its own size), and any change of model or price, because the limit is in weighted tokens rather than money.
 
 ### What a normal day costs
 
-Worst cases size the fuse; typical cases size the bill. Assume an engaged AI user has 15 coach turns a day in one dock conversation, each within five minutes of the last; an 8,000-token prompt before the history (a 2,000-token stable block and a 6,000-token context block); each turn adds a 100-token question and a 1,000-token reply to the history; and 1,000 output tokens per turn including thinking. With the current caching, turn 1 writes its whole prompt, and every later turn reads everything up to the previous turn and writes only the new reply and question (15 turns is 29 messages, just inside the 30-message history window; more on that limit below):
+Worst cases size the fuse; typical cases size the bill. Assume an engaged AI user has 15 coach turns a day in one dock conversation, each within five minutes of the last; an 8,000-token prompt before the history (a 2,000-token stable block and a 6,000-token context block); each turn adds a 100-token question and a 1,000-token reply to the history; and 1,000 output tokens per turn including thinking. With the current caching, turn 1 writes its whole prompt, and every later turn reads everything up to the previous turn and writes only the new reply and question (15 turns is 29 messages, just inside the 30-message history window, so the window never moves in this example):
 
 | Per day, 15 turns | Tokens | Cost |
 |---|---|---|
@@ -74,9 +78,9 @@ For comparison, with the old single-breakpoint caching the same profile would co
 
 For a free product that is the whole problem in one table (the general method is in [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost)). Notice what changed shape: with the history cached, output is now two thirds of the bill. The levers, in the order a cost review would take them (free wins before quality trade-offs):
 
-1. **Budget in money, not tokens.** Price every token class per call (uncached input, cache writes, cache reads, output) from a table keyed by model, and cap each user at, say, a dollar a day, comfortably above the typical day and far below the worst one. That closes the cache-write gap, survives a change of model, and makes the ADR's sentence true. The data is already there: since `m0006`, `ai_usage` stores cache reads and writes beside input and output.
+1. **Budget in money, not tokens.** The billed-token limit already weights cache writes and reads correctly for one model. Pricing every token class per call from a table keyed by model, and capping each user at, say, a dollar a day (comfortably above the typical day and far below the worst), would survive a change of model or price and let the cap sit much closer to real use. The data is already there: since `m0006`, `ai_usage` stores cache reads and writes beside input and output.
 2. **Tune effort and `max_tokens` per product.** Output dominates now, and thinking bills as output. A coach turn at lower effort is cheaper, and most answers need far less than 4,000 tokens.
-3. **Keep the history cached when context changes, and when the window moves.** The context block sits before the history, so when the progress line changes (the learner finishes a lesson between questions) the whole history is written again at 1.25x; sending changed context as a message after the history, rather than editing the block before it, keeps the cached prefix intact. And `prepare_turn` sends only the last 30 messages (`MAX_HISTORY`), so from the sixteenth turn of a conversation the window slides by one exchange per turn, the first message changes, and every turn re-writes its whole history. Moving the window in large steps (drop the oldest ten messages at a time) or summarising old turns keeps the prefix stable for most turns.
+3. **Keep the history cached when context changes.** The context block sits before the history, so when the progress line changes (the learner finishes a lesson between questions) the whole history is written again at 1.25x; sending changed context as a message after the history, rather than editing the block before it, keeps the cached prefix intact. The history window itself was the same kind of problem and is fixed: it used to slide by one exchange per turn once a conversation passed 30 messages, rewriting the whole history every turn, and it now moves in steps of ten messages, so four turns in five read their history from cache.
 4. **Route by stakes, measured.** The config once had an `AI_FAST_MODEL` (`claude-haiku-4-5`, $1 and $5 per million) that no code used; the latest fixes deleted it rather than keep a setting that did nothing. Routing is still a real lever for short factual questions and conversation titles, with two caveats that cost reviews miss: caches are per model, so routing splits cache reuse, and the minimum cacheable prefix differs by model (512 tokens on Opus 5, 4,096 on Haiku 4.5), so a prompt that caches on one may not on the other.
 5. **A global spend breaker.** Sum today's priced usage across all users; above a threshold, flip AI features into the existing `AiDisabled` path (the UI already explains it) and page someone. Keep a provider-side spend limit as the last line, knowing it fails everyone at once.
 
@@ -115,7 +119,7 @@ The plan, in order:
 2. **Metrics.** Rate, errors and duration per route. For AI: tokens and priced cost per product (coach, quiz, interview) and model, cache hit ratio, time to first token, and stream outcomes (completed, client disconnected, upstream error, persistence failed). Budget rejections by reason. From the browser, via a small beacon: runner timeouts, Pyodide load failures, visualisation errors.
 3. **SLOs with error budgets.** For example: lesson and problem API availability 99.9 percent over 30 days (an error budget of 43.2 minutes); coach time to first token under a stated p95; streamed replies persisted 99.99 percent. Alert on the burn rate of the budget, not on raw thresholds, so a brief blip does not page anyone and a slow bleed does.
 
-See [Observability](/learn/system-design/building-blocks/observability) for the general method. The specific point for this codebase is that its cost weaknesses are invisible *because* there are no metrics. Cache tokens used to be discarded outright; they are now stored and logged on every coach turn, but a log line nobody aggregates cannot show that cache writes, not uncached input, are where the unbudgeted spend lives, and nothing counts stream outcomes at all. Observability is how you would have found both.
+See [Observability](/learn/system-design/building-blocks/observability) for the general method. The specific point for this codebase is that its cost weaknesses are invisible *because* there are no metrics. Cache tokens used to be discarded outright; they are now stored and logged on every coach turn, but a log line nobody aggregates cannot show a cache hit rate, or that cache writes, not uncached input, were where the unbudgeted spend lived until the budget started counting them; and nothing counts stream outcomes at all. Observability is how you would have found both without reading the code.
 
 ## Server-verified submissions, if competition arrives
 
@@ -147,24 +151,26 @@ Every item below was found by reading the code for this track, and most of the f
 | Python globals persisted between runs | `runner/py.worker.ts` | A fresh namespace per run |
 | Coach lock was UI-only | `routes/coach.rs` | 409 while a solo interview is active |
 | Streaks from a mutable column; account deletion would cascade into other people's comments | `m0007` | `activity_days`; `ON DELETE SET NULL` |
-| Provider error bodies reached the browser | `map_status` | Generic messages, details logged |
+| Provider error bodies reached the browser, first from failed requests, then from inside streams | `map_status`, `ai/anthropic.rs`, `AppError::ai_upstream` | Generic or classified messages; details logged |
+| The input limit counted only uncached tokens, so cache writes were unbudgeted | `ai/budget.rs` | The limit counts billed input: writes at 1.25x, reads at 0.1x |
+| The budget's 429 said nothing about when to retry | `ai/budget.rs`, `error.rs` | `RateLimited` carries `retry_after_secs`; `Retry-After` until the next UTC midnight |
+| The coach's history window slid every turn, rewriting the cache | `ai/coach.rs` | The window moves in steps of ten messages |
+| A reply could land in a transcript after it was graded; racing finishes both wrote | `services/interviews.rs` | Appends and `finish` require `status = 'active'`; one finish wins |
+| The first unknown-email login after boot was slower | `auth/password.rs`, `main.rs` | The dummy hash is computed at boot, inside the semaphore |
 
 | Still open, ranked | Where | Impact | Fix |
 |---|---|---|---|
-| Cache writes are not budgeted; the input limit meters uncached tokens only | `ai/budget.rs` | The real worst-case day is far above the ADR's bound | Budget in money, pricing every token class |
 | Limits are checked before a call, not reserved | `ai/budget.rs` | One call of overshoot per request in flight | Reserve `max_tokens`, refund on settle |
-| The tested artifact is not the deployed artifact | `ci.yml`, `Dockerfile` | A moving base-image tag can ship untested | Smoke the built image; deploy and pin by digest |
-| Per-account password limits allow targeted lockout | `middleware/rate_limit.rs` | Anyone can keep a learner out of login | Charge failures only; trust known devices |
+| No Playwright test runs against the production image | `ci.yml`, `Dockerfile` | A moving base-image tag can ship untested | Smoke the built image; deploy and pin by digest |
+| Per-account password limits charge successes and allow targeted delays | `middleware/rate_limit.rs` | Anyone who knows an email can delay that learner's login by up to a minute, repeatedly | Charge failures only; trust known devices |
 | In-process limiter | `middleware/rate_limit.rs` | Wrong with replicas | Redis with key expiry |
 | Readiness checks only the database | `routes/health.rs` | A revoked AI key goes live | Boot-time key probe |
-| Mid-stream provider errors reach the browser verbatim | `ai/anthropic.rs`, `routes/sse.rs` | Upstream detail leaks | Generic message, detail in logs |
-| The coach's 30-message history window slides every turn in long conversations | `ai/coach.rs` | Every turn after the fifteenth re-writes its whole history to the cache | Move the window in steps, or summarise |
 | Streaks count UTC days | `services/activity.rs` | Local-day streaks are off for most time zones | A stored time zone per learner |
 | Results self-reported | By design | Acceptable for practice | Server-side checks if results gain value |
 
 ## The plan, in order
 
-1. **Cost safety now**, whatever the traffic: budget in money including cache writes, reserve `max_tokens` before a call, and a global spend breaker.
+1. **Cost safety now**, whatever the traffic: reserve `max_tokens` before a call and add a global spend breaker; move the per-user limit from weighted tokens to money before a second model arrives.
 2. **Before 10,000 DAU**: effort and `max_tokens` tuning per product, metrics, traces and SLOs, retention and partitioning for `submissions` and `messages`, smoke tests against the built image, and lockout-resistant password limits.
 3. **At the second replica**: the Redis limiter, a connection pooler, migrations as a single locked step, canary releases.
 4. **When the product changes**: server-verified submissions for credited results, content hot-reload for non-engineer authors.
@@ -186,13 +192,14 @@ title: Compute the daily AI cost bound the budget enforces
 prompt: |
   Implement `daily_cost_bound_cents(users, daily_requests, daily_input_tokens,
   daily_output_tokens, max_input_tokens, max_tokens, input_cents, output_cents)`:
-  the worst-case daily spend on *metered* tokens, in whole cents rounded up,
+  the worst-case daily spend the budget allows, in whole cents rounded up,
   if every user maxes out their budget.
 
   - A user may start a call while they have used fewer than `daily_requests`
-    requests, fewer than `daily_input_tokens` input tokens and fewer than
-    `daily_output_tokens` output tokens. Calls are sequential. Each call reads
-    up to `max_input_tokens` and writes up to `max_tokens` output tokens.
+    requests, fewer than `daily_input_tokens` billed input tokens and fewer
+    than `daily_output_tokens` output tokens. Calls are sequential. Each call
+    bills up to `max_input_tokens` input tokens and writes up to `max_tokens`
+    output tokens.
   - So one user's worst-case output is
     `min(daily_requests * max_tokens, daily_output_tokens - 1 + max_tokens)`,
     and their worst-case input is
@@ -245,7 +252,7 @@ tests:
 hints:
   - "Compute one user's worst-case input and output tokens first, then multiply each by its price, add them, and multiply by the number of users."
   - "Keep everything in integers until the final division by 1,000,000; round up with ceiling division, for example -(-x // 1000000) in Python or Math.ceil(x / 1e6) in JavaScript."
-  - "The answer bounds only metered tokens. Ask yourself which token class of a cached conversation this function never sees."
+  - "Input here is billed input, the way check_and_reserve counts it: cache writes already weighted at 1.25x and reads at 0.1x, so one input price covers them all (reads come out slightly overpriced)."
 ```
 
 ## Senior signals
@@ -262,37 +269,37 @@ hints:
 ```quiz
 - q: >-
     ADR 0004 says the worst-case daily AI cost is bounded by active users times the daily token budget. Reading the current code, what does that bound leave out?
-  options: ["Cache writes, which the input limit never meters, and one call of overshoot", "Only the cost of quiz generation, which bypasses the per-user budget entirely", "Nothing at all, because the budget now limits requests, input and output tokens", "Only the requests that fail upstream, which are never charged to anyone's budget"]
-  answer: 0
+  options: ["Cache writes, which the billed input limit leaves out of its sum altogether", "Only the cost of quiz generation, which bypasses the per-user budget entirely", "Calls already in flight when a limit is hit, each able to overshoot by its size", "Only the requests that fail upstream, which are never charged to anyone's budget"]
+  answer: 2
   explanation: >-
-    The input limit compares against uncached input, and with conversation caching nearly every coach input token is billed as a cache read or write instead, so up to 15 million written tokens a day go unmetered. The pre-call checks also allow one call's max_tokens of overshoot. Quiz generation goes through the same reservation as the coach.
+    Every condition is checked before a call starts, so a learner just under a limit can still start calls whose max_tokens and input carry them past it, and concurrent calls multiply that. Cache writes used to be the big gap, but the input limit now counts billed tokens, writes at 1.25x included. Quiz generation goes through the same reservation as the coach.
 - q: >-
     Ascend adds a second replica with no other change. What happens to rate limiting and to the AI budgets?
-  options: ["The budgets double, but the rate limits stay correct because they are per IP", "Every limiter is per replica, so limits roughly double; budgets stay correct", "Both break, because every replica ends up with its own copy of the ai_usage table", "Both stay correct, because the limiters are keyed by session and by account, not IP"]
-  answer: 1
+  options: ["The budgets double, but the rate limits stay correct because they are per IP", "Both stay correct, because the limiters are keyed by session and by account, not IP", "Both break, because every replica ends up with its own copy of the ai_usage table", "Every limiter is per replica, so limits roughly double; budgets stay correct"]
+  answer: 3
   explanation: >-
     governor keeps its buckets in process memory, whatever the key, which is why the code calls the Limiters type the seam for Redis. The ai_usage table lives in Postgres and is shared by all replicas, and its reservation is one conditional upsert, so budgets are unaffected.
 - q: >-
     Which table is projected to grow fastest at 10,000 DAU, and why?
-  options: ["submissions, as every Run stores its code and results, not just solutions", "messages, because each AI reply is long and every turn adds two rows", "sessions, because each login adds a row that stays until it finally expires", "ai_usage, because it gains a row for every model request a learner makes"]
-  answer: 0
+  options: ["sessions, because each login adds a row that stays until it finally expires", "ai_usage, because it gains a row for every model request a learner makes", "submissions, as every Run stores its code and results, not just solutions", "messages, because each AI reply is long and every turn adds two rows"]
+  answer: 2
   explanation: >-
     Runs are far more frequent than coach turns, and each stores code up to 64 KiB plus per-test results. ai_usage is one row per user per day, and expired sessions are swept hourly. The fix is deciding what each submission row is for and keeping only those.
 - q: >-
     You need to delete submissions older than 30 days, about 4.5 million rows a month at 10,000 DAU. Why partition the table by month instead of running a nightly DELETE?
-  options: ["Postgres does not allow a DELETE on tables past a few million rows", "Dropping a partition avoids the dead tuples, vacuum and WAL of a DELETE", "Partitioning makes new inserts faster, and the nightly DELETE job slows them down", "Partitioned tables compress old rows better than one large table can"]
-  answer: 1
+  options: ["Dropping a partition avoids the dead tuples, vacuum and WAL of a DELETE", "Postgres does not allow a DELETE on tables past a few million rows", "Partitioning makes new inserts faster, and the nightly DELETE job slows them down", "Partitioned tables compress old rows better than one large table can"]
+  answer: 0
   explanation: >-
     Postgres implements DELETE by marking row versions dead, which vacuum must later clean and which writes WAL for every row. Dropping a partition is a metadata operation. Compression and insert speed are not the reason, and DELETE works on tables of any size, just expensively.
 - q: >-
     The rate limiter moves to Redis, and Redis becomes unavailable. What is the best default behaviour?
-  options: ["Reject every request until Redis returns, so no abuse slips through", "Fall back to local limits, each replica taking its share of the limit, and alert", "Restart the replicas in a loop until they can reach Redis again", "Allow every request with no limits at all until Redis comes back"]
-  answer: 1
+  options: ["Allow every request with no limits at all until Redis comes back", "Reject every request until Redis returns, so no abuse slips through", "Restart the replicas in a loop until they can reach Redis again", "Fall back to local limits, each replica taking its share of the limit, and alert"]
+  answer: 3
   explanation: >-
     Failing closed turns a limiter outage into a site outage; failing fully open removes abuse protection at the worst time. Degrading to local limits of the limit divided by N keeps approximate protection and availability, and the alert makes sure someone fixes Redis.
 - q: >-
     A product manager asks for a public leaderboard. At 100,000 DAU with 15 runs per user per day, why verify only credited submissions rather than every run?
-  options: ["Browsers cannot send every run to the server without slowing the editor down badly", "Only credited submissions include the hidden tests that actually need protecting", "Server-side runs are less accurate than browser runs for Python code", "1.5 million sandboxed runs a day, versus a fifteenth of that for credited ones"]
+  options: ["Browsers cannot send every run to the server without slowing the editor down badly", "Server-side runs are less accurate than browser runs for Python code", "Only credited submissions include the hidden tests that actually need protecting", "1.5 million sandboxed runs a day, versus a fifteenth of that for credited ones"]
   answer: 3
   explanation: >-
     Verifying every run is on the order of 90 busy vCPUs at peak; one credited submission per solve is roughly a fifteenth of that for the same security guarantee. The leaderboard only needs trustworthy results for what it counts, so browser runs stay for feedback and ADR 0003's economics survive.

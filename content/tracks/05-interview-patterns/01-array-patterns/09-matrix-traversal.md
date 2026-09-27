@@ -307,32 +307,32 @@ hints:
 ```quiz
 - q: >-
     In the boundary-shrinking spiral, what goes wrong if you remove the `if top <= bottom` guard before the bottom-row pass?
-  options: ["The bottom row is skipped on matrices wider than they are tall", "A lone remaining row is emitted a second time, in reverse", "The right column is emitted twice when only one column is left", "The loop never terminates on matrices with an odd row count"]
-  answer: 1
+  options: ["The bottom row is skipped on matrices wider than they are tall", "The loop never terminates on matrices with an odd row count", "The right column is emitted twice when only one column is left", "A lone remaining row is emitted a second time, in reverse"]
+  answer: 3
   explanation: >-
     After the top-row pass, top has moved past bottom when only one row remained. Without the guard the bottom-row pass runs on that same row from right to left, duplicating it. A leftover single column is protected by the other guard, left <= right. The guards are what make each cell appear exactly once.
 - q: >-
     Which two in-place operations compose to a 90° clockwise rotation of an n × n matrix?
-  options: ["Reverse each row, then reverse each column", "Reverse the row order, then reverse each row", "Transpose, then reverse each row", "Transpose, then reverse each column"]
-  answer: 2
+  options: ["Reverse each row, then reverse each column", "Transpose, then reverse each row", "Reverse the row order, then reverse each row", "Transpose, then reverse each column"]
+  answer: 1
   explanation: >-
     Transpose maps (i, j) to (j, i); reversing each row then maps (j, i) to (j, n-1-i), which is the clockwise rotation map. Transpose then reverse each column gives the anticlockwise rotation.
 - q: >-
     In Set Matrix Zeroes with first-row and first-column flags, why must the inner cells be updated before the first row and first column?
-  options: ["Zeroing the first row first would erase the column flags", "To keep the overall time complexity at O(mn)", "It does not matter; either order gives the same final matrix", "Inner cells come first in row-major memory, so it is faster"]
-  answer: 0
+  options: ["It does not matter; either order gives the same final matrix", "Inner cells come first in row-major memory, so it is faster", "Zeroing the first row first would erase the column flags", "To keep the overall time complexity at O(mn)"]
+  answer: 2
   explanation: >-
     The flags live in the first row and column. If you zero those lines first, every flag reads as zero and the whole matrix is cleared. Read all flags for the inner cells, then apply the two booleans to the first row and column last.
 - q: >-
     A matrix has every row sorted and every column sorted, but row 2 starts with a value smaller than the end of row 1. Why does flattening plus binary search fail?
-  options: ["The flat index formula only works for square matrices", "Binary search requires every value to be distinct", "Flattening would cost O(mn) extra space to build", "The flattened sequence is not sorted end to end"]
-  answer: 3
+  options: ["Binary search requires every value to be distinct", "The flat index formula only works for square matrices", "The flattened sequence is not sorted end to end", "Flattening would cost O(mn) extra space to build"]
+  answer: 2
   explanation: >-
     Binary search needs the flat sequence to be sorted end to end, which requires each row to start after the previous row ends; otherwise the binary search invariant does not hold. The index formula works for any m × n shape. With independently sorted rows and columns, use the staircase walk from the top-right corner in O(m + n).
 - q: >-
     In Python, `visited = [[False] * cols] * rows` is used to track visited cells during a grid BFS. What is the consequence?
-  options: ["It works correctly but uses more memory than needed", "It builds the grid transposed, as cols lists of rows", "Every row is one shared list, so marks hit every row", "It raises an IndexError on grids that are not square"]
-  answer: 2
+  options: ["Every row is one shared list, so marks hit every row", "It works correctly but uses more memory than needed", "It builds the grid transposed, as cols lists of rows", "It raises an IndexError on grids that are not square"]
+  answer: 0
   explanation: >-
     The outer multiplication copies the reference to one inner list rows times. Setting visited[2][3] sets index 3 in the single shared list, which every row sees, so marking one cell marks that column everywhere. Use a comprehension to build independent rows.
 ```

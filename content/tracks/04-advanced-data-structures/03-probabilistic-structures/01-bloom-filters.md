@@ -288,32 +288,32 @@ hints:
 ```quiz
 - q: >-
     A Bloom filter reports "not present" for a key. What can you conclude?
-  options: ["The key was added and later deleted", "Nothing without checking the backing store", "The key was probably never added", "The key was definitely never added"]
-  answer: 3
+  options: ["The key was definitely never added", "The key was probably never added", "Nothing without checking the backing store", "The key was added and later deleted"]
+  answer: 0
   explanation: >-
     Adding a key sets all k of its bits, so if any bit is 0 the key was never added. "Probably" describes the positive answer, not the negative one. Plain Bloom filters have no deletion, so "added and later deleted" cannot happen.
 - q: >-
     You sized a filter for 1M keys at 1% false positives (about 9.6 bits per key, k = 7) but inserted 2M keys. Roughly what is the false-positive rate now?
-  options: ["About 2%", "About 50%", "About 1%", "About 16%"]
-  answer: 3
+  options: ["About 16%", "About 50%", "About 1%", "About 2%"]
+  answer: 0
   explanation: >-
     With m/n halved to 4.8 and k still 7, p = (1 − e^(−7/4.8))^7 ≈ 0.16. The rate does not scale linearly with n, so 2% is the tempting wrong answer; it degrades much faster once the array is more than half full.
 - q: >-
     Why does RocksDB attach a Bloom filter to each SSTable?
-  options: ["To compress each file's keys so fewer pages are read", "To let range scans skip files outside the scanned range", "To skip files that cannot hold the key on a point lookup", "To find which keys to merge together during compaction"]
-  answer: 2
+  options: ["To compress each file's keys so fewer pages are read", "To let range scans skip files outside the scanned range", "To find which keys to merge together during compaction", "To skip files that cannot hold the key on a point lookup"]
+  answer: 3
   explanation: >-
     A point read for a key must otherwise check every SSTable that might hold it. The filter answers "definitely not here" for most files without touching disk. It does not help range scans: a filter answers membership for one key, and a range scan must visit every overlapping file regardless.
 - q: >-
     Your double-hashing implementation uses positions (h1 + i·h2) mod m. For one key h2 mod m is 0. What happens?
-  options: ["Nothing, since the key still sets k distinct bits", "The insert fails and the key is left out of the filter", "The filter returns a false negative for that key later", "The key sets one bit, not k, so false positives rise"]
-  answer: 3
+  options: ["Nothing, since the key still sets k distinct bits", "The key sets one bit, not k, so false positives rise", "The insert fails and the key is left out of the filter", "The filter returns a false negative for that key later"]
+  answer: 1
   explanation: >-
     All k positions collapse to h1 mod m. The key is still found (no false negative), but it occupies one bit instead of k, so any key whose positions all land on already-set bits, including that one, is a false positive far more easily. Implementations force h2 to be odd or non-zero.
 - q: >-
     Which use case is a poor fit for a Bloom filter?
-  options: ["Admitting a URL to a CDN cache on its second request", "Answering 'is this username taken?' exactly at signup", "Skipping a disk read for keys not in an SSTable", "Avoiding re-crawling URLs a crawler has already visited"]
-  answer: 1
+  options: ["Answering 'is this username taken?' exactly at signup", "Avoiding re-crawling URLs a crawler has already visited", "Admitting a URL to a CDN cache on its second request", "Skipping a disk read for keys not in an SSTable"]
+  answer: 0
   explanation: >-
     Signup needs an exact answer; a false positive tells a user their name is taken when it is not. The other three tolerate a false positive (an extra read, a delayed admission, a skipped URL) and need to avoid false negatives, which is the Bloom filter's guarantee.
 ```

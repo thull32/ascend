@@ -194,7 +194,7 @@ The optimiser is very good at what it can see. Most "the optimiser is dumb" stor
 ```quiz
 - q: >-
     A plan node shows estimated rows=40 and actual rows=2,100,000, and the query is 200 times slower than yesterday. What is the most likely root cause and the first fix?
-  options: ["work_mem is too low; raise it so the join stops spilling", "Table growth; partition the table so each scan reads less", "Bad statistics; run ANALYZE, then check for correlated filter columns", "A missing index; add one on the column that this node filters on"]
+  options: ["Table growth; partition the table so each scan reads less", "work_mem is too low; raise it so the join stops spilling", "Bad statistics; run ANALYZE, then check for correlated filter columns", "A missing index; add one on the column that this node filters on"]
   answer: 2
   explanation: >-
     A 50,000× gap between estimated and actual rows means the planner chose the plan on wrong information, from stale statistics or an independence assumption about correlated columns. An index cannot help until the estimate is realistic, because the planner will still believe the current plan is cheap. ANALYZE first, then extended statistics if two filtered columns are correlated.
@@ -206,19 +206,19 @@ The optimiser is very good at what it can see. Most "the optimiser is dumb" stor
     A nested loop emits each match as soon as it finds it; a hash join must build the whole hash table before probing, and a merge join must sort any unsorted input first. Under a small LIMIT the planner strongly prefers a nested loop over an indexed inner side for exactly this reason.
 - q: >-
     A hash join node shows Batches: 32 and the query takes 6 seconds instead of the estimated 300 ms. What happened?
-  options: ["The hash function collided on most rows, so every probe became a scan", "Stale statistics made it pick a hash join over a nested loop", "The build side exceeded work_mem, so the join spilled to temp files", "The join key had too many distinct values to fit in the buckets"]
+  options: ["The join key had too many distinct values to fit in the buckets", "The hash function collided on most rows, so every probe became a scan", "The build side exceeded work_mem, so the join spilled to temp files", "Stale statistics made it pick a hash join over a nested loop"]
   answer: 2
   explanation: >-
     Batches greater than 1 means the hash table exceeded work_mem, so both inputs were partitioned to temporary files and joined batch by batch. Each extra batch adds a write and a read of temp files. Distinct-value count is not the issue; the size of the build side is. Raising work_mem for that session or reducing the build side (fewer columns, tighter filter) fixes it.
 - q: >-
     Why does WHERE lower(email) = 'a@x.com' not use a plain B-tree index on email, and what is the fix?
-  options: ["The index is ordered by email, not lower(email); index the expression", "lower() is VOLATILE and blocks index use; mark it IMMUTABLE", "It does use the index; EXPLAIN just hides it inside a recheck", "B-tree indexes on text are always case-sensitive; rewrite it using ILIKE"]
-  answer: 0
+  options: ["It does use the index; EXPLAIN just hides it inside a recheck", "The index is ordered by email, not lower(email); index the expression", "lower() is VOLATILE and blocks index use; mark it IMMUTABLE", "B-tree indexes on text are always case-sensitive; rewrite it using ILIKE"]
+  answer: 1
   explanation: >-
     A B-tree on email is ordered by the raw value, which says nothing about lower(email). The planner also has no statistics for the expression and falls back to a default selectivity. An expression index on lower(email) (or a citext column) gives it both the order and the statistics. lower() is already immutable, so volatility is not the problem, and ILIKE cannot use a plain B-tree either.
 - q: >-
     A dashboard query uses OFFSET 500000 LIMIT 20 and has become slow as the table grew. What is the mechanism and the fix?
-  options: ["It reads and discards 500,000 rows per page; use keyset pagination", "OFFSET disables the planner's statistics; run ANALYZE on the table", "Each new OFFSET value is planned from scratch; use a prepared statement", "The LIMIT forces a sequential scan of the table; remove the LIMIT"]
+  options: ["It reads and discards 500,000 rows per page; use keyset pagination", "The LIMIT forces a sequential scan of the table; remove the LIMIT", "Each new OFFSET value is planned from scratch; use a prepared statement", "OFFSET disables the planner's statistics; run ANALYZE on the table"]
   answer: 0
   explanation: >-
     OFFSET does not skip work; it performs it and throws the result away, so page N costs O(N). Keyset pagination uses the last row's sort key as a WHERE bound on an indexed (sort_key, id) pair, so each page is an index range scan of exactly the rows returned. Planning cost is negligible next to reading half a million rows.

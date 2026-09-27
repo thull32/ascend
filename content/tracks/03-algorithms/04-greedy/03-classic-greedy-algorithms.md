@@ -253,32 +253,32 @@ hints:
 ```quiz
 - q: >-
     Huffman coding on frequencies 5, 9, 12, 13, 16, 45 produces merged nodes 14, 25, 30, 55 and 100. What is the total encoded length per 100 symbols, and why can you read it off those weights?
-  options: ["100, because the root weight counts every symbol once", "224, because each merge adds a bit to every leaf below it", "124, because the root merge adds no bits to any code", "300, because all six symbols need a fixed-width 3-bit code"]
-  answer: 1
+  options: ["224, because each merge adds a bit to every leaf below it", "124, because the root merge adds no bits to any code", "300, because all six symbols need a fixed-width 3-bit code", "100, because the root weight counts every symbol once"]
+  answer: 0
   explanation: >-
     Every merge pushes the symbols in both subtrees one level deeper, adding their combined frequency to the total; summing all merged weights (14 + 25 + 30 + 55 + 100) gives 224, matching the sum of frequency × code length. The root merge counts too: it adds the first bit to every code. 300 is the 3-bit fixed-width baseline Huffman beats.
 - q: >-
     In Jump Game II, why does the loop stop at index n - 2 rather than n - 1?
-  options: ["Processing it can add a jump when it ends a layer", "The last element may be 0, which would strand the scan", "The problem numbers indices from 1, so n - 1 is past the end", "Skipping it saves an iteration without changing the result"]
-  answer: 0
+  options: ["Skipping it saves an iteration without changing the result", "Processing it can add a jump when it ends a layer", "The problem numbers indices from 1, so n - 1 is past the end", "The last element may be 0, which would strand the scan"]
+  answer: 1
   explanation: >-
     Reaching the last index never requires jumping from it. Jumps are counted when a layer is exhausted, so if the last index happens to be the end of a layer, processing it would increment jumps for a jump that never needs to happen. With [1, 2] the correct answer is 1; looping to n - 1 would return 2, so the bound is about correctness, not saving an iteration.
 - q: >-
     The gas station pass fails at station i after starting at s and resets the start to i + 1. What justifies skipping the stations between s and i?
-  options: ["The total of diff is negative, so no start in s..i can work", "Stations before i were already visited, so retrying them loops", "Each one was reached with a non-negative tank, so it fails at i too", "Each of them has a negative diff, so none of them can be a start"]
+  options: ["Stations before i were already visited, so retrying them loops", "The total of diff is negative, so no start in s..i can work", "Each one was reached with a non-negative tank, so it fails at i too", "Each of them has a negative diff, so none of them can be a start"]
   answer: 2
   explanation: >-
     Starting later cannot help: the original run arrived at each intermediate station with fuel >= 0, so a fresh start there with an empty tank has at most the same fuel at every subsequent point and hits the same shortfall. The intermediate stations need not have negative diffs themselves. That is why one linear pass suffices once the total is known to be non-negative.
 - q: >-
     Tasks AAAABBBCC with cooldown n = 2. What is the minimum time?
-  options: ["10", "9", "12", "11"]
-  answer: 0
+  options: ["11", "10", "9", "12"]
+  answer: 1
   explanation: >-
     max_count = 4 (A), num_max = 1, so (4 - 1) × 3 + 1 = 10, which exceeds the 9 tasks. One schedule is A B C A B C A B _ A: three full frames of three then the final A. 9 would require no idle slot, impossible with four As needing two gaps each.
 - q: >-
     Which single idea justifies the greedy choice in Dijkstra, Prim and Kruskal?
-  options: ["The cut property: the lightest edge across any cut is safe", "The triangle inequality: no detour beats a direct edge", "DP on subsets of vertices, reusing each settled set's optimum", "Sorting edges by weight, so cheaper edges are always tried first"]
-  answer: 0
+  options: ["Sorting edges by weight, so cheaper edges are always tried first", "The triangle inequality: no detour beats a direct edge", "The cut property: the lightest edge across any cut is safe", "DP on subsets of vertices, reusing each settled set's optimum"]
+  answer: 2
   explanation: >-
     Each algorithm maintains a settled set and commits to the cheapest edge (or, for Dijkstra, the cheapest tentative distance) crossing the cut. The exchange argument, swapping the light edge for the cycle edge it displaces, shows some optimal solution agrees. Only Kruskal sorts edges, and none of them uses DP.
 ```

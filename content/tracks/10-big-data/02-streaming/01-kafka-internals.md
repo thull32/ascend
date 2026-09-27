@@ -273,38 +273,38 @@ hints:
 ```quiz
 - q: >-
     A topic has replication factor 3 and min.insync.replicas=2. The producer uses acks=all. Two of the three brokers hosting a partition go down. What happens?
-  options: ["Kafka elects an out-of-sync replica so that writes can continue", "Reads and writes both stop until a second replica rejoins", "Writes are rejected with NotEnoughReplicas; reads continue", "Writes continue on the remaining broker and may be lost later"]
-  answer: 2
+  options: ["Writes are rejected with NotEnoughReplicas; reads continue", "Writes continue on the remaining broker and may be lost later", "Reads and writes both stop until a second replica rejoins", "Kafka elects an out-of-sync replica so that writes can continue"]
+  answer: 0
   explanation: >-
     With only one in-sync replica, acks=all writes fall below the min.insync.replicas floor and are rejected, choosing consistency over write availability. Consumers can still read already-committed data up to the high watermark, so reads do not stop. Electing an out-of-sync replica only happens with unclean leader election enabled.
 - q: >-
     Why can a producer with acks=all and min.insync.replicas=1 still lose acknowledged writes?
-  options: ["The high watermark is never advanced for acks=all writes", "min.insync.replicas=1 turns replication off for that topic", "acks=all ignores the ISR and waits for any single replica", "The ISR can shrink to just the leader, which then acks alone"]
-  answer: 3
+  options: ["min.insync.replicas=1 turns replication off for that topic", "acks=all ignores the ISR and waits for any single replica", "The ISR can shrink to just the leader, which then acks alone", "The high watermark is never advanced for acks=all writes"]
+  answer: 2
   explanation: >-
     acks=all waits for the current ISR, which can shrink to just the leader when followers lag out of it; if that leader then fails, the record exists nowhere else. min.insync.replicas=2 is what forces a second copy before acknowledging. Replication itself is still on; it simply was not waited for.
 - q: >-
     A consumer group's batches occasionally take 7 minutes to process, and the group keeps rebalancing. What is the most direct cause?
-  options: ["session.timeout.ms is too short for the 7-minute batches", "Auto-commit is disabled, so offsets are never committed in time", "There are more partitions than consumers to spread them over", "Batches exceed max.poll.interval.ms, so the member is evicted"]
+  options: ["Auto-commit is disabled, so offsets are never committed in time", "session.timeout.ms is too short for the 7-minute batches", "There are more partitions than consumers to spread them over", "Batches exceed max.poll.interval.ms, so the member is evicted"]
   answer: 3
   explanation: >-
     Heartbeats run on a background thread, so session timeouts are not the issue; failing to call poll within max.poll.interval.ms (5 minutes by default) is, and the evicted member later rejoins and triggers another rebalance. Shrink batches, speed up processing, or raise the interval deliberately. Static membership and cooperative rebalancing reduce the blast radius.
 - q: >-
     A Kafka Streams job uses exactly_once_v2 and, for each input, calls an external email API before producing an output record. After a crash, some customers receive two emails. Why?
-  options: ["Transactions cover Kafka writes, not the external API call", "Idempotent producers are disabled when Streams runs EOS", "The consumer read with read_uncommitted, so it saw aborted input", "exactly_once_v2 is really only at-least-once for Streams apps"]
-  answer: 0
+  options: ["The consumer read with read_uncommitted, so it saw aborted input", "exactly_once_v2 is really only at-least-once for Streams apps", "Transactions cover Kafka writes, not the external API call", "Idempotent producers are disabled when Streams runs EOS"]
+  answer: 2
   explanation: >-
     EOS makes output records and consumed offsets atomic within Kafka. Side effects outside Kafka happen immediately; the aborted attempt's API call cannot be rolled back and is repeated when the input is reprocessed. The isolation level only affects which Kafka records are read, not external calls. External actions need their own idempotency, such as a key checked by the email service.
 - q: >-
     A topic keyed by account_id grows from 12 to 24 partitions while producers are running. What breaks?
-  options: ["The topic becomes read-only until reassignment completes", "Many keys map to new partitions, so per-account order breaks", "Nothing; Kafka moves existing records to their new partitions", "Each partition's replication factor is halved to keep disk flat"]
+  options: ["Nothing; Kafka moves existing records to their new partitions", "Many keys map to new partitions, so per-account order breaks", "Each partition's replication factor is halved to keep disk flat", "The topic becomes read-only until reassignment completes"]
   answer: 1
   explanation: >-
     The partition is hash(key) mod N, so changing N moves most keys. Existing records stay where they are, so new records for many accounts land on a different partition than their older ones: per-account ordering across the change is lost and stateful consumers see keys move. That is why partition counts are chosen with headroom.
 - q: >-
     Two consumers in a group subscribe to three topics with five partitions each, using the range assignor. How many partitions does the first consumer get?
-  options: ["7", "15", "8", "9"]
-  answer: 3
+  options: ["15", "9", "7", "8"]
+  answer: 1
   explanation: >-
     Range assigns each topic separately: 5 partitions over 2 consumers gives 3 to the first and 2 to the second, for every topic. The first consumer gets 3 × 3 = 9 and the second 6. Round-robin would give 8 and 7.
 ```

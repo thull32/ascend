@@ -207,31 +207,31 @@ What generalises: a spec for agents is a contract with examples, a checkable def
 ```quiz
 - q: >-
     An agent implements pagination with offset, page size 20 and a total count, although your codebase uses cursor pagination capped at 100. What is the root cause?
-  options: ["The spec never stated those decisions, so the model filled them with its own defaults", "The model was too small for API work; a larger model would have inferred the convention", "Offset pagination is the safer default, so the agent rightly overrode the convention", "The agent found the wiki convention but ignored it, as agents often ignore guidance"]
-  answer: 0
+  options: ["The agent found the wiki convention but ignored it, as agents often ignore guidance", "Offset pagination is the safer default, so the agent rightly overrode the convention", "The spec never stated those decisions, so the model filled them with its own defaults", "The model was too small for API work; a larger model would have inferred the convention"]
+  answer: 2
   explanation: >-
     Every decision you do not write down is made by the model's defaults, and offset pagination is among the most common patterns in public code. The wiki page was invisible to the agent, and a more capable model would still have had to guess. Pointing the agent at the existing cursor implementation, or stating the convention, fixes it.
 - q: >-
     Which acceptance criterion is most useful for a cursor pagination task?
-  options: ["The code is clean and well tested, and the paging logic is easy for reviewers to follow", "Pagination works like other modern APIs, so clients can page through orders without surprises", "Pagination follows industry best practices and stays robust under heavy concurrent load", "Paging 250 orders at limit=100 yields 100, 100, 50, with no skips or repeats on created_at ties"]
+  options: ["Pagination works like other modern APIs, so clients can page through orders without surprises", "The code is clean and well tested, and the paging logic is easy for reviewers to follow", "Pagination follows industry best practices and stays robust under heavy concurrent load", "Paging 250 orders at limit=100 yields 100, 100, 50, with no skips or repeats on created_at ties"]
   answer: 3
   explanation: >-
     Only the 250-order criterion can be decided by a test, and it names the edge case (timestamp ties at a page boundary) that a single-column keyset query gets wrong. Best practices, clean code and behaving like other modern APIs are judged by the model's taste, so they mean whatever the model thinks they mean.
 - q: >-
     Which of these belongs in the repository's standing memory file rather than in a single task spec?
-  options: ["The customer who reported this bug is on the enterprise plan and needs it by Friday", "For this ticket, cap the limit parameter at 100 and return 400 above it", "The payments client already retries with backoff, so never wrap it in a retry", "Rename the variable total to order_count in api/orders/list.py for clarity"]
-  answer: 2
+  options: ["The payments client already retries with backoff, so never wrap it in a retry", "For this ticket, cap the limit parameter at 100 and return 400 above it", "Rename the variable total to order_count in api/orders/list.py for clarity", "The customer who reported this bug is on the enterprise plan and needs it by Friday"]
+  answer: 0
   explanation: >-
     The retry behaviour is a stable fact about the codebase that every future task touching payments needs. The limit cap, the rename and the customer's deadline are true only for one task, and putting them in the memory file would mislead every later session.
 - q: >-
     Editing existing database migrations must never happen. What is the most reliable way to make that hold for agent-driven work?
-  options: ["Repeat it in every task prompt so it is always the most recent instruction", "Write it in capital letters at the top of CLAUDE.md so the model weights it highly", "Rely on code review, since a human reads every migration diff before it merges", "State it in the memory file and enforce it with a permission rule and a CI check"]
-  answer: 3
+  options: ["State it in the memory file and enforce it with a permission rule and a CI check", "Rely on code review, since a human reads every migration diff before it merges", "Write it in capital letters at the top of CLAUDE.md so the model weights it highly", "Repeat it in every task prompt so it is always the most recent instruction"]
+  answer: 0
   explanation: >-
     Instructions are requests that models can fail to follow under pressure, however loud or recent they are. The memory file states the intent; a permission rule denying edits to migrations/ and a CI check that fails when a shipped migration changes enforce it mechanically, and review remains a backstop rather than the only defence.
 - q: >-
     Why is a 2,000-line memory file usually worse than a 200-line one?
-  options: ["A long file overflows the context window, so the task itself no longer fits", "It loads into every session, costing tokens and diluting attention on the key rules", "Long memory files are always out of date, because nobody reviews them after a month", "Memory files load only when the agent asks for them, so a long one is rarely read"]
+  options: ["Memory files load only when the agent asks for them, so a long one is rarely read", "It loads into every session, costing tokens and diluting attention on the key rules", "Long memory files are always out of date, because nobody reviews them after a month", "A long file overflows the context window, so the task itself no longer fits"]
   answer: 1
   explanation: >-
     Memory files are loaded in full at the start of every session, so every line costs tokens on every task and competes with the task for the model's attention; the rules that matter get buried. They are not loaded on request, 2,000 lines fits easily in a modern context window, and length alone does not make a file stale: irrelevant length is the problem.

@@ -44,7 +44,7 @@ sequenceDiagram
   participant M as Model API
   B->>A: POST /api/coach/conversations/{id}/messages
   A->>A: per-session rate limit (20 per minute)
-  A->>D: check_and_reserve (daily budget), insert user message, load last 30 messages
+  A->>D: check_and_reserve (daily budget), insert user message, load up to 30 recent messages
   A->>M: POST /v1/messages (stream: true)
   A-->>B: SSE response backed by a channel
   Note over A: spawned task pumps model events into the channel
@@ -177,7 +177,7 @@ Two independent layers protect the shared key.
  "caption": "Capacity sets the largest burst, refill sets the sustained rate. The coach's per-session limiter is the same shape: 20 requests of burst, refilled at one every three seconds."}
 ```
 
-**Per-user daily budgets** cap cost. The `ai_usage` table has one row per user per UTC day with request, input-token and output-token counters, plus prompt-cache read and write counters. The defaults, configurable by environment variable, are 120 requests, 2,000,000 input tokens and 60,000 output tokens a day (production raises the request and output caps to 150 and 120,000 in `.railway/railway.ts`). Every model call first runs `check_and_reserve`, one conditional upsert that counts the request only while the user is under every limit:
+**Per-user daily budgets** cap cost. The `ai_usage` table has one row per user per UTC day with request, input-token and output-token counters, plus prompt-cache read and write counters. The defaults, configurable by environment variable, are 120 requests, 2,000,000 billed input tokens and 60,000 output tokens a day (production raises the request and output caps to 150 and 120,000 in `.railway/railway.ts`). Every model call first runs `check_and_reserve`, one conditional upsert that counts the request only while the user is under every limit:
 
 ```sql
 INSERT INTO ai_usage (user_id, day, input_tokens, output_tokens, requests)
@@ -185,18 +185,18 @@ VALUES ($1, $2, 0, 0, 1)
 ON CONFLICT (user_id, day) DO UPDATE
    SET requests = ai_usage.requests + 1
  WHERE ai_usage.requests < $3
-   AND ai_usage.input_tokens < $4
+   AND (ai_usage.input_tokens + ai_usage.cache_write_tokens * 5 / 4 + ai_usage.cache_read_tokens / 10) < $4
    AND ai_usage.output_tokens < $5
 RETURNING requests
 ```
 
-No returned row means over budget, and the call fails with a rate-limit error that says when the budget resets. After the reply, `record(user, usage)` adds the actual counts (input, output, cache reads, cache writes) with a plain increment upsert. Each is one statement inside the database, so concurrent requests cannot lose each other's updates the way a read-modify-write in application code would, and the first request of the day creates the row. Postgres rather than Redis is a deliberate fit: the limit is per day, not per millisecond, the counts must survive restarts, and one file (`budget.rs`) owns the whole policy.
+No returned row means over budget, and the call fails with a rate-limit error that says when the budget resets, both in its message and as a `Retry-After` header counting down to the next UTC midnight. After the reply, `record(user, usage)` adds the actual counts (input, output, cache reads, cache writes) with a plain increment upsert. Each is one statement inside the database, so concurrent requests cannot lose each other's updates the way a read-modify-write in application code would, and the first request of the day creates the row. Postgres rather than Redis is a deliberate fit: the limit is per day, not per millisecond, the counts must survive restarts, and one file (`budget.rs`) owns the whole policy.
 
-The first version of this code drew three review comments. Two led to fixes; one is a trade-off worth stating.
+The first version of this code drew three review comments. Two led to fixes, one of which needed a second round; one is a trade-off worth stating.
 
 1. **The check and the increment were separate statements.** `check_and_reserve` used to read today's row, compare it with the limits, then run the increment upsert. Several concurrent requests from a user at 119 could all pass the check before any increment landed, overshooting by the user's concurrency. The conditional upsert above closes the gap: concurrent reservations queue on the row lock, and each re-evaluates the `WHERE` clause against the latest committed counts. The fix shipped with proof, `ai_budget_reservation_cannot_be_overshot_by_concurrency` in `crates/api/tests/api.rs`, which fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. The lesson: an atomic increment is not an atomic check-and-increment.
 2. **The token check is pre-flight** (unchanged, and deliberate). A request that starts below 60,000 output tokens can end above it by up to its `max_tokens` (4,000 for a coach turn). That is fine for a soft cost cap. A hard cap would reserve `max_tokens` up front and refund the unused part.
-3. **Input tokens were recorded but not limited, and cache tokens were not recorded at all.** The output cap bounds output spend at 60,000 × $25/M = $1.50 per user per day, but a long conversation can send tens of thousands of input tokens per request, so the request cap was the only ceiling on input spend. The fix added `AI_DAILY_INPUT_TOKENS` as a third condition in the reservation (2,000,000 uncached input tokens is about $10 a day at the rates above) and two cache columns, `cache_read_tokens` and `cache_write_tokens`, through a new migration, `m0006_ai_usage_cache_tokens`, rather than an edit to the one that created the table. ADR 0004 now names a falling cache hit rate in those columns as a reason to revisit the design. What remains: the API's `input_tokens` counts only uncached input, so cache writes, billed at 1.25× the input price, are recorded but not limited. A single budget in cost units, computed from all four counters, would bound everything with one number.
+3. **Input tokens were recorded but not limited, and cache tokens were not recorded at all.** The output cap bounds output spend at 60,000 × $25/M = $1.50 per user per day, but a long conversation can send tens of thousands of input tokens per request, so the request cap was the only ceiling on input spend. The fix added `AI_DAILY_INPUT_TOKENS` as a third condition in the reservation (2,000,000 input tokens is about $10 a day at the rates above) and two cache columns, `cache_read_tokens` and `cache_write_tokens`, through a new migration, `m0006_ai_usage_cache_tokens`, rather than an edit to the one that created the table. ADR 0004 now names a falling cache hit rate in those columns as a reason to revisit the design. That fix needed a second round. The limit first compared against the API's `input_tokens`, which counts only *uncached* input, and the same change turned on conversation caching, which moves nearly all of a chat's input into cache reads and writes. The limit barely moved while cache writes, billed at 1.25× the input price, went uncounted. The reservation now compares *billed* input, the expression in the SQL above: cache writes weighted 1.25 and reads 0.1, so the limit counts roughly what the invoice does. `cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry` records 90,000 cache-write tokens with no uncached input and checks that the next request is refused. A single budget in money, computed from all four counters with each model's prices, would go one step further and survive a change of model.
 
 Small cost controls appear elsewhere too: a mock interview that ends with fewer than two candidate turns is marked abandoned without calling the grader at all, and user messages are capped at 8,000 characters.
 
@@ -207,7 +207,7 @@ Quizzes and interview grades are consumed by code, so both use one-shot calls wi
 - **Quiz generation** (`quiz.rs`) sends up to 30,000 characters of the lesson inside `<lesson>` tags with a system prompt demanding four options per question, exactly one correct index, at least one scenario question and explanations that address the most tempting wrong option. The requested count is clamped to 3–10. After parsing, questions whose answer index is out of range are dropped, and an empty result is an error.
 - **Interview grading** (`interview.rs`) uses a schema whose `verdict` is an enum (`strong_hire`, `hire`, `lean_hire`, `lean_no_hire`, `no_hire`) with per-dimension scores and notes, strengths, improvements and next steps. It runs at high effort, because grading is judgement-heavy and the user waits for it once, at the end; the coach's chat turns run at medium effort because they are interactive. The overall score is clamped to 0–100 after parsing, since the schema cannot express a range. The transcript reaches the grader as JSON lines, one object per turn with a role assigned by the platform, so a candidate cannot forge an interviewer turn by typing one: newlines and quotes in their text stay inside a JSON string.
 
-The client also maps failure modes to user-facing errors: a `refusal` stop reason becomes "the model declined this request", HTTP 429 becomes a try-again-shortly rate-limit error, 529 and 503 become "the provider is overloaded", and other failures become a 502 with a short message while the provider's error body goes to the logs. (An earlier version echoed the first 200 characters of a 400 body to the client. Provider errors can quote request content, so the body is now logged and never forwarded.)
+The client also maps failure modes to user-facing errors: a `refusal` stop reason becomes "the model declined this request", HTTP 429 becomes a try-again-shortly rate-limit error with a 30-second `Retry-After`, 529 and 503 become "the provider is overloaded", 401 and 403 become "the AI coach is temporarily unavailable", and other failures become a 502 with a short message while the provider's error body goes to the logs. (An earlier version echoed the first 200 characters of a 400 body to the client. Provider errors can quote request content, so the body is now logged and never forwarded.) The same rule took a second fix for failures *inside* a stream: an `error` event from the provider, or a dropped connection, used to reach the browser as the provider's own text. Now the text is logged and the learner sees a classified sentence such as "The AI provider is overloaded, so the reply stopped early. Try again shortly." instead of the provider's words.
 
 ## Policy: hints, not solutions
 
@@ -255,38 +255,38 @@ Two traps are specific to these designs. A **semantic answer cache**, which reus
 ```quiz
 - q: >-
     The coach sends a cached stable system block (persona and curriculum map), then an uncached context block that includes the editor contents, then the history, with top-level automatic caching on the last message. A learner edits their code before every question. What does each turn read from cache?
-  options: ["Only the history, because automatic caching skips the system prompt entirely", "Everything, because the context block has no cache_control marker of its own", "Only the stable block, because the edit changes the prefix under the history breakpoint", "Nothing, because a change anywhere in the system prompt invalidates all of its breakpoints"]
-  answer: 2
+  options: ["Only the stable block, because the edit changes the prefix under the history breakpoint", "Nothing, because a change anywhere in the system prompt invalidates all of its breakpoints", "Everything, because the context block has no cache_control marker of its own", "Only the history, because automatic caching skips the system prompt entirely"]
+  answer: 0
   explanation: >-
     Caching is an exact prefix match in render order, system then messages. The explicit breakpoint after the stable block still matches, so that part is read. The automatic breakpoint on the last message covers the context block too, so a code edit changes that prefix and everything after the stable block is written again at the write premium. Moving the editor snapshot into the latest user turn would keep the history prefix stable.
 - q: >-
     Why does the coach run the model stream in a spawned task that writes to a channel, instead of streaming directly from the request handler?
-  options: ["Spawned tasks run on a faster executor, so tokens reach the browser sooner", "To avoid holding a database connection open for the length of the stream", "SSE responses must be written from a separate OS thread, not from the handler", "So the reply is still consumed and saved if the browser disconnects midway"]
-  answer: 3
+  options: ["SSE responses must be written from a separate OS thread, not from the handler", "Spawned tasks run on a faster executor, so tokens reach the browser sooner", "So the reply is still consumed and saved if the browser disconnects midway", "To avoid holding a database connection open for the length of the stream"]
+  answer: 2
   explanation: >-
     If the handler owned the stream, a disconnect would drop it and lose the reply. The task, not the HTTP response, owns persistence: it keeps reading after the receiver is gone and calls finish_turn. Speed has nothing to do with it; the tokens arrive no faster. The cost is paying for generations nobody is watching.
 - q: >-
     The first version of the daily budget read today's usage, checked it against the limit, then incremented the request counter with an atomic upsert. What could still happen?
-  options: ["Nothing, because the atomic upsert made the check and the increment atomic", "Concurrent requests could all pass the check before any increment landed", "The counter could go negative when a refund raced with a new reservation", "Lost updates: two concurrent increments could overwrite each other's counts"]
-  answer: 1
+  options: ["The counter could go negative when a refund raced with a new reservation", "Nothing, because the atomic upsert made the check and the increment atomic", "Lost updates: two concurrent increments could overwrite each other's counts", "Concurrent requests could all pass the check before any increment landed"]
+  answer: 3
   explanation: >-
     The upsert made each increment atomic, so no update was lost, but the check was a separate read, so requests in flight together could all pass it and overshoot the limit by their number. The current check_and_reserve is a conditional upsert that increments only while under every limit and returns a row only if it did, and a 30-way concurrency test against a limit of 10 proves it.
 - q: >-
-    The budget now limits requests, uncached input tokens and output tokens per user per day. Which cost can still grow without a direct cap?
-  options: ["Prompt-cache writes: they are recorded, but only the request cap limits them", "Uncached input spend, because input_tokens includes only cached prompt tokens", "Rate-limiter memory, because per-session limiter keys are never pruned", "Output spend, because output tokens are recorded but never compared with a limit"]
-  answer: 0
+    The daily input limit first compared against the API's input_tokens, and conversation caching was switched on in the same change. Which cost did that leave without a direct cap?
+  options: ["Uncached input, because input_tokens counts only the prompt tokens read from cache", "Prompt-cache writes, which input_tokens leaves out and which bill at 1.25x input", "Output spend, because output tokens were recorded but never compared with a limit", "Thinking tokens, because they bill as input and are reported in no counter at all"]
+  answer: 1
   explanation: >-
-    input_tokens counts only uncached input; the API reports cache writes and reads separately. Cache writes (billed at 1.25 times the input price) and reads are stored in their own columns but are not part of any limit, so only the request cap bounds them. Output and uncached input are both conditions in the reservation's WHERE clause. A budget in cost units computed from all four counters would bound everything.
+    input_tokens counts only uncached input; the API reports cache writes and reads separately, and with caching on nearly all of a chat's input moves into those two counters. The fix counts billed input in the reservation: cache writes weighted 1.25 and reads 0.1. Output was always a condition in the WHERE clause, and thinking tokens bill as output, not input.
 - q: >-
     The coach never sees a problem's editorial solution, and its prompt also tells it not to write solutions. Why keep both mechanisms?
-  options: ["They are redundant, so either one could be removed without changing any behaviour", "The instruction keeps the prompt stable, which the prompt cache depends on", "Stripping exists only to keep the prompt short, not to protect the answers", "Stripping hides the reference; the instruction curbs solutions the model writes"]
-  answer: 3
+  options: ["Stripping exists only to keep the prompt short, not to protect the answers", "Stripping hides the reference; the instruction curbs solutions the model writes", "They are redundant, so either one could be removed without changing any behaviour", "The instruction keeps the prompt stable, which the prompt cache depends on"]
+  answer: 1
   explanation: >-
     Construction removes what the model can leak: the reference solution never reaches it. Instruction shapes what it chooses to generate, and no amount of stripping prevents the model from solving the problem unaided, so neither mechanism makes the other redundant. Relying on the instruction is acceptable only because a determined learner can harm only their own learning.
 - q: >-
     You are designing inline code completion. Which cost control matters most?
-  options: ["A per-user daily token budget alone, enforced before each completion", "Persisting every completion in a spawned task so none is wasted", "Debouncing keystrokes and cancelling requests the user has typed past", "A larger model at high effort, so fewer suggestions are rejected"]
-  answer: 2
+  options: ["A larger model at high effort, so fewer suggestions are rejected", "Persisting every completion in a spawned task so none is wasted", "A per-user daily token budget alone, enforced before each completion", "Debouncing keystrokes and cancelling requests the user has typed past"]
+  answer: 3
   explanation: >-
     Most completion requests are made obsolete by the next keystroke. Debouncing and cancellation remove that waste; persisting completions the user has already typed past, as the coach does with chat replies, would pay for exactly the work you want to avoid.
 ```

@@ -255,26 +255,26 @@ hints:
     Collisions depend on pairs, not draws: 1 - exp(-n^2 / 2N) with n = 10^5 and N ≈ 4.3 × 10^9 gives 1 - e^(-1.16) ≈ 0.69. The tempting first answer is the chance that one specific new ID collides, not that any pair does.
 - q: >-
     You insert 10,000 keys into a hash table with 10,000 buckets using a uniform hash. Which statement about the fullest bucket is right?
-  options: ["It holds about sqrt(n) keys, around 100 here", "It holds about 5 or 6 keys, like ln n / ln ln n", "It holds about 2 keys, twice the average load", "It holds exactly 1 key, since the load factor is 1"]
-  answer: 1
+  options: ["It holds exactly 1 key, since the load factor is 1", "It holds about sqrt(n) keys, around 100 here", "It holds about 5 or 6 keys, like ln n / ln ln n", "It holds about 2 keys, twice the average load"]
+  answer: 2
   explanation: >-
     Uniform placement of n balls into n bins gives a maximum load of Θ(log n / log log n) with high probability, which is around 5 or 6 for n = 10^4. The average is 1 but the maximum is what sets the worst-case probe length; sqrt(n) is far too large.
 - q: >-
     Why is picking the less-loaded of two random servers so much better than picking one random server?
-  options: ["It makes the load on every server exactly equal", "Max load falls from log n / log log n to log log n", "It is not better; it only adds an extra round trip", "It halves the number of requests each server receives"]
-  answer: 1
+  options: ["It makes the load on every server exactly equal", "It is not better; it only adds an extra round trip", "Max load falls from log n / log log n to log log n", "It halves the number of requests each server receives"]
+  answer: 2
   explanation: >-
     The power of two choices drops the max load from Θ(log n / log log n) to Θ(log log n), roughly 4 for any realistic n: an exponential improvement for one extra comparison and no global state. The total request count is unchanged and the load is not exactly equal, just far tighter.
 - q: >-
     In reservoir sampling with k = 1, the i-th item replaces the current sample with probability 1/i. After n items, why does the first item still have probability 1/n of being the sample?
-  options: ["Because it starts at probability 1 and is rarely replaced", "Because the survival odds (i-1)/i telescope to 1/n", "It does not; earlier items are more likely to be kept", "Because the algorithm re-randomises the sample at the end"]
-  answer: 1
+  options: ["Because it starts at probability 1 and is rarely replaced", "Because the algorithm re-randomises the sample at the end", "It does not; earlier items are more likely to be kept", "Because the survival odds (i-1)/i telescope to 1/n"]
+  answer: 3
   explanation: >-
     The first item is kept initially (probability 1) and survives each later item i with probability 1 - 1/i = (i-1)/i. The product 1 × (1/2) × (2/3) × ... × ((n-1)/n) telescopes to 1/n, matching every other item. Starting at probability 1 does not make it favoured, and no final pass is needed.
 - q: >-
     A user request waits on 50 backends, each of which exceeds its latency target on 2% of calls independently. What fraction of user requests exceed the target?
-  options: ["About 2%", "About 4%", "About 64%", "About 100%"]
-  answer: 2
+  options: ["About 100%", "About 2%", "About 4%", "About 64%"]
+  answer: 3
   explanation: >-
     P(at least one slow) = 1 - 0.98^50 ≈ 1 - e^(-1) ≈ 63%. Fan-out turns a per-backend tail into a front-end median, which is why hedged requests and per-backend deadlines exist.
 ```

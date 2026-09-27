@@ -328,32 +328,32 @@ hints:
 ```quiz
 - q: >-
     Why does the engine store a full snapshot per frame instead of a list of diffs?
-  options: ["Any frame is reachable by setting an index, and tests assert on plain data", "React cannot render a diff without first replaying it into a full state", "Snapshots take less memory than diffs once the frame cap is applied to them", "Diffs cannot be serialised to JSON, so the tests would be unable to inspect them"]
+  options: ["Any frame is reachable by setting an index, and tests assert on plain data", "React cannot render a diff without first replaying it into a full state", "Diffs cannot be serialised to JSON, so the tests would be unable to inspect them", "Snapshots take less memory than diffs once the frame cap is applied to them"]
   answer: 0
   explanation: >-
     Diffs are smaller, which is the tempting answer, but every backward step then needs an inverse operation or a replay from the start, and every renderer must apply diffs correctly. Snapshots make the renderer a pure function of one frame. With inputs clamped and a 600-frame cap, they cost well under a megabyte per visualisation.
 - q: >-
     A new generator has a loop whose exit condition is never met for one input, and it calls f.push on every iteration. What happens when a lesson renders it?
-  options: ["The cap stops the loop once 600 frames have been recorded for it", "The page freezes, because push stops recording but the loop keeps running", "The player shows the limit frame and lets the learner scrub through the rest", "React catches the runaway loop and shows the warning box instead"]
-  answer: 1
+  options: ["React catches the runaway loop and shows the warning box instead", "The player shows the limit frame and lets the learner scrub through the rest", "The page freezes, because push stops recording but the loop keeps running", "The cap stops the loop once 600 frames have been recorded for it"]
+  answer: 2
   explanation: >-
     Frames.push returns early after the limit frame, but that only bounds memory. Generators run synchronously inside useMemo on the main thread, so nothing interrupts the loop. Loops must check f.full (the families do, about 170 times) or otherwise terminate.
 - q: >-
     A lesson adds a viz block with algorithm "dijkstraa" and is pushed to main. Where does the mistake surface?
-  options: ["In CI's web job, where content.test.ts runs every viz block through runSpec", "In the Docker build, where --check-content rejects the unknown algorithm", "Nowhere before production; the lesson just shows learners a warning box instead", "In cargo test, where the embedded curriculum test resolves each viz block it finds"]
-  answer: 0
+  options: ["In cargo test, where the embedded curriculum test resolves each viz block it finds", "In CI's web job, where content.test.ts runs every viz block through runSpec", "In the Docker build, where --check-content rejects the unknown algorithm", "Nowhere before production; the lesson just shows learners a warning box instead"]
+  answer: 1
   explanation: >-
     The Rust loader only checks that a viz block is valid JSON, because the registry lives in TypeScript, so neither the Docker build nor cargo test notices. The Vitest content scan runs the exact spec through the page's own function and fails. With Railway now waiting for CI, that failure also blocks the deploy.
 - q: >-
     Every frame of a new animation shows the same final colours, and scrubbing appears to do nothing. What is the most likely bug?
-  options: ["The player's index state is not updating when the slider is dragged", "The snapshot copies the state object but not an array nested inside it", "The generator is impure and reads the clock, so each frame differs by run", "MAX_FRAMES is set too low, so the generator stops before any colour change"]
-  answer: 1
+  options: ["MAX_FRAMES is set too low, so the generator stops before any colour change", "The generator is impure and reads the clock, so each frame differs by run", "The snapshot copies the state object but not an array nested inside it", "The player's index state is not updating when the slider is dragged"]
+  answer: 2
   explanation: >-
     Frames record whatever the snapshot function returns. A shallow spread copies the outer object but keeps references to nested arrays, which the generator keeps mutating, so every frame shows their final values. The family tests assert that the first and last frame states are different objects for this reason.
 - q: >-
     What is the main engineering benefit of writing the system scenarios against the Sys DSL rather than drawing each one?
-  options: ["Scenarios run faster, because the DSL precomputes each frame's layout", "One state shape lets one test check invariants across every scenario at once", "The DSL guarantees termination, so no scenario can loop forever at all", "Notes become optional, because the DSL writes a sentence for each step"]
-  answer: 1
+  options: ["Notes become optional, because the DSL writes a sentence for each step", "Scenarios run faster, because the DSL precomputes each frame's layout", "One state shape lets one test check invariants across every scenario at once", "The DSL guarantees termination, so no scenario can loop forever at all"]
+  answer: 2
   explanation: >-
     Uniform output is what makes bulk checking possible: one test file asserts, for all 25 scenarios in the first pack, that messages only connect nodes that exist, and it could cover the second pack unchanged. Consistency and authoring speed are real benefits too. The DSL does not make scenarios terminate; purity and bounded loops still depend on the author.
 ```

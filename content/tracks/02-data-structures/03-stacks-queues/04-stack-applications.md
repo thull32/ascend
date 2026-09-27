@@ -265,32 +265,32 @@ hints:
 ```quiz
 - q: >-
     A bracket checker pushes openers and pops on closers, returning true when the loop finishes without a mismatch. What input does it wrongly accept?
-  options: ["\"([)]\"", "\")(\"", "\"{}\"", "\"((\""]
-  answer: 3
+  options: ["\"([)]\"", "\"((\"", "\"{}\"", "\")(\""]
+  answer: 1
   explanation: >-
     Leftover openers never trigger a mismatch inside the loop; the function must also check that the stack is empty at the end. The first two inputs are rejected by the empty-stack and mismatch checks.
 - q: >-
     Evaluating the postfix expression 6 −132 / in a language whose integer division floors gives:
-  options: ["−0.045, because / on two integers returns a float here", "0, because the true quotient −0.045 truncates to zero", "−22, because the top operand is divided by the one below", "−1, because floor division rounds toward negative infinity"]
-  answer: 3
+  options: ["−22, because the top operand is divided by the one below", "0, because the true quotient −0.045 truncates to zero", "−1, because floor division rounds toward negative infinity", "−0.045, because / on two integers returns a float here"]
+  answer: 2
   explanation: >-
     6 / −132 is about −0.045. Truncation toward zero gives 0, which is the usual RPN convention but not what floor division does; floor division gives −1. The left operand is the second pop, so the expression is 6 / −132, not −132 / 6. Python's // floors, so RPN evaluators must use int(a / b) or math.trunc to match the usual convention.
 - q: >-
     Why does iterative DFS push a node's neighbours in reverse order?
-  options: ["So reachability is correct, since order changes what is found", "So undirected edges are not traversed in both directions", "So the first neighbour pops first, matching recursive order", "So the stack stays smaller, since fewer nodes wait at once"]
+  options: ["So the stack stays smaller, since fewer nodes wait at once", "So undirected edges are not traversed in both directions", "So the first neighbour pops first, matching recursive order", "So reachability is correct, since order changes what is found"]
   answer: 2
   explanation: >-
     A stack pops the most recently pushed item. Pushing neighbours in reverse makes the first neighbour the last pushed and therefore the next popped, matching the visit order of the recursive version. Reachability is correct in either order; only the visit sequence changes.
 - q: >-
     In a min-stack that pushes onto the auxiliary stack only when a new minimum arrives, what subtle bug appears with duplicate values?
-  options: ["get_min becomes O(n), because the aux stack must be rescanned", "Popping one of two equal minimums drops the aux entry too early", "The aux stack keeps growing, because duplicates are pushed twice", "push becomes O(log n), because the aux stack must stay sorted"]
-  answer: 1
+  options: ["Popping one of two equal minimums drops the aux entry too early", "The aux stack keeps growing, because duplicates are pushed twice", "get_min becomes O(n), because the aux stack must be rescanned", "push becomes O(log n), because the aux stack must stay sorted"]
+  answer: 0
   explanation: >-
     If you push onto aux only on strictly smaller values, two equal minimums on the main stack share one auxiliary entry. Popping the first one (if you pop aux whenever the popped value equals aux top) leaves the second minimum unrepresented. Push on less-than-or-equal, or use the parallel-stack version. Operation costs stay O(1) either way.
 - q: >-
     Recursive DFS on a graph with a simple path of 50,000 nodes crashes in Python. The right fix is:
-  options: ["Switch to BFS, since it visits nodes in the same order as DFS", "Memoise the recursive calls, since each node is visited once", "Raise sys.setrecursionlimit to 100,000, since frames are cheap", "Use an explicit stack, since depth is bounded by the input"]
-  answer: 3
+  options: ["Switch to BFS, since it visits nodes in the same order as DFS", "Use an explicit stack, since depth is bounded by the input", "Memoise the recursive calls, since each node is visited once", "Raise sys.setrecursionlimit to 100,000, since frames are cheap"]
+  answer: 1
   explanation: >-
     Raising the limit only postpones the crash and risks overflowing the C stack. Iterative DFS uses heap memory for the stack and handles any depth. Memoisation does not reduce recursion depth, and BFS is not equivalent when DFS order or finish times matter.
 ```

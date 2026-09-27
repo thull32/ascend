@@ -192,32 +192,32 @@ Nothing about the kernel's scheduling or memory management changes. The schedule
 ```quiz
 - q: >-
     Two threads in the same process each call malloc and receive pointers with the same numeric value. Two processes each call malloc and receive pointers with the same numeric value. Which statement is correct?
-  options: ["Neither pair shares memory; every malloc gets private pages", "The processes' pointers share memory; the threads' pointers do not", "The threads' pointers share memory, but the processes' pointers do not", "Both pairs point at the same bytes of physical memory"]
-  answer: 2
+  options: ["The processes' pointers share memory; the threads' pointers do not", "The threads' pointers share memory, but the processes' pointers do not", "Neither pair shares memory; every malloc gets private pages", "Both pairs point at the same bytes of physical memory"]
+  answer: 1
   explanation: >-
     Threads share one address space, so equal virtual addresses are the same bytes (and malloc would never hand out the same live block twice). Processes have private address spaces, so equal virtual addresses map to different physical pages.
 - q: >-
     A service runs 300 threads on an 8-core host. Each thread blocks on a downstream call roughly every 200 µs. The most likely dominant cost is:
-  options: ["The scheduler's O(log n) run-queue insertion on every wake-up", "Context switches and the cache misses that follow each one", "Stack memory, with 300 threads each reserving an 8 MiB stack", "Copying the process's page tables on every thread switch"]
-  answer: 1
+  options: ["Stack memory, with 300 threads each reserving an 8 MiB stack", "Copying the process's page tables on every thread switch", "Context switches and the cache misses that follow each one", "The scheduler's O(log n) run-queue insertion on every wake-up"]
+  answer: 2
   explanation: >-
     Thousands of switches per core per second cost a few µs each directly and far more in cold caches. Stacks are reserved virtually and committed lazily, so 300 of them do not exhaust memory; the run-queue cost is negligible at this scale; and threads in one process share page tables, so nothing is copied on a switch between them.
 - q: >-
     A container has a CPU limit of 2 on a 48-core host. Its Java thread pool is sized from Runtime.availableProcessors() and shows p99 latency spikes with a flat top near 100 ms, while average CPU looks low. What is happening?
-  options: ["Stop-the-world GC pauses, which average CPU does not reveal", "About 48 threads burn the 2-core quota early and are throttled", "The kernel is swapping the container's heap out to disk", "Two cores are too few for the JVM's own background threads"]
-  answer: 1
+  options: ["About 48 threads burn the 2-core quota early and are throttled", "Stop-the-world GC pauses, which average CPU does not reveal", "The kernel is swapping the container's heap out to disk", "Two cores are too few for the JVM's own background threads"]
+  answer: 0
   explanation: >-
     availableProcessors() reports the host's 48 cores, so the pool starts ~48 threads. CFS bandwidth control gives 200 ms of CPU per 100 ms period across all cores; many runnable threads burn it in a few ms and everything stalls until the period resets, and that stall is the flat top. GC pauses vary in length and would not cap neatly at the period length. Sizing the pool to the quota fixes it.
 - q: >-
     Why is fork() usually fast even for a process with a multi-gigabyte heap?
-  options: ["Modern kernels implement fork as a thread sharing the address space", "Pages are shared copy-on-write, so only page tables are copied", "Only the calling thread's stack is copied; heap writes stay shared", "The kernel compresses the heap and copies it in the background"]
-  answer: 1
+  options: ["The kernel compresses the heap and copies it in the background", "Only the calling thread's stack is copied; heap writes stay shared", "Pages are shared copy-on-write, so only page tables are copied", "Modern kernels implement fork as a thread sharing the address space"]
+  answer: 2
   explanation: >-
     Copy-on-write marks shared pages read-only and copies a page only when one side writes to it, so after fork the two heaps diverge rather than staying shared. The page-table copy itself still scales with heap size, which is why very large processes see fork take hundreds of milliseconds.
 - q: >-
     Which of these is true of a goroutine but not of an OS thread?
-  options: ["It can make blocking system calls such as read()", "It can run in parallel with others on another core", "Switching between them does not enter the kernel", "It has its own stack, allocated when it is created"]
-  answer: 2
+  options: ["Switching between them does not enter the kernel", "It can run in parallel with others on another core", "It has its own stack, allocated when it is created", "It can make blocking system calls such as read()"]
+  answer: 0
   explanation: >-
     Goroutines are user-space threads multiplexed by the Go runtime; switching between them is a runtime function call. They do have stacks, can run in parallel on the runtime's OS threads, and can make syscalls (which the runtime has to work around).
 ```

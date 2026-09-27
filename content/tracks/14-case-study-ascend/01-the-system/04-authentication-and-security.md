@@ -34,16 +34,19 @@ fn hash_sync(password: &str) -> AppResult<String> {
 /// `None`, so both branches cost the same.
 pub async fn verify(password: String, hash: Option<String>) -> bool {
     let exists = hash.is_some();
-    let hash = hash.unwrap_or_else(|| DUMMY_HASH.clone());
     let Ok(_permit) = HASH_PERMITS.acquire().await else { return false };
-    let ok = tokio::task::spawn_blocking(move || verify_sync(&password, &hash)).await.unwrap_or(false);
+    // The dummy hash is read on the blocking pool, inside the permit: its
+    // first use computes it, which is Argon2 work like any other.
+    let ok = tokio::task::spawn_blocking(move || verify_sync(&password, hash.as_deref().unwrap_or(&DUMMY_HASH)))
+        .await
+        .unwrap_or(false);
     ok && exists
 }
 ```
 
 **Why Argon2id.** Each guess against a stored hash costs 19 MiB of memory and two passes over it. An attacker with a GPU can compute billions of SHA-256 hashes per second but cannot give thousands of parallel cores 19 MiB each, so memory-hardness turns the attacker's advantage from thousands-to-one into something close to one-to-one. These are the crate defaults and match OWASP's minimum recommendation for Argon2id. **Rejected alternatives:** bcrypt is still acceptable but not memory-hard and silently truncates passwords at 72 bytes; PBKDF2 is compliance-friendly and GPU-friendly, which is the wrong kind of friendly; a fast hash with a salt is a mistake no reviewer should let through.
 
-**Why the blocking pool.** A hash takes tens of milliseconds of pure CPU. On a Tokio worker thread, that time is stolen from every other request multiplexed onto the same thread, so one login would add latency to unrelated lesson reads. `spawn_blocking` moves it to a separate thread pool built for exactly this. The `HASH_PERMITS` line in `verify` is newer, and it exists because the blocking pool alone was not enough.
+**Why the blocking pool.** A hash takes tens of milliseconds of pure CPU. On a Tokio worker thread, that time is stolen from every other request multiplexed onto the same thread, so one login would add latency to unrelated lesson reads. `spawn_blocking` moves it to a separate thread pool built for exactly this. The `HASH_PERMITS` line in `verify` is newer, and it exists because the blocking pool alone was not enough; so is the placement of `DUMMY_HASH` inside the blocking closure, which the timing section below explains.
 
 **Before: nothing bounded concurrency.** `spawn_blocking` moves work off the async threads, but Tokio's blocking pool grows to hundreds of threads by default, and each Argon2 computation holds 19 MiB. The auth rate limit was per IP, so a few hundred IPs submitting logins at once could make the process allocate gigabytes. Password hashing is a denial-of-service amplifier by design: the attacker sends a few bytes, the server spends tens of milliseconds and 19 MiB.
 
@@ -92,7 +95,9 @@ sequenceDiagram
 
 The same test then registers an email that already has an account and asserts a **409 "an account with that email already exists"**. That is the front door to exactly the information the login path works to hide: anyone can learn whether an address has an account by trying to register it. Until the latest fixes it leaked through timing as well, because registration checked for the email *before* hashing, so "already registered" came back roughly 100 ms sooner than a real sign-up. Registration now hashes first and lets the unique index decide, which removes the timing difference and the race described in [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request). The status code remains, deliberately, and the code says so in a comment: "Registration still says when an email is taken: without an email round trip there is no way to avoid that, and it is rate limited. The login endpoint, which attackers probe at scale, reveals nothing." The complete fix is an email step, where registration always answers "check your inbox" and the message differs, but that needs an email provider, deliverability work and a verification flow. For a learning platform, where knowing that someone studies here is low-sensitivity, skipping it is a defensible trade-off, and it is now a written one.
 
-Two smaller findings remain. `DUMMY_HASH` is a lazily initialised static, first touched inside `verify` on the async thread and before the semaphore, so the first unknown-email login computes a full Argon2 hash on a Tokio worker, outside the bound (and takes twice as long, a one-off timing signal). Forcing it at boot fixes both. And a failed login returns 422 through `AppError::Validation`; 401 is more conventional, and either is fine as long as it is consistent.
+A smaller finding shows how timing defences fail at their edges. `DUMMY_HASH` is a lazily initialised static: the first time anything reads it, it computes an Argon2 hash. The earlier `verify` read it with `hash.unwrap_or_else(|| DUMMY_HASH.clone())` on the async task, before taking a permit. So the very first unknown-email login after each boot computed a full Argon2 hash on a Tokio worker thread, outside the semaphore, and then verified against it: roughly twice as slow as every other login, a one-off signal that this email has no account. The fix moved the read into the blocking closure, inside the permit, and added `password::warm_up()`, which `main` awaits after building the application state: it takes a permit and forces the static on the blocking pool, so by the time the port is bound the dummy hash exists and every unknown-email login costs exactly one verification. A lazy static is a hidden first-call cost, and a timing defence has to account for first calls too.
+
+One small choice remains a matter of taste: a failed login returns 422 through `AppError::Validation`; 401 is more conventional, and either is fine as long as it is consistent.
 
 ### Deleting an account: a password, a 422 and a per-account limit
 
@@ -388,7 +393,7 @@ The live tests found the first problem before any learner did. The AI and smoke 
 
 The session key is a 16-byte prefix of the SHA-256 of the cookie, so raw tokens never sit in the limiter's memory, and it is computed without authenticating anyone, which the previous lesson showed is safe because the extractor rejects a forged cookie before any model call. `ai_throttling_is_per_session_and_only_for_model_calls` checks that one learner is throttled while a second learner from the same address is not, and the throttling test now checks that case and whitespace in the email do not buy a fresh allowance.
 
-The per-account bucket has a cost you should be able to name: it lets anyone *lock a learner out*. Ten wrong guesses a minute against someone's email, which the looser per-IP bucket allows from a single address, keep that account's bucket empty, and the owner's own correct password is then refused with 429. That is the standard trade-off of per-account limits. The usual mitigations are to charge only failed attempts, to exempt a device that has signed in successfully before, or to add a CAPTCHA step instead of refusing outright.
+The per-account bucket has a cost you should be able to name, and it is still open, as a documented trade-off: it lets anyone who knows a learner's email *delay their login*. Ten wrong guesses against that email, which the looser per-IP bucket allows from a single address, empty the account's bucket, and the owner's own correct password is refused with 429 until tokens refill, up to a minute; a script that repeats the burst keeps them out. The bucket also charges successful logins, so the owner's own attempts count against it. That is the standard trade-off of per-account limits. The usual mitigations are to charge only failed attempts, to exempt a device that has signed in successfully before, or to add a CAPTCHA step instead of refusing outright.
 
 What a reviewer should still raise:
 
@@ -449,38 +454,38 @@ Secrets live only in the environment. `DATABASE_URL` and the Anthropic key are `
 ```quiz
 - q: >-
     Ascend stores SHA-256 of each session token without a salt, yet uses slow, salted Argon2id for passwords. Why is that consistent?
-  options: ["Salts matter only for columns that serve as a table's primary key", "Session tokens are less valuable to an attacker than passwords are", "SHA-256 is slower than Argon2id once the token is 43 characters long", "Tokens hold 256 random bits, so there is no dictionary to try"]
+  options: ["Session tokens are less valuable to an attacker than passwords are", "SHA-256 is slower than Argon2id once the token is 43 characters long", "Salts matter only for columns that serve as a table's primary key", "Tokens hold 256 random bits, so there is no dictionary to try"]
   answer: 3
   explanation: >-
     Password hashing is slow and salted because attackers guess likely passwords from a dictionary. A random 256-bit token cannot be guessed, so the only goal of hashing it is that a leaked table cannot be replayed as a login, which any preimage-resistant hash achieves. SHA-256 is far faster than Argon2id, which is fine here.
 - q: >-
     Registration now hashes the password before it inserts, so an existing email no longer answers faster. How can an attacker still learn whether an email has an account?
-  options: ["They cannot, since every auth endpoint now answers identically for all emails", "By reading the session cookie, which embeds the account's email address", "By registering it: the endpoint still answers 409 when the account already exists", "By timing the login endpoint, which still skips hashing for unknown emails"]
+  options: ["They cannot, since every auth endpoint now answers identically for all emails", "By timing the login endpoint, which still skips hashing for unknown emails", "By registering it: the endpoint still answers 409 when the account already exists", "By reading the session cookie, which embeds the account's email address"]
   answer: 2
   explanation: >-
     Login verifies against a dummy hash for unknown emails, so its timing and body reveal nothing. Registration still has to say that an email is taken, and the code documents that as a deliberate trade-off; only an email-based registration flow removes it. The cookie holds an opaque random token, not an email.
 - q: >-
     A malicious page auto-submits an HTML form that POSTs to /api/auth/logout, an endpoint that takes no request body. Which defence does NOT help here?
-  options: ["The required X-Requested-With header, which a plain form cannot set", "The Origin check rejecting a request that claims evil.example", "The JSON extractor's demand for Content-Type application/json", "SameSite=Lax withholding the session cookie on the cross-site POST"]
-  answer: 2
+  options: ["The required X-Requested-With header, which a plain form cannot set", "The Origin check rejecting a request that claims evil.example", "SameSite=Lax withholding the session cookie on the cross-site POST", "The JSON extractor's demand for Content-Type application/json"]
+  answer: 3
   explanation: >-
     Logout has no JSON extractor, so the content-type requirement never applies to it. That is exactly why the middleware enforces an explicit rule for every mutating route instead of relying on body parsing. The other three are independent layers that each stop the forged request.
 - q: >-
     A signed-in learner types the wrong password into the delete-account form. Why does the API answer 422 rather than 401?
-  options: ["401 means no valid session, and the SPA would treat the learner as signed out", "Browsers show a native login prompt for every 401, and it cannot be suppressed", "422 is required by the HTTP specification for any incorrect form field value", "422 tells rate limiters to charge the attempt, while a 401 is never counted"]
-  answer: 0
+  options: ["422 is required by the HTTP specification for any incorrect form field value", "422 tells rate limiters to charge the attempt, while a 401 is never counted", "Browsers show a native login prompt for every 401, and it cannot be suppressed", "401 means no valid session, and the SPA would treat the learner as signed out"]
+  answer: 3
   explanation: >-
     The session is valid; only a field is wrong, which is what 422 says. The SPA's auth context sets the user to null on a 401, so a typo would bounce a signed-in learner to the login page. Browsers show a native prompt only when a 401 carries a WWW-Authenticate challenge, which this API never sends.
 - q: >-
     The per-account password limiter is Quota::per_minute(10). An attacker sends 15 login attempts for one email at t = 0 from 15 different IPs, and one more at t = 7 s. How many reach the password check?
-  options: ["10 at t = 0, and the attempt at t = 7 s is refused as well", "15 at t = 0, since every attempt comes from a different address", "11 in total: ten at t = 0 and then the one at t = 7 s", "1 at t = 0, then one more every six seconds after it"]
+  options: ["10 at t = 0, and the attempt at t = 7 s is refused as well", "1 at t = 0, then one more every six seconds after it", "11 in total: ten at t = 0 and then the one at t = 7 s", "15 at t = 0, since every attempt comes from a different address"]
   answer: 2
   explanation: >-
     The bucket is keyed by account, so rotating addresses buys nothing. Capacity is 10, so the first ten pass and five are refused; one token is replenished every 6 s, so by t = 7 s the next attempt passes. The same arithmetic shows the cost: the owner's own login shares that bucket.
 - q: >-
     You move Ascend to three replicas behind Railway's balancer without changing the limiter. What happens to an attacker's per-IP budget?
-  options: ["It roughly triples, because each replica keeps its own set of buckets", "Unchanged, because every limit is keyed by the client's IP address", "It drops to a third, because traffic is split across three processes", "Logins stop working, because sessions are pinned to the first replica"]
-  answer: 0
+  options: ["Unchanged, because every limit is keyed by the client's IP address", "It drops to a third, because traffic is split across three processes", "It roughly triples, because each replica keeps its own set of buckets", "Logins stop working, because sessions are pinned to the first replica"]
+  answer: 2
   explanation: >-
     governor state lives in each process. With requests spread across three processes, the same key gets three independent buckets, per IP, per account and per session alike. A shared store is required for a limit to mean what it says; sessions live in Postgres, so nothing is pinned.
 ```

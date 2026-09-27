@@ -303,32 +303,32 @@ hints:
 ```quiz
 - q: >-
     Given const a = { id: -1, kind: "status" } as RunnerResponse and const b = { id: -1, kind: "status" } satisfies RunnerResponse, which line reports that the required `message` property is missing?
-  options: ["Only the as line, because an assertion checks every required field", "Both lines, because each one compares the literal against the union", "Neither line, because the types are erased before anything is checked", "Only the satisfies line, because it requires the literal to conform"]
-  answer: 3
+  options: ["Neither line, because the types are erased before anything is checked", "Only the as line, because an assertion checks every required field", "Only the satisfies line, because it requires the literal to conform", "Both lines, because each one compares the literal against the union"]
+  answer: 2
   explanation: >-
     An `as` assertion only requires the types to overlap sufficiently, and an object missing `message` is a supertype of StatusResponse, so it is accepted. `satisfies` requires the literal to conform to the type and keeps its narrow type for inference. Erasure happens after type checking, so it excuses neither line.
 - q: >-
     What is `Omit<RunnerRequest, "id">`, where RunnerRequest = RunRequest | EvalRequest?
-  options: ["One merged type with only the shared keys: kind, code, timeLimitMs", "Omit<RunRequest, \"id\"> | Omit<EvalRequest, \"id\">, one for each member", "never, because the two members disagree about the type of kind", "RunnerRequest unchanged, because id is required in both members"]
+  options: ["One merged type with only the shared keys: kind, code, timeLimitMs", "Omit<RunRequest, \"id\"> | Omit<EvalRequest, \"id\">, one for each member", "RunnerRequest unchanged, because id is required in both members", "never, because the two members disagree about the type of kind"]
   answer: 0
   explanation: >-
     Omit is built on keyof of the whole union, which yields only the common keys, and it produces a single object type: entry and tests disappear, along with the link between kind and its fields. The per-member union, which WorkerHandle.send spells out by hand, needs a conditional type such as T extends unknown ? Omit<T, K> : never. Plain Omit neither collapses to never nor leaves the union intact; it removes id from one merged type.
 - q: >-
     Why does viz/families/index.ts cast each family to Family<never, unknown> instead of assigning it to Family<unknown, unknown>?
-  options: ["Family is invariant in I, so no common supertype fits every family", "never is erased to a smaller type, so the registry costs less memory", "TypeScript cannot infer generic parameters from an object literal", "React components stored in a registry are not allowed to be generic"]
+  options: ["Family is invariant in I, so no common supertype fits every family", "never is erased to a smaller type, so the registry costs less memory", "React components stored in a registry are not allowed to be generic", "TypeScript cannot infer generic parameters from an object literal"]
   answer: 0
   explanation: >-
     I appears both as a function parameter (checked contravariantly) and in output positions (checked covariantly), and a parameter used both ways admits no subtyping. Without existential types the registry must erase, and the cast records that decision; unknown fails for the same reason, as the compiler reports. Inference works fine here, generic components are allowed, and types have no runtime cost at all.
 - q: >-
     The backend renames `lesson_count` to `lessons` in the curriculum response. The frontend calls api.get<Curriculum>(...). What happens?
-  options: ["request() throws a TypeError while parsing the unexpected field", "tsc fails the frontend build, because Curriculum no longer matches", "The HTTP request fails, because the response no longer fits the type T", "The build passes, and the UI reads undefined for the count at runtime"]
-  answer: 3
+  options: ["The build passes, and the UI reads undefined for the count at runtime", "The HTTP request fails, because the response no longer fits the type T", "tsc fails the frontend build, because Curriculum no longer matches", "request() throws a TypeError while parsing the unexpected field"]
+  answer: 0
   explanation: >-
     `return data as T` is an unchecked claim: types are erased and nothing compares the JSON with Curriculum, so tsc never sees the server's shape, and the request and the JSON parse both succeed. Runtime validation, generated types or contract tests are the ways to turn this drift into an early failure.
 - q: >-
     A component's state is typed `{ loading: boolean; error?: string; data?: Curriculum }`. What is the strongest review comment?
-  options: ["It admits impossible states; a union tagged by status rules them out", "Type data as any so the component can also hold other responses", "Optional properties are slow in V8, so give every field a default", "Use an interface rather than a type alias, so that it can be extended"]
-  answer: 0
+  options: ["Optional properties are slow in V8, so give every field a default", "Use an interface rather than a type alias, so that it can be extended", "Type data as any so the component can also hold other responses", "It admits impossible states; a union tagged by status rules them out"]
+  answer: 3
   explanation: >-
     Three independent fields allow eight combinations, such as loading with both data and an error, and every consumer must defend against the impossible ones. A discriminated union has exactly the four real states and narrows automatically in a switch. Interface versus alias changes nothing here, and any removes checking rather than adding it.
 - q: >-

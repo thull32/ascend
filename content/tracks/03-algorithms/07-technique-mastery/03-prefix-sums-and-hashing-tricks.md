@@ -277,32 +277,32 @@ hints:
 ```quiz
 - q: >-
     Why does the counting template seed the map with seen[0] = 1 before the loop?
-  options: ["It prevents a KeyError on the first lookup, before any prefix is inserted", "It is the empty prefix P[0], the partner for every subarray starting at index 0", "It handles negative numbers, whose prefix sums can come back down to zero", "It makes k = 0 work, since a zero-sum subarray needs a zero prefix to match"]
-  answer: 1
+  options: ["It is the empty prefix P[0], the partner for every subarray starting at index 0", "It handles negative numbers, whose prefix sums can come back down to zero", "It prevents a KeyError on the first lookup, before any prefix is inserted", "It makes k = 0 work, since a zero-sum subarray needs a zero prefix to match"]
+  answer: 0
   explanation: >-
     A subarray a[0..j-1] corresponds to the prefix pair (0, j). Without P[0] in the map, no subarray starting at index 0 is ever counted, whatever k is. It has nothing to do with key errors (the template uses a defaultdict), and it is needed with or without negatives.
 - q: >-
     You need the number of subarrays with sum at least k in an array with negatives. Why does the hash-map template not apply directly?
-  options: ["Negative prefix sums cannot be used as hash-map keys without an offset", "It does apply; look up P[j] - k, and the stored count covers larger sums too", "It is an inequality, and a hash map cannot count keys below a threshold", "The answer can reach O(n²), more than one map lookup per index can count"]
+  options: ["It does apply; look up P[j] - k, and the stored count covers larger sums too", "The answer can reach O(n²), more than one map lookup per index can count", "It is an inequality, and a hash map cannot count keys below a threshold", "Negative prefix sums cannot be used as hash-map keys without an offset"]
   answer: 2
   explanation: >-
     The condition P[j] - P[i] >= k asks how many stored prefixes are at most P[j] - k, and a hash map only answers exact-key lookups. Counting partners below a threshold needs order: a Fenwick tree over compressed prefix values, or a merge-sort count, gives O(n log n). Looking up P[j] - k only counts sums exactly equal to k. Negative keys are fine, and each lookup returns a count, so large answers are no problem.
 - q: >-
     In JavaScript you key a counts array by p % k for prefix sums that can go negative, without normalising. What goes wrong?
-  options: ["It overcounts, since residues -2 and 3 are merged into a single slot", "Nothing; JavaScript's % always returns a value in the range [0, k)", "Residues -2 and 3 land in different slots, so the count comes out low", "The program throws a RangeError as soon as it indexes the array at -2"]
-  answer: 2
+  options: ["Residues -2 and 3 land in different slots, so the count comes out low", "It overcounts, since residues -2 and 3 are merged into a single slot", "The program throws a RangeError as soon as it indexes the array at -2", "Nothing; JavaScript's % always returns a value in the range [0, k)"]
+  answer: 0
   explanation: >-
     JavaScript's % takes the sign of the dividend, so -2 and 3, the same class mod 5, land in different slots (or at a negative index, which does not throw), and their matches are silently missed. The fix is ((p % k) + k) % k. Tests without negatives still pass, which is why this bug survives into interviews.
 - q: >-
     For "longest substring where every vowel appears an even number of times", what should the map store for each 5-bit parity mask?
-  options: ["The first index at which the mask occurred", "The number of times the mask occurred", "The longest length seen so far with that mask", "The last index at which the mask occurred"]
-  answer: 0
+  options: ["The longest length seen so far with that mask", "The first index at which the mask occurred", "The number of times the mask occurred", "The last index at which the mask occurred"]
+  answer: 1
   explanation: >-
     Two equal masks bound a valid substring. For the longest one ending at j, you want the earliest matching start, so you store the first index and never overwrite it. Counts are for counting, last indices are for shortest, and a stored length loses the start position that future matches need.
 - q: >-
     Why does Product of Array Except Self use prefix and suffix products instead of the total product divided by each element?
-  options: ["Division is slow on most CPUs, and n divisions would dominate the run time", "Zero has no multiplicative inverse, so a single zero breaks the division", "The total product overflows, while prefix and suffix products stay small", "Dividing out each element is O(n) per element, so the total becomes O(n²)"]
-  answer: 1
+  options: ["Dividing out each element is O(n) per element, so the total becomes O(n²)", "Division is slow on most CPUs, and n divisions would dominate the run time", "The total product overflows, while prefix and suffix products stay small", "Zero has no multiplicative inverse, so a single zero breaks the division"]
+  answer: 3
   explanation: >-
     The prefix difference trick needs an inverse. Zero has no multiplicative inverse, so dividing out an element fails exactly when an element is zero. Prefix and suffix products compute each answer without undoing anything. Speed is not the issue (one product, then n O(1) divisions), and prefix products can grow just as large as the total.
 ```

@@ -247,32 +247,32 @@ hints:
 ```quiz
 - q: >-
     Quickselect with random pivots is expected O(n) while quicksort is expected O(n log n). What accounts for the difference?
-  options: ["One-sided recursion makes the work a geometric series", "Its partition does fewer comparisons per element scanned", "Quicksort must also keep equal keys in their input order", "Its random pivot guarantees an even split every time"]
-  answer: 0
+  options: ["Its random pivot guarantees an even split every time", "Its partition does fewer comparisons per element scanned", "Quicksort must also keep equal keys in their input order", "One-sided recursion makes the work a geometric series"]
+  answer: 3
   explanation: >-
     Both use the same partition. Sorting must process every element at every recursion level, n per level times log n levels; selection discards the side that cannot contain index k, and the surviving sizes shrink geometrically: n + 3n/4 + ... A random pivot guarantees nothing about any single split; it only makes good splits likely, which is why the bound is expected.
 - q: >-
     Median of medians uses groups of 5. Why not groups of 3?
-  options: ["Sorting groups of 3 costs more comparisons per element", "The pivot is no longer guaranteed to avoid the outer 30%", "Fractions 1/3 + 2/3 sum to 1, so it becomes O(n log n)", "The recursion on n/3 medians makes it O(n²) worst case"]
-  answer: 2
+  options: ["Fractions 1/3 + 2/3 sum to 1, so it becomes O(n log n)", "The pivot is no longer guaranteed to avoid the outer 30%", "Sorting groups of 3 costs more comparisons per element", "The recursion on n/3 medians makes it O(n²) worst case"]
+  answer: 0
   explanation: >-
     The linear bound needs the two recursive fractions to sum to less than 1. With groups of 5 they are 1/5 + 7/10 = 9/10; with groups of 3 they are 1/3 + 2/3 = 1, and the recurrence solves to n log n, not n². The pivot is still central (at least n/3 on each side); the problem is that the recursive call on the n/3 medians is too large.
 - q: >-
     You need the 20 largest scores from a stream of 500 million events that does not fit in memory. The right approach is:
-  options: ["A max-heap of all events: O(n) build, then pop 20", "Quickselect for rank 20: O(n) expected, O(1) extra space", "Median of medians: O(n) worst case, no bad pivots", "A min-heap of size 20: O(n log 20) time, O(20) space"]
+  options: ["Median of medians: O(n) worst case, no bad pivots", "A max-heap of all events: O(n) build, then pop 20", "Quickselect for rank 20: O(n) expected, O(1) extra space", "A min-heap of size 20: O(n log 20) time, O(20) space"]
   answer: 3
   explanation: >-
     Quickselect, median of medians and a heap of all events need the whole data set in memory, which is exactly what you do not have. A bounded min-heap does one pass with constant memory and rejects most elements with a single comparison against the root.
 - q: >-
     A colleague uses quickselect with the first element as pivot on data received from external clients. What is the risk?
-  options: ["Crafted input can force O(n²) time and exhaust the CPU", "Duplicate values in the input can make it never finish", "Its expected O(n) becomes O(n log n) on any input", "Crafted input can make it return the wrong element"]
-  answer: 0
+  options: ["Crafted input can make it return the wrong element", "Duplicate values in the input can make it never finish", "Its expected O(n) becomes O(n log n) on any input", "Crafted input can force O(n²) time and exhaust the CPU"]
+  answer: 3
   explanation: >-
     Deterministic pivots have inputs that force the worst case, where every partition removes one element, and an adversary who controls the data can supply one: a CPU-exhaustion attack. Correctness is not affected either way, and it always terminates. Random pivots or introselect remove the attack.
 - q: >-
     Which statement about std::nth_element (or NumPy's np.partition) is accurate?
-  options: ["It is O(n log n), since it is built on a heap sort", "It places the k-th element and leaves both sides unsorted", "It sorts the prefix up to k and leaves the rest alone", "It moves the k largest elements to the front, sorted"]
-  answer: 1
+  options: ["It sorts the prefix up to k and leaves the rest alone", "It moves the k largest elements to the front, sorted", "It is O(n log n), since it is built on a heap sort", "It places the k-th element and leaves both sides unsorted"]
+  answer: 3
   explanation: >-
     nth_element is a partition-based selection (introselect), linear on average. The k-th element lands in its sorted position with smaller elements before and larger after, but the two sides are otherwise unordered; that is what makes it linear. Sorting any part of it, prefix or top k, would cost more.
 ```

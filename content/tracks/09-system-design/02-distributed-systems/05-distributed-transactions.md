@@ -198,31 +198,31 @@ Persistence and idempotency. The naive version loses its state when the process 
 ```quiz
 - q: >-
     In two-phase commit, at what moment is the transaction irrevocably committed?
-  options: ["When every participant has voted yes to the coordinator", "When the coordinator durably logs its commit decision", "When the client receives the commit acknowledgement", "When the first participant has committed locally"]
-  answer: 1
+  options: ["When every participant has voted yes to the coordinator", "When the client receives the commit acknowledgement", "When the first participant has committed locally", "When the coordinator durably logs its commit decision"]
+  answer: 3
   explanation: >-
     Yes votes are promises, not a decision; the coordinator may still abort. The logged decision is the commit point: after it, recovery will always drive participants to commit. Participants commit and the client learns of it afterwards.
 - q: >-
     The coordinator crashes after collecting all yes votes but before sending the decision. Participants:
-  options: ["Commit after a timeout, since all votes were yes", "Hold their locks until the coordinator recovers", "Elect a new coordinator among themselves and carry on", "Abort after a timeout, since no decision arrived"]
-  answer: 1
+  options: ["Commit after a timeout, since all votes were yes", "Elect a new coordinator among themselves and carry on", "Hold their locks until the coordinator recovers", "Abort after a timeout, since no decision arrived"]
+  answer: 2
   explanation: >-
     A participant in doubt cannot know whether the coordinator logged commit or abort, so unilateral action risks inconsistency; it waits for the coordinator to recover and read its log. Blocking is the fundamental weakness of 2PC; replicating the coordinator's decision is the fix.
 - q: >-
     In a booking saga, where should the "send confirmation email" step go?
-  options: ["After the card charge, since an email cannot be undone", "Before the card charge, so failures surface sooner", "In parallel with the other steps, to cut latency", "First, so the user is informed as early as possible"]
-  answer: 0
+  options: ["First, so the user is informed as early as possible", "Before the card charge, so failures surface sooner", "In parallel with the other steps, to cut latency", "After the card charge, since an email cannot be undone"]
+  answer: 3
   explanation: >-
     Non-compensatable steps must come after the pivot (here the card charge), the point where the saga will no longer roll back. Placing them earlier means a later failure leaves an effect that cannot be undone.
 - q: >-
     A saga's forward step times out with no response. The orchestrator should:
-  options: ["Run the compensation at once, treating it as a failure", "Mark the saga failed and stop without compensating", "Proceed to the next step, treating it as a success", "Retry it with the same idempotency key until definite"]
+  options: ["Mark the saga failed and stop without compensating", "Run the compensation at once, treating it as a failure", "Proceed to the next step, treating it as a success", "Retry it with the same idempotency key until definite"]
   answer: 3
   explanation: >-
     A timeout is an unknown outcome. Compensating may cancel something that succeeded; proceeding may build on something that did not. Idempotent retry resolves the ambiguity; only a definite failure triggers compensation.
 - q: >-
     Which problem does the transactional outbox solve?
-  options: ["Atomically writing a row and publishing an event", "Atomic writes across three independent databases", "Isolation between sagas that touch the same rows", "Total ordering of messages across all Kafka partitions"]
+  options: ["Atomically writing a row and publishing an event", "Atomic writes across three independent databases", "Total ordering of messages across all Kafka partitions", "Isolation between sagas that touch the same rows"]
   answer: 0
   explanation: >-
     The outbox commits the event in the same local transaction as the row and publishes it afterwards at least once, so no 2PC is needed: the cross-system problem becomes a local commit plus at-least-once delivery with consumer-side dedupe. It does not span multiple databases; that is a saga or 2PC.

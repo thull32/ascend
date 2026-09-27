@@ -152,6 +152,7 @@ Logs are copied to more places, kept longer and read by more people than your da
 
 - **Never log credentials**: passwords, session tokens, cookies, API keys, `Authorization` headers. In this app `SecretString` redacts the database URL and API key from `Debug` output, so dumping the config cannot leak them.
 - **Bound what you copy from outside.** The AI client logs at most 500 characters of an upstream error body; session user agents are truncated to 255 characters before storage.
+- **Logs and responses get different text.** The provider's own error message, which can quote request content, goes to the log (`anthropic stream error event`, with its `kind` as a field); the learner sees a short classified sentence such as "The reply was interrupted. Try again." The log is where detail is useful, and the response is where it leaks.
 - **Log an error once, where it is handled.** Logging at every layer that passes an error up produces five lines for one failure and makes counts meaningless. Here, internal and database errors are logged exactly once, in the error mapping, with the detail the client never sees.
 - **Personal data** needs a reason, a retention period and a way to delete it. An email address in a log line survives an account deletion that cascaded through every database table.
 
@@ -226,32 +227,32 @@ hints:
 ```quiz
 - q: >-
     Which log statement is the most useful in production?
-  options: ["println!(\"[info] user={} lesson={} secs={} lesson completed\", id, slug, secs)", "info!(user = %id, lesson = %slug, seconds = secs, \"lesson completed\")", "info!(\"user {} completed lesson {} in {}s\", id, slug, secs)", "debug!(request = ?req, user = %id, \"lesson completed\")"]
-  answer: 1
+  options: ["info!(user = %id, lesson = %slug, seconds = secs, \"lesson completed\")", "debug!(request = ?req, user = %id, \"lesson completed\")", "info!(\"user {} completed lesson {} in {}s\", id, slug, secs)", "println!(\"[info] user={} lesson={} secs={} lesson completed\", id, slug, secs)"]
+  answer: 0
   explanation: >-
     A constant message with typed fields at info level can be counted, grouped and filtered by user or lesson. The interpolated version makes every line unique text; println bypasses levels, the subscriber and its JSON output even when it imitates key=value text; and the debug line is off in production and dumps the whole request, which is noisy and a data-leak risk when it is on.
 - q: >-
     A latency dashboard shows the average of each instance's p99, averaged across 10 instances. What is wrong?
-  options: ["Percentiles cannot be averaged; merge the histogram buckets and take p99 from them", "It should weight each instance's p99 by its request count before averaging the ten", "Nothing; averaging per-instance percentiles is the standard way to combine them", "It should take the median of the p99s, which is robust to one slow instance"]
-  answer: 0
+  options: ["Nothing; averaging per-instance percentiles is the standard way to combine them", "Percentiles cannot be averaged; merge the histogram buckets and take p99 from them", "It should take the median of the p99s, which is robust to one slow instance", "It should weight each instance's p99 by its request count before averaging the ten"]
+  answer: 1
   explanation: >-
     A percentile is a property of a whole distribution. Averaging per-instance p99s, weighted or not, can badly understate the true p99, especially when one instance is slow, and a median of them has the same flaw. Histograms merge correctly; percentiles do not.
 - q: >-
     A teammate adds a user_id label to the request latency histogram so they can debug individual users. The service has 200,000 users and 40 routes. What is the concern?
-  options: ["Per-user buckets hold so few samples that the latency percentiles become inaccurate", "Series count multiplies into the millions; per-user detail belongs in logs and traces", "Privacy law forbids user IDs in metrics, so the change fails compliance review", "Histograms cannot carry labels, so the metric would be rejected at registration"]
+  options: ["Privacy law forbids user IDs in metrics, so the change fails compliance review", "Series count multiplies into the millions; per-user detail belongs in logs and traces", "Per-user buckets hold so few samples that the latency percentiles become inaccurate", "Histograms cannot carry labels, so the metric would be rejected at registration"]
   answer: 1
   explanation: >-
     Every label combination is a separate series, and a histogram has one series per bucket too. 200,000 users times 40 routes times a dozen buckets is about 96 million series, which overloads the metrics backend. Logs and traces are built for high-cardinality detail.
 - q: >-
     In Ascend, request_id is recorded on the request span rather than passed to every log call. Which formatter setting makes it appear on each production JSON log line?
-  options: ["with_current_span(true)", "The RUST_LOG filter string", "with_span_list(false)", "flatten_event(true)"]
+  options: ["with_current_span(true)", "with_span_list(false)", "flatten_event(true)", "The RUST_LOG filter string"]
   answer: 0
   explanation: >-
     with_current_span(true) prints the fields of the span an event occurred in, so every event inside the request inherits request_id. flatten_event only moves the event's own fields to the top level, with_span_list(false) omits the ancestor chain, and RUST_LOG decides which events are emitted, not what they contain. Flip the flag to false and the IDs vanish from production logs without any error.
 - q: >-
     You keep 1% of traces with head-based sampling, and incidents usually involve rare errors. What change best preserves the traces you need?
-  options: ["Tail-based sampling that keeps every error and slow trace plus a share of the rest", "Sample on the client instead, where errors are first visible to the user", "Stop sampling and keep every trace, since storage is cheaper than blind spots", "Raise head-based sampling to 5%, so five times as many of the rare errors are captured"]
-  answer: 0
+  options: ["Raise head-based sampling to 5%, so five times as many of the rare errors are captured", "Tail-based sampling that keeps every error and slow trace plus a share of the rest", "Stop sampling and keep every trace, since storage is cheaper than blind spots", "Sample on the client instead, where errors are first visible to the user"]
+  answer: 1
   explanation: >-
     Head sampling decides before the outcome is known, so even at 5% it discards most rare failures. Tail sampling decides after the trace completes and can keep every interesting one, at the cost of buffering spans in the collector. Keeping everything is usually unaffordable.
 ```

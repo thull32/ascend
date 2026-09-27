@@ -400,32 +400,32 @@ hints:
 ```quiz
 - q: >-
     A problem asks for the number of nodes whose value is greater than every ancestor's value. Which recursion shape fits, and why?
-  options: ["Level order, because ancestors are on earlier levels", "Either, since both shapes need the same single parameter", "Bottom-up, because each node needs its subtree's maximum", "Top-down, because each node needs the maximum above it"]
-  answer: 3
+  options: ["Level order, because ancestors are on earlier levels", "Top-down, because each node needs the maximum above it", "Bottom-up, because each node needs its subtree's maximum", "Either, since both shapes need the same single parameter"]
+  answer: 1
   explanation: >-
     The node needs one fact from its ancestors (the running maximum on the path from the root) and nothing from its descendants; pass it down as an argument. A bottom-up version would have to return every value in the subtree, which is wasteful and nothing like the same code.
 - q: >-
     def diameter(node): return max(height(node.left) + height(node.right) + 2, diameter(node.left), diameter(node.right)). What is its time complexity on a chain of n nodes?
-  options: ["O(n log n)", "O(n²)", "O(n)", "O(2^n)"]
-  answer: 1
+  options: ["O(n log n)", "O(n)", "O(2^n)", "O(n²)"]
+  answer: 3
   explanation: >-
     height() is O(size of subtree) and is called at every node; on a chain the subtree sizes are n, n-1, ..., 1, summing to O(n²). Computing height and diameter in the same pass makes it O(n).
 - q: >-
     In the maximum-path-sum recursion, why does a node return node.val + max(l, r) rather than node.val + l + r?
-  options: ["To keep the recursion O(n), not O(n²), on a chain", "Because a path up to the parent can use only one branch", "Because l + r would count a negative branch twice over", "Because the parent adds in the other branch by itself"]
-  answer: 1
+  options: ["Because a path up to the parent can use only one branch", "Because l + r would count a negative branch twice over", "Because the parent adds in the other branch by itself", "To keep the recursion O(n), not O(n²), on a chain"]
+  answer: 0
   explanation: >-
     A path is a simple sequence of nodes. If the parent extends this node's path, that path enters the node from above and can leave through at most one child, otherwise it would visit the node twice. The both-sides value is used only to update the global best, never returned; negatives are already handled by the max(0, ...) clamps.
 - q: >-
     The bottom-up LCA function is called with two values, one of which is not in the tree. What does it return?
-  options: ["The present node, since a lone hit propagates up", "An error, since one recursive branch returns None", "None, since no node gets a hit from both children", "The root, since the search reaches it with one hit"]
+  options: ["The present node, since a lone hit propagates up", "The root, since the search reaches it with one hit", "An error, since one recursive branch returns None", "None, since no node gets a hit from both children"]
   answer: 0
   explanation: >-
     A node matching a or b returns itself immediately, and a lone non-null result propagates up unchanged (left or right), so no error and no None. With one target absent, the function returns the present one, which is wrong if the caller assumes both exist. Return found-flags in a tuple when presence is not guaranteed.
 - q: >-
     You reconstruct a tree from preorder and inorder using array slicing at each recursive call. On a tree that is a left chain of n nodes, the cost is:
-  options: ["O(n), since a slice is a view, not a copy", "O(n), since each node is created exactly once", "O(n log n), since each level of recursion slices n items", "O(n²), since each slice copies its whole subtree"]
-  answer: 3
+  options: ["O(n²), since each slice copies its whole subtree", "O(n log n), since each level of recursion slices n items", "O(n), since a slice is a view, not a copy", "O(n), since each node is created exactly once"]
+  answer: 0
   explanation: >-
     Each call slices arrays proportional to the subtree size, and on a chain those sizes sum to O(n²). Python and JavaScript slices copy, not view. Pass index ranges and use a value-to-index map instead.
 ```

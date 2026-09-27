@@ -246,32 +246,32 @@ hints:
 ```quiz
 - q: >-
     A merge-intervals solution passes the statement example but fails a hidden test. Which input from the taxonomy is most likely to expose a bug in the merge step specifically?
-  options: ["A single interval, with nothing to merge it against", "Intervals that already arrive sorted by their start", "An empty list, which has nothing to merge at all", "An interval nested inside the previous merged one"]
+  options: ["An empty list, which has nothing to merge at all", "Intervals that already arrive sorted by their start", "A single interval, with nothing to merge it against", "An interval nested inside the previous merged one"]
   answer: 3
   explanation: >-
     A contained interval has a smaller end than the current merged end; code that sets the end to the new interval's end (instead of the max) shrinks the merged range and later intervals wrongly fail to merge. Empty and single inputs test setup and return paths, not the merge logic.
 - q: >-
     Your Python solution throws `IndexError: list index out of range` on the line `while nums[hi] > target`. What is the most likely cause?
-  options: ["Python cannot index a list inside a while condition", "hi starts at len(nums), or the input list is empty", "hi became a float from / division, not an int", "target is larger than every element in the array"]
-  answer: 1
+  options: ["hi starts at len(nums), or the input list is empty", "hi became a float from / division, not an int", "Python cannot index a list inside a while condition", "target is larger than every element in the array"]
+  answer: 0
   explanation: >-
     An index error names the index that is out of range; both the size row (empty input, so hi is -1 and there is nothing to index) and the boundary row (hi initialised to len(nums) rather than len(nums) - 1) produce it. A float index would raise TypeError, not IndexError, and a target above every element simply skips the loop. Reading the failing line and asking which value of hi could be out of range leads straight to the initialisation.
 - q: >-
     Why should hand traces use inputs of size two to six rather than the statement example?
-  options: ["Hidden tests mostly use small inputs, so they matter most", "The statement example is guaranteed to pass already", "Boundaries show up at once, and the trace stays accurate", "Small inputs run faster, so you get results sooner"]
-  answer: 2
+  options: ["Hidden tests mostly use small inputs, so they matter most", "The statement example is guaranteed to pass already", "Small inputs run faster, so you get results sooner", "Boundaries show up at once, and the trace stays accurate"]
+  answer: 3
   explanation: >-
     The bugs a trace can find live at boundaries (initialisation, last iteration, empty), which a two-element input reaches immediately; a nine-element trace is long enough that you start making errors in the trace itself. The statement example is usually chosen to be friendly rather than boundary-hitting, which is why passing it proves little.
 - q: >-
     A solution is correct but reports "time limit exceeded". Which should you check first?
-  options: ["Whether the language is simply too slow for this", "Whether the recursion is too deep for the default stack", "Hidden linear operations in the loop, such as `pop(0)`", "Whether the judge's test inputs are malformed or huge"]
-  answer: 2
+  options: ["Hidden linear operations in the loop, such as `pop(0)`", "Whether the recursion is too deep for the default stack", "Whether the judge's test inputs are malformed or huge", "Whether the language is simply too slow for this"]
+  answer: 0
   explanation: >-
     An O(n) operation inside an O(n) loop (`pop(0)`, `x in list`, slicing, string concatenation) silently makes an O(n^2) solution, and it is the most common cause of a timeout on an algorithm that is otherwise right. Language constants rarely account for a factor of n. Recursion depth produces a stack error, not a timeout.
 - q: >-
     You cannot write a brute force for a problem but want to test your solution on random inputs. What can you do?
-  options: ["Check properties every correct output must satisfy", "Test only the statement example, which is verified", "Nothing; random testing always needs an oracle", "Compare against the same function run a second time"]
-  answer: 0
+  options: ["Compare against the same function run a second time", "Test only the statement example, which is verified", "Check properties every correct output must satisfy", "Nothing; random testing always needs an oracle"]
+  answer: 2
   explanation: >-
     Property-based checks replace an oracle with invariants of the output, such as sortedness, non-overlap and covering the same points. They are often trivial to write even when the answer is hard to compute, and a violated property on a small random input gives you a minimal case to trace by hand. Running the same function twice only tests determinism.
 ```

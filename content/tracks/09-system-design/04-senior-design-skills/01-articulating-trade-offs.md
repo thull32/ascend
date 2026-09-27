@@ -187,32 +187,32 @@ First agree on the criteria and their weights, separately from the options, beca
 ```quiz
 - q: >-
     A candidate says: "I'd use Cassandra because it's highly scalable and battle-tested." What is the most important thing missing?
-  options: ["The Cassandra version and the consistency level chosen", "The requirement it serves, its cost, and when it would flip", "A diagram of the ring showing replication across nodes", "A comparison with at least five other candidate databases"]
-  answer: 1
+  options: ["A comparison with at least five other candidate databases", "A diagram of the ring showing replication across nodes", "The Cassandra version and the consistency level chosen", "The requirement it serves, its cost, and when it would flip"]
+  answer: 3
   explanation: >-
     "Scalable" and "battle-tested" apply to every serious option, so they carry no information. A trade-off statement ties the choice to a requirement, names what it costs, and says the condition under which another option would be better. Listing more databases without that structure is still preference.
 - q: >-
     In a weighted decision matrix, option A scores 41 and option B scores 43. Raising one weight by a single point makes them tie. What should you conclude?
-  options: ["It is within noise; decide on factors like reversibility", "The matrix is flawed and should be thrown away entirely", "B is the better choice, since it scores two points higher", "Add more criteria until one of the options clearly wins"]
+  options: ["It is within noise; decide on factors like reversibility", "B is the better choice, since it scores two points higher", "Add more criteria until one of the options clearly wins", "The matrix is flawed and should be thrown away entirely"]
   answer: 0
   explanation: >-
     A result that flips on a one-point weight change is a close call. Decide on something the matrix does not capture well, such as reversibility or team expertise, and say so. The matrix's value was eliminating weak options and exposing the pivot, so it is not worthless. Adding criteria until one wins is motivated reasoning; declaring B the winner overstates what the numbers show.
 - q: >-
     Which of these decisions is most clearly a one-way door?
-  options: ["Choosing the Redis client library for a large service", "Choosing the partition key for a billion-row table", "Choosing an instance type for a stateless web service", "Setting the cache TTL for a heavily read product catalogue"]
-  answer: 1
+  options: ["Choosing an instance type for a stateless web service", "Setting the cache TTL for a heavily read product catalogue", "Choosing the partition key for a billion-row table", "Choosing the Redis client library for a large service"]
+  answer: 2
   explanation: >-
     Changing a partition key means rewriting every row into a new layout and migrating every reader: months of work. The others can be changed in hours with a config change or a deploy, so they deserve quick decisions.
 - q: >-
     You are unsure whether to shard a 3 TB database now or later. Which reasoning best reflects the cost-of-being-wrong framework?
-  options: ["Shard now, since interviewers expect to see sharding", "Either; both are defensible, so the choice hardly matters", "Wait and name the trigger; premature sharding costs more", "Shard now, because sharding later is always impossible"]
-  answer: 2
+  options: ["Wait and name the trigger; premature sharding costs more", "Shard now, since interviewers expect to see sharding", "Either; both are defensible, so the choice hardly matters", "Shard now, because sharding later is always impossible"]
+  answer: 0
   explanation: >-
     The regret is asymmetric: if you wait and are wrong, sharding later is bounded work with warning from growth graphs, while premature sharding taxes every feature with complexity for years. Choosing the reversible, simpler option and stating the trigger (CPU or storage threshold) is the senior move. Sharding later is harder, not impossible.
 - q: >-
     An interviewer asks whether you want synchronous or asynchronous replication. Which answer shows the most judgement?
-  options: ["Whichever mode the database ships with as its default", "Sync to one local replica and async across regions", "Asynchronous, because write latency matters most", "Synchronous, because data loss is never acceptable"]
-  answer: 1
+  options: ["Whichever mode the database ships with as its default", "Synchronous, because data loss is never acceptable", "Sync to one local replica and async across regions", "Asynchronous, because write latency matters most"]
+  answer: 2
   explanation: >-
     The question presents a binary, but replication is a dial. Synchronous to one replica in the same region gives zero loss on a single-node failure for about 1 ms extra per write, and you state the cross-region loss window that remains. The middle setting buys most of the durability for a small, quantified latency cost. Either extreme ignores the cost on the other side.
 ```

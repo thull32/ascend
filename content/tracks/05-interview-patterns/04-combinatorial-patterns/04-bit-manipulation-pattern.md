@@ -288,32 +288,32 @@ hints:
 ```quiz
 - q: >-
     Why does XOR-ing every element of [4, 1, 2, 1, 2] yield 4, regardless of the order of the elements?
-  options: ["XOR is commutative and x ^ x = 0, so pairs cancel", "Because 4 is the largest value, so it dominates the bits", "Because XOR implicitly sorts the values bit by bit", "It only works because the singleton happens to come first"]
-  answer: 0
+  options: ["Because XOR implicitly sorts the values bit by bit", "Because 4 is the largest value, so it dominates the bits", "It only works because the singleton happens to come first", "XOR is commutative and x ^ x = 0, so pairs cancel"]
+  answer: 3
   explanation: >-
     Reordering does not change the result of a commutative, associative operation, so the expression can be regrouped as pairs of equal values, each of which is zero. The survivor is the element with no partner, wherever it sits and whatever its size.
 - q: >-
     In Python, a candidate's add(a, b) using XOR and shifted AND never terminates for add(-1, 1). Why?
-  options: ["XOR is undefined for negative integers in Python's model", "Python's << on negatives raises instead of wrapping", "Unbounded ints let the carry climb forever without a mask", "The loop condition should test a, not b, to end the carry"]
-  answer: 2
+  options: ["Python's << on negatives raises instead of wrapping", "XOR is undefined for negative integers in Python's model", "The loop condition should test a, not b, to end the carry", "Unbounded ints let the carry climb forever without a mask"]
+  answer: 3
   explanation: >-
     In fixed-width arithmetic the carry out of bit 31 is discarded. Python integers are unbounded, so there is no bit 31 to fall off and the carry keeps shifting left forever. Masking with 0xFFFFFFFF each iteration simulates the width, and a final sign reinterpretation recovers negative results.
 - q: >-
     In JavaScript, reverse_bits uses n >>= 1 and the input has bit 31 set. What goes wrong?
-  options: [">> copies the sign bit; use >>> and read with >>> 0", "The output gains a spurious 33rd bit at the very top", "Nothing, since JavaScript shifts are always unsigned", "The result is off by one because bit 0 is skipped"]
-  answer: 0
+  options: ["Nothing, since JavaScript shifts are always unsigned", "The result is off by one because bit 0 is skipped", ">> copies the sign bit; use >>> and read with >>> 0", "The output gains a spurious 33rd bit at the very top"]
+  answer: 2
   explanation: >-
     JavaScript bitwise operators work on 32-bit signed integers. >> is an arithmetic shift that preserves the sign, so ones are shifted in from the top; >>> fills with zeros, and >>> 0 reads the result as unsigned. The same input in Python is a positive integer and needs no special handling.
 - q: >-
     Counting Bits with bits[i] = bits[i >> 1] + (i & 1) is O(n), while calling popcount on each number is O(n log n). Where does the log n go?
-  options: ["The log n is hidden inside the cost of each shift", "Nowhere; both approaches are really O(n) overall", "The recurrence skips every even number in the range", "Each count reuses a smaller number's count in O(1)"]
-  answer: 3
+  options: ["The recurrence skips every even number in the range", "Each count reuses a smaller number's count in O(1)", "The log n is hidden inside the cost of each shift", "Nowhere; both approaches are really O(n) overall"]
+  answer: 1
   explanation: >-
     This is a dynamic programme whose state is i >> 1. Reusing the already-computed smaller answer replaces a per-number loop over up to log n bits with one lookup and one addition.
 - q: >-
     Every element appears three times except one. A candidate XORs everything. What is returned?
-  options: ["The singleton, which is the correct answer", "The sum of the array, taken bit by bit modulo 2", "Singleton XOR each tripled value, as x^x^x = x", "Zero, since every value cancels out in the end"]
-  answer: 2
+  options: ["Singleton XOR each tripled value, as x^x^x = x", "Zero, since every value cancels out in the end", "The singleton, which is the correct answer", "The sum of the array, taken bit by bit modulo 2"]
+  answer: 0
   explanation: >-
     XOR cancels pairs, not triples: a value appearing three times contributes itself. Counting each bit position modulo 3 (or the ones/twos state machine) recovers the singleton in O(1) space.
 ```

@@ -284,32 +284,32 @@ hints:
 ```quiz
 - q: >-
     Why is Euclid's algorithm with the modulo operation O(log min(a, b)) steps, while the subtraction-based version is not?
-  options: ["The modulo version is iterative, so it avoids recursion", "Every two modulo steps at least halve the larger number", "Modulo is one CPU instruction, so each step is cheaper", "Both are logarithmic; subtraction is just slower per step"]
+  options: ["Modulo is one CPU instruction, so each step is cheaper", "Every two modulo steps at least halve the larger number", "Both are logarithmic; subtraction is just slower per step", "The modulo version is iterative, so it avoids recursion"]
   answer: 1
   explanation: >-
     Whether b is above or below a/2, a mod b is below a/2, so the pair halves every two steps: logarithmic. Subtraction may shrink the larger number by only 1 per step, so gcd(10^18, 1) by repeated subtraction takes 10^18 steps. The instruction cost of modulo is irrelevant to the step count.
 - q: >-
     You compute lcm(a, b) as `a * b / gcd(a, b)` in a 64-bit language with a and b around 10^10. What happens?
-  options: ["gcd(a, b) overflows while reducing the large inputs", "a * b overflows 64 bits before the division happens", "It is correct; the result is around 10^10 and fits", "The division truncates, since gcd need not divide a * b"]
-  answer: 1
+  options: ["a * b overflows 64 bits before the division happens", "The division truncates, since gcd need not divide a * b", "It is correct; the result is around 10^10 and fits", "gcd(a, b) overflows while reducing the large inputs"]
+  answer: 0
   explanation: >-
     a * b is about 10^20, above 2^64 ≈ 1.8 × 10^19, so the product wraps before the division, giving a wrong answer even when the true lcm fits. Dividing first (a / gcd * b) keeps every intermediate value at or below the final answer. The gcd divides a exactly, so no truncation occurs.
 - q: >-
     A colleague computes the modular inverse as `pow(a, m - 2, m)` for a modulus m = 1,000,000 (not prime). What is the outcome?
-  options: ["Wrong in general: the Fermat shortcut needs a prime m", "A runtime error, since Python rejects composite moduli", "Correct for odd a, since only even a shares a factor", "Correct, since Fermat's theorem holds for any modulus"]
-  answer: 0
+  options: ["Correct for odd a, since only even a shares a factor", "Wrong in general: the Fermat shortcut needs a prime m", "Correct, since Fermat's theorem holds for any modulus", "A runtime error, since Python rejects composite moduli"]
+  answer: 1
   explanation: >-
     a^(m-2) is the inverse only when a^(m-1) ≡ 1, which Fermat guarantees for prime m. For composite m the result is an unrelated number even when a is coprime to m, and for a sharing a factor with m no inverse exists at all. Extended Euclid handles both cases and reports when no inverse exists.
 - q: >-
     Computing x^n by repeated squaring for n = 10^18 takes about how many multiplications?
-  options: ["About 60 squarings plus up to 60 multiplications", "About 10^18, one multiplication for each unit of n", "About 10^9, the square root of the exponent", "About 18, one per decimal digit of the exponent"]
-  answer: 0
+  options: ["About 10^18, one multiplication for each unit of n", "About 18, one per decimal digit of the exponent", "About 10^9, the square root of the exponent", "About 60 squarings plus up to 60 multiplications"]
+  answer: 3
   explanation: >-
     10^18 is just under 2^60, so its binary representation has 60 bits: one squaring per bit and one extra multiplication per set bit. Around 120 multiplications total. 18 confuses the decimal digit count with the binary length.
 - q: >-
     The sieve of Eratosthenes up to n starts marking multiples of prime p at p^2 rather than at 2p. Why is that safe?
-  options: ["Because even numbers are skipped by the sieve anyway", "It is not safe; it misses composites such as 2p and 3p", "Because the outer loop only runs up to sqrt(n)", "Every kp with k < p was marked by a smaller prime"]
-  answer: 3
+  options: ["Every kp with k < p was marked by a smaller prime", "Because even numbers are skipped by the sieve anyway", "It is not safe; it misses composites such as 2p and 3p", "Because the outer loop only runs up to sqrt(n)"]
+  answer: 0
   explanation: >-
     A multiple kp with k < p has a prime factor of k that is smaller than p, so it was crossed out when that smaller prime was processed. Starting at p^2 skips redundant work. Skipping evens only covers 2p, not 3p or 5p; the sqrt(n) bound on the outer loop is a separate consequence of the same fact.
 ```

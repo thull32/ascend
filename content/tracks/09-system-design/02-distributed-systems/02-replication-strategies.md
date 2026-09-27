@@ -183,32 +183,32 @@ Because availability inverts: any follower that is slow or down blocks every wri
 ```quiz
 - q: >-
     A leader acknowledges writes after local commit and ships them asynchronously. It handles 5,000 writes/s with 40 ms of replication lag, then crashes and a follower is promoted. Roughly how many acknowledged writes are lost?
-  options: ["About 40", "About 5,000", "About 200", "None"]
-  answer: 2
+  options: ["None", "About 5,000", "About 40", "About 200"]
+  answer: 3
   explanation: >-
     Writes in the lag window are on the leader only: 5,000/s x 0.04 s = 200. A semi-synchronous follower would reduce this to zero at about 1 to 2 ms per write.
 - q: >-
     With N=3 replicas, which configuration does NOT guarantee that a read set overlaps every write set?
-  options: ["W=2, R=2", "W=1, R=3", "W=3, R=1", "W=1, R=1"]
-  answer: 3
+  options: ["W=1, R=1", "W=3, R=1", "W=1, R=3", "W=2, R=2"]
+  answer: 0
   explanation: >-
     Overlap requires W + R > N. W=1, R=1 gives 2, which is not greater than 3, so a read may consult only replicas that missed the write. The other three all sum to at least 4.
 - q: >-
     Two leaders in different regions accept writes to the same key 30 ms apart before replicating. The system keeps the write with the higher timestamp. The main risk is:
-  options: ["Both writes are kept as duplicates of the same key", "The replication link saturates as both leaders retry", "The key is locked and unreadable until someone resolves it", "Skew can make the older write win, and the other is dropped"]
+  options: ["Both writes are kept as duplicates of the same key", "The key is locked and unreadable until someone resolves it", "The replication link saturates as both leaders retry", "Skew can make the older write win, and the other is dropped"]
   answer: 3
   explanation: >-
     Clock skew between regions can exceed 30 ms, so timestamp order is not real order. LWW converges but discards one write silently, without any error. Siblings, merge functions or CRDTs preserve both; LWW by design never keeps both.
 - q: >-
     A quorum read with R=2 returns x=1 to client B. A moment later, client C's quorum read returns x=0 for the same key. How is this possible?
-  options: ["The write was mid-flight and C read two replicas that lacked it", "The replicas' clocks differ, so C saw an older version as newer", "Client C was served from a stale cache in front of the replicas", "It is not possible, because R + W > N guarantees overlap"]
-  answer: 0
+  options: ["It is not possible, because R + W > N guarantees overlap", "The write was mid-flight and C read two replicas that lacked it", "The replicas' clocks differ, so C saw an older version as newer", "Client C was served from a stale cache in front of the replicas"]
+  answer: 1
   explanation: >-
     Overlap holds only for acknowledged writes; a write partway through its W-set can be visible to one reader and not another: one replica had x=1, and C's read set happened to consult two that did not yet have it. This is why quorums are not linearizable without additional coordination.
 - q: >-
     Which product is the poorest fit for multi-leader replication?
-  options: ["A financial ledger where every transfer is ordered", "A shopping cart that is edited from several regions", "A note-taking app that syncs edits from offline devices", "A collaborative whiteboard used from several regions"]
-  answer: 0
+  options: ["A note-taking app that syncs edits from offline devices", "A shopping cart that is edited from several regions", "A financial ledger where every transfer is ordered", "A collaborative whiteboard used from several regions"]
+  answer: 2
   explanation: >-
     Ledgers need a total order and no lost or merged writes, which single-leader with a synchronous follower provides. The other three tolerate or benefit from local writes with a defined merge.
 ```

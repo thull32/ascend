@@ -155,32 +155,32 @@ For aggregations, skew is usually harmless because partial aggregation collapses
 ```quiz
 - q: >-
     A job's aggregation stage shows 800 GB of shuffle write, spark.sql.shuffle.partitions is 200 and the cluster has 500 cores. Tasks spill heavily. What is the best first change?
-  options: ["Raise shuffle partitions to roughly 4,000-5,000", "Cache the input DataFrame so the scan is not repeated", "Lower maxPartitionBytes so every task reads less input", "Raise the broadcast threshold so the shuffle is skipped"]
-  answer: 0
+  options: ["Lower maxPartitionBytes so every task reads less input", "Cache the input DataFrame so the scan is not repeated", "Raise shuffle partitions to roughly 4,000-5,000", "Raise the broadcast threshold so the shuffle is skipped"]
+  answer: 2
   explanation: >-
     800 GB / 200 = 4 GB per task, far beyond execution memory, and only 200 of 500 cores are busy. About 4,000-5,000 partitions (a multiple of 500 cores) gives 160-200 MB each. Smaller input partitions change the read stage, not the shuffle; caching and broadcast do not address the aggregation.
 - q: >-
     In a physical plan you see HashAggregate(partial_count) below an Exchange and HashAggregate(count) above it. What is the lower operator doing?
-  options: ["Pre-aggregating in each task, like a MapReduce combiner", "Deduplicating rows within each task before the join", "Sampling rows so adaptive execution can size partitions", "Counting rows to feed the optimizer's table statistics"]
-  answer: 0
+  options: ["Deduplicating rows within each task before the join", "Pre-aggregating in each task, like a MapReduce combiner", "Sampling rows so adaptive execution can size partitions", "Counting rows to feed the optimizer's table statistics"]
+  answer: 1
   explanation: >-
     Partial aggregation computes per-task partial counts before the exchange, so fewer rows cross the shuffle; the final aggregate merges them. It is the combiner, and it is why ordinary aggregations tolerate skewed keys better than joins do.
 - q: >-
     You broadcast a 2 GB dimension table to 300 executors to avoid a sort-merge join. What is the most likely consequence?
-  options: ["The join becomes almost free, as no shuffle is needed", "About 600 GB moved and a huge hash table in every executor", "Spark silently falls back to a broadcast nested loop join", "Each executor receives only its 1/300 slice of the table"]
-  answer: 1
+  options: ["About 600 GB moved and a huge hash table in every executor", "Each executor receives only its 1/300 slice of the table", "Spark silently falls back to a broadcast nested loop join", "The join becomes almost free, as no shuffle is needed"]
+  answer: 0
   explanation: >-
     Broadcast copies the whole table to every executor: 2 GB × 300 = 600 GB moved, and each executor builds a full in-memory hash table, usually larger than the on-disk size, risking out-of-memory errors. Broadcast wins for small tables, not for anything that merely avoids a shuffle.
 - q: >-
     One task in a join stage reads 40 GB of shuffle data; the median task reads 150 MB. What is the most likely cause and a good first move?
-  options: ["Too many small input files; compact them before the join", "Under-partitioning; raise the number of shuffle partitions", "A hot join key; check for null keys, then AQE or salting", "Slow executor hardware; enable speculative execution"]
-  answer: 2
+  options: ["Under-partitioning; raise the number of shuffle partitions", "A hot join key; check for null keys, then AQE or salting", "Slow executor hardware; enable speculative execution", "Too many small input files; compact them before the join"]
+  answer: 1
   explanation: >-
     A single partition hundreds of times the median is key skew. More partitions cannot split one key, and speculation just re-runs the same 40 GB elsewhere. Null or placeholder keys are the most common culprit, then AQE skew splitting or salting the key.
 - q: >-
     Why is it acceptable to use a random salt when fixing a skewed join, but not when computing a distinct count per key in two stages?
-  options: ["Spark removes the duplicate matches from salted joins", "Each fact row still meets exactly one dimension row copy", "Spark only permits random expressions inside join keys", "Joins are commutative and associative; distinct counts are not"]
-  answer: 1
+  options: ["Spark removes the duplicate matches from salted joins", "Joins are commutative and associative; distinct counts are not", "Each fact row still meets exactly one dimension row copy", "Spark only permits random expressions inside join keys"]
+  answer: 2
   explanation: >-
     The replicated dimension side guarantees every salted fact row finds its match exactly once, so the join result is unchanged. In the distinct count the same value could land in several buckets and be counted more than once: partial distinct counts only add up when the buckets are disjoint, which requires salting by a function of the value being counted.
 ```

@@ -144,7 +144,7 @@ During overlap, blue-green and any rollback, **old code runs against the new sch
 4. Deploy code that reads the new column.
 5. Contract: stop writing the old column, then drop it in a later release.
 
-This repository's migration conventions, written at the top of `migration/src/lib.rs`, are the same discipline in miniature. Migrations are **append-only**: never edit one that has shipped, add a new one, because production has already recorded it as applied and an edit would only change what fresh databases get. Mutable tables get `created_at`/`updated_at` with database-side defaults, so application code cannot forget them; append-only tables such as sessions and messages get only `created_at`. Every foreign key declares an `ON DELETE` policy: rows a user owns privately cascade, so deleting an account erases their data, while shared comments switch to `SET NULL` and survive as "deleted user". That last rule is itself an append-only fix. The original comments table cascaded on user deletion, which also deleted other people's replies through the `parent_id` cascade; the correction shipped as a new migration, `m0007_integrity`, not as an edit to `m0004_community`.
+This repository's migration conventions, written at the top of `migration/src/lib.rs`, are the same discipline in miniature. Migrations are **append-only**: never edit one that has shipped, add a new one, because production has already recorded it as applied and an edit would only change what fresh databases get. Mutable tables get `created_at`/`updated_at` with database-side defaults; append-only tables such as sessions and messages get only `created_at`. (An earlier wording claimed the defaults meant application code "can never forget" the timestamps. Defaults apply only on `INSERT`, and the comment soft-delete did forget `updated_at` until a later fix; keeping it current on `UPDATE` is still the application's job.) Every foreign key declares an `ON DELETE` policy: rows a user owns privately cascade, so deleting an account erases their data, while shared comments switch to `SET NULL` and survive as "deleted user". That last rule is itself an append-only fix. The original comments table cascaded on user deletion, which also deleted other people's replies through the `parent_id` cascade; the correction shipped as a new migration, `m0007_integrity`, not as an edit to `m0004_community`.
 
 Running migrations at boot is simple and fits a single instance, with two caveats to raise in review. With several instances starting together, they race to migrate, so you need a lock or a separate release step. And a migration that takes longer than the platform's health-check window (120 seconds here) fails the deploy midway, so large-table changes, such as building an index on a big table, belong in a separate, online operation. Know whether your migration tool wraps each migration in a transaction before you rely on a failed one leaving no trace. The deep treatment is in [schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale).
 
@@ -221,14 +221,14 @@ Notice what the gate does not do: it does not stop fixes. A frozen team still de
 ```quiz
 - q: >-
     A team rebuilds the Docker image from the same Git commit when promoting from staging to production. What is the risk?
-  options: ["The rebuilt image can differ from the tested one, via a moved base tag or dependency", "None, because one commit always builds a byte-identical image on any machine", "Only speed; rebuilding repeats work but yields the same tested artifact", "Production images must have debug symbols stripped, so a rebuild is needed anyway"]
-  answer: 0
+  options: ["Production images must have debug symbols stripped, so a rebuild is needed anyway", "None, because one commit always builds a byte-identical image on any machine", "Only speed; rebuilding repeats work but yields the same tested artifact", "The rebuilt image can differ from the tested one, via a moved base tag or dependency"]
+  answer: 3
   explanation: >-
     Builds are not reliably reproducible: base image tags move, and dependency resolution and caches change. Promoting the exact digest that passed tests is the only way to know production runs what you tested; frozen lockfiles narrow the gap but do not pin the base image.
 - q: >-
     Ascend runs migrations before binding the port and gates traffic on /api/readyz. A new release contains a migration that fails. What happens?
-  options: ["The new version starts anyway and serves traffic against the old, unmigrated schema", "The platform rolls the database back to its previous state and retries the deploy", "The process exits non-zero, never turns ready, and the old deployment keeps serving", "Both versions share traffic until someone intervenes and picks which one to keep"]
-  answer: 2
+  options: ["Both versions share traffic until someone intervenes and picks which one to keep", "The platform rolls the database back to its previous state and retries the deploy", "The new version starts anyway and serves traffic against the old, unmigrated schema", "The process exits non-zero, never turns ready, and the old deployment keeps serving"]
+  answer: 3
   explanation: >-
     Because migrations run before the listener binds, a failed migration means the process never becomes ready, so traffic never shifts. Nothing rolls the database back for you: whether the failed migration left partial changes depends on the migration tool's transaction handling, which you should know before relying on it.
 - q: >-
@@ -239,14 +239,14 @@ Notice what the gate does not do: it does not stop fixes. A frozen team still de
     1% of 200 req/s is 2 req/s, or 120 requests per minute. At 0.2% that is 0.24 expected errors per minute; forgetting that the canary sees only 1% of traffic gives 24. With counts that small, one minute of data cannot distinguish a healthy canary from a moderately broken one, so early stages must run longer.
 - q: >-
     You need to rename a column that the current release reads and writes. Which plan keeps every deploy reversible?
-  options: ["Rename the column during a maintenance window when no traffic reaches the database", "Ship a single migration that renames the column together with the matching code change", "Add the new column, dual-write, backfill, switch reads, then drop the old one later", "Create a view with the new name over the table, then rename the table beneath it"]
-  answer: 2
+  options: ["Rename the column during a maintenance window when no traffic reaches the database", "Add the new column, dual-write, backfill, switch reads, then drop the old one later", "Create a view with the new name over the table, then rename the table beneath it", "Ship a single migration that renames the column together with the matching code change"]
+  answer: 1
   explanation: >-
     Expand and contract keeps the schema compatible with both the old and new code at every step, so overlap and rollback are safe. A one-step rename, with or without a maintenance window, breaks whichever version expects the other name the moment it runs, and a rollback after it has the same problem.
 - q: >-
     Your SLO is 99.9% over 30 days and the error budget is exhausted on day 12. What does a typical error budget policy say?
-  options: ["Lower the SLO to 99.5% for the rest of the window so the budget is positive", "Freeze feature launches and ship only reliability work until it recovers", "Keep shipping as normal and review the overspend at the monthly meeting", "Stop every deploy, fixes included, until the 30-day window has rolled over"]
-  answer: 1
+  options: ["Freeze feature launches and ship only reliability work until it recovers", "Lower the SLO to 99.5% for the rest of the window so the budget is positive", "Stop every deploy, fixes included, until the 30-day window has rolled over", "Keep shipping as normal and review the overspend at the monthly meeting"]
+  answer: 0
   explanation: >-
     The budget exists to trade velocity for reliability automatically. Fixes still ship, through the normal pipeline, because they restore the budget; freezing them too prolongs the problem. Moving the SLO to fit the outage defeats its purpose.
 ```

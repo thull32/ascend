@@ -304,32 +304,32 @@ hints:
 ```quiz
 - q: >-
     Two replicas each hold 2^24 rows and differ in exactly one row. Using a Merkle tree with one row per leaf, roughly how many hash values must be exchanged to identify that row?
-  options: ["About 2^12: one hash per slice of 4,096 rows", "About 2^24: one hash per row, compared leaf by leaf", "One: the roots differ, so the whole range is streamed", "About 48: two child hashes at each of 24 levels"]
-  answer: 3
+  options: ["One: the roots differ, so the whole range is streamed", "About 2^24: one hash per row, compared leaf by leaf", "About 48: two child hashes at each of 24 levels", "About 2^12: one hash per slice of 4,096 rows"]
+  answer: 2
   explanation: >-
     Each round compares a node's two children and descends into the differing one; 24 levels reach the leaf, so about 24 rounds of two hashes. In practice leaves cover row slices, so the exchange finds a slice and streams it, but the number of rounds is still logarithmic in the number of leaves. Exchanging one hash per row or per slice ignores the tree entirely.
 - q: >-
     Why does a Merkle inclusion proof for one leaf need only about log n hashes rather than the whole tree?
-  options: ["Leaves are sorted, so a binary search finds the leaf in log n steps", "The root hash embeds every leaf hash, so only the root is needed", "Only the leaf's own subtree is sent, and it has log n nodes", "The verifier rehashes up to the root using one sibling per level"]
-  answer: 3
+  options: ["Leaves are sorted, so a binary search finds the leaf in log n steps", "The root hash embeds every leaf hash, so only the root is needed", "The verifier rehashes up to the root using one sibling per level", "Only the leaf's own subtree is sent, and it has log n nodes"]
+  answer: 2
   explanation: >-
     Given the leaf and the sibling at each level, the verifier hashes upward and compares the result with the trusted root. Anything not on the path is summarised by those siblings, so the proof size is the tree height. Sorting plays no part; a Merkle tree commits to order but is not searched.
 - q: >-
     A single-producer, single-consumer ring buffer stores the item into the slot and then increments tail with a plain (relaxed) store. What can go wrong on a weakly ordered CPU?
-  options: ["The consumer can see the new tail before the item and read garbage", "The producer can overwrite a slot the consumer has not read yet", "Nothing, because each index has exactly one writer and needs no CAS", "The consumer can read a torn tail value that is half updated"]
-  answer: 0
+  options: ["The consumer can read a torn tail value that is half updated", "Nothing, because each index has exactly one writer and needs no CAS", "The consumer can see the new tail before the item and read garbage", "The producer can overwrite a slot the consumer has not read yet"]
+  answer: 2
   explanation: >-
     Ownership removes the need for CAS but not for ordering. Without a release store on tail and an acquire load in the consumer, the two writes can become visible out of order. Overwriting is prevented by the fullness check, and even a relaxed atomic store is never torn.
 - q: >-
     Your SPSC queue moves 5 million items per second in a benchmark, but only 1.5 million when the producer and consumer run on different cores. The most likely cause is:
-  options: ["The consumer needs a mutex to read tail safely across the cores", "The modulo on every index costs a slow division on each operation", "head and tail share a cache line that bounces between the cores", "The buffer is too small, so the producer keeps finding it full"]
-  answer: 2
+  options: ["The modulo on every index costs a slow division on each operation", "The buffer is too small, so the producer keeps finding it full", "The consumer needs a mutex to read tail safely across the cores", "head and tail share a cache line that bounces between the cores"]
+  answer: 3
   explanation: >-
     That pattern, fast on one core and slow across two, is false sharing. Padding head and tail onto separate 64-byte lines is the fix; the modulo, a mutex, or capacity would not produce a slowdown that appears only when cores are separated.
 - q: >-
     A telemetry library writes events into a fixed ring and the consumer is temporarily slow. Which behaviour is appropriate for telemetry, and what is its cost?
-  options: ["Drop the newest events; cost is losing the most recent data", "Grow the ring on demand; cost is allocation on the hot path", "Overwrite the oldest unread events; cost is silently lost old events", "Block the producer until space frees; cost is stalled application threads"]
-  answer: 2
+  options: ["Overwrite the oldest unread events; cost is silently lost old events", "Grow the ring on demand; cost is allocation on the hot path", "Drop the newest events; cost is losing the most recent data", "Block the producer until space frees; cost is stalled application threads"]
+  answer: 0
   explanation: >-
     Telemetry must never stall the application, so the ring overwrites the oldest entries and the consumer sees a gap. That is the right trade for logs and traces; a work queue would instead refuse or block, because losing items is not acceptable there.
 ```

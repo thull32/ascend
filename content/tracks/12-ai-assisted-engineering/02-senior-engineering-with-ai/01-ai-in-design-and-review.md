@@ -156,32 +156,32 @@ The mentoring side of review, which does not go away because code was generated,
 ```quiz
 - q: >-
     Which way of using AI in writing a design document preserves the document's value?
-  options: ["Write it all yourself and use AI only to check spelling, grammar and tone", "Write the constraints, then let the AI pick the option that has the most advantages", "Write the problem yourself, use AI to diverge and red-team, then decide yourself", "Generate the whole document from the ticket, then edit it before review"]
-  answer: 2
+  options: ["Write the problem yourself, use AI to diverge and red-team, then decide yourself", "Write the constraints, then let the AI pick the option that has the most advantages", "Write it all yourself and use AI only to check spelling, grammar and tone", "Generate the whole document from the ticket, then edit it before review"]
+  answer: 0
   explanation: >-
     The value is in the thinking, the decision and the alignment. Write the problem and constraints yourself, use AI to generate divergent options and red-team them, then decide and write the rationale yourself. AI is strong at widening options and finding holes, but it does not know your constraints and it cannot own the decision, so letting it pick is the tempting mistake. Restricting it to spelling wastes its real strengths.
 - q: >-
     A generated design says a Kafka-based webhook pipeline gives exactly-once refunds because Kafka supports exactly-once semantics. What is wrong?
-  options: ["Kafka's guarantee stops at Kafka; the refund side effect still needs idempotency", "Exactly-once only holds with a single partition, which cannot carry this load", "Kafka has no transactions, so it cannot offer exactly-once in any form", "Nothing, since Kafka's exactly-once semantics extend to consumer side effects"]
-  answer: 0
+  options: ["Kafka has no transactions, so it cannot offer exactly-once in any form", "Nothing, since Kafka's exactly-once semantics extend to consumer side effects", "Exactly-once only holds with a single partition, which cannot carry this load", "Kafka's guarantee stops at Kafka; the refund side effect still needs idempotency"]
+  answer: 3
   explanation: >-
     Kafka's exactly-once covers read-process-write within Kafka, using transactions. A refund applied to a database or an external API is a side effect outside that transaction: a consumer can apply it and crash before committing its offset, then process the event again. Idempotency keyed on the event id, at the point of the side effect, is what prevents a double refund.
 - q: >-
     An AI estimate reads "2,000 events per second at about 1 KB each is roughly 2 GB/s". What is the correct figure?
-  options: ["2 GB/s", "200 MB/s", "20 KB/s", "2 MB/s"]
-  answer: 3
+  options: ["2 GB/s", "2 MB/s", "200 MB/s", "20 KB/s"]
+  answer: 1
   explanation: >-
     2,000 × 1 KB = 2,000 KB, about 2 MB per second. A thousand-fold unit slip changes the architecture you would choose, which is why every generated number gets checked.
 - q: >-
     Your team has started ignoring the AI review bot's comments. What is the most likely cause, and the fix?
-  options: ["Engineers distrust automation; require a reply to every bot comment", "The bot is too slow; move it to run after merge so it never blocks work", "Too many false positives; tune it for precision and track comments acted on", "The bot's model is too small; switch to a larger one to improve its accuracy"]
-  answer: 2
+  options: ["Engineers distrust automation; require a reply to every bot comment", "The bot's model is too small; switch to a larger one to improve its accuracy", "The bot is too slow; move it to run after merge so it never blocks work", "Too many false positives; tune it for precision and track comments acted on"]
+  answer: 3
   explanation: >-
     Noisy reviewers get ignored, including when they are right. Precision matters more than recall for a comment stream humans read, so tune the bot to changed lines and higher severity and track what share of its comments lead to changes. Mandating replies to noise adds cost without restoring trust, and a bigger model does not fix a noisy configuration.
 - q: >-
     After adopting coding agents, pull requests per engineer rise from 4 to 10 a week and review comments per PR are falling. What is the best interpretation and response?
-  options: ["Agents are producing bad code; stop using them until quality recovers", "Code quality has improved, so fewer review comments are needed; celebrate it", "Reviews are getting shallower; cap PR size and move mechanical checks to CI", "Review capacity is short; hire more reviewers and keep the process as is"]
-  answer: 2
+  options: ["Reviews are getting shallower; cap PR size and move mechanical checks to CI", "Agents are producing bad code; stop using them until quality recovers", "Code quality has improved, so fewer review comments are needed; celebrate it", "Review capacity is short; hire more reviewers and keep the process as is"]
+  answer: 0
   explanation: >-
     Falling comments with rising volume usually means rubber-stamping, not better code. The fix is to make each review smaller and more focused, move mechanical checking to machines, prefer codemods for mass edits, and hold authors to explaining every line. Banning agents throws away the gains; hiring alone does not fix the process.
 ```

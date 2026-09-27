@@ -166,32 +166,32 @@ Not as it is. With a 10-day `gc_grace_seconds`, tombstones for deletes it missed
 ```quiz
 - q: >-
     With push-pull gossip and fanout 3, roughly how many rounds does it take for a fact to reach all of 1,000 nodes?
-  options: ["About 3", "About 10", "About 100", "About 333"]
-  answer: 1
+  options: ["About 10", "About 100", "About 3", "About 333"]
+  answer: 0
   explanation: >-
     Informed nodes grow by roughly the fanout each round, so log base 3 of 1,000 is about 6.3, plus a few rounds for the tail: around 8 to 10. Doubling the cluster adds about one round.
 - q: >-
     In SWIM, why does a node ask three other members to probe a target before suspecting it?
-  options: ["So a bad link is not mistaken for a dead target", "To elect a leader that decides whether the target is dead", "To measure latency from several points and average it", "To spread the ping load across more of the members"]
-  answer: 0
+  options: ["To elect a leader that decides whether the target is dead", "To measure latency from several points and average it", "To spread the ping load across more of the members", "So a bad link is not mistaken for a dead target"]
+  answer: 3
   explanation: >-
     If any indirect prober gets an ack, the target is alive and the original prober's path was the problem. This removes the single-bad-link false positive without a coordinator; the extra probes add traffic rather than reduce it.
 - q: >-
     Two replicas exchange Merkle tree roots and they differ. What happens next?
-  options: ["They compare child hashes and descend where they differ", "The replica with the larger dataset overwrites the other", "They rebuild both trees from scratch and compare again", "They exchange all keys in the key range to find the gap"]
+  options: ["They compare child hashes and descend where they differ", "They exchange all keys in the key range to find the gap", "They rebuild both trees from scratch and compare again", "The replica with the larger dataset overwrites the other"]
   answer: 0
   explanation: >-
     The tree localises differences in a depth-of-tree number of exchanges; equal subtrees are skipped until the differing buckets are found. The full scan happens once when building the tree, not during comparison.
 - q: >-
     A replica misses a delete, stays down for 15 days, and rejoins a cluster with gc_grace_seconds of 10 days. The likely outcome is:
-  options: ["The delete reaches it on rejoin through normal repair", "Nothing; repair treats the stale row as already deleted", "The deleted row comes back; its tombstone is gone elsewhere", "The cluster rejects the node for exceeding the grace window"]
-  answer: 2
+  options: ["Nothing; repair treats the stale row as already deleted", "The deleted row comes back; its tombstone is gone elsewhere", "The cluster rejects the node for exceeding the grace window", "The delete reaches it on rejoin through normal repair"]
+  answer: 1
   explanation: >-
     The tombstone was purged from the other replicas after 10 days, so there is nothing to shadow the old value, and repair copies the stale live row back. A node down longer than the grace window must be rebuilt from live replicas rather than repaired; nothing rejects it automatically.
 - q: >-
     Which task is gossip the wrong tool for?
-  options: ["Spreading node liveness across a 1,000-node cluster", "Propagating token ring changes around the cluster", "Distributing schema version numbers to every node", "Choosing, once, who takes a dead node's partitions"]
-  answer: 3
+  options: ["Choosing, once, who takes a dead node's partitions", "Spreading node liveness across a 1,000-node cluster", "Distributing schema version numbers to every node", "Propagating token ring changes around the cluster"]
+  answer: 0
   explanation: >-
     Gossip gives eventual, probabilistic convergence of a view, not an agreed decision at one logical moment. Ownership reassignment must happen exactly once, which needs consensus with gossip as its input.
 ```

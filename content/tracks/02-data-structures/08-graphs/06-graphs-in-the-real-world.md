@@ -239,32 +239,32 @@ hints:
 ```quiz
 - q: >-
     A BFS for "shortest path through a grid where you may pass through at most one wall" marks cells visited as (row, col) and returns no path even though one exists. The bug is:
-  options: ["The state omits walls used, so one arrival at a cell blocks a different, later one", "BFS finds only shortest paths, so the route through a wall needs DFS to be found", "The wall cell must be deleted from the grid before searching, not crossed", "BFS cannot cross walls at all, so the path that breaks through one is never explored"]
-  answer: 0
+  options: ["BFS finds only shortest paths, so the route through a wall needs DFS to be found", "The state omits walls used, so one arrival at a cell blocks a different, later one", "The wall cell must be deleted from the grid before searching, not crossed", "BFS cannot cross walls at all, so the path that breaks through one is never explored"]
+  answer: 1
   explanation: >-
     Two arrivals at the same cell with different remaining budgets are different states: a cell reached first after spending the wall marks it visited and blocks a later arrival that still has the wall available. The vertex must be (row, col, walls_used) so that each is visited independently. BFS itself is right for this unweighted problem; the state is what is too small.
 - q: >-
     You have 200,000 accounts, each with a few email addresses, and must group accounts belonging to the same person (shared address). The efficient model is:
-  options: ["An account-email graph with components or union-find: O(total emails)", "Sort accounts by first email, merging neighbours that match: O(n log n)", "Hash each account's full email set and group equal hashes: O(total emails)", "Compare every pair of accounts for a shared address: O(n²) comparisons"]
-  answer: 0
+  options: ["Compare every pair of accounts for a shared address: O(n²) comparisons", "Hash each account's full email set and group equal hashes: O(total emails)", "Sort accounts by first email, merging neighbours that match: O(n log n)", "An account-email graph with components or union-find: O(total emails)"]
+  answer: 3
   explanation: >-
     Shared attributes link accounts through the attribute vertex (or a map from email to the first account seen). Iterating each account's emails and unioning with the first account that owns each email touches every email once, and components capture transitive merges; pairwise comparison is 2 × 10^10 operations. Sorting by first email or hashing whole sets only groups accounts whose first address or entire set coincide, missing accounts that share just one address.
 - q: >-
     A package manifest for P lists dependencies [A, B]. For a topological install order, which edges should you add?
-  options: ["A → B and B → P", "A → P and B → P", "P–A and P–B (undirected)", "P → A and P → B"]
+  options: ["P → A and P → B", "A → P and B → P", "P–A and P–B (undirected)", "A → B and B → P"]
   answer: 1
   explanation: >-
     The install-order edge means 'must come before'. A and B must be installed before P, so the edges point from the dependency to the dependant. Adding them the other way produces the reverse order, which uninstalls correctly but installs backwards.
 - q: >-
     A workflow's state machine has a state with no outgoing transitions that is not documented as terminal. In graph terms this is:
-  options: ["An unreachable vertex, because nothing can proceed past it", "A source vertex, because no transition leaves from it at all", "A cycle, because the workflow can never leave that state again", "A sink vertex, which means the workflow can get stuck there"]
+  options: ["A source vertex, because no transition leaves from it at all", "An unreachable vertex, because nothing can proceed past it", "A cycle, because the workflow can never leave that state again", "A sink vertex, which means the workflow can get stuck there"]
   answer: 3
   explanation: >-
     Out-degree zero means no way forward: a sink, found by checking out-degree. A source is the opposite (in-degree zero), a cycle needs outgoing edges, and the state may well be reachable, which is exactly why it is dangerous. Checking every non-terminal state has at least one outgoing edge, and that every state is reachable from the start, are two one-pass graph checks worth having as tests.
 - q: >-
     For word ladder over a fixed dictionary of 100,000 words that will be queried millions of times with different start and end words, the best preprocessing is:
-  options: ["Sort the dictionary so each word's neighbours can be found by binary search", "Build the full adjacency list once by comparing all word pairs: O(n²) time", "Nothing; generate neighbours by substitution fresh on every single query", "Bucket words by wildcard pattern (h*t, *ot, ho*) and read neighbours from them"]
-  answer: 3
+  options: ["Sort the dictionary so each word's neighbours can be found by binary search", "Build the full adjacency list once by comparing all word pairs: O(n²) time", "Bucket words by wildcard pattern (h*t, *ot, ho*) and read neighbours from them", "Nothing; generate neighbours by substitution fresh on every single query"]
+  answer: 2
   explanation: >-
     Pattern buckets give exact neighbour lists in O(n × length) preprocessing and constant lookups per position; per-query substitution is fine for one search but wastes work across millions; pairwise comparison is 10^10 operations. Sorting helps only with shared prefixes, and a one-letter change can occur at any position.
 ```

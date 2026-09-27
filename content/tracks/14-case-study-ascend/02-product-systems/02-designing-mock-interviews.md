@@ -122,6 +122,7 @@ let stmt = Statement::from_sql_and_values(
            updated_at = now()
      WHERE id = $1
        AND jsonb_array_length(transcript) + jsonb_array_length($2::jsonb) <= $4
+       AND status = 'active'
     RETURNING *
     "#,
     [model.id.into(), new_entries.into(), code.into(), (MAX_TRANSCRIPT_ENTRIES as i32).into()],
@@ -132,7 +133,13 @@ let stmt = Statement::from_sql_and_values(
 
 There were three standard fixes, in increasing order of change, and the choice is worth defending. **Append in SQL** (chosen) fixes the bug with one statement and keeps the schema. **Optimistic concurrency** (`WHERE updated_at = $old`, retry on zero rows) is correct too, but it needs retry logic inside a background task that has already streamed its reply to the browser. **Entries as rows** in an `interview_entries` table keyed by `(interview_id, seq)` makes appends inserts and matches the coach's design; it is the 100x answer, because it also fixes the cost the SQL append keeps.
 
-That remaining cost is **write amplification**. `||` produces a new JSONB value, and Postgres writes a new row version (and a new TOAST value) for every append. Appending entry *k* writes about *k* entries' worth of bytes, so an interview of *n* entries of size *s* writes about $s \cdot n^2 / 2$ bytes in total: for 100 entries of 400 bytes, about 2 MB of writes (plus WAL) to store 40 KB. Harmless at this scale; a line item at 100x. Two smaller gaps remain as well. No test runs two appends concurrently, so the fix is proven by reading the SQL rather than by a test that would have failed before it. And the append does not check the interview's status: if the candidate presses Finish while an interviewer reply is still streaming, that reply lands in the transcript of an interview that has already been graded without it.
+That remaining cost is **write amplification**. `||` produces a new JSONB value, and Postgres writes a new row version (and a new TOAST value) for every append. Appending entry *k* writes about *k* entries' worth of bytes, so an interview of *n* entries of size *s* writes about $s \cdot n^2 / 2$ bytes in total: for 100 entries of 400 bytes, about 2 MB of writes (plus WAL) to store 40 KB. Harmless at this scale; a line item at 100x.
+
+### Before and after: a transcript that kept changing after the grade
+
+The first SQL append had two smaller gaps. No test ran two appends concurrently, so the fix was proven by reading the SQL rather than by a test that would have failed before it. And the append did not check the interview's status: if the candidate pressed Finish while an interviewer reply was still streaming, the background task appended that reply to an interview that had already been graded without it, and the stored transcript no longer matched the evaluation beside it. `finish` had the same shape, a plain update of the row, so two racing Finish requests could both write an evaluation. And the background tasks were careless with their own failures: the assistant's task discarded a failed save with `let _ =`, and both tasks did the same with a failed usage record.
+
+The fixes are small and each is a guard in SQL. The append's `WHERE` gained `AND status = 'active'` (shown above); when no row comes back, the service checks why and returns `Conflict("the interview has already ended")` rather than a misleading "too long". `finish` became a conditional update, `UPDATE ... WHERE id = $1 AND status = 'active' ... RETURNING *`, so exactly one of two racing calls wins and the other gets a 409. And the route's background tasks now go through `persist_reply` and `record_usage`, which log a failed save or a failed usage record, and treat the conflict of a reply that arrived after the end as the expected case it is. The test `transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries` fires twenty appends at once and counts twenty entries, races two finishes and expects one winner and one conflict, then shows that a late append is refused and the transcript is unchanged. One narrow window remains by design of the finish handler: the transcript freezes when the status changes, after the grading call returns, so a reply that lands during the few seconds of grading is still saved without the grader having read it.
 
 The same shape hid in `start`, which enforced "one active interview per user" by running an `UPDATE ... SET status = 'abandoned'` before the insert, so two concurrent starts could both succeed. A partial unique index now makes the database enforce it; [Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations) covers that fix and the ordering bug that came with it.
 
@@ -272,11 +279,11 @@ A rough cost per coding interview on the configured model (`claude-opus-5-5`: $4
 
 ## At 100x
 
-- Move transcript entries to rows. The SQL append fixed the lost update; rows also remove the quadratic write amplification and make "append only to active interviews" a simple `WHERE` on the parent.
+- Move transcript entries to rows. The SQL append fixed the lost update and the status guard froze finished transcripts; rows would also remove the quadratic write amplification.
 - Include elapsed time per entry in the grader's input. Every entry has an `at` timestamp, but `evaluate` serialises only role and content, so the grader cannot judge pacing, which is one of the first things a real interviewer notices.
 - Put the candidate's code in the latest user turn instead of a context block before the history, so a 45-minute round reads its history from cache too.
 - Calibrate the grader against human-labelled transcripts and pin the grading model version.
-- Add a concurrent append test, so the transcript fix is proven by a test that would have failed before it.
+- Freeze the transcript when grading *starts* (a `grading` status set before the model call), so the stored transcript is exactly the one the grader read.
 
 ## Exercise
 
@@ -353,32 +360,32 @@ hints:
 ```quiz
 - q: >-
     The grader receives the transcript as JSON lines inside one user message. An earlier version used plain [role] content lines. What does the JSON form protect against?
-  options: ["Prompt caching failing because plain text lines change on every turn", "The model silently truncating long transcripts once they pass its context window", "The grader continuing the conversation in character instead of judging it", "A candidate typing a newline and a fake [interviewer] line to forge praise"]
+  options: ["The grader continuing the conversation in character instead of judging it", "Prompt caching failing because plain text lines change on every turn", "The model silently truncating long transcripts once they pass its context window", "A candidate typing a newline and a fake [interviewer] line to forge praise"]
   answer: 3
   explanation: >-
     With plain lines, text inside a candidate's message could start a new line that looked exactly like an interviewer turn. JSON-escaping keeps newlines and quotes inside the content string, so the role comes only from the platform. Presenting the transcript as data rather than chat turns is what stops the grader from continuing the conversation; that was true of both versions.
 - q: >-
     In assisted mode, a candidate asks the pair-programmer a question while the interviewer's reply is still streaming, and both background tasks finish a few seconds apart. Why could entries be lost before the fix?
-  options: ["Each task appended to its own stale snapshot and wrote the whole array back", "The two UPDATE statements deadlocked and Postgres aborted the second one", "The second task failed on a unique constraint and silently dropped its entry", "Postgres merged the two JSONB arrays and removed the entries it saw as duplicates"]
+  options: ["Each task appended to its own stale snapshot and wrote the whole array back", "Postgres merged the two JSONB arrays and removed the entries it saw as duplicates", "The second task failed on a unique constraint and silently dropped its entry", "The two UPDATE statements deadlocked and Postgres aborted the second one"]
   answer: 0
   explanation: >-
     A single UPDATE is atomic, but the value it wrote was computed from a stale read, the classic lost update. The fix appends in SQL with transcript || $2, so each append applies to the row as it is at that moment. There was no deadlock or constraint involved, which is why the bug was silent.
 - q: >-
     During a solo interview, a learner calls POST /api/coach/conversations/{id}/messages from another tab. What happens now, and why that status?
-  options: ["403 Forbidden, because learners in a solo round may never use the coach", "The request succeeds, because the coach lock is only a UI affordance", "401 Unauthorized, because the coach session is scoped to the interview", "409 Conflict, because the request is valid but not in the learner's current state"]
-  answer: 3
+  options: ["401 Unauthorized, because the coach session is scoped to the interview", "409 Conflict, because the request is valid but not in the learner's current state", "403 Forbidden, because learners in a solo round may never use the coach", "The request succeeds, because the coach lock is only a UI affordance"]
+  answer: 1
   explanation: >-
     ensure_coach_unlocked returns AppError::Conflict while a solo interview is within its time box plus 15 minutes. 409 says the conflict is resolvable (end the interview); 403 would say never, and a 401 would make the client treat the learner as signed out. Before the fix, the lock existed only in the UI, so the request succeeded.
 - q: >-
     The evaluation is requested with a JSON schema. Which check still has to run on the server?
-  options: ["That the response is valid JSON that the Evaluation struct can parse", "That numeric scores fall in their intended ranges, not just integers", "That every field the schema lists as required is actually present", "That the verdict is one of the five strings the schema allows"]
-  answer: 1
+  options: ["That every field the schema lists as required is actually present", "That the response is valid JSON that the Evaluation struct can parse", "That the verdict is one of the five strings the schema allows", "That numeric scores fall in their intended ranges, not just integers"]
+  answer: 3
   explanation: >-
     Constrained decoding enforces types, required fields and enums, so parseability, the verdict and required fields are already guaranteed. Ranges are semantics this schema does not express, which is why overall_score is clamped to 0 to 100; the dimension scores, which are not clamped, show what happens when that step is forgotten.
 - q: >-
     A candidate opens a new interview, reads the problem, types one message, and presses End. Is the interview graded?
-  options: ["Yes: every interview that is finished is graded, whatever it contains", "No: interviews that end within ten minutes of starting are never graded", "No: the finish handler requires at least two messages typed by the candidate", "Yes: the automatic kickoff is also a candidate entry, so the count is two"]
-  answer: 3
+  options: ["Yes: the automatic kickoff is also a candidate entry, so the count is two", "Yes: every interview that is finished is graded, whatever it contains", "No: the finish handler requires at least two messages typed by the candidate", "No: interviews that end within ten minutes of starting are never graded"]
+  answer: 0
   explanation: >-
     The room sends a kickoff turn on the candidate's behalf so the interviewer speaks first, and the threshold counts it. The handler's comment intends two real messages, but the code counts entries. Reading code for what it counts, not what its comment intends, is how you find this kind of off-by-one in a policy.
 ```

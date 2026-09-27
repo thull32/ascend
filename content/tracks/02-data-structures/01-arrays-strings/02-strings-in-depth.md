@@ -236,32 +236,32 @@ hints:
 ```quiz
 - q: >-
     A Java method builds a 10 MB string by concatenating 200,000 pieces with `+=` in a loop. What is the dominant cost?
-  options: ["Recopying the accumulated string on every iteration, O(n²) in total", "Encoding every piece to UTF-16, which doubles each ASCII character", "Garbage-collecting the 200,000 pieces, which are freed one at a time", "Hashing each intermediate string, which Java does on every allocation"]
-  answer: 0
+  options: ["Garbage-collecting the 200,000 pieces, which are freed one at a time", "Recopying the accumulated string on every iteration, O(n²) in total", "Hashing each intermediate string, which Java does on every allocation", "Encoding every piece to UTF-16, which doubles each ASCII character"]
+  answer: 1
   explanation: >-
     Java strings are immutable and the compiler only uses StringBuilder within a single expression. Each `+=` copies everything accumulated so far, giving roughly n²/2 character copies, on the order of 10¹² here. The garbage is a symptom; the copying is the cause. Java computes a string's hash lazily, only when something asks for it.
 - q: >-
     In JavaScript, `"👍".length` is 2 and `"👍".split("").reverse().join("")` produces garbage. Why?
-  options: ["split works on UTF-8 bytes, so it breaks the emoji's multi-byte encoding apart", "The emoji is a grapheme cluster of two code points that split separates", "split works on UTF-16 code units, cutting the emoji's surrogate pair in half", "split skips Unicode normalisation, so the reversed emoji ends up in NFD form"]
-  answer: 2
+  options: ["The emoji is a grapheme cluster of two code points that split separates", "split works on UTF-16 code units, cutting the emoji's surrogate pair in half", "split skips Unicode normalisation, so the reversed emoji ends up in NFD form", "split works on UTF-8 bytes, so it breaks the emoji's multi-byte encoding apart"]
+  answer: 1
   explanation: >-
     U+1F44D is a single code point outside the Basic Multilingual Plane, stored as two UTF-16 code units; that is why length is 2. Splitting by code unit separates the pair and reversing produces two lone surrogates. It is not a multi-code-point grapheme cluster. Iterating with `for...of` or `Array.from` splits by code point instead.
 - q: >-
     A recursive palindrome check calls itself with `s[1:-1]`. For a string of length n, what is the time complexity?
-  options: ["O(n²), because each call's slice copies the remaining string", "O(n log n), because the string halves at each level of the recursion", "O(n), because there are n/2 calls that each compare two characters", "O(n), because Python slices are O(1) views into the original buffer"]
-  answer: 0
+  options: ["O(n), because there are n/2 calls that each compare two characters", "O(n), because Python slices are O(1) views into the original buffer", "O(n²), because each call's slice copies the remaining string", "O(n log n), because the string halves at each level of the recursion"]
+  answer: 2
   explanation: >-
     Python slicing allocates and copies. The call at depth d copies about n − 2d characters, so the total is quadratic even though there are only n/2 calls. Slices are O(1) views in Go and Rust, not in Python. Passing indices makes it linear.
 - q: >-
     Two user records have names that print identically but fail to match on login. The most likely cause is:
-  options: ["They use different normalisation forms (NFC vs NFD) of an accented letter", "One string is interned, so equality compares object identity instead", "The column's collation sorts by code point, which breaks equality checks", "One was stored as UTF-8 and the other as UTF-16 before being decoded"]
-  answer: 0
+  options: ["One was stored as UTF-8 and the other as UTF-16 before being decoded", "The column's collation sorts by code point, which breaks equality checks", "They use different normalisation forms (NFC vs NFD) of an accented letter", "One string is interned, so equality compares object identity instead"]
+  answer: 2
   explanation: >-
     NFC and NFD encode the same visible text as different code-point sequences (é versus e plus a combining accent), so equality and hashing differ. Normalise at the boundary before comparing. Storage encoding does not affect equality after decoding, and interning never changes what `==` returns.
 - q: >-
     Why does Python cache the hash inside a str object?
-  options: ["Caching the hash lets equal strings share a single object in memory", "Strings are immutable, so a cached hash can never go stale", "It keeps dict buckets valid when a key string is modified in place", "Hash seeds are randomised per process, so recomputing could change it"]
-  answer: 1
+  options: ["It keeps dict buckets valid when a key string is modified in place", "Hash seeds are randomised per process, so recomputing could change it", "Strings are immutable, so a cached hash can never go stale", "Caching the hash lets equal strings share a single object in memory"]
+  answer: 2
   explanation: >-
     Hashing is O(n) in the length. Immutability guarantees the cached value stays valid, so repeated dictionary lookups with the same string object skip the work. Strings cannot be modified in place, which is exactly why caching is safe; the seed is fixed for the life of the process; and sharing objects is interning, a separate mechanism. Caching costs 8 bytes per string.
 ```

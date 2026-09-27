@@ -279,32 +279,32 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
 ```quiz
 - q: >-
     An Axum router is built as Router::new().route("/x", get(h)).layer(A).layer(B). A request for /x arrives. In what order does it pass through the layers?
-  options: ["A, then B, then h", "B, then A, then h", "Only B runs because it replaced A", "A and B run concurrently"]
-  answer: 1
+  options: ["A and B run concurrently", "A, then B, then h", "Only B runs because it replaced A", "B, then A, then h"]
+  answer: 3
   explanation: >-
     Each .layer call wraps everything added before it, so B wraps A, which wraps the route. The request meets the outermost layer, B, first. Tower's ServiceBuilder reads top-to-bottom in the opposite sense, which is a common source of confusion when switching between the two styles.
 - q: >-
     Ascend's crates/core has no dependency on axum or http. What is the main thing that buys?
-  options: ["The compiler keeps HTTP types out of the domain, so a CLI or test can reuse it", "The release binary shrinks because the core crate compiles without any web framework", "Requests run faster because the domain no longer parses HTTP types on the hot path", "Core types can be exported as an OpenAPI schema without any extra HTTP annotations"]
-  answer: 0
+  options: ["Core types can be exported as an OpenAPI schema without any extra HTTP annotations", "The compiler keeps HTTP types out of the domain, so a CLI or test can reuse it", "Requests run faster because the domain no longer parses HTTP types on the hot path", "The release binary shrinks because the core crate compiles without any web framework"]
+  answer: 1
   explanation: >-
     The build graph enforces the dependency rule on every compile: a use axum::... line in core simply does not compile. The same services can then be driven by a CLI, a worker or a test without an HTTP server. Speed and binary size are essentially unchanged, because the api crate still links Axum into the same binary, and API documentation has nothing to do with it; the benefit is changeability.
 - q: >-
     In hexagonal terms, which of these is a driven (outbound) adapter?
-  options: ["A Playwright test that clicks the login button", "The login use case itself", "The HTTP client that sends requests to the AI provider", "The Axum route handler for POST /api/auth/login"]
+  options: ["The Axum route handler for POST /api/auth/login", "The login use case itself", "The HTTP client that sends requests to the AI provider", "A Playwright test that clicks the login button"]
   answer: 2
   explanation: >-
     Driven adapters implement what the core needs from the outside world: storage, clocks, vendors. Route handlers and tests are driving adapters that call into the core; the use case is the core.
 - q: >-
     A handler inserts an order row and then publishes an OrderPlaced message to a broker. Occasionally the publish fails after the commit. Which change makes the two effects consistent?
-  options: ["Insert an outbox row in the same transaction and relay it", "Publish the message first and insert the order row after", "Wrap both calls in a try/catch that logs any failure", "Retry the failed publish three times with exponential backoff"]
-  answer: 0
+  options: ["Publish the message first and insert the order row after", "Insert an outbox row in the same transaction and relay it", "Wrap both calls in a try/catch that logs any failure", "Retry the failed publish three times with exponential backoff"]
+  answer: 1
   explanation: >-
     Reordering or retrying only moves the window where one effect happened without the other: a crash between the two steps still loses one of them. The outbox puts both writes inside one database transaction, and a relay delivers the message afterwards at least once, so consumers must deduplicate. Logging the failure is an explicit "acceptable loss" decision, fine for a chat transcript but not for an order.
 - q: >-
     A reviewer proposes adding a repository interface in front of every SeaORM query in Ascend's core. When is that the wrong call?
-  options: ["When the schema has grown past ten tables and a dozen migrations", "When a move to a second database engine is already planned for next year", "When storage is one Postgres the team already tests against directly", "Never, because hexagonal design puts every dependency behind a port"]
-  answer: 2
+  options: ["When the schema has grown past ten tables and a dozen migrations", "When a move to a second database engine is already planned for next year", "Never, because hexagonal design puts every dependency behind a port", "When storage is one Postgres the team already tests against directly"]
+  answer: 3
   explanation: >-
     Boundaries cost indirection and mapping code. Storage is the dependency least likely to be swapped, and fakes of a relational database hide exactly the behaviour (transactions, constraints) you most need to test, so testing against the real Postgres is simpler and more honest. A planned engine move is the one case where that port would earn its keep, and hexagonal design does not require a port for everything: one pays off first for slow, costly, non-deterministic dependencies such as an LLM client. Table count is not the deciding factor.
 ```

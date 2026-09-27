@@ -2,7 +2,8 @@
 //! router in-process with `tower::ServiceExt::oneshot`.
 //!
 //! Requires `TEST_DATABASE_URL` (CI provides a Postgres service). When it is
-//! unset the tests print a notice and pass, so `cargo test` works offline.
+//! unset the tests print a notice and pass, so `cargo test` works offline;
+//! when `CI` is set they fail instead, so CI can never pass by skipping.
 //! Every test registers its own uniquely named user, so tests can share one
 //! database and run in parallel.
 use std::sync::Arc;

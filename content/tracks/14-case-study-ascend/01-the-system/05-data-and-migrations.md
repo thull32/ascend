@@ -131,7 +131,6 @@ Marking a lesson complete, `crates/core/src/services/progress.rs`:
 ```rust
 // Upsert returning the row: one statement, one round trip, no
 // read-modify-write race.
-super::activity::record(&self.db, user_id).await?;
 let row = LessonProgress::insert(model)
     .on_conflict(
         sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
@@ -144,6 +143,8 @@ let row = LessonProgress::insert(model)
     )
     .exec_with_returning(&self.db)
     .await?;
+// Only saved progress counts toward today's streak.
+super::activity::record(&self.db, user_id).await?;
 Ok(row)
 ```
 
@@ -161,7 +162,7 @@ RETURNING *;
 
 Three details matter. The conflict target is the composite primary key, so the *natural* identity of a progress row is enforced by the database with one index instead of a surrogate id plus a separate unique constraint. `created_at` is deliberately missing from the update list, so it keeps the moment the learner first opened the lesson while `updated_at` moves. And the statement is **idempotent**: sending it twice leaves exactly the state that sending it once did, which the integration test `progress_quiz_and_roadmap` checks by repeating the PUT.
 
-The line above the upsert is newer than the comment above it. `activity::record` appends today to the activity log (the streak story below) with `INSERT ... ON CONFLICT DO NOTHING`, so the function now runs two statements in two round trips, and the comment's "one statement, one round trip" describes only the second. The two are not in a transaction, and that is fine here: if the upsert fails after the log write, the day still counts as active, which is harmless for a streak. If the extra round trip ever mattered, a data-modifying CTE could send both in one statement.
+The call after the upsert has a short history. When the activity log arrived (the streak story below), `activity::record` was first inserted *above* the upsert, directly under the "one statement, one round trip" comment, which made the comment false and recorded a day of activity even when the upsert then failed. A later fix moved it below the upsert with its own comment, so the old comment describes exactly the statement under it again and only saved progress counts toward a streak. The two writes are still two statements in two round trips, not one transaction, and the order decides which failure you get: if the log write fails after the upsert, the learner sees an error for progress that was in fact saved, and the retry is harmless because the upsert is idempotent. If the extra round trip ever mattered, a data-modifying CTE could send both in one statement.
 
 Compare the version everyone writes first: `SELECT` the row; if absent `INSERT`, else `UPDATE`. Two tabs, a double click or a client retry run that sequence concurrently. Both `SELECT`s see nothing, both `INSERT`, and the second fails on the primary key, a 500 for an operation that should have been a no-op. With the upsert, Postgres resolves the conflict inside one statement and both requests succeed.
 
@@ -360,7 +361,7 @@ The third convention used to be simpler: ownership rows cascade, and audit rows 
 
 Why this over the alternatives? Keeping the cascade but stopping it at `parent_id` would orphan the replies anyway, stripped of the question they answer. Soft-deleting users keeps a row of personal data around and adds a "not deleted" filter to every query that touches `users`. Deleting the text as well as the link would destroy the context of other people's replies. `SET NULL` removes the identity and keeps the conversation. It also makes a product and legal decision, which the migration comment and the profile page state plainly ("Your comments stay, shown as written by a deleted user"): a learner who wants their words gone must delete those comments before deleting the account. Whether that satisfies every erasure request is a question for a lawyer, not a migration.
 
-Two smaller details. `m0004` never named the `user_id` foreign key, so `m0007` has to look the generated name up in `pg_constraint` inside a `DO` block before it can drop it; name every constraint you might one day need to change. And the timestamps convention is honest now, but the behaviour it once promised still is not there: the comment soft-delete updates `deleted_at` and `body` and leaves `updated_at` at the creation time, because defaults apply only on `INSERT`. Rewording the comment removed the false promise without fixing the gap; a trigger, or one helper that every update goes through, would close it.
+Two smaller details. `m0004` never named the `user_id` foreign key, so `m0007` has to look the generated name up in `pg_constraint` inside a `DO` block before it can drop it; name every constraint you might one day need to change. And the timestamps convention took two steps to become true. `m0004` gave comments DB-side defaults, which apply only on `INSERT`, and the old convention claimed that meant the application "can never forget" to set them; the soft-delete then forgot, leaving `updated_at` at the creation time. The first fix only reworded the convention. The second changed the code: the soft-delete now sets `updated_at` alongside `deleted_at`. Nothing stops the next `UPDATE` from forgetting again; a trigger, or one helper that every update goes through, would make it structural.
 
 ## Indexes follow queries
 
@@ -440,37 +441,37 @@ The migrations also define `down` functions. They are for local development; in 
 ```quiz
 - q: >-
     Ascend stores lesson progress keyed by a slug string instead of a foreign key to a lessons table. What is the main cost of this choice?
-  options: ["Progress is lost whenever the lesson files are renumbered or reordered on disk", "Every content edit now requires a schema migration before it can deploy", "Nothing stops a slug from naming a lesson that was renamed or deleted", "Lookups by a string slug are much slower than lookups by an integer key"]
+  options: ["Every content edit now requires a schema migration before it can deploy", "Progress is lost whenever the lesson files are renumbered or reordered on disk", "Nothing stops a slug from naming a lesson that was renamed or deleted", "Lookups by a string slug are much slower than lookups by an integer key"]
   answer: 2
   explanation: >-
     Reordering is safe because identity is the front-matter slug, and content edits need no migration; those are the benefits. The price is integrity: only the service checks slugs, so a rename leaves orphaned rows unless a data migration ships with it, and nothing enforces that the two ship together.
 - q: >-
     Two browser tabs send PUT /api/progress/lessons/.../binary-search with status completed at the same instant. What happens with Ascend's upsert, and what would happen with SELECT-then-INSERT?
-  options: ["Both approaches behave identically, because Postgres serialises concurrent writes", "Upsert: two rows appear. SELECT-then-INSERT: exactly one row appears as expected", "Upsert: both succeed. SELECT-then-INSERT: one can hit the key and return 500", "Upsert: both fail on the conflict. SELECT-then-INSERT: both succeed as expected"]
-  answer: 2
+  options: ["Upsert: two rows appear. SELECT-then-INSERT: exactly one row appears as expected", "Upsert: both succeed. SELECT-then-INSERT: one can hit the key and return 500", "Both approaches behave identically, because Postgres serialises concurrent writes", "Upsert: both fail on the conflict. SELECT-then-INSERT: both succeed as expected"]
+  answer: 1
   explanation: >-
     INSERT ... ON CONFLICT DO UPDATE resolves the conflict inside one statement, so one request inserts and the other updates. In the read-then-write version both SELECTs can see no row, both INSERT, and the loser violates the primary key. Postgres does not serialise the two sequences for you.
 - q: >-
     An earlier budget check read today's usage, compared it with the limit in Rust, then ran an atomic increment. Why could 30 concurrent requests exceed a limit of 10, and what fixed it?
-  options: ["Postgres drops some concurrent upserts, so a unique index on the user and day fixed it", "The limit was cached in each process, so reading it from the environment fixed it", "The increment was not atomic, so wrapping it in a transaction with a retry loop fixed it", "All read the same under-limit count; one conditional upsert with RETURNING fixed it"]
-  answer: 3
+  options: ["The increment was not atomic, so wrapping it in a transaction with a retry loop fixed it", "The limit was cached in each process, so reading it from the environment fixed it", "All read the same under-limit count; one conditional upsert with RETURNING fixed it", "Postgres drops some concurrent upserts, so a unique index on the user and day fixed it"]
+  answer: 2
   explanation: >-
     Each statement was atomic, but the check and the act were separate, so all 30 could pass the check before any increment landed. Folding the condition into the upsert's WHERE clause makes the database decide and increment in one step, and a concurrent test asserting exactly 10 successes proves it. A transaction alone under READ COMMITTED would not have helped.
 - q: >-
     A learner in UTC-7 studies on Monday at 20:00 local time and on Tuesday at 09:00 local time. What streak does Ascend show on Tuesday at 10:00 local time?
-  options: ["2, because activity_days records one row per local calendar day", "It depends on the time zone of the server that recorded the activity", "1, because both sessions fall on the same UTC day in the activity_days log", "0, because the Monday session was recorded after midnight UTC"]
-  answer: 2
+  options: ["0, because the Monday session was recorded after midnight UTC", "It depends on the time zone of the server that recorded the activity", "2, because activity_days records one row per local calendar day", "1, because both sessions fall on the same UTC day in the activity_days log"]
+  answer: 3
   explanation: >-
     Monday 20:00 at UTC-7 is Tuesday 03:00 UTC and Tuesday 09:00 is Tuesday 16:00 UTC, so both land on the same UTC day. The activity log fixed the mutable-column problem but still records Utc::now().date_naive(), so the server's own zone is irrelevant; a stored time zone per learner would fix it.
 - q: >-
     Alice deletes her account. Bob had replied to one of Alice's comments. What happens to the two comments?
-  options: ["Both are deleted, because Alice's comment cascades from users and Bob's from its parent", "The deletion fails with a foreign-key violation until Alice deletes her comments", "Both stay; Alice's loses its author link and is shown as written by a deleted user", "Alice's comment is deleted and Bob's reply becomes a top-level comment on the lesson"]
+  options: ["Alice's comment is deleted and Bob's reply becomes a top-level comment on the lesson", "The deletion fails with a foreign-key violation until Alice deletes her comments", "Both stay; Alice's loses its author link and is shown as written by a deleted user", "Both are deleted, because Alice's comment cascades from users and Bob's from its parent"]
   answer: 2
   explanation: >-
     Since m0007, comments.user_id is ON DELETE SET NULL, so Alice's comment survives without an author and Bob's reply keeps its parent. Before that migration, both foreign keys cascaded, so an account deletion would have removed Bob's words too; the account-deletion endpoint and the SET NULL change shipped together for exactly that reason.
 - q: >-
     Release N+1 renames a column in its migration and updates the code to use the new name. Railway rolls it out with a health-gated deploy. What breaks?
-  options: ["The new deployment cannot start, because the old one still holds a table lock", "The old code, still serving during the switch, queries a column that is gone", "Nothing, because each migration runs inside its own transaction", "Only the down migration breaks, and production never runs down migrations"]
+  options: ["Only the down migration breaks, and production never runs down migrations", "The old code, still serving during the switch, queries a column that is gone", "Nothing, because each migration runs inside its own transaction", "The new deployment cannot start, because the old one still holds a table lock"]
   answer: 1
   explanation: >-
     The migration commits before the new code takes traffic, while the old code is still serving with queries that name the old column, so they fail in that window. The transaction makes the migration atomic, not compatible. Expand and contract avoids it: add the new column and write both, switch reads in the next release, drop the old column in the one after.

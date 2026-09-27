@@ -207,38 +207,38 @@ The bar at a top-tier company is that the migration plan is written down before 
 ```quiz
 - q: >-
     A migration runs ALTER TABLE orders ADD COLUMN note text (nullable, no default). It should take milliseconds, yet the API returns 503s for four minutes while it runs. What is the most likely cause?
-  options: ["Adding a text column writes an empty TOAST pointer into every existing row", "The ALTER queued behind a long transaction, and new reads queued behind the ALTER", "Postgres rewrote the whole table to add the column, holding its lock throughout", "The connection pool was too small to serve both the migration and the API traffic"]
-  answer: 1
+  options: ["The connection pool was too small to serve both the migration and the API traffic", "Postgres rewrote the whole table to add the column, holding its lock throughout", "Adding a text column writes an empty TOAST pointer into every existing row", "The ALTER queued behind a long transaction, and new reads queued behind the ALTER"]
+  answer: 3
   explanation: >-
     Adding a nullable column is catalog-only, so the statement itself is fast. The damage comes from lock queueing: the ALTER waits for ACCESS EXCLUSIVE behind an existing lock holder, and Postgres grants locks in order, so new readers wait behind the ALTER. A lock_timeout with retry prevents this.
 - q: >-
     Which of these ALTER TABLE statements rewrites every row of a large table on Postgres 15?
-  options: ["DROP COLUMN legacy_flag", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "ADD COLUMN created timestamptz DEFAULT now()", "ALTER COLUMN name TYPE varchar(500) from varchar(100)"]
-  answer: 2
+  options: ["ALTER COLUMN name TYPE varchar(500) from varchar(100)", "ADD COLUMN created timestamptz DEFAULT now()", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "DROP COLUMN legacy_flag"]
+  answer: 1
   explanation: >-
     A volatile default such as now() needs a distinct value per row, so the table is rewritten. A constant default is stored in the catalog since Postgres 11, DROP COLUMN only marks the column dropped, and widening a varchar needs no data change.
 - q: >-
     CREATE INDEX CONCURRENTLY was interrupted by a lock timeout. What state is the database in?
-  options: ["No index exists, because the failed build rolled back cleanly; simply retry", "An INVALID index remains, maintained on writes but unused; drop it, then retry", "The table stays locked against writes until the unfinished index is dropped", "The index is complete but stays invisible to the planner until the next ANALYZE"]
-  answer: 1
+  options: ["An INVALID index remains, maintained on writes but unused; drop it, then retry", "No index exists, because the failed build rolled back cleanly; simply retry", "The table stays locked against writes until the unfinished index is dropped", "The index is complete but stays invisible to the planner until the next ANALYZE"]
+  answer: 0
   explanation: >-
     A failed concurrent build leaves an INVALID index behind. It costs write overhead and helps no query. Check pg_index.indisvalid and DROP INDEX CONCURRENTLY before retrying. The table is not locked.
 - q: >-
     In expand/contract, why does the code start writing the new column (deploy 2) before it starts reading it (deploy 3)?
-  options: ["Postgres requires a column to hold data before any index can be built on it", "So rows written after deploy 2 are already right and only older rows need a backfill", "Reads cost more than writes, so the cheaper change should always ship first", "Reading first would force the column's migration and its backfill into a single deploy"]
-  answer: 1
+  options: ["Reads cost more than writes, so the cheaper change should always ship first", "Reading first would force the column's migration and its backfill into a single deploy", "Postgres requires a column to hold data before any index can be built on it", "So rows written after deploy 2 are already right and only older rows need a backfill"]
+  answer: 3
   explanation: >-
     Writing both shapes first means the backfill only has to cover rows that predate deploy 2, and the read switch can be verified against a complete data set. Reading first would return NULLs for every row not yet backfilled.
 - q: >-
     A backfill uses UPDATE ... WHERE id IN (SELECT id ... OFFSET $n LIMIT 5000) and gets slower with each batch. What is wrong?
-  options: ["The backfill should be one UPDATE over the whole table instead of many batches", "OFFSET makes Postgres read and discard every skipped row; range on id > $last_id", "Autovacuum is switched off while a backfill runs, so dead rows pile up per batch", "The LIMIT of 5000 is too small, so per-batch overhead grows with the table"]
+  options: ["The backfill should be one UPDATE over the whole table instead of many batches", "OFFSET makes Postgres read and discard every skipped row; range on id > $last_id", "The LIMIT of 5000 is too small, so per-batch overhead grows with the table", "Autovacuum is switched off while a backfill runs, so dead rows pile up per batch"]
   answer: 1
   explanation: >-
     OFFSET pagination is O(n) per batch because the skipped rows are still read. Keyset pagination on the primary key turns each batch into an index range scan of constant cost. One giant UPDATE would hold locks and produce a huge WAL burst for hours.
 - q: >-
     Two services each dual-write a user's name to Postgres and to Elasticsearch. Occasionally the two stores disagree even though every request wrote both. What is the sound fix?
-  options: ["Write only to Postgres and build the search document from CDC or an outbox table", "Take a distributed lock around both writes so no other request interleaves", "Add retries with backoff to the Elasticsearch write so that it always lands", "Write Elasticsearch first and Postgres second, so the search index never lags"]
-  answer: 0
+  options: ["Take a distributed lock around both writes so no other request interleaves", "Write only to Postgres and build the search document from CDC or an outbox table", "Add retries with backoff to the Elasticsearch write so that it always lands", "Write Elasticsearch first and Postgres second, so the search index never lags"]
+  answer: 1
   explanation: >-
     Dual writes to independent stores can interleave in any order, so no ordering of the two writes prevents the race, and retries only affect failures, not ordering. Making one store the source of truth and replaying its committed changes into the other removes the race. A distributed lock works in principle but adds a coordination service and latency to every write.
 ```

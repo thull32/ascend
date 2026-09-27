@@ -70,7 +70,24 @@ if !finished {
 
 The invariant matters because everything downstream settles accounts on the terminal event. If the upstream connection simply ends (a proxy cut it, the provider restarted), the `finished` flag still produces a `Done`, so the consumer records whatever usage it saw. Notice also what is *not* forwarded: thinking deltas fall into `Delta::Other` and are dropped. While the model thinks, no bytes flow to the browser, which is why the SSE response sends a keep-alive comment every 15 seconds.
 
-Errors are translated once, in `map_status`: a provider 429 becomes `AppError::RateLimited`, 529 and 503 become "overloaded, try again shortly", 401/403 become a credentials error, and a 400 becomes a generic "the AI provider rejected the request". The provider's error body is logged and never forwarded, because it can echo request content. One path still leaks: an `error` event that arrives *inside* a stream, and a transport error's text, become a `StreamEvent::Error` whose message is sent to the browser as it is.
+Errors are translated once, in `map_status`: a provider 429 becomes `AppError::RateLimited` with a 30-second retry hint, 529 and 503 become "overloaded, try again shortly", 401/403 become "the AI coach is temporarily unavailable" (a credentials problem is ours to fix, and the learner only needs to know the feature is down), and a 400 becomes a generic "the AI provider rejected the request". The provider's error body is logged and never forwarded, because it can echo request content.
+
+That rule used to have a hole, and it is worth seeing where. `map_status` only runs when the HTTP status is an error, before streaming starts. Once a 200 stream was open, a provider `error` event (`overloaded_error` halfway through a reply, say) and a transport failure were turned into `StreamEvent::Error(error.message)` and `StreamEvent::Error(e.to_string())`, and `sse::respond` sent that text to the browser as it was. The same was true of non-streaming failures, which built `AiUpstream` from a reqwest error or a JSON parse error. The fix logs the provider's words and shows the learner a classified message of its own:
+
+```rust
+// crates/core/src/ai/anthropic.rs
+/// What the learner sees when a reply stops part-way. Provider error text is
+/// logged, never shown: it can echo request content or internal details.
+fn interrupted_message(kind: &str) -> &'static str {
+    match kind {
+        "overloaded_error" => "The AI provider is overloaded, so the reply stopped early. Try again shortly.",
+        "rate_limit_error" => "The AI provider is busy, so the reply stopped early. Try again in a moment.",
+        _ => "The reply was interrupted. Try again.",
+    }
+}
+```
+
+and every non-streaming failure goes through `AppError::ai_upstream(public, detail)`, which logs `detail` and returns only `public`. The learner still learns what *kind* of failure it was, which is what they need to decide whether to retry. Two unit tests pin it against a real socket: a tiny local HTTP server replays a stream whose `error` event contains the word SECRET, and `provider_error_text_never_reaches_the_learner` asserts that the event the learner receives mentions "overloaded" and not SECRET; `upstream_throttling_carries_a_retry_hint` does the same for a 429. Every path that turns someone else's text into yours needs its own check, because a rule enforced in one function covers exactly that function.
 
 **Rejected alternative:** a multi-provider LLM library or an unofficial crate. It would save 300 lines and cost control over the exact bytes sent, which is where prompt caching lives, and add a dependency whose request shape changes on its schedule, not yours. **Failure mode prevented:** a silent change in how the system prompt is serialised, which would not break anything visibly but would quietly turn every cache read into a cache write. **At 100x:** the client has no retries and no circuit breaker. A provider overload today becomes an error bubble in the chat. With real traffic you would add bounded retries with jittered backoff for 529s on the non-streaming path and a breaker that flips AI features to the existing "unavailable" state when the error rate crosses a threshold, rather than letting every user wait for a timeout.
 
@@ -289,7 +306,22 @@ Ok(Request {
 })
 ```
 
-`stable_prompt` is the persona and curriculum map, identical for every learner and every turn, sent with its own breakpoint. `context_prompt` is the lesson or problem, the editor contents and the progress line, sent after that breakpoint, so changing it never invalidates the stable block. `cache_conversation: true` sets the top-level `cache_control`, which places a breakpoint on the last message and moves it forward as the conversation grows, so each turn reads everything up to the previous turn and writes only what is new. That holds until the conversation outgrows `MAX_HISTORY`: `prepare_turn` sends only the last 30 messages, so from the sixteenth turn the window slides, the first message of the history changes, and every turn writes the whole history again. A window that moves in large steps, or a summary of old turns, would keep the prefix stable. `m0006` added `cache_read_tokens` and `cache_write_tokens` columns, `record` stores them, and every coach turn logs all four token classes.
+`stable_prompt` is the persona and curriculum map, identical for every learner and every turn, sent with its own breakpoint. `context_prompt` is the lesson or problem, the editor contents and the progress line, sent after that breakpoint, so changing it never invalidates the stable block. `cache_conversation: true` sets the top-level `cache_control`, which places a breakpoint on the last message and moves it forward as the conversation grows, so each turn reads everything up to the previous turn and writes only what is new. The history has a cap, and how the cap moves decides whether caching survives a long conversation. `prepare_turn` used to send the last 30 messages (`MAX_HISTORY`). From the sixteenth turn, that window slid by one exchange every turn, so the first message of the history changed on every request, the cached prefix ended at the context block, and every turn wrote its whole history to the cache again at 1.25x: the longer the conversation, the more each turn cost. The window now moves in steps:
+
+```rust
+// crates/core/src/ai/coach.rs
+/// Index of the first message to send, for a conversation of `total`
+/// messages: 0 until the window is full, then advancing in whole steps so
+/// between `MAX_HISTORY - HISTORY_STEP` and `MAX_HISTORY` messages are kept.
+fn history_start(total: u64) -> u64 {
+    if total <= MAX_HISTORY {
+        return 0;
+    }
+    (total - MAX_HISTORY).div_ceil(HISTORY_STEP) * HISTORY_STEP
+}
+```
+
+With `HISTORY_STEP` at 10, the start jumps ten messages at once and then stays put for five turns, so four turns in five read their whole history from cache and one in five pays for a rewrite; the model sees between 21 and 30 messages instead of exactly 30. The unit test `history_window_moves_in_steps_so_the_cached_prefix_survives` checks both the jump and the bounds for every length up to 500. Trading a little context for a stable prefix is a typical cache design move: make the thing that changes change rarely, in big steps. `m0006` added `cache_read_tokens` and `cache_write_tokens` columns, `record` stores them, and every coach turn logs all four token classes.
 
 A worked example makes the difference concrete. Take a 10-turn dock conversation, every turn within five minutes, with a 2,000-token stable block, a 6,000-token context block, and 1,100 tokens of new history per turn (a 100-token question and a 1,000-token reply):
 
@@ -301,7 +333,7 @@ A worked example makes the difference concrete. Take a 10-turn dock conversation
 
 Output is the same in all three (10,000 tokens at $20 per million, $0.20), so caching the history more than halves the input bill for a conversation like this one. Two caveats keep the table honest. The context block sits *before* the history, so when it changes (the learner finishes a lesson and the progress line moves) the stable block is still read but the whole history is written again, at 1.25x. And a learner who reads for seven minutes between questions finds every entry expired except, usually, the stable block, which other learners' traffic keeps warm.
 
-One consequence reaches into the budget below. With automatic caching, almost every input token of a coach turn is billed as a cache read or a cache write, so the uncached `input_tokens` that `record` adds to `ai_usage.input_tokens` stays close to zero. See [LLM system design](/learn/ai-and-llms/building-with-llms/llm-system-design) for caching strategy in general.
+One consequence reached into the budget below. With automatic caching, almost every input token of a coach turn is billed as a cache read or a cache write, so the provider's *uncached* `input_tokens`, which `record` adds to `ai_usage.input_tokens`, stays close to zero. See [LLM system design](/learn/ai-and-llms/building-with-llms/llm-system-design) for caching strategy in general.
 
 ## Budgets: reserve before, settle after
 
@@ -332,31 +364,39 @@ pub async fn check_and_reserve(&self, user_id: Uuid) -> AppResult<()> {
 
 ```rust
 // crates/core/src/ai/budget.rs — BudgetService::check_and_reserve
-let stmt = Statement::from_sql_and_values(
-    DatabaseBackend::Postgres,
+let sql = format!(
     r#"
     INSERT INTO ai_usage (user_id, day, input_tokens, output_tokens, requests)
     VALUES ($1, $2, 0, 0, 1)
     ON CONFLICT (user_id, day) DO UPDATE
        SET requests = ai_usage.requests + 1
      WHERE ai_usage.requests < $3
-       AND ai_usage.input_tokens < $4
+       AND {BILLED_INPUT_SQL} < $4
        AND ai_usage.output_tokens < $5
     RETURNING requests
-    "#,
-    // user, today, and the three daily limits
+    "#
 );
+// ... bind the user, today and the three daily limits, then:
 match self.db.query_one_raw(stmt).await? {
     Some(_) => Ok(()),
-    None => Err(AppError::RateLimited(/* "daily AI budget reached ... Resets at midnight UTC." */)),
+    None => Err(AppError::RateLimited {
+        message: /* "daily AI budget reached ... Resets at midnight UTC." */,
+        retry_after_secs: Some(seconds_until_reset()),
+    }),
 }
 ```
 
-`ON CONFLICT DO UPDATE ... WHERE` updates only when the condition holds, and `RETURNING` produces a row only if something was inserted or updated, so no row back means "over budget" and nothing changed. The row lock taken by the conflicting update serialises concurrent reservations for the same user. The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. The same commit added a daily *input* token limit (`AI_DAILY_INPUT_TOKENS`, two million by default) beside the request and output limits.
+`ON CONFLICT DO UPDATE ... WHERE` updates only when the condition holds, and `RETURNING` produces a row only if something was inserted or updated, so no row back means "over budget" and nothing changed. The row lock taken by the conflicting update serialises concurrent reservations for the same user. The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. The same commit added a daily *input* token limit (`AI_DAILY_INPUT_TOKENS`, two million by default) beside the request and output limits, and that limit then had a gap of its own.
 
-Two gaps remain, and both are about what a pre-call check can know. **Token overshoot:** the token conditions are checked before the call, so a user at 119,999 of 120,000 output tokens can still start a call with `max_tokens` 4,000 (the coach) or 6,000 (quiz generation), and a handful of concurrent calls multiply that. Reserving `max_tokens` up front and refunding the unused part when the call settles, the way a card authorisation hold works, closes it. **The wrong column:** the input limit compares against `input_tokens`, the provider's *uncached* count, which conversation caching drives close to zero for coach and interview turns. The input tokens that actually cost money in those turns are cache writes, billed at 1.25x and recorded, but not budgeted. Pricing every token class into money per call and budgeting in cents fixes both the column and the model-mix problem.
+### Before and after: a limit on the wrong column
 
-**Rejected alternatives:** counting in process memory (lost on every deploy, and wrong the moment there is a second replica); Redis (a second stateful dependency for a single-instance app, when Postgres already has the row and the atomic upsert); relying only on a spend limit at the provider (it protects the company's card, not fairness between users, and it fails everyone at once). **Failure mode prevented:** one looping client exhausting the shared key. **At 100x:** the table stays correct across replicas because the state is already in Postgres; budgeting in money instead of token counts is what remains, and the final module's cost lesson prices why.
+The input limit first compared against `ai_usage.input_tokens`, the provider's *uncached* count, and the same commit turned on conversation caching, which drives that count close to zero for coach and interview turns. The input tokens that actually cost money in those turns are cache writes, billed at 1.25x, which were recorded in `cache_write_tokens` and checked against nothing. A client that sent different editor contents with every message could make each request a near-complete cache write and never approach the limit. Two features that were each correct had combined into a fuse that no longer measured the current flowing through it.
+
+The fix changed what the limit counts, not the limit itself. `BILLED_INPUT_SQL` is `input_tokens + cache_write_tokens * 5 / 4 + cache_read_tokens / 10`, integer arithmetic in the same `WHERE` clause, and `status()` reports the same billed figure to the learner. The test `cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry` records 90,000 cache-write tokens with zero uncached input and asserts that the next reservation is refused and that the learner's usage reads 112,500. The weights are deliberately simple: the configured model bills reads at 0.05x, so counting them at 0.1x errs on the safe side. And the refusal now says when to come back: `RateLimited` carries `retry_after_secs`, set to the seconds until the next UTC midnight, which the API sends as `Retry-After`.
+
+One gap remains, and it is about what a pre-call check can know. **Token overshoot:** the conditions are checked before the call, so a user at 119,999 of 120,000 output tokens can still start a call with `max_tokens` 4,000 (the coach) or 6,000 (quiz generation), and a handful of concurrent calls multiply that. Reserving `max_tokens` up front and refunding the unused part when the call settles, the way a card authorisation hold works, closes it. Budgeting in money rather than weighted tokens would go one step further and survive a change of model or price.
+
+**Rejected alternatives:** counting in process memory (lost on every deploy, and wrong the moment there is a second replica); Redis (a second stateful dependency for a single-instance app, when Postgres already has the row and the atomic upsert); relying only on a spend limit at the provider (it protects the company's card, not fairness between users, and it fails everyone at once). **Failure mode prevented:** one looping client exhausting the shared key. **At 100x:** the table stays correct across replicas because the state is already in Postgres; reserving `max_tokens` and budgeting in money are what remain, and the final module's cost lesson prices why.
 
 ## What the coach deliberately is not
 
@@ -451,38 +491,38 @@ hints:
 ```quiz
 - q: >-
     A learner closes the tab two seconds into a 30-second coach reply. What happens on the server?
-  options: ["The background task keeps reading, ignores the failed sends, and stores and bills the reply", "The request is queued and replayed automatically when the learner opens the page again", "Axum drops the response body, which cancels the upstream call, so nothing is stored or billed", "The partial reply is discarded, but its tokens are still recorded from the message_start event"]
-  answer: 0
+  options: ["The partial reply is discarded, but its tokens are still recorded from the message_start event", "The request is queued and replayed automatically when the learner opens the page again", "Axum drops the response body, which cancels the upstream call, so nothing is stored or billed", "The background task keeps reading, ignores the failed sends, and stores and bills the reply"]
+  answer: 3
   explanation: >-
     The upstream stream is owned by a tracked background task, not by the response. When the receiver is dropped, tx.send fails and pump ignores the error, so the task drains the stream, calls finish_turn and records usage. Cancellation on drop is what happens when a handler returns the upstream stream directly, the naive design this code avoids.
 - q: >-
     Before the AI hardening commit, two requests from one user arrived together when ai_usage showed 149 of 150 requests. What happened, and what prevents it now?
-  options: ["Both failed with a serialisation error; a retry loop around the check now handles it", "The second waited for the first model call to end; a per-user mutex now serialises them", "Exactly one succeeded, because the increment was already atomic; nothing had to change", "Both succeeded and the count reached 151; a single conditional upsert now decides"]
+  options: ["Exactly one succeeded, because the increment was already atomic; nothing had to change", "The second waited for the first model call to end; a per-user mutex now serialises them", "Both failed with a serialisation error; a retry loop around the check now handles it", "Both succeeded and the count reached 151; a single conditional upsert now decides"]
   answer: 3
   explanation: >-
     Each request read 149 in status(), passed the comparison, then ran its own atomic increment. Atomic increments do not make a check-then-act sequence atomic. The fix folds the limits into ON CONFLICT DO UPDATE ... WHERE ... RETURNING, so the row lock serialises reservations and an over-budget request changes nothing.
 - q: >-
     A learner asks the coach a question in the dock, completes the lesson (so the progress line changes), and asks again 30 seconds later. What does the prompt cache do on the second request?
-  options: ["Reads the context and the history, and re-writes only the stable persona block", "Reads the whole prompt from cache, because the five-minute lifetime has not expired", "Misses everything, because any change anywhere in a request invalidates the entire cache", "Reads the stable block, then re-writes the context block and the history after it"]
+  options: ["Reads the whole prompt from cache, because the five-minute lifetime has not expired", "Reads the context and the history, and re-writes only the stable persona block", "Misses everything, because any change anywhere in a request invalidates the entire cache", "Reads the stable block, then re-writes the context block and the history after it"]
   answer: 3
   explanation: >-
     Caching is a prefix match in render order: system blocks, then messages. The stable block is unchanged, so it is read. The context block changed, and everything after it, including the conversation history, must be written again at the write premium. A change invalidates only what follows it, not what precedes it.
 - q: >-
     Why does the frontend parse SSE by hand with fetch instead of using the browser's EventSource?
-  options: ["EventSource cannot reconnect after a network drop, which phones need", "EventSource does not decode UTF-8, so multi-byte characters arrive split", "fetch streams deliver tokens faster because they skip the event parser", "EventSource cannot POST a body or set custom headers, and the coach needs both"]
-  answer: 3
+  options: ["EventSource does not decode UTF-8, so multi-byte characters arrive split", "EventSource cannot POST a body or set custom headers, and the coach needs both", "fetch streams deliver tokens faster because they skip the event parser", "EventSource cannot reconnect after a network drop, which phones need"]
+  answer: 1
   explanation: >-
     The message and editor contents travel in a POST body, and every mutating request must carry X-Requested-With for the CSRF middleware. EventSource can do neither. It does reconnect automatically, a feature this app gives up, but reconnecting would not make sense for a POST that creates a message anyway.
 - q: >-
     The coach page used separate routes for /coach and /coach/:id. Why did replacing them with one route, /coach/:id?, fix the dropped reply?
-  options: ["It stops React Router from refetching the conversation while a stream is running", "Optional segments match faster, so the navigation finishes before the stream begins", "The element keeps its tree position, so React re-renders instead of remounting the page", "It makes navigate() synchronous, so the new page mounts before the very first delta arrives"]
-  answer: 2
+  options: ["Optional segments match faster, so the navigation finishes before the stream begins", "It stops React Router from refetching the conversation while a stream is running", "It makes navigate() synchronous, so the new page mounts before the very first delta arrives", "The element keeps its tree position, so React re-renders instead of remounting the page"]
+  answer: 3
   explanation: >-
     React preserves component state when the element type and position are unchanged. Two sibling routes are two positions, so navigating between them unmounted the page whose closure held the live stream. The localConv guard handles the second half of the bug, hydration overwriting a stream in progress.
 - q: >-
     A learner presses Stop 5 seconds into a reply that would have used 3,000 output tokens. Roughly what is billed and stored?
-  options: ["Nothing at all, because the provider does not bill aborted requests", "The partial text is stored, and the daily budget refunds the difference", "About five seconds of tokens, because Stop cancels the upstream call", "The full reply is generated, billed, stored and counted in ai_usage"]
-  answer: 3
+  options: ["Nothing at all, because the provider does not bill aborted requests", "The full reply is generated, billed, stored and counted in ai_usage", "About five seconds of tokens, because Stop cancels the upstream call", "The partial text is stored, and the daily budget refunds the difference"]
+  answer: 1
   explanation: >-
     Aborting the fetch closes the connection, which the server cannot tell apart from a closed tab. The background task finishes the stream by design. Saving tokens on Stop needs an explicit cancel signal that the task checks, which trades against the guarantee that disconnects never lose replies.
 ```

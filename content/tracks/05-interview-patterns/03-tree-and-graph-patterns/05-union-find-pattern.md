@@ -283,14 +283,14 @@ hints:
 ```quiz
 - q: >-
     A candidate's union is parent[b] = a, without calling find on either argument. The sequence union(1, 2), union(2, 3), union(3, 1) is executed. What happens?
-  options: ["parent[1] = 3 closes the loop 1→3→2→1, so find never ends", "The third call is correctly rejected as a cycle edge", "It raises an index error on the third union call", "All three end up in one set, and nothing is wrong"]
-  answer: 0
+  options: ["It raises an index error on the third union call", "The third call is correctly rejected as a cycle edge", "parent[1] = 3 closes the loop 1→3→2→1, so find never ends", "All three end up in one set, and nothing is wrong"]
+  answer: 2
   explanation: >-
     After the first two calls parent[2] = 1 and parent[3] = 2, which happens to be a valid tree. The third sets parent[1] = 3, pointing the root at a descendant and forming a cycle in the parent array, so the next find loops forever. Union must attach one root under the other: compute both roots first and compare them.
 - q: >-
     Why does Redundant Connection process edges in input order and return the first union that fails?
-  options: ["Because union-find only works on edges in sorted order", "Because the answer is guaranteed to be the last input edge", "Because the first failing union has the smallest node labels", "It closes the only cycle, so no cycle edge comes after it"]
-  answer: 3
+  options: ["Because union-find only works on edges in sorted order", "It closes the only cycle, so no cycle edge comes after it", "Because the answer is guaranteed to be the last input edge", "Because the first failing union has the smallest node labels"]
+  answer: 1
   explanation: >-
     Only one edge is extra, so exactly one cycle exists. The cycle is not closed until its last edge in input order is seen, and that edge is precisely the first one whose endpoints are already joined. Every other cycle edge appeared earlier, so tie-breaking by last appearance is automatic; the answer need not be the last edge of the whole input.
 - q: >-
@@ -301,14 +301,14 @@ hints:
     Union by rank alone guarantees a tree of height h has at least 2^h nodes, so height is at most log n. Path compression alone also gives amortised O(log n). Both together give amortised inverse Ackermann. Neither gives O(n) chains.
 - q: >-
     In Accounts Merge, a candidate uses names as union-find nodes. What breaks?
-  options: ["Different people who share a name get merged together", "The output emails come out unsorted in each group", "Union-find cannot use strings as its node keys", "Nothing, since names uniquely identify people here"]
-  answer: 0
+  options: ["Nothing, since names uniquely identify people here", "Union-find cannot use strings as its node keys", "The output emails come out unsorted in each group", "Different people who share a name get merged together"]
+  answer: 3
   explanation: >-
     Names are not identities in this problem; shared emails are. Two different people with the same name are merged, and so are two same-name accounts with no shared email, which the problem treats as separate. The nodes must be account indices (or emails), with the name attached to the output afterwards.
 - q: >-
     An interviewer adds: edges are also deleted over time, and connectivity queries are interleaved with additions and deletions, all given in advance. What is the standard approach?
-  options: ["Switch to Dijkstra, which supports removing edges", "Add a delete operation to union-find that splits sets", "Rebuild the union-find from scratch after each deletion", "Run time backwards so each deletion becomes a union"]
-  answer: 3
+  options: ["Switch to Dijkstra, which supports removing edges", "Add a delete operation to union-find that splits sets", "Run time backwards so each deletion becomes a union", "Rebuild the union-find from scratch after each deletion"]
+  answer: 2
   explanation: >-
     Union-find cannot split sets. Because all operations are known up front, you can start from the final graph and process time in reverse, turning deletions into unions and answering queries backwards. Rebuilding after every deletion works but throws away the near-constant cost. If the operations were online, a different structure (link-cut trees, or per-query BFS) would be needed.
 ```

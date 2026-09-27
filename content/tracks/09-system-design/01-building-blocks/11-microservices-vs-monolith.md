@@ -168,26 +168,26 @@ At five services in one language, no: a shared client library with timeouts, ret
 ```quiz
 - q: >-
     A user request calls five services in sequence, each with 99.9% availability. The request's availability is approximately:
-  options: ["95%", "99.98%", "99.9%", "99.5%"]
+  options: ["99.9%", "99.98%", "95%", "99.5%"]
   answer: 3
   explanation: >-
     Availabilities in series multiply: 0.999^5 ≈ 0.995. That is about 3.6 hours of downtime per month versus 43 minutes for one service. This is the core cost of synchronous chains.
 - q: >-
     Which of these is the strongest signal that a system is a distributed monolith?
-  options: ["Several services read and write the same tables", "Its services call each other over gRPC instead of REST", "It runs every service on one shared Kubernetes cluster", "It has grown to more than ten separately deployed services"]
-  answer: 0
+  options: ["It runs every service on one shared Kubernetes cluster", "It has grown to more than ten separately deployed services", "Several services read and write the same tables", "Its services call each other over gRPC instead of REST"]
+  answer: 2
   explanation: >-
     A shared database means schema changes require coordinating every service, which removes independent deployability, the one benefit that justified the split. Protocol, count and platform are neutral; ten services that deploy independently are not a monolith.
 - q: >-
     A page fans out to 20 services in parallel, each with p99 of 50 ms and p50 of 5 ms. Roughly what fraction of page loads wait at least 50 ms?
-  options: ["5%", "18%", "50%", "1%"]
-  answer: 1
+  options: ["18%", "5%", "50%", "1%"]
+  answer: 0
   explanation: >-
     The probability that none of 20 independent calls hits its p99 is 0.99^20 ≈ 0.82, so about 18% of pages see at least one tail. This is tail latency amplification, the reason for hedged requests and partial results in fan-out systems.
 - q: >-
     The safest way to move the notifications module out of a monolith is:
-  options: ["Have the new service keep reading the monolith's tables for good", "Move traffic over gradually behind a facade, then retire the module", "Fork the monolith and delete everything except notifications", "Rewrite it as a service and switch all traffic over on release day"]
-  answer: 1
+  options: ["Rewrite it as a service and switch all traffic over on release day", "Have the new service keep reading the monolith's tables for good", "Move traffic over gradually behind a facade, then retire the module", "Fork the monolith and delete everything except notifications"]
+  answer: 2
   explanation: >-
     The strangler fig puts a facade in front, routes a growing share of traffic to the new service, migrates data ownership with CDC and checksums, and only then retires the module, so each step is reversible and observable. A big-bang switch has no rollback granularity; forking the monolith duplicates everything; permanently sharing tables recreates the distributed monolith.
 - q: >-

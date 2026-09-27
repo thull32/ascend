@@ -150,32 +150,32 @@ The rest of this module is the workflow that contains them: [plan, implement, ve
 ```quiz
 - q: >-
     Your repository needs three undocumented manual steps (a local certificate, a seeded database, a private package mirror) before tests pass. Which category of tool will struggle most?
-  options: ["Inline completion, since it only sees the code around the cursor", "An interactive terminal agent, since it runs the tests itself", "All three equally, since none of them can create a local certificate", "A cloud or background agent, since it starts from a fresh clone"]
-  answer: 3
+  options: ["A cloud or background agent, since it starts from a fresh clone", "All three equally, since none of them can create a local certificate", "Inline completion, since it only sees the code around the cursor", "An interactive terminal agent, since it runs the tests itself"]
+  answer: 0
   explanation: >-
     A background agent starts from a fresh clone in a remote sandbox and cannot ask you how to set up the environment, so it burns its budget failing to build. Completion never runs code, and an interactive agent does run the tests, but in your already-configured environment where the certificate, database and mirror exist.
 - q: >-
     Why do inline completion tools use small prompts and fast models rather than the largest model with the whole repository in context?
-  options: ["Completion tools are not permitted to read files other than the open one", "The suggestion must arrive within hundreds of milliseconds to be useful", "Whole repositories exceed any model's context window, so they cannot be sent", "Large models cannot do fill-in-the-middle, only left-to-right generation"]
-  answer: 1
+  options: ["Whole repositories exceed any model's context window, so they cannot be sent", "Large models cannot do fill-in-the-middle, only left-to-right generation", "The suggestion must arrive within hundreds of milliseconds to be useful", "Completion tools are not permitted to read files other than the open one"]
+  answer: 2
   explanation: >-
     Completion competes with your typing speed. A better suggestion that arrives after you have typed the next word has no value, so the harness trades context size and model size for latency. Context limits are real but not the reason: completion deliberately sends a few thousand tokens even when far more would fit.
 - q: >-
     You must migrate 212 call sites across 61 files to a new HTTP client. Which approach gives the most trustworthy result for the review effort?
-  options: ["Inline completion file by file, so you review each edit as you accept it", "61 background agent tasks, one per file, each reviewed as its own pull request", "Have the agent write a codemod, review the script, and hand-check the sites it skips", "One agent task that edits all 61 files, then a careful review of the full diff"]
+  options: ["Inline completion file by file, so you review each edit as you accept it", "One agent task that edits all 61 files, then a careful review of the full diff", "Have the agent write a codemod, review the script, and hand-check the sites it skips", "61 background agent tasks, one per file, each reviewed as its own pull request"]
   answer: 2
   explanation: >-
     A codemod turns 212 independent model decisions into one small deterministic program you can read; you then run it and hand-check the sites it reports it could not handle. A 61-file diff of near-identical hunks invites skimming, and 61 separate PRs multiply review overhead without making any single edit easier to trust.
 - q: >-
     Which bake-off metric is most likely to mislead you when comparing AI coding tools?
-  options: ["Lines of code generated per engineer", "Share of AI diffs merged without edits", "Reviewer minutes per merged change", "Defects traced to AI changes the next month"]
-  answer: 0
+  options: ["Reviewer minutes per merged change", "Defects traced to AI changes the next month", "Lines of code generated per engineer", "Share of AI diffs merged without edits"]
+  answer: 2
   explanation: >-
     Lines generated rewards verbosity: a tool that writes more code scores higher even if the code needs more review and causes more bugs. The other three measure accepted value, cost of review and downstream quality.
 - q: >-
     What is the core capability an interactive agent has that inline completion does not?
-  options: ["It can run the compiler and tests, read the results and iterate", "It uses a larger model, so it can reason about more of the codebase", "It checks APIs against the docs, so it does not invent functions", "It runs fully offline, so code never leaves the developer's machine"]
-  answer: 0
+  options: ["It checks APIs against the docs, so it does not invent functions", "It can run the compiler and tests, read the results and iterate", "It runs fully offline, so code never leaves the developer's machine", "It uses a larger model, so it can reason about more of the codebase"]
+  answer: 1
   explanation: >-
     The loop with tool feedback is the difference: the agent calls tools such as the compiler and test runner, sees errors and test output, and corrects itself. Model size varies by product, agents still invent APIs, and both need network access to a hosted model unless you run one locally.
 ```

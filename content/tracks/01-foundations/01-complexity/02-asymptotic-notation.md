@@ -212,37 +212,37 @@ hints:
 ```quiz
 - q: >-
     Binary search on a sorted array of n elements is correctly described as which of the following?
-  options: ["Θ(1), because log n is effectively constant", "Ω(n), because any algorithm must read its input", "Θ(log n) worst case, and O(n) is also true", "O(log n) only; calling it O(n) would be false"]
-  answer: 2
+  options: ["Ω(n), because any algorithm must read its input", "Θ(log n) worst case, and O(n) is also true", "Θ(1), because log n is effectively constant", "O(log n) only; calling it O(n) would be false"]
+  answer: 1
   explanation: >-
     The tight worst-case bound is Θ(log n). Because Big-O is only an upper bound, O(n) is also a true (if uninformative) statement; treating O as if it meant "tight" confuses it with Θ. Binary search does not read the whole input, so Ω(n) is false. "Effectively constant" is an engineering remark, not a complexity class.
 - q: >-
     A problem states 1 ≤ n ≤ 200,000. Which complexity is the intended solution most likely to have?
-  options: ["O(n log n) or O(n)", "O(n²), tight inner loop", "O(n³), small constants", "O(2^n) with memoisation"]
+  options: ["O(n log n) or O(n)", "O(2^n) with memoisation", "O(n³), small constants", "O(n²), tight inner loop"]
   answer: 0
   explanation: >-
     n² = 4 × 10¹⁰ operations is minutes of work, so quadratic is ruled out however tight the inner loop; n log n ≈ 3.6 × 10⁶ is comfortable. Exponential and cubic are far worse. The constraint is the setter telling you the target class.
 - q: >-
     Which expression grows fastest as n → ∞?
-  options: ["n² log n", "2^(log₂ n) · n", "1.5^n", "n^2.5"]
-  answer: 2
+  options: ["1.5^n", "n^2.5", "n² log n", "2^(log₂ n) · n"]
+  answer: 0
   explanation: >-
     Any exponential with base > 1 eventually beats every polynomial, so 1.5^n wins. Note 2^(log₂ n) · n simplifies to n · n = n², and n^2.5 beats n² log n since a power of n beats any power of log n.
 - q: >-
     A function loops over an array of n strings and, for each, checks membership in a Python list that accumulates the results so far. What is its complexity, and what one change fixes it?
-  options: ["O(n²); preallocate the list up front", "O(n); the loop is already linear", "O(n²); switch the results to a set", "O(n log n); sort the list before looping"]
-  answer: 2
+  options: ["O(n²); switch the results to a set", "O(n log n); sort the list before looping", "O(n); the loop is already linear", "O(n²); preallocate the list up front"]
+  answer: 0
   explanation: >-
     `x in a_list` scans the list, O(k) at step k, so the total is O(n²). A set turns each membership test into expected O(1), making the whole thing O(n). Preallocation does not change scan cost; sorting does not help a membership test that runs inside the loop.
 - q: >-
     A graph algorithm visits every vertex once and, for each vertex, scans its adjacency list once. An interviewer asks for the complexity. The best answer is:
-  options: ["O(V²), since each vertex may touch all others", "O(E), since every edge is scanned once", "O(V + E), which is O(V²) only when dense", "O(V log V), as in a heap-driven traversal"]
+  options: ["O(E), since every edge is scanned once", "O(V log V), as in a heap-driven traversal", "O(V + E), which is O(V²) only when dense", "O(V²), since each vertex may touch all others"]
   answer: 2
   explanation: >-
     The work is V vertex visits plus the total length of all adjacency lists, which is E (or 2E undirected). Collapsing to O(V²) silently assumes a dense graph; O(E) alone forgets isolated vertices. There is no heap here, so no log factor. Keeping both variables is the senior answer.
 - q: >-
     Checking whether an integer k is prime by trial division up to √k runs in O(√k) divisions. Why is this not considered a polynomial-time algorithm?
-  options: ["Input size is the bit count b, and √k = 2^(b/2)", "Each trial division costs O(k) time, not O(1)", "It is polynomial; O(√k) is simply O(k^0.5)", "Its worst case tries every divisor up to k, not √k"]
+  options: ["Input size is the bit count b, and √k = 2^(b/2)", "Each trial division costs O(k) time, not O(1)", "Its worst case tries every divisor up to k, not √k", "It is polynomial; O(√k) is simply O(k^0.5)"]
   answer: 0
   explanation: >-
     Complexity is measured against the size of the input, and a number's size is its digit or bit count b. A 64-bit number takes up to 2^32 divisions; doubling the bit count squares the work. So √k = 2^(b/2) is exponential in the input size even though it looks like a small power of k; calling it polynomial measures against the value k instead of its size.

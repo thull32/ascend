@@ -247,6 +247,16 @@ inner double quotes as `\"`. The same applies to `prompt:` in exercises (use
 trade-offs, not recall. Explanations say why the right answer is right and
 why the tempting wrong one is wrong.
 
+Options must not give the answer away by shape. Keep them parallel in length
+and grammatical form (within roughly ±30%); trim the correct option to its
+core claim and put the nuance in the explanation; give distractors the same
+kind of qualifier ("because…", a number, a mechanism) with a wrong reason.
+Never refer to an option by position ("the first option", "option C") in an
+explanation, because option order is not yours to choose: after editing, run
+`make quizzes`, which puts every quiz in its canonical shuffled order and
+prints how often the correct answer is the longest option. CI fails if a quiz
+is not in that order.
+
 ## Practice problems — `content/problems/<slug>.md`
 
 Original problem statements (do not copy LeetCode text). Classic problems

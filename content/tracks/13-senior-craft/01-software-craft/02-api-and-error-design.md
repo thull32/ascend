@@ -55,7 +55,7 @@ pub enum AppError {
     Forbidden,
     NotFound(&'static str),
     Conflict(String),
-    RateLimited(String),
+    RateLimited { message: String, retry_after_secs: Option<u64> },
     AiDisabled,
     AiUpstream(String),
     Database(#[from] sea_orm::DbErr),
@@ -74,7 +74,7 @@ let status = match &e {
     AppError::Forbidden => StatusCode::FORBIDDEN,
     AppError::NotFound(_) => StatusCode::NOT_FOUND,
     AppError::Conflict(_) => StatusCode::CONFLICT,
-    AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+    AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
     AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
     AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
     AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -85,6 +85,10 @@ let message = match &e {
     AppError::Internal(inner) => { tracing::error!(error = %inner, "internal error"); "internal error".to_string() }
     other => other.to_string(),
 };
+// ... build the response, then, if the domain knows when to retry, say so:
+if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+    res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
+}
 ```
 
 The body is `{"code": "...", "message": "..."}`. The frontend's single fetch wrapper, `web/src/lib/api.ts`, turns every non-2xx response into an `ApiError(status, code, message)` so components branch on `e.code === "rate_limited"` rather than on text.
@@ -95,20 +99,20 @@ The most important line is the one that swallows detail. A `DbErr` can contain a
 
 `crates/core/src/ai/anthropic.rs` shows the same discipline at the outbound edge. Its `map_status` function converts the AI provider's status into Ascend's semantics:
 
-- Provider `429` becomes `AppError::RateLimited`, so the user sees "slow down".
+- Provider `429` becomes `AppError::RateLimited` with `retry_after_secs: Some(30)`, so the user sees "slow down" and the browser gets a `Retry-After`.
 - Provider `529`/`503` becomes `AiUpstream("the AI provider is overloaded; try again shortly")`, a 502 to the browser.
-- Provider `401`/`403` becomes `AiUpstream("AI provider rejected our credentials")`, also a 502.
+- Provider `401`/`403` becomes `AiUpstream("the AI coach is temporarily unavailable")`, also a 502. An earlier wording, "AI provider rejected our credentials", told every user about the server's configuration; the learner only needs to know the feature is down, and the operator reads the status in the logs.
 - Provider `400` becomes `AiUpstream("the AI provider rejected the request")`: a fixed string, with the provider's body sent to the logs, never to the browser.
 
 That last one is the lesson. If the API forwarded the provider's 401, a client would reasonably conclude that the *user's* session had expired (this SPA's auth context in `web/src/lib/auth.tsx` treats a 401 as signed out) and send them to log in again, for a problem that is entirely the server's API key. An upstream status describes the relationship between you and your vendor; your caller needs a status that describes the relationship between them and you.
 
 ### What a review flagged, and what changed
 
-The design was sound; careful reviews still found edges, and four of them have since been fixed. The before and after are worth more than either alone.
+The design was sound; careful reviews still found edges, and four of them have since been fixed, one of them twice. The before and after are worth more than either alone.
 
 1. **Framework rejections bypassed the shape (fixed twice).** When a body was not valid JSON, Axum's `Json` extractor rejected the request with its own plain-text response before the handler ran, so the client got no `code` and `web/src/lib/api.ts` fell back to `"http_error"`. The first fix made every handler take `AppJson<T>` from `crates/api/src/extractors.rs`, which delegates parsing to `Json` and converted every rejection into `AppError::Validation`: a 422 `validation_error`. That restored the shape but flattened the taxonomy, because "your bytes are not JSON" (a broken client serialiser, never fixed by editing a form field) and "your JSON has the wrong fields" became indistinguishable. `AppJson` now converts the rejection into its own `JsonError`, which keeps the status Axum chose and gives each its own code: 400 `bad_request` for unparseable JSON, 413 `payload_too_large`, 415 `unsupported_media_type`, and 422 `validation_error` for well-formed JSON of the wrong shape. The integration test `malformed_json_uses_the_api_error_shape` pins the 400. The general rule: your error contract covers the failures your framework produces, not just the ones your code produces.
-2. **Middleware speaks the same dialect (and now tells the truth about waiting).** The CSRF middleware returns 403 with `code: "csrf"` and the rate limiter returns 429 with `code: "rate_limited"`, both using `ErrorBody` even though neither is an `AppError`. That consistency is deliberate and worth copying. The limiter used to send a fixed `retry-after: 60` whatever the real wait was, so a well-behaved client either slept far too long or, if it knew better, had to ignore the header. `crates/api/src/middleware/rate_limit.rs` now asks the GCRA limiter when the next request will be allowed and sends that, rounded up to whole seconds; the test `throttled_responses_say_when_to_retry` checks it. The SPA is now one of those well-behaved clients: `web/src/lib/api.ts` reads `Retry-After` into the `ApiError` and classifies 429, 5xx and network failures as transient, and the query client in `web/src/main.tsx` retries reads at most twice, waiting as long as the server asked (capped at 10 seconds) or backing off exponentially when it did not say. A header that lies is worse than no header, because well-behaved clients are the ones that obey it.
-3. **Vendor text crossed the boundary (fixed).** The 400 branch of `map_status` used to put up to 200 characters of the provider's response body into the message the browser saw. A provider's validation error can quote the request it rejected, which here includes prompt text the user never wrote, and it describes your integration to anyone who asks. The branch now returns the fixed string above, and the caller logs the body. The rule "only strings we wrote reach the client" is easier to audit than "vendor strings reach the client when we think they are safe".
+2. **Middleware speaks the same dialect (and now tells the truth about waiting).** The CSRF middleware returns 403 with `code: "csrf"` and the rate limiter returns 429 with `code: "rate_limited"`, both using `ErrorBody` even though neither is an `AppError`. That consistency is deliberate and worth copying. The limiter used to send a fixed `retry-after: 60` whatever the real wait was, so a well-behaved client either slept far too long or, if it knew better, had to ignore the header. `crates/api/src/middleware/rate_limit.rs` now asks the GCRA limiter when the next request will be allowed and sends that, rounded up to whole seconds; the test `throttled_responses_say_when_to_retry` checks it. The SPA is now one of those well-behaved clients: `web/src/lib/api.ts` reads `Retry-After` into the `ApiError` and classifies 429, 5xx and network failures as transient, and the query client in `web/src/main.tsx` retries reads at most twice, waiting as long as the server asked (capped at 10 seconds) or backing off exponentially when it did not say. A header that lies is worse than no header, because well-behaved clients are the ones that obey it. The 429s the *domain* produces had the opposite problem, no header at all, because `RateLimited(String)` had nowhere to put a time. The variant now carries `retry_after_secs`, the one mapping function turns it into the header, and the daily AI budget fills it with the seconds until the next UTC midnight; `rate_limited_errors_carry_retry_after_when_known` pins the mapping. When a fact has to reach the wire, give it a field in the error type, not a special case in one handler.
+3. **Vendor text crossed the boundary (fixed).** The 400 branch of `map_status` used to put up to 200 characters of the provider's response body into the message the browser saw. A provider's validation error can quote the request it rejected, which here includes prompt text the user never wrote, and it describes your integration to anyone who asks. The branch now returns the fixed string above, and the caller logs the body. The rule "only strings we wrote reach the client" is easier to audit than "vendor strings reach the client when we think they are safe", and auditing it found two more doors. Non-streaming failures built `AiUpstream` from a reqwest error or a JSON parse error, which can quote the text it choked on; every such site now calls `AppError::ai_upstream(public, detail)`, which logs `detail` and returns only `public`. And an `error` event arriving *inside* a streamed reply went to the browser as the provider's own message; the client now logs it and sends a classified sentence of its own. A unit test replays such a stream from a local socket with the word SECRET in the provider's message and asserts the learner never sees it.
 4. **Timeout semantics (fixed).** The router's `TimeoutLayer` used to answer a slow handler with `408 Request Timeout`. RFC 9110 defines 408 as the *client* failing to send a complete request in time, and some HTTP clients treat 408 as automatically retryable. It now answers `503 Service Unavailable`, which says the server could not respond. One edge remains: the timeout response has an empty body, so for this one status the client still falls back to `"http_error"`.
 5. **Login failures are 422.** `AuthService::login` returns `Validation("invalid email or password")` for both an unknown email and a wrong password. The single message is correct (it avoids account enumeration), and `crates/api/tests/api.rs` pins it: a test asserts that the wrong-password and unknown-email responses have identical bodies. Whether the status should be 401 instead is a judgement call. What matters is that it is consistent, documented and tested.
 
@@ -255,32 +259,32 @@ Caching is part of that contract too. Content responses carry an `ETag`, and a b
 ```quiz
 - q: >-
     Your API calls a payment provider, which returns 401 because your server's API key was rotated. What should your API return to its own client?
-  options: ["502 or 503 with a generic message, and alert the operators", "401, forwarding the provider's status so the client re-authenticates", "200 with an error field, so the client's retry logic stays out of it", "403, since the provider denied access to the resource"]
-  answer: 0
+  options: ["403, since the provider denied access to the resource", "200 with an error field, so the client's retry logic stays out of it", "502 or 503 with a generic message, and alert the operators", "401, forwarding the provider's status so the client re-authenticates"]
+  answer: 2
   explanation: >-
     The provider's 401 describes your server's credentials, not the end user's. Forwarding 401 tells the client its own session is invalid, which may log the user out for a server-side problem (Ascend's SPA treats any 401 as signed out), and a 403 tells the user they lack a permission they cannot obtain. Translate it to a gateway or unavailable status, keep the vendor's detail in the logs and page someone. A 200 hides the failure from every retry library and dashboard.
 - q: >-
     A user requests /api/interviews/{id} for an interview that belongs to someone else. Ascend's InterviewService::get returns NotFound rather than Forbidden. Why?
-  options: ["Forbidden is reserved for admins, and interviews have no admin role", "A 404 can be cached by the browser, so repeat probes are cheaper", "Browsers retry a 403 automatically, doubling the load", "A 403 would confirm that an interview with that ID exists"]
-  answer: 3
+  options: ["Browsers retry a 403 automatically, doubling the load", "A 403 would confirm that an interview with that ID exists", "Forbidden is reserved for admins, and interviews have no admin role", "A 404 can be cached by the browser, so repeat probes are cheaper"]
+  answer: 1
   explanation: >-
     For private resources, 403 leaks existence. Returning 404 for both "missing" and "not yours" gives an attacker enumerating IDs no signal. Forbidden is an ordinary variant with no admin meaning: the comment-deletion path returns it to anyone who is neither the author nor an admin, because a comment's existence is already public. Caching and automatic retries play no part in the choice.
 - q: >-
     Which change to a public JSON API is most likely to break existing clients even though it only adds something?
-  options: ["A new endpoint next to the existing ones in this version", "A new value in the error-code enum that clients switch on", "A new optional field in a response that clients already parse", "A new optional query parameter that defaults to the old behaviour"]
-  answer: 1
+  options: ["A new optional query parameter that defaults to the old behaviour", "A new endpoint next to the existing ones in this version", "A new optional field in a response that clients already parse", "A new value in the error-code enum that clients switch on"]
+  answer: 3
   explanation: >-
     Clients that treat the set of codes as closed (an exhaustive switch) will crash or mishandle the new value. That is why the contract should tell clients to fall back to generic handling for unknown codes. New optional fields, new endpoints and defaulted parameters are ignored by tolerant clients.
 - q: >-
     A feed endpoint uses ?offset=N&limit=20. Users on page 300 report slow responses and occasional duplicates. What fixes both?
-  options: ["Raise the limit to 100 so that users need far fewer pages", "Put a cache in front of the endpoint keyed on offset and limit", "Use a keyset cursor on (created_at, id) backed by an index", "Sort by id ascending so new rows append at the end, not the front"]
-  answer: 2
+  options: ["Sort by id ascending so new rows append at the end, not the front", "Put a cache in front of the endpoint keyed on offset and limit", "Raise the limit to 100 so that users need far fewer pages", "Use a keyset cursor on (created_at, id) backed by an index"]
+  answer: 3
   explanation: >-
     Offsets make the database scan and discard every earlier row, and inserts shift page boundaries. A cursor seeks directly via the index and pages relative to the last row seen, so the cost is constant and rows are neither skipped nor repeated. Sorting ascending stops new rows shifting earlier pages but keeps the scan cost (and deletes still shift pages); a cache or bigger pages hide the cost without fixing correctness.
 - q: >-
     A client retries POST /payments with the same Idempotency-Key but a different amount. What should the server do?
-  options: ["Return the stored response of the first request without re-running", "Process it as a new payment, since the body differs from the first", "Reject it with a client error, since the key now names another request", "Update the first payment to the new amount and return the result"]
-  answer: 2
+  options: ["Reject it with a client error, since the key now names another request", "Process it as a new payment, since the body differs from the first", "Update the first payment to the new amount and return the result", "Return the stored response of the first request without re-running"]
+  answer: 0
   explanation: >-
     The key identifies one logical operation. The server stores a hash of the original request; a mismatch means the client has a bug, and silently replaying the old response or re-executing would hide it. Replaying the stored response is right only when the request matches.
 ```

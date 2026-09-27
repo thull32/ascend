@@ -226,32 +226,32 @@ Run the full pipeline in each region and home each user to one region by `user_i
 ```quiz
 - q: >-
     A sender calls the push provider, the provider accepts, and the sender crashes before recording success. What is the right behaviour on redelivery for a marketing message?
-  options: ["Retry it, because at-least-once delivery is always the safe default", "Ask the provider whether the push was displayed, then decide", "Don't retry it, because a duplicate promotion is worse than none", "Fail over to SMS, because the push outcome cannot be known"]
+  options: ["Ask the provider whether the push was displayed, then decide", "Fail over to SMS, because the push outcome cannot be known", "Don't retry it, because a duplicate promotion is worse than none", "Retry it, because at-least-once delivery is always the safe default"]
   answer: 2
   explanation: >-
     The provider hop cannot be made exactly-once, so you choose which failure you prefer per category. At-least-once is right for security codes, but for marketing a duplicate is worse than a miss, so at-most-once is the better trade: record the ambiguous send as sent. Providers cannot tell you whether a message was displayed, and failing over marketing to SMS costs real money.
 - q: >-
     Security codes and a 50-million-recipient campaign share one queue. Codes are taking 30 minutes to arrive. What fixes this?
-  options: ["Add a priority field so codes are picked ahead of campaign messages", "Give critical messages their own topic, senders and provider quota", "Add partitions to the shared topic so the backlog drains faster", "Send codes synchronously from the producer, bypassing the platform"]
-  answer: 1
+  options: ["Add a priority field so codes are picked ahead of campaign messages", "Send codes synchronously from the producer, bypassing the platform", "Add partitions to the shared topic so the backlog drains faster", "Give critical messages their own topic, senders and provider quota"]
+  answer: 3
   explanation: >-
     Isolation needs separate lanes (topics and consumers per priority) and a guaranteed share of the provider's rate limit. A priority field does not let a message jump a backlog already ahead of it in a log, and more partitions just spread the same backlog. Bypassing the platform loses preferences, auditing and fallback.
 - q: >-
     Why partition the requests topic by user_id?
-  options: ["Kafka requires a key on every message, and user_id is always available", "One planner owns each user, so caps and ordering need no coordination", "It lets the provider collapse duplicate pushes for the same user", "It balances load better than random partitioning across the planners"]
-  answer: 1
+  options: ["One planner owns each user, so caps and ordering need no coordination", "It lets the provider collapse duplicate pushes for the same user", "Kafka requires a key on every message, and user_id is always available", "It balances load better than random partitioning across the planners"]
+  answer: 0
   explanation: >-
     Keying by user makes per-user state (frequency caps, aggregation windows) single-owner and per-user ordering guaranteed. It actually balances load worse than random partitioning when one user receives a flood of events, which is why aggregation is needed alongside it. Collapse happens at the provider via collapse identifiers, not via partitioning.
 - q: >-
     A user's phone is offline for two hours. Which mechanism prevents a stack of stale 'your driver is arriving' pushes when it reconnects?
-  options: ["Provider expiry set from expires_at, plus collapse identifiers", "The suppression list, which blocks sends to unreachable devices", "Exponential backoff, which spaces retries until the phone returns", "Quiet hours, which hold pushes until the device is back online"]
-  answer: 0
+  options: ["Quiet hours, which hold pushes until the device is back online", "Provider expiry set from expires_at, plus collapse identifiers", "The suppression list, which blocks sends to unreachable devices", "Exponential backoff, which spaces retries until the phone returns"]
+  answer: 1
   explanation: >-
     Setting the provider expiry makes the provider discard messages that are no longer useful, and collapse identifiers make later messages replace earlier undisplayed ones. Quiet hours delay sends by the user's clock, not by device connectivity; suppression is for bounced or opted-out addresses; backoff only spaces retries and would still deliver the stale pushes.
 - q: >-
     A marketing campaign generates many bounces and spam complaints. Password-reset emails start landing in spam folders. What design choice would have prevented this?
-  options: ["Retrying bounced emails with backoff so they are eventually delivered", "Using a larger email provider whose IP reputation absorbs the damage", "Separate subdomains and IP pools for marketing and transactional mail", "Rate-limiting the campaign so bounces arrive more slowly over the day"]
-  answer: 2
+  options: ["Retrying bounced emails with backoff so they are eventually delivered", "Using a larger email provider whose IP reputation absorbs the damage", "Rate-limiting the campaign so bounces arrive more slowly over the day", "Separate subdomains and IP pools for marketing and transactional mail"]
+  answer: 3
   explanation: >-
     Mailbox providers judge reputation per sending domain and IP, so sharing them lets a bad campaign damage deliverability of critical mail; bounces and complaints should also feed a suppression list. Retrying bounces makes reputation worse, pacing does not change the bounce rate, and changing provider does not change how recipients' mailboxes judge your domain.
 ```

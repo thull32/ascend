@@ -146,32 +146,32 @@ Capacity is the other new concept. You pay per read/write unit (or on demand at 
 ```quiz
 - q: >-
     A table stores sensor readings with PRIMARY KEY (device_id, ts). After six months, reads for busy devices time out and compaction falls behind. The fix is:
-  options: ["Switch reads to QUORUM so slow replicas stop holding reads back", "Raise the replication factor so each partition has more readers", "Add a time bucket such as day to the partition key to bound it", "Add a secondary index on ts so time-range reads skip old rows"]
+  options: ["Add a secondary index on ts so time-range reads skip old rows", "Raise the replication factor so each partition has more readers", "Add a time bucket such as day to the partition key to bound it", "Switch reads to QUORUM so slow replicas stop holding reads back"]
   answer: 2
   explanation: >-
     A partition keyed only by device grows forever; past roughly 100 MB every read, compaction and repair on it degrades. Bucketing by day bounds partition size at one day of readings. Consistency level and replication factor do not change partition size; a secondary index on the clustering column is meaningless.
 - q: >-
     With replication factor 3, a service writes at consistency ONE and reads at ONE. Users occasionally see their update disappear and reappear. Why?
-  options: ["Hinted handoff is disabled, so the write never reaches any replica", "R + W = 2 is not above N = 3, so a read can miss the most recent write", "The commit log was not fsynced, so the replica lost the write", "Tombstones from earlier deletes are hiding the row on some reads"]
+  options: ["The commit log was not fsynced, so the replica lost the write", "R + W = 2 is not above N = 3, so a read can miss the most recent write", "Tombstones from earlier deletes are hiding the row on some reads", "Hinted handoff is disabled, so the write never reaches any replica"]
   answer: 1
   explanation: >-
     Reads and writes at ONE do not guarantee overlap; a read served by a replica the write has not reached yet returns the old value until repair or handoff catches it up. QUORUM on both sides (2 + 2 > 3) forces an intersection with the newest write.
 - q: >-
     A team lowers gc_grace_seconds from ten days to one hour to reclaim disk faster, and runs repair weekly. What is the likely consequence?
-  options: ["Nothing bad; tombstones are purged sooner, so reads get faster", "Deleted rows return: repair revives a copy that missed the delete", "QUORUM writes start failing until the next weekly repair has finished", "Compaction stalls, since tombstones under an hour old are locked"]
+  options: ["Compaction stalls, since tombstones under an hour old are locked", "Deleted rows return: repair revives a copy that missed the delete", "Nothing bad; tombstones are purged sooner, so reads get faster", "QUORUM writes start failing until the next weekly repair has finished"]
   answer: 1
   explanation: >-
     The tombstone must survive until every replica has been repaired. With a one-hour grace and weekly repair, any replica that was down for the delete keeps the row, and once the tombstone is compacted away elsewhere, repair treats that old copy as live data and the row is resurrected.
 - q: >-
     Which workload is the worst fit for Cassandra?
-  options: ["A job queue whose rows are inserted then deleted in seconds", "A user activity feed read back by user id in time order", "Append-only sensor time series with a 30-day TTL on every row", "Write-heavy event ingestion at 300,000 events per second"]
-  answer: 0
+  options: ["Append-only sensor time series with a 30-day TTL on every row", "A user activity feed read back by user id in time order", "A job queue whose rows are inserted then deleted in seconds", "Write-heavy event ingestion at 300,000 events per second"]
+  answer: 2
   explanation: >-
     Deletes are tombstone writes; an insert-delete queue leaves partitions that are almost entirely tombstones, and every read scans through them. The other three are exactly what the partition-plus-clustering model and LSM engine are built for.
 - q: >-
     A DynamoDB table is provisioned at 10,000 write units but writes to one popular product key throttle at around 1,000 per second. Why, and what fixes it?
-  options: ["GSIs are consuming the write capacity; drop the unused indexes", "Eventually consistent writes throttle a hot key; make them strong", "The table's per-second limit was exceeded; provision more write units", "One key lives in one partition with its own limit; add a key suffix"]
-  answer: 3
+  options: ["One key lives in one partition with its own limit; add a key suffix", "The table's per-second limit was exceeded; provision more write units", "Eventually consistent writes throttle a hot key; make them strong", "GSIs are consuming the write capacity; drop the unused indexes"]
+  answer: 0
   explanation: >-
     Capacity is enforced per physical partition, and one key lives in one partition. Provisioning more table capacity does not help a single hot key; write sharding (suffix 0-9, query all ten) spreads it across partitions. The same hot-partition problem exists in Cassandra.
 ```

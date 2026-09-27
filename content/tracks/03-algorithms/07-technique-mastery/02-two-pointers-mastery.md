@@ -254,32 +254,32 @@ hints:
 ```quiz
 - q: >-
     In pair-sum on a sorted array, a[lo] + a[hi] is less than the target. Why is it safe to discard lo entirely?
-  options: ["a[lo] is the smallest remaining value, so it cannot appear in any valid pair", "It is not safe; a larger partner beyond hi could still reach the target", "Even its largest remaining partner, a[hi], gives a sum that is too small", "lo has already been compared once, and each index needs only one comparison"]
-  answer: 2
+  options: ["a[lo] is the smallest remaining value, so it cannot appear in any valid pair", "lo has already been compared once, and each index needs only one comparison", "It is not safe; a larger partner beyond hi could still reach the target", "Even its largest remaining partner, a[hi], gives a sum that is too small"]
+  answer: 3
   explanation: >-
     The remaining partners for lo are indices up to hi, and a[hi] is the largest of them. If even that sum is too small, the whole row of the pair table is ruled out. Partners beyond hi are not a way back: their columns were discarded earlier because they were too large even with the smallest remaining partner. Sortedness is the reason a[hi] is the largest remaining partner, but being the smallest value alone does not rule a[lo] out.
 - q: >-
     In Container With Most Water, h[lo] = 3 and h[hi] = 9. Why move lo rather than hi?
-  options: ["The taller wall is more likely to be part of the best container overall", "Every other container using hi is narrower, so each one is worse than this", "Moving either pointer works, since both shrink the width by exactly one", "Every other container using lo is narrower and still capped at height 3"]
+  options: ["The taller wall is more likely to be part of the best container overall", "Moving either pointer works, since both shrink the width by exactly one", "Every other container using hi is narrower, so each one is worse than this", "Every other container using lo is narrower and still capped at height 3"]
   answer: 3
   explanation: >-
     The shorter wall caps the height of every pair it belongs to, and the width only shrinks inwards, so every remaining pair using lo is strictly worse than the current one and row lo is dominated. Containers using hi are narrower too, but their height is min(h[j], 9), which can exceed 3, so moving hi would discard pairs such as (lo + 1, hi) that could be better and are not proven worse.
 - q: >-
     In the Dutch national flag loop, after swapping a[mid] with a[hi] because a[mid] was 2, why does mid stay where it is?
-  options: ["The element that arrived from hi is still unexamined and must be classified first", "Keeping mid still stops the 2 just placed at hi from being swapped out again", "It should advance; the swapped-in element is always a 1, as in the lo case", "Not advancing mid is what keeps the potential dropping, so the loop is O(n)"]
-  answer: 0
+  options: ["Not advancing mid is what keeps the potential dropping, so the loop is O(n)", "Keeping mid still stops the 2 just placed at hi from being swapped out again", "The element that arrived from hi is still unexamined and must be classified first", "It should advance; the swapped-in element is always a 1, as in the lo case"]
+  answer: 2
   explanation: >-
     Everything left of mid has been examined, and everything right of hi is known to be 2, but the region between them is unknown. The swap brings an unknown element to mid. The lo-side swap is different: the element arriving from lo has already been examined, which is why mid advances there. Progress still happens because hi decreases, so the potential hi - mid + 1 drops; not advancing mid is about correctness, not speed.
 - q: >-
     Which question is a better fit for sort plus two pointers than for a hash map?
-  options: ["Return the indices of two values summing exactly to t", "Check whether any value in the array appears twice", "Group the words that are anagrams of each other", "Count the pairs whose sum is strictly less than t"]
-  answer: 3
+  options: ["Count the pairs whose sum is strictly less than t", "Group the words that are anagrams of each other", "Return the indices of two values summing exactly to t", "Check whether any value in the array appears twice"]
+  answer: 0
   explanation: >-
     A hash map answers exact-membership questions. Counting pairs below a threshold needs order, which two pointers exploit by adding a whole row of valid pairs per step. The other three are equality questions where hashing wins; returning original indices is especially awkward after a sort.
 - q: >-
     You keep at most two copies of each value in a sorted array in place. Why does the keep test compare a[read] with a[write - 2] and not a[read - 2]?
-  options: ["a[write - 2] stays in cache, so it is faster to read than a[read - 2]", "a[read - 2] can be out of bounds, while write - 2 is always a valid index", "a[write - 2] is in the output, which records how many copies were kept", "The two are always equal, so either comparison gives the same result"]
-  answer: 2
+  options: ["a[write - 2] stays in cache, so it is faster to read than a[read - 2]", "a[write - 2] is in the output, which records how many copies were kept", "a[read - 2] can be out of bounds, while write - 2 is always a valid index", "The two are always equal, so either comparison gives the same result"]
+  answer: 1
   explanation: >-
     The invariant is that a[0:write] is the correct output so far. Because that output is sorted, a[write - 2] == a[read] means the last two kept values already equal a[read]. The input position read - 2 says nothing about what was kept, and it may have been overwritten: on [1, 1, 1, 2, 2, 2, 3] at read = 4, a[2] already holds a 2, so comparing with a[read - 2] would wrongly drop the second 2, while a[write - 2] = 1 keeps it.
 ```

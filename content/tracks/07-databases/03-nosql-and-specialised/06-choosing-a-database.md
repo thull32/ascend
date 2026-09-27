@@ -186,32 +186,32 @@ The database is the hardest component to change, because data has gravity and ev
 ```quiz
 - q: >-
     A team proposes MongoDB for a new orders service because requirements are still changing. Orders have line items, reserve inventory and must never be double-charged. What is the strongest counter-argument?
-  options: ["MongoDB cannot nest line items inside an order, so every order read needs extra lookups", "MongoDB is always slower than Postgres on writes, so charges would lag behind", "The invariants want transactions and constraints, and jsonb already gives flexibility", "Changing requirements are better served by a graph database than by a document store"]
-  answer: 2
+  options: ["MongoDB cannot nest line items inside an order, so every order read needs extra lookups", "MongoDB is always slower than Postgres on writes, so charges would lag behind", "Changing requirements are better served by a graph database than by a document store", "The invariants want transactions and constraints, and jsonb already gives flexibility"]
+  answer: 3
   explanation: >-
     Schema flexibility is available in Postgres through jsonb, while the multi-entity invariants (reservations, payments) are exactly what relational transactions and constraints are for. Nesting line items is something MongoDB does well, so that is not the objection. MongoDB can do transactions, but they are the exception in its model rather than the default.
 - q: >-
     Which requirement, stated with numbers, most directly argues for a wide-column store such as Cassandra?
-  options: ["We have 200 GB of data, growing by 5 GB a month, and most of it is rarely read", "We need strictly consistent balance transfers at 3,000 a second between accounts", "We need ad hoc reporting that filters on any of 40 attributes over 2 billion rows", "Known-key, time-ordered appends at 60,000 a second in three regions, read by that key"]
-  answer: 3
+  options: ["We have 200 GB of data, growing by 5 GB a month, and most of it is rarely read", "We need strictly consistent balance transfers at 3,000 a second between accounts", "Known-key, time-ordered appends at 60,000 a second in three regions, read by that key", "We need ad hoc reporting that filters on any of 40 attributes over 2 billion rows"]
+  answer: 2
   explanation: >-
     Known-key access, very high write rates and multi-region writes are the wide-column sweet spot. Ad hoc reporting and strong multi-row consistency point the other way, and 200 GB fits comfortably on one relational node.
 - q: >-
     A design adds Elasticsearch, Redis and ClickHouse beside Postgres from day one for an app with 5,000 users. What is the most important review comment?
-  options: ["Each store adds sync, backup and on-call costs; add one only when a measured need fails", "Keep sessions only in Redis, since they are read on every request and must be fast", "Use OpenSearch instead of Elasticsearch, since its licence is safer for a small team", "Make ClickHouse the primary store, since it answers most queries far faster than Postgres"]
+  options: ["Each store adds sync, backup and on-call costs; add one only when a measured need fails", "Use OpenSearch instead of Elasticsearch, since its licence is safer for a small team", "Keep sessions only in Redis, since they are read on every request and must be fast", "Make ClickHouse the primary store, since it answers most queries far faster than Postgres"]
   answer: 0
   explanation: >-
     The polyglot tax (a sync path, a visible consistency window, backups, an on-call surface) is paid immediately and continuously; the benefits arrive only when the default fails. Swapping one search engine for another leaves that tax untouched. At this size Postgres full-text search, a well-indexed schema and read replicas very likely cover every pattern.
 - q: >-
     A product manager says the feed can be eventually consistent. What should you ask before agreeing?
-  options: ["Whether the feed is stored as JSON, since document stores are eventually consistent", "Whether the feed data exceeds 1 TB, since only small data can be strongly consistent", "What stale state a user can see, for how long, and what happens if they act on it", "Which database vendor they prefer, since the vendor fixes the consistency model"]
-  answer: 2
+  options: ["Whether the feed data exceeds 1 TB, since only small data can be strongly consistent", "Whether the feed is stored as JSON, since document stores are eventually consistent", "Which database vendor they prefer, since the vendor fixes the consistency model", "What stale state a user can see, for how long, and what happens if they act on it"]
+  answer: 3
   explanation: >-
     Eventual consistency without a bound and a named anomaly is not a requirement. The anomaly to name first is usually a user not seeing their own new post: read-your-writes for a user's own actions is usually required even when global staleness is fine, and it changes the design. Consistency is a property of how reads and writes are routed, not of the vendor or the storage format.
 - q: >-
     This app runs one instance with an in-process rate limiter and one Postgres. What change would force a second datastore or a redesign of rate limiting?
-  options: ["Running several API replicas, because each process would keep its own counters", "Enabling pgvector, because vector search needs its own dedicated datastore", "Adding many more lessons, because each lesson adds rows the database must serve", "Adding an index on comments, because each index slows every write to that table"]
-  answer: 0
+  options: ["Adding many more lessons, because each lesson adds rows the database must serve", "Running several API replicas, because each process would keep its own counters", "Adding an index on comments, because each index slows every write to that table", "Enabling pgvector, because vector search needs its own dedicated datastore"]
+  answer: 1
   explanation: >-
     In-process limiters are correct for one process and silently wrong for several: each replica counts separately, so the effective limit multiplies by the replica count. The fix is a shared counter, in Redis or in Postgres. Curriculum growth does not touch the database at all, because content is compiled into the binary and served from memory.
 ```

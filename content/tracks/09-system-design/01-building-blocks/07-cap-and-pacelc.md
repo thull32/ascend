@@ -159,14 +159,14 @@ Only if it never partitions, which means a single node, and a single node's avai
 ```quiz
 - q: >-
     A three-replica system with a quorum of two suffers a partition that isolates one replica. Under a CP design, which clients are affected?
-  options: ["All clients, since the system refuses requests during any partition", "No clients, because a quorum of two still exists", "Only writing clients; reads continue everywhere", "Only clients that can reach just the isolated replica"]
-  answer: 3
+  options: ["All clients, since the system refuses requests during any partition", "Only clients that can reach just the isolated replica", "Only writing clients; reads continue everywhere", "No clients, because a quorum of two still exists"]
+  answer: 1
   explanation: >-
     The majority side still has a quorum and serves both reads and writes. The isolated minority replica cannot reach a quorum and refuses. CP does not mean global unavailability; it means the minority side stops answering. Reads on the minority side must also refuse or they could return stale data.
 - q: >-
     Which statement about CAP is correct?
-  options: ["CAP's consistency is the same property as the C in ACID", "A single-region system can be CA because partitions do not happen there", "The theorem only constrains behaviour while a partition is occurring", "Systems choose two of consistency, availability and partition tolerance"]
-  answer: 2
+  options: ["The theorem only constrains behaviour while a partition is occurring", "CAP's consistency is the same property as the C in ACID", "Systems choose two of consistency, availability and partition tolerance", "A single-region system can be CA because partitions do not happen there"]
+  answer: 0
   explanation: >-
     The proof is about a partition in progress; when the network is healthy nothing prevents a system being both consistent and available. Partitions happen in every multi-node deployment (including GC pauses that look like them), so P is not optional, and CAP's C is linearizability, not ACID's integrity constraints.
 - q: >-
@@ -177,14 +177,14 @@ Only if it never partitions, which means a single node, and a single node's avai
     Overselling is the harmful stale outcome, so this operation is CP: refuse rather than guess until the inventory leader is reachable, and refuse fast so threads are not held. Local accept, cache, or LWW all risk two regions reserving the same unit; reconciling after the heal means discovering the oversell after it happened.
 - q: >-
     Why does a strongly consistent write in a three-region deployment cost roughly 100 times the latency of a local acknowledgement?
-  options: ["It waits for a quorum, which needs a cross-region round trip", "It must fsync to disk three times, once in each region", "Each cross-region hop needs a fresh TLS handshake per write", "Cross-region links have far lower bandwidth than local ones"]
-  answer: 0
+  options: ["Each cross-region hop needs a fresh TLS handshake per write", "Cross-region links have far lower bandwidth than local ones", "It waits for a quorum, which needs a cross-region round trip", "It must fsync to disk three times, once in each region"]
+  answer: 2
   explanation: >-
     Quorum acknowledgement waits for the second-fastest replica; if that replica is in another region, the wait is a 60 to 80 ms RTT versus about 0.5 ms locally. Bandwidth, disk writes and TLS are unchanged; a small write is latency-bound, not bandwidth-bound.
 - q: >-
     A team chooses AP for user settings with default last-writer-wins. What is the most likely production consequence after a 20-minute partition?
-  options: ["Settings are unavailable on the minority side during the partition", "Nothing; LWW guarantees convergence to the truly newest value", "Some writes are silently discarded, with clock skew picking which", "Both sides' writes conflict on heal and the merge step deadlocks"]
-  answer: 2
+  options: ["Both sides' writes conflict on heal and the merge step deadlocks", "Some writes are silently discarded, with clock skew picking which", "Nothing; LWW guarantees convergence to the truly newest value", "Settings are unavailable on the minority side during the partition"]
+  answer: 1
   explanation: >-
     LWW converges, but to the value with the highest timestamp, which under clock skew may be the older write. Data is lost without an error. AP requires choosing a merge rule that preserves both sides' intent (siblings, CRDTs, per-field merge). An AP design keeps both sides available, so unavailability is the CP outcome, not this one.
 ```

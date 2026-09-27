@@ -167,32 +167,32 @@ Long-range roadmaps are best expressed as **now / next / later** with decreasing
 ```quiz
 - q: >-
     Five tasks have most-likely durations summing to 16 days. Why is 16 days a poor estimate of the total?
-  options: ["The tasks run in parallel, so the total should be the longest single task", "Durations are right-skewed, so summing modes understates the expected total", "Estimates should be in hours, and rounding each task to days loses accuracy", "Most-likely values are always padded, so the sum overstates the total"]
-  answer: 1
+  options: ["Most-likely values are always padded, so the sum overstates the total", "Estimates should be in hours, and rounding each task to days loses accuracy", "The tasks run in parallel, so the total should be the longest single task", "Durations are right-skewed, so summing modes understates the expected total"]
+  answer: 3
   explanation: >-
     Pessimistic tails pull each task's mean above its mode, so the sum of most-likely values understates the expected total: about 18.3 ideal days here. It also ignores the focus factor: ideal days must then be converted to calendar time at perhaps 60% focus. Most-likely values are optimistic, not padded.
 - q: >-
     Three independent tasks have standard deviations of 3, 4 and 0 days. What is the standard deviation of their total?
-  options: ["7 days", "12 days", "3.5 days", "5 days"]
-  answer: 3
+  options: ["12 days", "7 days", "5 days", "3.5 days"]
+  answer: 2
   explanation: >-
     For independent tasks the variances add: 9 + 16 + 0 = 25, and the square root is 5. Adding standard deviations directly (7) overstates the spread of a sum of independent tasks.
 - q: >-
     A Monte Carlo forecast shows 54% of runs finishing within 8 weeks and 96% within 10. What should you tell stakeholders?
-  options: ["It cannot be estimated until the work starts", "8 weeks, since that is the most likely outcome", "Between 8 and 10 weeks, with no confidence level", "About even odds by week 8; commit to week 10"]
-  answer: 3
+  options: ["It cannot be estimated until the work starts", "8 weeks, since that is the most likely outcome", "About even odds by week 8; commit to week 10", "Between 8 and 10 weeks, with no confidence level"]
+  answer: 2
   explanation: >-
     Pairing dates with confidence levels lets stakeholders choose how much risk to take. A bare "8 weeks" is a coin flip presented as a promise.
 - q: >-
     Project X is worth $50k per week once live and takes 5 weeks; project Y is worth $20k per week and takes 1 week. Which order minimises the total cost of delay?
-  options: ["X first, because its weekly value is two and a half times Y's", "Either order, because the total value delivered is the same", "Both in parallel at half speed, so neither waits in the queue", "Y first, because its value per week of duration is higher"]
-  answer: 3
+  options: ["Either order, because the total value delivered is the same", "X first, because its weekly value is two and a half times Y's", "Y first, because its value per week of duration is higher", "Both in parallel at half speed, so neither waits in the queue"]
+  answer: 2
   explanation: >-
     Y's value per week of duration is 20 against X's 10. Y first costs 20 + 300 = $320k of delay; X first costs 250 + 120 = $370k. Short, valuable work goes first even when it is less valuable in absolute terms. Splitting both in parallel delays both.
 - q: >-
     Midway through a project you learn the migration will take twice as long as planned. What is the senior response?
-  options: ["Report the slip now with options (date, scope, help) and your recommendation", "Wait until nearer the deadline, in case the estimate turns out pessimistic", "Work weekends quietly to protect the date without alarming anyone", "Cut back the test plan to recover the time and keep the date"]
-  answer: 0
+  options: ["Work weekends quietly to protect the date without alarming anyone", "Wait until nearer the deadline, in case the estimate turns out pessimistic", "Cut back the test plan to recover the time and keep the date", "Report the slip now with options (date, scope, help) and your recommendation"]
+  answer: 3
   explanation: >-
     Early, option-based communication (move the date, phase the scope, add help, plus your recommendation) lets the business choose the trade-off while choices still exist. Waiting removes options, and hidden heroics and silently dropping quality both move the cost somewhere worse.
 ```

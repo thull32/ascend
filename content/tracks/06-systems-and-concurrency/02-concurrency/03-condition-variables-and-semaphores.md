@@ -344,31 +344,31 @@ hints:
 ```quiz
 - q: >-
     Why must a condition variable's wait() release the mutex and go to sleep as one atomic step?
-  options: ["So that woken threads are guaranteed to run in FIFO order", "So the waiting thread keeps its cache warm while it sleeps", "A notify in that gap would be lost, so the thread could sleep forever", "Because a sleeping thread has no way to release a held mutex"]
-  answer: 2
+  options: ["So the waiting thread keeps its cache warm while it sleeps", "A notify in that gap would be lost, so the thread could sleep forever", "Because a sleeping thread has no way to release a held mutex", "So that woken threads are guaranteed to run in FIFO order"]
+  answer: 1
   explanation: >-
     Notifications are not stored. If the state changes and notify() runs in the gap after the waiter unlocked but before it slept, nobody is on the wait queue to receive it, and the thread may sleep forever. Making release-and-sleep atomic closes that gap. It has nothing to do with caches or wake-up ordering, and releasing before sleeping is exactly what wait() does.
 - q: >-
     A consumer does `with cond: if not queue: cond.wait()` and then `queue.popleft()`. Under load it occasionally raises IndexError. What is the cause?
-  options: ["The deque is not thread-safe, so popleft() races with append()", "notify() was called without holding the lock, so it misfired", "Another consumer took it first, or the wake was spurious", "The producer appended to the wrong end of the shared deque"]
-  answer: 2
+  options: ["Another consumer took it first, or the wake was spurious", "The producer appended to the wrong end of the shared deque", "The deque is not thread-safe, so popleft() races with append()", "notify() was called without holding the lock, so it misfired"]
+  answer: 0
   explanation: >-
     Under Mesa semantics a woken thread must reacquire the mutex, and another consumer can get there first and empty the queue. Spurious wake-ups have the same effect. Rechecking the predicate in a while loop fixes both. Every deque access here is under the lock, and Python would raise RuntimeError, not IndexError, for an unlocked notify.
 - q: >-
     A bounded buffer uses one condition variable for both producers and consumers and calls notify() after every put and take. It occasionally hangs with every thread waiting and the buffer not full. Why?
-  options: ["notify() can wake the wrong waiter, which then re-sleeps", "The buffer's capacity is too small for the number of threads", "One condition variable cannot legally serve two predicates", "A spurious wake-up left a thread holding the mutex forever"]
-  answer: 0
+  options: ["A spurious wake-up left a thread holding the mutex forever", "One condition variable cannot legally serve two predicates", "The buffer's capacity is too small for the number of threads", "notify() can wake the wrong waiter, which then re-sleeps"]
+  answer: 3
   explanation: >-
     A consumer's notify intended for a producer can wake another consumer, which finds the buffer empty and waits again, swallowing the only wake-up; the producer is never woken. Two condition variables (not_full, not_empty) or notify_all() fix it. Sharing one condition variable is legal, which is why this bug compiles and runs.
 - q: >-
     A semaphore-based bounded buffer's put() does `with mutex: empty_slots.acquire(); buffer.append(x)`. What happens when the buffer fills?
-  options: ["Producers wait until a consumer frees space, as intended", "empty_slots goes negative and the buffer overflows its capacity", "Consumers receive duplicate items when the buffer wraps around", "The producer sleeps holding the mutex, so all threads deadlock"]
-  answer: 3
+  options: ["Consumers receive duplicate items when the buffer wraps around", "The producer sleeps holding the mutex, so all threads deadlock", "empty_slots goes negative and the buffer overflows its capacity", "Producers wait until a consumer frees space, as intended"]
+  answer: 1
   explanation: >-
     Blocking on the semaphore while holding the mutex means the thread that would release a slot (a consumer, which needs the mutex to take an item) can never run its critical section, so nobody frees a slot. A semaphore never goes negative; it blocks. Acquire the semaphore first, then the mutex.
 - q: >-
     200 worker threads call a partner API that allows at most 20 concurrent requests. Which primitive fits best?
-  options: ["A mutex held around each API call", "A counting semaphore holding 20 permits", "A condition variable with notify_all", "An Event set whenever the API is free"]
+  options: ["A condition variable with notify_all", "A counting semaphore holding 20 permits", "A mutex held around each API call", "An Event set whenever the API is free"]
   answer: 1
   explanation: >-
     Bounding concurrency to N is exactly what a counting semaphore does: 20 permits, acquire before the call, release after (in a finally block). A mutex allows only 1 at a time, and building a counter from a condition variable just reimplements a semaphore with more room for bugs.

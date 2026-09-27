@@ -226,32 +226,32 @@ Every fix exposes the next limit. Remove the database wait and the service becom
 ```quiz
 - q: >-
     A service runs at 30% CPU with high p99 latency. Its database pool metrics show requests waiting an average of 80 ms to acquire a connection. What should you do first?
-  options: ["Double the pool size on every pod right away", "Profile the CPU to find the hottest functions", "Find out why each connection is held so long", "Add more pods so the load spreads across them"]
-  answer: 2
+  options: ["Find out why each connection is held so long", "Double the pool size on every pod right away", "Profile the CPU to find the hottest functions", "Add more pods so the load spreads across them"]
+  answer: 0
   explanation: >-
     The time is going to pool waits, so the bottleneck is the connection hold time (slow queries, work done while holding the connection) or the database behind it; check the database's capacity before touching pool sizes. More pods or bigger pools multiply connections to a database that may already be saturated. CPU profiling cannot see waiting.
 - q: >-
     A service handles 1,500 requests per second, and each request holds a downstream connection for 40 ms. Using Little's law and a target of about 70% utilisation, roughly how many connections does the fleet need in total?
-  options: ["About 1,500", "About 60", "About 40", "About 86"]
-  answer: 3
+  options: ["About 86", "About 60", "About 40", "About 1,500"]
+  answer: 0
   explanation: >-
     Busy connections on average are 1,500 times 0.04, which is 60. Running them at 70% utilisation needs about 60 divided by 0.7, about 86. Exactly 60 would be 100% utilisation, where queueing delay grows without bound.
 - q: >-
     vmstat on an 8-core host shows r = 2, b = 0, id = 80, wa = 0, and a context-switch rate of 40,000 per second. What does this most likely indicate?
-  options: ["A CPU-bound service that is short of cores", "A disk-bound service stuck waiting on reads", "A service waiting on a network downstream", "A host that is busy swapping memory to disk"]
-  answer: 2
+  options: ["A CPU-bound service that is short of cores", "A disk-bound service stuck waiting on reads", "A host that is busy swapping memory to disk", "A service waiting on a network downstream"]
+  answer: 3
   explanation: >-
     Few runnable threads and mostly idle CPU rule out CPU-bound. No blocked threads and no iowait rule out disk. Threads blocking and waking constantly while the CPU idles is the signature of waiting on network I/O, which the kernel counts as idle.
 - q: >-
     A CPU-heavy image-resizing function in a CPython web service is moved from the request thread to a ThreadPoolExecutor with 16 threads on an 8-core machine. Throughput barely changes. Why?
-  options: ["16 threads is too many for 8 cores, so switching dominates", "The executor's unbounded queue delays every resize task", "The GIL lets only one thread run Python bytecode at any one time", "Thread pools add more overhead than the resize work saves"]
+  options: ["16 threads is too many for 8 cores, so switching dominates", "Thread pools add more overhead than the resize work saves", "The GIL lets only one thread run Python bytecode at any one time", "The executor's unbounded queue delays every resize task"]
   answer: 2
   explanation: >-
     Threads in CPython parallelise waiting and GIL-releasing native code, not Python computation, so pure-Python resizing runs one thread at a time however many threads the pool has. A ProcessPoolExecutor, a native library that releases the GIL, or a free-threaded build is needed for CPU parallelism.
 - q: >-
     Writing 20,000 events to a store with a 1 ms round trip takes 20 s one at a time. Batching 1,000 events per request, with about 0.02 ms per event on the server, takes roughly how long?
-  options: ["About 20 ms", "About 20 s", "About 420 ms", "About 2,000 ms"]
-  answer: 2
+  options: ["About 20 ms", "About 420 ms", "About 2,000 ms", "About 20 s"]
+  answer: 1
   explanation: >-
     There are 20 batches, each costing 1 ms of round trip plus 1,000 times 0.02 ms of per-item work, 21 ms in total per batch, so about 420 ms overall. Batching removes the repeated fixed cost, not the per-item cost.
 ```

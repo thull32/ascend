@@ -206,26 +206,26 @@ A common middle path is an **API gateway** at the edge for north-south traffic (
     Each of the application's 3 attempts becomes up to 1 + 2 = 3 tries in the sidecar, so 9 requests. Across several tiers this multiplies again. Retry in one place per hop, preferably the mesh with a retry budget.
 - q: >-
     An Envoy access log shows "503 UO" with a duration of 0 ms for calls from orders to payments. What does it tell you?
-  options: ["The orders sidecar rejected it at a concurrency cap", "No route is configured in the mesh for payments", "Payments itself returned 503 because it is overloaded", "The mTLS handshake between the sidecars failed"]
-  answer: 0
+  options: ["No route is configured in the mesh for payments", "The mTLS handshake between the sidecars failed", "Payments itself returned 503 because it is overloaded", "The orders sidecar rejected it at a concurrency cap"]
+  answer: 3
   explanation: >-
     UO is upstream overflow: the local proxy's circuit-breaker thresholds (concurrency caps such as max_pending_requests) were full, so it failed fast in 0 ms and payments never saw the request. The cause is often a slow upstream holding requests open or limits sized too small, but the 503 itself came from the caller's side. A missing route would be NR.
 - q: >-
     After adopting a mesh, the tracing UI shows only single-hop traces: orders to payments, and separately payments to ledger, never linked. What is missing?
-  options: ["Apps do not copy traceparent to outbound calls", "The sidecars are not emitting any spans for the calls", "The control plane is down, so spans are not joined", "mTLS strips the tracing headers between sidecars"]
-  answer: 0
+  options: ["The sidecars are not emitting any spans for the calls", "Apps do not copy traceparent to outbound calls", "mTLS strips the tracing headers between sidecars", "The control plane is down, so spans are not joined"]
+  answer: 1
   explanation: >-
     Sidecars see each hop and do emit spans, but they cannot know which inbound request caused which outbound call inside the process. The application must copy trace context headers (such as traceparent) from inbound requests to the outbound requests it makes; the mesh then stitches the spans together.
 - q: >-
     Your mesh enforces strict mTLS between all services. Which risk does that NOT address?
-  options: ["A user abusing orders to charge another's account", "Eavesdropping on traffic passing between nodes", "A service impersonating another without its key", "Plaintext traffic from pods outside the mesh"]
-  answer: 0
+  options: ["Eavesdropping on traffic passing between nodes", "A service impersonating another without its key", "A user abusing orders to charge another's account", "Plaintext traffic from pods outside the mesh"]
+  answer: 2
   explanation: >-
     Mesh mTLS authenticates workloads, not end users. Orders is a legitimate caller of payments, so payments must still authorise the action for the user on whose behalf orders is calling. Strict mode does address eavesdropping, workload impersonation and plaintext callers.
 - q: >-
     The mesh's control plane goes down for 20 minutes. What is the most accurate description of the impact?
-  options: ["Traffic flows on old config; new pods cannot join", "Nothing changes, since the control plane is not in the path", "All service-to-service traffic stops immediately", "Only telemetry is lost until it comes back up"]
-  answer: 0
+  options: ["Nothing changes, since the control plane is not in the path", "Only telemetry is lost until it comes back up", "All service-to-service traffic stops immediately", "Traffic flows on old config; new pods cannot join"]
+  answer: 3
   explanation: >-
     The data plane is designed to survive with last-known configuration, so steady-state traffic continues. But new pods cannot get configuration or certificates, endpoint changes stop propagating as pods move, and certificate rotation stops, which becomes an outage if it lasts long enough.
 ```

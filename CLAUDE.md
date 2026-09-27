@@ -9,6 +9,7 @@ Free learning platform taking mid-level engineers to senior at top-tier companie
 - API integration tests: `TEST_DATABASE_URL=postgres://ascend:ascend@localhost:5433/ascend_test cargo test -p ascend-api --test api`
 - Content: `cargo run -q -p ascend-core --example validate_content -- ./content` (add `CONTENT_LENIENT=1` while authoring)
 - Problems: `python3 scripts/validate_problems.py [content/problems/<slug>.md]` (executes reference solutions)
+- Quizzes: `make quizzes` after editing any quiz (canonical option order; CI checks it)
 - Web: `cd web && pnpm typecheck && pnpm test`; e2e: `make e2e` (needs a running server)
 
 ## Rules

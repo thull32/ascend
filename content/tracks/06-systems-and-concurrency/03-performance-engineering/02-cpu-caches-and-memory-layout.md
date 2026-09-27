@@ -282,14 +282,14 @@ On multi-socket servers, each socket has its own memory controller and local DRA
 ```quiz
 - q: >-
     Eight threads each increment their own element of a shared array of eight 8-byte counters, with no locks. Adding threads makes total throughput drop. What is the mechanism?
-  options: ["The array of counters is too large to fit in L1 cache", "All eight counters share a single bouncing cache line", "The threads race and corrupt each other's counters", "The scheduler keeps migrating threads between cores"]
-  answer: 1
+  options: ["The scheduler keeps migrating threads between cores", "The array of counters is too large to fit in L1 cache", "All eight counters share a single bouncing cache line", "The threads race and corrupt each other's counters"]
+  answer: 2
   explanation: >-
     Each thread writes only its own counter, so there is no data race. Coherence operates on whole 64-byte lines, and these eight counters fill one line, so every write invalidates the line in the other cores' caches and it migrates back and forth. Padding each counter to its own line, or using thread-local counters, removes the contention.
 - q: >-
     An L1 cache is 32 KiB, 8-way set associative, with 64-byte lines. A loop reads one float from each row of a row-major matrix whose rows are exactly 4,096 bytes long, down 64 rows, repeatedly. What happens?
-  options: ["The hardware prefetcher hides all of the misses", "Every access misses because the floats are misaligned", "All 64 lines fit, so after the first pass everything hits", "All 64 rows map to one 8-way set, so it keeps missing"]
-  answer: 3
+  options: ["The hardware prefetcher hides all of the misses", "All 64 rows map to one 8-way set, so it keeps missing", "All 64 lines fit, so after the first pass everything hits", "Every access misses because the floats are misaligned"]
+  answer: 1
   explanation: >-
     With 64 sets and 64-byte lines, the set index is address bits 6 to 11, which repeat every 4,096 bytes. A 4 KiB stride puts every access in one set of 8 ways, so the loop keeps missing even though the cache is almost empty: conflict misses. The cache has room for 64 lines in total, just not in one set. Padding rows by one line spreads them across sets.
 - q: >-
@@ -300,14 +300,14 @@ On multi-socket servers, each socket has its own memory controller and local DRA
     As declared: char at 0, 7 bytes of padding, double at 8, char at 16, 7 bytes of padding, double at 24, total 32. Reordered: two doubles (16 bytes) then two chars (18 bytes), rounded up to a multiple of 8 gives 24. 18 is the sum of the fields but ignores tail padding.
 - q: >-
     An analytics loop computes the average of one field across 50 million records of a 16-field struct. Which change is most likely to give the largest speed-up?
-  options: ["Add a branch that skips records whose value is zero", "Use a linked list so records can be inserted cheaply", "Store each field in its own contiguous array (SoA)", "Pad the struct so every field is 8-byte aligned"]
-  answer: 2
+  options: ["Store each field in its own contiguous array (SoA)", "Pad the struct so every field is 8-byte aligned", "Add a branch that skips records whose value is zero", "Use a linked list so records can be inserted cheaply"]
+  answer: 0
   explanation: >-
     The loop needs one field, but array-of-structs layout drags all 16 through the cache. Struct-of-arrays streams only the needed column, cutting memory traffic by about 16 times and enabling SIMD. That is the column-store argument.
 - q: >-
     Summing elements above a threshold is 5 times faster on sorted data than on random data in a debug build, but equally fast on both in an optimised build. What is the most likely explanation?
-  options: ["The optimised build skips the loop as dead code", "The optimiser replaced the branch with cmov or SIMD code", "Sorting the data warms the cache for the summing loop", "Optimised builds turn off the CPU's branch predictor"]
-  answer: 1
+  options: ["Sorting the data warms the cache for the summing loop", "The optimised build skips the loop as dead code", "Optimised builds turn off the CPU's branch predictor", "The optimiser replaced the branch with cmov or SIMD code"]
+  answer: 3
   explanation: >-
     Sorting helps only by making the branch predictable. When the compiler turns the branch into branch-free code (a conditional move or SIMD), there is no misprediction to avoid and both inputs cost the same; the loop still runs, and the predictor is never switched off. Checking branch-miss counters or the assembly tells you which case you are in.
 ```

@@ -337,32 +337,32 @@ hints:
 ```quiz
 - q: >-
     Why does the runner enforce time limits by terminating the worker instead of asking the learner's code to stop?
-  options: ["Synchronous code never yields, so it can neither check a flag nor receive a message", "Terminating a worker is faster than posting a stop message to it and waiting", "Workers cannot receive any messages at all once they have started running a learner's code", "Browsers already stop every worker after ten seconds, so the limit is enforced anyway"]
-  answer: 0
+  options: ["Browsers already stop every worker after ten seconds, so the limit is enforced anyway", "Synchronous code never yields, so it can neither check a flag nor receive a message", "Terminating a worker is faster than posting a stop message to it and waiting", "Workers cannot receive any messages at all once they have started running a learner's code"]
+  answer: 1
   explanation: >-
     A worker can only process an incoming message when its current task returns to the event loop, which an infinite loop never does. Workers can receive messages in general, just not while a synchronous task is running. Pyodide's interrupt buffer is the exception, and it needs SharedArrayBuffer and a cross-origin isolated page, which this app does not have.
 - q: >-
     A problem has time_limit_ms 4000 and 8 tests. A learner's JavaScript has an infinite loop in the first test. When is the timeout reported?
-  options: ["Never, because the loop freezes the tab before any timer can fire", "After 34 seconds, because one budget covers the whole batch of tests", "After 8 seconds, because the budget scales with how many tests there are", "After 4 seconds, because each test gets its own four-second limit"]
-  answer: 1
+  options: ["Never, because the loop freezes the tab before any timer can fire", "After 8 seconds, because the budget scales with how many tests there are", "After 4 seconds, because each test gets its own four-second limit", "After 34 seconds, because one budget covers the whole batch of tests"]
+  answer: 3
   explanation: >-
     The budget is timeLimitMs times the number of tests plus 2,000 ms, because all tests run in one call and the main thread only hears back when the batch ends. The timer lives on the main thread, so the tab never freezes. Per-test timing would report sooner but would cost a runtime restart per timeout, which is expensive for Python.
 - q: >-
     Before a recent fix, a learner could define two_sum in Python, run it, rename it to twosum, and still pass. Why, and what changed?
-  options: ["The harness matched entry names loosely; it now demands an exact name match", "localStorage restored the old code; the editor now clears it before each run", "Pyodide kept one global namespace; each run now executes in a fresh dict", "The browser cached earlier results; results are now keyed by a hash of the code"]
+  options: ["The browser cached earlier results; results are now keyed by a hash of the code", "localStorage restored the old code; the editor now clears it before each run", "Pyodide kept one global namespace; each run now executes in a fresh dict", "The harness matched entry names loosely; it now demands an exact name match"]
   answer: 2
   explanation: >-
     Every run used to execute in the same interpreter globals, so the old definition was still there when the harness looked up the entry name. Now _exec_solution runs the code in a new namespace, and the entry is looked up there. The interpreter itself is still shared, so sys.modules and module-level state in imported packages survive.
 - q: >-
     Pyodide failed to load after the runner switched to Vite-bundled workers. What was the cause?
-  options: ["The CSP forbade WebAssembly compilation inside the worker's own execution context", "jsDelivr rate-limited the request, so the runtime download timed out", "Module workers have no importScripts, which the classic Pyodide loader calls", "The pinned Pyodide version did not yet support the Python 3.14 syntax"]
-  answer: 2
+  options: ["The pinned Pyodide version did not yet support the Python 3.14 syntax", "Module workers have no importScripts, which the classic Pyodide loader calls", "The CSP forbade WebAssembly compilation inside the worker's own execution context", "jsDelivr rate-limited the request, so the runtime download timed out"]
+  answer: 1
   explanation: >-
     Module workers have ES module semantics and no importScripts, so the classic loader threw. The fix was a dynamic import of Pyodide's ES module build. The CSP does allow wasm-unsafe-eval and jsDelivr, and the comment in py.worker.ts records the actual fix.
 - q: >-
     A product manager proposes a public weekly leaderboard of problems solved. What is the minimum honest change to the execution design?
-  options: ["Re-run only credited submissions server-side, against tests that stay secret there", "Move all code execution to the server so every run is judged centrally", "None, since the server already validates each submission's test counts", "Encrypt the hidden tests in the lesson payload so learners cannot read them"]
-  answer: 0
+  options: ["None, since the server already validates each submission's test counts", "Move all code execution to the server so every run is judged centrally", "Encrypt the hidden tests in the lesson payload so learners cannot read them", "Re-run only credited submissions server-side, against tests that stay secret there"]
+  answer: 3
   explanation: >-
     Count validation only checks consistency; any client can post passed_count equal to total_count. Moving everything server-side throws away the economics that justified ADR 0003, and encrypting tests the browser must decrypt to run protects nothing. Keeping browser runs for feedback and verifying only what confers status is the proportionate fix.
 ```

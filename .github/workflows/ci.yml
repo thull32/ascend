@@ -44,7 +44,7 @@ jobs:
         run: cargo run -q -p ascend-core --example validate_content -- ./content
 
   problems:
-    name: Practice problems (reference solutions pass)
+    name: Practice problems and quizzes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +53,10 @@ jobs:
           python-version: "3.14"
       - run: pip install pyyaml
       - run: python3 scripts/validate_problems.py
+      # Quiz options must be in their canonical shuffled order, so correct
+      # answers stay spread evenly across positions as quizzes are edited.
+      - run: python3 scripts/shuffle_quiz_options.py --check
+      - run: python3 scripts/quiz_stats.py
 
   web:
     name: Web (typecheck, unit tests, build)

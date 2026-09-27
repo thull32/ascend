@@ -221,32 +221,32 @@ AI tools are good at drafting reference documentation and summarising a pull req
 ```quiz
 - q: >-
     A decision to use in-memory rate limiting is documented as: "In-memory is the right call for a single-instance deployment; if we scale horizontally the same interface can be backed by Redis." What makes this more useful than "We use in-memory rate limiting"?
-  options: ["It states the context that makes it right and the trigger that would make it wrong", "It is longer, and longer rationale is more likely to survive the next few refactors", "It names a specific technology, so the next engineer knows what to install", "It lives in a code comment, where readers see it more often than a document"]
-  answer: 0
+  options: ["It names a specific technology, so the next engineer knows what to install", "It is longer, and longer rationale is more likely to survive the next few refactors", "It lives in a code comment, where readers see it more often than a document", "It states the context that makes it right and the trigger that would make it wrong"]
+  answer: 3
   explanation: >-
     The trigger tells a future engineer when changing the decision is expected rather than reckless, and the context says why it is right until then. Naming Redis is incidental, and where the sentence lives or how long it is matters far less than the conditional reasoning.
 - q: >-
     An accepted ADR turns out to be wrong six months later. What should the team do?
-  options: ["Leave the ADR alone and explain the change in a comment next to the code", "Delete the ADR so nobody is misled by an outdated decision", "Write a new ADR that supersedes it and mark the old one as Superseded", "Edit the ADR in place so it describes the decision the team made instead"]
-  answer: 2
+  options: ["Write a new ADR that supersedes it and mark the old one as Superseded", "Edit the ADR in place so it describes the decision the team made instead", "Leave the ADR alone and explain the change in a comment next to the code", "Delete the ADR so nobody is misled by an outdated decision"]
+  answer: 0
   explanation: >-
     ADRs are an append-only history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history, and a code comment leaves the ADR log asserting something false.
 - q: >-
     Which of these most needs an ADR?
-  options: ["Choosing between two equivalent JSON libraries for one service", "Upgrading a dependency by a patch version across the workspace", "Renaming a private helper function used in a dozen files", "Switching session handling from server-side sessions to JWTs"]
-  answer: 3
+  options: ["Choosing between two equivalent JSON libraries for one service", "Upgrading a dependency by a patch version across the workspace", "Switching session handling from server-side sessions to JWTs", "Renaming a private helper function used in a dozen files"]
+  answer: 2
   explanation: >-
     Authentication design is hard to reverse, cross-cutting (cookies, CSRF, storage, revocation) and likely to be contested. The library choice, the rename and the patch upgrade are local, cheap to reverse, or routine, however many files they touch.
 - q: >-
     A runbook step says "check whether the database is healthy". What is the main problem?
-  options: ["It is too short; runbook steps should explain the database architecture first", "It is not actionable: give the exact command and what healthy output looks like", "It belongs in an ADR, because database health is an architectural decision", "Runbooks should leave databases to the DBA team and cover only the application"]
+  options: ["It belongs in an ADR, because database health is an architectural decision", "It is not actionable: give the exact command and what healthy output looks like", "Runbooks should leave databases to the DBA team and cover only the application", "It is too short; runbook steps should explain the database architecture first"]
   answer: 1
   explanation: >-
     On-call readers need copy-pasteable checks with expected results, such as calling /api/readyz and reading the database field. Vague steps force the reader to rediscover the system under pressure, and more background or a different document does not fix that.
 - q: >-
     A README's setup section has not been tested for a year. What is the most reliable way to keep it correct?
-  options: ["Add a banner warning readers that the steps may be out of date", "Have CI run the same setup and test commands the README lists", "Ask each new hire to fix whatever breaks during their first week", "Move the setup steps to a wiki where anyone can edit them"]
-  answer: 1
+  options: ["Add a banner warning readers that the steps may be out of date", "Ask each new hire to fix whatever breaks during their first week", "Move the setup steps to a wiki where anyone can edit them", "Have CI run the same setup and test commands the README lists"]
+  answer: 3
   explanation: >-
     If the documented commands are exercised by CI, a breaking change fails the build instead of silently rotting the docs. Warnings and wikis only move the problem, and relying on new hires makes their first day the test.
 ```

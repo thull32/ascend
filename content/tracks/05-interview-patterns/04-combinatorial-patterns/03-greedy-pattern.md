@@ -323,32 +323,32 @@ hints:
 ```quiz
 - q: >-
     Jump Game II on [1, 2, 1, 1, 1]. A candidate always jumps to the furthest reachable index. How many jumps does that take, and what is optimal?
-  options: ["4 and 3; the rule wastes a jump on the middle 1s", "3 and 3; the furthest-index rule is safe in general", "3 and 3 here, but it fails on [2, 3, 1, 1, 4]", "2 and 2; one long jump from index 1 reaches the end"]
+  options: ["4 and 3; the rule wastes a jump on the middle 1s", "2 and 2; one long jump from index 1 reaches the end", "3 and 3 here, but it fails on [2, 3, 1, 1, 4]", "3 and 3; the furthest-index rule is safe in general"]
   answer: 2
   explanation: >-
     On this input the furthest-index rule gives 0 -> 1 -> 3 -> 4, three jumps, which is also optimal. The point is that the rule is not safe in general: from index 0 in [2, 3, 1, 1, 4] it picks index 2 (reach 3) over index 1 (reach 4) and needs 3 jumps where 2 suffice. The level-based rule considers the furthest reach over the whole current level.
 - q: >-
     In Gas Station, the tank goes negative when trying to leave station i after starting at s. Why can every station in s..i be skipped as a candidate start?
-  options: ["Because they all come before station i in the array", "Any later start reaches i with no more fuel than s did", "They cannot be skipped; each one must still be tried", "Because the problem guarantees the answer is unique"]
-  answer: 1
+  options: ["Any later start reaches i with no more fuel than s did", "Because the problem guarantees the answer is unique", "They cannot be skipped; each one must still be tried", "Because they all come before station i in the array"]
+  answer: 0
   explanation: >-
     The tank was non-negative at every intermediate station (otherwise you would have reset earlier), so the segment from s to any t in (s, i] contributed a non-negative surplus. Starting at t gives that up, so you reach i with at most the same fuel and still fail. That is the reset argument, and it makes the scan linear.
 - q: >-
     Valid Parenthesis String tracks lo and hi. After processing a prefix, lo is -1 before clamping and hi is 2. What does the clamp to 0 mean?
-  options: ["hi should be reduced by one as well to stay consistent", "A * read as ) with nothing open is reread as empty", "The string is already invalid and the scan can stop", "The most recent * must be interpreted as ( instead"]
-  answer: 1
+  options: ["The string is already invalid and the scan can stop", "The most recent * must be interpreted as ( instead", "A * read as ) with nothing open is reread as empty", "hi should be reduced by one as well to stay consistent"]
+  answer: 2
   explanation: >-
     lo is the minimum open count over interpretations, but an interpretation that closes more than it opened is not valid, and the same wildcard can be empty instead, so the minimum achievable open count is 0, not -1. Clamping keeps the range honest. hi going negative is different: it means even all-( fails.
 - q: >-
     Which is a correct greedy argument shape for interval scheduling by earliest finish time?
-  options: ["Range tracking: keep min and max of open intervals", "Speed: greedy is faster than DP, so it must be right", "Exchange: swap greedy's first pick into any optimum", "Reset: if a prefix fails, skip every start inside it"]
-  answer: 2
+  options: ["Speed: greedy is faster than DP, so it must be right", "Exchange: swap greedy's first pick into any optimum", "Range tracking: keep min and max of open intervals", "Reset: if a prefix fails, skip every start inside it"]
+  answer: 1
   explanation: >-
     Take any optimal schedule: its first interval finishes no earlier than greedy's first, so swapping in greedy's first keeps the rest compatible and the count equal; repeat until the schedules match. Earliest-finish leaves the most room for the rest, and the exchange argument formalises that. The other shapes belong to different problems.
 - q: >-
     The interviewer proposes coin change with denominations [1, 5, 10, 25] and asks whether largest-first greedy is optimal. What is the senior answer?
-  options: ["No; greedy is never optimal for coin change", "Only when the amount to make is under 100", "Yes for this canonical set, but not in general", "Yes; greedy is always optimal for coin change"]
-  answer: 2
+  options: ["Yes for this canonical set, but not in general", "Yes; greedy is always optimal for coin change", "Only when the amount to make is under 100", "No; greedy is never optimal for coin change"]
+  answer: 0
   explanation: >-
     Whether greedy works depends on the denominations. For [1, 5, 10, 25] it happens to be optimal, but on [1, 3, 4] with amount 6 greedy gives 4 + 1 + 1 while 3 + 3 is better, so in general you use DP unless the coin system is known to be canonical. Knowing the counterexample and the term shows you understand the boundary rather than a rule of thumb.
 ```

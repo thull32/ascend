@@ -171,31 +171,31 @@ Redis is the wrong tool when the working set does not fit in memory (it does not
 ```quiz
 - q: >-
     A service's p99 latency to Redis jumps from 0.3 ms to 40 ms every night at 02:00. CPU on the Redis host is low. The most likely cause is:
-  options: ["A scheduled job running one O(n) command, such as KEYS or SMEMBERS", "An RDB snapshot filling the disk, so that each write waits for space", "The backup job saturating the network link between clients and Redis", "The client connection pool being exhausted by nightly batch traffic"]
-  answer: 0
+  options: ["An RDB snapshot filling the disk, so that each write waits for space", "The backup job saturating the network link between clients and Redis", "A scheduled job running one O(n) command, such as KEYS or SMEMBERS", "The client connection pool being exhausted by nightly batch traffic"]
+  answer: 2
   explanation: >-
     Redis executes commands serially on one thread; a single slow command blocks the event loop and delays everyone behind it, and one core being busy barely registers as host CPU. Check SLOWLOG. Pool exhaustion would show as client-side timeouts, not a Redis-side stall correlated with a job.
 - q: >-
     You store user sessions in Redis with appendfsync everysec and a nightly RDB. A power failure hits the host. What do you lose?
-  options: ["Nothing, because every write is appended to the AOF first", "Roughly the last second or so of acknowledged writes, at most", "Everything written since the last nightly RDB snapshot", "Only the keys that carried a TTL when the power failed"]
-  answer: 1
+  options: ["Everything written since the last nightly RDB snapshot", "Nothing, because every write is appended to the AOF first", "Only the keys that carried a TTL when the power failed", "Roughly the last second or so of acknowledged writes, at most"]
+  answer: 3
   explanation: >-
     With everysec the AOF is fsynced roughly once per second, so at most about a second of acknowledged writes is lost; appending is not the same as fsyncing. The RDB is irrelevant when a newer AOF exists. Only appendfsync always bounds loss to a single command, at the cost of disk-speed throughput.
 - q: >-
     A nightly report reads every product key once. The next morning the cache hit rate for the hot product pages has collapsed. Which change fixes this with the least effort?
-  options: ["Switch maxmemory-policy from allkeys-lru to allkeys-lfu", "Increase maxmemory so the report's keys fit alongside the hot ones", "Point the report at Postgres directly so it bypasses the cache", "Switch maxmemory-policy from allkeys-lru to volatile-ttl"]
-  answer: 0
+  options: ["Point the report at Postgres directly so it bypasses the cache", "Increase maxmemory so the report's keys fit alongside the hot ones", "Switch maxmemory-policy from allkeys-lru to volatile-ttl", "Switch maxmemory-policy from allkeys-lru to allkeys-lfu"]
+  answer: 3
   explanation: >-
     The scan touched each cold key once, which under LRU makes them newer than the hot keys and evicts the hot ones. LFU keeps frequency counts with decay, so a single touch does not out-rank a thousand hits. Moving the report also works but is a bigger change; more memory only delays the same effect, and volatile-ttl evicts by expiry, not by use.
 - q: >-
     In Redis Cluster, MGET order:1 order:2 fails with CROSSSLOT. The cheapest fix that keeps atomicity is:
-  options: ["Wrap the two GETs in a Lua script, which runs atomically", "Rename the keys with a shared hash tag, such as {orders}:1", "Move from Cluster to Sentinel so every key lives on one node", "Retry the MGET against each node in turn until one accepts"]
+  options: ["Wrap the two GETs in a Lua script, which runs atomically", "Rename the keys with a shared hash tag, such as {orders}:1", "Retry the MGET against each node in turn until one accepts", "Move from Cluster to Sentinel so every key lives on one node"]
   answer: 1
   explanation: >-
     Multi-key commands must target one slot; a hash tag makes only the bracketed part hashed, so tagged keys share a slot. A Lua script has the same single-slot restriction. Sentinel would work but abandons sharding entirely.
 - q: >-
     Why does Redis implement sorted sets with a skiplist rather than a balanced binary tree?
-  options: ["Skiplists use less memory per element than any balanced tree", "Skiplists guarantee worst-case O(log n), which trees cannot", "Balanced trees cannot store members that share the same score", "Range queries are a list walk, and the code is far simpler"]
+  options: ["Balanced trees cannot store members that share the same score", "Skiplists guarantee worst-case O(log n), which trees cannot", "Skiplists use less memory per element than any balanced tree", "Range queries are a list walk, and the code is far simpler"]
   answer: 3
   explanation: >-
     A skiplist gives expected O(log n) search and O(k) traversal for a range via the bottom-level linked list, with the same bounds as a tree and far less code than a red-black tree. Its bounds are probabilistic, not guaranteed, and its memory is comparable to a tree's, so those options are wrong.

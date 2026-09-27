@@ -286,26 +286,26 @@ hints:
     A key stays only if hash mod 9 equals hash mod 10, which happens for about 1/10 of keys; roughly n/(n+1) = 90% move. The hash is unchanged but the modulus is not. Consistent hashing reduces the movement to about 1/(n+1) = 10%, the new server's fair share.
 - q: >-
     Why do consistent-hashing rings use many virtual nodes per server?
-  options: ["To support deleting keys, which one point per server cannot", "To save memory, since each point then stores fewer keys", "To make lookups O(1) by indexing the ring with an array", "To even out arcs, allow weighting and spread failover load"]
-  answer: 3
+  options: ["To save memory, since each point then stores fewer keys", "To support deleting keys, which one point per server cannot", "To even out arcs, allow weighting and spread failover load", "To make lookups O(1) by indexing the ring with an array"]
+  answer: 2
   explanation: >-
     With one point per server, arcs are very uneven and a failure dumps the whole arc on one neighbour. Many points per server average out the arcs, let bigger servers take more points, and scatter each server's responsibility around the ring. Lookups are still O(log V) binary searches, and the ring grows to n × v points.
 - q: >-
     Rendezvous hashing picks the server with the highest hash(key, server). Its main limitation compared with a ring is:
-  options: ["Balance is poor unless each server has virtual nodes", "Many keys move when a server leaves the cluster", "Lookup cost is O(n) in the number of servers", "It cannot replicate, since one server scores highest"]
+  options: ["Balance is poor unless each server has virtual nodes", "It cannot replicate, since one server scores highest", "Lookup cost is O(n) in the number of servers", "Many keys move when a server leaves the cluster"]
   answer: 2
   explanation: >-
     Every lookup scores every server. That is fine for tens of servers and excellent for balance and minimal disruption (only the leaving server's keys move), but a ring's O(log V) binary search wins at thousands of nodes. Top-k scores give replication for free.
 - q: >-
     A Bloom filter reports that a key is present. What do you know?
-  options: ["It was definitely added, since there are no false positives", "It was probably added; other keys may have set its bits", "Nothing, since Bloom filters err in both directions", "It was added and not deleted, since deletes clear its bits"]
-  answer: 1
+  options: ["It was added and not deleted, since deletes clear its bits", "It was definitely added, since there are no false positives", "Nothing, since Bloom filters err in both directions", "It was probably added; other keys may have set its bits"]
+  answer: 3
   explanation: >-
     Bloom filters have no false negatives (a "no" is certain) but a tunable false-positive rate, since bits are shared, so a "yes" is only probable. They also do not support deletion without the counting variant.
 - q: >-
     A team increases a Kafka topic from 8 to 12 partitions. What happens to per-key ordering?
-  options: ["Ordering improves, since each partition holds fewer keys", "Most keys map to a new partition, splitting each key's order", "Nothing, since Kafka rebalances existing keys automatically", "Old messages move to the new partitions, keeping order"]
-  answer: 1
+  options: ["Old messages move to the new partitions, keeping order", "Nothing, since Kafka rebalances existing keys automatically", "Most keys map to a new partition, splitting each key's order", "Ordering improves, since each partition holds fewer keys"]
+  answer: 2
   explanation: >-
     Kafka uses hash(key) mod partition count and never moves existing messages. Changing the count changes the mapping for most keys, so a key's new messages are ordered separately from its old ones in a different partition. This is why partition counts are over-provisioned up front.
 ```

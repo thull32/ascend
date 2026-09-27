@@ -167,7 +167,7 @@ With SQS, the 30-second visibility timeout expires and a second consumer receive
 ```quiz
 - q: >-
     Orders arrive at 10,000/s for 10 minutes; consumers drain 2,000/s. What is the peak backlog and how long after the burst ends does it clear?
-  options: ["8 million messages, 40 minutes", "4.8 million messages, 24 minutes", "4.8 million messages, 40 minutes", "6 million messages, 30 minutes"]
+  options: ["6 million messages, 30 minutes", "8 million messages, 40 minutes", "4.8 million messages, 40 minutes", "4.8 million messages, 24 minutes"]
   answer: 2
   explanation: >-
     Backlog grows at 10,000 - 2,000 = 8,000/s for 600 s: 4.8 million. After arrivals stop it drains at 2,000/s: 4.8M / 2,000 = 2,400 s = 40 minutes.
@@ -179,20 +179,20 @@ With SQS, the 30-second visibility timeout expires and a second consumer receive
     Committing first means a crash after the commit and before the side effect loses those messages; they are never redelivered. Committing after processing gives at-least-once, which combined with idempotent processing is the usual target.
 - q: >-
     You need three independent services to react to every order event, and to re-process the last week when a model changes. The best fit is:
-  options: ["A Kafka topic with three consumer groups", "Direct HTTP calls from the order service to each", "A RabbitMQ queue with three competing consumers", "An SQS queue that all three services poll"]
-  answer: 0
+  options: ["An SQS queue that all three services poll", "Direct HTTP calls from the order service to each", "A RabbitMQ queue with three competing consumers", "A Kafka topic with three consumer groups"]
+  answer: 3
   explanation: >-
     A log retains messages after consumption, so multiple consumer groups read independently and any group can rewind. SQS and RabbitMQ delete on ack, so consumers sharing one queue compete for messages rather than each seeing all of them, and they need fan-out plumbing; direct calls couple availability and lose replay.
 - q: >-
     One message in a partition fails deterministically and is retried forever. The observable symptom is:
-  options: ["The producer starts getting errors once the partition is full", "Lag grows on that partition only, stalling the keys behind it", "Every partition of the topic stops until the message succeeds", "Kafka moves the message to another partition after a timeout"]
-  answer: 1
+  options: ["Lag grows on that partition only, stalling the keys behind it", "Kafka moves the message to another partition after a timeout", "Every partition of the topic stops until the message succeeds", "The producer starts getting errors once the partition is full"]
+  answer: 0
   explanation: >-
     Kafka processes a partition sequentially, so a stuck message blocks everything behind it in that partition only, delaying every key that shares the partition while the others stay healthy. Bounded retries with a dead-letter queue unblock it; per-partition lag alerts detect it. The log keeps accepting writes, so the producer sees nothing.
 - q: >-
     An SQS consumer takes 45 s to process a message with the default 30 s visibility timeout. What happens?
-  options: ["SQS deletes the message at 30 s, so the work is lost", "SQS extends the timeout automatically while work continues", "The consumer gets an error at 30 s and must restart the work", "It reappears at 30 s and a second consumer processes it too"]
-  answer: 3
+  options: ["It reappears at 30 s and a second consumer processes it too", "SQS extends the timeout automatically while work continues", "The consumer gets an error at 30 s and must restart the work", "SQS deletes the message at 30 s, so the work is lost"]
+  answer: 0
   explanation: >-
     Visibility timeout is a lease; when it expires before deletion the message reappears and is delivered again, so another consumer processes it concurrently. Set it above p99 processing time or extend it from the consumer explicitly (SQS does not do this for you), and make processing idempotent.
 ```

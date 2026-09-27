@@ -298,38 +298,38 @@ hints:
 ```quiz
 - q: >-
     Course Schedule gives prerequisites as pairs [a, b] meaning b must be taken before a. A candidate builds the edge a -> b and runs Kahn's algorithm. On the input numCourses = 3, prerequisites = [[1, 0], [2, 1]] the output is:
-  options: ["[1, 0, 2], an order that satisfies one pair only", "[0, 1, 2], which is the correct order", "[2, 1, 0], the valid order exactly reversed", "An empty list, since the edges now form a cycle"]
-  answer: 2
+  options: ["[2, 1, 0], the valid order exactly reversed", "An empty list, since the edges now form a cycle", "[0, 1, 2], which is the correct order", "[1, 0, 2], an order that satisfies one pair only"]
+  answer: 0
   explanation: >-
     Reversing every edge reverses every valid order, so the output fails any test that checks prerequisites. Cycle detection is unaffected (a reversed cycle is still a cycle, and a reversed chain is still acyclic), which is why the bug survives the cyclic test cases and appears only in ordering checks.
 - q: >-
     After Kahn's algorithm on a graph with n = 5 nodes, the emitted order has 3 nodes. What is true?
-  options: ["A cycle exists; the missing 2 sit on it or downstream", "The graph has three separate weakly connected components", "Kahn's must be rerun from a different start node", "Two nodes had no edges at all and were skipped"]
-  answer: 0
+  options: ["Kahn's must be rerun from a different start node", "A cycle exists; the missing 2 sit on it or downstream", "Two nodes had no edges at all and were skipped", "The graph has three separate weakly connected components"]
+  answer: 1
   explanation: >-
     A node is emitted once its in-degree hits zero. A node on a cycle waits on a predecessor that is itself waiting, so its in-degree never reaches zero; anything reachable only through such nodes is stuck too. Isolated nodes start at in-degree 0 and are always emitted.
 - q: >-
     In Alien Dictionary, why does the candidate compare only adjacent words rather than every pair?
-  options: ["Because non-adjacent words can never be compared at all", "Adjacent pairs already imply the rest by transitivity", "To save memory; comparing all pairs would be equally correct", "Because the alphabet has at most 26 letters to order"]
-  answer: 1
+  options: ["Because the alphabet has at most 26 letters to order", "Because non-adjacent words can never be compared at all", "Adjacent pairs already imply the rest by transitivity", "To save memory; comparing all pairs would be equally correct"]
+  answer: 2
   explanation: >-
     If w1 < w2 and w2 < w3 under the alphabet then w1 < w3 follows; the adjacent edges already encode it. Comparing non-adjacent pairs adds O(n^2) work, and deriving an edge from w1 versus w3 directly can pick a position that is only indirectly determined, so it is redundant at best and wrong at worst.
 - q: >-
     The words ["abc", "ab"] appear in that order in an Alien Dictionary input. What should happen?
-  options: ["Ignore the pair, since prefixes carry no information", "Report the input invalid, since no alphabet sorts it", "Add an edge from c to an end-of-word marker", "Treat it as a cycle between the letters a and b"]
-  answer: 1
+  options: ["Report the input invalid, since no alphabet sorts it", "Ignore the pair, since prefixes carry no information", "Add an edge from c to an end-of-word marker", "Treat it as a cycle between the letters a and b"]
+  answer: 0
   explanation: >-
     A shorter prefix always sorts before its extension, regardless of alphabet. Here no position differs and the earlier word is longer, so the pair gives no edge and the check has to be explicit; ignoring it returns an order for an impossible input.
 - q: >-
     Minimum Height Trees strips leaves layer by layer and stops when at most two nodes remain. Why can there never be three centres?
-  options: ["A longest path has one middle node or one middle edge", "There can be three; returning two is only a convention", "Because each round removes at least half of the nodes", "Because every tree has an odd number of nodes"]
-  answer: 0
+  options: ["Because each round removes at least half of the nodes", "There can be three; returning two is only a convention", "Because every tree has an odd number of nodes", "A longest path has one middle node or one middle edge"]
+  answer: 3
   explanation: >-
     Every round removes one node from each end of every longest path. What remains at the end is the middle of the longest path: a single node when its length in nodes is odd, the two ends of the middle edge when it is even.
 - q: >-
     A DAG has edge weights and the interviewer asks for the longest path from a source. Which approach is right?
-  options: ["Dijkstra with every edge weight negated", "BFS from the source, counting edges per level", "None; longest path is NP-hard even on a DAG", "Relax each edge once in topological order"]
-  answer: 3
+  options: ["BFS from the source, counting edges per level", "None; longest path is NP-hard even on a DAG", "Relax each edge once in topological order", "Dijkstra with every edge weight negated"]
+  answer: 2
   explanation: >-
     Longest path is hard on general graphs but easy on a DAG: process nodes in topological order and each node's best value is final when its turn comes, O(V + E). Negating weights for Dijkstra introduces negative edges, which Dijkstra cannot handle, and BFS ignores the weights.
 ```

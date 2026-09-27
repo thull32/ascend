@@ -273,32 +273,32 @@ hints:
 ```quiz
 - q: >-
     Kahn's algorithm finishes with 47 of 50 vertices in the output. What do you know about the other 3?
-  options: ["They sit in a separate component, which Kahn's never starts a search from", "They are isolated vertices, so they never entered the in-degree count", "They have the highest in-degrees, so the queue ran dry before reaching them", "Each is on a cycle or downstream of one, so it never reached in-degree zero"]
-  answer: 3
+  options: ["They sit in a separate component, which Kahn's never starts a search from", "Each is on a cycle or downstream of one, so it never reached in-degree zero", "They have the highest in-degrees, so the queue ran dry before reaching them", "They are isolated vertices, so they never entered the in-degree count"]
+  answer: 1
   explanation: >-
     A vertex is emitted once all its predecessors are emitted. A vertex on a cycle waits on itself; anything downstream of the cycle waits on it. Reporting those vertices is how build tools name the circular dependency. Isolated vertices and other components are no problem: every in-degree-zero vertex is seeded into the queue at the start.
 - q: >-
     A DAG has topological orders [0, 1, 2, 3] and [1, 0, 2, 3]. What does this imply?
-  options: ["Neither 0 nor 1 reaches the other, so they could be processed in parallel", "The graph has a cycle through 0 and 1, so no single order is forced", "The graph has only two edges, so most pairs of vertices are left unordered", "Kahn's algorithm is non-deterministic, so it can emit either order"]
+  options: ["Neither 0 nor 1 reaches the other, so they could be processed in parallel", "Kahn's algorithm is non-deterministic, so it can emit either order", "The graph has a cycle through 0 and 1, so no single order is forced", "The graph has only two edges, so most pairs of vertices are left unordered"]
   answer: 0
   explanation: >-
     Two valid orders that differ only by swapping adjacent vertices mean neither depends on the other. A unique topological order requires a Hamiltonian path. A cycle would make no order valid at all, and the orders say nothing about the edge count: 0 → 2, 1 → 2, 2 → 3 fits, and so do other edge sets.
 - q: >-
     Why is longest path easy on a DAG but NP-hard in general?
-  options: ["DAGs have at most V - 1 edges, so the number of paths to search stays linear", "In topological order each predecessor's value is final before it is used", "DAG edges are unweighted, so longest path reduces to a BFS depth", "General graphs have no topological order, so they have no longest path"]
-  answer: 1
+  options: ["DAG edges are unweighted, so longest path reduces to a BFS depth", "DAGs have at most V - 1 edges, so the number of paths to search stays linear", "General graphs have no topological order, so they have no longest path", "In topological order each predecessor's value is final before it is used"]
+  answer: 3
   explanation: >-
     The DP recurrence longest[v] = max(longest[u] + w) is well-founded only when dependencies are acyclic: processing in topological order means one pass of relaxation suffices. With cycles, the simple-path constraint makes the problem combinatorial. General graphs still have longest simple paths; they are just hard to find. DAGs can have O(V²) edges and weighted edges.
 - q: >-
     Terraform applies resources in topological order and destroys them in reverse topological order. Why reverse for destruction?
-  options: ["Reverse order avoids the cycles that forward deletion would create", "Reverse order is faster, as leaf resources hold fewer dependencies", "Each resource must go before the resources it depends on are removed", "Order does not matter for deletion; reversing is only a convention"]
-  answer: 2
+  options: ["Reverse order avoids the cycles that forward deletion would create", "Each resource must go before the resources it depends on are removed", "Order does not matter for deletion; reversing is only a convention", "Reverse order is faster, as leaf resources hold fewer dependencies"]
+  answer: 1
   explanation: >-
     If A depends on B (edge B → A in creation order), A must be created after B and destroyed before B, otherwise the dependency is deleted while still in use. Reversing a topological order reverses every edge constraint consistently; it cannot introduce cycles, because the graph is the same DAG with its edges flipped.
 - q: >-
     In alien-dictionary the input contains the adjacent words "abc" and "ab" in that order. Before running a topological sort you should:
-  options: ["Ignore the pair, since words of different lengths give no ordering at all", "Report it as invalid, since no order puts a word before its own prefix", "Add an edge c → b, taken from the last letters of the two words", "Add edges from each letter of abc to each letter of ab, then sort"]
-  answer: 1
+  options: ["Ignore the pair, since words of different lengths give no ordering at all", "Add edges from each letter of abc to each letter of ab, then sort", "Add an edge c → b, taken from the last letters of the two words", "Report it as invalid, since no order puts a word before its own prefix"]
+  answer: 3
   explanation: >-
     Adjacent words yield an edge only from their first differing character. When the second word is a proper prefix of the first there is no differing character and the ordering is impossible in any alphabet; the correct output is that no valid alphabet exists. Ignoring the pair would return an alphabet for input that no dictionary could produce.
 ```

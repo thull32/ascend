@@ -268,31 +268,31 @@ hints:
 ```quiz
 - q: >-
     In the heap implementation, a node's tentative distance is improved twice before it is popped. What is in the heap afterwards, and what happens to the extra entries?
-  options: ["Two entries; the stale one is skipped when it is popped", "Two entries; both are expanded and the second fixes the first", "One entry; the heap updates the existing entry in place", "Two entries; this is a bug that only decrease-key avoids"]
-  answer: 0
+  options: ["Two entries; both are expanded and the second fixes the first", "Two entries; the stale one is skipped when it is popped", "One entry; the heap updates the existing entry in place", "Two entries; this is a bug that only decrease-key avoids"]
+  answer: 1
   explanation: >-
     Lazy deletion pushes a fresh entry on every improvement and leaves the old one in place; Python's heapq has no in-place update. When the stale entry is popped, its stored distance is larger than dist[node], so it is skipped. Processing it would not be wrong, just wasted work, which is why the check is a performance guard rather than a correctness fix.
 - q: >-
     You mark a node as visited when you push it to the heap and refuse to push it again. On the graph A→B (4), A→C (2), C→B (1), what does the algorithm report for B?
-  options: ["3, because the heap re-sorts B when C improves it", "1, because only the last edge C→B is kept for B", "4, because the improvement via C is discarded", "No value; the refused duplicate push raises an error"]
-  answer: 2
+  options: ["1, because only the last edge C→B is kept for B", "4, because the improvement via C is discarded", "3, because the heap re-sorts B when C improves it", "No value; the refused duplicate push raises an error"]
+  answer: 1
   explanation: >-
     A pushes B with 4 and marks it visited. When C is popped and finds a path to B of cost 3, B is already visited so the push is refused, and nothing re-sorts B's old entry. Settling must happen on pop; a push-time visited check throws away improvements.
 - q: >-
     Which of these problems is NOT solved correctly by plain Dijkstra with non-negative weights?
-  options: ["Shortest path with early exit when the target is popped", "Shortest path from several sources at once", "Cheapest path that uses at most k edges from the source", "Path minimising the maximum edge weight (bottleneck path)"]
-  answer: 2
+  options: ["Shortest path with early exit when the target is popped", "Path minimising the maximum edge weight (bottleneck path)", "Shortest path from several sources at once", "Cheapest path that uses at most k edges from the source"]
+  answer: 3
   explanation: >-
     An edge-count limit means the cheapest way into a node may be disqualified, so 'settled = final' no longer holds per node. You need state (node, edges used) or k+1 rounds of Bellman-Ford. Bottleneck paths work because max is monotone; multi-source works by seeding several zeros; early exit on pop is safe because popped means settled.
 - q: >-
     A graph has 10,000 nodes and roughly 50 million edges. Which Dijkstra variant is the better choice, and why?
-  options: ["Array scan, because with E ≈ V² the log factor is overhead", "0-1 BFS, because O(V+E) beats both of the Dijkstra variants", "Bellman-Ford, because dense graphs favour edge-list scans", "Heap version, because O((V+E) log V) always beats O(V²)"]
+  options: ["Array scan, because with E ≈ V² the log factor is overhead", "Bellman-Ford, because dense graphs favour edge-list scans", "Heap version, because O((V+E) log V) always beats O(V²)", "0-1 BFS, because O(V+E) beats both of the Dijkstra variants"]
   answer: 0
   explanation: >-
     With E ≈ V²/2 the graph is dense; the heap does O(E log V) ≈ 50M × 13 operations, while the array version does O(V²) = 100M simple scans with no heap overhead. The heap bound only wins when E is well below V². 0-1 BFS requires weights in {0,1}, which was not given, and Bellman-Ford's O(VE) is far worse.
 - q: >-
     Why does a deque give the same processing order as a heap when all edge weights are 0 or 1?
-  options: ["Because it only ever holds distances d and d+1, in order", "Because the deque is re-sorted after every insertion", "It doesn't; 0-1 BFS only approximates the heap order", "Because 0-weight edges never change any distance"]
+  options: ["Because it only ever holds distances d and d+1, in order", "Because 0-weight edges never change any distance", "It doesn't; 0-1 BFS only approximates the heap order", "Because the deque is re-sorted after every insertion"]
   answer: 0
   explanation: >-
     Pushing cost-0 neighbours to the front and cost-1 neighbours to the back keeps the deque monotone with at most two distinct distances, d at the front and d+1 at the back. The front is always a smallest tentative distance, which is exactly what the heap guaranteed, at O(1) per operation and with no sorting.

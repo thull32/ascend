@@ -131,7 +131,7 @@ The utilisation row decides most cases. A GPU costs the same per hour whether it
     Each decode step reads every weight: 13.4 GB ÷ 2.5 TB/s is about 5.4 ms, so at most about 185 steps per second (18 slips a factor of ten in that division). The arithmetic per token takes microseconds, so FLOPs are not the limit at batch size 1.
 - q: >-
     Why can a server raise total throughput about 20× by decoding 32 sequences together, while each user slows down only modestly?
-  options: ["Batching lets each token skip some layers, so the per-step work shrinks", "Each step reads the weights once and applies them to all 32 sequences", "The GPU boosts its clock speed when it has more work, so each step is faster", "Each sequence runs on its own copy of the model, so they proceed in parallel"]
+  options: ["The GPU boosts its clock speed when it has more work, so each step is faster", "Each step reads the weights once and applies them to all 32 sequences", "Batching lets each token skip some layers, so the per-step work shrinks", "Each sequence runs on its own copy of the model, so they proceed in parallel"]
   answer: 1
   explanation: >-
     Decode is limited by reading weights, and a batched step reads them once for every sequence in the batch, so the dominant memory cost is shared. What grows with the batch is KV-cache reading and memory, which adds a little time per step and eventually limits batch size. The model is not copied, and every token still passes through every layer.
@@ -143,14 +143,14 @@ The utilisation row decides most cases. A GPU costs the same per hour whether it
     The expected count is (1 − α^(k+1)) / (1 − α) = (1 − 0.8^5) / 0.2 ≈ 3.36. It is below k + 1 = 5 because a rejection ends the round early, and at least 1 because the target always contributes its own token.
 - q: >-
     A model that fits on one GPU is split across two GPUs with tensor parallelism, and total throughput barely improves. What would most likely raise throughput?
-  options: ["Split it across four GPUs with tensor parallelism to spread the load further", "Disable the KV cache to free memory for a larger batch on each GPU", "Run two independent replicas behind a load balancer routing by queue depth", "Lower the temperature so each request generates fewer tokens on average"]
-  answer: 2
+  options: ["Lower the temperature so each request generates fewer tokens on average", "Split it across four GPUs with tensor parallelism to spread the load further", "Disable the KV cache to free memory for a larger batch on each GPU", "Run two independent replicas behind a load balancer routing by queue depth"]
+  answer: 3
   explanation: >-
     Tensor parallelism mainly cuts per-token latency and adds communication at every layer, so splitting across more GPUs makes that worse. Independent replicas double capacity without that overhead; balance them by queue depth and KV-cache usage rather than round-robin. Temperature does not control throughput, and disabling the KV cache would make generation quadratic.
 - q: >-
     A feature sends the same 2,500-token instructions plus a 500-token user message on every request. Which change most directly halves its API bill in the lesson's cost model?
-  options: ["Keeping the shared prefix identical and first so it is billed at the cached rate", "Moving the instructions after the user message, where the model attends more", "Switching from streaming to non-streaming, which bills fewer output tokens", "Lowering max_tokens so each response is capped well below its current length"]
-  answer: 0
+  options: ["Switching from streaming to non-streaming, which bills fewer output tokens", "Keeping the shared prefix identical and first so it is billed at the cached rate", "Moving the instructions after the user message, where the model attends more", "Lowering max_tokens so each response is capped well below its current length"]
+  answer: 1
   explanation: >-
     Cached prefix tokens cost a fraction of normal input, and in the example caching the 2,500-token prefix cut the daily bill from 13,500 to 6,750. Moving the static instructions after the variable message would break prefix caching, output is only a third of the bill so capping it cannot halve it, and streaming does not change token counts.
 ```

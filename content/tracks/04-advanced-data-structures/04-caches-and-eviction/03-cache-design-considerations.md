@@ -190,31 +190,31 @@ hints:
 ```quiz
 - q: >-
     A cache in front of a 50 ms backend has a 90% hit ratio with 1 ms hits. What happens to the p99 latency compared with no cache?
-  options: ["It drops to about 1 ms, because 90% of requests are now hits", "It drops to about 45 ms, since hits pull the tail down by 10%", "It stays near 50 ms, since 1 in 10 requests is still a miss", "It drops to about 5.9 ms, the weighted mix of hits and misses"]
-  answer: 2
+  options: ["It drops to about 1 ms, because 90% of requests are now hits", "It stays near 50 ms, since 1 in 10 requests is still a miss", "It drops to about 5.9 ms, the weighted mix of hits and misses", "It drops to about 45 ms, since hits pull the tail down by 10%"]
+  answer: 1
   explanation: >-
     The p99 is the slowest request in a hundred; with 10 misses per hundred, it is a miss and costs the backend latency. 5.9 ms is the average, not a tail percentile. The tail only improves once the miss ratio is below 1%.
 - q: >-
     Improving the hit ratio from 99% to 99.9% seems like a 0.9% change. What does it do to backend load?
-  options: ["No measurable change", "Reduces it by about 10%", "Reduces it by about 1%", "Reduces it by about 90%"]
-  answer: 3
+  options: ["Reduces it by about 90%", "Reduces it by about 1%", "No measurable change", "Reduces it by about 10%"]
+  answer: 0
   explanation: >-
     Backend load is the miss ratio times traffic. Misses go from 1% to 0.1%, a 10× reduction, so 90% of the backend's remaining load disappears.
 - q: >-
     All entries were written during a deploy with a uniform 10-minute TTL. What do you expect, and what is the fix?
-  options: ["Nothing unusual, since each key's TTL is tracked independently", "A miss storm every 10 minutes; add random jitter to each TTL", "Memory grows without bound; add an LRU eviction policy on top", "A stampede on a single hot key; lock around its refill"]
-  answer: 1
+  options: ["A miss storm every 10 minutes; add random jitter to each TTL", "A stampede on a single hot key; lock around its refill", "Memory grows without bound; add an LRU eviction policy on top", "Nothing unusual, since each key's TTL is tracked independently"]
+  answer: 0
   explanation: >-
     Entries written together expire together and the backend sees the full load for a moment every period. Spreading TTLs by ±10% flattens the expiries into a steady trickle. It is every key expiring at once, not one hot key, so a per-key refill lock does not spread the load.
 - q: >-
     Which situation is a good candidate for negative caching?
-  options: ["A fetch for a user that failed because the backend timed out", "Every miss, so that repeated misses stop reaching the backend", "A lookup for a user ID the database confirmed does not exist", "A user whose record changes too often to cache the value itself"]
+  options: ["A fetch for a user that failed because the backend timed out", "A user whose record changes too often to cache the value itself", "A lookup for a user ID the database confirmed does not exist", "Every miss, so that repeated misses stop reaching the backend"]
   answer: 2
   explanation: >-
     Cache only definitive absences, with a short TTL, so repeated requests for missing keys stop reaching the backend. Caching a timeout as an absence makes the outage sticky, which is also why caching every miss is wrong.
 - q: >-
     In cache-aside, a reader misses and fetches the old value; a writer then updates the database and deletes the cache key; the reader finally writes its value into the cache. What is the result and a real fix?
-  options: ["The delete is lost; update the cache on writes instead of deleting", "Correct behaviour, because the writer's delete ran after the read", "A stale value cached until the next write; use leases or a short TTL", "A lost database write; wrap the read and the write in a transaction"]
+  options: ["The delete is lost; update the cache on writes instead of deleting", "A lost database write; wrap the read and the write in a transaction", "A stale value cached until the next write; use leases or a short TTL", "Correct behaviour, because the writer's delete ran after the read"]
   answer: 2
   explanation: >-
     The slow reader's refill lands after the delete and revives the old value. Facebook's memcache leases reject sets whose token was invalidated by an intervening delete; a short TTL bounds how long the stale value survives. Updating the cache on writes instead has its own race, since concurrent writes can reach the cache in the opposite order from the database.

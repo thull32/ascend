@@ -166,32 +166,32 @@ The trap to avoid: enabling HTTP/2 and keeping the HTTP/1.1 workarounds. Domain 
 ```quiz
 - q: >-
     A mobile app on a lossy cellular link switches from HTTP/1.1 (six connections) to HTTP/2 (one connection) and median latency improves but p95 gets worse. What is the most likely cause?
-  options: ["HTTP/2 disables TLS session resumption on reconnect", "One lost TCP segment now stalls every stream", "The server is ignoring the HTTP/2 priority tree", "HPACK decompression is CPU-bound on the phone"]
-  answer: 1
+  options: ["The server is ignoring the HTTP/2 priority tree", "HTTP/2 disables TLS session resumption on reconnect", "One lost TCP segment now stalls every stream", "HPACK decompression is CPU-bound on the phone"]
+  answer: 2
   explanation: >-
     All streams share one ordered TCP byte stream, so a single loss blocks all of them until retransmission. With six HTTP/1.1 connections a loss stalls only one. This is the TCP head-of-line blocking that HTTP/3 was built to fix.
 - q: >-
     Why can HPACK encode a repeated "user-agent" header in one byte on the second request?
-  options: ["The static table lists every common browser user-agent", "Browsers omit user-agent after the first request on it", "Huffman coding shrinks the string to a single symbol", "It was added to the dynamic table, so it is sent by index"]
-  answer: 3
+  options: ["The static table lists every common browser user-agent", "It was added to the dynamic table, so it is sent by index", "Browsers omit user-agent after the first request on it", "Huffman coding shrinks the string to a single symbol"]
+  answer: 1
   explanation: >-
     The first occurrence is sent as a literal with incremental indexing, which adds it to the per-connection dynamic table both ends maintain. Later occurrences are an indexed representation, a single byte. Huffman coding only shortens literals, and the static table holds only names and a few generic values.
 - q: >-
     Your gRPC service behind an L7 load balancer works from the LB's own health checks but real clients get "unexpected HTTP/1.x response" errors. What is the probable misconfiguration?
-  options: ["NAT is rewriting the QUIC connection IDs in flight", "The LB speaks HTTP/1.1 to the backend", "ALPN is disabled on the gRPC client's TLS stack", "The backend has HTTP/2 server push switched on"]
-  answer: 1
+  options: ["The backend has HTTP/2 server push switched on", "NAT is rewriting the QUIC connection IDs in flight", "ALPN is disabled on the gRPC client's TLS stack", "The LB speaks HTTP/1.1 to the backend"]
+  answer: 3
   explanation: >-
     gRPC requires HTTP/2 end to end (streams and trailers). Load balancers commonly terminate HTTP/2 from clients and downgrade to HTTP/1.1 on the backend leg unless configured for h2 upstream, which gRPC cannot use. The client's ALPN is evidently fine, since it reaches the LB.
 - q: >-
     A server accepts a POST that charges a card as 0-RTT data on a resumed QUIC connection. What is the risk?
-  options: ["The connection can no longer migrate between networks", "0-RTT data is sent unencrypted over the network", "The server cannot respond until one full RTT later", "A captured packet can be replayed, charging twice"]
-  answer: 3
+  options: ["The connection can no longer migrate between networks", "A captured packet can be replayed, charging twice", "The server cannot respond until one full RTT later", "0-RTT data is sent unencrypted over the network"]
+  answer: 1
   explanation: >-
     0-RTT data is encrypted with keys derived from the previous session and has no fresh server contribution, so an attacker who captured the packet can replay it and charge the card twice. Servers should accept only idempotent requests in 0-RTT or reject early data for side-effecting endpoints.
 - q: >-
     After enabling HTTP/2 at the CDN, a team keeps its four asset hostnames (img1..img4) for parallelism. What is the effect?
-  options: ["HTTP/2 is disabled, since shards cannot share a cert", "Better throughput from four separate congestion windows", "Worse: four handshakes, slow starts and HPACK tables", "No effect, because the CDN merges the hostnames"]
-  answer: 2
+  options: ["Worse: four handshakes, slow starts and HPACK tables", "Better throughput from four separate congestion windows", "HTTP/2 is disabled, since shards cannot share a cert", "No effect, because the CDN merges the hostnames"]
+  answer: 0
   explanation: >-
     Domain sharding was a workaround for the one-request-per-connection rule. Under HTTP/2 a single connection multiplexes everything, so sharding only adds setup cost, splits compression state and makes prioritisation across connections impossible. The extra congestion windows are a marginal, short-lived benefit that does not outweigh this.
 ```

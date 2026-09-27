@@ -341,38 +341,38 @@ Much less, deliberately. I would run everything across multiple zones; put timeo
 ```quiz
 - q: >-
     A home page synchronously depends on 30 services, each 99.99% available. What does the arithmetic imply for the design?
-  options: ["It fails ~0.3% of the time; failures must degrade, not error", "The page should call the services in sequence, not in parallel", "Each dependency must be 99.999% available and that is sufficient", "The page is 99.99% available, so nothing is needed"]
+  options: ["It fails ~0.3% of the time; failures must degrade, not error", "The page should call the services in sequence, not in parallel", "The page is 99.99% available, so nothing is needed", "Each dependency must be 99.999% available and that is sufficient"]
   answer: 0
   explanation: >-
     0.9999^30 is about 0.997, so the page fails about 0.3% of the time even when every dependency meets its SLO. At high volume that is a constant stream of failed pages, so most dependency failures must become degraded success. Timeouts and fallbacks make a dependency's failure cost a row, not the page; tightening every SLO helps less and costs far more.
 - q: >-
     A service at 1,000 requests per second calls a dependency whose latency rises from 50 ms to 5 s. The service has 200 request threads. Why does a bulkhead of 10 threads for that dependency help?
-  options: ["It gives the slow calls priority over other requests", "It caches the dependency's responses for the fallback", "It retries the slow calls on a separate thread pool", "Slow calls can tie up 10 threads instead of all 200"]
+  options: ["It caches the dependency's responses for the fallback", "It retries the slow calls on a separate thread pool", "It gives the slow calls priority over other requests", "Slow calls can tie up 10 threads instead of all 200"]
   answer: 3
   explanation: >-
     By Little's law, in-flight calls equal rate times latency: 5,000 calls would be in flight, so the slow dependency would absorb all 200 threads and fail unrelated requests. The bulkhead caps its share at 10 and rejects excess calls straight into the fallback, leaving the rest to serve other requests. It protects the caller; it does not make the dependency faster.
 - q: >-
     Which is the best fallback when the online personalisation service times out on the home page?
-  options: ["Retry the personalisation service three times with backoff", "Return an error so the client can retry the whole page", "Query the personalisation service's database directly", "Cached precomputed rows, then popular rows for the country"]
+  options: ["Query the personalisation service's database directly", "Retry the personalisation service three times with backoff", "Return an error so the client can retry the whole page", "Cached precomputed rows, then popular rows for the country"]
   answer: 3
   explanation: >-
     A good fallback is cheaper than the primary, does not depend on the failing component, and still gives the member something useful: precomputed rows for the profile from a replicated cache, then popular rows for the country if those are missing. Retrying adds load to a struggling service, and reading its database shares its failure.
 - q: >-
     A chaos experiment uses 1% of traffic each for control and experiment groups at 5,000 stream starts per second. Why can it detect a 5% drop in the experiment group within about 10 minutes?
-  options: ["Because 1% of traffic is a large blast radius at this scale", "~30,000 starts per group make a 1,500 drop about six sigma", "Because the experiment compares against yesterday's traffic", "Because SPS is steady enough that any dip is significant"]
-  answer: 1
+  options: ["Because 1% of traffic is a large blast radius at this scale", "Because the experiment compares against yesterday's traffic", "~30,000 starts per group make a 1,500 drop about six sigma", "Because SPS is steady enough that any dip is significant"]
+  answer: 2
   explanation: >-
     Each group sees about 30,000 starts in 10 minutes. With roughly Poisson counts, the standard deviation of the difference is about the square root of 60,000, around 245, so a 1,500 difference is clear. Smaller groups would need longer to reach the same confidence, which is why the metric's volume sets the affordable blast radius. SPS does vary, which is why a concurrent control group is used.
 - q: >-
     Three active-active regions each run at 65% of capacity at peak. One region must be evacuated. What happens if traffic is shifted before the survivors scale up?
-  options: ["Each survivor hits ~98%, with almost no headroom left", "The evacuated region keeps serving until the survivors scale", "DNS drops the evacuated region's traffic until scaling ends", "Nothing; each survivor rises to about 72% of capacity"]
+  options: ["Each survivor hits ~98%, with almost no headroom left", "The evacuated region keeps serving until the survivors scale", "Nothing; each survivor rises to about 72% of capacity", "DNS drops the evacuated region's traffic until scaling ends"]
   answer: 0
   explanation: >-
     Survivors must carry N/(N-1) = 1.5 times their load, so 65% becomes about 98%, and overload there spreads the failure. Shifting first and scaling later is how one regional failure becomes a global one; pre-scaling or permanent headroom is required.
 - q: >-
     Why is Eureka designed to keep serving possibly stale registrations, and to stop expiring instances when heartbeats drop sharply?
-  options: ["To save the memory and CPU that expiry sweeps would cost", "Because it has no reliable way to detect instance failures at all", "Because instances rarely fail, so expiry is seldom needed", "Stale entries beat evicting healthy instances in a partition"]
-  answer: 3
+  options: ["To save the memory and CPU that expiry sweeps would cost", "Because it has no reliable way to detect instance failures at all", "Stale entries beat evicting healthy instances in a partition", "Because instances rarely fail, so expiry is seldom needed"]
+  answer: 2
   explanation: >-
     A sudden mass loss of heartbeats is more likely a partition between the registry and the fleet than a simultaneous failure of most instances. Expiring them would remove healthy services from discovery; stale data with client-side retries is the better failure. Preferring availability for control-plane metadata is the principle. Eureka does detect failures through heartbeats; it just distrusts a mass drop.
 ```

@@ -257,32 +257,32 @@ hints:
 ```quiz
 - q: >-
     An engineer argues for a linked list over an array "because inserting in the middle is O(1)". What is the strongest objection?
-  options: ["Linked lists use more memory per node, which outweighs any insert gain", "Arrays can also insert in the middle in O(1) amortised using spare capacity", "It is O(1) only given the predecessor, and finding that is an O(n) walk", "Linked lists must copy the tail on insert to keep their nodes contiguous"]
+  options: ["Arrays can also insert in the middle in O(1) amortised using spare capacity", "Linked lists must copy the tail on insert to keep their nodes contiguous", "It is O(1) only given the predecessor, and finding that is an O(n) walk", "Linked lists use more memory per node, which outweighs any insert gain"]
   answer: 2
   explanation: >-
     The O(1) claim hides the O(n) search. Because each node is a separate allocation, that search is a chain of cache misses, while an array's shift is a fast memmove, so in practice arrays win even for middle insertion. Memory overhead is real but secondary. The list wins only when positions are reached without searching.
 - q: >-
     Why does an LRU cache need a doubly linked list rather than a singly linked one?
-  options: ["To iterate entries from most to least recent when the cache is listed", "To save memory, since each node's prev pointer replaces a map entry", "To store both key and value, since a singly linked node holds one field", "To unlink a node found via the map in O(1), without finding its predecessor"]
-  answer: 3
+  options: ["To iterate entries from most to least recent when the cache is listed", "To unlink a node found via the map in O(1), without finding its predecessor", "To store both key and value, since a singly linked node holds one field", "To save memory, since each node's prev pointer replaces a map entry"]
+  answer: 1
   explanation: >-
     On a cache hit, the map gives you the node itself. Unlinking it requires updating the predecessor's next pointer, which only a `prev` pointer makes O(1). A singly linked list would need an O(n) walk to find the predecessor. Backward iteration is a side benefit, and the extra pointer costs memory rather than saving it.
 - q: >-
     What does a sentinel (dummy) head node buy you?
-  options: ["Fewer allocations, since the first real element is stored in the sentinel", "Every real node has a predecessor, so head edits need no special case", "Faster traversal, since the loop can skip the null check at each node", "Protection against cycles, since a walk stops when it reaches the sentinel"]
-  answer: 1
+  options: ["Faster traversal, since the loop can skip the null check at each node", "Fewer allocations, since the first real element is stored in the sentinel", "Every real node has a predecessor, so head edits need no special case", "Protection against cycles, since a walk stops when it reaches the sentinel"]
+  answer: 2
   explanation: >-
     Sentinels remove special cases, not complexity. With a dummy node before the first element, head insertion and deletion are ordinary "after p" operations, and the function returns sentinel.next. The sentinel costs one extra allocation and does not change traversal speed.
 - q: >-
     In `insert_after(p, x)`, what goes wrong if you write `p.next = node` before `node.next = p.next`?
-  options: ["p is unlinked, since its successor is overwritten before being saved", "The new node points at itself, and the rest of the list is lost", "The new node ends up before p instead of after it in the list", "Nothing, since both assignments complete before the list is read"]
-  answer: 1
+  options: ["The new node points at itself, and the rest of the list is lost", "The new node ends up before p instead of after it in the list", "p is unlinked, since its successor is overwritten before being saved", "Nothing, since both assignments complete before the list is read"]
+  answer: 0
   explanation: >-
     After `p.next = node`, the old successor is only reachable via the value you overwrote. `node.next = p.next` then sets node.next to node itself, creating a self-loop and making the tail unreachable. p itself stays in place; it is everything after it that is lost. Pointer assignment order is the whole game.
 - q: >-
     A memory allocator keeps its free blocks in a linked list. Where do the list's nodes live?
-  options: ["In a separate array allocated at startup, one slot per block", "Inside the free blocks themselves, so they cost no extra memory", "On the allocator's stack, since free blocks are reused last-in first-out", "In a hash table keyed by block address, for O(1) lookup on free()"]
-  answer: 1
+  options: ["In a hash table keyed by block address, for O(1) lookup on free()", "In a separate array allocated at startup, one slot per block", "Inside the free blocks themselves, so they cost no extra memory", "On the allocator's stack, since free blocks are reused last-in first-out"]
+  answer: 2
   explanation: >-
     Free memory is by definition unused, so the allocator writes the next pointer into the block's first bytes. This intrusive layout is why linked lists are natural for allocators and kernel structures: the node is the object, and a separate array or table would itself need allocating.
 ```

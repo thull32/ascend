@@ -271,31 +271,31 @@ The column that matters in a design review is the last one. The event-loop model
 ```quiz
 - q: >-
     A Rust service writes 2 million small log lines per minute to a file using File directly, and perf shows most of its CPU time in the kernel. What is the cheapest fix?
-  options: ["Wrap the File in a BufWriter so many lines share one write call", "Open the file with O_DIRECT so writes skip the page cache", "Switch the writes to io_uring so they bypass the syscall path entirely", "Call fsync less often so the kernel can batch the disk flushes"]
-  answer: 0
+  options: ["Call fsync less often so the kernel can batch the disk flushes", "Wrap the File in a BufWriter so many lines share one write call", "Open the file with O_DIRECT so writes skip the page cache", "Switch the writes to io_uring so they bypass the syscall path entirely"]
+  answer: 1
   explanation: >-
     Rust's File is unbuffered, so every writeln is a write syscall. BufWriter batches them into buffer-sized writes, cutting syscalls by three orders of magnitude. io_uring would still submit one operation per line unless you batch, and it does not remove the kernel's work; fsync and O_DIRECT are unrelated to syscall count.
 - q: >-
     Why does epoll scale to 100,000 mostly idle connections when poll does not?
-  options: ["A kernel ready list makes each wait O(ready), not O(watched)", "epoll indexes descriptors in a hash table, so lookups are O(1)", "poll is capped at 1,024 descriptors by the size of FD_SETSIZE", "epoll runs on a dedicated kernel thread that polls the sockets"]
-  answer: 0
+  options: ["poll is capped at 1,024 descriptors by the size of FD_SETSIZE", "A kernel ready list makes each wait O(ready), not O(watched)", "epoll runs on a dedicated kernel thread that polls the sockets", "epoll indexes descriptors in a hash table, so lookups are O(1)"]
+  answer: 1
   explanation: >-
     poll passes and scans the whole descriptor array on every call, O(watched). epoll registers interest once, per-socket callbacks append sockets to a kernel-side ready list when data arrives, and epoll_wait just drains that list. The 1,024 FD_SETSIZE limit belongs to select, not poll.
 - q: >-
     A server uses edge-triggered epoll. It reads up to 4 KiB each time a socket is reported readable. Clients occasionally hang waiting for a response to a large request. Why?
-  options: ["Edge-triggered epoll drops packets that arrive between two waits", "The receive buffer is too small, so large requests get truncated", "The kernel coalesces two requests into one, confusing the parser", "Bytes past 4 KiB never cause a new edge, so they sit unread"]
-  answer: 3
+  options: ["Bytes past 4 KiB never cause a new edge, so they sit unread", "Edge-triggered epoll drops packets that arrive between two waits", "The receive buffer is too small, so large requests get truncated", "The kernel coalesces two requests into one, confusing the parser"]
+  answer: 0
   explanation: >-
     Edge-triggered notification fires on the transition to readable. When more than 4 KiB arrives at once, the leftover data does not create a new transition, so the server never reads the remainder until the peer sends more. Nothing is dropped or truncated. The rule is to read until EAGAIN; level-triggered mode would have reported the socket again.
 - q: >-
     A Node service with low CPU usage shows rising latency on endpoints that read small files and resolve hostnames with dns.lookup. What is the likely bottleneck?
-  options: ["TCP congestion control throttling DNS responses", "libuv's 4-thread pool, shared by fs and getaddrinfo", "The epoll ready list growing faster than it drains", "V8 garbage collection pausing the main event-loop thread"]
-  answer: 1
+  options: ["libuv's 4-thread pool, shared by fs and getaddrinfo", "The epoll ready list growing faster than it drains", "V8 garbage collection pausing the main event-loop thread", "TCP congestion control throttling DNS responses"]
+  answer: 0
   explanation: >-
     Regular files and getaddrinfo cannot use readiness-based I/O, so libuv runs them on a thread pool of 4 threads by default. When those threads are busy, new fs and DNS work queues behind them while the main thread and CPU are idle; GC pauses would show up as CPU time. Raising UV_THREADPOOL_SIZE or using a non-blocking DNS resolver helps.
 - q: >-
     What does sendfile save compared with a read and write loop when serving a static file over plain TCP?
-  options: ["The disk read, since the file is streamed from the page cache", "The two CPU copies through a user buffer, and most of the syscalls", "The page-cache lookup, since bytes go straight from disk to NIC", "The TCP checksum work, since the kernel reuses stored checksums"]
+  options: ["The TCP checksum work, since the kernel reuses stored checksums", "The two CPU copies through a user buffer, and most of the syscalls", "The disk read, since the file is streamed from the page cache", "The page-cache lookup, since bytes go straight from disk to NIC"]
   answer: 1
   explanation: >-
     The data still has to come from disk (or the page cache, which sendfile reads from) and go to the NIC. sendfile skips copying it into and back out of user space and does the transfer in one call. With TLS the CPU must encrypt the bytes, which is why kernel TLS is needed to keep the benefit.

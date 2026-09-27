@@ -118,14 +118,14 @@ Seniority is assessed in every round, not only the behavioural one. In coding ro
 ```quiz
 - q: >-
     Which goal statement reflects senior-level scope for the login rate-limiting work?
-  options: ["Add a rate-limiting library to the API crate and enable it for the /login route", "Implement a token bucket per IP address allowing 5 login attempts per minute", "Cut takeover attempts reaching password checks by 90% with login p99 under 300 ms", "Rate limit every endpoint to 100 requests per minute per client by end of quarter"]
-  answer: 2
+  options: ["Cut takeover attempts reaching password checks by 90% with login p99 under 300 ms", "Add a rate-limiting library to the API crate and enable it for the /login route", "Implement a token bucket per IP address allowing 5 login attempts per minute", "Rate limit every endpoint to 100 requests per minute per client by end of quarter"]
+  answer: 0
   explanation: >-
     A senior goal names the outcome (account-takeover attempts reaching password verification down 90%) and the constraint (login p99 under 300 ms) and leaves the solution open. The other options are solutions or tasks, however specific their numbers; they can be completed while the underlying problem stays unsolved.
 - q: >-
     Your manager says users find a feature "slow". What is the strongest first response?
-  options: ["Clarify which slowness matters, measure it, and come back by a set date with a proposal", "Start optimising the most complex code path, since that is where time usually goes", "Add caching in front of the feature's slowest queries and see whether complaints stop", "Ask the manager to write a detailed ticket first, so the requirements are clear"]
-  answer: 0
+  options: ["Add caching in front of the feature's slowest queries and see whether complaints stop", "Ask the manager to write a detailed ticket first, so the requirements are clear", "Start optimising the most complex code path, since that is where time usually goes", "Clarify which slowness matters, measure it, and come back by a set date with a proposal"]
+  answer: 3
   explanation: >-
     Seniors reduce ambiguity themselves: they clarify what success means, instrument the candidates and measure before acting, and commit to a date with numbers and a proposal. Waiting for a ticket pushes the ambiguity back upward, and optimising or caching blindly risks fixing the wrong thing.
 - q: >-
@@ -136,14 +136,14 @@ Seniority is assessed in every round, not only the behavioural one. In coding ro
     0.8 from your own reduced output plus 5 × 0.1 = 0.5 from the teammates gives 1.3. Leverage is why senior engineers deliberately trade some personal output for team output.
 - q: >-
     Which item is most often missing from a mid-level engineer's definition of done?
-  options: ["Code review approval from at least one teammate", "Flag cleanup and a result reported against the goal", "Unit tests covering every new code path added", "Merging to main and deploying behind a feature flag"]
-  answer: 1
+  options: ["Flag cleanup and a result reported against the goal", "Unit tests covering every new code path added", "Code review approval from at least one teammate", "Merging to main and deploying behind a feature flag"]
+  answer: 0
   explanation: >-
     Tests, review and deploying are usually in place. Removing the feature flag and the old code path, and reporting the measured result against the goal, are what turn shipped code into an owned outcome, and they are the parts promotion committees look for.
 - q: >-
     An engineer is the only person who can debug the payments service and fixes every incident personally. Why can this stall their promotion?
-  options: ["Fixing incidents is seen as reactive, and promotions reward only new features", "Incident work does not count as engineering output in most promotion rubrics", "They are a single point of failure, and seniors spread knowledge instead", "Payments is a maintenance area, so work there rarely shows senior-level scope"]
-  answer: 2
+  options: ["Fixing incidents is seen as reactive, and promotions reward only new features", "They are a single point of failure, and seniors spread knowledge instead", "Incident work does not count as engineering output in most promotion rubrics", "Payments is a maintenance area, so work there rarely shows senior-level scope"]
+  answer: 1
   explanation: >-
     Heroics are visible but create risk and cap leverage: the system depends on one person. Seniors are expected to spread knowledge through runbooks, pairing and shared on-call so the team is resilient, which is the senior version of the same expertise. Incident work itself is valued; hoarding it is the problem.
 ```

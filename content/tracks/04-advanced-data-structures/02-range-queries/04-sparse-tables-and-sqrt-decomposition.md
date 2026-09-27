@@ -201,32 +201,32 @@ hints:
 ```quiz
 - q: >-
     Why can a sparse table answer range-minimum in O(1) but not range-sum?
-  options: ["Min is idempotent, so two overlapping windows are harmless", "Sums of 2^k windows overflow unless you use 64-bit integers", "The table stores only minima, so sum needs a second table", "Sum has no inverse, so the two windows cannot be subtracted"]
-  answer: 0
+  options: ["Sum has no inverse, so the two windows cannot be subtracted", "Min is idempotent, so two overlapping windows are harmless", "Sums of 2^k windows overflow unless you use 64-bit integers", "The table stores only minima, so sum needs a second table"]
+  answer: 1
   explanation: >-
     Any range is covered by two windows of length 2^k that may overlap. min(a, a) = a makes the overlap harmless; sum counts the overlap twice, so sum needs non-overlapping decomposition (log n windows or a segment tree). A second table of window sums would still double-count, and sum does have an inverse (that is what a Fenwick tree relies on).
 - q: >-
     Your latency samples are immutable once a day closes, but the current day receives writes every second. Queries span both. The pragmatic design is:
-  options: ["One segment tree over all history, sealed days included", "Scan the raw samples for every query, sealed or not", "One sparse table over all history, rebuilt every second", "A sparse table per sealed day, a Fenwick tree for today"]
-  answer: 3
+  options: ["One segment tree over all history, sealed days included", "Scan the raw samples for every query, sealed or not", "A sparse table per sealed day, a Fenwick tree for today", "One sparse table over all history, rebuilt every second"]
+  answer: 2
   explanation: >-
     Sealed data gets O(1) queries and no update cost; the live chunk gets O(log n) updates from a segment or Fenwick tree, and each query is split across the two. Rebuilding a sparse table per write is O(n log n) per second; a single segment tree pays log n on everything and doubles memory for data that never changes.
 - q: >-
     A Parquet reader evaluates WHERE ts BETWEEN a AND b using per-row-group min/max statistics. Which range-query technique is this?
-  options: ["A sparse table lookup: two overlapping min/max windows", "A segment tree query: descend by each node's min/max", "Square-root decomposition: skip blocks by summary", "Lazy propagation: push pending bounds down to rows"]
-  answer: 2
+  options: ["Square-root decomposition: skip blocks by summary", "A segment tree query: descend by each node's min/max", "Lazy propagation: push pending bounds down to rows", "A sparse table lookup: two overlapping min/max windows"]
+  answer: 0
   explanation: >-
     Block statistics are exactly the per-block summaries of sqrt decomposition: whole blocks in the middle are skipped by summary and the partial blocks at the ends are scanned. The block size is chosen to match an I/O unit rather than √n, and there is only one level of summaries, not a tree of them.
 - q: >-
     You must answer 10⁵ queries of the form "how many distinct values in [l, r]" on a static array of 10⁵ elements, all queries known in advance. The best fit is:
-  options: ["A lazy segment tree merging the distinct counts of halves", "A Fenwick tree of prefix distinct counts, subtracted", "Mo's algorithm: sort the queries and slide one window", "A sparse table of distinct counts over overlapping windows"]
-  answer: 2
+  options: ["Mo's algorithm: sort the queries and slide one window", "A lazy segment tree merging the distinct counts of halves", "A sparse table of distinct counts over overlapping windows", "A Fenwick tree of prefix distinct counts, subtracted"]
+  answer: 0
   explanation: >-
     Distinct count does not combine from two halves or from overlapping windows, and it has no inverse, so distinct(1..r) − distinct(1..l−1) is not distinct(l..r). Mo's algorithm sorts queries by (l // √n, r) to exploit the offline setting, moving the window O((n + q)√n) steps in total, each a constant-time counter update.
 - q: >-
     After building a sparse table over 10⁶ values, one value changes. What does it cost to make the table correct again?
-  options: ["O(1): only the row-0 cell for that index changes", "O(log n): one window per row contains the index", "O(n log n): the whole table must always be rebuilt", "O(n): up to 2^k windows in row k contain the index"]
-  answer: 3
+  options: ["O(1): only the row-0 cell for that index changes", "O(log n): one window per row contains the index", "O(n): up to 2^k windows in row k contain the index", "O(n log n): the whole table must always be rebuilt"]
+  answer: 2
   explanation: >-
     Row k has up to 2^k windows containing the index; summed over rows that is O(n), not one window per row. Full rebuild is O(n log n) but a targeted fix is O(n); either way it is not a structure for mutable data.
 ```

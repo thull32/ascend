@@ -101,8 +101,12 @@ pub enum AppError {
     Unauthorized,
     #[error("{0} not found")]
     NotFound(&'static str),
-    #[error("rate limit exceeded: {0}")]
-    RateLimited(String),
+    #[error("rate limit exceeded: {message}")]
+    RateLimited {
+        message: String,
+        /// When a retry can succeed, if known; sent as `Retry-After`.
+        retry_after_secs: Option<u64>,
+    },
     #[error("database error")]
     Database(#[from] sea_orm::DbErr),
     #[error("internal error: {0}")]
@@ -113,7 +117,9 @@ pub enum AppError {
 
 `match` on an enum must be exhaustive. `AppError::code()` and the status mapping in `ApiError`'s `IntoResponse` impl (`crates/api/src/error.rs`) each list every variant with no `_ =>` wildcard, deliberately. Add `PaymentRequired` and the build fails at both sites until someone decides its machine code and HTTP status. The compiler becomes the checklist a reviewer would otherwise have to remember. A wildcard arm would silently map the new variant to whatever the default was.
 
-`thiserror` is a derive macro. `#[error("...")]` generates `Display`, and `#[from]` generates a conversion:
+`RateLimited` is a *struct variant*, and it used to be a tuple variant, `RateLimited(String)`. The change shows why the shape of a variant is a design decision: with only a string, the error could say "slow down" but had nowhere to put *when*, so the daily AI budget's 429 went out with no `Retry-After` although the reset time was known. Named fields made room for `retry_after_secs`, and because every match now names the variant as `AppError::RateLimited { .. }` or destructures the field it needs, the compiler found every site that had to change. `Option<u64>` says in the type that some producers know the wait and some do not.
+
+`thiserror` is a derive macro. `#[error("...")]` generates `Display` (and can name a struct variant's fields, as `{message}` does above), and `#[from]` generates a conversion:
 
 ```rust
 impl From<sea_orm::DbErr> for AppError {
@@ -200,7 +206,7 @@ Now read the signature with ownership in mind:
 
 - **`password: String`, not `&str`.** `spawn_blocking` requires a `'static` closure. The blocking task can outlive the caller: if the browser disconnects, Axum drops the handler's future, but a thread already hashing cannot be interrupted. A borrowed `&str` from the request would dangle. `move ||` transfers ownership of the `String` into the closure, so the compiler has forced correct behaviour under cancellation.
 - **The nested `Result`.** `.await` on the join handle yields `Result<AppResult<String>, JoinError>`. `map_err` turns a `JoinError` (the closure panicked) into `AppError`, `?` unwraps the outer layer, and the inner `AppResult<String>` is the function's return value.
-- **`verify` fails closed.** Its blocking call ends with `.await.unwrap_or(false)`: if the verifier panics, the login fails. It also verifies against `DUMMY_HASH` when the email does not exist, so response time does not reveal which emails have accounts. `DUMMY_HASH` is a `std::sync::LazyLock`, initialised on first use. It used to be a `once_cell::sync::Lazy`; since `LazyLock` reached the standard library, the crate was dropped from the workspace, one dependency fewer to audit.
+- **`verify` fails closed.** Its blocking call ends with `.await.unwrap_or(false)`: if the verifier panics, the login fails. It also verifies against `DUMMY_HASH` when the email does not exist, so response time does not reveal which emails have accounts. `DUMMY_HASH` is a `std::sync::LazyLock`, initialised on first use, and "first use" is itself a trap: its initialiser is a full Argon2 hash, so the first unknown-email login after a boot used to pay for it, a one-off slow response that revealed the email was unknown. `verify` now reads it inside the blocking closure, under a permit, and `password::warm_up()` forces it at boot with `LazyLock::force`. It used to be a `once_cell::sync::Lazy`; since `LazyLock` reached the standard library, the crate was dropped from the workspace, one dependency fewer to audit.
 - **`_permit` is held, not used.** The `let _permit = ...` binding keeps the semaphore permit alive until the function returns, then its destructor gives it back. Writing `let _ = ...` instead would drop the permit on the spot and bound nothing: `_` is not a variable, so nothing owns the value.
 
 That permit is the answer to the production follow-up a senior asks: the blocking pool bounds *threads*, not *memory*. The first version had no permit, and two hundred concurrent login attempts during a credential-stuffing burst would have meant about 200 × 19 MiB ≈ 3.7 GiB of Argon2 working memory. `HASH_PERMITS` is a `LazyLock<tokio::sync::Semaphore>` sized to the number of CPUs (at least two), so at most that many hashes run at once and the rest wait asynchronously for a permit, costing a parked task rather than a thread and 19 MiB. The authentication rate limit in front of the route bounds how many can wait.
@@ -313,37 +319,37 @@ Follow-up questions interviewers use to probe depth:
 ```quiz
 - q: >-
     Why does `password::hash` take a `String` rather than a `&str`?
-  options: ["Argon2 accepts only heap-allocated input, never a slice of the request", "Owned strings hash faster, because Argon2 then skips copying the bytes", "spawn_blocking needs a 'static closure; the task may outlive the caller", "A &str can never be sent to another thread, whatever lifetime it carries"]
+  options: ["Argon2 accepts only heap-allocated input, never a slice of the request", "A &str can never be sent to another thread, whatever lifetime it carries", "spawn_blocking needs a 'static closure; the task may outlive the caller", "Owned strings hash faster, because Argon2 then skips copying the bytes"]
   answer: 2
   explanation: >-
     If the client disconnects, Axum drops the handler future, but the blocking thread keeps hashing. A borrow of request data would dangle, so the 'static bound forces the closure to own the String. Argon2 hashes bytes from any source at the same speed, and a &'static str can be sent between threads; the problem is the lifetime of a request-scoped borrow, not Send.
 - q: >-
     A teammate adds `AppError::PaymentRequired` with an `#[error(...)]` attribute and nothing else. What happens?
-  options: ["It compiles, because thiserror derives an HTTP status from the message", "The build fails at code() and at the status match until each one handles it", "It compiles, and the new variant falls into a default 500 arm at runtime", "It compiles, then panics the first time a handler returns the variant"]
-  answer: 1
+  options: ["The build fails at code() and at the status match until each one handles it", "It compiles, because thiserror derives an HTTP status from the message", "It compiles, and the new variant falls into a default 500 arm at runtime", "It compiles, then panics the first time a handler returns the variant"]
+  answer: 0
   explanation: >-
     Both matches are exhaustive with no wildcard, so the compiler lists every site that must decide a machine code and a status. That is the point of avoiding `_ =>` on domain enums: a wildcard would have silently produced a 500. thiserror only generates Display (and From for #[from] fields); it knows nothing about HTTP.
 - q: >-
     Why does the api crate wrap AppError in `ApiError` instead of implementing Axum's IntoResponse for AppError directly?
-  options: ["Axum implements IntoResponse only for tuple structs such as ApiError(..)", "Newtypes compile to faster code, since Axum can then inline the whole conversion", "AppError is not Send, so it cannot cross into Axum's async response path", "Orphan rule: no foreign trait on a foreign type, but a local wrapper is fine"]
-  answer: 3
+  options: ["Orphan rule: no foreign trait on a foreign type, but a local wrapper is fine", "AppError is not Send, so it cannot cross into Axum's async response path", "Newtypes compile to faster code, since Axum can then inline the whole conversion", "Axum implements IntoResponse only for tuple structs such as ApiError(..)"]
+  answer: 0
   explanation: >-
     In crates/api both IntoResponse (Axum) and AppError (ascend_core) are foreign, so the direct impl is rejected, while the local newtype is allowed. The constraint also enforces the intended layering: the domain crate has no dependency on the web framework. A newtype has no runtime cost or benefit, AppError is Send, and IntoResponse is implemented for all sorts of types (strings, tuples, Json).
 - q: >-
     During a coach reply, the browser disconnects after ten deltas. What does `pump` do next?
-  options: ["tx.send panics on the closed channel and the spawned task aborts early", "The upstream model stream is cancelled automatically once rx is dropped", "tx.send waits forever, because nobody is reading from the channel any more", "tx.send returns Err at once; pump ignores it and keeps draining upstream"]
-  answer: 3
+  options: ["The upstream model stream is cancelled automatically once rx is dropped", "tx.send waits forever, because nobody is reading from the channel any more", "tx.send returns Err at once; pump ignores it and keeps draining upstream", "tx.send panics on the closed channel and the spawned task aborts early"]
+  answer: 2
   explanation: >-
     Dropping the receiver closes the channel; sends then fail fast instead of waiting or panicking. `let _ =` discards the error and the task goes on to finish_turn, so the full reply is persisted. Nothing links rx to the upstream stream, which is the design: the work outlives the request.
 - q: >-
     You call `hash_sync` directly inside an async handler on a Tokio runtime with 8 worker threads. What happens under 8 simultaneous logins?
-  options: ["Nothing, because Tokio preempts any task that runs longer than 10 ms", "All 8 workers are stuck hashing, so every other request waits for them", "Tokio detects the blocking call and moves it to the blocking pool", "It does not compile, because a sync function cannot be called in async code"]
+  options: ["It does not compile, because a sync function cannot be called in async code", "All 8 workers are stuck hashing, so every other request waits for them", "Nothing, because Tokio preempts any task that runs longer than 10 ms", "Tokio detects the blocking call and moves it to the blocking pool"]
   answer: 1
   explanation: >-
     Tokio schedules cooperatively: a task yields only at an .await, and nothing detects or preempts a long synchronous computation, which holds its worker the whole time. Calling a sync function from async code compiles fine, which is why this bug reaches production. spawn_blocking, plus a bound on how many run at once, is the fix.
 - q: >-
     What does the bound `T: 'static` on tokio::spawn's future actually require?
-  options: ["It is stored in static memory rather than on the heap or the stack", "It is immutable, so several threads can read it without any locks", "It holds no borrows shorter than the program, so a String qualifies", "It lives until the program exits and is never dropped before that point"]
+  options: ["It is stored in static memory rather than on the heap or the stack", "It lives until the program exits and is never dropped before that point", "It holds no borrows shorter than the program, so a String qualifies", "It is immutable, so several threads can read it without any locks"]
   answer: 2
   explanation: >-
     As a bound, 'static means "owns everything it references". A String satisfies it and is dropped as normal. What fails the bound is a reference into a stack frame or request that could end while the task is still running.

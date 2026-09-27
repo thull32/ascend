@@ -242,31 +242,31 @@ The transferable lesson is the first design choice, not the hardware: **when dem
 ```quiz
 - q: >-
     A campaign email links to a cached landing page, and the origin is overwhelmed despite a 5-minute TTL at the CDN. Each link contains a unique utm_id query parameter. What is the best fix?
-  options: ["Allowlist only the query parameters that matter", "Purge the page every minute to keep it fresh", "Raise the TTL to one day so entries live longer", "Add Vary: User-Agent so each device gets its own copy"]
+  options: ["Allowlist only the query parameters that matter", "Raise the TTL to one day so entries live longer", "Add Vary: User-Agent so each device gets its own copy", "Purge the page every minute to keep it fresh"]
   answer: 0
   explanation: >-
     Every unique URL is a separate cache entry, so the hit ratio is near zero regardless of TTL. A cache key that includes only the query parameters that change the response maps every recipient's URL to the same key and restores sharing. Vary: User-Agent would fragment it further, and purging only creates more misses.
 - q: >-
     Edges hit 95% of requests. A shield tier is added that hits 70% of the requests edges miss. What fraction of requests now reaches the origin?
-  options: ["5%", "0.5%", "1.5%", "3.5%"]
-  answer: 2
+  options: ["0.5%", "5%", "3.5%", "1.5%"]
+  answer: 3
   explanation: >-
     Origin traffic is the edge miss rate times the shield miss rate: 0.05 x 0.30 = 0.015, or 1.5%. The shield cut origin load by more than two thirds without changing edge behaviour.
 - q: >-
     An origin returns Cache-Control "public, max-age=60, s-maxage=600". How long does each cache treat the response as fresh?
-  options: ["60 s in the CDN and in the browser", "600 s in the CDN and in the browser", "60 s in the CDN, 600 s in the browser", "600 s in the CDN, 60 s in the browser"]
-  answer: 3
+  options: ["60 s in the CDN and in the browser", "60 s in the CDN, 600 s in the browser", "600 s in the CDN, 60 s in the browser", "600 s in the CDN and in the browser"]
+  answer: 2
   explanation: >-
     s-maxage applies only to shared caches and overrides max-age there. Browsers are private caches and use max-age. This split lets the CDN absorb browser revalidations while the content stays reasonably fresh for users.
 - q: >-
     Why do CDN PoPs route each cache key to a specific server with consistent hashing rather than letting any server cache anything?
-  options: ["It cuts TLS handshake cost on each edge server", "HTTP/2 connection reuse requires one server per key", "It lets the PoP skip the regional origin shield", "Each object lives on one server per PoP"]
-  answer: 3
+  options: ["Each object lives on one server per PoP", "It cuts TLS handshake cost on each edge server", "It lets the PoP skip the regional origin shield", "HTTP/2 connection reuse requires one server per key"]
+  answer: 0
   explanation: >-
     Random placement eventually copies popular objects to every server, so the PoP holds roughly one server's worth of distinct content. Hashing partitions the key space, multiplying the PoP's effective cache capacity. Consistent hashing means adding or losing a server only moves that server's keys, instead of invalidating most of the cache.
 - q: >-
     What is the main reason Netflix's Open Connect can serve evening peak traffic almost entirely from cache?
-  options: ["Its appliances have unusually large disks", "It fills appliances off-peak with predicted titles", "Its caches pull each title on first request, then keep it", "Anycast routes viewers to the nearest appliance"]
+  options: ["Anycast routes viewers to the nearest appliance", "It fills appliances off-peak with predicted titles", "Its caches pull each title on first request, then keep it", "Its appliances have unusually large disks"]
   answer: 1
   explanation: >-
     A pull-through cache misses on the first request per location; a proactively filled cache does not. Netflix predicts which titles each location will need and fills appliances during off-peak hours, so content is already present before demand arrives, using capacity that would otherwise be idle. Disk size helps, but only because the right content is placed on it in advance.

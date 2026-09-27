@@ -68,7 +68,7 @@ let Some(user) = user.filter(|_| ok) else {
 };
 ```
 
-When the email is unknown, `password::verify` checks the password against a precomputed `DUMMY_HASH` and returns `ok && exists`, which is always false. Both branches pay one Argon2id verification, so response time does not reveal whether an account exists. Without this, an attacker with a stopwatch could enumerate registered emails: unknown addresses would return in a millisecond and real ones in a hundred. The error message is identical in both cases for the same reason.
+When the email is unknown, `password::verify` checks the password against a precomputed `DUMMY_HASH` and returns `ok && exists`, which is always false. Both branches pay one Argon2id verification, so response time does not reveal whether an account exists. Without this, an attacker with a stopwatch could enumerate registered emails: unknown addresses would return in a millisecond and real ones in a hundred. The error message is identical in both cases for the same reason. "Precomputed" took a fix to become true: `DUMMY_HASH` is a lazily initialised static, and it used to be computed by the first unknown-email login after each boot, outside the hashing semaphore, which made that one response about twice as slow as every other. `main` now calls `password::warm_up()` before it starts serving, so the hash exists before the first request. A timing defence has to cover the first call too.
 
 A senior reviewer would also check the *other* doors. `register` returns `Conflict("an account with that email already exists")`, so registration is an enumeration oracle even though login is not. It used to leak twice: the first version looked the email up *before* hashing, so "already registered" came back roughly 100 ms faster than a successful sign-up, and two simultaneous sign-ups for one address could both pass the check, with the loser hitting the unique index as a `500`. It now hashes first, inserts, and lets the unique index decide, mapping the violation to `409`; the integration test `concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four sign-ups at once and expects one `200` and three `409`s. The message itself is a common, conscious trade-off: the full fix is an email-verification flow ("if this address can register, we have sent it a link"), which costs email infrastructure and friction. Here the mitigation is the per-IP authentication rate limit described below. Knowing that the trade exists, and saying so, is the senior part.
 
@@ -260,7 +260,7 @@ The rest of secret handling is process, not code:
 ```quiz
 - q: >-
     Ascend stores session tokens as SHA-256 hashes but passwords as Argon2id hashes. Why is a fast hash acceptable for the tokens?
-  options: ["Tokens are also encrypted at rest, so the hash is a second layer", "Tokens are 256 random bits, so no guess rate could ever find one", "Tokens expire within 30 days, so a stolen hash is soon useless", "SHA-256 is a stronger algorithm than Argon2id for short inputs"]
+  options: ["Tokens expire within 30 days, so a stolen hash is soon useless", "Tokens are 256 random bits, so no guess rate could ever find one", "SHA-256 is a stronger algorithm than Argon2id for short inputs", "Tokens are also encrypted at rest, so the hash is a second layer"]
   answer: 1
   explanation: >-
     Slow hashing compensates for low-entropy inputs that attackers can guess. A 256-bit random token has no guessable structure, so even billions of SHA-256 attempts per second never find one. Expiry (30 days by default) limits the window but does not replace hashing, SHA-256 is faster than Argon2id rather than stronger, and the tokens are not encrypted in the database: the hash is the only protection, and it is enough.
@@ -272,20 +272,20 @@ The rest of secret handling is process, not code:
     The timing difference reveals which emails are registered. Always running one password verification, against a dummy hash if needed, makes both branches cost the same, which is what Ascend's password::verify does with DUMMY_HASH. Nothing here involves a flood, an injected query or a reused session ID: what the attacker learns is which accounts exist, and the dummy hash takes that away.
 - q: >-
     A rate limiter keys login attempts on the first IP in X-Forwarded-For. What can an attacker do?
-  options: ["Send a new fake IP each request and get a fresh bucket every time", "Spoof only IPv6 addresses, because IPv4 entries are checked against TCP", "Skip the CSRF check, since the limiter runs before the CSRF layer", "Nothing, because proxies replace the header with the real client IP"]
-  answer: 0
+  options: ["Skip the CSRF check, since the limiter runs before the CSRF layer", "Spoof only IPv6 addresses, because IPv4 entries are checked against TCP", "Send a new fake IP each request and get a fresh bucket every time", "Nothing, because proxies replace the header with the real client IP"]
+  answer: 2
   explanation: >-
     Proxies append to X-Forwarded-For; they do not remove what the client sent, so the first entry is attacker-controlled whatever its address family. Each fake IP gets its own bucket, so the per-IP limit disappears. The limiter's key has nothing to do with CSRF. Key on a header your trusted edge overwrites (Ascend reads only CLIENT_IP_HEADER, x-real-ip on Railway), or on the socket address.
 - q: >-
     Which request does SameSite=Lax NOT stop the browser from sending the session cookie with?
-  options: ["A cross-site image tag whose src points at your API", "A cross-site fetch() call that uses the DELETE method", "A top-level GET navigation from another site to your page", "A cross-site form POST that submits itself when the page loads"]
-  answer: 2
+  options: ["A top-level GET navigation from another site to your page", "A cross-site form POST that submits itself when the page loads", "A cross-site image tag whose src points at your API", "A cross-site fetch() call that uses the DELETE method"]
+  answer: 0
   explanation: >-
     Lax sends cookies on top-level GET navigations so that links into your site keep users logged in. That is why state-changing operations must never be GETs. The auto-submitting POST and the cross-site DELETE use unsafe methods, and the image is a cross-site sub-request; Lax withholds the cookie from all three.
 - q: >-
     The CSP in security_headers.rs includes 'unsafe-eval'. What makes this acceptable?
-  options: ["It only relaxes CSS evaluation, so script execution is still locked down", "The runners need it, and learner code runs in time-limited workers", "The policy also allows 'unsafe-inline' scripts, which cancels it out", "Nothing; every 'unsafe-' keyword should be removed at once"]
-  answer: 1
+  options: ["Nothing; every 'unsafe-' keyword should be removed at once", "The policy also allows 'unsafe-inline' scripts, which cancels it out", "The runners need it, and learner code runs in time-limited workers", "It only relaxes CSS evaluation, so script execution is still locked down"]
+  answer: 2
   explanation: >-
     A weakened control can be acceptable when the need is real and the compensating controls are explicit: Pyodide and the JavaScript sandbox need eval and WebAssembly, and learner code runs in Web Workers with no DOM that are terminated at a time limit, the JavaScript worker also losing its network APIs. The policy still forbids inline scripts, which blocks the most common injection payloads. 'unsafe-eval' governs script execution, not CSS, 'unsafe-inline' would weaken the policy further rather than cancel anything, and removing 'unsafe-eval' outright would break the runners.
 ```

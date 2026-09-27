@@ -245,32 +245,32 @@ hints:
 ```quiz
 - q: >-
     A key was written once, months ago, and never touched since. An LSM store with leveled compaction, five levels and per-file bloom filters serves a point read for it. Roughly how many SSTable data blocks are read from disk?
-  options: ["Five, because each level must be read to find the newest copy", "Zero, because the in-memory index and filters return the value", "One per SSTable, since every file is checked from newest to oldest", "One, because bloom filters rule out the levels that lack the key"]
-  answer: 3
+  options: ["One per SSTable, since every file is checked from newest to oldest", "Zero, because the in-memory index and filters return the value", "One, because bloom filters rule out the levels that lack the key", "Five, because each level must be read to find the newest copy"]
+  answer: 2
   explanation: >-
     Each level contributes at most one candidate file by key range; the bloom filters of the levels that lack the key reject it without I/O (apart from the occasional false positive), and the file that holds it needs one block read after an in-memory index lookup. The filters and index only locate the block; the value itself still costs that one read.
 - q: >-
     Why can leveled compaction only drop a tombstone when it reaches the bottom level?
-  options: ["Only the bottom level has bloom filters to record the deletion", "Dropping it before then would break WAL replay after a crash", "Tombstones keep files within a level from overlapping in key range", "An older copy may still sit in a lower level and would resurrect"]
-  answer: 3
+  options: ["Only the bottom level has bloom filters to record the deletion", "Tombstones keep files within a level from overlapping in key range", "An older copy may still sit in a lower level and would resurrect", "Dropping it before then would break WAL replay after a crash"]
+  answer: 2
   explanation: >-
     Lower levels hold older data. If the tombstone vanished while an older copy remained below, a read would fall through to that copy and the deleted value would reappear. At the bottom level nothing older exists, so the tombstone is safe to discard. Non-overlapping ranges come from how compaction splits files, not from tombstones.
 - q: >-
     Your Cassandra table is used as a work queue: every row is inserted, read once, and deleted within minutes. Reads are getting slower every week. What is the most likely cause?
-  options: ["Leveled compaction is short of disk, so old runs pile up in L0", "Bloom filters degrade as rows churn, so false positives climb", "Reads scan tombstones that are kept until gc_grace_seconds passes", "The memtable is too small, so every read goes to many SSTables"]
-  answer: 2
+  options: ["Reads scan tombstones that are kept until gc_grace_seconds passes", "The memtable is too small, so every read goes to many SSTables", "Leveled compaction is short of disk, so old runs pile up in L0", "Bloom filters degrade as rows churn, so false positives climb"]
+  answer: 0
   explanation: >-
     Each delete adds a tombstone that must be retained for gc_grace_seconds (10 days by default) so repairs can propagate it. A queue pattern produces far more tombstones than live rows, and every read scans through them. The remedy is a different data model, not a knob such as memtable size.
 - q: >-
     You ingest 1 TB of data that is almost never overwritten and you have 1.3 TB of disk. Which compaction strategy is the safer choice?
-  options: ["Leveled, because it needs about 1.1x space and tiered may need 2x", "Size-tiered, because its runs never overlap, so no space is wasted", "Size-tiered, because its write amplification is lowest of the two", "Either, since data that is rarely overwritten needs no extra space"]
+  options: ["Leveled, because it needs about 1.1x space and tiered may need 2x", "Size-tiered, because its runs never overlap, so no space is wasted", "Either, since data that is rarely overwritten needs no extra space", "Size-tiered, because its write amplification is lowest of the two"]
   answer: 0
   explanation: >-
     Size-tiered compaction can need free space equal to the runs being merged, approaching 2x the data set, which 1.3 TB cannot provide, even when nothing is overwritten. Leveled keeps total space near 1.1x at the cost of more write I/O, which is acceptable when data is rarely rewritten.
 - q: >-
     RocksDB write latency suddenly jumps from microseconds to tens of milliseconds at p99 while CPU is idle. The first metric to check is:
-  options: ["Memtable lookup time and the size of the skip list", "The number of L0 files and pending compaction bytes", "Bloom filter bits per key and the false-positive rate", "The block cache hit ratio and the row cache size"]
-  answer: 1
+  options: ["The block cache hit ratio and the row cache size", "Memtable lookup time and the size of the skip list", "Bloom filter bits per key and the false-positive rate", "The number of L0 files and pending compaction bytes"]
+  answer: 3
   explanation: >-
     That pattern is a write stall: L0 has reached the slowdown or stop trigger because compaction fell behind ingestion. The engine throttles writers deliberately. Compaction backlog metrics confirm it; read-side metrics such as bloom filters or cache hit ratio do not explain slow writes. The fixes are more compaction threads, a faster disk, or a strategy with less write amplification.
 ```

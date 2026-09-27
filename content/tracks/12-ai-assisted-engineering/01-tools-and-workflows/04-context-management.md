@@ -147,31 +147,31 @@ Same model, same bug, same tool. The difference is what was in the window.
 ```quiz
 - q: >-
     Two hours into a session the agent re-reads files it already read and contradicts a design decision from the start of the session. What is the most effective response?
-  options: ["Restate the original decision more forcefully in the same session", "Paste the full transcript into a new session so nothing is lost", "Have it write a handoff note, then start a fresh session from the note and spec", "Switch to a model with a larger context window and carry on in this session"]
-  answer: 2
+  options: ["Have it write a handoff note, then start a fresh session from the note and spec", "Switch to a model with a larger context window and carry on in this session", "Paste the full transcript into a new session so nothing is lost", "Restate the original decision more forcefully in the same session"]
+  answer: 0
   explanation: >-
     Those are symptoms of context rot: dilution, stale file contents and failed attempts in the window. A handoff note (state, known failures, next steps) keeps the useful state and drops the noise. A bigger window delays the problem without removing the noise, and pasting the transcript recreates it.
 - q: >-
     You need to find where the codebase handles expired sessions, but you do not know any function or file names. Which context mechanism is most likely to help first?
-  options: ["A semantic index query, then reading the files it returns to confirm", "Agentic grep for the word session, then read every file it matches", "Asking the model, since it has seen similar session code in training", "Pasting the whole repository into the context so nothing is missed"]
-  answer: 0
+  options: ["Agentic grep for the word session, then read every file it matches", "A semantic index query, then reading the files it returns to confirm", "Pasting the whole repository into the context so nothing is missed", "Asking the model, since it has seen similar session code in training"]
+  answer: 1
   explanation: >-
     Semantic (embedding) retrieval finds concepts without exact identifiers. It can be stale and can mis-rank, so you confirm by reading the returned files. Grepping session in a large codebase returns hundreds of hits, and the model's training data knows nothing about your repository.
 - q: >-
     Why does this repository's validation command in the agent brief end with 2>&1 | tail -5?
-  options: ["It hides warnings from the agent, so it does not try to fix unrelated ones", "tail makes the command finish faster, since it stops reading output early", "The validator happens to write all of its errors to the last five lines", "The last lines carry the pass/fail signal; the rest would bloat context"]
+  options: ["tail makes the command finish faster, since it stops reading output early", "It hides warnings from the agent, so it does not try to fix unrelated ones", "The validator happens to write all of its errors to the last five lines", "The last lines carry the pass/fail signal; the rest would bloat context"]
   answer: 3
   explanation: >-
     Tool output enters the context and is resent on every later iteration. Keeping only the lines that answer the question (did it pass, which file failed) keeps hundreds of irrelevant lines out and saves tokens and attention on every run. It is not about speed or hiding information the agent needs.
 - q: >-
     A subagent reads 40 files and returns a 400-token summary to the main session. What is the main benefit?
-  options: ["The summary is more accurate than the files, since noise is removed", "The subagent uses a cheaper model, so all that reading costs less overall", "The main context grows by the summary, not by all the tokens of reading", "The subagent has edit permissions on files the main agent cannot touch"]
-  answer: 2
+  options: ["The summary is more accurate than the files, since noise is removed", "The main context grows by the summary, not by all the tokens of reading", "The subagent has edit permissions on files the main agent cannot touch", "The subagent uses a cheaper model, so all that reading costs less overall"]
+  answer: 1
   explanation: >-
     Delegation isolates exploration: the main context grows by 400 tokens rather than the tens of thousands the subagent read, so it keeps its constraints and plan in a small window. The trade-off is that the summary is lossy, not more accurate, so you delegate surveys and questions, not the decision itself.
 - q: >-
     A constraint you gave in message 3 of an 80-message session is violated at message 75. Which explanation is most likely?
-  options: ["The model deliberately disobeyed it, having decided a better approach existed", "Constraints expire after about 50 messages unless they are repeated", "The memory file overrode it, since memory files take precedence over chat", "It was diluted in the middle of a long context or dropped by compaction"]
+  options: ["Constraints expire after about 50 messages unless they are repeated", "The memory file overrode it, since memory files take precedence over chat", "The model deliberately disobeyed it, having decided a better approach existed", "It was diluted in the middle of a long context or dropped by compaction"]
   answer: 3
   explanation: >-
     Information in the middle of long contexts is used less reliably, and summarisation of older turns can lose details. There is no fixed expiry and no precedence rule; put durable constraints in the memory file and restate task constraints in the spec so they sit where the model attends best.

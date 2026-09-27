@@ -300,8 +300,8 @@ hints:
 ```quiz
 - q: >-
     Why does counting opens and closes per bracket type fail as a validity check for strings like "([)]"?
-  options: ["It ignores order, and the last opened must close first", "Counting per type costs O(n²) once several types are mixed", "It fails only on strings whose length is odd", "It cannot handle more than one bracket type at once"]
-  answer: 0
+  options: ["It cannot handle more than one bracket type at once", "Counting per type costs O(n²) once several types are mixed", "It ignores order, and the last opened must close first", "It fails only on strings whose length is odd"]
+  answer: 2
   explanation: >-
     Counts are equal for "([)]" yet the string is invalid because ")" arrives while "[" is the innermost open bracket. The stack enforces order, which counts cannot see.
 - q: >-
@@ -312,19 +312,19 @@ hints:
     The count applies to the substring inside this bracket pair, and the string built before it must be prepended afterwards. Both go on the stack; forgetting to reset either leaks outer content into the inner segment.
 - q: >-
     A min-stack uses a parallel stack that pushes a value only when it is strictly less than the current minimum. What breaks?
-  options: ["Push becomes O(log n), since the min stack must stay sorted", "Nothing; a strict comparison is correct and saves memory", "getMin becomes O(n), since duplicates must be rescanned", "Pushing 2, 2 then popping once loses the only min record"]
-  answer: 3
+  options: ["getMin becomes O(n), since duplicates must be rescanned", "Nothing; a strict comparison is correct and saves memory", "Pushing 2, 2 then popping once loses the only min record", "Push becomes O(log n), since the min stack must stay sorted"]
+  answer: 2
   explanation: >-
     With strict less-than, the second 2 is never recorded. Popping one 2 pops the min record, and the remaining 2 in the main stack has no minimum entry, so getMin becomes wrong. Use less-than-or-equal on push; the complexity of every operation is unaffected.
 - q: >-
     In Car Fleet, the car at position 3 (speed 3, alone-arrival 3.0) is behind a fleet arriving at 7.0. Which time does the stack keep for deciding whether the next car behind joins?
-  options: ["7.0, because the car is held to the fleet ahead", "Both, pushed as separate entries for later cars", "3.0, because the faster car now leads the fleet", "5.0, the average of the two arrival times"]
-  answer: 0
+  options: ["5.0, the average of the two arrival times", "Both, pushed as separate entries for later cars", "3.0, because the faster car now leads the fleet", "7.0, because the car is held to the fleet ahead"]
+  answer: 3
   explanation: >-
     A car that catches a fleet cannot pass it, so its effective arrival time becomes the fleet's. The stack stores the fleet head's time; the joining car is not pushed at all.
 - q: >-
     Evaluating the RPN tokens ["6", "-132", "/"] should give 0. Which implementation detail matters?
-  options: ["Use floating point throughout and round at the end", "Truncate towards zero, and pop the right operand first", "Truncate towards zero, and pop the left operand first", "Use floor division, then pop the right operand first"]
+  options: ["Use floating point throughout and round at the end", "Truncate towards zero, and pop the right operand first", "Use floor division, then pop the right operand first", "Truncate towards zero, and pop the left operand first"]
   answer: 1
   explanation: >-
     Floor division gives -1 for 6 / -132; the problem wants truncation towards zero, which is int(a / b) in Python or Math.trunc in JavaScript. The first pop is the right operand and the second pop is the left, because operands were pushed in order; popping them the other way round computes -132 / 6.

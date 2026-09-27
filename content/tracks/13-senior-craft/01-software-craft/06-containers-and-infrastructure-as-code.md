@@ -250,32 +250,32 @@ hints:
 ```quiz
 - q: >-
     A container is killed and its exit code is 137. There is nothing in the application's logs. What is the most likely cause?
-  options: ["The image was built for the wrong CPU architecture, so the binary could not start", "The application called exit(137) after catching an unrecoverable internal error", "A failed readiness probe made the platform stop the container and restart it", "SIGKILL, most often from the OOM killer after the container exceeded its memory limit"]
-  answer: 3
+  options: ["The image was built for the wrong CPU architecture, so the binary could not start", "SIGKILL, most often from the OOM killer after the container exceeded its memory limit", "The application called exit(137) after catching an unrecoverable internal error", "A failed readiness probe made the platform stop the container and restart it"]
+  answer: 1
   explanation: >-
     137 is 128 + 9, meaning SIGKILL. A cgroup memory limit breach is the usual sender, and SIGKILL gives the process no chance to log. A failed readiness probe removes the pod from the Service but does not kill it; liveness failures do restart it, but via SIGTERM first.
 - q: >-
     A Dockerfile does COPY . . followed by RUN npm ci and RUN npm run build. Every commit, even a README change, reinstalls all dependencies. What is the fix?
-  options: ["Commit node_modules to the repository so npm ci has nothing to download", "Move to a larger build machine so the dependency install finishes faster", "Copy package.json and the lockfile first, run npm ci, then copy the rest", "Switch to a smaller base image so each layer is quicker to rebuild and push"]
+  options: ["Switch to a smaller base image so each layer is quicker to rebuild and push", "Commit node_modules to the repository so npm ci has nothing to download", "Copy package.json and the lockfile first, run npm ci, then copy the rest", "Move to a larger build machine so the dependency install finishes faster"]
   answer: 2
   explanation: >-
     The layer cache is invalidated from the first changed layer onward. With the manifests copied separately, the dependency layer's inputs change only when dependencies do. Hardware and base images do not change the invalidation rule, and committing node_modules does not help, because npm ci still runs after the same COPY . . that every commit invalidates.
 - q: >-
     Why does Ascend's runtime stage contain no shell or package manager?
-  options: ["To shrink the image and the attacker's toolkit, at the cost of harder debugging", "To make image builds faster, since fewer packages have to be downloaded each time", "A shell would conflict with the Rust binary's own signal handling as PID 1", "Railway forbids interactive shells inside the containers it deploys"]
-  answer: 0
+  options: ["To make image builds faster, since fewer packages have to be downloaded each time", "To shrink the image and the attacker's toolkit, at the cost of harder debugging", "A shell would conflict with the Rust binary's own signal handling as PID 1", "Railway forbids interactive shells inside the containers it deploys"]
+  answer: 1
   explanation: >-
     A distroless runtime removes tools an attacker would use to explore, download or persist, and shrinks the image. The trade-off is that you debug through logs, metrics and ephemeral debug containers instead of exec'ing a shell. The binary is PID 1 because of the exec-form entrypoint, not because the shell is missing, and a smaller runtime base barely changes build time, which the compile stages dominate.
 - q: >-
     In a three-replica Kubernetes Deployment, the liveness probe calls an endpoint that queries the database. The database fails over for 40 seconds. What happens?
-  options: ["Nothing, because probes ignore errors from downstream dependencies", "Kubernetes pauses the probes until the database's own health check is passing again", "Every pod fails liveness and restarts together, adding a restart storm to the outage", "Pods leave the Service but keep running, then rejoin once the database has recovered"]
-  answer: 2
+  options: ["Every pod fails liveness and restarts together, adding a restart storm to the outage", "Pods leave the Service but keep running, then rejoin once the database has recovered", "Kubernetes pauses the probes until the database's own health check is passing again", "Nothing, because probes ignore errors from downstream dependencies"]
+  answer: 0
   explanation: >-
     Liveness answers "should this process be killed?" and must check only the process itself. Leaving the Service while running is what a failing readiness probe does, which is why dependency checks belong there. That is why this app separates /api/healthz from /api/readyz.
 - q: >-
     What is the main security advantage of pull-based GitOps over a CI pipeline that runs kubectl apply against production?
-  options: ["It removes the need for code review, since the agent validates every manifest itself", "It encrypts container images at rest, so a leaked registry token is harmless", "Deploys are faster, because the agent applies changes without waiting for CI", "Production credentials stay in the cluster; CI only builds images and opens PRs"]
-  answer: 3
+  options: ["It encrypts container images at rest, so a leaked registry token is harmless", "Production credentials stay in the cluster; CI only builds images and opens PRs", "Deploys are faster, because the agent applies changes without waiting for CI", "It removes the need for code review, since the agent validates every manifest itself"]
+  answer: 1
   explanation: >-
     In push-based deploys, compromising CI compromises production. With an in-cluster agent pulling from Git, CI needs no production access, and every change is a reviewed, revertible commit.
 ```

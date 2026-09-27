@@ -210,32 +210,32 @@ When writes exceed what a shard can absorb and the resharding cadence becomes th
 ```quiz
 - q: >-
     An orders table is hash-sharded across 32 nodes by user_id. A query for all orders of a given merchant is served by scatter-gather. Each shard has a 1% chance of a 200 ms stall on any query. Roughly what fraction of merchant queries take 200 ms or more?
-  options: ["About 50%", "About 1%", "About 3%", "About 27%"]
-  answer: 3
+  options: ["About 50%", "About 1%", "About 27%", "About 3%"]
+  answer: 2
   explanation: >-
     The query waits for the slowest shard, so it stalls if any of the 32 does: 1 - 0.99^32 ≈ 0.27. Tail amplification is the core cost of scatter-gather and the reason for a global index on hot cross-shard access patterns.
 - q: >-
     Which shard key choice produces a hot shard for an append-heavy events table?
-  options: ["Hash of user id", "Consistent hash of session id", "Hash of event id", "Range on event timestamp"]
-  answer: 3
+  options: ["Hash of user id", "Range on event timestamp", "Consistent hash of session id", "Hash of event id"]
+  answer: 1
   explanation: >-
     Range sharding on a monotonically increasing key sends every insert to the newest range, so one shard takes all the write load. Hashing scrambles adjacent keys across shards; the cost is that time-range scans become scatter-gather.
 - q: >-
     A user posts a comment, and the next page load (served from a read replica) does not show it. Which fix keeps most reads on replicas while guaranteeing the user sees their own write?
-  options: ["Send the user's reads to a replica past their write's position", "Add a cache in front of the replicas with a short TTL on each key", "Add more replicas so that each one has less lag to work through", "Route every read to the primary so that no read is ever stale"]
-  answer: 0
+  options: ["Add more replicas so that each one has less lag to work through", "Send the user's reads to a replica past their write's position", "Route every read to the primary so that no read is ever stale", "Add a cache in front of the replicas with a short TTL on each key"]
+  answer: 1
   explanation: >-
     Return the primary's log position after the write and route that user's reads to a replica that has applied at least that position. This gives read-your-writes precisely: only reads that need freshness wait for a caught-up replica. Routing everything to the primary forfeits the read scaling; more replicas do not reduce lag; a cache adds another stale copy.
 - q: >-
     DynamoDB's global secondary indexes are updated asynchronously. What does that imply for a design that writes an item and immediately queries the GSI?
-  options: ["The query always sees it, because the write blocks on the index", "The GSI is locked against queries until it has caught up", "It may briefly miss the item; read the base table by key", "The write is rejected until the index update has finished"]
-  answer: 2
+  options: ["It may briefly miss the item; read the base table by key", "The write is rejected until the index update has finished", "The GSI is locked against queries until it has caught up", "The query always sees it, because the write blocks on the index"]
+  answer: 0
   explanation: >-
     A term-partitioned index on a different node than the row is either updated in a distributed transaction (slow) or asynchronously (eventually consistent). With an asynchronous GSI the query may not see the item for some milliseconds, so the design must tolerate that; reading the base table by its key is the consistent path. Nothing blocks or rejects the write.
 - q: >-
     You are choosing a sharding scheme for a system that will start on 4 nodes and might grow to 64. Which choice makes future growth cheapest?
-  options: ["hash(key) mod N, and re-hash all keys whenever N changes", "Range sharding on a sequential primary key across the nodes", "Fixed logical partitions (say 1,024) mapped onto physical nodes", "One shard per customer, created on demand as customers sign up"]
-  answer: 2
+  options: ["Fixed logical partitions (say 1,024) mapped onto physical nodes", "Range sharding on a sequential primary key across the nodes", "One shard per customer, created on demand as customers sign up", "hash(key) mod N, and re-hash all keys whenever N changes"]
+  answer: 0
   explanation: >-
     With fixed logical partitions, a key's partition never changes; growth reassigns whole partitions to nodes and copies them. Modulo hashing remaps almost every key on each resize, range sharding on a sequential key concentrates writes on the newest range, and one shard per customer does not distribute the long tail.
 ```

@@ -284,14 +284,14 @@ Size the cache from the working set, watch the hit ratio and the eviction rate, 
 ```quiz
 - q: >-
     A service handles 50,000 reads per second with a 98% cache hit ratio. A deploy changes the cache key format and the hit ratio drops to 60% for twenty minutes. By how much does database read load change?
-  options: ["It stays near 1,000 per second, since misses refill the cache", "It rises twentyfold, from 1,000 to 20,000 queries per second", "It rises by about 40%, from 1,000 to 1,400 queries per second", "It roughly doubles, from 1,000 to 2,000 queries per second"]
-  answer: 1
+  options: ["It stays near 1,000 per second, since misses refill the cache", "It roughly doubles, from 1,000 to 2,000 queries per second", "It rises by about 40%, from 1,000 to 1,400 queries per second", "It rises twentyfold, from 1,000 to 20,000 queries per second"]
+  answer: 3
   explanation: >-
     Database load is proportional to the miss ratio, not the hit ratio: 2% of 50,000 is 1,000; 40% is 20,000. Refilling does not help while every new key format starts cold. Small changes in hit ratio are large changes in miss ratio, which is why key-format changes and cold starts need planning.
 - q: >-
     In cache-aside, why should the write path delete the key rather than set the new value?
-  options: ["Concurrent SETs can land in another order than the commits did", "Redis cannot overwrite a key that already has a TTL attached", "Setting a value would reset and so bypass the key's jittered TTL", "Deleting is cheaper than setting, since no value is serialised"]
-  answer: 0
+  options: ["Deleting is cheaper than setting, since no value is serialised", "Setting a value would reset and so bypass the key's jittered TTL", "Redis cannot overwrite a key that already has a TTL attached", "Concurrent SETs can land in another order than the commits did"]
+  answer: 3
   explanation: >-
     Two concurrent writers can commit in one order and set the cache in the other, and the loser's value sticks until the TTL expires, though the database no longer has it. A delete is idempotent and order-independent: it leaves the cache empty whatever the order, and the next reader fills it from the database.
 - q: >-
@@ -302,8 +302,8 @@ Size the cache from the working set, watch the hit ratio and the eviction rate, 
     Until COMMIT, other transactions see the old row under MVCC. Deleting inside the transaction opens a window in which another request misses, reads the last committed (old) price and fills the cache; the commit then lands behind a stale entry. Invalidate after the commit, ideally from the WAL via CDC.
 - q: >-
     How do memcache-style leases prevent the stale-fill race?
-  options: ["They lock the database row until the reader has filled the cache", "They route every fill to the primary, so no fill reads old data", "They make every cache entry expire after it has been read once", "A delete revokes the miss token, so the late fill is rejected"]
-  answer: 3
+  options: ["A delete revokes the miss token, so the late fill is rejected", "They route every fill to the primary, so no fill reads old data", "They lock the database row until the reader has filled the cache", "They make every cache entry expire after it has been read once"]
+  answer: 0
   explanation: >-
     A reader gets a token on a miss; any delete of the key invalidates outstanding tokens, and a fill with an invalidated token is rejected. The lease ties a fill to the absence of any intervening invalidation, so a reader that loaded data before a write cannot install it afterwards; the next reader misses and loads the new value. Leases also let the cache limit refills per key, which mitigates stampedes.
 - q: >-

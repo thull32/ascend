@@ -226,32 +226,32 @@ hints:
 ```quiz
 - q: >-
     You have written Java daily for five years but have solved only a handful of problems in Python. Your onsite is in three weeks and nothing mandates a language. What is the strongest choice?
-  options: ["Whichever language the interviewer uses, so they can follow your code", "Java, because your fluency outweighs Python's brevity on this timeline", "Rust, because an unusual choice signals depth and helps you stand out", "Python, because its shorter solutions leave more time for testing"]
-  answer: 1
+  options: ["Rust, because an unusual choice signals depth and helps you stand out", "Python, because its shorter solutions leave more time for testing", "Whichever language the interviewer uses, so they can follow your code", "Java, because your fluency outweighs Python's brevity on this timeline"]
+  answer: 3
   explanation: >-
     Brevity only pays when the idioms are automatic. Three weeks is not enough to make Python fluent, while Java's TreeMap, PriorityQueue and ArrayDeque are already in your fingers. The interviewer's own language does not matter for general rounds, and an unfamiliar language adds risk rather than signal.
 - q: >-
     In JavaScript you implement BFS with `queue.shift()` on a grid of 1,000 × 1,000 cells. What is the risk?
-  options: ["The array cannot hold a million elements, so pushes start to fail", "shift() is O(n) in general, so BFS can degrade toward quadratic time", "BFS needs a priority queue, so the visit order will be wrong", "None, because modern engines make shift() O(1) for arrays of any size"]
-  answer: 1
+  options: ["None, because modern engines make shift() O(1) for arrays of any size", "The array cannot hold a million elements, so pushes start to fail", "shift() is O(n) in general, so BFS can degrade toward quadratic time", "BFS needs a priority queue, so the visit order will be wrong"]
+  answer: 2
   explanation: >-
     Removing the first element shifts the rest in the general case, and engines do not guarantee otherwise. With up to a million entries that can be catastrophic. A head index into the array, or a ring buffer, keeps each dequeue O(1).
 - q: >-
     A Java candidate writes the heap comparator `(a, b) -> a[0] - b[0]`. Which input breaks it?
-  options: ["Arrays with duplicate first elements, where the comparator returns zero for both", "Integer.MAX_VALUE with a negative number, where the subtraction overflows", "An empty heap, where the comparator is called on null array references", "More than 2^16 elements, where the comparator's result is truncated"]
-  answer: 1
+  options: ["Arrays with duplicate first elements, where the comparator returns zero for both", "An empty heap, where the comparator is called on null array references", "Integer.MAX_VALUE with a negative number, where the subtraction overflows", "More than 2^16 elements, where the comparator's result is truncated"]
+  answer: 2
   explanation: >-
     MAX_VALUE - (-5) overflows to a negative number, so the comparator reports MAX_VALUE as smaller and inverts the order. Integer.compare avoids the arithmetic entirely. Returning zero for equal keys is correct behaviour, and an empty heap never calls the comparator.
 - q: >-
     Your interview problem needs "the largest timestamp at most t" with interleaved inserts, and you are using Python. What is the best response?
-  options: ["Use a dict and scan every key on each query, since n is probably small", "Use bisect on a sorted list and state that each insert costs O(n)", "Use heapq, whose smallest-first order answers floor queries directly", "Switch to Java mid-interview to get TreeMap's floorKey in O(log n)"]
-  answer: 1
+  options: ["Use a dict and scan every key on each query, since n is probably small", "Use heapq, whose smallest-first order answers floor queries directly", "Use bisect on a sorted list and state that each insert costs O(n)", "Switch to Java mid-interview to get TreeMap's floorKey in O(log n)"]
+  answer: 2
   explanation: >-
     Python's standard library has no ordered map. Using bisect, naming its O(n) insert cost from list shifting, and saying a balanced tree or sortedcontainers would make inserts O(log n) shows you know the trade-off. A heap only exposes its minimum, so it cannot answer floor queries, and a silent linear scan hides the cost.
 - q: >-
     Mid-interview you forget the exact name of the method you need. What does a senior candidate do?
-  options: ["Ask to restart in another language whose standard library you know better", "Say what the call does, write a best guess, and check it during testing", "Switch to a brute-force approach that avoids needing the method at all", "Spend a few minutes recalling it, since exact API knowledge is part of the score"]
-  answer: 1
+  options: ["Switch to a brute-force approach that avoids needing the method at all", "Spend a few minutes recalling it, since exact API knowledge is part of the score", "Say what the call does, write a best guess, and check it during testing", "Ask to restart in another language whose standard library you know better"]
+  answer: 2
   explanation: >-
     Interviewers assess problem solving and communication, not recall of method names. Naming the intent and writing a best guess or a clearly named helper keeps momentum, and most interviewers will simply confirm the API.
 ```

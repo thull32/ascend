@@ -186,32 +186,32 @@ A central L7 balancer wins when the clients are browsers or untrusted, when you 
 ```quiz
 - q: >-
     A service receives 3,000 requests per second with an average latency of 40 ms. Roughly how many requests are in flight at any moment?
-  options: ["About 1,200", "About 120", "About 12", "About 75"]
-  answer: 1
+  options: ["About 120", "About 12", "About 1,200", "About 75"]
+  answer: 0
   explanation: >-
     Little's law: L = λW = 3,000 x 0.04 = 120. This is the number of threads or connections the fleet needs to have available before requests start queueing; 12 would forget the unit conversion, 1,200 would be latency of 400 ms.
 - q: >-
     Your gRPC clients each hold one long-lived HTTP/2 connection through an L4 load balancer to a fleet of 10 replicas. Per-replica load varies 8x. Why?
-  options: ["gRPC pins each method to one replica for ordering guarantees", "L4 balances connections, so a client's requests all hit one replica", "Round robin skips replicas that are slow to accept connections", "The replicas have different CPU speeds, so they drain at uneven rates"]
-  answer: 1
+  options: ["The replicas have different CPU speeds, so they drain at uneven rates", "Round robin skips replicas that are slow to accept connections", "L4 balances connections, so a client's requests all hit one replica", "gRPC pins each method to one replica for ordering guarantees"]
+  answer: 2
   explanation: >-
     An L4 balancer places connections, not requests, and cannot see individual multiplexed requests. Once a connection lands, every request on it goes to that replica, so load follows the client population. Fixes are L7 balancing or client-side balancing with a maximum connection age. Uneven CPU speeds would not produce an 8x spread across identical replicas.
 - q: >-
     Your health check verifies that the replica can query the database. The database has a 3-second hiccup. What most likely happens?
-  options: ["Every replica fails its check at once and the whole fleet is ejected", "The balancer marks the database unhealthy and routes around it", "Only replicas that were mid-query fail their checks and are removed", "Nothing; a 3-second blip ends before the next check can see it"]
-  answer: 0
+  options: ["Nothing; a 3-second blip ends before the next check can see it", "The balancer marks the database unhealthy and routes around it", "Only replicas that were mid-query fail their checks and are removed", "Every replica fails its check at once and the whole fleet is ejected"]
+  answer: 3
   explanation: >-
     Deep health checks share a failure domain: a dependency blip fails every check at once and the balancer ejects everything, so the site is down until checks pass again. Use a shallow liveness check for the balancer and reserve deep checks for gating new replicas' readiness. The balancer knows nothing about the database; it only sees replicas failing.
 - q: >-
     Which autoscaling configuration is most likely to oscillate?
-  options: ["Scale out at 60% and scale in at 55%, with no cooldown", "Scale out by 50% per step, scale in by 10% per step", "Scale out at 60% utilisation, scale in at 30%, 10-minute scale-in cooldown", "Scale out on request concurrency, scale in on CPU"]
-  answer: 0
+  options: ["Scale out at 60% utilisation, scale in at 30%, 10-minute scale-in cooldown", "Scale out on request concurrency, scale in on CPU", "Scale out at 60% and scale in at 55%, with no cooldown", "Scale out by 50% per step, scale in by 10% per step"]
+  answer: 2
   explanation: >-
     Close thresholds and no cooldown mean each scaling action flips the metric across the other threshold, so the fleet grows and shrinks continuously, destroying warm caches. Separated thresholds, asymmetric step sizes and slow scale-in are the standard hysteresis.
 - q: >-
     You double the number of stateless replicas and p99 latency gets worse. The most likely explanation is:
-  options: ["The load balancer's per-replica bookkeeping now dominates latency", "The new replicas are running a different, slower code version", "The shared database was the real bottleneck and is now overloaded", "A too-short autoscaling cooldown is now churning the replicas"]
-  answer: 2
+  options: ["A too-short autoscaling cooldown is now churning the replicas", "The new replicas are running a different, slower code version", "The load balancer's per-replica bookkeeping now dominates latency", "The shared database was the real bottleneck and is now overloaded"]
+  answer: 3
   explanation: >-
     Horizontal scaling of the stateless tier moves the bottleneck to shared components: the added connections and cold-cache misses push the database past its limit. If adding capacity does not help, the constraint is downstream, and the fixes are caching, pooling, read replicas and vertical scaling of the database before partitioning. Balancer overhead per replica is negligible at this scale.
 ```

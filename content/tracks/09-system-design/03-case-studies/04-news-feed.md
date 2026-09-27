@@ -244,14 +244,14 @@ Posts and the graph are written in the author's home region and replicated async
 ```quiz
 - q: >-
     Peak is 3,000 posts/s with an average of 300 followers per account. A single account has 100 million followers. What does the arithmetic say about pure fan-out on write?
-  options: ["It is fine, because 900,000 inserts/s fits a Redis cluster's capacity", "The average is fine, but one post from the top account swamps the fleet", "The post store, not fan-out, is the bottleneck at 3,000 writes/s", "Push is always cheaper than pull, so fan out on write for every account"]
-  answer: 1
+  options: ["It is fine, because 900,000 inserts/s fits a Redis cluster's capacity", "The post store, not fan-out, is the bottleneck at 3,000 writes/s", "The average is fine, but one post from the top account swamps the fleet", "Push is always cheaper than pull, so fan out on write for every account"]
+  answer: 2
   explanation: >-
     The average hides the tail. 900,000 inserts/s is manageable, but one post from the largest account is 100 million inserts, more than 100 seconds of the entire fan-out capacity, which blows the lag target for everyone else. That is why accounts above a derived threshold are pulled at read time. Storing 3,000 posts/s is the easy part.
 - q: >-
     Why is the celebrity pull path cheap on the read side in the hybrid design?
-  options: ["Each celebrity's list sits in one shared cache key that all readers hit", "Celebrity posts are served from the CDN, so the feed service skips them", "Celebrities post rarely, so their lists almost never need refreshing", "The celebrity set is small enough to hold in every instance's memory"]
-  answer: 3
+  options: ["The celebrity set is small enough to hold in every instance's memory", "Each celebrity's list sits in one shared cache key that all readers hit", "Celebrity posts are served from the CDN, so the feed service skips them", "Celebrities post rarely, so their lists almost never need refreshing"]
+  answer: 0
   explanation: >-
     50,000 accounts x 50 IDs x 16 bytes is about 40 MB, small enough to replicate into every feed-service process. The pull becomes an in-memory k-way merge with no network hop, instead of hundreds of remote lookups. A single shared cache key per celebrity is exactly the hot key the design avoids.
 - q: >-
@@ -262,14 +262,14 @@ Posts and the graph are written in the author's home region and replicated async
     Filtering at hydration is one write plus a cache invalidation, and a small synchronous denylist covers urgent legal takedowns where the cache TTL is too slow. Removing an ID from millions of timelines is fan-out for every delete, and it races with the original fan-out. Ageing out alone would show deleted content for days.
 - q: >-
     A user posts and immediately refreshes, but fan-out has a 3-second lag. How does the design guarantee they see their own post?
-  options: ["Fan-out writes to the author's own timeline synchronously before 201", "It can't; with async fan-out the user must wait out the 3-second lag", "The feed service merges the viewer's own recent posts into every load", "The client caches the post locally and prepends it until fan-out lands"]
-  answer: 2
+  options: ["Fan-out writes to the author's own timeline synchronously before 201", "The feed service merges the viewer's own recent posts into every load", "It can't; with async fan-out the user must wait out the 3-second lag", "The client caches the post locally and prepends it until fan-out lands"]
+  answer: 1
   explanation: >-
     Merging your own recent posts from user_posts at read time makes read-your-writes hold by construction, for one extra small partition read. A synchronous self-insert helps too, but it is a second write path that can fail independently. Client-only caching breaks across devices.
 - q: >-
     Feed pagination uses ?page=2 with 20 items per page. Seven new posts arrive between page 1 and page 2. What does the user see, and what is the fix?
-  options: ["Seven older items are skipped on page 2; fetch with a larger page size", "Nothing, because the offset is taken against the timeline at page 1", "Seven page-1 items repeat on page 2; use a cursor over a ranked snapshot", "Page 2 shows the seven new posts first; re-rank each page separately"]
-  answer: 2
+  options: ["Page 2 shows the seven new posts first; re-rank each page separately", "Seven page-1 items repeat on page 2; use a cursor over a ranked snapshot", "Nothing, because the offset is taken against the timeline at page 1", "Seven older items are skipped on page 2; fetch with a larger page size"]
+  answer: 1
   explanation: >-
     Offsets are relative to a list that changed underneath them, so the new items push old ones down: the last seven items of page 1 reappear at the top of page 2. Nothing is skipped; items are repeated. A cursor says continue after this item (within this ranked snapshot), which is stable as the head of the feed grows.
 ```

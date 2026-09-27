@@ -249,32 +249,32 @@ hints:
 ```quiz
 - q: >-
     A recursive function makes 4 calls on inputs of size n/2 and does O(n) work to combine. What is its complexity?
-  options: ["O(n)", "O(n log n)", "O(n^1.585)", "O(n²)"]
-  answer: 3
+  options: ["O(n²)", "O(n log n)", "O(n^1.585)", "O(n)"]
+  answer: 0
   explanation: >-
     log₂ 4 = 2, so the leaves contribute n². The combine f(n) = n is polynomially smaller, case 1, so the leaves dominate and the total is Θ(n²). Four half-size subproblems is exactly what naive divide-and-conquer multiplication does, which is why it gains nothing.
 - q: >-
     Merge sort implemented with `a[:mid]` slices in Python is still O(n log n), but binary search implemented with slices becomes O(n). Why the difference?
-  options: ["Merge sort frees each slice after merging, while binary search keeps every slice alive in memory", "Merge sort slices only at the top level; its deeper calls reuse the same list objects", "Merge sort already does O(n) per call, so the slice is absorbed; binary search did O(1)", "Merge sort splits the slice cost across its two calls, so each call pays only O(n/2)"]
-  answer: 2
+  options: ["Merge sort already does O(n) per call, so the slice is absorbed; binary search did O(1)", "Merge sort splits the slice cost across its two calls, so each call pays only O(n/2)", "Merge sort frees each slice after merging, while binary search keeps every slice alive in memory", "Merge sort slices only at the top level; its deeper calls reuse the same list objects"]
+  answer: 0
   explanation: >-
     The recurrence's f(n) term absorbs the slice cost. For merge sort f(n) goes from n to 2n (same class), because the merge was already linear. For binary search it goes from 1 to n, turning T(n) = T(n/2) + O(1) into T(n/2) + O(n) = O(n). Sharing the cost between two calls is not the reason: every call on n elements pays O(n) for its own slices, and that only hurts when f(n) was smaller than O(n).
 - q: >-
     During a merge, `left = [2, 4, 7]` and `right = [1, 5, 6]`, and `right[0] = 1` is taken first. How many inversions does that single step account for?
-  options: ["1", "2", "3", "0"]
-  answer: 2
+  options: ["0", "1", "2", "3"]
+  answer: 3
   explanation: >-
     Every element still remaining in the left half (2, 4, 7) is greater than 1 and preceded it in the original array, so 3 inversions are found at once. That is why the count is len(left) − i, not 1, and why nothing needs to be counted separately at the end.
 - q: >-
     Which recurrence does the master theorem NOT directly solve?
-  options: ["T(n) = T(n − 1) + n", "T(n) = 7T(n/2) + n²", "T(n) = 2T(n/2) + n", "T(n) = T(n/2) + 1"]
+  options: ["T(n) = T(n − 1) + n", "T(n) = T(n/2) + 1", "T(n) = 2T(n/2) + n", "T(n) = 7T(n/2) + n²"]
   answer: 0
   explanation: >-
     The theorem needs a split by a constant factor b > 1. Subtracting one is not a divide-and-conquer shape; the recursion tree has n levels of decreasing linear work, summing to Θ(n²), and the 'recursion' is really a loop.
 - q: >-
     The divide-and-conquer maximum-subarray algorithm is O(n log n) while Kadane's is O(n). Why is the slower one still worth knowing?
-  options: ["It handles all-negative arrays, which Kadane's single pass cannot do without a fix", "Its recursion has better cache locality than Kadane's pass, so it is faster in practice", "It uses O(log n) stack space, less than the O(n) table Kadane's algorithm needs", "Its per-segment summaries are what a segment tree stores, enabling range queries"]
-  answer: 3
+  options: ["Its per-segment summaries are what a segment tree stores, enabling range queries", "Its recursion has better cache locality than Kadane's pass, so it is faster in practice", "It handles all-negative arrays, which Kadane's single pass cannot do without a fix", "It uses O(log n) stack space, less than the O(n) table Kadane's algorithm needs"]
+  answer: 0
   explanation: >-
     Kadane is a single pass with no structure to reuse. The divide-and-conquer decomposition (best-left, best-right, best-crossing per segment) is precisely the information a segment tree node holds, which lets you answer maximum-subarray queries on arbitrary ranges after point updates in O(log n). Kadane's needs no table (O(1) extra space), handles all-negative input when initialised with the first element, and a single sequential pass is as cache-friendly as code gets.
 ```

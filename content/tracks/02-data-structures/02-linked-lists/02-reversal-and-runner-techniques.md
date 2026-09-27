@@ -258,26 +258,26 @@ hints:
 ```quiz
 - q: >-
     In iterative reversal, what happens if `curr.next = prev` is executed before saving `curr.next`?
-  options: ["The loop never ends, since the first node now points back at itself", "The loop ends after one node, and the rest of the list is unreachable", "Only the last node is lost, since nxt is read one iteration late", "The list is reversed correctly, since prev still holds the old successor"]
-  answer: 1
+  options: ["The loop ends after one node, and the rest of the list is unreachable", "The list is reversed correctly, since prev still holds the old successor", "The loop never ends, since the first node now points back at itself", "Only the last node is lost, since nxt is read one iteration late"]
+  answer: 0
   explanation: >-
     Overwriting `curr.next` discards the only reference to the remainder. `nxt` would then be read from the already-rewired pointer (prev, which is None on the first iteration), so `curr` becomes `None` after one iteration and the loop exits with the tail lost. No self-loop is created, because the node is pointed at prev, not at itself.
 - q: >-
     With `slow = fast = head` and `while fast and fast.next`, what does `slow` point to for the list 1 → 2 → 3 → 4?
-  options: ["4, the tail node", "2, the first middle node", "3, the second middle", "1, the head node"]
-  answer: 2
+  options: ["3, the second middle", "1, the head node", "2, the first middle node", "4, the tail node"]
+  answer: 0
   explanation: >-
     Steps: (1,1) → (2,3) → (3,None). The loop exits with slow at 3. Starting fast at head.next, or using `while fast.next and fast.next.next`, yields the first middle (2), which is what list-splitting for merge sort usually wants.
 - q: >-
     Why is recursive list reversal a poor choice for a list of 100,000 nodes in Python?
-  options: ["It is O(n²), since each call walks the remaining sublist to find its end", "Python lacks tail-call optimisation, which makes it O(n log n) time", "Recursion cannot reassign `next`, so it must copy every node it visits", "Each node adds a stack frame, exceeding the ~1,000-frame recursion limit"]
-  answer: 3
+  options: ["Each node adds a stack frame, exceeding the ~1,000-frame recursion limit", "Python lacks tail-call optimisation, which makes it O(n log n) time", "Recursion cannot reassign `next`, so it must copy every node it visits", "It is O(n²), since each call walks the remaining sublist to find its end"]
+  answer: 0
   explanation: >-
     The recursion depth equals the list length. The algorithm is O(n) time, but O(n) stack space, and Python raises RecursionError long before 100,000 frames. The missing tail-call optimisation is why the depth is a problem, but it does not change the time complexity. Iteration uses O(1) space.
 - q: >-
     To delete the nth node from the end with two pointers in one pass, why start `trail` at a sentinel rather than at the head?
-  options: ["So `trail` lands on the target itself, which can then be unlinked directly", "So `lead` is not needed, since the sentinel marks where counting starts", "Because the head might be null, and the sentinel avoids a null check on it", "So `trail` ends just before the target, even when the target is the head"]
-  answer: 3
+  options: ["Because the head might be null, and the sentinel avoids a null check on it", "So `trail` lands on the target itself, which can then be unlinked directly", "So `trail` ends just before the target, even when the target is the head", "So `lead` is not needed, since the sentinel marks where counting starts"]
+  answer: 2
   explanation: >-
     Deletion in a singly linked list needs the predecessor, not the target itself. With `trail` starting at the sentinel it ends one node behind the target; when n equals the length, the head's predecessor is the sentinel and `sentinel.next` is rewired with no special case.
 - q: >-

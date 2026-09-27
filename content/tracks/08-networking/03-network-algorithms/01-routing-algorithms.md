@@ -193,32 +193,32 @@ Because BGP will happily accept the same prefix from many origins, a service can
 ```quiz
 - q: >-
     In an OSPF area, a link fails. Which of the following most directly determines how long until every router forwards around it?
-  options: ["The RIP-style count-to-infinity bound of 16", "The number of ASes in the route's AS_PATH", "The hello dead interval plus the SPF hold-down", "The 30-second periodic distance-vector update"]
-  answer: 2
+  options: ["The number of ASes in the route's AS_PATH", "The 30-second periodic distance-vector update", "The RIP-style count-to-infinity bound of 16", "The hello dead interval plus the SPF hold-down"]
+  answer: 3
   explanation: >-
     Link-state convergence is detection time (hellos or BFD) plus flooding plus the deliberate SPF delay; the algorithm itself is not the bottleneck. The 30 s update and the 16 cap belong to RIP, and AS_PATH belongs to BGP.
 - q: >-
     Why does adding the full AS path to a route advertisement eliminate count-to-infinity?
-  options: ["A router drops routes whose path already has it", "It makes the metric additive, so Bellman-Ford converges", "It shortens the interval between routing updates", "It forces every router to run Dijkstra on one shared map"]
-  answer: 0
+  options: ["It forces every router to run Dijkstra on one shared map", "A router drops routes whose path already has it", "It shortens the interval between routing updates", "It makes the metric additive, so Bellman-Ford converges"]
+  answer: 1
   explanation: >-
     Count-to-infinity happens because a distance vector has no provenance, so R3 cannot tell that R2's route to N goes through R3. The AS_PATH is exactly that provenance: a router that sees its own AS in it knows the route loops through itself and discards it, so stale routes cannot be re-learned. Nobody runs Dijkstra on a shared map in BGP.
 - q: >-
     Two routes to the same prefix arrive at a BGP router. Route X has AS_PATH length 2 and LOCAL_PREF 100 (learned from a transit provider). Route Y has AS_PATH length 5 and LOCAL_PREF 200 (learned from a paying customer). Which is installed?
-  options: ["Both, load-shared across them with ECMP", "X, because a shorter AS_PATH means lower latency", "Y, because LOCAL_PREF is compared before AS_PATH", "Whichever of the two routes arrived first"]
-  answer: 2
+  options: ["Y, because LOCAL_PREF is compared before AS_PATH", "Both, load-shared across them with ECMP", "Whichever of the two routes arrived first", "X, because a shorter AS_PATH means lower latency"]
+  answer: 0
   explanation: >-
     LOCAL_PREF is the first rung of the decision ladder and encodes business policy (customer routes earn money). AS_PATH length only breaks ties among equal LOCAL_PREF, and it never measured latency anyway. BGP multipath across different AS paths is not the default.
 - q: >-
     A four-link ECMP bundle between two data centres shows one link at 95% and the others at 20%. The most likely cause is:
-  options: ["A few elephant flows hashed onto the same link", "LSA sequence numbers wrapped and froze the link costs", "The RIP hop limit was reached on three of the links", "Dijkstra picked the wrong shortest path for the bundle"]
-  answer: 0
+  options: ["Dijkstra picked the wrong shortest path for the bundle", "The RIP hop limit was reached on three of the links", "LSA sequence numbers wrapped and froze the link costs", "A few elephant flows hashed onto the same link"]
+  answer: 3
   explanation: >-
     ECMP keys each flow to one link by hashing the 5-tuple so packets do not reorder. It balances flows, not bytes, so load is even only in expectation over many similar flows; a handful of very large flows can pile onto one link. The fix is more, smaller flows or flowlet-aware hashing, not a routing change.
 - q: >-
     A network announces a /24 that sits inside another organisation's /22 and traffic for that /24 is pulled worldwide within minutes. Which mechanism is responsible for the speed and reach, and what stops it?
-  options: ["Anycast spreads it; the MED attribute stops it", "Longest-prefix match spreads it; RPKI stops it", "Count-to-infinity spreads it; poison reverse stops it", "OSPF flooding spreads it; split horizon stops it"]
-  answer: 1
+  options: ["OSPF flooding spreads it; split horizon stops it", "Count-to-infinity spreads it; poison reverse stops it", "Longest-prefix match spreads it; RPKI stops it", "Anycast spreads it; the MED attribute stops it"]
+  answer: 2
   explanation: >-
     A more-specific prefix wins longest-prefix match in every FIB where it is accepted, and BGP propagates it globally within minutes. RPKI origin validation lets routers check whether the originating AS is authorised for the prefix and drop the unauthorised announcement; it does not validate the path, so route leaks need other controls.
 ```

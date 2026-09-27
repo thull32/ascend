@@ -340,14 +340,14 @@ hints:
 ```quiz
 - q: >-
     You expect 3 x 10^10 links over five years. Why choose 7 base62 characters rather than 6?
-  options: ["6 characters give only about 5.7 x 10^9 keys, fewer than the 3 x 10^10 needed", "7 characters leave headroom for custom aliases and the reserved-word blocklist", "6 characters would be over half full, so collisions and guesses get common", "7 characters make sequential counter keys impossible to enumerate"]
-  answer: 2
+  options: ["6 characters give only about 5.7 x 10^9 keys, fewer than the 3 x 10^10 needed", "6 characters would be over half full, so collisions and guesses get common", "7 characters leave headroom for custom aliases and the reserved-word blocklist", "7 characters make sequential counter keys impossible to enumerate"]
+  answer: 1
   explanation: >-
     6 characters give about 5.7 x 10^10 keys (not 5.7 x 10^9), so they can technically hold 3 x 10^10 links; capacity is the wrong reason. At 53% density, random generation becomes retry-heavy and a guesser hits a real link about every other try. With 7 characters the space is 0.85% full, so both problems vanish. Length does nothing to stop a sequential counter being walked.
 - q: >-
     A link takes 30,000 requests/s. Your Redis cluster has 8 primaries, each good for about 100,000 ops/s. What is the real risk, and what is the fix?
-  options: ["None; the 8 primaries share the load for 800,000 ops/s of total capacity", "Redis evicts the hottest key under pressure; raise maxmemory on the cluster", "One primary takes all 30,000 ops/s; cache the key in-process with coalescing", "The link store is overloaded on misses; add read replicas behind the cache"]
-  answer: 2
+  options: ["One primary takes all 30,000 ops/s; cache the key in-process with coalescing", "Redis evicts the hottest key under pressure; raise maxmemory on the cluster", "None; the 8 primaries share the load for 800,000 ops/s of total capacity", "The link store is overloaded on misses; add read replicas behind the cache"]
+  answer: 0
   explanation: >-
     Cluster capacity is irrelevant for a single key, because one key maps to one slot on one node, so that primary gives up a third of its capacity and every other key on it queues. Caching the key in each redirect instance for 10 seconds turns 30,000 Redis reads per second into roughly one per instance per TTL, and coalescing stops the expiry moment from turning into a stampede. The key is hot, not missing, so the store is not the bottleneck.
 - q: >-
@@ -358,14 +358,14 @@ hints:
     A 301 is heuristically cacheable by browsers even without cache headers, so repeat clicks are invisible and neither a purge nor a broadcast reaches clients that cached it. A 302 without freshness information is not cached by browsers. The short in-process TTL is the backstop if an invalidation message is lost. A day-long public max-age lets browsers and proxies keep serving the link, which breaks the one-minute requirement whatever the servers are told.
 - q: >-
     Creation goes active-active across three regions on a table that replicates with last-writer-wins, and keys are random. What can go wrong?
-  options: ["Nothing; conditional puts guarantee uniqueness across all regions", "Two regions mint the same key and replication overwrites one destination", "Keys become guessable because each region draws from a smaller range", "Every insert now waits on a cross-region quorum, so creation latency triples"]
-  answer: 1
+  options: ["Every insert now waits on a cross-region quorum, so creation latency triples", "Keys become guessable because each region draws from a smaller range", "Two regions mint the same key and replication overwrites one destination", "Nothing; conditional puts guarantee uniqueness across all regions"]
+  answer: 2
   explanation: >-
     Conditional puts are only linearizable within a region. Two regions can generate the same key in the same second, both local puts succeed, and LWW replication resolves the conflict by discarding one write, which re-points a link a user has already shared. Partitioning the key space by region makes the collision impossible instead of merely unlikely.
 - q: >-
     Why does the design partition the clicks topic by producer instance and pre-aggregate, instead of keying events by short link?
-  options: ["Counting needs no ordering, and keying puts a viral link on one partition", "Keying by link drops events whenever a partition's leader fails over", "Kafka cannot use a string such as the short key as its partition key", "Pre-aggregating by producer makes the counts exact, which keyed events cannot"]
-  answer: 0
+  options: ["Keying by link drops events whenever a partition's leader fails over", "Kafka cannot use a string such as the short key as its partition key", "Counting needs no ordering, and keying puts a viral link on one partition", "Pre-aggregating by producer makes the counts exact, which keyed events cannot"]
+  answer: 2
   explanation: >-
     Counting is commutative, so keyed partitioning buys per-key ordering you do not need and concentrates a viral link's entire load on one partition and one consumer. Pre-aggregation turns 30,000 events per second into one message per instance per second. It does not make counts more exact; the design accepts losing up to 100 ms of buffered clicks per crash.
 ```

@@ -85,15 +85,15 @@ Constrained decoding supports a subset of JSON Schema, and the subset is smaller
 This app's quiz generator (`crates/core/src/ai/quiz.rs`) handles that gap in a few lines. It requests questions with a schema of `{q, options, answer, explanation}`, and its system prompt says each question has exactly four options and exactly one correct index. After parsing, it still enforces the invariant the schema could not:
 
 ```rust
-let mut quiz: GeneratedQuiz =
-    serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
+let mut quiz: GeneratedQuiz = serde_json::from_str(&completion.text)
+    .map_err(|e| AppError::ai_upstream("the quiz could not be generated; try again", e))?;
 quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());
 if quiz.questions.is_empty() {
     return Err(AppError::AiUpstream("quiz generation returned no usable questions".into()));
 }
 ```
 
-The mock-interview grader does the same with its score: the schema says `overall_score` is an integer, and the code clamps it to 0–100 after parsing. That is the division of labour to copy. The schema guarantees the parse, the code guarantees the invariants, and an eval set tells you whether the content is any good.
+The parse failure goes through `AppError::ai_upstream(public, detail)`, which logs the parser's message and shows the learner only the public sentence; an earlier version put the parse error itself in the response, and a parse error can quote the text it choked on. The mock-interview grader does the same with its score: the schema says `overall_score` is an integer, and the code clamps it to 0–100 after parsing. That is the division of labour to copy. The schema guarantees the parse, the code guarantees the invariants, and an eval set tells you whether the content is any good.
 
 Check two stop reasons before trusting the output at all. `max_tokens` means generation was cut off: every token so far was legal, but the document is incomplete. `refusal` means the model declined, and the content may not match the schema. Give both explicit handling rather than letting them surface as mysterious parse errors.
 
@@ -275,8 +275,8 @@ hints:
 ```quiz
 - q: >-
     With schema-constrained decoding, how does the provider stop the model from emitting a value outside an enum?
-  options: ["It masks the logits of tokens the schema's grammar forbids at each step", "It post-processes the output and swaps invalid values for the nearest valid one", "It retries the request in the background until the output validates", "It fine-tunes a copy of the model on your schema before serving the request"]
-  answer: 0
+  options: ["It retries the request in the background until the output validates", "It masks the logits of tokens the schema's grammar forbids at each step", "It fine-tunes a copy of the model on your schema before serving the request", "It post-processes the output and swaps invalid values for the nearest valid one"]
+  answer: 1
   explanation: >-
     The schema is compiled into a grammar that masks illegal next tokens before sampling, the same mask-and-renormalise step as top-p, so invalid continuations have zero probability. Nothing is repaired after the fact and no retries are needed for structure, but the model now picks the most probable valid value, which can still be wrong.
 - q: >-
@@ -287,20 +287,20 @@ hints:
     Constrained decoding guarantees every emitted token is legal, not that generation finished. A truncated document fails to parse or, worse, parses into a partial object in lenient parsers. Treat it as an error, then raise max_tokens or shorten the task. A refusal has its own stop reason.
 - q: >-
     A tool is declared as get_invoice(user_id, invoice_id), and the model fills in both arguments from the conversation. What is the flaw?
-  options: ["Two required parameters are too many; each tool should take one argument", "invoice_id should be declared as an integer so the model cannot invent ids", "Tools must never take ids, only natural-language descriptions of records", "The user should come from the session, not from an id the model supplies"]
+  options: ["Tools must never take ids, only natural-language descriptions of records", "Two required parameters are too many; each tool should take one argument", "invoice_id should be declared as an integer so the model cannot invent ids", "The user should come from the session, not from an id the model supplies"]
   answer: 3
   explanation: >-
     The model's arguments are untrusted input: an injected or confused model can ask for another user's invoices. Deriving the user from the authenticated session makes cross-tenant reads impossible regardless of what text the model has read; checking a model-supplied user_id against itself checks nothing. Typing invoice_id as an integer changes its format, not whose invoice it is.
 - q: >-
     The model returns one assistant message with three tool_use blocks. How do you send the results back?
-  options: ["One user message holding all three tool_result blocks, each with its own id", "Three separate user messages, one per tool_result, in the order called", "An assistant message appended after the calls, holding all three results", "Only the first result; the model will ask again for the remaining two"]
+  options: ["One user message holding all three tool_result blocks, each with its own id", "An assistant message appended after the calls, holding all three results", "Three separate user messages, one per tool_result, in the order called", "Only the first result; the model will ask again for the remaining two"]
   answer: 0
   explanation: >-
     Each tool_use must be answered by a tool_result with the matching tool_use_id in the next user message. Returning them together keeps the transcript well-formed and lets the model use all results in its next step; splitting them across several user messages breaks the alternation the API expects.
 - q: >-
     A grading schema lists "verdict" before "reasoning". Why is swapping the order likely to improve the verdicts?
-  options: ["Shorter fields should always come last so the model spends its effort early", "JSON parsers read keys alphabetically, so reasoning is always parsed before verdict", "Providers reject schemas whose last property is a short enum-like string", "Tokens are generated in order, so reasoning written first informs the verdict"]
-  answer: 3
+  options: ["Providers reject schemas whose last property is a short enum-like string", "JSON parsers read keys alphabetically, so reasoning is always parsed before verdict", "Tokens are generated in order, so reasoning written first informs the verdict", "Shorter fields should always come last so the model spends its effort early"]
+  answer: 2
   explanation: >-
     Each token is conditioned on the tokens before it. Putting reasoning first lets the conclusion depend on it; with the verdict first, the reasoning can only justify a choice already made. It is the same reason step-by-step reasoning helps in free text. Key order matters to the generator, not to the parser.
 ```

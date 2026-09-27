@@ -193,32 +193,32 @@ Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache) o
 ```quiz
 - q: >-
     Two candidates write the same correct LRU cache. Which behaviour most distinguishes the senior candidate?
-  options: ["Clarifying semantics and testing edge cases unprompted", "Finishing the same working code a few minutes faster", "Splitting the solution into more classes and interfaces", "Mentioning as many caching technologies as possible"]
+  options: ["Clarifying semantics and testing edge cases unprompted", "Finishing the same working code a few minutes faster", "Mentioning as many caching technologies as possible", "Splitting the solution into more classes and interfaces"]
   answer: 0
   explanation: >-
     Seniority shows in ownership: settling the semantics that affect correctness (does get refresh recency?), verifying without being asked (the update-existing-key case), and reasoning about trade-offs from the mechanism (the cost of locking on reads). Speed matters little once the code is correct, extra classes are over-engineering, and name-dropping without mechanism reads as shallow.
 - q: >-
     At many large companies, what role does the coding round typically play in the level decision?
-  options: ["It matters for level only when hiring new graduates", "A bar check, though weak execution can pull level down", "It alone decides the level, and other rounds confirm it", "It has no effect on level; it is a pure pass or fail"]
-  answer: 1
+  options: ["It matters for level only when hiring new graduates", "It has no effect on level; it is a pure pass or fail", "A bar check, though weak execution can pull level down", "It alone decides the level, and other rounds confirm it"]
+  answer: 2
   explanation: >-
     Level is usually driven more by system design and behavioural rounds, so the coding round is mostly a bar check, but a coding round that looks mid-level (heavy hints, messy code, needing to be led) undermines a senior case. Practical, multi-part coding rounds often assess senior signals such as structure and extensibility directly.
 - q: >-
     The interviewer asks how to make your LRU cache thread-safe. Which answer is strongest?
-  options: ["One lock serialises even gets; stripe by key if contended", "None is needed, since caches never need to be thread-safe", "Use a concurrent hash map in place of the plain dict", "Add one lock around get and put, and the job is done"]
-  answer: 0
+  options: ["Use a concurrent hash map in place of the plain dict", "One lock serialises even gets; stripe by key if contended", "None is needed, since caches never need to be thread-safe", "Add one lock around get and put, and the job is done"]
+  answer: 1
   explanation: >-
     One lock is simplest, but get mutates recency, so reads serialise too. Striping by key hash cuts contention at the price of per-stripe rather than global LRU, and production caches often approximate LRU; choose based on measured contention. That answer names the obvious solution, its hidden cost, the escalation and what it gives up. A concurrent map alone does not protect the linked list, which is where the races are.
 - q: >-
     Which is an example of gold-plating that counts against you in a 45-minute coding round?
-  options: ["Adding a pluggable eviction policy and generic types", "Validating the capacity argument in the constructor", "Extracting a helper that removes duplicated pointer logic", "Writing a one-line comment stating the list's invariant"]
-  answer: 0
+  options: ["Extracting a helper that removes duplicated pointer logic", "Writing a one-line comment stating the list's invariant", "Adding a pluggable eviction policy and generic types", "Validating the capacity argument in the constructor"]
+  answer: 2
   explanation: >-
     Unrequested generality, such as a pluggable eviction-policy interface and type parameters nobody asked for, costs time and signals a habit of over-building. Helpers that remove duplication, invariant comments, and validation at the boundary are all signs of good judgement.
 - q: >-
     In an AI-assisted coding round, what replaces "silent coding" as the key anti-signal?
-  options: ["Accepting generated code without reading or testing it", "Using the AI assistant at any point during the round", "Pointing out and correcting the assistant's mistakes", "Asking the assistant to produce a first draft of the code"]
-  answer: 0
+  options: ["Asking the assistant to produce a first draft of the code", "Accepting generated code without reading or testing it", "Using the AI assistant at any point during the round", "Pointing out and correcting the assistant's mistakes"]
+  answer: 1
   explanation: >-
     In assisted rounds you are graded on direction and verification. Using the assistant and asking it for drafts are expected; catching and explaining its mistakes is a strong positive. Accepting its output without reading, testing or being able to justify it hides your reasoning, just as silent coding does, and it risks shipping bugs.
 ```

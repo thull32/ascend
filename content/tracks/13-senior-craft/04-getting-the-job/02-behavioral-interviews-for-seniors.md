@@ -212,32 +212,32 @@ Behavioural answers improve dramatically with rehearsal out loud, and hardly at 
 ```quiz
 - q: >-
     Your answer to "tell me about a challenging project" spends two minutes on the system's architecture and history and thirty seconds on what you did. What is the most important fix?
-  options: ["Cut the situation to what the listener needs and spend most time on your decisions", "Add more technical depth to the architecture part, since depth is what impresses most", "Drop the result section, since the interviewer already knows the outcome", "Keep the context but speak faster so the action section fits in the time"]
-  answer: 0
+  options: ["Add more technical depth to the architecture part, since depth is what impresses most", "Cut the situation to what the listener needs and spend most time on your decisions", "Keep the context but speak faster so the action section fits in the time", "Drop the result section, since the interviewer already knows the outcome"]
+  answer: 1
   explanation: >-
     The action section is where the interviewer finds evidence of ownership and judgement (your decisions, the alternatives you rejected and how you influenced people), so it should be about half the answer or more. Context only matters insofar as it explains the actions. More technical detail or more speed does not fix the imbalance.
 - q: >-
     What does the "+" in STAR+ add, and why does it matter at senior level?
-  options: ["A hypothetical plan for next time, which shows you can think beyond the story", "A second example of the same competency, which shows the behaviour is consistent", "A summary of the team's contributions, which shows that you share credit generously", "Reflection on what you learned and now do differently, which shows self-awareness"]
-  answer: 3
+  options: ["Reflection on what you learned and now do differently, which shows self-awareness", "A hypothetical plan for next time, which shows you can think beyond the story", "A second example of the same competency, which shows the behaviour is consistent", "A summary of the team's contributions, which shows that you share credit generously"]
+  answer: 0
   explanation: >-
     The "+" is reflection: what you learned, what you would do differently and what you now do as a result. It shows the self-awareness that makes it safe to give someone autonomy, and it answers the most common follow-up before it is asked. It must describe a real change, not a disguised strength or a hypothetical.
 - q: >-
     An interviewer challenges you with "Wasn't that exception just creating inconsistency?" What is the strongest response?
-  options: ["Acknowledge what is fair in the concern, then explain the trade-off you made", "Agree with the concern and say you would make a different call next time", "Move on to the result, since the outcome shows the decision was right", "Defend the decision firmly and explain why the interviewer's concern is mistaken"]
-  answer: 0
+  options: ["Agree with the concern and say you would make a different call next time", "Defend the decision firmly and explain why the interviewer's concern is mistaken", "Move on to the result, since the outcome shows the decision was right", "Acknowledge what is fair in the concern, then explain the trade-off you made"]
+  answer: 3
   explanation: >-
     Challenges test whether you can hold a reasoned position and still hear criticism. Conceding the fair part and then explaining the trade-off, including how you limited its cost, shows both. Defensiveness is the most common way to fail this part, and abandoning a sound decision under mild pressure suggests weak judgement.
 - q: >-
     Which story shows senior scope most clearly?
-  options: ["You wrote more tests than anyone else on your team for two quarters running", "You got three teams to agree on test ownership, ending two lost release days each month", "You fixed a flaky test that had been annoying your whole team for several months", "You attended a testing conference and ran a session sharing the notes across your org"]
-  answer: 1
+  options: ["You got three teams to agree on test ownership, ending two lost release days each month", "You wrote more tests than anyone else on your team for two quarters running", "You attended a testing conference and ran a session sharing the notes across your org", "You fixed a flaky test that had been annoying your whole team for several months"]
+  answer: 0
   explanation: >-
     Senior stories involve influence beyond your own team, a problem framed in business terms, and a measurable outcome. Fixing a flaky test is a good task but a mid-level scope; writing the most tests or sharing conference notes shows effort rather than impact.
 - q: >-
     Your honest stories feel too small for a senior role. What should you do?
-  options: ["Shift preparation to coding and design, where small stories matter less", "Check first whether you are underselling your scope; if not, go and gain more", "Inflate your role slightly, since interviewers expect some exaggeration anyway", "Combine several real stories into one composite that shows the scope you need"]
-  answer: 1
+  options: ["Shift preparation to coding and design, where small stories matter less", "Inflate your role slightly, since interviewers expect some exaggeration anyway", "Combine several real stories into one composite that shows the scope you need", "Check first whether you are underselling your scope; if not, go and gain more"]
+  answer: 3
   explanation: >-
     Most candidates undersell their scope by leaving out the influence, decisions and numbers, so check that first. Composite or inflated stories collapse under multi-level follow-ups and are an integrity problem. If the scope genuinely is small, treat it as a sign you need more scope before the move; the honest fix is to gain it.
 ```

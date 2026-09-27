@@ -60,7 +60,7 @@ negative.
 
 One detail changes how you should behave. In a coding interview, each of your turns sends the interviewer your current editor code (in a separate block labelled as data from the candidate, not instructions), but its conversation history contains only the interviewer's and your messages, not your assistant chat. During the interview, it knows what you asked the assistant and what you checked only if you say so. **Narrate.** The grader, afterwards, sees everything.
 
-**Grading.** When you press *End & get feedback*, an interview with fewer than two of your messages is marked abandoned rather than graded. Otherwise a separate reviewer, prompted as a hiring committee member holding the senior bar ("a 'hire' means you would trust this person to own a critical system"), reads the whole transcript, including assistant exchanges, and your final code. It returns a structured report, constrained by a JSON schema so every report has the same shape:
+**Grading.** When you press *End & get feedback*, an interview with fewer than two of your messages is marked abandoned rather than graded. Let the last reply finish first: once the interview has ended its transcript is frozen, so a reply still streaming at that moment is not saved and the grader never reads it. (An earlier version appended such late replies to a transcript that had already been graded, so the stored record no longer matched the report beside it.) Otherwise a separate reviewer, prompted as a hiring committee member holding the senior bar ("a 'hire' means you would trust this person to own a critical system"), reads the whole transcript, including assistant exchanges, and your final code. It returns a structured report, constrained by a JSON schema so every report has the same shape:
 
 - A score from 1 to 5 on each dimension. For coding: problem understanding and clarification; algorithmic approach and complexity; code quality and correctness; testing and edge cases; communication.
 - In assisted mode, an extra dimension, **AI direction and verification**, which the reviewer is told to weigh heavily: did you verify, test and critique assistant output rather than accept it blindly?
@@ -146,32 +146,32 @@ Alternate solo and assisted runs of the same kind of problem and compare the rep
 ```quiz
 - q: >-
     In an AI-assisted coding round, what is the interviewer primarily evaluating beyond the fundamentals?
-  options: ["Whether you can get the assistant to produce the answer fastest", "How fast you type once you have settled on an approach", "How well you direct, verify and critique the assistant's output", "How few prompts you need to send before the tests pass"]
-  answer: 2
+  options: ["How well you direct, verify and critique the assistant's output", "How fast you type once you have settled on an approach", "How few prompts you need to send before the tests pass", "Whether you can get the assistant to produce the answer fastest"]
+  answer: 0
   explanation: >-
     With an assistant available, typing is cheap and speed to an answer says little. The signal is in direction (precise specs), verification (reading, tracing, testing) and critique (catching and rejecting bad output), on top of understanding, approach, testing and communication.
 - q: >-
     In this app's assisted mode, what can the interviewer see during the session?
-  options: ["Your messages and current editor code, but not your assistant chat", "Everything, including your assistant chat, streamed to it in real time", "Your code plus a summary of your assistant chat added after each turn", "Only your messages; your code reaches it only at the end"]
-  answer: 0
+  options: ["Only your messages; your code reaches it only at the end", "Everything, including your assistant chat, streamed to it in real time", "Your messages and current editor code, but not your assistant chat", "Your code plus a summary of your assistant chat added after each turn"]
+  answer: 2
   explanation: >-
     Each turn sends your current editor code, and the interviewer's history contains only interviewer and candidate messages. The assistant exchanges are stored in the transcript and read by the grader afterwards, so during the session the interviewer knows what you asked the assistant only if you say so. Narrate what you asked and what you checked.
 - q: >-
     You are unsure whether the input intervals can be empty. Whom should you ask?
-  options: ["The interviewer, who holds the real constraints", "Nobody; assume the common case and move on", "The problem statement, by inferring from its examples", "The assistant, since it has read the problem too"]
-  answer: 0
+  options: ["The assistant, since it has read the problem too", "The interviewer, who holds the real constraints", "The problem statement, by inferring from its examples", "Nobody; assume the common case and move on"]
+  answer: 1
   explanation: >-
     The interviewer holds the real constraints and is evaluating your clarification. The assistant would answer confidently with an invented constraint, and assuming or inferring silently skips a dimension on the rubric.
 - q: >-
     The assistant's merge function calls intervals.sort() and merges only when start < end. Your spec said do not mutate the input and touching intervals merge. What is the strongest move?
-  options: ["Quietly rewrite the function yourself so the interviewer sees clean code", "Accept it, since the visible tests pass and the interviewer saw them run", "Ask the assistant to regenerate it with your spec until the tests go green", "Name both bugs aloud, fix them with sorted() and <=, and add tests for each"]
-  answer: 3
+  options: ["Quietly rewrite the function yourself so the interviewer sees clean code", "Accept it, since the visible tests pass and the interviewer saw them run", "Name both bugs aloud, fix them with sorted() and <=, and add tests for each", "Ask the assistant to regenerate it with your spec until the tests go green"]
+  answer: 2
   explanation: >-
     Catching, explaining and fixing the assistant's bugs, then locking them down with tests, demonstrates verification and critique directly. Passing visible tests proves nothing about the two cases they do not cover, regenerating hides your reasoning, and silently rewriting throws away the chance to show it.
 - q: >-
     Why does it matter that this app rejects assistant requests for solo interviews on the server rather than only hiding the button?
-  options: ["The browser cannot store the mode, so the lock would reset on every reload", "It keeps the timer accurate, because the server owns the interview time box", "A hidden button can be bypassed via the API, so a solo grade means little", "Server-side checks save AI tokens, which matters more than the interface"]
-  answer: 2
+  options: ["The browser cannot store the mode, so the lock would reset on every reload", "Server-side checks save AI tokens, which matters more than the interface", "It keeps the timer accurate, because the server owns the interview time box", "A hidden button can be bypassed via the API, so a solo grade means little"]
+  answer: 3
   explanation: >-
     Controls that matter are enforced where the client cannot change them. A solo report is only meaningful if the assistant was actually unavailable; saving tokens is a side effect, not the reason. The same principle made the app refuse coach requests during a solo interview, and it is why agent permissions are enforced with credentials rather than instructions.
 ```

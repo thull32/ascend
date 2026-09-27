@@ -222,32 +222,32 @@ They converged on the same ideas: immutable data files, a log or tree of metadat
 ```quiz
 - q: >-
     A 2 TB Parquet table is filtered with WHERE user_id = 12345. Reads touch almost every row group even though only 30 rows match. What is the most likely reason and fix?
-  options: ["user_id is unclustered; sort on it or add a Bloom filter", "Parquet cannot prune on integer columns; convert to ORC", "Snappy compression blocks predicate pushdown; use zstd", "The query lacks a LIMIT, so every row group is scanned"]
-  answer: 0
+  options: ["Snappy compression blocks predicate pushdown; use zstd", "Parquet cannot prune on integer columns; convert to ORC", "user_id is unclustered; sort on it or add a Bloom filter", "The query lacks a LIMIT, so every row group is scanned"]
+  answer: 2
   explanation: >-
     Min/max pruning only works when a row group's range can exclude the value. Random user_ids give every row group a range spanning almost all ids, so every range contains 12345. Clustering by user_id narrows the ranges; a Bloom filter answers point lookups directly. Compression and file format are not the problem.
 - q: >-
     Two Spark jobs commit to the same Iceberg table at the same moment. What happens?
-  options: ["The later commit silently overwrites the earlier one's files", "One pointer swap wins; the other rebases, retries or fails", "The table stays locked until an administrator releases it", "Both succeed, and the catalog merges their metadata files"]
+  options: ["The table stays locked until an administrator releases it", "One pointer swap wins; the other rebases, retries or fails", "The later commit silently overwrites the earlier one's files", "Both succeed, and the catalog merges their metadata files"]
   answer: 1
   explanation: >-
     Iceberg uses optimistic concurrency: the catalog swaps the metadata pointer only if it still points at the version the writer started from. The loser re-reads the new base and retries if the changes do not conflict, or fails on a real conflict. Nothing is silently lost, the catalog never merges metadata, and there is no global lock.
 - q: >-
     Why does an Iceberg table partitioned by days(event_ts) not require queries to filter on a separate event_date column?
-  options: ["Iceberg sorts every data file by event_ts on write", "Hidden partitioning disables pruning, so filters are moot", "Iceberg stores exactly one data file for each day", "The spec derives day partitions from event_ts itself"]
-  answer: 3
+  options: ["Hidden partitioning disables pruning, so filters are moot", "The spec derives day partitions from event_ts itself", "Iceberg stores exactly one data file for each day", "Iceberg sorts every data file by event_ts on write"]
+  answer: 1
   explanation: >-
     Hidden partitioning keeps the transform in the table's partition spec, so the planner converts a range predicate on event_ts into a range of day partitions. With Hive-style partitioning the query must name the derived partition column or it scans everything. Pruning still happens; it just no longer depends on the query naming a date column.
 - q: >-
     A GDPR process deletes a user's rows with DELETE FROM on a merge-on-read Iceberg table. When are the user's bytes actually gone from storage?
-  options: ["Never, because Parquet data files are immutable", "After the next schema change rewrites the data files", "After compaction and expiry of the older snapshots", "Immediately, as soon as the DELETE transaction commits"]
-  answer: 2
+  options: ["Immediately, as soon as the DELETE transaction commits", "Never, because Parquet data files are immutable", "After the next schema change rewrites the data files", "After compaction and expiry of the older snapshots"]
+  answer: 3
   explanation: >-
     The delete commit only adds delete files; the original data files still exist and older snapshots still reference them for time travel. Compaction produces files without the rows, and snapshot expiry removes the old files. Privacy deletion needs both. Immutability means files are replaced, not that bytes can never be removed.
 - q: >-
     A streaming job commits a new Iceberg snapshot every 10 seconds with 64 small files each time. After a month, queries are slow to plan and to run. What is the root cause?
-  options: ["Each file's Parquet footer has grown too large to read", "The catalog's pointer swap is too slow at this commit rate", "Iceberg is not designed to accept streaming writes", "Small files and snapshots piled up without maintenance"]
-  answer: 3
+  options: ["The catalog's pointer swap is too slow at this commit rate", "Small files and snapshots piled up without maintenance", "Each file's Parquet footer has grown too large to read", "Iceberg is not designed to accept streaming writes"]
+  answer: 1
   explanation: >-
     64 files every 10 seconds is over 16 million files a month, plus a snapshot and manifests per commit. Planning and reading both scale with this debris. Scheduled compaction, manifest rewrites and snapshot expiry keep the table healthy; the format itself supports streaming writes.
 ```

@@ -345,32 +345,32 @@ hints:
 ```quiz
 - q: >-
     A fixed-window limiter allows 100 requests per minute. What is the most requests a client can get through in any 2-second interval?
-  options: ["About 103", "150", "100", "200"]
+  options: ["150", "About 103", "100", "200"]
   answer: 3
   explanation: >-
     The client sends 100 at the end of one window and 100 at the start of the next. The counter resets at the boundary, so 200 requests land within two seconds. "100" is what the limit promises, not what fixed windows enforce; this boundary problem is what sliding windows and token buckets avoid.
 - q: >-
     A sliding window counter has limit 100/min. The previous minute counted 84 requests and the current minute has 36, and you are 15 seconds into the current minute. What does the limiter decide for the next request?
-  options: ["Reject, because 84 + 36 x 45/60 = 111 is over 100", "Allow, because only the current window's 36 requests count", "Allow, because 36 + 84 x 45/60 = 99 is under 100", "Reject, because 84 + 36 = 120 is over the limit of 100"]
-  answer: 2
+  options: ["Reject, because 84 + 36 x 45/60 = 111 is over 100", "Reject, because 84 + 36 = 120 is over the limit of 100", "Allow, because only the current window's 36 requests count", "Allow, because 36 + 84 x 45/60 = 99 is under 100"]
+  answer: 3
   explanation: >-
     45 of the previous window's 60 seconds still overlap the sliding window, so the previous count is weighted by 0.75 and the current count is taken in full: 36 + 63 = 99. Summing both raw counts over-penalises the client, and applying the weight to the current window instead of the previous one gets the formula backwards.
 - q: >-
     Two gateway nodes check the same API key at the same instant. Both read tokens = 1 from Redis with HMGET, both admit, and both write tokens = 0. What is the correct fix?
-  options: ["Shorten the TTL on the bucket key so stale token counts expire much sooner", "Wrap every check in a distributed lock acquired from the same Redis", "Run the read, refill, decide and write as one atomic server-side script", "Route all traffic through one gateway so only one process decides"]
-  answer: 2
+  options: ["Wrap every check in a distributed lock acquired from the same Redis", "Run the read, refill, decide and write as one atomic server-side script", "Route all traffic through one gateway so only one process decides", "Shorten the TTL on the bucket key so stale token counts expire much sooner"]
+  answer: 1
   explanation: >-
     The bug is a non-atomic read-modify-write. A Lua script runs without interleaving in Redis, which fixes it at the cost of one round trip. A distributed lock would also serialise the check, but it adds several round trips and a new failure mode. A single gateway removes the race by removing the scale, and the TTL has nothing to do with the race.
 - q: >-
     The Redis cluster behind the limiter is unreachable. Which policy is best?
-  options: ["Fail closed for every rule, so no client can exceed any of its limits", "Fail open for every rule, since API availability matters most of all", "Fail open via local buckets for fairness, closed for security limits", "Queue requests at the gateway until the Redis cluster is reachable again"]
-  answer: 2
+  options: ["Fail closed for every rule, so no client can exceed any of its limits", "Fail open for every rule, since API availability matters most of all", "Queue requests at the gateway until the Redis cluster is reachable again", "Fail open via local buckets for fairness, closed for security limits"]
+  answer: 3
   explanation: >-
     Fairness limits exist to share capacity, and an unmetered few minutes through a local fallback bucket is better than an API outage. Login and OTP limits exist to stop brute force, and admitting them unmetered opens exactly the window an attacker wants, so they fail closed or fall back to a strict local limit. Failing open for everything misses that distinction, and queuing just turns the outage into latency and memory growth.
 - q: >-
     Your gateway fleet has 200 nodes behind a round-robin load balancer. Why can't each node enforce a 100 requests/s per-key limit on its own by allowing 0.5 requests/s locally?
-  options: ["Shares that small can't absorb bursts, and any imbalance falsely rejects", "It can't, because node clocks drift too far to measure 0.5 requests/s", "It can; splitting the limit evenly is exact under round-robin load balancing", "Round-robin sends all of one key's traffic to a single node anyway"]
-  answer: 0
+  options: ["It can; splitting the limit evenly is exact under round-robin load balancing", "Round-robin sends all of one key's traffic to a single node anyway", "It can't, because node clocks drift too far to measure 0.5 requests/s", "Shares that small can't absorb bursts, and any imbalance falsely rejects"]
+  answer: 3
   explanation: >-
     A 0.5/s share with a burst of one per node rejects a client whose two requests happen to land on the same node, even though it is far under its global limit. Round-robin spreads requests on average, not exactly, so an even split is not exact. Local limiting works for large aggregate ceilings; small per-client limits need a shared counter, leases or affinity routing.
 ```

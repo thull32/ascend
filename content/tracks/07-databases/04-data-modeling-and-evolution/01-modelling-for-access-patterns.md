@@ -276,38 +276,38 @@ When you review a schema, ask for the table of queries with the index each one u
 ```quiz
 - q: >-
     A leaderboard query aggregates 20 million rows and runs 5 times a second with a 200 ms budget. Adding an index on submissions(user_id) does not help. Why?
-  options: ["The index is on the wrong column; it should lead with passed instead", "The index would help, but only once VACUUM ANALYZE has been run", "It touches every row by definition; only a precomputed summary helps", "Postgres never uses an index for a query with a GROUP BY clause"]
-  answer: 2
+  options: ["It touches every row by definition; only a precomputed summary helps", "The index would help, but only once VACUUM ANALYZE has been run", "Postgres never uses an index for a query with a GROUP BY clause", "The index is on the wrong column; it should lead with passed instead"]
+  answer: 0
   explanation: >-
     An index reduces work when a predicate selects a small fraction of rows. A global aggregate over every user needs every row, so the fix is to change the shape: a summary table or materialised view that moves the work to the write path. VACUUM and column choice are irrelevant to a full-table aggregate.
 - q: >-
     You add comment_count to lesson_stats and increment it in the same transaction as each comment insert. A single lesson receives 500 comments per second. What goes wrong first?
-  options: ["The two writes stop being atomic once they run this frequently", "Every insert updates one row, so writers queue on its row lock", "The index on comment_count is fully rebuilt on every single update", "The counter overflows a 32-bit integer within the first few days"]
-  answer: 1
+  options: ["The index on comment_count is fully rebuilt on every single update", "The counter overflows a 32-bit integer within the first few days", "The two writes stop being atomic once they run this frequently", "Every insert updates one row, so writers queue on its row lock"]
+  answer: 3
   explanation: >-
     Under MVCC each update creates a new tuple version and takes a row lock; hundreds of concurrent updates on one row queue behind each other and bloat grows. Sharding the counter into N rows or batching increments fixes it. Overflow at 500/s takes about seven weeks, and atomicity is unaffected.
 - q: >-
     Which freshness requirement rules out a materialised view refreshed every five minutes?
-  options: ["The view must carry a unique index for its refresh", "Minutes-stale results are fully acceptable to the product", "The query only needs to run once a day for a report", "Users must see their own write as soon as it commits"]
-  answer: 3
+  options: ["Users must see their own write as soon as it commits", "Minutes-stale results are fully acceptable to the product", "The view must carry a unique index for its refresh", "The query only needs to run once a day for a report"]
+  answer: 0
   explanation: >-
     A materialised view is a snapshot as of its last refresh; read-your-writes semantics cannot be met by anything refreshed on a timer. Low frequency and stale-tolerant queries are exactly what materialised views suit, and a unique index is only what the concurrent refresh needs.
 - q: >-
     REFRESH MATERIALIZED VIEW CONCURRENTLY fails with an error about a unique index. Why does the concurrent form need one?
-  options: ["It lets the concurrent refresh run faster than the plain form does", "It diffs new rows against old ones, so rows must be identifiable", "It stops readers from seeing duplicate rows while it refreshes", "Materialised views cannot exist at all without a primary key"]
-  answer: 1
+  options: ["It diffs new rows against old ones, so rows must be identifiable", "It lets the concurrent refresh run faster than the plain form does", "Materialised views cannot exist at all without a primary key", "It stops readers from seeing duplicate rows while it refreshes"]
+  answer: 0
   explanation: >-
     The concurrent refresh computes the new result into a temporary table and merges the differences into the existing view as updates, inserts and deletes, so it must match rows by a unique key. It is actually slower than the plain refresh; its benefit is that readers are not blocked.
 - q: >-
     A retry of "mark lesson complete" must not double-increment lessons_completed. Which design guarantees this?
-  options: ["Wrap the upsert and the increment together in a single transaction", "Increment the counter first, and then run the progress upsert", "Move the increment out of application code and into a trigger", "Increment only when the upsert actually changed the row's status"]
-  answer: 3
+  options: ["Increment only when the upsert actually changed the row's status", "Wrap the upsert and the increment together in a single transaction", "Move the increment out of application code and into a trigger", "Increment the counter first, and then run the progress upsert"]
+  answer: 0
   explanation: >-
     A transaction makes the two writes atomic but a retried transaction still runs both again. Conditioning the increment on the upsert actually changing state (DO UPDATE ... WHERE status <> 'completed' with RETURNING, incrementing only if a row came back) makes the pair idempotent. A trigger has the same double-count problem unless it carries the same condition.
 - q: >-
     Which copy of data should be kept in sync by CDC rather than by the same transaction?
-  options: ["A generated column computing xp from three counters", "A redundant author_name column on comments", "A Redis sorted set that serves the leaderboard", "A comment_count column in the same Postgres database"]
-  answer: 2
+  options: ["A generated column computing xp from three counters", "A redundant author_name column on comments", "A comment_count column in the same Postgres database", "A Redis sorted set that serves the leaderboard"]
+  answer: 3
   explanation: >-
     A transaction can only make copies inside the same database atomic. Redis is outside it, so the update must be eventual, and CDC from the WAL (or an outbox) is the reliable way to deliver it. The other options all live in Postgres and belong in the same transaction or in a generated column.
 ```

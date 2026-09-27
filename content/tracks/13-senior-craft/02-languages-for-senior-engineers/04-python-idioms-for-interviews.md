@@ -383,38 +383,38 @@ hints:
 ```quiz
 - q: >-
     A BFS over a graph with 200,000 nodes uses a list as its queue and `queue.pop(0)`. What is the real cost and fix?
-  options: ["O(V log V), because the list is re-sorted on each pop; use heapq", "O(V + E), because pop(0) on a list is amortised O(1) like append", "O(V² + E), because each pop(0) shifts the rest; use collections.deque", "O(E²), because visited checks scan the list; use a set for visited"]
-  answer: 2
+  options: ["O(V log V), because the list is re-sorted on each pop; use heapq", "O(E²), because visited checks scan the list; use a set for visited", "O(V + E), because pop(0) on a list is amortised O(1) like append", "O(V² + E), because each pop(0) shifts the rest; use collections.deque"]
+  answer: 3
   explanation: >-
     pop(0) costs time proportional to the queue's current length because a Python list is a contiguous array, so every remaining element shifts left. With a wide frontier (a grid, a star-shaped graph) that becomes quadratic, up to around 10^10 element moves here. collections.deque gives O(1) popleft(); only pops from the end of a list are cheap.
 - q: >-
     You return `Counter(words).most_common(k)` for "top k words, ties alphabetical". When is it wrong?
-  options: ["Only when k exceeds the number of distinct words in the input", "When two words tie, because ties keep first-appearance order", "Never, because most_common breaks ties alphabetically by default", "Only for non-ASCII words, because they sort by code point"]
-  answer: 1
+  options: ["Only when k exceeds the number of distinct words in the input", "Never, because most_common breaks ties alphabetically by default", "Only for non-ASCII words, because they sort by code point", "When two words tie, because ties keep first-appearance order"]
+  answer: 3
   explanation: >-
     most_common uses heapq.nlargest keyed on the count alone, which keeps ties in first-encountered order. Use a key of (-count, word) with heapq.nsmallest or a sort.
 - q: >-
     You push `(priority, task_dict)` tuples onto a heapq heap and it sometimes raises TypeError. Why, and what is the idiomatic fix?
-  options: ["The heap loses its invariant on each push; call heapify again after every push", "heapq only compares integers; push the priority alone and look up the task", "On a priority tie Python compares the dicts; add a counter as the second item", "Tuples are immutable, so heapq cannot sift them in place; push lists instead"]
-  answer: 2
+  options: ["heapq only compares integers; push the priority alone and look up the task", "On a priority tie Python compares the dicts; add a counter as the second item", "Tuples are immutable, so heapq cannot sift them in place; push lists instead", "The heap loses its invariant on each push; call heapify again after every push"]
+  answer: 1
   explanation: >-
     Tuple comparison falls through to the next element on a tie, and dicts do not support <. A monotonically increasing counter from itertools.count() as the second element guarantees the comparison is decided before reaching the payload, and it also keeps FIFO order among equal priorities. heapq works on any comparable items and moves references, so immutability is irrelevant.
 - q: >-
     `s` is sorted. Which expression counts the values in the inclusive range [lo, hi], assuming lo <= hi?
-  options: ["bisect_right(s, hi) - bisect_right(s, lo)", "bisect_right(s, hi) - bisect_left(s, lo)", "bisect_left(s, hi) - bisect_right(s, lo) + 1", "bisect_left(s, hi) - bisect_left(s, lo)"]
-  answer: 1
+  options: ["bisect_left(s, hi) - bisect_right(s, lo) + 1", "bisect_right(s, hi) - bisect_right(s, lo)", "bisect_right(s, hi) - bisect_left(s, lo)", "bisect_left(s, hi) - bisect_left(s, lo)"]
+  answer: 2
   explanation: >-
     bisect_right(s, hi) counts values <= hi and bisect_left(s, lo) counts values < lo; the difference is exactly the values in [lo, hi]. Using bisect_left for hi misses values equal to hi; using bisect_right for lo misses values equal to lo.
 - q: >-
     A memoised recursive DP with @functools.cache works for n = 500 and fails for n = 50,000. What is the most likely cause?
-  options: ["Integer overflow, because DP values exceed 64 bits at that size", "A race, because functools.cache is not thread-safe under load", "The cache fills up and evicts entries, so the recursion recomputes them", "RecursionError, because CPython's default limit is about 1000 frames"]
-  answer: 3
+  options: ["RecursionError, because CPython's default limit is about 1000 frames", "The cache fills up and evicts entries, so the recursion recomputes them", "A race, because functools.cache is not thread-safe under load", "Integer overflow, because DP values exceed 64 bits at that size"]
+  answer: 0
   explanation: >-
     Each recursive call is a Python frame and the default limit is 1000. Raising the limit risks crashing on the C stack; the robust fix is a bottom-up loop. Python integers do not overflow, and cache without maxsize never evicts.
 - q: >-
     `grid = [[0] * 3] * 3` then `grid[0][0] = 1`. What does grid contain?
-  options: ["[[1, 0, 0], [0, 0, 0], [0, 0, 0]]", "[[1, 1, 1], [0, 0, 0], [0, 0, 0]]", "[[1, 1, 1], [1, 1, 1], [1, 1, 1]]", "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]"]
-  answer: 3
+  options: ["[[1, 0, 0], [0, 0, 0], [0, 0, 0]]", "[[1, 0, 0], [1, 0, 0], [1, 0, 0]]", "[[1, 1, 1], [1, 1, 1], [1, 1, 1]]", "[[1, 1, 1], [0, 0, 0], [0, 0, 0]]"]
+  answer: 1
   explanation: >-
     Multiplying the outer list copies the reference to one inner list three times, so all rows are the same object. Build rows with a comprehension: [[0] * 3 for _ in range(3)]. Multiplying the inner list is safe because ints are immutable.
 ```

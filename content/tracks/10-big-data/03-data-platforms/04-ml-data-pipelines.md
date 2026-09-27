@@ -186,20 +186,20 @@ hints:
 ```quiz
 - q: >-
     A churn model's training set joins labels for 1 May to a features table on user_id only, taking each user's latest row. Offline accuracy is excellent and production accuracy is poor. What is the most likely cause?
-  options: ["The online store is too slow, so serving drops features", "Label leakage from feature rows computed after 1 May", "The labels are imbalanced, since few users churn in May", "The model is overfitting to noise in the training month"]
-  answer: 1
+  options: ["The model is overfitting to noise in the training month", "The labels are imbalanced, since few users churn in May", "The online store is too slow, so serving drops features", "Label leakage from feature rows computed after 1 May"]
+  answer: 3
   explanation: >-
     Without a point-in-time condition, the latest feature rows were computed after the prediction time (for example, zero plays after a user churned) and leak the label into the inputs. The model learns the leak, which does not exist at prediction time. Overfitting to noise would hurt held-out offline accuracy too, not only production.
 - q: >-
     Training uses a nightly batch feature computed as of midnight; serving reads a streaming version updated every minute. Both implement the same definition correctly. Why can this still hurt the model?
-  options: ["It cannot hurt, because the definitions are identical", "Streaming features are approximate, so values drift apart", "Nightly jobs cannot compute the same windowed aggregates", "The model learned day-old values and now gets fresh ones"]
-  answer: 3
+  options: ["The model learned day-old values and now gets fresh ones", "It cannot hurt, because the definitions are identical", "Streaming features are approximate, so values drift apart", "Nightly jobs cannot compute the same windowed aggregates"]
+  answer: 0
   explanation: >-
     Freshness is part of the feature's meaning. The model learned the relationship between labels and values that are up to a day old; in serving it receives fresher values with a different distribution. Identical code does not make a 12-hour-stale input and a 1-minute-stale input the same. Training on logged serving values, or computing training features at the same freshness, removes the skew.
 - q: >-
     Why is training on features logged at serving time an effective defence against skew, and what is its main cost?
-  options: ["It removes the need for labels; it costs some accuracy", "Training sees what serving saw; new features lack history", "It is faster to compute; its only cost is extra storage", "It avoids point-in-time joins entirely, so it has no real cost"]
-  answer: 1
+  options: ["It removes the need for labels; it costs some accuracy", "It is faster to compute; its only cost is extra storage", "It avoids point-in-time joins entirely, so it has no real cost", "Training sees what serving saw; new features lack history"]
+  answer: 3
   explanation: >-
     Logged features are by construction what the model saw in production, including staleness and defaults. A new feature has no logged history until it has been served for a while, so it must either wait or be backfilled point-in-time from the offline path. Labels are still joined to the logged features by time, so neither labels nor time-based joins go away.
 - q: >-
@@ -210,8 +210,8 @@ hints:
     Without a lower bound each label joins about 730 earlier rows, a 36-billion-row intermediate. A time-to-live predicate (or a native as-of join) keeps the intermediate close to one row per label; bucketing both sides by entity avoids a large shuffle. More executors only spread the same oversized intermediate.
 - q: >-
     Which record best makes a trained model's dataset reproducible six months later?
-  options: ["Feature versions, label definition and input snapshot ids", "The Git commit of the service that serves the model", "The row count and schema of the final training set", "The model's hyperparameters, random seed and framework version"]
-  answer: 0
+  options: ["The Git commit of the service that serves the model", "The row count and schema of the final training set", "The model's hyperparameters, random seed and framework version", "Feature versions, label definition and input snapshot ids"]
+  answer: 3
   explanation: >-
     Reproducing data requires knowing exactly what was computed and from which versions of the inputs: feature definitions and versions, the label definition and time range, and the snapshot ids of every input table. Table-format snapshot ids pin the input files; definitions pin the logic. Hyperparameters and row counts describe the model, not the data.
 ```

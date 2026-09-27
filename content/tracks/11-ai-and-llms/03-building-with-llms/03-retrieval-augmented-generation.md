@@ -282,38 +282,38 @@ hints:
 ```quiz
 - q: >-
     Users report that the assistant says "I could not find that" for questions the documentation clearly answers. What should you measure first?
-  options: ["The model's temperature and how often it declines to answer", "Answer faithfulness on those queries, scored with an LLM judge", "Whether the prompt is too long for the model's context window", "Retrieval recall@k on a labelled set of the failing queries"]
-  answer: 3
+  options: ["Retrieval recall@k on a labelled set of the failing queries", "Answer faithfulness on those queries, scored with an LLM judge", "The model's temperature and how often it declines to answer", "Whether the prompt is too long for the model's context window"]
+  answer: 0
   explanation: >-
     "Not found" for answerable questions points at retrieval: the passage probably never reached the prompt. Recall@k tells you whether it did. Faithfulness measures how the model uses the passages it received, which cannot help if the right one is missing.
 - q: >-
     Why does reciprocal rank fusion use ranks instead of adding BM25 and cosine scores directly?
-  options: ["BM25 returns only a ranked list, not scores, so ranks are all it has", "Ranks are cheaper to store and compare than floating-point scores", "Cosine similarity can be negative, which would cancel out the BM25 score", "The scores are on different, query-dependent scales, so a sum is meaningless"]
-  answer: 3
+  options: ["The scores are on different, query-dependent scales, so a sum is meaningless", "BM25 returns only a ranked list, not scores, so ranks are all it has", "Ranks are cheaper to store and compare than floating-point scores", "Cosine similarity can be negative, which would cancel out the BM25 score"]
+  answer: 0
   explanation: >-
     A BM25 score of 14 and a cosine of 0.83 cannot be meaningfully added, and their ranges change from query to query, so a raw sum lets one retriever dominate arbitrarily. RRF needs only positions, which are comparable across lists, and rewards documents that several retrievers rank highly. BM25 does produce scores; they are just on their own scale.
 - q: >-
     You increase chunk overlap from 0 to 100 tokens with 400-token chunks. Roughly how does the number of chunks change?
-  options: ["It grows by a quarter, because 100 is a quarter of the 400-token chunk", "It doubles, because every boundary region now appears in two chunks, not one", "It stays the same, because overlap only changes what each chunk contains", "It grows by about a third, because the stride falls from 400 to 300 tokens"]
-  answer: 3
+  options: ["It stays the same, because overlap only changes what each chunk contains", "It grows by about a third, because the stride falls from 400 to 300 tokens", "It grows by a quarter, because 100 is a quarter of the 400-token chunk", "It doubles, because every boundary region now appears in two chunks, not one"]
+  answer: 1
   explanation: >-
     Chunk count is about corpus length divided by the stride, size minus overlap. 400/300 is about 1.33, so a third more vectors to embed and store, not a quarter: the overlap shrinks the stride, and the count scales with 1/stride. Overlap protects facts at boundaries at a predictable cost.
 - q: >-
     A multi-tenant RAG system retrieves the top 10 chunks by similarity and then removes chunks from other tenants. What goes wrong for a small tenant?
-  options: ["Queries become slower than exact search, because the filter scans every chunk", "Nothing; the filter guarantees each tenant sees only its own relevant chunks", "Embeddings leak between tenants, because they share one vector index", "Other tenants' chunks can fill the top 10, leaving few or no results for it"]
+  options: ["Nothing; the filter guarantees each tenant sees only its own relevant chunks", "Embeddings leak between tenants, because they share one vector index", "Queries become slower than exact search, because the filter scans every chunk", "Other tenants' chunks can fill the top 10, leaving few or no results for it"]
   answer: 3
   explanation: >-
     Post-filtering a top-k starves small tenants, because other tenants' chunks crowd the top of the ranking, leaving few or no results even when relevant chunks exist. The filter is correct about access but not about recall. Filter during the search, retrieve a much larger candidate set, or partition the index by tenant.
 - q: >-
     Why is a cross-encoder reranker applied to a shortlist rather than to the whole corpus?
-  options: ["It cannot read chunks longer than a few sentences, so it needs short inputs", "It only works on BM25 results, since it needs lexical matches to score", "It is less accurate than the bi-encoder, so it only breaks ties at the top", "It scores query and chunk together, so nothing can be precomputed offline"]
-  answer: 3
+  options: ["It cannot read chunks longer than a few sentences, so it needs short inputs", "It only works on BM25 results, since it needs lexical matches to score", "It scores query and chunk together, so nothing can be precomputed offline", "It is less accurate than the bi-encoder, so it only breaks ties at the top"]
+  answer: 2
   explanation: >-
     Bi-encoders embed chunks once offline, which makes corpus-wide search cheap. A cross-encoder reads the query and chunk jointly, which makes it more accurate but means one model pass per pair at query time, far too slow over millions of chunks per query.
 - q: >-
     Your company handbook is about 30,000 tokens and changes monthly. What is the simplest design worth considering before building a RAG pipeline?
-  options: ["Fine-tune the model on the handbook and retrain it each month", "Put the whole handbook in the prompt with prompt caching", "Embed each sentence separately so that retrieval is more precise", "Use BM25 keyword search alone and skip embeddings entirely"]
-  answer: 1
+  options: ["Embed each sentence separately so that retrieval is more precise", "Use BM25 keyword search alone and skip embeddings entirely", "Fine-tune the model on the handbook and retrain it each month", "Put the whole handbook in the prompt with prompt caching"]
+  answer: 3
   explanation: >-
     A corpus that fits comfortably in the context can simply be sent every time; caching makes repeated requests pay a fraction of the input price, and nothing can be missed by retrieval. RAG earns its complexity when the corpus is too large for that.
 ```

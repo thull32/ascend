@@ -113,7 +113,7 @@ pub fn respond(rx: mpsc::Receiver<StreamEvent>) -> impl IntoResponse {
 
 Four decisions in that function map directly onto the properties above.
 
-1. **Named events.** `delta` carries a text fragment, `done` carries a JSON usage summary with `input_tokens`, `output_tokens` and `stop_reason`, and `error` carries a message. The client dispatches on the event name and never has to sniff payloads. That client is not `EventSource`, though: `EventSource` can only send a GET, and each turn is a POST with a JSON body, so `web/src/lib/api.ts` reads the response with `fetch` and a short hand-written parser (split lines, skip `:` comments, collect `event:` and `data:`, dispatch on a blank line).
+1. **Named events.** `delta` carries a text fragment, `done` carries a JSON usage summary with `input_tokens`, `output_tokens` and `stop_reason`, and `error` carries a short message written by the app ("The reply was interrupted. Try again."), never the provider's own error text, which is logged instead. The client dispatches on the event name and never has to sniff payloads. That client is not `EventSource`, though: `EventSource` can only send a GET, and each turn is a POST with a JSON body, so `web/src/lib/api.ts` reads the response with `fetch` and a short hand-written parser (split lines, skip `:` comments, collect `event:` and `data:`, dispatch on a blank line).
 2. **A 15-second keep-alive comment** (`: ping`). Idle-timeout proxies and load balancers close connections that carry no bytes for 30, 60 or 90 s. A model that is thinking for 40 s before its first token would look idle. The comment line keeps bytes flowing and is invisible to any conforming parser, `EventSource` or the app's own.
 3. **Persistence is decoupled from the connection.** The model stream runs in a task spawned on the app's `TaskTracker` (`state.tasks.spawn`) that owns writing the reply to the database; the HTTP response is only a consumer of a bounded `mpsc` channel (capacity 64). If you close the tab, the `Sender` sees a closed receiver, ignores the send error, and keeps consuming the model stream so the full reply is still persisted and its token usage still counted against the budget. Reload and the reply is there. Because that task outlives the request, the route wraps it in `.instrument(tracing::Span::current())`, so its log lines still carry the request's span and request ID. The alternative, driving the model from the request handler, would abort the model call on disconnect and lose the reply. The tracker matters at shutdown: on SIGTERM the server stops accepting requests, drains open connections, then waits up to 30 seconds for tracked tasks to finish persisting. The first version used a bare `tokio::spawn`. Draining connections does not wait for a task whose browser has already gone, so a deploy could exit mid-generation and lose exactly the reply this design exists to save.
 4. **Bounded buffering.** The channel holds 64 events. If the browser stops reading (throttled background tab), the producer blocks on send rather than growing memory without bound: backpressure, not a leak.
@@ -198,32 +198,32 @@ Whichever you choose, the delivery guarantees are yours to design. None of these
 ```quiz
 - q: >-
     A build-log page streams lines from the server; the user never sends anything after opening the page. Which transport is the best default and why?
-  options: ["Long polling, because build logs are bursty and each burst fits one response", "WebSockets, because a persistent socket gives the lowest latency for log lines", "Server-Sent Events, because the flow is one-way plain HTTP with auto-reconnection", "WebRTC data channels, because large logs need direct peer-to-peer bandwidth"]
+  options: ["WebRTC data channels, because large logs need direct peer-to-peer bandwidth", "Long polling, because build logs are bursty and each burst fits one response", "Server-Sent Events, because the flow is one-way plain HTTP with auto-reconnection", "WebSockets, because a persistent socket gives the lowest latency for log lines"]
   answer: 2
   explanation: >-
     One-directional server push is exactly SSE's case: no upgrade, auto-reconnect with Last-Event-ID, and every proxy, CDN and mesh passes it. WebSockets add bidirectionality nobody uses and a hand-written reconnect loop; their latency edge only matters when the client sends often.
 - q: >-
     An SSE endpoint works with curl but in production the browser receives all events at once after the stream ends. What is the most likely cause?
-  options: ["A proxy or compression layer buffers the body until the response completes", "EventSource batches events by design and fires them when the stream closes", "The server sends Content-Type text/plain, so the browser reads it as one file", "The events lack id fields, so the browser cannot tell where one event ends"]
-  answer: 0
+  options: ["EventSource batches events by design and fires them when the stream closes", "A proxy or compression layer buffers the body until the response completes", "The server sends Content-Type text/plain, so the browser reads it as one file", "The events lack id fields, so the browser cannot tell where one event ends"]
+  answer: 1
   explanation: >-
     Proxies with response buffering and compression layers hold chunks until a buffer fills or the response ends, while a curl that does not pass through them sees each event on time. EventSource dispatches each event as soon as its blank line arrives, and events are delimited by blank lines, not ids. Disable buffering for the stream (for example X-Accel-Buffering: no) and exclude it from compression.
 - q: >-
     In this app, why does the model stream run in a spawned task writing to a channel rather than directly inside the SSE handler?
-  options: ["So several clients watching one conversation can share a single model call", "Because axum cannot stream a response body from inside a handler future at all", "Spawned tasks run faster than handlers, because each one gets its own worker thread", "So a client disconnect does not abort the model call, and the reply is still saved"]
+  options: ["Spawned tasks run faster than handlers, because each one gets its own worker thread", "So several clients watching one conversation can share a single model call", "Because axum cannot stream a response body from inside a handler future at all", "So a client disconnect does not abort the model call, and the reply is still saved"]
   answer: 3
   explanation: >-
     If the handler owned the model stream, dropping the response would cancel it and lose the reply. With the producer decoupled, the send to a closed receiver simply fails and the task keeps consuming and persisting.
 - q: >-
     Why does the WebSocket protocol require the client to mask every frame it sends?
-  options: ["To encrypt the payload so that eavesdroppers on the network path cannot read it", "To compress repeated payloads by XOR-ing each one against a per-frame key", "So a malicious page cannot craft bytes that a buggy proxy would parse as HTTP", "To authenticate the client to the server with a per-connection secret"]
-  answer: 2
+  options: ["So a malicious page cannot craft bytes that a buggy proxy would parse as HTTP", "To compress repeated payloads by XOR-ing each one against a per-frame key", "To authenticate the client to the server with a per-connection secret", "To encrypt the payload so that eavesdroppers on the network path cannot read it"]
+  answer: 0
   explanation: >-
     Masking makes the bytes on the wire unpredictable to the page that chose the payload. That defeats cache-poisoning attacks through intermediaries that misparse WebSocket bytes as HTTP. It is not confidentiality: the mask key travels in the frame itself, and TLS is what keeps eavesdroppers out.
 - q: >-
     A WebSocket service scales from one server to ten behind a load balancer and users stop receiving some messages. What is missing?
-  options: ["HTTP/2 on the balancer, so all ten servers share one multiplexed connection", "A pub/sub layer, so a message produced on server 3 reaches users on server 7", "Sticky sessions on the load balancer, so each user returns to the same server", "Larger frames, so a burst of messages is not dropped by the load balancer"]
-  answer: 1
+  options: ["Sticky sessions on the load balancer, so each user returns to the same server", "HTTP/2 on the balancer, so all ten servers share one multiplexed connection", "A pub/sub layer, so a message produced on server 3 reaches users on server 7", "Larger frames, so a burst of messages is not dropped by the load balancer"]
+  answer: 2
   explanation: >-
     A WebSocket pins a client to one process. Messages originating elsewhere must be fanned out through a shared broker. Sticky sessions do not help because the producer is not the client's own server.
 ```

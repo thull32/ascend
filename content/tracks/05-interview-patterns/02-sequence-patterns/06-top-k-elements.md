@@ -320,32 +320,32 @@ hints:
 ```quiz
 - q: >-
     You need the 5 largest values from a read-only stream of 10 million numbers. Which structure do you keep, and why?
-  options: ["A min-heap of size 5; its root is the weakest kept", "A max-heap of size 5; its root is the largest so far", "A sorted array of every number; take the last 5", "A max-heap of all numbers seen; pop 5 at the end"]
-  answer: 0
+  options: ["A max-heap of size 5; its root is the largest so far", "A sorted array of every number; take the last 5", "A min-heap of size 5; its root is the weakest kept", "A max-heap of all numbers seen; pop 5 at the end"]
+  answer: 2
   explanation: >-
     The bounded min-heap holds the 5 best so far and evicts its weakest (the root) when a better value arrives, in O(log 5) per element with O(5) memory. A max-heap or sorted array of everything costs O(n) memory and, for the sorted array, O(n log n) time. A max-heap of size 5 would evict the best element, which is backwards.
 - q: >-
     Building a heap from an existing list of n elements with heapify costs:
-  options: ["O(log n), since only the root is sifted", "O(n log n), since each node sifts O(log n)", "O(n), since most nodes sit near the leaves", "O(n²), since each sift rescans the array"]
-  answer: 2
+  options: ["O(n), since most nodes sit near the leaves", "O(n log n), since each node sifts O(log n)", "O(log n), since only the root is sifted", "O(n²), since each sift rescans the array"]
+  answer: 0
   explanation: >-
     heapify sifts down from the last internal node; most nodes are near the leaves and sift only a step or two, and the sum of sift lengths is bounded by 2n. The O(log n) per node is a bound only for the few nodes near the root. Pushing n elements one at a time is O(n log n).
 - q: >-
     In Reorganize String, why is the character you just placed held back for one iteration instead of pushed straight back into the heap?
-  options: ["Else it may be popped again at once, giving two in a row", "To keep the heap smaller, so that every pop is cheaper", "To make the whole loop O(n) instead of O(n log σ)", "So that its count has a turn to be decremented first"]
-  answer: 0
+  options: ["To keep the heap smaller, so that every pop is cheaper", "Else it may be popped again at once, giving two in a row", "To make the whole loop O(n) instead of O(n log σ)", "So that its count has a turn to be decremented first"]
+  answer: 1
   explanation: >-
     The greedy picks the most frequent remaining character; if that is the one just placed, popping it again puts two copies side by side. Holding it back for exactly one pop forces a different character in between.
 - q: >-
     An array of 10⁶ elements is in memory and can be modified; you need the 500,000th largest element once. The best expected-time choice is:
-  options: ["Quickselect with a random pivot", "A size-k min-heap over the array", "A full sort, then index into it", "Bucket sort by value, then count"]
-  answer: 0
+  options: ["Bucket sort by value, then count", "A full sort, then index into it", "A size-k min-heap over the array", "Quickselect with a random pivot"]
+  answer: 3
   explanation: >-
     With k ≈ n/2 the heap is O(n log n) with a large constant and no better than sorting. Quickselect averages O(n) and needs no extra memory when mutation is allowed. Bucket sort requires a bounded value range, which is not given.
 - q: >-
     Your Python code pushes (count, item) tuples into heapq and crashes with TypeError when two counts are equal. What is wrong?
-  options: ["heapq cannot store tuples, only plain numbers", "The heap has to be a max-heap for counts to work", "Counts must be negated before they are pushed", "Ties compare the items, which are not orderable"]
-  answer: 3
+  options: ["Counts must be negated before they are pushed", "Ties compare the items, which are not orderable", "heapq cannot store tuples, only plain numbers", "The heap has to be a max-heap for counts to work"]
+  answer: 1
   explanation: >-
     Tuple comparison is lexicographic: on a tie in the first field Python compares the second. If the payload has no ordering, insert an integer tiebreaker such as an index between the priority and the payload. Heap direction and negation are unrelated to the crash.
 ```

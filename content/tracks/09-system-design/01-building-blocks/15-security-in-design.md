@@ -179,32 +179,32 @@ SSRF: a user pastes an internal address or the cloud metadata endpoint, and my f
 ```quiz
 - q: >-
     A web app uses JWT access tokens valid for 24 hours with no server-side state. A user reports their laptop stolen. What can the system do?
-  options: ["Force the token to expire by logging the user out everywhere", "Nothing before expiry, unless each request checks a denylist", "Rotate the signing key, which invalidates only that user's token", "Revoke the token immediately at the identity provider"]
+  options: ["Rotate the signing key, which invalidates only that user's token", "Nothing before expiry, unless each request checks a denylist", "Revoke the token immediately at the identity provider", "Force the token to expire by logging the user out everywhere"]
   answer: 1
   explanation: >-
     Stateless verification means no per-request check against revocation, so there is nothing to revoke or log out server-side. A denylist reintroduces the lookup; rotating the signing key logs out every user, not just this one. Short-lived access tokens with revocable refresh tokens bound the exposure to minutes.
 - q: >-
     Why is a service-to-service call authenticated with mTLS still insufficient on its own?
-  options: ["It only works at the edge gateway, not between services", "mTLS authenticates the caller but leaves traffic unencrypted", "Its certificates expire too quickly to be relied on alone", "It proves which service calls, not what the user may access"]
+  options: ["mTLS authenticates the caller but leaves traffic unencrypted", "It only works at the edge gateway, not between services", "Its certificates expire too quickly to be relied on alone", "It proves which service calls, not what the user may access"]
   answer: 3
   explanation: >-
     Authentication answers who; authorization answers what they may do. A legitimate service can still be asked for another user's data unless the user context is checked per resource. mTLS does encrypt the traffic; that is not the gap.
 - q: >-
     What is the purpose of envelope encryption (per-object data keys wrapped by a KMS key)?
-  options: ["It makes bulk encryption faster than calling AES directly", "It removes the need for TLS between services and storage", "It lets encrypted fields be indexed and queried directly", "Key rotation re-wraps small data keys, not all the data"]
-  answer: 3
+  options: ["It lets encrypted fields be indexed and queried directly", "It removes the need for TLS between services and storage", "Key rotation re-wraps small data keys, not all the data", "It makes bulk encryption faster than calling AES directly"]
+  answer: 2
   explanation: >-
     Data stays encrypted under its own key; only the small wrapped keys touch the KMS or need rewriting on rotation. It also lets you delete data by destroying its key: that renders every copy, including backups, unreadable (crypto-shredding). The data keys are still AES keys, so it is not a faster cipher.
 - q: >-
     A feature fetches user-supplied URLs to render previews. The most important cloud-specific control is:
-  options: ["Rate limiting preview fetches per user and per domain", "Fetching over HTTPS only, rejecting plain HTTP URLs", "Blocking private and metadata IPs after resolving DNS", "Caching previews so each URL is fetched only once"]
-  answer: 2
+  options: ["Rate limiting preview fetches per user and per domain", "Fetching over HTTPS only, rejecting plain HTTP URLs", "Caching previews so each URL is fetched only once", "Blocking private and metadata IPs after resolving DNS"]
+  answer: 3
   explanation: >-
     SSRF against the instance metadata endpoint yields instance credentials. Validation must block link-local and private ranges on resolved addresses and on every redirect, from an isolated fetcher and egress proxy with no internal reach. Rate limiting helps abuse but not this attack.
 - q: >-
     Why should login attempts be rate limited per account rather than only per IP?
-  options: ["Per-account counters are cheaper to store than per-IP ones", "Client IPs are hidden from the gateway by TLS termination", "Per-IP limits breach privacy rules on storing addresses", "Users share NAT IPs; attackers spread across many IPs"]
-  answer: 3
+  options: ["Per-account counters are cheaper to store than per-IP ones", "Users share NAT IPs; attackers spread across many IPs", "Client IPs are hidden from the gateway by TLS termination", "Per-IP limits breach privacy rules on storing addresses"]
+  answer: 1
   explanation: >-
     Many legitimate users share IPs behind NAT, while credential stuffing is distributed across thousands of IPs by design, so IP alone both over-blocks and under-blocks. Per-account buckets stop brute force on one account; device and ASN signals catch distributed campaigns; IP is one input to a risk score, not the key.
 ```

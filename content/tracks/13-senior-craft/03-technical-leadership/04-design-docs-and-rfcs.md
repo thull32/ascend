@@ -179,20 +179,20 @@ Put the recommendation first. Keep the summary to five sentences so an executive
 ```quiz
 - q: >-
     Which change most clearly needs a design doc?
-  options: ["Switching the primary datastore for user sessions", "Upgrading a library by a patch version everywhere", "Adding a field to an internal log line in one handler", "Renaming an internal function across one service"]
+  options: ["Switching the primary datastore for user sessions", "Upgrading a library by a patch version everywhere", "Renaming an internal function across one service", "Adding a field to an internal log line in one handler"]
   answer: 0
   explanation: >-
     A datastore change is hard to reverse, affects operations and data, and usually crosses teams. The rename, the log field and the patch upgrade are reversible and local, however widely they are applied; a doc would be overhead.
 - q: >-
     Reviewers keep critiquing your design for not supporting multi-region failover, which you never intended to build this quarter. What was most likely missing from the doc?
-  options: ["A clearer architecture diagram", "An explicit non-goals section", "More alternatives considered", "A longer executive summary"]
-  answer: 1
+  options: ["A clearer architecture diagram", "A longer executive summary", "More alternatives considered", "An explicit non-goals section"]
+  answer: 3
   explanation: >-
     Non-goals tell readers what is deliberately out of scope, which keeps review focused on the problem being solved. Without them, reviewers fill the gap with their own assumptions, and no diagram, summary or extra alternative tells them the omission was deliberate.
 - q: >-
     In the reply-persistence example, why was the durable job queue (option C) rejected even though it survives server crashes?
-  options: ["A queue cannot carry token-by-token streaming data at the latency a chat needs", "It was the most expensive option to run, and cost alone decided the comparison", "Crash survival was a non-goal, so its infrastructure and latency were unjustified", "It offered no backpressure, so one slow browser could exhaust the server's memory"]
-  answer: 2
+  options: ["A queue cannot carry token-by-token streaming data at the latency a chat needs", "Crash survival was a non-goal, so its infrastructure and latency were unjustified", "It offered no backpressure, so one slow browser could exhaust the server's memory", "It was the most expensive option to run, and cost alone decided the comparison"]
+  answer: 1
   explanation: >-
     The doc named C's strength honestly, then fenced it off with a non-goal and recorded a trigger to revisit. C adds a queue hop per event rather than making streaming impossible, and its queue depth is a form of backpressure; it lost because the goals did not justify its new infrastructure. That is how a senior rejects a stronger-but-costlier option without hiding the trade-off.
 - q: >-
@@ -203,8 +203,8 @@ Put the recommendation first. Keep the summary to five sentences so an executive
     Without a closing window there is no moment at which the proposal is accepted or rejected, so it drifts. A final comment period converts discussion into a decision; more evidence, reviewers or prototypes only feed a discussion that has no end.
 - q: >-
     A decision recorded in an ADR two years ago no longer holds. What should you do?
-  options: ["Write a new ADR that supersedes it and mark the old one superseded", "Edit the old ADR so that it reflects the decision now in force", "Delete the old ADR so that nobody follows it by mistake", "Leave the ADR unchanged and note the change in the README instead"]
-  answer: 0
+  options: ["Leave the ADR unchanged and note the change in the README instead", "Delete the old ADR so that nobody follows it by mistake", "Edit the old ADR so that it reflects the decision now in force", "Write a new ADR that supersedes it and mark the old one superseded"]
+  answer: 3
   explanation: >-
     ADRs are an immutable history of why things changed. Superseding preserves the original context and makes the evolution traceable; editing or deleting erases exactly the reasoning future engineers need, and a README note leaves the ADR log asserting something false.
 ```

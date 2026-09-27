@@ -185,38 +185,38 @@ With the subtraction comparator, a heap containing `Integer.MAX_VALUE` and `-5` 
 ```quiz
 - q: >-
     A JVM with -Xmx4g runs in a container with a 4 GiB memory limit and is killed by the kernel with no OutOfMemoryError logged. What is the most likely explanation?
-  options: ["The heap is too small for the live set, so the GC thrashes until the kernel steps in", "Compressed oops switch off at 4 GB, so every object reference doubles in size", "Native memory outside the heap (stacks, metaspace, buffers) pushes RSS past 4 GiB", "The garbage collector is disabled in containers, so the heap never shrinks"]
+  options: ["Compressed oops switch off at 4 GB, so every object reference doubles in size", "The heap is too small for the live set, so the GC thrashes until the kernel steps in", "Native memory outside the heap (stacks, metaspace, buffers) pushes RSS past 4 GiB", "The garbage collector is disabled in containers, so the heap never shrinks"]
   answer: 2
   explanation: >-
     -Xmx bounds only the Java heap. Thread stacks, metaspace, the code cache and direct buffers are native memory, so a heap equal to the container limit guarantees an OOM kill. A heap too small for the live set would throw OutOfMemoryError, which is logged. Size the heap at roughly 50 to 75% of the limit.
 - q: >-
     Your service allocates 800 MB/s and runs a young collection every second with a 800 MB Eden. You double Eden. What happens to total young-GC work, assuming the amount of live data per collection stays similar?
-  options: ["It doubles, because each collection scans twice as much memory", "It roughly halves, because there are half as many collections", "It is unchanged, because the same bytes are allocated per second", "It drops to zero, because objects now die before Eden ever fills"]
-  answer: 1
+  options: ["It doubles, because each collection scans twice as much memory", "It is unchanged, because the same bytes are allocated per second", "It drops to zero, because objects now die before Eden ever fills", "It roughly halves, because there are half as many collections"]
+  answer: 3
   explanation: >-
     Copying collectors pay for survivors, not for garbage. A larger Eden means collections happen half as often, each copying about the same surviving data, so total work roughly halves. Allocation continues at the same rate, so Eden still fills and collections do not stop. That is why allocation rate and young-generation sizing are the first levers.
 - q: >-
     A `running` flag is a plain boolean read in a worker loop and set to false by another thread. The worker never stops. Why, and what fixes it?
-  options: ["The worker never yields the CPU; call Thread.yield() so the write propagates", "A primitive is copied per thread; make the flag a shared Boolean object", "No happens-before edge lets the JIT hoist the read; declare the field volatile", "The flag must be static to be shared; make it a static field of the class"]
-  answer: 2
+  options: ["The worker never yields the CPU; call Thread.yield() so the write propagates", "No happens-before edge lets the JIT hoist the read; declare the field volatile", "A primitive is copied per thread; make the flag a shared Boolean object", "The flag must be static to be shared; make it a static field of the class"]
+  answer: 1
   explanation: >-
     The memory model only guarantees visibility across threads through happens-before edges; without one, the JIT may hoist the read out of the loop. A volatile write happens-before subsequent reads of that field, and it forbids caching the value in a register. yield() gives no visibility guarantee, and boxing or making the field static changes nothing about visibility.
 - q: >-
     Why is Executors.newFixedThreadPool(32) a risky default for a request-handling service?
-  options: ["Its threads are daemon threads, so in-flight requests die on shutdown", "Its queue is unbounded, so overload piles up tasks instead of rejecting them", "It creates all 32 threads eagerly, so idle services waste memory on their stacks", "It cannot run Callable tasks, so errors from handlers are silently lost"]
-  answer: 1
+  options: ["Its queue is unbounded, so overload piles up tasks instead of rejecting them", "Its threads are daemon threads, so in-flight requests die on shutdown", "It cannot run Callable tasks, so errors from handlers are silently lost", "It creates all 32 threads eagerly, so idle services waste memory on their stacks"]
+  answer: 0
   explanation: >-
     The fixed pool uses an unbounded LinkedBlockingQueue, so under overload tasks accumulate in memory and latency grows without limit. A bounded queue with an explicit rejection policy such as CallerRunsPolicy turns overload into visible backpressure. The pool creates threads lazily and runs Callables fine.
 - q: >-
     In a sliding-window solution you compare counts with `need.get(c) == have.get(c)` on two HashMap<Character, Integer>. Small tests pass and a large test fails. Why?
-  options: ["== compares Integer references, and only values from -128 to 127 are cached", "The counts overflow Integer once the input is large enough to exceed its range", "HashMap iteration order changes as the map grows past its resize threshold", "Character keys collide in the HashMap once the window holds many distinct letters"]
-  answer: 0
+  options: ["Character keys collide in the HashMap once the window holds many distinct letters", "The counts overflow Integer once the input is large enough to exceed its range", "== compares Integer references, and only values from -128 to 127 are cached", "HashMap iteration order changes as the map grows past its resize threshold"]
+  answer: 2
   explanation: >-
     Autoboxing uses Integer.valueOf, which caches values from -128 to 127, so == happens to work until a count exceeds 127 and the two sides become different objects. Use equals() or compare unboxed ints. Key collisions affect performance, not correctness, and counts nowhere near 2^31 cannot overflow.
 - q: >-
     You move a blocking-I/O service to virtual threads on JDK 21 and throughput collapses under load. Which cause is most plausible?
-  options: ["Virtual threads use more stack memory than platform threads, so the heap fills", "Virtual threads cannot do blocking I/O, so each call falls back to a platform thread", "Virtual threads disable JIT compilation, so hot paths run in the interpreter", "Blocking inside synchronized blocks pins the carrier threads, starving the carrier pool"]
-  answer: 3
+  options: ["Virtual threads cannot do blocking I/O, so each call falls back to a platform thread", "Blocking inside synchronized blocks pins the carrier threads, starving the carrier pool", "Virtual threads use more stack memory than platform threads, so the heap fills", "Virtual threads disable JIT compilation, so hot paths run in the interpreter"]
+  answer: 1
   explanation: >-
     On JDK 21, a virtual thread that blocks while holding a monitor cannot unmount, tying up its carrier. With carriers roughly equal to cores, a handful of pinned threads stalls everything. Replace synchronized around blocking calls with ReentrantLock or upgrade to a JDK that removes this pinning.
 ```

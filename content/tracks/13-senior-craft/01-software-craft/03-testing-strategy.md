@@ -222,32 +222,32 @@ The foundations track covers the single-function version of this discipline in [
 ```quiz
 - q: >-
     Every repository test in a service mocks the database client. A migration renames a column and production breaks, yet CI stayed green. What is the most direct fix?
-  options: ["A coverage gate that fails the build below 100% of repository lines", "More unit tests around the repository, each with its own stricter mock", "An end-to-end browser test for every page that reads from that table", "Integration tests that run the real queries against migrated Postgres"]
-  answer: 3
+  options: ["Integration tests that run the real queries against migrated Postgres", "A coverage gate that fails the build below 100% of repository lines", "More unit tests around the repository, each with its own stricter mock", "An end-to-end browser test for every page that reads from that table"]
+  answer: 0
   explanation: >-
     The mocks encoded the old column name, so they could only confirm the author's assumption, and stricter mocks or full coverage of mocked code add no fidelity. Only a test that executes the real SQL against the real, migrated schema can catch the drift. Browser tests would catch it too, but slowly, late and imprecisely, which is why the integration level is the direct fix.
 - q: >-
     Which is the best property to test for a function that encodes and decodes an opaque pagination cursor?
-  options: ["decode(encode(x)) == x for every valid position x", "encode(x) finishes in under 1 ms for any input", "encode(x) is always exactly 43 characters long", "decode(s) returns a position for any string s"]
+  options: ["decode(encode(x)) == x for every valid position x", "encode(x) finishes in under 1 ms for any input", "decode(s) returns a position for any string s", "encode(x) is always exactly 43 characters long"]
   answer: 0
   explanation: >-
     Round-trip is the defining property of an encoder/decoder pair and holds for every input, which is exactly what a generator can search. A fixed length is false for variable-length positions, a timing bound is a flaky benchmark rather than a property, and decode should reject garbage input with an error rather than return a position for everything.
 - q: >-
     A Playwright test uses page.waitForTimeout(2000) before checking a result and fails about one run in fifty. What is the right fix?
-  options: ["Replace the sleep with an assertion that waits for the result", "Raise the wait to 5000 ms so slow CI machines have enough time", "Enable retries: 2 so a single slow run no longer fails the build", "Skip the test on CI and keep running it locally before each merge"]
+  options: ["Replace the sleep with an assertion that waits for the result", "Enable retries: 2 so a single slow run no longer fails the build", "Raise the wait to 5000 ms so slow CI machines have enough time", "Skip the test on CI and keep running it locally before each merge"]
   answer: 0
   explanation: >-
     Fixed sleeps are the most common flake cause: too short on a slow machine, wasted time on a fast one. A web-first assertion polls for the condition, so the test becomes both faster and deterministic. A longer sleep only moves the failure rate, retries hide the flake (Ascend's Playwright config sets retries: 0 for that reason), and skipping it in CI removes the check from the place that gates merges.
 - q: >-
     Why does Ascend's production build run the binary with --check-content in strict mode, in addition to the embedded_curriculum_loads unit test?
-  options: ["It lets the server skip parsing the curriculum at every boot", "It shrinks the binary by dropping lessons that fail validation", "It replaces the CI validation step, which only runs in lenient mode", "It checks the exact content compiled into the binary that will ship"]
-  answer: 3
+  options: ["It shrinks the binary by dropping lessons that fail validation", "It lets the server skip parsing the curriculum at every boot", "It checks the exact content compiled into the binary that will ship", "It replaces the CI validation step, which only runs in lenient mode"]
+  answer: 2
   explanation: >-
     Checking the artifact you are about to ship closes the gap between "tests passed somewhere" and "this binary is valid". Found at boot, a content error fails the deploy; found in the build, it blocks the image before anything ships. It complements the CI step, which is strict too, rather than replacing it; nothing is dropped from the binary, and the server still parses the curriculum at every boot.
 - q: >-
     Your team's CI retries failing tests up to twice and reports green if any attempt passes. What is the main risk?
-  options: ["Flaky tests start failing more often because they run more times", "Real intermittent bugs, such as races in the product, look like noise", "Every run gets slower because each test is now executed three times", "Test order becomes fixed, so order-dependent bugs can no longer appear"]
-  answer: 1
+  options: ["Test order becomes fixed, so order-dependent bugs can no longer appear", "Flaky tests start failing more often because they run more times", "Every run gets slower because each test is now executed three times", "Real intermittent bugs, such as races in the product, look like noise"]
+  answer: 3
   explanation: >-
     Some flakes are real product bugs (races, timeouts) that users will hit, and automatic retries turn them into green builds with no signal. Only failing tests are retried, so passing runs are not slower, and retrying changes neither test order nor how often the underlying bug fires. If you retry at all, record a pass-on-retry as a flake event and track it.
 ```

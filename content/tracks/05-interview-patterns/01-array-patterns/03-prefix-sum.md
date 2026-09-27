@@ -269,32 +269,32 @@ hints:
 ```quiz
 - q: >-
     In the hash-map form of Subarray Sum Equals K, the map is seeded with {0: 1} before the loop. What breaks if you leave that out?
-  options: ["Subarrays containing negative values are counted twice in the total", "Subarrays ending at the last index are missed, since no prefix follows", "Nothing breaks; the seed only saves one lookup on the first element", "Subarrays starting at index 0 are missed, since their left prefix is 0"]
-  answer: 3
+  options: ["Subarrays ending at the last index are missed, since no prefix follows", "Subarrays starting at index 0 are missed, since their left prefix is 0", "Nothing breaks; the seed only saves one lookup on the first element", "Subarrays containing negative values are counted twice in the total"]
+  answer: 1
   explanation: >-
     A subarray nums[0..j] corresponds to P[j+1] - P[0], and P[0] is 0. Without recording that empty prefix the lookup for prefix - k never finds it. This is the same reason the array form needs n + 1 entries. Subarrays ending at the last index are fine: they are found when the final prefix is processed.
 - q: >-
     You look up prefix - k in the map after inserting the current prefix. For k = 0 the result is:
-  options: ["Too high by n, because every position matches its own prefix", "Always zero, because the lookup key is never in the map yet", "Correct, since an empty subarray also sums to k when k = 0", "Too high by one, because the seeded 0 prefix matches itself once"]
-  answer: 0
+  options: ["Correct, since an empty subarray also sums to k when k = 0", "Too high by one, because the seeded 0 prefix matches itself once", "Always zero, because the lookup key is never in the map yet", "Too high by n, because every position matches its own prefix"]
+  answer: 3
   explanation: >-
     With k = 0 the lookup key equals the current prefix, which you have just inserted, so every index counts an empty subarray. The problem counts non-empty subarrays, so that is n spurious matches. Look up first, then insert, so the map only ever contains strictly earlier prefixes.
 - q: >-
     An interviewer changes Range Sum Query so that single elements can be updated between queries. Prefix sums are now the wrong choice because:
-  options: ["Subtraction no longer cancels the prefix once values have changed", "Queries become O(n), because each must re-add the updated element", "An update invalidates every later prefix, so updates cost O(n) each", "Prefix sums need non-negative values, and updates may add negatives"]
-  answer: 2
+  options: ["An update invalidates every later prefix, so updates cost O(n) each", "Queries become O(n), because each must re-add the updated element", "Prefix sums need non-negative values, and updates may add negatives", "Subtraction no longer cancels the prefix once values have changed"]
+  answer: 0
   explanation: >-
     P[i] depends on every element before i, so changing nums[2] changes P[3..n]. Queries stay O(1) but updates cost a rebuild. A Fenwick or segment tree stores partial sums so that both operations touch only O(log n) entries.
 - q: >-
     Which of these range queries can NOT be answered with a prefix array plus one subtraction?
-  options: ["Range sum modulo a prime", "Range sum of integers", "Range minimum of integers", "Range XOR of integers"]
-  answer: 2
+  options: ["Range sum of integers", "Range XOR of integers", "Range sum modulo a prime", "Range minimum of integers"]
+  answer: 3
   explanation: >-
     Prefixes need an operation with an inverse so the left part can be cancelled. Sum and XOR have inverses (subtraction, XOR itself), and modular sum does too. Minimum has no inverse: knowing min(0..j) and min(0..i-1) tells you nothing about min(i..j).
 - q: >-
     Counting subarrays whose sum is divisible by 5 in JavaScript, a candidate keys the map by prefix % 5. The count is too low on inputs with negatives. Why?
-  options: ["JavaScript Map objects cannot store negative numbers as keys", "The map should be keyed by Math.floor(prefix / 5), not the remainder", "JS % keeps the dividend's sign, so -3 and 2 get different keys", "Prefix sums lose divisibility once a negative value is added"]
-  answer: 2
+  options: ["JS % keeps the dividend's sign, so -3 and 2 get different keys", "The map should be keyed by Math.floor(prefix / 5), not the remainder", "JavaScript Map objects cannot store negative numbers as keys", "Prefix sums lose divisibility once a negative value is added"]
+  answer: 0
   explanation: >-
     Two prefixes bound a divisible subarray when they are congruent mod 5. JavaScript's remainder can be negative, splitting one congruence class into two keys and losing matches; normalise with ((p % 5) + 5) % 5. Maps accept negative keys without trouble, and Python's % is already non-negative for a positive modulus.
 ```

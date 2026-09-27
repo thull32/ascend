@@ -179,31 +179,31 @@ A consensus algorithm that is guaranteed to terminate in a fully asynchronous sy
 ```quiz
 - q: >-
     In Paxos phase 2, a proposer with promises from a majority finds that one acceptor already accepted (n=3, v=X). The proposer wanted Y. It must propose:
-  options: ["Nothing; it must restart phase 1 with a higher number", "Either, since neither has yet reached a majority", "X, because it may already have been chosen", "Y, because its proposal number is higher"]
-  answer: 2
+  options: ["Y, because its proposal number is higher", "X, because it may already have been chosen", "Nothing; it must restart phase 1 with a higher number", "Either, since neither has yet reached a majority"]
+  answer: 1
   explanation: >-
     The proposer cannot know whether X was accepted by a full majority it did not hear from, so it conservatively adopts the highest-numbered accepted value it sees and preserves it. This is the invariant that keeps a chosen value from ever being overturned. A higher proposal number does not license overwriting a possibly chosen value.
 - q: >-
     Two proposers keep issuing higher-numbered prepares, each invalidating the other's accept phase. Which property is violated?
-  options: ["Neither, because Paxos resolves this within a round", "Liveness, because no value is chosen while it lasts", "Safety, because two values may end up chosen", "Both, because each duel may overwrite a chosen value"]
+  options: ["Safety, because two values may end up chosen", "Liveness, because no value is chosen while it lasts", "Both, because each duel may overwrite a chosen value", "Neither, because Paxos resolves this within a round"]
   answer: 1
   explanation: >-
     Promises guarantee at most one value is ever chosen, so safety holds. Progress fails until a distinguished proposer (leader) is established, which is how implementations avoid the FLP-shaped stall.
 - q: >-
     A ZooKeeper client reads a znode from a follower immediately after another client's write was acknowledged by the leader. What may it see?
-  options: ["Possibly the old value, unless it calls sync() first", "An error until the follower has applied the write", "A torn mix of the old and new values of the znode", "Always the new value, since the write was acknowledged"]
-  answer: 0
+  options: ["Always the new value, since the write was acknowledged", "An error until the follower has applied the write", "Possibly the old value, unless it calls sync() first", "A torn mix of the old and new values of the znode"]
+  answer: 2
   explanation: >-
     ZooKeeper trades linearizable reads for read scalability: followers serve reads locally and may lag. Clients see a growing prefix of history (sequential consistency) and their own writes in order; sync() provides a fresh read at the cost of a round trip to the leader. Acknowledgement by a quorum does not mean every follower has applied it.
 - q: >-
     Why must a Paxos acceptor persist its promise to disk before replying?
-  options: ["So learners can read the promise to find the chosen value", "To avoid resending promises and so reduce network traffic", "It need not; a majority of other acceptors holds it anyway", "So a restart cannot make it accept what it promised to reject"]
+  options: ["So learners can read the promise to find the chosen value", "It need not; a majority of other acceptors holds it anyway", "To avoid resending promises and so reduce network traffic", "So a restart cannot make it accept what it promised to reject"]
   answer: 3
   explanation: >-
     The promise is part of the safety argument: a majority that promised n must never accept anything below n. An acceptor that crashes, forgets and accepts an older proposal breaks the overlap reasoning, and two different values could be chosen. This fsync is why consensus commit latency is disk-bound.
 - q: >-
     Which statement best describes the relationship between Multi-Paxos and Raft?
-  options: ["Raft tolerates more node failures for the same cluster size", "Raft is Multi-Paxos with a mandatory leader and log rules", "They are unrelated algorithms solving two different problems", "Multi-Paxos needs no leader, so it is faster for every write"]
+  options: ["Multi-Paxos needs no leader, so it is faster for every write", "Raft is Multi-Paxos with a mandatory leader and log rules", "They are unrelated algorithms solving two different problems", "Raft tolerates more node failures for the same cluster size"]
   answer: 1
   explanation: >-
     Raft adds a contiguous log and the rule that only a node with the most complete log can lead, which removes per-slot reconciliation after election. Both tolerate f failures with 2f+1 nodes and cost one round trip per entry in steady state. Raft's restrictions and its fully specified membership, snapshot and client rules are what made it the practical default.

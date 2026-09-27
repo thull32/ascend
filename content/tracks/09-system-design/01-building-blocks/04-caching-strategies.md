@@ -235,38 +235,38 @@ The [distributed cache case study](/learn/system-design/case-studies/distributed
 ```quiz
 - q: >-
     A cache-fronted read path has a 1 ms cache hit and a 25 ms database read. Raising the hit ratio from 96% to 99% mostly changes which of these?
-  options: ["Neither load nor latency; both rates are high", "The p50 latency, which falls by about 20 ms", "The p99 latency, which falls from 25 ms to 1 ms", "The database load, which falls by about 4x"]
+  options: ["The p99 latency, which falls from 25 ms to 1 ms", "Neither load nor latency; both rates are high", "The p50 latency, which falls by about 20 ms", "The database load, which falls by about 4x"]
   answer: 3
   explanation: >-
     Database QPS is proportional to the miss rate: 4% to 1% is a 4x reduction. The mean drops only from about 1.96 ms to 1.24 ms. The p99 remains a miss (25 ms) in both cases because more than 1% of requests still miss at 96%, and at 99% the p99 sits right at the boundary; the p50 was already a hit.
 - q: >-
     In cache-aside, a writer updates the database and then deletes the cache key. Which interleaving leaves the cache serving stale data until the TTL?
-  options: ["A slow reader fetches the old row and sets it after the delete", "A reader hits the cache while the writer is updating the database", "Two readers miss together and both set the freshly written row", "Two writers update the row and both delete the key at once"]
+  options: ["A slow reader fetches the old row and sets it after the delete", "Two readers miss together and both set the freshly written row", "Two writers update the row and both delete the key at once", "A reader hits the cache while the writer is updating the database"]
   answer: 0
   explanation: >-
     The reader misses and reads the old row before the update; its delayed set lands after the writer's delete and installs the pre-write value, which nothing will remove until the TTL or the next write. Concurrent deletes are harmless (that is why delete is preferred over set); a hit during the update simply returns the old value once, which is expected.
 - q: >-
     A popular key with a 500 ms recompute expires under 10,000 reads/s. Without protection, roughly how many identical database queries are started before the cache is repopulated?
-  options: ["Exactly 1", "About 10,000", "About 10", "About 5,000"]
+  options: ["About 10", "Exactly 1", "About 10,000", "About 5,000"]
   answer: 3
   explanation: >-
     Every request during the 500 ms recompute window misses: 10,000 x 0.5 = 5,000, not the full 10,000 of a whole second. If those queries slow the database so the recompute takes longer, the window grows and the feedback loop can keep the key empty, which is why coalescing or stale-while-revalidate is needed.
 - q: >-
     Which data is an acceptable candidate for write-behind caching?
-  options: ["User password hashes", "Customer account balances", "A per-video view counter", "Order line items at checkout"]
-  answer: 2
+  options: ["User password hashes", "A per-video view counter", "Customer account balances", "Order line items at checkout"]
+  answer: 1
   explanation: >-
     Write-behind acknowledges before persisting, so a cache node loss drops unflushed writes. A view counter tolerates losing a few seconds of increments and benefits from coalescing thousands of them; balances and orders do not tolerate silent loss.
 - q: >-
     A single cache node's CPU is at 95% while the other 19 nodes sit at 10%. The most likely cause and fix is:
-  options: ["Too many client connections to it; put a connection pool in front", "Uneven hash ranges; rebalance by adding more nodes", "One hot key on that node; replicate it or cache it in-process", "Slower hardware on that node; replace it with a larger instance"]
-  answer: 2
+  options: ["Uneven hash ranges; rebalance by adding more nodes", "One hot key on that node; replicate it or cache it in-process", "Slower hardware on that node; replace it with a larger instance", "Too many client connections to it; put a connection pool in front"]
+  answer: 1
   explanation: >-
     Keys are partitioned by hash, so a single very hot key saturates its node regardless of cluster size. Adding nodes does not split one key. A short-TTL in-process cache or replicating the key under several suffixes spreads the reads.
 - q: >-
     You cache "not found" results to stop repeated lookups of missing IDs. Which TTL choice is safest?
-  options: ["No TTL, since an ID that is missing now will stay missing", "The same TTL as positive entries, so both expire consistently", "A one-day TTL, since lookups of missing IDs are rare anyway", "A few seconds, and delete the entry when the item is created"]
-  answer: 3
+  options: ["No TTL, since an ID that is missing now will stay missing", "A few seconds, and delete the entry when the item is created", "The same TTL as positive entries, so both expire consistently", "A one-day TTL, since lookups of missing IDs are rare anyway"]
+  answer: 1
   explanation: >-
     Negative caching protects the database from lookups of non-existent keys, but a long TTL makes newly created items invisible. A short TTL bounds the damage and deleting on create removes it entirely; reusing the positive TTL applies a freshness budget meant for existing data to data that is about to exist.
 ```

@@ -286,32 +286,32 @@ hints:
 ```quiz
 - q: >-
     In the one-row 0/1 knapsack, you accidentally sweep capacity upward. On weights [2], values [3], capacity 6, what do you get?
-  options: ["6, since only dp[4] reads an updated cell", "3, since each item is still used at most once", "9, since the one item is taken three times", "0, since dp[c-2] is read before it is filled"]
-  answer: 2
+  options: ["6, since only dp[4] reads an updated cell", "0, since dp[c-2] is read before it is filled", "3, since each item is still used at most once", "9, since the one item is taken three times"]
+  answer: 3
   explanation: >-
     Upward sweep reads dp[c-2] after it has already been updated with this item, so dp[2]=3, dp[4]=6, dp[6]=9: the item is taken three times. That is the unbounded answer. Every cell from dp[4] up reads an already-updated cell, not just dp[4]. Downward sweep reads the previous row's values and yields the correct 3.
 - q: >-
     Why does knapsack have a polynomial-looking O(nW) algorithm even though it is NP-hard?
-  options: ["DP caches states, which makes NP-hard problems polynomial", "O(nW) is exponential in the number of bits used to write W", "The DP is exact only for small n; large n needs approximation", "It is not truly NP-hard; the O(nW) DP shows it lies in P"]
-  answer: 1
+  options: ["The DP is exact only for small n; large n needs approximation", "It is not truly NP-hard; the O(nW) DP shows it lies in P", "O(nW) is exponential in the number of bits used to write W", "DP caches states, which makes NP-hard problems polynomial"]
+  answer: 2
   explanation: >-
     Input size is measured in bits. A capacity of 10¹² is written in 40 bits but produces 10¹² table cells, so O(nW) is polynomial in the numeric value of W but exponential in the input size. This is the definition of pseudo-polynomial, and it does not put knapsack in P. The DP is exact for any n and useful whenever W is small in absolute terms.
 - q: >-
     Target sum asks for the number of ± assignments reaching T. Which reduction is correct?
-  options: ["Count subsets summing to T, the net total of positives", "Count subsets summing to S − T, the negatives' total", "Run unbounded knapsack to T, since each sign can repeat", "Count subsets summing to (S + T) / 2, the positives' total"]
-  answer: 3
+  options: ["Count subsets summing to (S + T) / 2, the positives' total", "Count subsets summing to T, the net total of positives", "Run unbounded knapsack to T, since each sign can repeat", "Count subsets summing to S − T, the negatives' total"]
+  answer: 0
   explanation: >-
     Let P be the positives: sum(P) − (S − sum(P)) = T gives sum(P) = (S + T)/2, where S is the total; if S + T is odd or |T| > S the answer is 0. Each such subset corresponds to exactly one sign assignment. The negatives sum to (S − T)/2, not S − T. Items are used once, so it is 0/1 (downward sweep), not unbounded.
 - q: >-
     You need the best value with weight exactly W, not at most W. What changes?
-  options: ["The combine operator, so a take must land on c exactly", "The base cases: dp[0] = 0 and every other dp[c] = −∞", "The sweep direction, so that no capacity is left part-empty", "Nothing; the at-most and exactly answers always coincide"]
-  answer: 1
+  options: ["The base cases: dp[0] = 0 and every other dp[c] = −∞", "The combine operator, so a take must land on c exactly", "Nothing; the at-most and exactly answers always coincide", "The sweep direction, so that no capacity is left part-empty"]
+  answer: 0
   explanation: >-
     With all-zero initialisation, an unfilled capacity is worth 0, which is the at-most semantics. With −∞ everywhere except dp[0], the transition can only produce a finite value at c by adding an item to an exactly-fillable c − w, so only exactly-fillable capacities become finite. Sweep and combine are unchanged, and the answers differ whenever W cannot be filled exactly.
 - q: >-
     Bounded knapsack has an item with 1000 copies. The fastest reasonable approach among these is:
-  options: ["Expand into 1000 identical 0/1 items and run 0/1 once", "Run 0/1 knapsack 1000 times, once for each allowed count", "Split into bundles 1, 2, 4, …, 256 plus a remainder, then 0/1", "Run unbounded knapsack, as 1000 copies is effectively unlimited"]
-  answer: 2
+  options: ["Expand into 1000 identical 0/1 items and run 0/1 once", "Split into bundles 1, 2, 4, …, 256 plus a remainder, then 0/1", "Run 0/1 knapsack 1000 times, once for each allowed count", "Run unbounded knapsack, as 1000 copies is effectively unlimited"]
+  answer: 1
   explanation: >-
     Every count from 0 to 1000 is a sum of a subset of the bundles, so 0/1 on the 10 bundles (1, 2, 4, …, 256 and 489) is exact with O(log k) items instead of k. Expansion is correct but about 100× slower. Unbounded ignores the limit and can overshoot it.
 ```

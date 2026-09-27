@@ -377,13 +377,13 @@ Large organisations commonly run both: gRPC inside the perimeter, REST or GraphQ
 ```quiz
 - q: >-
     After scaling a gRPC service from 3 to 12 pods behind a Kubernetes ClusterIP service, only the original 3 pods receive traffic. What is the cause?
-  options: ["The new pods are failing their readiness checks", "Each pod caches its own copy of the protobuf schema", "ClusterIP picks a pod per connection, not per call", "gRPC clients cap each service at three backends"]
-  answer: 2
+  options: ["ClusterIP picks a pod per connection, not per call", "gRPC clients cap each service at three backends", "Each pod caches its own copy of the protobuf schema", "The new pods are failing their readiness checks"]
+  answer: 0
   explanation: >-
     An L4 balancer such as ClusterIP decides once per TCP connection. gRPC multiplexes every call as a stream over long-lived HTTP/2 connections that were opened when only 3 pods existed, so new pods get nothing until clients reconnect. Per-request balancing (an L7 proxy or client-side round robin over all pod addresses) or a server-side maximum connection age fixes it.
 - q: >-
     How many bytes does the varint encoding of 300 occupy, and what are they?
-  options: ["2 bytes: 0xAC 0x02", "4 bytes: 0x00 0x00 0x01 0x2C", "2 bytes: 0x01 0x2C", "3 bytes: 0x82 0xAC 0x00"]
+  options: ["2 bytes: 0xAC 0x02", "3 bytes: 0x82 0xAC 0x00", "2 bytes: 0x01 0x2C", "4 bytes: 0x00 0x00 0x01 0x2C"]
   answer: 0
   explanation: >-
     300 is 0b100101100. The low 7 bits (0101100 = 44) come first with the continuation bit set (44 + 128 = 0xAC), then the remaining bits (2) with no continuation bit. "0x01 0x2C" is big-endian fixed-width thinking; varints are little-endian groups of 7 bits.
@@ -395,14 +395,14 @@ Large organisations commonly run both: gRPC inside the perimeter, REST or GraphQ
     The wire identifies fields only by number and wire type. Old writers, cached payloads and events in queues still carry field 7 as an integer, which new code expecting a string will misread, and old readers will misinterpret new messages. Reserving removed numbers and names makes the compiler reject reuse; protoc cannot know about the history unless you record it with reserved.
 - q: >-
     A dashboard built on load-balancer HTTP status codes shows 100% success for a gRPC service while clients are receiving errors. Why?
-  options: ["The load balancer is caching successful responses", "Failures arrive as HTTP 200 with a non-zero grpc-status", "The clients are misreporting their own errors", "gRPC sends its errors over a separate connection"]
-  answer: 1
+  options: ["Failures arrive as HTTP 200 with a non-zero grpc-status", "The clients are misreporting their own errors", "gRPC sends its errors over a separate connection", "The load balancer is caching successful responses"]
+  answer: 0
   explanation: >-
     The call status is only known at the end of the stream, so it travels in the grpc-status trailer. HTTP status 200 means only that the HTTP exchange worked. Infrastructure and metrics must be gRPC-aware and read grpc-status to see failures.
 - q: >-
     Service A has a 300 ms deadline from its caller and calls B, which calls C. What is the best practice?
-  options: ["Set no deadline downstream so the work always completes", "Give every hop its own fixed 300 ms timeout budget", "Give downstream calls a longer timeout than the caller's", "Propagate the context so hops inherit what remains"]
-  answer: 3
+  options: ["Propagate the context so hops inherit what remains", "Give downstream calls a longer timeout than the caller's", "Set no deadline downstream so the work always completes", "Give every hop its own fixed 300 ms timeout budget"]
+  answer: 0
   explanation: >-
     Passing the incoming context sends the remaining budget with each hop via grpc-timeout, so B and C stop work when it expires or the caller cancels, and no service keeps working after the original caller has given up. Fixed per-hop timeouts can add up to more than the caller's budget, and no deadline at all is how threads pile up behind a hung dependency.
 ```

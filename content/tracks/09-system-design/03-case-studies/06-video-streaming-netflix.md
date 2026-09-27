@@ -353,38 +353,38 @@ In more places than the home screen. Viewing predictions drive content placement
 ```quiz
 - q: >-
     Peak streaming is 40 million concurrent streams at an average of 5 Mbps. What does the arithmetic imply about delivery?
-  options: ["About 20 Tbps, so a commercial CDN's pricing is clearly cheapest", "About 200 Gbps, so a single cloud region's egress can serve it", "About 200 Tbps, so bytes must come from edge servers near viewers", "About 2 Tbps, comparable to a large API fleet's total outbound traffic"]
-  answer: 2
+  options: ["About 200 Gbps, so a single cloud region's egress can serve it", "About 2 Tbps, comparable to a large API fleet's total outbound traffic", "About 20 Tbps, so a commercial CDN's pricing is clearly cheapest", "About 200 Tbps, so bytes must come from edge servers near viewers"]
+  answer: 3
   explanation: >-
     4 x 10^7 x 5 Mbps = 2 x 10^8 Mbps = 200 Tbps. At that scale, delivery location and cost per GB decide the architecture, and egress cost dominates the design, which is why the data plane lives inside ISPs rather than in a cloud region. Dropping a factor of 1,000 (Gbps versus Tbps) is the classic unit error.
 - q: >-
     Why does per-title encoding beat a fixed bitrate ladder?
-  options: ["It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than the old ladder", "It moves every title to a newer codec with better compression", "It picks rungs from each title's measured quality-bitrate curves"]
+  options: ["It moves every title to a newer codec with better compression", "It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than the old ladder", "It picks rungs from each title's measured quality-bitrate curves"]
   answer: 3
   explanation: >-
     A fixed ladder assumes every title needs the same bits for the same quality. Measuring with a perceptual metric such as VMAF and placing rungs on the efficient frontier shows that animation can hit top quality at a fraction of the bitrate, while grainy action needs more. Codec choice and client-side adaptation are separate, complementary levers.
 - q: >-
     Which property of Netflix's workload most directly makes proactive off-peak fill work better than pull-through caching?
-  options: ["ISPs require content to be pre-positioned before they peer with it", "Video files are large, so each cache miss costs a long origin fetch", "The catalogue is finite and scheduled, so demand can be forecast", "Viewers tolerate a slow first start while the edge pulls the file"]
-  answer: 2
+  options: ["Viewers tolerate a slow first start while the edge pulls the file", "The catalogue is finite and scheduled, so demand can be forecast", "ISPs require content to be pre-positioned before they peer with it", "Video files are large, so each cache miss costs a long origin fetch"]
+  answer: 1
   explanation: >-
     Proactive placement needs to know what will be requested. A finite, scheduled catalogue with forecastable popularity makes that possible, and idle off-peak bandwidth makes it cheap. Large files alone argue for caching, not for predicting; a news site with large files still cannot fill tomorrow's content tonight.
 - q: >-
     A buffer-based ABR uses a 10 s reservoir, a 40 s cushion and a ladder from 235 to 5,800 kbps with rungs at 235, 750, 1750, 3000, 4300 and 5800. With 30 s buffered, which rung is chosen?
-  options: ["4,300 kbps", "3,000 kbps", "235 kbps", "1,750 kbps"]
+  options: ["4,300 kbps", "3,000 kbps", "1,750 kbps", "235 kbps"]
   answer: 1
   explanation: >-
     30 s is halfway through the cushion (20 of 40 s), so the target is 235 + 0.5 x 5,565 = 3,017.5 kbps, and the highest rung at or below it is 3,000. The rule maps buffer health onto the ladder without trusting a noisy throughput estimate.
 - q: >-
     Why does steering hand the client a ranked list of specific server URLs instead of relying on DNS-based CDN routing?
-  options: ["Steering sees the client's own IP and file inventory; DNS does not", "DRM licenses are bound to one server URL chosen at playback start", "DNS can return only one address, so the client cannot fail over", "URLs are cheaper to serve than DNS lookups at 40 million concurrent streams"]
+  options: ["Steering sees the client's own IP and file inventory; DNS does not", "URLs are cheaper to serve than DNS lookups at 40 million concurrent streams", "DNS can return only one address, so the client cannot fail over", "DRM licenses are bound to one server URL chosen at playback start"]
   answer: 0
   explanation: >-
     Application-level steering has better inputs (the client's real IP mapped through ISP-announced BGP prefixes, file-level inventory, health and load) and can tailor the list per session, so the client fails over without another lookup. DNS can return several addresses, but it steers by the resolver's location and reacts only at TTL speed.
 - q: >-
     A cloud region hosting part of the control plane fails at peak. In a well-separated design, what happens to members who are already watching?
-  options: ["They must restart playback so a healthy region issues new URLs", "They drop to the lowest bitrate until steering can be reached", "Their streams stop, because manifests are served by that region", "They keep watching, because the bytes come from edge appliances"]
-  answer: 3
+  options: ["They must restart playback so a healthy region issues new URLs", "They keep watching, because the bytes come from edge appliances", "They drop to the lowest bitrate until steering can be reached", "Their streams stop, because manifests are served by that region"]
+  answer: 1
   explanation: >-
     Separating the data plane from the control plane for the duration of a session is what makes this true: the player already holds pre-signed appliance URLs. New starts fail over to healthy regions. The hidden risk is any in-session dependency on the control plane, such as a license renewal, that the player treats as fatal.
 ```

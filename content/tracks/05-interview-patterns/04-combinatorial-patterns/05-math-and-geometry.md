@@ -319,32 +319,32 @@ hints:
 ```quiz
 - q: >-
     How many loop iterations does iterative repeated squaring take for n = 1,000,000,000?
-  options: ["About 1,000,000,000, one per unit of n", "About 30, one per binary digit of n", "About 500,000,000, one per pair of factors", "About 31,623, the square root of n"]
+  options: ["About 1,000,000,000, one per unit of n", "About 30, one per binary digit of n", "About 31,623, the square root of n", "About 500,000,000, one per pair of factors"]
   answer: 1
   explanation: >-
     Each iteration halves n, so the loop runs floor(log2 n) + 1 times, which is 30 for a billion. The multiplications into the result happen once per set bit, so there are at most 30 of those too.
 - q: >-
     In Multiply Strings, why is a result array of length m + n always enough?
-  options: ["Because each single digit product is at most 81", "It is not always enough; you need m + n + 1 slots", "Because the product of the two is below 10^(m+n)", "Because every carry between slots is at most 1"]
-  answer: 2
+  options: ["Because every carry between slots is at most 1", "It is not always enough; you need m + n + 1 slots", "Because each single digit product is at most 81", "Because the product of the two is below 10^(m+n)"]
+  answer: 3
   explanation: >-
     An m-digit number is below 10^m and an n-digit number is below 10^n, so their product is below 10^(m+n) and has at most m + n digits. Individual pos slots can temporarily exceed 9, and carries can exceed 1, but the final value fits in m + n digits, so pos[0] never overflows.
 - q: >-
     Checking whether four integer points form a square by comparing floating-point side lengths from sqrt fails on some inputs. What is the robust fix?
-  options: ["Compare the lengths with a larger epsilon tolerance", "Compare squared distances, which are exact integers", "Round every side length to 6 decimal places first", "Sort the four points by polar angle before comparing"]
-  answer: 1
+  options: ["Compare the lengths with a larger epsilon tolerance", "Round every side length to 6 decimal places first", "Compare squared distances, which are exact integers", "Sort the four points by polar angle before comparing"]
+  answer: 2
   explanation: >-
     sqrt introduces rounding, so equal lengths can compare unequal, and rounding or a wider epsilon only moves the failure elsewhere. Squared distances of integer points are integers, so equality is exact. The only remaining concern is overflow for very large coordinates.
 - q: >-
     In JavaScript, a Detect Squares implementation stores counts in a Map keyed by [x, y] arrays. What goes wrong?
-  options: ["It works correctly, but each lookup scans the whole map", "Duplicate points overwrite each other's stored counts", "Map objects cannot store arrays as their keys at all", "Fresh [x, y] lookups miss, as arrays compare by reference"]
+  options: ["It works correctly, but each lookup scans the whole map", "Map objects cannot store arrays as their keys at all", "Duplicate points overwrite each other's stored counts", "Fresh [x, y] lookups miss, as arrays compare by reference"]
   answer: 3
   explanation: >-
     Two different array objects with the same contents are different keys, so every lookup with a freshly built [x, y] misses and count always returns 0. Use a string key such as x + ',' + y, or a numeric encoding when the coordinate bounds allow it.
 - q: >-
     Your Java pow(x, n) uses n = -n for negative exponents and passes every test except n = -2147483648. Why?
-  options: ["Negating -2^31 overflows back to -2^31 in an int", "Floating-point underflow drives the result to zero", "x is zero, so the inversion divides by zero", "The loop runs 2^31 times and exceeds the time limit"]
-  answer: 0
+  options: ["x is zero, so the inversion divides by zero", "Negating -2^31 overflows back to -2^31 in an int", "Floating-point underflow drives the result to zero", "The loop runs 2^31 times and exceeds the time limit"]
+  answer: 1
   explanation: >-
     The int range is asymmetric: +2^31 is not representable, so -(-2^31) wraps to -2^31, n stays negative, and the loop misbehaves. Copy n into a long before negating. Negation cannot overflow in Python or JavaScript, although JavaScript has its own 32-bit trap if you halve n with >>.
 ```

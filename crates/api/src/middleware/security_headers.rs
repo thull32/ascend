@@ -1,8 +1,11 @@
-//! Defence-in-depth response headers. The CSP allows the CDN-hosted runtimes
-//! we deliberately load (Pyodide from jsDelivr) and nothing else. `unsafe-eval`
-//! is required for the in-browser code runners (Pyodide and the JS sandbox
-//! both need `new Function`/WebAssembly); the runners live in Web Workers,
-//! which get a separate, stricter policy via the worker script itself.
+//! Defence-in-depth response headers. The CSP names every third-party origin
+//! the app deliberately uses: jsDelivr (the Pyodide runtime and its
+//! packages), PyPI (pure-Python wheels Pyodide installs on import) and Google
+//! Fonts. `unsafe-eval` and `wasm-unsafe-eval` exist for the in-browser code
+//! runners: the JS sandbox evaluates learner code with `new Function` and
+//! Pyodide compiles WebAssembly. Worker scripts are served through this same
+//! middleware, so the runners run under this policy too; there is no
+//! separate worker policy.
 use axum::http::{HeaderValue, header};
 use axum::{body::Body, http::Request, middleware::Next, response::Response};
 

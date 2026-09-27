@@ -252,8 +252,8 @@ hints:
 ```quiz
 - q: >-
     In an O(1) LFU cache, why can min_freq be set to 1 after every insert of a new key without checking anything?
-  options: ["Eviction always empties the min_freq bucket, so the old minimum is gone", "A new key has count 1, so bucket 1 is now the lowest non-empty bucket", "Each insert resets all existing counts to 1, so every key sits at the minimum", "It cannot; the minimum must be found by scanning buckets after an insert"]
-  answer: 1
+  options: ["A new key has count 1, so bucket 1 is now the lowest non-empty bucket", "Each insert resets all existing counts to 1, so every key sits at the minimum", "Eviction always empties the min_freq bucket, so the old minimum is gone", "It cannot; the minimum must be found by scanning buckets after an insert"]
+  answer: 0
   explanation: >-
     The new key lands in bucket 1, which is therefore non-empty and is the smallest possible frequency. min_freq only needs to move up when a promotion empties the bucket it points at. Eviction removes one key from the lowest bucket and need not empty it; the reset is safe because of the new key, not because of the eviction.
 - q: >-
@@ -264,20 +264,20 @@ hints:
     Key 1 has count 3 and key 2 has count 2. LFU evicts the lowest count regardless of recency, so 2 goes even though it was touched last. LRU would have evicted 1.
 - q: >-
     Why is pure LFU (no aging) unusable for a cache in front of a news site?
-  options: ["Each access costs O(log n), too slow for a busy site's request rate", "Old stories keep huge counts forever, so new stories are evicted first", "A per-key count costs more memory than caching the stories saves", "One-hit wonders flush popular stories, just as a scan does under pure LRU"]
-  answer: 1
+  options: ["A per-key count costs more memory than caching the stories saves", "Each access costs O(log n), too slow for a busy site's request rate", "One-hit wonders flush popular stories, just as a scan does under pure LRU", "Old stories keep huge counts forever, so new stories are evicted first"]
+  answer: 3
   explanation: >-
     Without decay, a count reflects all history. Old hits crowd out everything new. Periodic halving (TinyLFU) or time-based decrement (Redis) makes counts reflect recent frequency. One-hit wonders are what LFU evicts most readily; its failure is the opposite, counts that never fade.
 - q: >-
     What does the count-min sketch in W-TinyLFU decide?
-  options: ["Whether a newcomer is admitted, by comparing it with the eviction victim", "Which entry inside the main cache is evicted, by its lowest estimated count", "How long each entry lives, by turning estimated frequency into a TTL", "How large the window LRU is, by tracking the hit ratio over time"]
-  answer: 0
+  options: ["How long each entry lives, by turning estimated frequency into a TTL", "How large the window LRU is, by tracking the hit ratio over time", "Whether a newcomer is admitted, by comparing it with the eviction victim", "Which entry inside the main cache is evicted, by its lowest estimated count"]
+  answer: 2
   explanation: >-
     TinyLFU separates admission from eviction. The main cache evicts by SLRU; the sketch is only consulted to decide if the newcomer deserves the victim's slot. One-hit wonders lose the comparison and never enter. The window size is tuned by hill-climbing on the hit ratio, not by the sketch.
 - q: >-
     Redis stores an 8-bit LFU counter per key. How does it represent a million accesses?
-  options: ["It overflows and wraps to 0, so a very hot key briefly looks cold", "It keeps the exact count in a separate 64-bit field per key", "It saturates at 255 after 255 accesses and stops counting", "It increments with a probability that falls as the counter grows"]
-  answer: 3
+  options: ["It increments with a probability that falls as the counter grows", "It overflows and wraps to 0, so a very hot key briefly looks cold", "It saturates at 255 after 255 accesses and stops counting", "It keeps the exact count in a separate 64-bit field per key"]
+  answer: 0
   explanation: >-
     The increment probability is 1/(counter × lfu_log_factor + 1). With the default factor of 10 it takes on the order of a million hits to reach 255, so the counter is a logarithmic estimate, not a raw count, and 255 is reached only after about a million accesses, not 255. It also decays over time.
 ```

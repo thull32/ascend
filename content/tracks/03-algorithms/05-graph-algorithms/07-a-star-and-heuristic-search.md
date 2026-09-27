@@ -246,14 +246,14 @@ hints:
 ```quiz
 - q: >-
     A* with an admissible but inconsistent heuristic pops node X with g = 10, closes it, and later finds a path to X with g = 8. What is true?
-  options: ["It can happen only if h overestimates at some node", "It can happen; X must be reopened to keep A* optimal", "Impossible; admissibility makes every popped g optimal", "It is harmless, since X cannot lie on the optimal path"]
-  answer: 1
+  options: ["It can happen; X must be reopened to keep A* optimal", "It can happen only if h overestimates at some node", "Impossible; admissibility makes every popped g optimal", "It is harmless, since X cannot lie on the optimal path"]
+  answer: 0
   explanation: >-
     Admissibility guarantees the goal's g is optimal when popped, not every node's. Without consistency f is not monotone along paths, so a node can be popped early with a suboptimal g, even though h never overestimates. Reopening restores optimality at the cost of the runtime guarantee, which is why consistency is preferred: it avoids the problem entirely.
 - q: >-
     On an 8-directional grid where diagonal moves cost 1, which heuristic is both admissible and tightest?
-  options: ["Octile distance max + (√2 − 1)·min", "Chebyshev distance max(|dx|, |dy|)", "Euclidean distance √(dx² + dy²)", "Manhattan distance |dx| + |dy|"]
-  answer: 1
+  options: ["Octile distance max + (√2 − 1)·min", "Manhattan distance |dx| + |dy|", "Euclidean distance √(dx² + dy²)", "Chebyshev distance max(|dx|, |dy|)"]
+  answer: 3
   explanation: >-
     With unit diagonal moves you can cover the shorter axis 'for free' while moving along the longer one, so the true distance is exactly max(|dx|, |dy|). Manhattan overestimates (inadmissible), and so does octile, which assumes diagonals cost √2; Euclidean underestimates more than necessary.
 - q: >-
@@ -264,14 +264,14 @@ hints:
     Scaling above 1 can overestimate, so admissibility is lost and optimality with it, but weighted A* has a bounded suboptimality of the scale factor. It usually expands far fewer nodes, which is a legitimate trade-off when stated explicitly. Only pure greedy best-first (f = h) gives up the bound entirely.
 - q: >-
     Which task is a poor fit for A*?
-  options: ["Solving one 15-puzzle instance from a scrambled start", "Routing one vehicle from a depot to one customer on a road map", "Computing the delivery times from one depot to all 5,000 customers", "Moving a game character to the location the player clicked"]
-  answer: 2
+  options: ["Routing one vehicle from a depot to one customer on a road map", "Computing the delivery times from one depot to all 5,000 customers", "Moving a game character to the location the player clicked", "Solving one 15-puzzle instance from a scrambled start"]
+  answer: 1
   explanation: >-
     A* needs a single goal to aim its heuristic at. One-to-all is exactly Dijkstra's shape; running A* 5,000 times would repeat most of the work. The other three are single-goal searches with good heuristics available.
 - q: >-
     Two candidate nodes have the same f value. Which should A* prefer to reduce expansions, and why?
-  options: ["The one discovered first, since FIFO order is stable", "Neither, since equal f means equal work remaining", "Smaller g, since a shorter known path is more reliable", "Larger g, since its smaller h puts it nearer the goal"]
-  answer: 3
+  options: ["Smaller g, since a shorter known path is more reliable", "The one discovered first, since FIFO order is stable", "Larger g, since its smaller h puts it nearer the goal", "Neither, since equal f means equal work remaining"]
+  answer: 2
   explanation: >-
     Among equal-f nodes, larger g means the remaining estimate is smaller, so the search is deeper along a promising path and finishes sooner. On open grids this tie-break can halve expansions; equal f does not mean equal work remaining.
 ```

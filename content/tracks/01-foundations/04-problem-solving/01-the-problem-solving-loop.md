@@ -245,8 +245,8 @@ hints:
 ```quiz
 - q: >-
     You have coded a solution and it returns the wrong answer for an example you had not written down before. According to the loop, where do you go first?
-  options: ["Step 1, to check you read the problem right", "Step 5, to find and fix the bug in the code", "Step 3, to compare against the brute force", "Step 4, to rethink the optimisation you chose"]
-  answer: 0
+  options: ["Step 4, to rethink the optimisation you chose", "Step 1, to check you read the problem right", "Step 5, to find and fix the bug in the code", "Step 3, to compare against the brute force"]
+  answer: 1
   explanation: >-
     A failure on a case you never considered usually means the problem is different from the one you solved (a missed constraint or misread term). Re-examine the statement first; fixing code for the wrong problem wastes time. A failure on an example you did work by hand points at the optimisation (step 4) or the code instead.
 - q: >-
@@ -257,20 +257,20 @@ hints:
     The brute force is a correctness oracle for your examples and a diagnosis tool: the optimisation comes from asking what work it repeats. Interviewer confidence is a side effect, not a rule; interviewers care because the brute force shows you understand the problem. Examples come before the brute force, which is how you check it.
 - q: >-
     In the sliding-window solution, what goes wrong if you drop the check `last_seen[ch] >= left` and always set `left = last_seen[ch] + 1`?
-  options: ["Nothing; the check is redundant since left only grows", "It fails on the empty string with a missing-key error", "It becomes O(n^2), because left re-scans characters", "left can move backwards, re-admitting a repeated char"]
-  answer: 3
+  options: ["left can move backwards, re-admitting a repeated char", "Nothing; the check is redundant since left only grows", "It becomes O(n^2), because left re-scans characters", "It fails on the empty string with a missing-key error"]
+  answer: 0
   explanation: >-
     On "abba", the final `a` was last seen at index 0, outside the current window [2,3]. Without the check `left` jumps back to 1, the window "bba" contains two b's, and the function returns 3 instead of 2. Complexity is unaffected; the check is exactly what stops left from moving backwards.
 - q: >-
     A problem states n ≤ 10^5. Your brute force is O(n^2). Roughly how many operations is that, and is it acceptable?
-  options: ["It depends on the language, not the count", "About 10^5, well within any time limit", "About 10^7, fine at 10^8 ops per second", "About 10^10, too slow for a typical limit"]
-  answer: 3
+  options: ["It depends on the language, not the count", "About 10^10, too slow for a typical limit", "About 10^7, fine at 10^8 ops per second", "About 10^5, well within any time limit"]
+  answer: 1
   explanation: >-
     (10^5)^2 = 10^10. At roughly 10^8 simple operations per second that is on the order of a minute or more; time limits are seconds. Language changes the constant by maybe 10–100x, not enough to rescue four orders of magnitude.
 - q: >-
     Which example in the worked problem exists specifically to catch a misreading of the statement rather than a coding bug?
-  options: ["\"abcabcbb\"", "\"abba\"", "\"bbbbb\"", "\"pwwkew\""]
-  answer: 3
+  options: ["\"pwwkew\"", "\"abba\"", "\"bbbbb\"", "\"abcabcbb\""]
+  answer: 0
   explanation: >-
     "pwwkew" has a longer subsequence ("pwke", length 4) than any substring (length 3); it catches solving the subsequence problem. "abcabcbb" gives 3 under either reading, so it cannot tell them apart. "abba" catches the backwards-moving-left-pointer bug, a coding error.
 ```

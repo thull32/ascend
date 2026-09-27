@@ -220,32 +220,32 @@ hints:
 ```quiz
 - q: >-
     A job computes the average watch time per title. An engineer adds the reduce function (which returns the mean of its inputs) as a combiner to cut shuffle volume. What happens?
-  options: ["Nothing changes; the framework ignores combiners for averages", "The job fails because combiners cannot emit floats", "The job gets faster but some averages are wrong", "The job gets faster and every average stays correct"]
-  answer: 2
+  options: ["The job gets faster but some averages are wrong", "The job gets faster and every average stays correct", "The job fails because combiners cannot emit floats", "Nothing changes; the framework ignores combiners for averages"]
+  answer: 0
   explanation: >-
     The mean is not associative: the mean of per-mapper means weights each mapper equally regardless of how many records it saw. The framework will happily run it and produce wrong numbers. Shuffle (sum, count) pairs, combine them by addition, and divide in the final reduce.
 - q: >-
     A job has 8,000 map tasks and 1,000 reducers, and the shuffle after the combiner is 2 GB. What is the main cost of the shuffle?
-  options: ["8 million fetches of ~250 bytes, dominated by overhead", "Network bandwidth to move the 2 GB between machines", "Sorting and merging the 2 GB on the 1,000 reducers", "Replicating the 2 GB of shuffle data three times in HDFS"]
-  answer: 0
+  options: ["Network bandwidth to move the 2 GB between machines", "8 million fetches of ~250 bytes, dominated by overhead", "Replicating the 2 GB of shuffle data three times in HDFS", "Sorting and merging the 2 GB on the 1,000 reducers"]
+  answer: 1
   explanation: >-
     M × R = 8 million segment fetches, averaging 2 GB / 8 M = 250 bytes. Per-request overhead dominates, not bytes. Fewer reducers would make each fetch larger and the job faster. Shuffle data lives on mappers' local disks, not in replicated HDFS.
 - q: >-
     A worker that completed three map tasks dies while the reduce phase is fetching. What does the master do?
-  options: ["Re-runs those three map tasks on other workers", "Nothing, because those map tasks already completed", "Asks the reducers to skip that worker's partitions", "Restarts the whole job, since shuffle state is lost"]
-  answer: 0
+  options: ["Nothing, because those map tasks already completed", "Asks the reducers to skip that worker's partitions", "Restarts the whole job, since shuffle state is lost", "Re-runs those three map tasks on other workers"]
+  answer: 3
   explanation: >-
     Map output lives on the mapper's local disk, not in the replicated file system, so completed map work is lost with the machine and must be recomputed elsewhere; only those tasks re-run, not the whole job. Completed reduce output, by contrast, is already in the distributed file system and survives.
 - q: >-
     You salt a skewed distinct-count job by appending a random number from 0 to 15 to each title key, then sum the 16 partial distinct counts per title. Why is the result wrong?
-  options: ["Sums of distinct counts are never correct, whatever the salt", "A user can land in several buckets and be counted in each", "The second stage needs a combiner to merge the partials", "Random salts create more skew than the original key"]
-  answer: 1
+  options: ["Sums of distinct counts are never correct, whatever the salt", "Random salts create more skew than the original key", "The second stage needs a combiner to merge the partials", "A user can land in several buckets and be counted in each"]
+  answer: 3
   explanation: >-
     Distinct counts add only across disjoint sets. A random salt sends a user's events to several buckets, so that user is counted multiple times. Salting by hash(user_id) keeps each user in one bucket, makes the partial sets disjoint and makes the sum correct.
 - q: >-
     Which property of MapReduce made speculative execution of straggling tasks safe?
-  options: ["Mappers run on the node that holds their data", "The master keeps a copy of every intermediate result", "Reducers receive every key's values in sorted order", "Deterministic tasks committed by an atomic rename"]
-  answer: 3
+  options: ["Deterministic tasks committed by an atomic rename", "The master keeps a copy of every intermediate result", "Reducers receive every key's values in sorted order", "Mappers run on the node that holds their data"]
+  answer: 0
   explanation: >-
     Task output is written to a temporary file and committed by an atomic rename, so two copies of a deterministic task produce the same output and exactly one of them becomes visible. Data locality and sorted keys are unrelated to duplicate execution; the master holds only metadata.
 ```

@@ -334,32 +334,32 @@ hints:
 ```quiz
 - q: >-
     A BFS in JavaScript uses `queue.shift()` to dequeue and visits 200,000 nodes. What is its likely time complexity in practice?
-  options: ["O(V log V), because V8 shifts arrays in logarithmic time", "O(V + E), because shift is O(1) amortised like pop", "O(V·E), because each shift rescans the edge list", "O(V²), because each shift moves the remaining elements"]
-  answer: 3
+  options: ["O(V²), because each shift moves the remaining elements", "O(V + E), because shift is O(1) amortised like pop", "O(V·E), because each shift rescans the edge list", "O(V log V), because V8 shifts arrays in logarithmic time"]
+  answer: 0
   explanation: >-
     `shift` removes the first element and moves the rest, so each dequeue is O(current length). Over V dequeues this is quadratic. V8's fast path only helps small arrays, so shift is not O(1) like pop. A head index or a ring buffer restores O(V + E).
 - q: >-
     In a ring buffer with only `head` and `tail` indices, why is `head == tail` ambiguous?
-  options: ["It holds both when the buffer is empty and when it is full", "It only means empty, since tail can never lap head", "It only means full, since empty resets both to slot 0", "It signals a wrap bug, since valid indices never coincide"]
-  answer: 0
+  options: ["It only means empty, since tail can never lap head", "It holds both when the buffer is empty and when it is full", "It only means full, since empty resets both to slot 0", "It signals a wrap bug, since valid indices never coincide"]
+  answer: 1
   explanation: >-
     After writing exactly `capacity` elements, tail wraps to equal head, the same state as an empty buffer. Tail can lap around to head, so the state is not only "empty". Store a count, leave one slot unused, or use unbounded indices to distinguish the two.
 - q: >-
     In the two-stack queue, what breaks the amortised O(1) guarantee?
-  options: ["Calling peek, since it can trigger a transfer with no pop", "Interleaving enqueues and dequeues instead of batching", "Backing both stacks with arrays that sometimes resize", "Transferring inbox to outbox while outbox is non-empty"]
-  answer: 3
+  options: ["Interleaving enqueues and dequeues instead of batching", "Transferring inbox to outbox while outbox is non-empty", "Backing both stacks with arrays that sometimes resize", "Calling peek, since it can trigger a transfer with no pop"]
+  answer: 1
   explanation: >-
     Each element should move from inbox to outbox exactly once. Transferring while outbox still has elements would require moving them back to preserve order, and elements would bounce on every operation, making it O(n) each. Interleaving is fine: every element is still pushed, moved and popped once.
 - q: >-
     You are growing a ring buffer that currently has head = 2, tail = 2 (wrapped) and 4 elements in a capacity-4 array. What is the correct way to copy into the new array?
-  options: ["Copy slots 0..3 into new slots 0..3 and keep head at slot 2", "Double the capacity in place and let the modulo re-wrap", "Copy slots 0..3 into new slots 4..7 and set head = 6", "Copy slots 2, 3, 0, 1 into new slots 0..3 and set head = 0"]
-  answer: 3
+  options: ["Copy slots 0..3 into new slots 0..3 and keep head at slot 2", "Double the capacity in place and let the modulo re-wrap", "Copy slots 2, 3, 0, 1 into new slots 0..3 and set head = 0", "Copy slots 0..3 into new slots 4..7 and set head = 6"]
+  answer: 2
   explanation: >-
     The logical sequence starts at head and wraps. Copying physical slots leaves the wrapped elements in the wrong place once the capacity (and therefore the modulus) changes, leaving a gap in the middle of the ring. Un-wrap into the new array and reset head.
 - q: >-
     A producer thread enqueues into a bounded ring buffer that is full. Which of these is NOT a reasonable policy?
-  options: ["Block the producer until space becomes available", "Silently grow the buffer with no upper bound", "Drop the new item and increment a metric", "Return an error so that the caller can shed load"]
-  answer: 1
+  options: ["Block the producer until space becomes available", "Return an error so that the caller can shed load", "Drop the new item and increment a metric", "Silently grow the buffer with no upper bound"]
+  answer: 3
   explanation: >-
     Unbounded growth defeats the purpose of a bounded queue: memory grows until the process dies, later and less diagnosably. Blocking, dropping and erroring are all forms of backpressure with explicit trade-offs.
 ```

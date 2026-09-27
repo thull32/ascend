@@ -305,32 +305,32 @@ From the application side, export pool metrics: current size, idle count and, mo
 ```quiz
 - q: >-
     An API has 12 instances, each with a pool of max 25, against Postgres with max_connections = 200. Average pool usage is 3 per instance. Why might this still fail?
-  options: ["Postgres refuses any client pool configured above 20 connections", "Under load every pool can fill to 25, and 12 × 25 = 300 exceeds 200", "It cannot; average usage is 36 connections, far below the 200 limit", "Idle connections time out and reconnect so often that slots run out"]
+  options: ["It cannot; average usage is 36 connections, far below the 200 limit", "Under load every pool can fill to 25, and 12 × 25 = 300 exceeds 200", "Idle connections time out and reconnect so often that slots run out", "Postgres refuses any client pool configured above 20 connections"]
   answer: 1
   explanation: >-
     The budget must hold at the maximum, not the average. Load spikes and slow queries push every pool to its cap at the same moment, and a rolling deploy adds more pools on top, so at peak new connections are refused. The average of 36 says nothing about that moment. Shrink pools to fit the budget or put a server-side pooler in front.
 - q: >-
     A service handles 800 requests per second, each running 3 queries that hold a connection for 2 ms each. Roughly how many connections are in use on average?
-  options: ["About 1.6", "About 4.8", "About 800", "About 48"]
-  answer: 1
+  options: ["About 1.6", "About 48", "About 800", "About 4.8"]
+  answer: 3
   explanation: >-
     Little's law: acquires per second × hold time = 800 × 3 × 0.002 = 4.8. With a burst factor of 2 you might provision around 10 across all instances. If the hold time grows to 200 ms, the same load needs 480.
 - q: >-
     After moving behind PgBouncer in transaction mode, a Rust service using sqlx logs prepared statement "sqlx_s_4" does not exist. What is happening?
-  options: ["The driver's statement cache is too small and evicts statements early", "A migration that creates the service's prepared statements did not run", "A statement prepared on one server connection is run on a different one", "PgBouncer rejects the extended query protocol, so every prepare fails"]
-  answer: 2
+  options: ["The driver's statement cache is too small and evicts statements early", "A migration that creates the service's prepared statements did not run", "PgBouncer rejects the extended query protocol, so every prepare fails", "A statement prepared on one server connection is run on a different one"]
+  answer: 3
   explanation: >-
     Named prepared statements are session state on a server connection. In transaction mode, consecutive transactions can land on different server connections, and the new one has never seen sqlx_s_4. A small cache would only cause re-preparing on the same connection, not this error. Fix it with max_prepared_statements on PgBouncer 1.21 and later, which tracks and re-prepares protocol-level statements, or by disabling the driver's statement cache.
 - q: >-
     Why is raising max_connections from 200 to 2,000 usually the wrong fix for too many clients errors?
-  options: ["Postgres caps max_connections at 1,000, so the new value is silently ignored", "Changing it needs a restart, which is never acceptable for a busy production database", "The superuser reservation grows with max_connections, so few slots are gained", "Extra backends use memory and add contention, not throughput, so it just gets slow"]
-  answer: 3
+  options: ["Extra backends use memory and add contention, not throughput, so it just gets slow", "Postgres caps max_connections at 1,000, so the new value is silently ignored", "The superuser reservation grows with max_connections, so few slots are gained", "Changing it needs a restart, which is never acceptable for a busy production database"]
+  answer: 0
   explanation: >-
     Connections are not free capacity. Each is a process with its own memory, and active connections beyond a small multiple of the core count compete for the same CPUs and locks, so the failure turns from refused connections into a slow database. A restart is a real cost but a schedulable one, not the reason. Queueing in a pool or PgBouncer, with timeouts, keeps the number of concurrently active queries near what the hardware can execute.
 - q: >-
     An HTTP handler has a 2-second deadline. The pool's acquire timeout is 10 seconds and statement_timeout is unset. What happens during a slow-query incident?
-  options: ["The pool cancels any query that outlives its 10-second acquire timeout", "Waits and slow queries continue after callers give up, keeping the database loaded", "Requests fail after 2 seconds, which frees their connections so the database recovers", "Nothing unusual; each timeout guards a different layer, so they never interact"]
-  answer: 1
+  options: ["Requests fail after 2 seconds, which frees their connections so the database recovers", "The pool cancels any query that outlives its 10-second acquire timeout", "Nothing unusual; each timeout guards a different layer, so they never interact", "Waits and slow queries continue after callers give up, keeping the database loaded"]
+  answer: 3
   explanation: >-
     Outer timeouts shorter than inner ones create work nobody wants. Requests keep waiting up to 10 seconds for a connection after their callers have gone, and slow queries run to completion with no one reading the results, so load stays high. The acquire timeout bounds waiting for a connection, not query runtime. It should sit well inside the request deadline, and statement_timeout should cancel queries whose callers cannot use the result.
 ```

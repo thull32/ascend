@@ -289,32 +289,32 @@ hints:
 ```quiz
 - q: >-
     Why do all occurrences of a pattern p appear as a contiguous block in the suffix array?
-  options: ["They do not; occurrences sit wherever their start positions fall", "The LCP array links suffixes with equal prefixes and groups them", "The array is built by scanning left to right, so matches are in order", "Each occurrence is a suffix starting with p, and those sort together"]
-  answer: 3
+  options: ["They do not; occurrences sit wherever their start positions fall", "The array is built by scanning left to right, so matches are in order", "Each occurrence is a suffix starting with p, and those sort together", "The LCP array links suffixes with equal prefixes and groups them"]
+  answer: 2
   explanation: >-
     Lexicographic order sorts by prefix first, so all suffixes beginning with p sit together, bounded by the first suffix ≥ p and the first suffix > p. Two binary searches find the block. The array is in sorted order, not text order, which is exactly why start positions do not scatter the block.
 - q: >-
     In prefix doubling, after sorting by the first 4 characters, what key sorts by the first 8?
-  options: ["(rank4[i], rank4[i + 1]), with -1 past the end", "(rank4[i], rank4[i + 8]), with -1 past the end", "The first 8 characters of suffix i compared directly", "(rank4[i], rank4[i + 4]), with -1 past the end"]
-  answer: 3
+  options: ["(rank4[i], rank4[i + 4]), with -1 past the end", "(rank4[i], rank4[i + 8]), with -1 past the end", "The first 8 characters of suffix i compared directly", "(rank4[i], rank4[i + 1]), with -1 past the end"]
+  answer: 0
   explanation: >-
     The first 8 characters of suffix i are the first 4 of suffix i followed by the first 4 of suffix i + 4. Both ranks are known from the previous round, so the comparison is O(1). Using i + 8 would skip characters 5 to 8, and comparing characters directly would be O(n) per comparison.
 - q: >-
     Kasai's algorithm computes LCP in O(n). What is the key observation?
-  options: ["LCP values never decrease along the array, so h never has to reset", "If suffix i has LCP h, then suffix i + 1 has LCP at least h - 1", "Suffixes adjacent in the text have equal LCP with their predecessors", "Each LCP is a range minimum of earlier ones, found by a sparse table"]
+  options: ["Each LCP is a range minimum of earlier ones, found by a sparse table", "If suffix i has LCP h, then suffix i + 1 has LCP at least h - 1", "Suffixes adjacent in the text have equal LCP with their predecessors", "LCP values never decrease along the array, so h never has to reset"]
   answer: 1
   explanation: >-
     Dropping the first character preserves a shared prefix of length h - 1 with the same neighbour, and the true predecessor of suffix i + 1 shares at least that much, so the comparison resumes from h - 1. The running h rises at most n times and falls at most once per step. Range minimum over LCP answers non-adjacent pairs after the array exists; it does not build it.
 - q: >-
     You need the longest substring that appears at least twice in a 100 MB log. The cleanest approach is:
-  options: ["A hash set of all substrings; keep the longest that repeats", "Suffix array plus LCP array; the answer is the maximum LCP entry", "Aho-Corasick over all substrings, reporting the longest seen twice", "Dynamic programming over all pairs of positions, as in LCS"]
-  answer: 1
+  options: ["Dynamic programming over all pairs of positions, as in LCS", "Aho-Corasick over all substrings, reporting the longest seen twice", "A hash set of all substrings; keep the longest that repeats", "Suffix array plus LCP array; the answer is the maximum LCP entry"]
+  answer: 3
   explanation: >-
     The two occurrences of the longest repeat are adjacent in sorted suffix order, so max(lcp) finds it in O(n) after an O(n log n) build. All-substring hashing is O(n²) space; all-pairs DP is O(n²) time; Aho-Corasick needs the patterns up front, and all substrings is O(n²) of them.
 - q: >-
     Why do short-read genome aligners use an FM-index rather than a plain suffix array?
-  options: ["Its compressed form is a fraction of the text, so it fits in RAM", "Suffix arrays break on tiny alphabets, where most suffixes tie on rank", "It supports inserts, so newly sequenced reads join without a rebuild", "It builds in O(n), where a suffix array needs O(n² log n) to build"]
-  answer: 0
+  options: ["It supports inserts, so newly sequenced reads join without a rebuild", "Its compressed form is a fraction of the text, so it fits in RAM", "It builds in O(n), where a suffix array needs O(n² log n) to build", "Suffix arrays break on tiny alphabets, where most suffixes tie on rank"]
+  answer: 1
   explanation: >-
     A suffix array needs 4–8 bytes per base, 12–24 GB for a human genome plus text; the FM-index over the Burrows-Wheeler transform compresses to a few GB and still answers pattern queries by O(|p|) backward search without decompressing. Build complexity and alphabet are not the constraints: prefix doubling builds a suffix array in O(n log n) on any alphabet.
 ```

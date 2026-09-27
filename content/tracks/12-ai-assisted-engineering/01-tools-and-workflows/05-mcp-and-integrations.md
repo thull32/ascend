@@ -238,32 +238,32 @@ The broader treatment of injection and least privilege for LLM applications is i
 ```quiz
 - q: >-
     An agent can call a database MCP server. Which control most reliably prevents it from modifying production data?
-  options: ["The server connects as a database user with only SELECT privileges", "An instruction in the memory file saying never to write to production", "A tool annotation on the server marking the query tool as read-only", "An approval prompt before each query, so a human sees every statement"]
-  answer: 0
+  options: ["An instruction in the memory file saying never to write to production", "A tool annotation on the server marking the query tool as read-only", "The server connects as a database user with only SELECT privileges", "An approval prompt before each query, so a human sees every statement"]
+  answer: 2
   explanation: >-
     The database enforces the credential's privileges regardless of what the model asks or what a tired human approves. Instructions can be ignored, prompts suffer approval fatigue, and annotations are unenforced hints from the server author.
 - q: >-
     Your settings deny Bash(curl:*). Does this prevent an injected instruction from sending data to an external server?
-  options: ["Yes, because curl is the only way to make HTTP requests from a shell", "No, because deny rules are only enforced for MCP tools, not for shell commands", "No; python, node, wget or git can still reach the network, so restrict egress", "Yes, provided wget is denied as well, since those are the two HTTP clients"]
+  options: ["No, because deny rules are only enforced for MCP tools, not for shell commands", "Yes, provided wget is denied as well, since those are the two HTTP clients", "No; python, node, wget or git can still reach the network, so restrict egress", "Yes, because curl is the only way to make HTTP requests from a shell"]
   answer: 2
   explanation: >-
     Command-pattern rules match strings, and there are endless ways to reach the network: python, node, wget, git and more. Denying one more command name only narrows the list. Blocking egress at the sandbox or network layer is what actually closes the path.
 - q: >-
     An agent reads public GitHub issues, has your cloud credentials in its environment, and can post comments. Which change most reduces the exfiltration risk?
-  options: ["Run it with no credentials and require approval of each comment's exact text", "Only triage issues under 1,000 characters, so injected payloads cannot fit", "Use a larger model that is better at detecting prompt injection attempts", "Add a system prompt telling it to ignore any instructions found in issues"]
-  answer: 0
+  options: ["Only triage issues under 1,000 characters, so injected payloads cannot fit", "Use a larger model that is better at detecting prompt injection attempts", "Run it with no credentials and require approval of each comment's exact text", "Add a system prompt telling it to ignore any instructions found in issues"]
+  answer: 2
   explanation: >-
     This is the lethal trifecta: private data, untrusted content and external communication. Removing the credentials and gating the outbound channel removes legs of the trifecta. Instructions and model choice reduce the odds of a successful injection but do not remove the capability.
 - q: >-
     A teammate's pull request adds a third-party MCP server to the project's checked-in config, launched with npx and no version pin. What is the main review concern?
-  options: ["npx is slow to start, so every session will pause while the package installs", "Its tool results will use too many tokens and crowd out the rest of the context", "Project-level MCP config is not supported, so the server will only work for its author", "It runs unvetted, unpinned code on every teammate's machine with their permissions"]
-  answer: 3
+  options: ["It runs unvetted, unpinned code on every teammate's machine with their permissions", "npx is slow to start, so every session will pause while the package installs", "Project-level MCP config is not supported, so the server will only work for its author", "Its tool results will use too many tokens and crowd out the rest of the context"]
+  answer: 0
   explanation: >-
     A stdio server entry is a command that runs as each developer who accepts it. Unpinned, it can change under you, and its tool descriptions enter every session's context, so a malicious description is itself an injection vector. Treat it like adding a dependency: vet, pin and review.
 - q: >-
     Why is a tool like get_deploy_status(service) safer than a generic http_request(url) tool on the same server?
-  options: ["It bounds what any instruction, injected or not, can make the tool do", "The MCP specification does not allow generic tools on remote servers", "It is faster, because the server can cache the single endpoint it calls", "It returns fewer tokens, so injected text is less likely to fit in"]
-  answer: 0
+  options: ["It is faster, because the server can cache the single endpoint it calls", "It returns fewer tokens, so injected text is less likely to fit in", "It bounds what any instruction, injected or not, can make the tool do", "The MCP specification does not allow generic tools on remote servers"]
+  answer: 2
   explanation: >-
     Narrow verbs bound the blast radius: the worst an attacker can do through get_deploy_status is read one deploy status, and its single argument is easy to validate. A generic HTTP tool turns any successful injection into arbitrary requests, including to exfiltration endpoints. The specification permits generic tools; avoiding them is a design choice.
 ```

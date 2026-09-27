@@ -381,32 +381,32 @@ hints:
 ```quiz
 - q: >-
     In the swap-with-last removal, the code does del pos[v] before pos[last] = i. On which operation does this fail?
-  options: ["Removing the element that sits first in the array", "Removing any element from a set of exactly two", "Removing the last element, whose entry gets re-created", "Never; the two writes can safely go in either order"]
-  answer: 2
+  options: ["Never; the two writes can safely go in either order", "Removing the element that sits first in the array", "Removing any element from a set of exactly two", "Removing the last element, whose entry gets re-created"]
+  answer: 3
   explanation: >-
     When v is last, last == v. Deleting first and repairing second writes pos[v] back with pos[last] = i, so the map claims a value that is no longer in the array. Repairing first and deleting last handles the case with no special branch.
 - q: >-
     Why does an LRU cache use a doubly linked list rather than a singly linked one?
-  options: ["Doubly linked nodes use less memory than singly linked ones", "Unlinking needs the predecessor, and prev gives it in O(1)", "Singly linked lists cannot use a sentinel head node", "To print the cache in both directions for debugging"]
-  answer: 1
+  options: ["Singly linked lists cannot use a sentinel head node", "Doubly linked nodes use less memory than singly linked ones", "To print the cache in both directions for debugging", "Unlinking needs the predecessor, and prev gives it in O(1)"]
+  answer: 3
   explanation: >-
     The hash map gives direct access to the node, and moving it to the front means unlinking it first. Unlinking needs node.prev, and a singly linked list would have to walk from the head to find it, which is O(n). The extra pointer costs memory; it is the price of O(1) moves.
 - q: >-
     A circular queue stores only head and tail indices in an array of size k. What problem must the design solve?
-  options: ["The array must be resized whenever tail passes head", "The head index eventually overflows as it keeps growing", "Dequeue cannot be O(1) once the buffer wraps around", "head == tail is ambiguous: it means empty and also full"]
+  options: ["The head index eventually overflows as it keeps growing", "Dequeue cannot be O(1) once the buffer wraps around", "The array must be resized whenever tail passes head", "head == tail is ambiguous: it means empty and also full"]
   answer: 3
   explanation: >-
     Both an empty queue and a full queue have the indices coinciding, so the state is ambiguous without a count, a flag, or a wasted slot. Tracking count, or keeping one slot always empty, disambiguates. A count also gives is_full and is_empty directly.
 - q: >-
     For Kth Largest Element in a Stream, why a min-heap of size k rather than a max-heap of all elements?
-  options: ["A max-heap cannot hold duplicate values correctly", "Its root is the k-th largest; adds cost O(log k)", "Both are equivalent in time and memory for this task", "Min-heaps are faster than max-heaps in Python's heapq"]
-  answer: 1
+  options: ["Its root is the k-th largest; adds cost O(log k)", "Both are equivalent in time and memory for this task", "Min-heaps are faster than max-heaps in Python's heapq", "A max-heap cannot hold duplicate values correctly"]
+  answer: 0
   explanation: >-
     Keeping only the top k and discarding the smallest of them on overflow is exactly what a min-heap does cheaply: its root is the k-th largest, each add costs O(log k), and memory is O(k). A max-heap of everything keeps data you will never need, costs O(n) memory, and needs k pops to answer.
 - q: >-
     An interviewer asks how you would make your LRU cache thread-safe for a read-heavy service. Which answer shows the most understanding?
-  options: ["A read-write lock, since gets only read the cache", "Wrap every method in one mutex; reads are cheap anyway", "Use a concurrent hash map and drop the recency list", "Gets mutate the list; shard or batch recency updates"]
-  answer: 3
+  options: ["Gets mutate the list; shard or batch recency updates", "A read-write lock, since gets only read the cache", "Wrap every method in one mutex; reads are cheap anyway", "Use a concurrent hash map and drop the recency list"]
+  answer: 0
   explanation: >-
     The trap is assuming gets are reads: in an LRU, every get moves a node, so a read-write lock does not help. A single lock is simple but contended; sharding by key into independent LRUs trades exact global LRU for scalability; buffered or approximate recency (Caffeine, Redis sampling) is what real systems do. Dropping the list breaks eviction order.
 ```

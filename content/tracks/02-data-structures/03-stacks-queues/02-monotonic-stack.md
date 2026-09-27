@@ -248,14 +248,14 @@ hints:
 ```quiz
 - q: >-
     A monotonic stack algorithm has a while loop nested inside a for loop. Why is it O(n) rather than O(n²)?
-  options: ["Each index is pushed once and popped at most once overall", "The stack never holds more than a constant number of indices", "The while loop pops at most one index per outer iteration", "The inner loop only compares values, so its cost is not counted"]
-  answer: 0
+  options: ["The inner loop only compares values, so its cost is not counted", "The stack never holds more than a constant number of indices", "Each index is pushed once and popped at most once overall", "The while loop pops at most one index per outer iteration"]
+  answer: 2
   explanation: >-
     The inner loop's iterations are pops. An index can only be popped after being pushed and can never be pushed again, so total while-loop iterations across the whole run are bounded by n. A single iteration can pop many indices, which is why "at most one pop per iteration" is wrong. This is amortised analysis: uneven per-iteration cost, linear total.
 - q: >-
     For "next greater element" the stack must hold values that are (bottom to top):
-  options: ["Increasing, so each pop yields the next greater element", "Increasing, so the top is the largest value still waiting", "Decreasing, so the top is the smallest value still waiting", "Unordered, since each index is only compared with the top"]
-  answer: 2
+  options: ["Unordered, since each index is only compared with the top", "Decreasing, so the top is the smallest value still waiting", "Increasing, so each pop yields the next greater element", "Increasing, so the top is the largest value still waiting"]
+  answer: 1
   explanation: >-
     Every stacked index is still waiting for a greater element. If a larger value were below a smaller one, the smaller one would have popped the larger when it arrived, contradiction; so the stack is decreasing. An increasing stack answers the next-smaller question instead.
 - q: >-
@@ -266,7 +266,7 @@ hints:
     Equal prices count toward the span, so they must be popped (they are not a boundary). Using strict `<` would stop at an equal price and undercount the span. Tie handling is a deliberate choice, not a default.
 - q: >-
     In the histogram algorithm, bar j is popped when bar i arrives with a smaller height. The width of j's rectangle is:
-  options: ["i − left, where left is the new stack top after popping j", "i − left − 1, where left is the stack top after popping j", "j − left, where left is the new stack top after popping j", "i − j, where j is the bar just popped from the stack"]
+  options: ["j − left, where left is the new stack top after popping j", "i − left − 1, where left is the stack top after popping j", "i − left, where left is the new stack top after popping j", "i − j, where j is the bar just popped from the stack"]
   answer: 1
   explanation: >-
     The rectangle of height h[j] extends from just after the previous smaller bar (left, or −1 if the stack is empty) to just before the next smaller bar (i). Both boundaries are exclusive, giving i − left − 1 bars; i − left counts one boundary bar too many, and i − j ignores the taller bars to j's left that were popped earlier.

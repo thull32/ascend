@@ -186,12 +186,12 @@ VALUES ($1, $2, 0, 0, 1)
 ON CONFLICT (user_id, day) DO UPDATE
    SET requests = ai_usage.requests + 1
  WHERE ai_usage.requests < $3
-   AND ai_usage.input_tokens < $4
+   AND (ai_usage.input_tokens + ai_usage.cache_write_tokens * 5 / 4 + ai_usage.cache_read_tokens / 10) < $4
    AND ai_usage.output_tokens < $5
 RETURNING requests
 ```
 
-The first request of the day inserts the row. Every later one hits the conflict, locks the existing row, and increments it only if the `WHERE` clause holds against the latest committed values. If the user is at a limit, nothing is updated, `RETURNING` produces no row, and the caller gets a rate-limit error. The check and the increment are one atomic step, so concurrent requests queue on the row lock instead of racing past the limit. It is the same move as the Redis script later in this lesson: put the read, the decision and the write in one place that executes atomically.
+The first request of the day inserts the row. Every later one hits the conflict, locks the existing row, and increments it only if the `WHERE` clause holds against the latest committed values. If the user is at a limit, nothing is updated, `RETURNING` produces no row, and the caller gets a rate-limit error whose `Retry-After` is the number of seconds until the next UTC midnight, when the window resets. The input condition counts *billed* input: prompt-cache writes cost 1.25 times an ordinary input token and cache reads a tenth, so they count at that weight. An earlier version compared only the provider's uncached `input_tokens`, and since conversation caching turns nearly all of a chat's input into cache reads and writes, the limit barely moved while the most expensive input went uncounted. A quota must count the unit the bill counts. The check and the increment are one atomic step, so concurrent requests queue on the row lock instead of racing past the limit. It is the same move as the Redis script later in this lesson: put the read, the decision and the write in one place that executes atomically.
 
 Ascend's first version was the obvious one (read the status, then increment in a second statement), and a design review caught it. The fix shipped with a test aimed at exactly that race: `ai_budget_reservation_cannot_be_overshot_by_concurrency` in `crates/api/tests/api.rs` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed, where the read-then-write version could grant more. A race you fixed without a concurrent test is a race you believe you fixed.
 
@@ -377,32 +377,32 @@ hints:
 ```quiz
 - q: >-
     A fixed window limiter allows 100 requests per minute per client. What is the most a client can get through in any 2-second interval?
-  options: ["About 3", "200", "Unlimited", "100"]
-  answer: 1
+  options: ["200", "About 3", "Unlimited", "100"]
+  answer: 0
   explanation: >-
     Send 100 in the last second of one window and 100 in the first second of the next: both windows are within their limit, and 200 requests land within two seconds. Sliding windows, token buckets and GCRA do not have this boundary effect.
 - q: >-
     A sliding window counter has a limit of 60 per minute. The previous minute had 40 requests; you are 30 seconds into the current minute, which has had 35. Is the next request admitted?
-  options: ["No, because the previous window alone used two thirds of the limit", "No, because 40 + 35 = 75 is more than the limit of 60", "Yes, because the estimate is 40 × 0.5 + 35 = 55, below 60", "Yes, because the current window's 35 is below 60"]
-  answer: 2
+  options: ["Yes, because the estimate is 40 × 0.5 + 35 = 55, below 60", "No, because the previous window alone used two thirds of the limit", "Yes, because the current window's 35 is below 60", "No, because 40 + 35 = 75 is more than the limit of 60"]
+  answer: 0
   explanation: >-
     The previous window is weighted by the fraction of it still inside the sliding minute (0.5), giving 20 + 35 = 55. Adding the raw counts ignores that half the previous window has slid out; ignoring the previous window entirely would allow the boundary burst.
 - q: >-
     A token bucket has capacity 10 and refills 5 tokens per second. Starting full, what is the maximum number of requests it admits in the first 4 seconds?
-  options: ["10", "20", "30", "40"]
-  answer: 2
+  options: ["30", "10", "20", "40"]
+  answer: 0
   explanation: >-
     At most b + r·T = 10 + 5 × 4 = 30: the initial burst of 10, plus 20 tokens refilled over 4 seconds. The capacity bounds the burst, the rate bounds everything after it.
 - q: >-
     You put a leaky bucket queue of size 50, draining at 10 requests per second, in front of a fragile service. What is the main new risk?
-  options: ["Queued requests can wait about 5 s, past many clients' timeouts", "The service now receives bursts of up to 50 requests at once", "Queued requests are processed out of order when the queue fills", "Memory grows without bound because the queue never fully drains"]
-  answer: 0
+  options: ["The service now receives bursts of up to 50 requests at once", "Memory grows without bound because the queue never fully drains", "Queued requests are processed out of order when the queue fills", "Queued requests can wait about 5 s, past many clients' timeouts"]
+  answer: 3
   explanation: >-
     A shaping queue converts bursts into delay: the last of 50 queued requests waits about 50 / 10 = 5 s, holding its connection the whole time. If the client's timeout is shorter, the work is wasted and probably retried. The service itself sees a steady 10 per second, never the burst, and the queue is bounded at 50. Size the queue by the delay you can accept.
 - q: >-
     A daily quota is enforced by reading the user's usage and then incrementing it in a separate statement. A user at 119 of 120 sends two requests at the same instant. What can happen, and how does Ascend's budget code avoid it?
-  options: ["Nothing; Postgres serialises the two statements, so Ascend needs no special care", "Both can read 119 and end at 121; Ascend's single conditional upsert rules it out", "Both are rejected as conflicts; Ascend retries the loser after a short backoff", "The second request deadlocks; Ascend avoids it by taking SELECT ... FOR UPDATE"]
-  answer: 1
+  options: ["Both can read 119 and end at 121; Ascend's single conditional upsert rules it out", "Both are rejected as conflicts; Ascend retries the loser after a short backoff", "The second request deadlocks; Ascend avoids it by taking SELECT ... FOR UPDATE", "Nothing; Postgres serialises the two statements, so Ascend needs no special care"]
+  answer: 0
   explanation: >-
     Check-then-act across two statements is a race under the default isolation level (Read Committed does not serialise them): both reads can see 119 before either write lands. Ascend reserves with one statement, INSERT ... ON CONFLICT DO UPDATE SET requests = requests + 1 WHERE requests < limit RETURNING requests, so the two requests queue on the row lock; the second finds 120, updates nothing, gets no row back from RETURNING, and is rejected.
 - q: >-

@@ -315,32 +315,32 @@ Matching stops being an assignment of riders to idle drivers and becomes inserti
 ```quiz
 - q: >-
     Two riders are 18 metres apart. One is in geohash cell 9q8yykx and the other in 9q8yys8. What does this show about geohash proximity search?
-  options: ["Geohash distorts badly at this latitude, so switch to S2", "The precision is too high; drop to 3 characters to merge them", "Points can straddle a cell edge; search the 8 neighbours too", "Geohash only supports exact-match lookups, not proximity"]
-  answer: 2
+  options: ["Geohash distorts badly at this latitude, so switch to S2", "Points can straddle a cell edge; search the 8 neighbours too", "Geohash only supports exact-match lookups, not proximity", "The precision is too high; drop to 3 characters to merge them"]
+  answer: 1
   explanation: >-
     A shared prefix implies proximity, but proximity does not imply a shared prefix. Points on either side of a cell boundary diverge early in the string, so a query must search the cell and its eight neighbours. Dropping to 3 characters makes cells about 150 km wide and still has boundaries; latitude distortion is real but is not what this example shows.
 - q: >-
     1.5 million drivers send a position every 4 seconds. What is the most important conclusion from the estimate?
-  options: ["The data must be replicated synchronously across regions", "Bandwidth is the bottleneck, at roughly 37.5 GB/s of updates", "375,000 writes/s over 150 MB of state: keep it in memory", "The positions need a sharded disk-based database for storage"]
-  answer: 2
+  options: ["The positions need a sharded disk-based database for storage", "Bandwidth is the bottleneck, at roughly 37.5 GB/s of updates", "The data must be replicated synchronously across regions", "375,000 writes/s over 150 MB of state: keep it in memory"]
+  answer: 3
   explanation: >-
     The state is tiny and the rate is huge. An in-memory index, kept as soft state and sharded for write rate rather than size, handles it easily and rebuilds from the stream in seconds after a crash. The bandwidth is 37.5 MB/s, not GB/s, and the data is worthless after a few seconds, so synchronous replication would be waste.
 - q: >-
     Two matcher instances both see driver 17 as available in the geo index and both want to offer them a trip. What prevents a double assignment?
-  options: ["A distributed lock held while waiting for the driver to accept", "Matchers use the driver's latest location timestamp as a version", "The geo index removes drivers as soon as they are offered", "A conditional UPDATE WHERE state = 'available'; one row wins"]
+  options: ["Matchers use the driver's latest location timestamp as a version", "The geo index removes drivers as soon as they are offered", "A distributed lock held while waiting for the driver to accept", "A conditional UPDATE WHERE state = 'available'; one row wins"]
   answer: 3
   explanation: >-
     The geo index is eventually consistent and only proposes candidates. The decision is a compare-and-set on driver_state in a consistent store: exactly one matcher gets a row back. Holding a lock across a 15-second human decision is fragile and unnecessary; the offered state with a server-side expiry is the lock.
 - q: >-
     Rider R1 is 2 minutes from D1 and 3 from D2; R2 is 3 minutes from D1 and 8 from D2. What does batched matching buy over greedy?
-  options: ["Nothing; greedy is optimal when each rider takes the nearest driver", "It removes the need to compute road ETAs for each candidate", "It guarantees every rider gets their individually nearest driver", "Total wait drops from 10 to 6 minutes, for a short batching delay"]
-  answer: 3
+  options: ["It guarantees every rider gets their individually nearest driver", "Total wait drops from 10 to 6 minutes, for a short batching delay", "Nothing; greedy is optimal when each rider takes the nearest driver", "It removes the need to compute road ETAs for each candidate"]
+  answer: 1
   explanation: >-
     Greedy gives R1 D1 (2) and leaves R2 with D2 (8): 10 minutes. The optimal assignment gives R1 D2 and R2 D1: 3 + 3 = 6. Batching trades a second or two of latency for globally shorter pickups, and gives neither rider a guarantee of their individual nearest driver; it still needs the ETA matrix.
 - q: >-
     Why does H3's hexagonal grid suit surge pricing particularly well?
-  options: ["Hexagons nest exactly, so parent cells are exact sums of children", "H3 cell IDs sort in Hilbert order, so rings are range scans", "All six neighbours are equidistant, so smoothing is uniform", "Hexagons tile the sphere with no pentagons or distortion"]
-  answer: 2
+  options: ["All six neighbours are equidistant, so smoothing is uniform", "H3 cell IDs sort in Hilbert order, so rings are range scans", "Hexagons tile the sphere with no pentagons or distortion", "Hexagons nest exactly, so parent cells are exact sums of children"]
+  answer: 0
   explanation: >-
     Every neighbour is at the same distance from the centre, so k-rings are nearly circular and smoothing a value across rings of neighbours is even, which avoids price cliffs at cell edges. H3 hierarchy is approximate, not exact; Hilbert ordering is S2's property; and each H3 resolution contains 12 pentagons.
 ```

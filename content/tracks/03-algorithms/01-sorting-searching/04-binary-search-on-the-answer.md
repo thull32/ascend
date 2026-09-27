@@ -261,32 +261,32 @@ hints:
 ```quiz
 - q: >-
     Which of these questions is NOT a valid target for binary search on the answer?
-  options: ["Minimum coins needed to make amount x, searched over x", "Largest minimum distance when placing k cows in n stalls", "Smallest eating speed that finishes piles in h hours", "Smallest ship capacity to deliver packages in d days"]
+  options: ["Minimum coins needed to make amount x, searched over x", "Smallest ship capacity to deliver packages in d days", "Smallest eating speed that finishes piles in h hours", "Largest minimum distance when placing k cows in n stalls"]
   answer: 0
   explanation: >-
     Coins needed is not monotone in the amount (amount 6 may need one coin, amount 7 three), so the predicate has no F...F T...T shape. The other three each have a threshold that, once satisfied, stays satisfied as it grows (or, for the cows, as it shrinks).
 - q: >-
     You set hi = 10⁹ for the Koko problem when the largest pile is 11. The search still returns 4. Why is the tighter hi = max(piles) still preferred?
-  options: ["Monotonicity only holds for speeds up to max(piles)", "Each probe costs more when the speed is huge", "A loose hi can return a speed that is too large", "It saves about 26 predicate calls, each O(n)"]
-  answer: 3
+  options: ["It saves about 26 predicate calls, each O(n)", "Monotonicity only holds for speeds up to max(piles)", "A loose hi can return a speed that is too large", "Each probe costs more when the speed is huge"]
+  answer: 0
   explanation: >-
     log₂(10⁹) ≈ 30 probes versus log₂(11) ≈ 4, and each probe is an O(n) pass whatever the speed. Both bounds are correct, since the search returns the first feasible speed; the tighter bound is cheaper and shows you understand the answer's range. Monotonicity is a property of the predicate, not the range, and holds for every speed.
 - q: >-
     For the split-array predicate, why does greedy (extend the current piece as far as possible) compute the minimum number of pieces for a given cap?
-  options: ["Moving any earlier cut right never adds an extra piece", "It works because the input array is sorted", "With small k, greedy happens to match the DP", "It is only a heuristic; DP gives the exact count"]
-  answer: 0
+  options: ["It works because the input array is sorted", "It is only a heuristic; DP gives the exact count", "Moving any earlier cut right never adds an extra piece", "With small k, greedy happens to match the DP"]
+  answer: 2
   explanation: >-
     Any solution that cuts earlier can have its cut moved right without exceeding cap, so cutting as late as possible never costs an extra piece. This exchange argument is what makes the predicate exact, for any k, so no DP is needed. Sortedness is irrelevant (the pieces are contiguous); the greedy is linear and correct for any positive array.
 - q: >-
     In a maximise-the-minimum search you write lo = mid when feasible and hi = mid - 1 otherwise, with mid = lo + (hi - lo) // 2. What is wrong?
-  options: ["With hi == lo + 1, lo = mid never shrinks the range", "hi = mid - 1 skips a value that could be the answer", "The predicate must be inverted to read F...F T...T", "Nothing; this is the standard closed-range form"]
-  answer: 0
+  options: ["The predicate must be inverted to read F...F T...T", "With hi == lo + 1, lo = mid never shrinks the range", "hi = mid - 1 skips a value that could be the answer", "Nothing; this is the standard closed-range form"]
+  answer: 1
   explanation: >-
     With mid rounded down and a two-element range, mid == lo, so a feasible mid leaves lo unchanged and the loop may never end. Round up (lo + (hi - lo + 1) // 2) so lo = mid always makes progress. hi = mid - 1 is fine here, because an infeasible mid cannot be the answer.
 - q: >-
     The k-th smallest value in an n×n matrix with sorted rows and columns is found by binary searching the value range with count(x) = number of entries <= x. mid is usually not an entry of the matrix. Why is the final answer still an actual entry?
-  options: ["count(x) only increases when x reaches an entry", "It is not; a final scan must snap it to an entry", "Each probe rounds mid to the nearest entry", "The staircase walk only ever visits matrix entries"]
-  answer: 0
+  options: ["It is not; a final scan must snap it to an entry", "count(x) only increases when x reaches an entry", "Each probe rounds mid to the nearest entry", "The staircase walk only ever visits matrix entries"]
+  answer: 1
   explanation: >-
     count is a step function that increases only when x passes an entry. The first x at which it reaches k is therefore exactly the value of some entry, so no rounding or post-processing is needed. The staircase walk visiting entries is how count is computed, not why the result lands on one.
 ```

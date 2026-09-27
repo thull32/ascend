@@ -176,8 +176,8 @@ The DNS exchange completed in 1 ms with two packets. The TCP connection has used
 ```quiz
 - q: >-
     A voice-over-IP application is built on TCP. During a burst of 1% packet loss, users report audio freezing for half a second at a time even though almost all packets arrived. Which TCP property is responsible?
-  options: ["In-order delivery hides arrived frames behind the lost one", "The receive window is too small for continuous audio", "TCP's checksum rejects audio frames with minor bit errors", "The three-way handshake is repeated after every loss"]
-  answer: 0
+  options: ["TCP's checksum rejects audio frames with minor bit errors", "The three-way handshake is repeated after every loss", "The receive window is too small for continuous audio", "In-order delivery hides arrived frames behind the lost one"]
+  answer: 3
   explanation: >-
     The stream contract means bytes after a gap cannot be delivered until the gap is filled, and filling it costs at least an RTT and often a retransmission timeout, so on-time frames sit in the kernel buffer behind a stale one. The frames were there; the transport refused to hand them over. UDP with a jitter buffer delivers what arrived and conceals what did not.
 - q: >-
@@ -188,19 +188,19 @@ The DNS exchange completed in 1 ms with two packets. The TCP connection has used
     TCP handshake costs one RTT, TLS 1.3 costs one more, then the request and reply take a third: 300 ms. The handshakes do not overlap with the request on a fresh connection. UDP has no setup, so the request and reply take one RTT: 100 ms. This is why connection reuse and 0-RTT resumption exist.
 - q: >-
     You design a UDP protocol for streaming sensor readings and add sequence numbers, per-packet acknowledgements and retransmission of every lost reading. What should a reviewer point out?
-  options: ["UDP headers have no room to carry sequence numbers at all", "Sensor data must always be sent over TCP, never UDP", "Acknowledgements are not permitted over UDP at all", "It rebuilds TCP's policy; drop stale readings instead"]
+  options: ["Acknowledgements are not permitted over UDP at all", "UDP headers have no room to carry sequence numbers at all", "Sensor data must always be sent over TCP, never UDP", "It rebuilds TCP's policy; drop stale readings instead"]
   answer: 3
   explanation: >-
     Reliable in-order delivery of every message is exactly what TCP provides, with decades of tuning and congestion control. The reason to use UDP is to apply a different policy, such as not retransmitting old readings because only the newest matters. Rebuilding TCP's policy on UDP gives you TCP's costs plus your own bugs, and usually without rate control. Sequence numbers and ACKs in a UDP payload are perfectly legal.
 - q: >-
     A UDP-based application works on the office network but its connections silently die after about 30 seconds of inactivity when users are at home. What is the most likely cause?
-  options: ["The home NAT expired the idle mapping", "UDP datagrams expire after 30 seconds in flight", "Home routers do not support UDP traffic at all", "The application exceeds the home link's MTU"]
-  answer: 0
+  options: ["The application exceeds the home link's MTU", "The home NAT expired the idle mapping", "Home routers do not support UDP traffic at all", "UDP datagrams expire after 30 seconds in flight"]
+  answer: 1
   explanation: >-
     NAT devices keep UDP mappings for a short idle period, commonly around 30 seconds, versus hours for established TCP. Once the mapping expires, inbound datagrams have nowhere to go. Every production UDP protocol (WebRTC, QUIC, VPNs) sends periodic keepalives for this reason.
 - q: >-
     Why did QUIC's designers build on UDP rather than defining a new IP protocol number alongside TCP (6) and UDP (17)?
-  options: ["NATs and firewalls pass UDP but drop unknown IP protocols", "UDP is faster than any new transport protocol could be", "UDP already provides the congestion control QUIC needs", "IP has no free protocol numbers left to assign"]
+  options: ["NATs and firewalls pass UDP but drop unknown IP protocols", "IP has no free protocol numbers left to assign", "UDP is faster than any new transport protocol could be", "UDP already provides the congestion control QUIC needs"]
   answer: 0
   explanation: >-
     Middleboxes only understand TCP and UDP; SCTP, which took the new-protocol route, is nearly undeployable on the public internet for that reason. UDP is deployable and contributes nothing beyond ports and a checksum, so its empty header lets QUIC implement streams, reliability, congestion control and encryption itself.

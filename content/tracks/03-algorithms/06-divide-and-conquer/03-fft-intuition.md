@@ -220,32 +220,32 @@ hints:
 ```quiz
 - q: >-
     Why does evaluating a polynomial at the n-th roots of unity allow the even/odd recursion to continue down to size 1?
-  options: ["They are evenly spaced on the real line, so each half is again evenly spaced", "Their magnitude is 1, so values never overflow as the recursion goes deeper", "The even/odd split halves the degree, and that works for any set of n points", "Their squares are the n/2-th roots of unity, which again come in ± pairs"]
-  answer: 3
+  options: ["The even/odd split halves the degree, and that works for any set of n points", "They are evenly spaced on the real line, so each half is again evenly spaced", "Their squares are the n/2-th roots of unity, which again come in ± pairs", "Their magnitude is 1, so values never overflow as the recursion goes deeper"]
+  answer: 2
   explanation: >-
     The split A(x) = E(x²) + x·O(x²) saves work only when the evaluation points come in ± pairs, so that x and −x share the half-size evaluations. The degree halves for any point set, but without ± pairs the number of points to evaluate would not. Roots of unity (complex points on the unit circle) are closed under squaring in exactly the way that keeps this true at every level; real point sets are not.
 - q: >-
     You need the product of two polynomials with integer coefficients around 10^15 and degree 10^5. What goes wrong with a double-precision FFT?
-  options: ["Doubles cannot represent inputs as large as 10^15, so they are corrupted on load", "Nothing; the final round() step removes any floating-point error in the result", "Rounding error exceeds 0.5, so rounding back gives the wrong integers; use an NTT", "The product's length is not a power of two, so the transform cannot be applied"]
-  answer: 2
+  options: ["The product's length is not a power of two, so the transform cannot be applied", "Doubles cannot represent inputs as large as 10^15, so they are corrupted on load", "Nothing; the final round() step removes any floating-point error in the result", "Rounding error exceeds 0.5, so rounding back gives the wrong integers; use an NTT"]
+  answer: 3
   explanation: >-
     Products of 10^15-scale values summed over 10^5 terms reach 10^35, far beyond the ~10^16 relative precision of doubles, so the error in each output is far larger than 1 and round() snaps to the wrong integer. The inputs themselves are fine (10^15 is below 2^53), and padding handles any length. Number-theoretic transforms work modulo a prime and stay exact; splitting each coefficient into smaller chunks is the other standard fix.
 - q: >-
     Which problem is a convolution in disguise?
-  options: ["For each s, count pairs (i, j) with a[i] + b[j] = s", "Check whether two arrays are permutations of each other", "Count pairs (i, j) with i < j and a[i] > a[j] in one array", "Find the maximum of a[i] + b[j] over all pairs (i, j)"]
-  answer: 0
+  options: ["Check whether two arrays are permutations of each other", "Find the maximum of a[i] + b[j] over all pairs (i, j)", "For each s, count pairs (i, j) with a[i] + b[j] = s", "Count pairs (i, j) with i < j and a[i] > a[j] in one array"]
+  answer: 2
   explanation: >-
     Counting pairs by sum is the product of the two value histograms: count[s] = Σ_v histA[v]·histB[s − v], the convolution sum, with an answer for every total. The maximum pair sum is just max(a) + max(b); the permutation check is a sort or a hash count; and inversion counting compares values rather than summing them, which is merge sort's job.
 - q: >-
     scipy.signal.fftconvolve chooses direct convolution for small inputs despite the FFT's better complexity. Why?
-  options: ["Direct convolution is O(n + m) for small kernels, beating O(n log n) outright", "The FFT's constant factor is large enough that O(n·m) wins on small inputs", "The FFT's rounding error is largest on small inputs, so direct is more accurate", "Small inputs are rarely powers of two, and the FFT is only valid on those sizes"]
-  answer: 1
+  options: ["The FFT's rounding error is largest on small inputs, so direct is more accurate", "Small inputs are rarely powers of two, and the FFT is only valid on those sizes", "The FFT's constant factor is large enough that O(n·m) wins on small inputs", "Direct convolution is O(n + m) for small kernels, beating O(n log n) outright"]
+  answer: 2
   explanation: >-
     Asymptotics describe the limit. Three transforms, complex arithmetic and zero-padding give the FFT a large constant factor, so below a few hundred elements the O(n·m) loop with tiny constants beats O(n log n) with large ones, the same story as Strassen versus blocked matrix multiplication and Karatsuba versus schoolbook. Padding makes any size work, and the choice is about speed, not accuracy.
 - q: >-
     How is the inverse FFT related to the forward FFT?
-  options: ["The same FFT applied twice, since two DFTs in a row return the input", "The same FFT with ω replaced by ω⁻¹ and the result divided by n", "A different O(n²) interpolation, run once, so it does not dominate the cost", "The same FFT run on the reversed value array, with no scaling needed"]
-  answer: 1
+  options: ["The same FFT run on the reversed value array, with no scaling needed", "The same FFT applied twice, since two DFTs in a row return the input", "A different O(n²) interpolation, run once, so it does not dominate the cost", "The same FFT with ω replaced by ω⁻¹ and the result divided by n"]
+  answer: 3
   explanation: >-
     The DFT matrix's inverse is its conjugate divided by n, so interpolation reuses the evaluation code. Applying the forward transform twice does not return the input; it returns n times the index-reversed input, which is why the conjugated root and the 1/n are needed. That symmetry is why polynomial multiplication is three transforms plus a linear pass and nothing more.
 ```

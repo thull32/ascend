@@ -268,32 +268,32 @@ hints:
 ```quiz
 - q: >-
     Thread 1 locks A then B. Thread 2 locks B then A. Which change removes the possibility of deadlock?
-  options: ["Have both threads lock A first, then B", "Replace both locks with reentrant locks", "Add a short sleep between the two locks", "Raise thread 1's scheduling priority"]
+  options: ["Have both threads lock A first, then B", "Add a short sleep between the two locks", "Raise thread 1's scheduling priority", "Replace both locks with reentrant locks"]
   answer: 0
   explanation: >-
     A single global order makes circular wait impossible. Reentrant locks only let the same thread re-acquire a lock it already holds; they do nothing for a cycle between two threads. A sleep widens the deadlock window rather than closing it, and priority does not force anyone to release a lock.
 - q: >-
     A Go HTTP service has two goroutines deadlocked on each other's mutexes, but the runtime never prints "all goroutines are asleep". Why?
-  options: ["The check needs every goroutine blocked; the listener is not", "Go detects deadlocks on channels only, never on mutexes", "The race detector is disabled, and it owns deadlock reporting", "Deadlock detection is off unless GODEBUG enables it at startup"]
-  answer: 0
+  options: ["Go detects deadlocks on channels only, never on mutexes", "Deadlock detection is off unless GODEBUG enables it at startup", "The check needs every goroutine blocked; the listener is not", "The race detector is disabled, and it owns deadlock reporting"]
+  answer: 2
   explanation: >-
     The built-in check is global: it fires only when no goroutine can ever run again. Any healthy goroutine, such as the HTTP listener waiting for new connections, means the process is not globally deadlocked, so partial deadlocks are silent whether they involve mutexes or channels. Dump goroutine stacks (SIGQUIT or pprof) to find them.
 - q: >-
     Two threads use try-lock with a fixed 10 ms retry delay to acquire two locks in opposite orders. Monitoring shows 100% CPU and zero completed operations. What is this and what fixes it?
-  options: ["Deadlock; impose a global lock order", "Starvation; switch to a fair FIFO lock", "Livelock; add random jitter to the retry delay", "A data race; guard the retry with a mutex"]
-  answer: 2
+  options: ["A data race; guard the retry with a mutex", "Livelock; add random jitter to the retry delay", "Deadlock; impose a global lock order", "Starvation; switch to a fair FIFO lock"]
+  answer: 1
   explanation: >-
     Nobody is blocked forever, they are all actively retrying in lock-step: livelock. Randomised backoff breaks the symmetry so one thread eventually gets both locks. A lock order would also fix it, but the question's symptom (busy, no progress) is livelock, not deadlock, which shows near-zero CPU.
 - q: >-
     A payment transaction fails in production with PostgreSQL error 40P01 (deadlock detected). What is the right response in the application?
-  options: ["Switch the transaction to READ UNCOMMITTED isolation", "Raise deadlock_timeout so the database waits longer first", "Report the payment as failed to the user and move on", "Retry it, and always update rows in a consistent order"]
-  answer: 3
+  options: ["Retry it, and always update rows in a consistent order", "Raise deadlock_timeout so the database waits longer first", "Switch the transaction to READ UNCOMMITTED isolation", "Report the payment as failed to the user and move on"]
+  answer: 0
   explanation: >-
     Postgres has already broken the cycle by aborting your transaction; the other one proceeded. Retrying is correct and expected, and a consistent row order makes recurrences rare. A longer deadlock_timeout only delays detection, isolation level does not remove row-lock cycles, and failing the payment surfaces a transient condition as a user error.
 - q: >-
     In a wait-for graph, T4 waits for T1, T1 waits for T2, T2 waits for T3 and T3 waits for T2. A detector must abort one thread. Which choices actually resolve the deadlock?
-  options: ["Only T2 or T3, the two members of the cycle", "Any of the four, since all of them are stuck", "None; the detector has to abort all four", "T1 or T4, because they are the oldest waiters"]
-  answer: 0
+  options: ["None; the detector has to abort all four", "Only T2 or T3, the two members of the cycle", "T1 or T4, because they are the oldest waiters", "Any of the four, since all of them are stuck"]
+  answer: 1
   explanation: >-
     The cycle is T2 and T3. Aborting T1 or T4 releases their locks but leaves the cycle intact, so T2 and T3 (and whoever waits behind them) stay stuck. Aborting either cycle member lets the other proceed, and the threads behind it follow.
 ```

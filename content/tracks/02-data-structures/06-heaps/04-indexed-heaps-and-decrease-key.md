@@ -314,32 +314,32 @@ hints:
 ```quiz
 - q: >-
     Dijkstra with lazy deletion (duplicate pushes) has heap size bounded by:
-  options: ["E, since each relaxation can push an entry", "V, since each vertex is finalised only once", "V log V, since each vertex re-enters log V times", "Max degree, since one vertex relaxes at a time"]
-  answer: 0
+  options: ["Max degree, since one vertex relaxes at a time", "E, since each relaxation can push an entry", "V log V, since each vertex re-enters log V times", "V, since each vertex is finalised only once"]
+  answer: 1
   explanation: >-
     Each successful relaxation pushes an entry and there are at most E relaxations, so the heap can hold O(E) entries even though each vertex is finalised once; the indexed heap variant holds at most V. Running time stays O(E log V) because log E ≤ 2 log V.
 - q: >-
     In an indexed heap, what must every swap during sift-up or sift-down do in addition to swapping the two array slots?
-  options: ["Re-heapify the array so the positions stay valid", "Nothing, as the position map is rebuilt on each pop", "Update the position map for both moved keys", "Recompute the priorities of both moved keys"]
-  answer: 2
+  options: ["Recompute the priorities of both moved keys", "Update the position map for both moved keys", "Re-heapify the array so the positions stay valid", "Nothing, as the position map is rebuilt on each pop"]
+  answer: 1
   explanation: >-
     The position map is what makes decrease-key O(log n); it is only correct if it is updated at every move. Priorities do not change during a swap, and rebuilding the map or re-heapifying would be O(n) per operation, which defeats the purpose.
 - q: >-
     A lazy-deletion queue implements remove(x) as pending[x] += 1 unconditionally. Sequence: remove(7), push(7), pop(). What is returned?
-  options: ["An error, since removing an absent 7 raises", "None, as the pending removal eats the push", "7, since each push clears pending removals", "7, since the removal came before the push"]
-  answer: 1
+  options: ["An error, since removing an absent 7 raises", "7, since the removal came before the push", "None, as the pending removal eats the push", "7, since each push clears pending removals"]
+  answer: 2
   explanation: >-
     The unconditional remove records a pending removal without error, and nothing clears it. The pending count for 7 is 1 when the push happens; on pop, the root 7 matches a pending removal and is discarded. remove must check that a live copy exists before recording a pending removal.
 - q: >-
     Why is Dijkstra with a Fibonacci heap (O(E + V log V)) rarely faster than with a binary heap (O(E log V)) in practice?
-  options: ["Pointer-heavy forests mean large constants and cache misses", "The bound is misquoted; it is really O(E log V) as well", "Fibonacci heaps cannot handle negative edge weights at all", "Binary heaps also get O(1) decrease-key through the index map"]
-  answer: 0
+  options: ["Fibonacci heaps cannot handle negative edge weights at all", "Binary heaps also get O(1) decrease-key through the index map", "The bound is misquoted; it is really O(E log V) as well", "Pointer-heavy forests mean large constants and cache misses"]
+  answer: 3
   explanation: >-
     The bound is real, but the asymptotic win requires dense graphs and ignores constants. Fibonacci heap nodes carry four pointers and scattered allocations, and on sparse graphs E is only a few times V, so the difference between E and E log V is small and the binary heap's array layout wins on real hardware. An indexed binary heap's decrease-key is O(log n), not O(1).
 - q: >-
     A system needs to insert tasks with priorities, pop the highest priority, cancel arbitrary tasks by id, and list tasks in priority order for a dashboard. The best structure is:
-  options: ["A binary heap with lazy deletion for cancelled ids", "An indexed heap with a position map keyed by id", "A balanced BST or skip list on (priority, id)", "Two heaps, one max and one min, sharing the ids"]
-  answer: 2
+  options: ["A balanced BST or skip list on (priority, id)", "A binary heap with lazy deletion for cancelled ids", "An indexed heap with a position map keyed by id", "Two heaps, one max and one min, sharing the ids"]
+  answer: 0
   explanation: >-
     Ordered iteration rules out every heap variant, which cannot produce sorted order without destroying itself; an indexed heap solves cancellation but not the listing. A balanced tree gives O(log n) insert, pop-min, delete-by-key and O(n) in-order listing.
 ```

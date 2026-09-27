@@ -262,26 +262,26 @@ hints:
 ```quiz
 - q: >-
     An 8-core service spends 5 ms of CPU and 45 ms waiting on the database per request. The database connection pool has 20 connections. What limits throughput?
-  options: ["The connection pool: 20 / 45 ms is only about 444 per second", "Thread count: 80 threads by the formula give 1,600 per second", "CPU: 8 cores / 5 ms caps it at 1,600 requests per second", "Nothing yet; add threads until the latency starts to rise"]
-  answer: 0
+  options: ["Nothing yet; add threads until the latency starts to rise", "The connection pool: 20 / 45 ms is only about 444 per second", "CPU: 8 cores / 5 ms caps it at 1,600 requests per second", "Thread count: 80 threads by the formula give 1,600 per second"]
+  answer: 1
   explanation: >-
     The formula N = cores × (1 + W/C) gives 80 threads and a CPU ceiling of 1,600 per second, but only 20 requests can hold a database connection at once, each for 45 ms, so throughput tops out near 444 per second. Extra threads just queue for connections. Size from the tightest resource.
 - q: >-
     A pool runs at 90% utilisation with a mean service time of 20 ms. Using the M/M/1 approximation, roughly how long does a task wait in the queue on average?
-  options: ["About 1,800 ms", "About 2 ms", "About 20 ms", "About 180 ms"]
-  answer: 3
+  options: ["About 20 ms", "About 1,800 ms", "About 180 ms", "About 2 ms"]
+  answer: 2
   explanation: >-
     W_q = ρ/(1-ρ) × service time = 0.9/0.1 × 20 ms = 180 ms. At 50% utilisation the wait would be 20 ms; the curve is what makes the last 10–20% of utilisation so expensive for latency.
 - q: >-
     A Java ThreadPoolExecutor has corePoolSize 10, maximumPoolSize 100 and an unbounded LinkedBlockingQueue. Under heavy load, how many threads run?
-  options: ["One per queued task, up to the 100-thread maximum", "100, once the load is high enough to need them", "Between 10 and 100, depending on CPU utilisation", "10, as the unbounded queue never rejects a task"]
-  answer: 3
+  options: ["One per queued task, up to the 100-thread maximum", "10, as the unbounded queue never rejects a task", "Between 10 and 100, depending on CPU utilisation", "100, once the load is high enough to need them"]
+  answer: 1
   explanation: >-
     ThreadPoolExecutor prefers queueing to growing: beyond the core size it creates threads only when offer() to the queue fails. With an unbounded queue that never happens, so the pool stays at 10 and the queue grows without limit. Use a bounded queue if you want the maximum to matter.
 - q: >-
     A request handler running on a shared executor with 8 threads submits 3 subtasks to that same executor and blocks on their results. Under load the service hangs. What is happening?
-  options: ["Livelock, as the handlers keep retrying their subtasks", "Lock-ordering deadlock between the handler threads", "The executor's queue is too small to hold the subtasks", "Every worker waits on queued subtasks that no free worker can run"]
-  answer: 3
+  options: ["Lock-ordering deadlock between the handler threads", "Every worker waits on queued subtasks that no free worker can run", "The executor's queue is too small to hold the subtasks", "Livelock, as the handlers keep retrying their subtasks"]
+  answer: 1
   explanation: >-
     This is thread-starvation deadlock: when all 8 workers are handlers waiting on their own subtasks, the subtasks sit in the queue and can never be scheduled. No locks or retries are involved. Separate pools per stage, asynchronous composition, or a fork-join pool whose join helps run queued work avoid it; a bigger queue does not.
 - q: >-

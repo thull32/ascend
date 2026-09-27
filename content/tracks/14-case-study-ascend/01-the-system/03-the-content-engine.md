@@ -393,38 +393,38 @@ The tokenizer has quirks worth knowing before a learner reports them: it splits 
 ```quiz
 - q: >-
     Why are the content ETags identical across replicas and restarts without any coordination?
-  options: ["They hash the content, the build id and the SPA shell, which every process computes identically", "Each replica writes its ETag to Postgres at boot, and every replica reads that shared value", "Railway pins every learner to one replica, so the ETags never have to agree", "They include the process start time, which Railway keeps equal on all replicas"]
-  answer: 0
+  options: ["Railway pins every learner to one replica, so the ETags never have to agree", "Each replica writes its ETag to Postgres at boot, and every replica reads that shared value", "They hash the content, the build id and the SPA shell, which every process computes identically", "They include the process start time, which Railway keeps equal on all replicas"]
+  answer: 2
   explanation: >-
     The validator is a pure function of inputs compiled into the binary: the sorted content files, the build id and the embedded index.html. Any process from the same build derives the same value. Mixing in start time would do the opposite and invalidate every cache on each restart.
 - q: >-
     Before the latest fixes, a deploy that added a field to the lesson JSON but changed no Markdown left returning browsers without the field. Why, and what closed the gap?
-  options: ["The ETag hashed content only, so revalidation returned 304; adding the build id fixed it", "A lesson cache in Postgres went stale; clearing that table on every boot fixed it", "Railway kept serving the old container for an hour; gating on the readiness probe fixed it", "index.html was cached for a year, so the old SPA kept running; serving it no-cache fixed it"]
-  answer: 0
+  options: ["A lesson cache in Postgres went stale; clearing that table on every boot fixed it", "index.html was cached for a year, so the old SPA kept running; serving it no-cache fixed it", "The ETag hashed content only, so revalidation returned 304; adding the build id fixed it", "Railway kept serving the old container for an hour; gating on the readiness probe fixed it"]
+  answer: 2
   explanation: >-
     The browser revalidated correctly, but the validator it compared against did not change, because it was derived from content alone. A cache key must include everything the response depends on. index.html was already served no-cache, and there is no lesson cache in Postgres.
 - q: >-
     The extractor re-emits each quiz block as JSON containing only questions and options. What does that design achieve?
-  options: ["Payloads shrink, because YAML comments and indentation are dropped from each lesson", "Learners can edit a quiz in the browser and save it back without any YAML parser", "Answers stay on the server until grading, and YAML errors surface at build time", "Answers stay hidden for good, even after a learner's first graded attempt"]
-  answer: 2
+  options: ["Answers stay on the server until grading, and YAML errors surface at build time", "Learners can edit a quiz in the browser and save it back without any YAML parser", "Answers stay hidden for good, even after a learner's first graded attempt", "Payloads shrink, because YAML comments and indentation are dropped from each lesson"]
+  answer: 0
   explanation: >-
     The public projection plus a serde(skip) field keeps answers server-side until POST grade, and parsing at build time moves YAML mistakes from a learner's browser to CI; the client also needs no YAML parser. Answers are deliberately revealed after one graded attempt, so the claim that they stay hidden for good is wrong.
 - q: >-
     A lesson exercise marks two tests hidden: true. What does hidden mean in Ascend?
-  options: ["The tests only run in CI, against the reference solution stored in the lesson file", "The browser receives and runs them, but they are not shown before you submit", "The tests never leave the server, which runs them after each submission", "The tests travel encrypted in the payload and are decrypted by the worker"]
-  answer: 1
+  options: ["The tests only run in CI, against the reference solution stored in the lesson file", "The tests never leave the server, which runs them after each submission", "The browser receives and runs them, but they are not shown before you submit", "The tests travel encrypted in the payload and are decrypted by the worker"]
+  answer: 2
   explanation: >-
     Learner code runs in the browser, so the browser needs the tests, expected values included. That is acceptable under ADR 0003's practice-not-contest trust model; any competitive feature would need server-side execution for hidden tests. Encryption would not help, because the worker must decrypt them to run them.
 - q: >-
     Which of these content mistakes still passes strict validation today and reaches learners?
-  options: ["A front-matter key misspelled as problem: instead of the real key, which is problems:", "A link in the prose to a /learn/ page for a lesson that does not exist anywhere", "A quiz question whose answer index is 5 although it only has four options", "A module prerequisite that names a module the curriculum does not contain"]
-  answer: 1
+  options: ["A link in the prose to a /learn/ page for a lesson that does not exist anywhere", "A module prerequisite that names a module the curriculum does not contain", "A front-matter key misspelled as problem: instead of the real key, which is problems:", "A quiz question whose answer index is 5 although it only has four options"]
+  answer: 0
   explanation: >-
     Answer indices are bounds-checked, unknown front-matter keys are rejected by deny_unknown_fields, and prerequisites are resolved against the loaded modules. Links inside the prose are not checked by the loader, and the crawl only checks table-of-contents anchors and render errors.
 - q: >-
     The table of contents lists only h2 and h3 headings. Why does the backend still count an h4 heading when it numbers duplicate ids?
-  options: ["h4 headings are promoted to h3 when the table of contents is rendered on small phones", "GitHub renders h4 as h3 on narrow screens, which changes which ids the page ends up using", "rehype-slug numbers headings at every level, so skipping h4 would shift later ids", "It does not: h4 headings are ignored completely when duplicates are counted"]
-  answer: 2
+  options: ["GitHub renders h4 as h3 on narrow screens, which changes which ids the page ends up using", "h4 headings are promoted to h3 when the table of contents is rendered on small phones", "It does not: h4 headings are ignored completely when duplicates are counted", "rehype-slug numbers headings at every level, so skipping h4 would shift later ids"]
+  answer: 3
   explanation: >-
     The browser's ids come from github-slugger, which keeps one counter for the whole page. If an h4 named Summary takes summary-1, the next h3 named Summary is summary-2 in the DOM, so the TOC must say summary-2 as well. A unit test pins exactly that case.
 ```

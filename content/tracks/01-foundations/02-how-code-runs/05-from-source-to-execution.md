@@ -127,32 +127,32 @@ These are orders of magnitude, not benchmarks; the [benchmarking lesson](/learn/
 ```quiz
 - q: >-
     Why is `total + x` roughly 30–100 times slower in a CPython loop than in compiled Go?
-  options: ["Python re-parses the loop's source text on every iteration", "Go spreads the additions across multiple CPU cores", "Python stores integers as strings and converts on each +", "CPython rediscovers operand types and allocates a result on each +"]
-  answer: 3
+  options: ["CPython rediscovers operand types and allocates a result on each +", "Python re-parses the loop's source text on every iteration", "Python stores integers as strings and converts on each +", "Go spreads the additions across multiple CPU cores"]
+  answer: 0
   explanation: >-
     CPython must dispatch the bytecode, discover the operand types, check for the integer fast path, allocate a result object and adjust reference counts, where Go emits a single add instruction on values whose types were fixed at compile time. Parsing happens once (bytecode is cached), there is no parallelism involved, and Python ints are binary digit arrays, not strings.
 - q: >-
     A Node service runs at 2 ms p50 for an hour, then jumps to 20 ms and stays there with no deploy. Which explanation fits best?
-  options: ["The garbage collector switched to a slower, persistent mode", "The JIT finished warming up and moved to its final tier", "The event loop exhausted its pool of JavaScript threads", "A hot function saw a new shape and was deoptimised"]
-  answer: 3
+  options: ["A hot function saw a new shape and was deoptimised", "The event loop exhausted its pool of JavaScript threads", "The garbage collector switched to a slower, persistent mode", "The JIT finished warming up and moved to its final tier"]
+  answer: 0
   explanation: >-
     Sustained slowdown after a change in input shape is the deoptimisation signature: the site becomes polymorphic or megamorphic and the optimiser no longer produces fast code. Warm-up makes things faster over time, not slower. GC does not have modes that persist like this, and JavaScript runs on a single event-loop thread, so there is no pool of JS threads to exhaust.
 - q: >-
     Which is a structural advantage a JIT has over an ahead-of-time compiler?
-  options: ["It never needs to deoptimise once code is compiled", "It optimises for the types and call targets it observes", "Faster start-up, since no ahead-of-time build is needed", "Smaller binaries, since only hot code is compiled"]
+  options: ["Smaller binaries, since only hot code is compiled", "It optimises for the types and call targets it observes", "Faster start-up, since no ahead-of-time build is needed", "It never needs to deoptimise once code is compiled"]
   answer: 1
   explanation: >-
     Run-time profile information is the JIT's edge: it can inline through calls an AOT compiler must leave indirect. AOT compilers can only approximate it with PGO. JITs start slower (they must profile and compile first), need the runtime shipped alongside, and deoptimise when speculation fails.
 - q: >-
     A CPU-bound Python job is rewritten to use eight threads and gets no faster. The most likely reason is:
-  options: ["The GIL lets only one thread run bytecode at a time", "Creating and switching Python threads is too slow", "Python threads are green threads confined to one core", "The job turns out to be I/O bound, not CPU bound"]
-  answer: 0
+  options: ["Python threads are green threads confined to one core", "The job turns out to be I/O bound, not CPU bound", "Creating and switching Python threads is too slow", "The GIL lets only one thread run bytecode at a time"]
+  answer: 3
   explanation: >-
     Python threads are real OS threads, but the interpreter lock serialises bytecode execution, so pure-Python CPU work does not parallelise across threads. Use processes, or move the work into C code that releases the GIL (NumPy does), or a free-threaded build.
 - q: >-
     You are choosing a runtime for a serverless function that runs for about 100 ms per invocation, thousands of times an hour, and is cold-started often. Which consideration dominates?
-  options: ["Peak throughput once the hot loop is fully optimised", "Binary compatibility across different CPU families", "Start-up time, since warm-up can outweigh the work", "Garbage collector pause times during each request"]
-  answer: 2
+  options: ["Binary compatibility across different CPU families", "Start-up time, since warm-up can outweigh the work", "Garbage collector pause times during each request", "Peak throughput once the hot loop is fully optimised"]
+  answer: 1
   explanation: >-
     With 100 ms of work per invocation, a multi-second JVM cold start (class loading plus JIT warm-up) dominates, and the JIT never pays off; an AOT binary (Go, Rust) or a lightweight interpreter starts in milliseconds. Peak throughput and GC pauses matter for long-running processes, not this shape.
 ```

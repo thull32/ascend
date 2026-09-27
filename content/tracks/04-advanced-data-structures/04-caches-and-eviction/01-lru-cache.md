@@ -258,8 +258,8 @@ Then do the full problem, with its follow-ups, at [LRU Cache](/practice/lru-cach
 ```quiz
 - q: >-
     Why does the LRU cache need a doubly linked list rather than a singly linked one?
-  options: ["Unlinking a node needs its predecessor, which a singly linked node cannot reach in O(1)", "Pushing to the front needs the old head's address, which a singly linked list does not keep", "Doubly linked nodes use less memory, because sentinels remove the need for null checks", "Eviction must delete the key from the map, and only a doubly linked node can store it"]
-  answer: 0
+  options: ["Eviction must delete the key from the map, and only a doubly linked node can store it", "Doubly linked nodes use less memory, because sentinels remove the need for null checks", "Pushing to the front needs the old head's address, which a singly linked list does not keep", "Unlinking a node needs its predecessor, which a singly linked node cannot reach in O(1)"]
+  answer: 3
   explanation: >-
     The hash map hands you a pointer to the node, not to its predecessor. Unlinking needs predecessor.next = node.next; only a prev pointer gives you that without an O(n) walk. The head is always known, any node can store its key, and a prev pointer costs memory rather than saving it.
 - q: >-
@@ -270,20 +270,20 @@ Then do the full problem, with its follow-ups, at [LRU Cache](/practice/lru-cach
     get(1) moved key 1 to the front, leaving key 2 as least recently used. put(3,3) needed space and evicted 2. Key 1 was inserted first, but insertion order is FIFO's rule, not LRU's.
 - q: >-
     A nightly job scans every row of a large table through a pure-LRU cache in front of the database. What happens to the daytime working set?
-  options: ["It is evicted, because every scanned row becomes most recent", "It survives, because its keys have far higher access counts", "It survives, because read-only access does not change LRU order", "Part of it survives, because scanned rows enter at the list midpoint"]
-  answer: 0
+  options: ["It survives, because its keys have far higher access counts", "It survives, because read-only access does not change LRU order", "It is evicted, because every scanned row becomes most recent", "Part of it survives, because scanned rows enter at the list midpoint"]
+  answer: 2
   explanation: >-
     LRU has no notion of frequency; a single touch makes a scanned row the most recent entry. A scan larger than the cache flushes everything. Midpoint insertion is InnoDB's defence against exactly this, not something pure LRU does. This scan pollution is why Linux, InnoDB and Postgres all deviate from pure LRU.
 - q: >-
     Why does Redis approximate LRU by sampling a few keys instead of keeping a linked list?
-  options: ["A list costs 16 bytes per key, and sampling comes close to exact LRU", "Sampling gives a higher hit ratio than exact LRU for the same memory", "Expired keys would clog a list, and sampling purges them for free", "A list needs a lock around every access, and Redis must avoid locks"]
-  answer: 0
+  options: ["A list needs a lock around every access, and Redis must avoid locks", "Expired keys would clog a list, and sampling purges them for free", "Sampling gives a higher hit ratio than exact LRU for the same memory", "A list costs 16 bytes per key, and sampling comes close to exact LRU"]
+  answer: 3
   explanation: >-
     Sixteen bytes of pointers per key is significant when keys are small and numerous; a 24-bit clock plus sampling of 5 to 10 keys gets close to exact LRU's hit ratio at a fraction of the memory. It is not more accurate than exact LRU, only nearly as accurate and much cheaper.
 - q: >-
     You add thread safety with a single mutex around get and put. What is the main cost?
-  options: ["Gets can interleave with puts, so results become incorrect", "Every read queues on the one lock, so reads lose parallelism", "Recency order becomes approximate, because reads are buffered", "Memory roughly doubles, because every entry needs its own lock"]
-  answer: 1
+  options: ["Every read queues on the one lock, so reads lose parallelism", "Gets can interleave with puts, so results become incorrect", "Memory roughly doubles, because every entry needs its own lock", "Recency order becomes approximate, because reads are buffered"]
+  answer: 0
   explanation: >-
     A global lock is correct but turns a structure meant to serve reads in parallel into a serial bottleneck. Segmented locks or lock-free read buffers (Caffeine) keep reads concurrent; approximate recency order is the price of those read buffers, not of a global lock.
 ```

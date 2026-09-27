@@ -336,37 +336,37 @@ Implementations have bugs, so I verify: the server periodically publishes a hash
 ```quiz
 - q: >-
     Gossip in your system delivers each state message at least once and sometimes twice. Which merge property makes the duplicates harmless?
-  options: ["Idempotence", "Monotonic reads", "Associativity", "Commutativity"]
+  options: ["Idempotence", "Monotonic reads", "Commutativity", "Associativity"]
   answer: 0
   explanation: >-
     Idempotence means merge(a, a) = a, so applying the same state twice changes nothing. Commutativity handles reordering and associativity handles relaying and batching; neither says anything about applying the same input twice. Monotonic reads is a session guarantee, not a merge property.
 - q: >-
     A G-Counter keeps one slot per replica instead of a single integer merged with max. Why?
-  options: ["Because addition is not commutative across replicas", "To save space compared with storing every increment", "Because max on a single integer loses concurrent adds", "To let the counter support decrements as well"]
+  options: ["To let the counter support decrements as well", "Because addition is not commutative across replicas", "Because max on a single integer loses concurrent adds", "To save space compared with storing every increment"]
   answer: 2
   explanation: >-
     With one integer, concurrent increments collide under max: two replicas each counting 2 would merge to 2. Per-replica slots mean no two replicas ever write the same slot, so per-slot max plus a sum adds the increments correctly. It costs more space, not less; decrements need a PN-Counter.
 - q: >-
     In an OR-Set, replica A removes "milk" while replica B concurrently adds "milk" again. After both replicas merge, what does the set contain?
-  options: ["Milk twice, one copy from each replica's add", "No milk, because a remove always beats a concurrent add", "Whichever operation had the later wall-clock timestamp", "Milk, because B's add has a fresh tag that A never saw"]
+  options: ["No milk, because a remove always beats a concurrent add", "Milk twice, one copy from each replica's add", "Whichever operation had the later wall-clock timestamp", "Milk, because B's add has a fresh tag that A never saw"]
   answer: 3
   explanation: >-
     The remove applies only to the add tags A had observed. B's concurrent add has a fresh tag A never observed, so it survives: add wins. A 2P-Set would make milk impossible to re-add; an LWW-Element-Set would let clock skew decide.
 - q: >-
     Why do practical OT systems such as Google Docs route every operation through a central server?
-  options: ["Because one global order needs only TP1, not the harder TP2", "Because the server must store each document's CRDT metadata", "Because OT operations are too large to send peer-to-peer", "Because clients are too slow to compute transformations"]
-  answer: 0
+  options: ["Because the server must store each document's CRDT metadata", "Because clients are too slow to compute transformations", "Because OT operations are too large to send peer-to-peer", "Because one global order needs only TP1, not the harder TP2"]
+  answer: 3
   explanation: >-
     A single authority imposing a total order means each operation is transformed along one path, so only TP1 is needed. Without it, transformations along different paths must agree (TP2), and several published algorithms were later shown to violate it. Operations are tiny and clients do transform; there is no CRDT metadata in OT.
 - q: >-
     A retailer replicates inventory across three regions with a PN-Counter so every region can sell without coordination. What goes wrong?
-  options: ["Two regions sell the last unit; stock goes negative", "A PN-Counter cannot represent the decrements of sales", "Increments made during a partition are lost on merge", "Nothing; the counter converges to the correct total"]
-  answer: 0
+  options: ["Nothing; the counter converges to the correct total", "Two regions sell the last unit; stock goes negative", "Increments made during a partition are lost on merge", "A PN-Counter cannot represent the decrements of sales"]
+  answer: 1
   explanation: >-
     Convergence is not an invariant. Each region's decrement is valid locally and the merge faithfully sums both, giving -1. Preventing oversell needs coordination: a home region per SKU, or escrow of stock between regions.
 - q: >-
     Why does a sequence CRDT keep a tombstone for a deleted character instead of removing it?
-  options: ["So a user can later undo the delete from history", "To keep the visible document length stable for cursors", "A delayed insert may still use it as its left neighbour", "Because a delete applied twice would remove two characters"]
+  options: ["Because a delete applied twice would remove two characters", "To keep the visible document length stable for cursors", "A delayed insert may still use it as its left neighbour", "So a user can later undo the delete from history"]
   answer: 2
   explanation: >-
     Inserts are positioned relative to element ids. If the anchor vanished, a concurrent or delayed insert that arrives later would have nowhere to attach and replicas could place it differently. Deletes by id are already idempotent. Tombstones can be collected only once every replica has seen the delete.

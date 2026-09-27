@@ -246,31 +246,31 @@ hints:
 ```quiz
 - q: >-
     An agent wrote a function and its tests in the same session, and all tests pass. Why is that weak evidence of correctness?
-  options: ["The tests share the code's understanding, so a spec misreading passes both", "Passing tests are never evidence of correctness for generated code", "Agents write too few tests, so the coverage is too low to mean anything", "Agents write tests that are syntactically valid but never actually executed"]
-  answer: 0
+  options: ["Agents write too few tests, so the coverage is too low to mean anything", "The tests share the code's understanding, so a spec misreading passes both", "Passing tests are never evidence of correctness for generated code", "Agents write tests that are syntactically valid but never actually executed"]
+  answer: 1
   explanation: >-
     Code and tests from one mind share its blind spots, and expected values may even come from running the code. Tests are strong evidence when their expected values come from the spec, ideally written or reviewed before the implementation. More tests from the same understanding do not help; passing tests are evidence, but tests derived from the code are weak evidence.
 - q: >-
     A property test on paginate shrinks to the counterexample items=[0], per_page=2. What does this most directly suggest?
-  options: ["total_pages rounds down, so a partial final page is dropped", "Pages are returned in the wrong order when per_page exceeds the length", "per_page must be at least 3, since smaller pages are not supported", "Hypothesis is generating invalid inputs that paginate should reject"]
-  answer: 0
+  options: ["Pages are returned in the wrong order when per_page exceeds the length", "per_page must be at least 3, since smaller pages are not supported", "total_pages rounds down, so a partial final page is dropped", "Hypothesis is generating invalid inputs that paginate should reject"]
+  answer: 2
   explanation: >-
     One item at two per page should give one page. Floor division gives 0, making the item unreachable. Shrinking removes everything irrelevant, so the minimal case points straight at the boundary.
 - q: >-
     Mutation testing reports that changing page < total_pages to page <= total_pages in has_next does not fail any test. What should you do?
-  options: ["Ignore it, since mutation testing is noisy and most mutants are harmless", "Delete the has_next field, since callers can compute it from total_pages", "Add a test that the last page has has_next false, pinning the boundary", "Switch the comparison to <=, since the tests show both versions are fine"]
-  answer: 2
+  options: ["Add a test that the last page has has_next false, pinning the boundary", "Ignore it, since mutation testing is noisy and most mutants are harmless", "Delete the has_next field, since callers can compute it from total_pages", "Switch the comparison to <=, since the tests show both versions are fine"]
+  answer: 0
   explanation: >-
     A surviving mutant marks a behaviour the suite does not constrain. The missing test is exactly the boundary case where the two versions differ: the last page. The tests allowing both versions shows a gap in the tests, not that both are correct.
 - q: >-
     An AI-generated change adds a dependency you have never heard of. Which check matters most before approving?
-  options: ["That the agent confirms it is widely used and actively maintained", "That it has a permissive licence compatible with your product's licence", "That it exists, is the project you intended, is pinned and is actually needed", "That it has more than 100 GitHub stars and a commit in the last year"]
-  answer: 2
+  options: ["That the agent confirms it is widely used and actively maintained", "That it exists, is the project you intended, is pinned and is actually needed", "That it has a permissive licence compatible with your product's licence", "That it has more than 100 GitHub stars and a commit in the last year"]
+  answer: 1
   explanation: >-
     Models sometimes name packages that do not exist, and attackers register such names so agents install them (slopsquatting); a typo of a real name is the same risk. Verifying identity, pinning and necessity closes that path. Licence matters too, but a malicious package is the larger immediate risk, stars can be faked, and the agent's word is not verification.
 - q: >-
     You asked an agent to make a slow function faster. What is the most effective verification strategy?
-  options: ["Ask the agent to confirm and document that the behaviour is unchanged", "Rely on the existing unit tests, since they already define the behaviour", "Compare old and new on thousands of random inputs, plus a benchmark", "Read the new code carefully, line by line, against the old version"]
+  options: ["Rely on the existing unit tests, since they already define the behaviour", "Read the new code carefully, line by line, against the old version", "Compare old and new on thousands of random inputs, plus a benchmark", "Ask the agent to confirm and document that the behaviour is unchanged"]
   answer: 2
   explanation: >-
     Optimisations change mechanism while promising identical behaviour, which is exactly what a differential test checks: keep the old implementation as an oracle and compare both on random inputs, with a benchmark to confirm the speed-up. Existing unit tests cover only the cases someone thought of, and an agent's confirmation is not evidence.

@@ -236,31 +236,31 @@ hints:
 ```quiz
 - q: >-
     A dynamic array grows by adding a fixed 64 slots whenever it is full. What is the amortised cost of an append?
-  options: ["O(log n), because resizes get rarer as n grows", "O(n), since the copies sum to Θ(n²) overall", "O(64), because 64 appends share each copy", "O(1), because each resize adds a constant 64 slots"]
-  answer: 1
+  options: ["O(64), because 64 appends share each copy", "O(log n), because resizes get rarer as n grows", "O(n), since the copies sum to Θ(n²) overall", "O(1), because each resize adds a constant 64 slots"]
+  answer: 2
   explanation: >-
     With additive growth a resize happens every 64 pushes and copies everything so far: 64 + 128 + 192 + ... ≈ n²/128 total, so Θ(n) per push. A constant increment is not what makes appends cheap: only multiplicative growth makes the copies a geometric series bounded by a constant times n, and only then do resizes get rarer.
 - q: >-
     Which statement correctly distinguishes amortised from average-case analysis?
-  options: ["Amortised assumes uniformly random inputs; average case assumes worst-case ones", "They are the same idea: the typical cost per operation over a long run", "Amortised holds for every sequence; average case assumes a distribution of inputs", "Average case bounds the total cost; amortised bounds each single operation"]
+  options: ["Amortised assumes uniformly random inputs; average case assumes worst-case ones", "Average case bounds the total cost; amortised bounds each single operation", "Amortised holds for every sequence; average case assumes a distribution of inputs", "They are the same idea: the typical cost per operation over a long run"]
   answer: 2
   explanation: >-
     Amortised analysis says that for every possible sequence of m operations the total is at most m·c. There is no randomness, so it is not about "typical" inputs. Average case needs a distribution and can be broken by adversarial inputs; amortised cannot.
 - q: >-
     A service appends each incoming event to an in-memory list and its p99 latency shows periodic spikes that grow further apart over time. What is the most likely cause and the cheapest fix?
-  options: ["Events are growing in size; compress them on arrival", "Array resizes copying the list; pre-size it or chunk it", "Hash collisions piling up; change the hash function", "Garbage collection pauses; give the process a bigger heap"]
-  answer: 1
+  options: ["Hash collisions piling up; change the hash function", "Events are growing in size; compress them on arrival", "Garbage collection pauses; give the process a bigger heap", "Array resizes copying the list; pre-size it or chunk it"]
+  answer: 3
   explanation: >-
     Doubling produces spikes at sizes 2^k, so they get further apart as the list grows, and each one is bigger. Pre-sizing eliminates copies; a chunked deque bounds each allocation. GC would not have that exact spacing pattern.
 - q: >-
     You implement shrink-on-pop by halving capacity whenever size drops to capacity/2. Why is this wrong?
-  options: ["Push/pop at half full copies the whole array every time", "It is fine; it mirrors the doubling rule exactly", "Halving capacity can drop elements that are still stored", "It frees memory too slowly, so peak usage stays doubled"]
-  answer: 0
+  options: ["It frees memory too slowly, so peak usage stays doubled", "Halving capacity can drop elements that are still stored", "Push/pop at half full copies the whole array every time", "It is fine; it mirrors the doubling rule exactly"]
+  answer: 2
   explanation: >-
     At exactly half full, a push doubles (copying everything) and the next pop halves (copying everything again), so amortised cost degrades to O(n). Mirroring the grow rule is exactly the trap. Shrinking at one quarter instead guarantees Θ(n) cheap operations between resizes.
 - q: >-
     A queue is implemented with two stacks. A single pop can move n elements from the input stack to the output stack. What is the amortised cost of pop, and why?
-  options: ["O(1), but only when pushes and pops strictly alternate", "O(1), since each element crosses over at most once", "O(log n), because the input stack halves on each move", "O(n), because one pop may move all n elements"]
+  options: ["O(n), because one pop may move all n elements", "O(1), since each element crosses over at most once", "O(log n), because the input stack halves on each move", "O(1), but only when pushes and pops strictly alternate"]
   answer: 1
   explanation: >-
     Charge the future move to the push: each element is pushed once, moved once, and popped once. Any sequence of m operations does at most 3m stack operations, so the occasional O(n) pop is paid for in advance. The bound holds for every sequence, not just alternating ones.

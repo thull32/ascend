@@ -200,32 +200,32 @@ The full worked design, with each phase taken further, is the [URL shortener cas
 ```quiz
 - q: >-
     Twelve minutes into a 45-minute interview you are still adding boxes to the high-level diagram. What is the best move?
-  options: ["Announce the move to deep dives and pick the two hardest parts", "Ask the interviewer to choose which component to draw next", "Keep going; the diagram must be complete before any deep dive", "Restart with a simpler diagram so the remaining time is enough"]
-  answer: 0
+  options: ["Ask the interviewer to choose which component to draw next", "Keep going; the diagram must be complete before any deep dive", "Announce the move to deep dives and pick the two hardest parts", "Restart with a simpler diagram so the remaining time is enough"]
+  answer: 2
   explanation: >-
     The deep dive is where the senior signal lives and it needs at least a third of the time. Saying "that is the high level" and choosing the deep-dive targets yourself demonstrates driving; asking the interviewer to choose is acceptable but weaker. A complete diagram with no depth is the most common failing pattern, and restarting spends the time you need for depth.
 - q: >-
     Your estimate for a service comes out at 40 writes/s and 4,000 reads/s with 600 GB/year of storage. Which design does the arithmetic justify?
-  options: ["A single replicated Postgres with a cache in front of it", "Multi-region active-active databases with a global router", "A sharded Cassandra cluster with a Kafka ingestion pipeline", "An in-memory store with periodic snapshots to object storage"]
+  options: ["A single replicated Postgres with a cache in front of it", "An in-memory store with periodic snapshots to object storage", "A sharded Cassandra cluster with a Kafka ingestion pipeline", "Multi-region active-active databases with a global router"]
   answer: 0
   explanation: >-
     These numbers fit on one node for years; read load is absorbed by a cache and a replica. Adding sharding or a queue invites the question "what is that for?" with no numeric answer. Multi-region is a requirements question (availability target), not something the throughput justifies.
 - q: >-
     The interviewer interrupts your deep dive with "what happens when the cache node dies?" The strongest response is to:
-  options: ["Say cache failure is out of scope and keep to the agreed plan", "Note it for the wrap-up so the current deep dive is not derailed", "Say a replica would take over, then return to your planned topic", "Make it the deep dive: load on the database, what fails, the fix"]
-  answer: 3
+  options: ["Say a replica would take over, then return to your planned topic", "Say cache failure is out of scope and keep to the agreed plan", "Make it the deep dive: load on the database, what fails, the fix", "Note it for the wrap-up so the current deep dive is not derailed"]
+  answer: 2
   explanation: >-
     Interviewer questions are the rubric leaking; the failure-under-load discussion is exactly what the round scores. Quantify the load that lands on the database, say what fails, and describe the mitigation. A one-line "add a replica" and returning to your plan, or deferring it, signals that you do not think about failure, which is the most expensive signal to send.
 - q: >-
     Which redirect status code choice is a genuine trade-off worth naming in the API phase?
-  options: ["302 vs 307, because 307 prevents open-redirect attacks on links", "301 vs 302, because browsers cache a 301 and skip your servers", "200 vs 302, because a 200 with a meta refresh saves a round trip", "None; browsers treat 301 and 302 identically for a GET request"]
-  answer: 1
+  options: ["302 vs 307, because 307 prevents open-redirect attacks on links", "200 vs 302, because a 200 with a meta refresh saves a round trip", "301 vs 302, because browsers cache a 301 and skip your servers", "None; browsers treat 301 and 302 identically for a GET request"]
+  answer: 2
   explanation: >-
     A permanent redirect is cached by clients, so subsequent clicks never reach your servers: lower load, but no click counting and no way to change the destination. 302/307 both route every click through you; the difference between them (method preservation) rarely matters for a shortener and has nothing to do with open redirects.
 - q: >-
     In the wrap-up you realise the design as drawn does not meet the stated 99.99% availability target. You should:
-  options: ["Add a second region to the diagram and move on without comment", "Say so, give the cause, and outline what closing it would cost", "Leave it out; raising a gap unprompted costs more than it earns", "Argue that 99.9% is good enough for this product and move on"]
-  answer: 1
+  options: ["Leave it out; raising a gap unprompted costs more than it earns", "Argue that 99.9% is good enough for this product and move on", "Add a second region to the diagram and move on without comment", "Say so, give the cause, and outline what closing it would cost"]
+  answer: 3
   explanation: >-
     Honesty about gaps is explicitly scored. Naming the gap, the cause (a single-region primary) and the cost of closing it is a senior behaviour; silently adding a box or hoping it goes unnoticed reads as either not understanding or not being candid.
 ```

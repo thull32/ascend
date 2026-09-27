@@ -272,26 +272,26 @@ hints:
 ```quiz
 - q: >-
     A graph has no negative cycle, and the shortest path from the source to node X uses 4 edges. After how many full rounds of Bellman-Ford is dist[X] guaranteed to be correct, regardless of edge order?
-  options: ["V − 1 always", "4", "1", "It depends on the weights"]
+  options: ["It depends on the weights", "4", "1", "V − 1 always"]
   answer: 1
   explanation: >-
     Round i finalises every node whose shortest path has at most i edges, by induction on the path. V − 1 is the worst case over all nodes, not the bound for a specific one. With a lucky edge order it can be faster, but 4 rounds is the guarantee.
 - q: >-
     You omit the `dist[u] != INF` guard and represent infinity as the integer 10^18. What can go wrong?
-  options: ["It overflows on the first addition and crashes the program", "Only the early exit breaks, so it always runs V − 1 rounds", "Unreachable nodes can gain finite distances and phantom cycles", "Nothing; the comparison still fails for unreachable nodes"]
-  answer: 2
+  options: ["Unreachable nodes can gain finite distances and phantom cycles", "Only the early exit breaks, so it always runs V − 1 rounds", "Nothing; the comparison still fails for unreachable nodes", "It overflows on the first addition and crashes the program"]
+  answer: 0
   explanation: >-
     10^18 + (−3) < 10^18 is true, so relaxation proceeds from an unreachable node. That produces bogus finite distances and lets a negative cycle the source cannot reach trigger the V-th round check. A 64-bit integer holds about 9.2 × 10^18, so small weights do not overflow; the bug is silent. Float infinity happens to behave, which is why it hides in Python and appears in C++.
 - q: >-
     Why must `k` be the outermost loop in Floyd-Warshall?
-  options: ["For cache locality: the inner loop then scans a single row", "It doesn't; any loop order converges to the same distances", "Stage k must finish for all pairs before stage k+1 uses it", "So the diagonal d[k][k] is updated before any pair uses it"]
-  answer: 2
+  options: ["For cache locality: the inner loop then scans a single row", "So the diagonal d[k][k] is updated before any pair uses it", "It doesn't; any loop order converges to the same distances", "Stage k must finish for all pairs before stage k+1 uses it"]
+  answer: 3
   explanation: >-
     d[i][j] at stage k means the best path using only intermediates below k, and stage k+1 builds on d[i][k] and d[k][j] from that stage. If k varies innermost, you compute 'at most one intermediate' paths and miss multi-hop improvements. Locality is a real but secondary concern.
 - q: >-
     You need the cheapest route with at most 3 stops between two airports. What is the right approach?
-  options: ["Floyd-Warshall, then read d[src][dst] from the matrix", "4 rounds of Bellman-Ford, relaxing against a copied array", "4 rounds of Bellman-Ford, relaxing in place to save memory", "Dijkstra, stopping as soon as the destination is popped"]
-  answer: 1
+  options: ["Floyd-Warshall, then read d[src][dst] from the matrix", "4 rounds of Bellman-Ford, relaxing in place to save memory", "Dijkstra, stopping as soon as the destination is popped", "4 rounds of Bellman-Ford, relaxing against a copied array"]
+  answer: 3
   explanation: >-
     Three stops means at most four flights, and k rounds against a copy of the previous round's distances computes 'cheapest using at most k edges' exactly. In-place relaxation can chain several edges within one round and violate the limit. Dijkstra's per-node 'settled' invariant fails when a cheaper path may be disqualified by edge count, and Floyd-Warshall ignores the limit entirely.
 - q: >-

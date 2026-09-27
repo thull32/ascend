@@ -33,6 +33,11 @@ check: ## Everything CI runs, locally
 content: ## Validate curriculum and practice problems
 	cargo run -q -p ascend-core --example validate_content -- ./content
 	python3 scripts/validate_problems.py
+	python3 scripts/shuffle_quiz_options.py --check
+
+quizzes: ## Put quiz options in canonical shuffled order and print answer-bias stats
+	python3 scripts/shuffle_quiz_options.py
+	python3 scripts/quiz_stats.py
 
 e2e: ## Run Playwright against a running server on :8080 (uses the Playwright docker image)
 	docker run --rm --user $$(id -u):$$(id -g) --network host -v $(PWD)/web:/work -w /work -e HOME=/tmp -e BASE_URL=http://localhost:8080 \
@@ -41,4 +46,4 @@ e2e: ## Run Playwright against a running server on :8080 (uses the Playwright do
 image: ## Build the production image
 	docker build -t ascend:local .
 
-.PHONY: help db web build run dev check content e2e image
+.PHONY: help db web build run dev check content quizzes e2e image

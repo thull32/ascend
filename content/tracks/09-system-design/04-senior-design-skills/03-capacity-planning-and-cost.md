@@ -237,32 +237,32 @@ From the failures I am designing for: enough to lose one zone at peak within SLO
 ```quiz
 - q: >-
     One instance meets the p99 SLO up to 1,250 rps. Peak is 50,000 rps across three availability zones, and the service must survive losing a zone at peak. What is the smallest fleet that serves peak within SLO after a zone loss?
-  options: ["40 instances", "120 instances", "60 instances", "87 instances"]
-  answer: 2
+  options: ["120 instances", "87 instances", "40 instances", "60 instances"]
+  answer: 3
   explanation: >-
     After losing a zone, two zones must carry 50,000 rps at up to 1,250 rps each: 40 instances, so 20 per zone and 60 in total. 40 has no zone headroom; 87 stacks a separate 70% utilisation target on top of the zone headroom.
 - q: >-
     In the simple M/M/1 model, what happens to queueing delay when utilisation rises from 80% to 90%?
-  options: ["It roughly doubles, from about 4 to 9 service times", "It rises by about 12%, tracking the change in load", "It stays roughly flat until utilisation nears 100%", "It falls, because a busier server batches more work"]
-  answer: 0
+  options: ["It stays roughly flat until utilisation nears 100%", "It falls, because a busier server batches more work", "It rises by about 12%, tracking the change in load", "It roughly doubles, from about 4 to 9 service times"]
+  answer: 3
   explanation: >-
     Queueing delay grows as ρ/(1−ρ): 4 at 80%, 9 at 90%, 19 at 95%. That hockey stick is why latency-sensitive services target 60 to 70%. It is not linear in load, and it rises sharply well before 100%.
 - q: >-
     A reservation gives a 40% discount. Which instances in an autoscaled fleet should you reserve?
-  options: ["None; on-demand is always cheaper with autoscaling", "Only instances busy more than 60% of the hours", "All instances, up to the fleet's size at daily peak", "Only the instances busy less than 40% of the hours"]
-  answer: 1
+  options: ["Only instances busy more than 60% of the hours", "All instances, up to the fleet's size at daily peak", "None; on-demand is always cheaper with autoscaling", "Only the instances busy less than 40% of the hours"]
+  answer: 0
   explanation: >-
     A reserved instance costs 60% of on-demand whether used or not, so it pays off only when the instance would run more than 60% of the time. Reserving to the peak pays for idle capacity most of the day.
 - q: >-
     A service's bill is dominated by log ingestion and cross-zone data transfer rather than compute. What is the most effective first step?
-  options: ["Add cache nodes to reduce the load on the database", "Move to larger instances to cut per-request overhead", "Rewrite the hot paths of the service in a faster language", "Sample success logs and keep traffic within each zone"]
-  answer: 3
+  options: ["Move to larger instances to cut per-request overhead", "Add cache nodes to reduce the load on the database", "Sample success logs and keep traffic within each zone", "Rewrite the hot paths of the service in a faster language"]
+  answer: 2
   explanation: >-
     The dominant costs scale with bytes moved, not CPU. Sampling success logs and routing requests to same-zone replicas and caches attack the largest line items directly; faster code and bigger instances reduce a line that was a small share of the bill.
 - q: >-
     Why is autoscaling not a sufficient plan for a premiere expected to triple traffic at 8 p.m.?
-  options: ["It lags by minutes and cannot scale quotas or the database", "Autoscaling policies cannot scale beyond two times the base", "Autoscaling is too expensive at triple the normal traffic", "Autoscaling only works for batch jobs, not for web traffic"]
-  answer: 0
+  options: ["Autoscaling only works for batch jobs, not for web traffic", "Autoscaling is too expensive at triple the normal traffic", "It lags by minutes and cannot scale quotas or the database", "Autoscaling policies cannot scale beyond two times the base"]
+  answer: 2
   explanation: >-
     Scaling policies react over minutes, instances need minutes to boot and warm, and quotas or stateful tiers may not scale at all, so capacity must be in place before the spike. Known events are pre-scaled on a schedule. The other options are simply false.
 ```

@@ -313,32 +313,32 @@ hints:
 ```quiz
 - q: >-
     A candidate writes the BFS level loop in JavaScript as for (let i = 0; i < queue.length; i++) with queue.push for children inside. What goes wrong?
-  options: ["It works, but costs O(n log n) from the repeated length check", "The loop never terminates, since push keeps growing length", "Nothing; the loop ends cleanly once the queue empties", "queue.length is re-read each pass, so levels merge together"]
-  answer: 3
+  options: ["queue.length is re-read each pass, so levels merge together", "The loop never terminates, since push keeps growing length", "It works, but costs O(n log n) from the repeated length check", "Nothing; the loop ends cleanly once the queue empties"]
+  answer: 0
   explanation: >-
     The loop bound grows as children are pushed, so the inner loop keeps consuming into the next level; every node ends up in one giant level. It still terminates, because the tree is finite. Capturing the size first, or building the next level in a separate array, fixes it. Python's range(len(queue)) evaluates the length once, which is why the bug is language-specific.
 - q: >-
     Right Side View on the tree [1, 2, 3, 4] (node 2 has a left child 4, node 3 is a leaf). A solution that repeatedly follows root.right returns [1, 3]. The correct answer is:
-  options: ["[1, 4]", "[1, 2, 4]", "[1, 3, 4]", "[1, 3]"]
+  options: ["[1, 4]", "[1, 3]", "[1, 3, 4]", "[1, 2, 4]"]
   answer: 2
   explanation: >-
     Level 2 contains only node 4, in the left subtree, and it is visible from the right because nothing on that level blocks it. The view is the last node of each level, not the right spine.
 - q: >-
     Why is 1 + min(min_depth(left), min_depth(right)) wrong for minimum depth, and which fix is cleanest?
-  options: ["A missing child counts as 0; treat it as infinity, or use BFS", "It is correct as written; no fix is needed at all", "It is O(n²) from repeated calls; fix it by memoising depths", "It counts the root twice; fix it by starting the count at 0"]
-  answer: 0
+  options: ["It counts the root twice; fix it by starting the count at 0", "A missing child counts as 0; treat it as infinity, or use BFS", "It is correct as written; no fix is needed at all", "It is O(n²) from repeated calls; fix it by memoising depths"]
+  answer: 1
   explanation: >-
     min_depth(None) is 0, so a node with only a right child returns 1 even though it is not a leaf. Either exclude the missing side from the min (treat it as infinity) or use BFS and return at the first leaf dequeued, which additionally stops early. The recursion visits each node once, so memoising fixes nothing.
 - q: >-
     A binary tree is a single chain of 100,000 nodes, each with only a right child. Which traversal is the safer choice for computing the values grouped by depth, and why?
-  options: ["Neither, until the tree is converted to an array first", "BFS, since its queue holds one node, not 100,000 stack frames", "Recursive DFS, because it uses less memory than a queue on chains", "Either one, since both use O(n) auxiliary memory on a chain"]
-  answer: 1
+  options: ["Recursive DFS, because it uses less memory than a queue on chains", "Either one, since both use O(n) auxiliary memory on a chain", "BFS, since its queue holds one node, not 100,000 stack frames", "Neither, until the tree is converted to an array first"]
+  answer: 2
   explanation: >-
     BFS memory is proportional to the widest level, which is 1 here. Recursive DFS depth equals the chain length and overflows the call stack in Python and most JavaScript engines. On a wide balanced tree the comparison flips: BFS holds n/2 nodes, DFS holds log n frames.
 - q: >-
     In the BFS deserialiser, the serialised string is 1,2,3,#,#,4,5,#,#,#,#. A candidate advances the token index by one, not two, whenever a dequeued parent's first token is #. What happens?
-  options: ["Tokens shift by one, so later children attach to wrong parents", "Only the last level of the tree is lost; the rest is fine", "An exception is thrown as soon as the first # is read", "The tree is rebuilt correctly, since # carries no data"]
-  answer: 0
+  options: ["Only the last level of the tree is lost; the rest is fine", "Tokens shift by one, so later children attach to wrong parents", "The tree is rebuilt correctly, since # carries no data", "An exception is thrown as soon as the first # is read"]
+  answer: 1
   explanation: >-
     Every dequeued node owns exactly two tokens. Consuming only one leaves the second # to be read as the right child, which shifts every subsequent token by one and misattaches all later children. The invariant is that queue order and token pairs advance together.
 ```

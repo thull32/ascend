@@ -296,32 +296,32 @@ hints:
 ```quiz
 - q: >-
     In an undirected DFS, node u has child v with low[v] == disc[u]. Which statements are true?
-  options: ["Neither, because the back edge lets v's subtree climb above u", "(u, v) is a bridge, but u is never an articulation point", "(u, v) is a bridge, and a non-root u is an articulation point", "(u, v) is not a bridge; a non-root u is an articulation point"]
-  answer: 3
+  options: ["(u, v) is not a bridge; a non-root u is an articulation point", "Neither, because the back edge lets v's subtree climb above u", "(u, v) is a bridge, and a non-root u is an articulation point", "(u, v) is a bridge, but u is never an articulation point"]
+  answer: 0
   explanation: >-
     low[v] == disc[u] means v's subtree can climb back to u but no higher. Removing the edge leaves the subtree connected through that back edge, so it is not a bridge (that needs low[v] > disc[u]); removing u itself strands the subtree, so u is a cut vertex (root excepted, which needs two children).
 - q: >-
     Your bridge finder skips the parent by node (`if v == parent: continue`). On a graph with two parallel edges between nodes 0 and 1 and nothing else, what does it report?
-  options: ["Two bridges, one per parallel edge", "It loops forever between nodes 0 and 1", "No bridges, which is correct", "One bridge (0,1), which is wrong"]
-  answer: 3
+  options: ["One bridge (0,1), which is wrong", "Two bridges, one per parallel edge", "It loops forever between nodes 0 and 1", "No bridges, which is correct"]
+  answer: 0
   explanation: >-
     From node 1 both edges lead back to node 0, and both are skipped as 'the parent', so node 1 sees no back edge, low[1] stays at disc[1] > disc[0], and (0,1) is reported as a bridge. The visited check prevents any loop. Skipping by edge index leaves the second edge as a legitimate back edge, giving the correct answer of no bridges.
 - q: >-
     Why does the residual graph include a reverse edge with capacity equal to the flow already pushed?
-  options: ["To let the network model undirected edges as two arcs", "As a speed-up that finds augmenting paths in fewer rounds", "So BFS terminates even when capacities are irrational", "So a later path can cancel flow chosen by an earlier one"]
-  answer: 3
+  options: ["As a speed-up that finds augmenting paths in fewer rounds", "To let the network model undirected edges as two arcs", "So a later path can cancel flow chosen by an earlier one", "So BFS terminates even when capacities are irrational"]
+  answer: 2
   explanation: >-
     Without reverse edges the method is a greedy path packer and can get stuck below the maximum (flow 1 instead of 2 in the lesson's example), because an early choice can block a better solution. Reverse edges are what make Ford–Fulkerson correct, not merely faster; termination with irrational capacities comes from choosing paths by BFS.
 - q: >-
     You need to assign 10,000 volunteers to 8,000 shifts where each volunteer lists the shifts they can take, maximising the number of shifts covered. Which formulation and algorithm?
-  options: ["Greedy: give each volunteer their first free listed shift", "Bipartite matching as a unit-capacity flow, via Hopcroft–Karp", "Shortest paths: Dijkstra from a super-source to every shift", "Spanning tree: Kruskal over the volunteer–shift edges"]
-  answer: 1
+  options: ["Bipartite matching as a unit-capacity flow, via Hopcroft–Karp", "Greedy: give each volunteer their first free listed shift", "Shortest paths: Dijkstra from a super-source to every shift", "Spanning tree: Kruskal over the volunteer–shift edges"]
+  answer: 0
   explanation: >-
     'Each used at most once, maximise pairs' is bipartite matching. Greedy fails whenever re-homing an earlier assignment would free a shift. Hopcroft–Karp is the scalable choice at this size; Kuhn's algorithm also works but is O(VE) worst case.
 - q: >-
     After Edmonds–Karp terminates, how do you obtain a minimum s–t cut?
-  options: ["Take the minimum-capacity edge on every augmenting path found", "Take the edges of the last augmenting path that was found", "Take every edge whose final flow equals its full capacity", "Split nodes by whether s reaches them in the residual graph"]
-  answer: 3
+  options: ["Split nodes by whether s reaches them in the residual graph", "Take the edges of the last augmenting path that was found", "Take the minimum-capacity edge on every augmenting path found", "Take every edge whose final flow equals its full capacity"]
+  answer: 0
   explanation: >-
     Let S be the nodes reachable from s in the final residual graph; the edges from S to its complement form the cut. Termination means no residual path from s to t, so every original edge from S to V−S is saturated and every edge into S carries zero flow. Their total capacity equals the flow, which by max-flow min-cut is the minimum cut capacity. Saturated edges elsewhere are not necessarily in the cut.
 ```

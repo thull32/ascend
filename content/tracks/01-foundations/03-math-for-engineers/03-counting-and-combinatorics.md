@@ -253,31 +253,31 @@ hints:
 ```quiz
 - q: >-
     A problem asks you to try every way of assigning 12 tasks to 12 workers, one task each. How many assignments are there, and is brute force plausible?
-  options: ["2^12 = 4,096; feasible and trivially fast", "12^12 ≈ 8.9 × 10^12; far too many to try", "12! ≈ 4.8 × 10^8; feasible but borderline", "12! ≈ 4.8 × 10^8; far beyond any time limit"]
-  answer: 2
+  options: ["12! ≈ 4.8 × 10^8; far beyond any time limit", "12! ≈ 4.8 × 10^8; feasible but borderline", "12^12 ≈ 8.9 × 10^12; far too many to try", "2^12 = 4,096; feasible and trivially fast"]
+  answer: 1
   explanation: >-
     One-to-one assignments are orderings, n!, and 12! is about 479 million. At 10^8 to 10^9 simple operations per second that is seconds, feasible but borderline, and only with a fast inner loop; 13! would be ten times worse. 2^12 counts subsets, not bijections, and 12^12 counts assignments where one worker may take several tasks.
 - q: >-
     Why does `n_choose_k` multiply by `(n - k + i)` before dividing by `i` in each iteration, rather than dividing first?
-  options: ["The order is arbitrary; both orders give the same result", "Multiplying first keeps the intermediate values smaller", "After the multiply, i always divides the value exactly", "Dividing first can make the running value go negative"]
-  answer: 2
+  options: ["The order is arbitrary; both orders give the same result", "After the multiply, i always divides the value exactly", "Dividing first can make the running value go negative", "Multiplying first keeps the intermediate values smaller"]
+  answer: 1
   explanation: >-
     After step i the running value equals C(n - k + i, i), an integer, because the numerator i * C(n-k+i, i) is divisible by i. Dividing the previous value by i first can produce a non-integer that integer division truncates, giving a wrong result, so the order is not arbitrary. Multiplying first actually makes the intermediate value temporarily larger, not smaller.
 - q: >-
     A grid has 4 rows and 6 columns. How many right/down paths lead from the top-left to the bottom-right corner?
-  options: ["70", "56", "126", "24"]
-  answer: 1
+  options: ["56", "24", "70", "126"]
+  answer: 0
   explanation: >-
     A path is 3 downs and 5 rights in some order: C(8, 3) = 56. 70 is C(8, 4), which would be a 5 × 5 grid; 24 is 4 × 6, the number of cells; 126 is C(9, 4).
 - q: >-
     An array of length 1,001 contains integers between 1 and 1,000. Which claim is guaranteed, without any assumption about randomness?
-  options: ["Every value from 1 to 1,000 appears", "Exactly one value appears twice", "No value appears more than twice", "At least one value appears twice"]
-  answer: 3
+  options: ["At least one value appears twice", "Exactly one value appears twice", "No value appears more than twice", "Every value from 1 to 1,000 appears"]
+  answer: 0
   explanation: >-
     Pigeonhole: 1,001 items in 1,000 boxes forces some box to hold at least two. Nothing forces uniqueness of the repeated value, bounds how often it repeats, or requires every value to be present.
 - q: >-
     Segment A has 5,000 users, segment B has 3,000, and 1,200 users are in both. How many users are in at least one segment, and what goes wrong if you just add?
-  options: ["8,000; the two segments simply add up", "8,000; each segment already excludes the overlap", "3,800; you must subtract the overlap from both", "6,800; adding counts the shared 1,200 twice"]
+  options: ["3,800; you must subtract the overlap from both", "8,000; the two segments simply add up", "8,000; each segment already excludes the overlap", "6,800; adding counts the shared 1,200 twice"]
   answer: 3
   explanation: >-
     |A ∪ B| = |A| + |B| - |A ∩ B| = 5,000 + 3,000 - 1,200 = 6,800. Plain addition double-counts the intersection, since the shared users are inside both segment counts. 3,800 subtracts it twice.

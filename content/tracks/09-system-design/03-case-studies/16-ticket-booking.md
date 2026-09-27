@@ -242,32 +242,32 @@ Very little: it is advisory. A few seconds of staleness costs some `409`s, which
 ```quiz
 - q: >-
     Two requests try to hold the same available seat at the same instant using UPDATE seats SET status='HELD' ... WHERE seat_id=14 AND status='AVAILABLE'. What happens?
-  options: ["Both succeed because they read the row at the same time", "The database raises a deadlock error on both transactions", "The second blocks, re-checks, sees HELD and updates no rows", "Whichever request has the lower user id wins the seat"]
-  answer: 2
+  options: ["The database raises a deadlock error on both transactions", "The second blocks, re-checks, sees HELD and updates no rows", "Both succeed because they read the row at the same time", "Whichever request has the lower user id wins the seat"]
+  answer: 1
   explanation: >-
     Row-level locking serialises the two updates: the second waits for the first to commit, then re-evaluates its WHERE clause against the committed row, finds it HELD and updates nothing. Because check and write are one statement, there is no window for a race. A separate SELECT followed by UPDATE would have that window. One row lock taken in one order cannot deadlock.
 - q: >-
     Two million users arrive for 50,000 seats, averaging 2.5 seats per order. What is the main design consequence?
-  options: ["Only ~1% can win; admit users at the rate seats can sell", "Shard the seats table across 100 databases for write load", "Put the seats in Redis to handle 100,000 holds per second", "Raise the hold time to 30 minutes so checkouts can finish"]
-  answer: 0
+  options: ["Put the seats in Redis to handle 100,000 holds per second", "Only ~1% can win; admit users at the rate seats can sell", "Raise the hold time to 30 minutes so checkouts can finish", "Shard the seats table across 100 databases for write load"]
+  answer: 1
   explanation: >-
     Only 20,000 orders exist, so 99% of the load is from users who will fail. Admission control, with the rest waiting cheaply at the edge, turns a 100,000/s write problem into roughly 1,000/s. Scaling the inventory store to serve doomed requests is the expensive wrong answer.
 - q: >-
     Why does the hold query treat HELD seats with an expired hold_expires_at as claimable?
-  options: ["So correctness does not depend on the background sweeper", "To let a new buyer take over a seat still being paid for", "Because the database has no way to run scheduled jobs", "To keep the seat map accurate between sweeper runs"]
-  answer: 0
+  options: ["To let a new buyer take over a seat still being paid for", "Because the database has no way to run scheduled jobs", "So correctness does not depend on the background sweeper", "To keep the seat map accurate between sweeper runs"]
+  answer: 2
   explanation: >-
     Expired holds are released lazily by the next claimant, which makes the sweeper an optimisation for the seat map only. If it stalls, seats are still correctly claimable once their hold expires. A hold that has not expired is never claimable, so no one's in-progress checkout is taken.
 - q: >-
     A call to the payment provider times out during checkout. What should the system do?
-  options: ["Treat it as unknown; query the provider with the same key", "Mark the order failed and release the held seats at once", "Retry immediately with a fresh idempotency key to be safe", "Capture the payment a second time to be sure it went through"]
-  answer: 0
+  options: ["Retry immediately with a fresh idempotency key to be safe", "Capture the payment a second time to be sure it went through", "Mark the order failed and release the held seats at once", "Treat it as unknown; query the provider with the same key"]
+  answer: 3
   explanation: >-
     A timeout means the charge may or may not have happened. Retrying with a new key risks a double charge; releasing the seats risks charging for seats the user did not get. The original idempotency key lets you ask the provider what actually happened before deciding.
 - q: >-
     A general-admission section of 80,000 tickets is stored as one counter row, and hold throughput is capped at a few hundred per second. What is the standard fix?
-  options: ["Remove the capacity check and reconcile oversells later", "Move the counter to the application server's memory", "Split the counter into bucket rows and pick a random one", "Use SELECT FOR UPDATE on the counter row before updating"]
-  answer: 2
+  options: ["Move the counter to the application server's memory", "Use SELECT FOR UPDATE on the counter row before updating", "Remove the capacity check and reconcile oversells later", "Split the counter into bucket rows and pick a random one"]
+  answer: 3
   explanation: >-
     Updates to one row serialise, so throughput is bounded by transaction time; SELECT FOR UPDATE takes the same lock. Splitting the stock across N rows, with each request picking a random bucket that has stock, divides contention by about N while each bucket still enforces its own capacity in the database. Removing the check oversells; in-memory counters lose state on crash.
 ```

@@ -242,8 +242,8 @@ hints:
 ```quiz
 - q: >-
     You have n = 36 integers with absolute values up to 10^12 and must count the subsets that sum exactly to S. Which approach fits?
-  options: ["DP over reachable sums, with a count table indexed by every sum up to S", "Greedy by largest value, adding each item while the running total stays within S", "Meet in the middle: hash one half's 2^18 sums, look up S − x for the other", "Brute force over all 2^36 subsets, pruning branches whose sum passes S"]
-  answer: 2
+  options: ["Brute force over all 2^36 subsets, pruning branches whose sum passes S", "Meet in the middle: hash one half's 2^18 sums, look up S − x for the other", "Greedy by largest value, adding each item while the running total stays within S", "DP over reachable sums, with a count table indexed by every sum up to S"]
+  answer: 1
   explanation: >-
     The value range rules out DP, and 2^36 is about 69 billion subsets; pruning at S does not help, because values can be negative and a sum that passes S can come back. Two halves of 2^18, about 262,000 sums each, combined by counting one half's sums in a hash map and adding count[S − x] for each sum x of the other, take well under a second. Greedy has no correctness argument for subset sums.
 - q: >-
@@ -254,20 +254,20 @@ hints:
     Any deterministic rule has a known bad input, and "median-of-3 killer" sequences exist. With random pivots the expected time is O(n log n) (or O(n) for quickselect) for every input, because the adversary chooses the input but not the coin flips. Randomisation moves the guarantee from the input distribution to the algorithm's own randomness. It is still an expected bound, not a worst-case one, and median-of-three is fast on most inputs, just not on crafted ones.
 - q: >-
     A shuffle swaps a[i] with a[randint(0, n - 1)] for every i from 0 to n - 1. What is wrong with it?
-  options: ["It can swap an element with itself, which wastes a draw and skews the odds", "It makes n swaps instead of n − 1, so the last swap undoes part of the mixing", "Nothing; every element can reach every position, so all orders can occur", "Its n^n equally likely runs cannot split evenly over the n! permutations"]
-  answer: 3
+  options: ["Nothing; every element can reach every position, so all orders can occur", "Its n^n equally likely runs cannot split evenly over the n! permutations", "It can swap an element with itself, which wastes a draw and skews the odds", "It makes n swaps instead of n − 1, so the last swap undoes part of the mixing"]
+  answer: 1
   explanation: >-
     For n = 3 there are 27 executions and 6 permutations, and 27 is not divisible by 6, so some permutations must be more likely than others (for any n ≥ 3). Every order being possible is not the same as every order being equally likely. Fisher–Yates draws from a shrinking range, giving n * (n-1) * ... * 1 = n! executions, exactly one per permutation; it allows self-swaps too, so those are not the problem.
 - q: >-
     Freivalds' check multiplies by a random 0/1 vector r and compares A(Br) with Cr. If AB is not equal to C, what bounds the probability that one round wrongly reports equality?
-  options: ["Close to 1 for some inputs, when AB − C has only a single non-zero entry", "It is 0, because a non-zero AB − C always changes A(Br) − Cr for any r", "At most 1/n, since each of the n rows of AB − C gets its own chance to differ", "At most 1/2, as at most one r_k value makes a non-zero row d give d · r = 0"]
-  answer: 3
+  options: ["Close to 1 for some inputs, when AB − C has only a single non-zero entry", "At most 1/2, as at most one r_k value makes a non-zero row d give d · r = 0", "At most 1/n, since each of the n rows of AB − C gets its own chance to differ", "It is 0, because a non-zero AB − C always changes A(Br) − Cr for any r"]
+  answer: 1
   explanation: >-
     Some row d of AB − C is non-zero; pick a coordinate k with d_k ≠ 0 and fix the other coordinates of r, and at most one of the two values of r_k makes d · r zero. Even a single non-zero entry is caught whenever r_k = 1, which is half the time. This is a Monte Carlo algorithm with one-sided error. Each round catches a wrong C with probability at least 1/2, so k independent rounds miss it with probability at most 2^-k, at O(n^2) per round.
 - q: >-
     Why do Python, Rust and Go all seed their string or map hashing with randomness chosen at start-up or per map?
-  options: ["So a keyed hash can double as a checksum that detects corrupted entries", "So each process can use a faster, shorter hash than a fixed secure one", "So typical keys spread more evenly across buckets than with a fixed hash", "So an attacker cannot precompute many keys that all collide in one bucket"]
-  answer: 3
+  options: ["So each process can use a faster, shorter hash than a fixed secure one", "So typical keys spread more evenly across buckets than with a fixed hash", "So an attacker cannot precompute many keys that all collide in one bucket", "So a keyed hash can double as a checksum that detects corrupted entries"]
+  answer: 2
   explanation: >-
     With a fixed, public hash function, crafted keys can all collide, degrading each operation from O(1) to O(n) and making n inserts cost O(n^2) (hash flooding). A keyed hash with a secret random key makes collisions unpredictable, which restores the expected O(1) bound for any input. For ordinary keys a good fixed hash spreads just as evenly; the randomness matters only against inputs chosen by someone who knows the function.
 ```

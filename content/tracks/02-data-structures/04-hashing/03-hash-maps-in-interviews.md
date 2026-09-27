@@ -224,31 +224,31 @@ hints:
 ```quiz
 - q: >-
     You key anagram groups by the sorted string. For n words of length k, the total time is:
-  options: ["O(n): one hash-map operation per word", "O(n log n): sorting dominates the grouping", "O(nk log k): a k-character sort per word", "O(nk): the sort and the hash are linear in k"]
-  answer: 2
+  options: ["O(n log n): sorting dominates the grouping", "O(nk log k): a k-character sort per word", "O(n): one hash-map operation per word", "O(nk): the sort and the hash are linear in k"]
+  answer: 1
   explanation: >-
     Each key costs a comparison sort of k characters, and hashing the key is O(k), so the sort dominates. A 26-count signature makes it O(nk) but with a larger constant for short words. Neither is O(n) in the word count alone, because hashing a string key costs its length.
 - q: >-
     In longest consecutive sequence, what happens if you drop the "only start from x when x − 1 is absent" check?
-  options: ["Still correct, but O(n²) on long runs from re-walking them", "Wrong answer, because runs are counted from their middle", "Still correct, but O(n log n) from repeated set lookups", "Still correct and O(n), because set lookups are O(1)"]
-  answer: 0
+  options: ["Still correct, but O(n log n) from repeated set lookups", "Still correct and O(n), because set lookups are O(1)", "Wrong answer, because runs are counted from their middle", "Still correct, but O(n²) on long runs from re-walking them"]
+  answer: 3
   explanation: >-
     Counting upward from every element re-walks each run from every one of its members; the longest count still starts at the run's first element, so the answer is right but the work is quadratic on sorted-like input. The check guarantees each run is walked once, from its start, giving the O(n) bound.
 - q: >-
     Deleting an arbitrary value in O(1) from an unordered list backed by a value→index map is done by:
-  options: ["Swapping with the last element, fixing its index, popping", "Marking the slot as deleted and skipping it in later calls", "Calling list.pop(index), then shifting the later indices", "Moving it to the front, fixing its index, then calling pop(0)"]
-  answer: 0
+  options: ["Marking the slot as deleted and skipping it in later calls", "Calling list.pop(index), then shifting the later indices", "Moving it to the front, fixing its index, then calling pop(0)", "Swapping with the last element, fixing its index, popping"]
+  answer: 3
   explanation: >-
     Removing from the middle (or the front) of an array is O(n), but since order does not matter the hole can be moved to the end with one swap. The map must be updated for the element that moved, which is the step people forget. Tombstones leave holes that make the list grow and random sampling retry.
 - q: >-
     Which Python idiom silently inserts a key into a map during what looks like a read?
-  options: ["`d.get(k)` on a `defaultdict`", "`k in d` on a `defaultdict`", "`d[k]` on a `defaultdict`", "`d.keys()` on a `defaultdict`"]
+  options: ["`d.keys()` on a `defaultdict`", "`d.get(k)` on a `defaultdict`", "`d[k]` on a `defaultdict`", "`k in d` on a `defaultdict`"]
   answer: 2
   explanation: >-
     defaultdict's __missing__ creates the default value on any indexed access, including reads inside a condition. In long-running services this turns queries into unbounded growth. `in` and `.get` never call __missing__, so use them for pure lookups.
 - q: >-
     An interviewer asks for a structure with O(1) insert, O(1) delete by key and O(1) "most recently used" eviction. The hash map alone fails because:
-  options: ["Its lookups are only amortised, so an array caches hot keys", "It orders keys by hash, so a BST must re-sort by recency", "It cannot delete in O(1), so a heap must track removals", "It keeps no recency order, so a linked list must track it"]
+  options: ["It orders keys by hash, so a BST must re-sort by recency", "Its lookups are only amortised, so an array caches hot keys", "It cannot delete in O(1), so a heap must track removals", "It keeps no recency order, so a linked list must track it"]
   answer: 3
   explanation: >-
     The map provides lookup and O(1) delete; recency is an ordering, which a doubly linked list maintains with O(1) move-to-front and pop-from-back given the node pointer the map stores. This is the LRU design. A heap or BST would make each touch O(log n).

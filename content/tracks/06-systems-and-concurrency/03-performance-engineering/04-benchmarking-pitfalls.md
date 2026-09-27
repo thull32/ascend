@@ -231,26 +231,26 @@ Record the context with every result (hardware model, kernel, compiler or runtim
     By Amdahl's law, speeding up 3% of the work by 12% saves about 0.36% of the total; 3% would require deleting the function outright. The microbenchmark can be accurate and still irrelevant. It does transfer, just in proportion to the function's share.
 - q: >-
     A closed-loop load test with 50 connections reports a p99 of 40 ms. Users report multi-second hangs, and server logs show periodic 2-second garbage-collection pauses. What explains the discrepancy?
-  options: ["The generator stopped sending during each pause", "The server logs overstate how long the pauses are", "The load test used too few connections to see it", "p99 is the wrong statistic; the mean would show it"]
-  answer: 0
+  options: ["The server logs overstate how long the pauses are", "The load test used too few connections to see it", "The generator stopped sending during each pause", "p99 is the wrong statistic; the mean would show it"]
+  answer: 2
   explanation: >-
     This is coordinated omission. A closed-loop generator waits for responses, so during each pause it stopped sending and recorded one slow sample per connection instead of the many requests real users would have sent: the stall suppresses the very samples that describe it. An open-loop generator measuring from intended send time, or HdrHistogram-style correction, would reveal the pauses in the tail.
 - q: >-
     A CI suite runs 200 benchmarks after every commit and flags any change with p below 0.05. It flags around ten benchmarks on commits that only change documentation. Why?
-  options: ["200 tests at p < 0.05 give about ten false positives per run", "Documentation changes shift the binary's code layout", "A threshold of p < 0.05 is too strict for benchmarks", "The benchmarks are broken and time the wrong code"]
-  answer: 0
+  options: ["A threshold of p < 0.05 is too strict for benchmarks", "Documentation changes shift the binary's code layout", "The benchmarks are broken and time the wrong code", "200 tests at p < 0.05 give about ten false positives per run"]
+  answer: 3
   explanation: >-
     This is the multiple-comparisons problem: with 200 independent tests at a 5% false-positive rate, about ten false positives per run are expected even when nothing changed. The remedy is a stricter threshold or minimum effect size, automatic re-runs of flagged benchmarks and alerts on sustained shifts rather than single-commit p-values. Layout effects exist but do not explain a steady false-alarm rate on every commit.
 - q: >-
     A JVM benchmark exercises an interface method with a single implementation and shows a large speed-up from a refactor. In production, where the call site sees five implementations, the gain disappears. What is the most likely cause?
-  options: ["The benchmark JVM was never warmed up before it measured", "Production runs a different garbage collector with longer pauses", "The benchmark forgot to consume its results with a Blackhole", "The benchmark's call site was monomorphic, so it was inlined"]
+  options: ["Production runs a different garbage collector with longer pauses", "The benchmark JVM was never warmed up before it measured", "The benchmark forgot to consume its results with a Blackhole", "The benchmark's call site was monomorphic, so it was inlined"]
   answer: 3
   explanation: >-
     The JIT speculates on observed types. A benchmark with one type gets inlining and devirtualisation that production cannot; with five implementations the call site is megamorphic, so each call is an indirect dispatch the benchmark never measured. Warm-up or a missing Blackhole would distort the benchmark itself, not explain a gap that depends on the number of types. Benchmark with a realistic mix of types, or measure in production.
 - q: >-
     Why do benchmark tools report medians and interquartile ranges (or bootstrap intervals) rather than mean plus or minus standard deviation?
-  options: ["Medians are always smaller, so they look better", "Timings are skewed and multimodal, not symmetric", "Standard deviations are zero for very fast code", "Means take longer to compute over many samples"]
-  answer: 1
+  options: ["Timings are skewed and multimodal, not symmetric", "Standard deviations are zero for very fast code", "Medians are always smaller, so they look better", "Means take longer to compute over many samples"]
+  answer: 0
   explanation: >-
     Timing distributions have a hard lower bound, and interference only adds time, so they have a long right tail and often several modes. The mean is dragged by rare outliers and the standard deviation assumes symmetry. Robust statistics and nonparametric tests describe and compare these distributions honestly.
 ```

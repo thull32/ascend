@@ -246,32 +246,32 @@ hints:
 ```quiz
 - q: >-
     Why can counting sort run in O(n + k) when the comparison lower bound says sorting needs Ω(n log n)?
-  options: ["It relies on the input already being nearly sorted", "Indexing by key value learns log k bits per step", "The bound applies only to recursive comparison sorts", "Spending O(k) extra memory lets it beat the bound"]
-  answer: 1
+  options: ["Indexing by key value learns log k bits per step", "It relies on the input already being nearly sorted", "Spending O(k) extra memory lets it beat the bound", "The bound applies only to recursive comparison sorts"]
+  answer: 0
   explanation: >-
     The decision-tree bound assumes each step is a two-outcome comparison, which learns one bit. Using the key's value as an array index is a many-outcome operation that learns log k bits, so the model, and the bound, do not apply. Extra memory alone does not escape the bound: merge sort uses O(n) extra memory and is still Ω(n log n). Counting sort works on any input order.
 - q: >-
     In LSD radix sort, what goes wrong if a single digit pass is not stable?
-  options: ["Nothing, since the last pass fixes earlier mistakes", "Ties on this digit lose the order from earlier passes", "Only negative numbers end up in the wrong order", "The output is still sorted, but the time becomes O(n²)"]
-  answer: 1
+  options: ["Nothing, since the last pass fixes earlier mistakes", "Only negative numbers end up in the wrong order", "Ties on this digit lose the order from earlier passes", "The output is still sorted, but the time becomes O(n²)"]
+  answer: 2
   explanation: >-
     Each pass relies on the previous passes' order surviving among elements that tie on the current digit. An unstable pass reorders those ties arbitrarily, so the final output is wrong; 802 and 2 would no longer be guaranteed in the right order after the tens pass. The last pass cannot repair this, because it too only orders by its own digit, and the running time is unaffected.
 - q: >-
     You sort 50 million 32-bit integers. Which approach is likely fastest?
-  options: ["Radix sort on bytes, making four linear passes", "Insertion sort, since it is O(n) on nearly sorted data", "Merge sort, since its O(n log n) holds on any input", "Bucket sort with 10 buckets, one per leading digit"]
-  answer: 0
+  options: ["Merge sort, since its O(n log n) holds on any input", "Bucket sort with 10 buckets, one per leading digit", "Insertion sort, since it is O(n) on nearly sorted data", "Radix sort on bytes, making four linear passes"]
+  answer: 3
   explanation: >-
     Fixed-width keys and large n are radix sort's home ground: 4 passes over n + 256 versus roughly 26 levels of comparisons for merge sort, whose guarantee does not make it faster. Insertion sort is quadratic unless the data is nearly sorted; 10 buckets leaves 5 million elements per bucket.
 - q: >-
     What is the minimum number of comparisons any comparison-based sort needs in the worst case on 8 distinct elements?
-  options: ["28, one per pair of elements", "24, since 8 · log₂ 8 = 24", "8, one comparison per element", "16, since log₂(8!) ≈ 15.3"]
-  answer: 3
+  options: ["28, one per pair of elements", "8, one comparison per element", "16, since log₂(8!) ≈ 15.3", "24, since 8 · log₂ 8 = 24"]
+  answer: 2
   explanation: >-
     There are 40,320 permutations; a binary decision tree needs height at least log₂ 40,320, which rounds up to 16. Merge sort achieves 17, close to optimal, which already rules out 24: n log₂ n is the growth rate, but log₂(n!) is smaller by about 1.44n. 28 is insertion sort's worst case, not a lower bound.
 - q: >-
     Your input is two sorted arrays concatenated. Which library sort does close to linear work on it?
-  options: ["Python's Timsort, which merges the two sorted runs", "Any sort, since sorted input is always fast", "Java's dual-pivot quicksort on primitives", "Heap sort, which skips work on ordered input"]
-  answer: 0
+  options: ["Heap sort, which skips work on ordered input", "Python's Timsort, which merges the two sorted runs", "Any sort, since sorted input is always fast", "Java's dual-pivot quicksort on primitives"]
+  answer: 1
   explanation: >-
     Timsort scans for natural runs, finds two, and performs a single merge with galloping. Quicksort and heap sort do not exploit existing order (pdqsort detects fully sorted input, but two runs still need a full sort), so "any sort" is wrong too.
 ```

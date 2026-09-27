@@ -231,32 +231,32 @@ Expand and contract, with the consumer list as the critical path. Add the new co
 ```quiz
 - q: >-
     During a migration the application writes each update to the old store and then the new store. Two concurrent updates to the same row both succeed everywhere with no errors. What can still go wrong?
-  options: ["The new store rejects the second write as a conflict", "The two stores may apply them in different orders", "The old store deadlocks on the two concurrent updates", "Nothing; both stores received both writes successfully"]
-  answer: 1
+  options: ["The old store deadlocks on the two concurrent updates", "The new store rejects the second write as a conflict", "The two stores may apply them in different orders", "Nothing; both stores received both writes successfully"]
+  answer: 2
   explanation: >-
     Without a shared order, the stores can apply the same two writes in different sequences and end with different final values, permanently and silently. Receiving both writes is not enough; order matters. Feeding the new store from the old store's commit log fixes the order.
 - q: >-
     A backfill copies rows while CDC applies live updates to the same keys. What prevents the backfill from overwriting a newer value with an older copy?
-  options: ["Version-checked conditional writes on both paths", "Finishing the backfill before starting CDC at all", "Running the backfill faster than CDC can overtake it", "Reading the backfill from the primary, not a replica"]
-  answer: 0
+  options: ["Running the backfill faster than CDC can overtake it", "Reading the backfill from the primary, not a replica", "Finishing the backfill before starting CDC at all", "Version-checked conditional writes on both paths"]
+  answer: 3
   explanation: >-
     The race is between reading an old version and writing it after a newer one has landed. Applying a row only if its source version is newer than the stored one, on both the backfill and CDC paths, makes the order of arrival irrelevant. Starting the backfill first would leave a gap of missed changes; speed and read source do not remove the race.
 - q: >-
     Why start reverse replication (new to old) at the moment writes move to the new store?
-  options: ["To verify the new store by comparing it with the old", "So a rollback does not lose writes made after cutover", "To double write throughput by using both stores at once", "Because CDC only works in one direction at a time"]
-  answer: 1
+  options: ["To double write throughput by using both stores at once", "Because CDC only works in one direction at a time", "So a rollback does not lose writes made after cutover", "To verify the new store by comparing it with the old"]
+  answer: 2
   explanation: >-
     Without it, the old store freezes at cutover and a rollback would discard everything written since, turning the cutover into a one-way door. With it, the old store stays current and rollback remains a flag flip.
 - q: >-
     You want to rename a column read by several services without downtime. Which sequence is correct?
-  options: ["Create a new table and switch services over without copying", "Rename it in a single migration and deploy every service at once", "Add, dual-write, backfill, move reads, stop old writes, drop", "Drop the old column first so that stale services fail fast"]
-  answer: 2
+  options: ["Drop the old column first so that stale services fail fast", "Add, dual-write, backfill, move reads, stop old writes, drop", "Rename it in a single migration and deploy every service at once", "Create a new table and switch services over without copying"]
+  answer: 1
   explanation: >-
     Expand and contract (add the new column, write both, backfill, move reads, stop writing the old one, then drop it) keeps every version that can be live compatible with the schema at every step, and each step is reversible until the final drop. Simultaneous deploys across services are not atomic, so a one-step rename breaks whatever deploys late.
 - q: >-
     Shadow traffic compares the new system's responses with the old system's. Which requests should not be shadowed to the new system?
-  options: ["Requests from older mobile clients on slow networks", "Requests with side effects such as charging a card", "Read requests that return very large responses", "Requests that are served from the cache on the old path"]
-  answer: 1
+  options: ["Requests that are served from the cache on the old path", "Requests from older mobile clients on slow networks", "Read requests that return very large responses", "Requests with side effects such as charging a card"]
+  answer: 3
   explanation: >-
     Shadowing executes the request twice. For reads that only costs capacity; for side-effecting writes it sends two emails or two charges. Those paths run in dry-run mode or against a sandbox instead.
 ```

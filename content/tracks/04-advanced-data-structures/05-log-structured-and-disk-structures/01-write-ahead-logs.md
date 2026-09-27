@@ -243,32 +243,32 @@ hints:
 ```quiz
 - q: >-
     A database acknowledges a commit as soon as the WAL record is in the OS page cache, without calling fsync. What is the actual guarantee?
-  options: ["It survives nothing, because unsynced log bytes are as good as no log", "It survives everything, because the kernel flushes within seconds", "It survives a process crash but not a power loss or kernel panic", "It survives a power loss but not a kernel panic, which clears the cache"]
-  answer: 2
+  options: ["It survives a process crash but not a power loss or kernel panic", "It survives everything, because the kernel flushes within seconds", "It survives a power loss but not a kernel panic, which clears the cache", "It survives nothing, because unsynced log bytes are as good as no log"]
+  answer: 0
   explanation: >-
     The page cache belongs to the kernel, so a crash of the database process leaves the bytes intact and the kernel will eventually write them. Power loss or a kernel panic discards the cache, and the kernel's periodic flush does not help if either happens first. This is exactly the trade Postgres offers with synchronous_commit = off.
 - q: >-
     Your NVMe device completes an fsync in 50 µs and 200 threads each commit one small transaction per millisecond. Without group commit, roughly what is the commit throughput ceiling of a single WAL?
-  options: ["Unbounded; NVMe parallelises fsyncs", "About 1,000 commits per second", "About 200,000 commits per second", "About 20,000 commits per second"]
-  answer: 3
+  options: ["About 200,000 commits per second", "Unbounded; NVMe parallelises fsyncs", "About 20,000 commits per second", "About 1,000 commits per second"]
+  answer: 2
   explanation: >-
     One fsync per commit, serialised on one log, gives 1 / 50 µs = 20,000 fsyncs per second, regardless of the 200 offered commits per millisecond. Group commit lets one fsync cover many transactions and lifts the ceiling toward the offered load.
 - q: >-
     Why does Postgres write the entire 8 KB page into the WAL the first time it is modified after a checkpoint?
-  options: ["So every WAL segment holds a whole number of fixed-size pages", "Because MVCC needs the old row versions in the log for undo", "So replicas can apply whole pages and skip replaying small records", "So redo can rebuild a torn page without reading its damaged copy"]
-  answer: 3
+  options: ["Because MVCC needs the old row versions in the log for undo", "So redo can rebuild a torn page without reading its damaged copy", "So replicas can apply whole pages and skip replaying small records", "So every WAL segment holds a whole number of fixed-size pages"]
+  answer: 1
   explanation: >-
     Redo normally reads the page's LSN to decide whether a record applies. A torn page may have a corrupt header, so the first post-checkpoint record carries the whole page and redo reconstructs it from the log alone. Postgres MVCC keeps old row versions in the heap and needs no undo from the log. InnoDB's doublewrite buffer solves the torn-page problem differently.
 - q: >-
     You double the checkpoint interval on a busy Postgres server. Which combination of effects should you expect?
-  options: ["Slower recovery, more WAL volume and more dirty-page flushes", "Slower recovery, less WAL volume and fewer dirty-page flushes", "Faster recovery, more WAL volume and more dirty-page flushes", "Faster recovery, less WAL volume and fewer dirty-page flushes"]
-  answer: 1
+  options: ["Slower recovery, less WAL volume and fewer dirty-page flushes", "Faster recovery, more WAL volume and more dirty-page flushes", "Slower recovery, more WAL volume and more dirty-page flushes", "Faster recovery, less WAL volume and fewer dirty-page flushes"]
+  answer: 0
   explanation: >-
     Recovery must redo from the last checkpoint, so a longer interval means more log to replay. In exchange, full-page writes happen half as often and dirty pages coalesce before being flushed, so both WAL volume and background I/O drop.
 - q: >-
     Recovery is interrupted by a second crash halfway through redo. What makes it safe to simply start recovery again from the same checkpoint?
-  options: ["Pages changed during recovery stay in memory until recovery finishes", "Redo skips every record whose LSN is not above the page's stored LSN", "Recovery rewrites the log as it goes, so the second pass is shorter", "Undo runs before redo and reverts whatever the partial redo applied"]
-  answer: 1
+  options: ["Redo skips every record whose LSN is not above the page's stored LSN", "Recovery rewrites the log as it goes, so the second pass is shorter", "Pages changed during recovery stay in memory until recovery finishes", "Undo runs before redo and reverts whatever the partial redo applied"]
+  answer: 0
   explanation: >-
     Each page carries the LSN of the last applied record. A record whose LSN is not greater than the page's is skipped, so re-running redo over already-repaired pages does nothing: redo is idempotent. That property is what lets recovery tolerate its own failures; nothing needs to be held back or reverted first.
 ```

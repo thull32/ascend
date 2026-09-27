@@ -386,32 +386,32 @@ hints:
 ```quiz
 - q: >-
     A subsets function records with out.append(path) instead of out.append(path.copy()). What does out contain after the call returns?
-  options: ["2^n references to one list, now the full set", "2^n references to one list, now empty", "All 2^n subsets, but in reverse order", "All 2^n subsets, each recorded correctly"]
-  answer: 1
+  options: ["All 2^n subsets, each recorded correctly", "All 2^n subsets, but in reverse order", "2^n references to one list, now the full set", "2^n references to one list, now empty"]
+  answer: 3
   explanation: >-
     path is one list mutated in place; every recorded entry aliases it. Every append is undone by a pop, so after the final pop it is empty and every entry reads as []; it never stays at the full set. Copy on record.
 - q: >-
     In the subsets-with-duplicates code, the skip condition is i > start and nums[i] == nums[i-1]. If you change it to i > 0 and nums[i] == nums[i-1], on input [1, 2, 2] you would:
-  options: ["Lose only [2, 2], keeping [1, 2, 2]", "Get the same six subsets as before", "Lose both [1, 2, 2] and [2, 2]", "Get [1, 2] and [2] twice each"]
-  answer: 2
+  options: ["Lose only [2, 2], keeping [1, 2, 2]", "Get [1, 2] and [2] twice each", "Get the same six subsets as before", "Lose both [1, 2, 2] and [2, 2]"]
+  answer: 3
   explanation: >-
     With i > 0 the rule also fires when the equal element is the first candidate of a deeper level, so a 2 can never follow a 2, whether the path starts with 1 or with 2. No duplicates appear, since sibling 2s are still skipped. The rule must only block equal siblings, which is what i > start expresses.
 - q: >-
     You need every permutation of 12 distinct items. Approximately how many objects is that, and is exhaustive enumeration feasible in a few seconds?
-  options: ["About 479 million; borderline in Python", "About 144, i.e. 12²; yes, trivially fast", "About 4,096, i.e. 2^12; yes, trivially fast", "About 4 billion; no, not even compiled code"]
-  answer: 0
+  options: ["About 4 billion; no, not even compiled code", "About 479 million; borderline in Python", "About 144, i.e. 12²; yes, trivially fast", "About 4,096, i.e. 2^12; yes, trivially fast"]
+  answer: 1
   explanation: >-
     12! is roughly 4.8 × 10^8, not 2^12 (that counts subsets). In a compiled language it is seconds; in Python it is minutes and the output alone is gigabytes, so it is borderline and probably not in Python. Constraints of n = 12 for permutations signal that the intended solution prunes or counts rather than lists.
 - q: >-
     Combination Sum allows reusing a candidate. Which single change to the combinations template implements that?
-  options: ["Drop the start index and loop over all candidates", "Remove the break so larger candidates are retried", "Recurse with start = i rather than i + 1", "Recurse with start = 0 so every candidate is open"]
-  answer: 2
+  options: ["Drop the start index and loop over all candidates", "Remove the break so larger candidates are retried", "Recurse with start = 0 so every candidate is open", "Recurse with start = i rather than i + 1"]
+  answer: 3
   explanation: >-
     start = i lets the same index be chosen again but still forbids going back to earlier indices, so each multiset of candidates is produced in one canonical order. Removing start or resetting it to 0 produces permutations of the same sum. The break is only a pruning step on sorted input; removing it changes speed, not which items can repeat.
 - q: >-
     An interviewer gives you n up to 10^5 and asks for the number of subsets whose sum equals a target. What does the constraint tell you?
-  options: ["Sort, then count matching sums with two pointers", "Count with DP over (index, sum), not enumeration", "Backtrack with pruning once the sum passes target", "Enumerate bitmasks, since iteration avoids recursion"]
-  answer: 1
+  options: ["Sort, then count matching sums with two pointers", "Enumerate bitmasks, since iteration avoids recursion", "Backtrack with pruning once the sum passes target", "Count with DP over (index, sum), not enumeration"]
+  answer: 3
   explanation: >-
     2^(10^5) subsets cannot be enumerated by any method, iterative or pruned; pruning cuts branches but the count of matches alone can be exponential. Asking for a count rather than the objects, with a large n, is the signature of a DP over the subproblem state, not a search.
 ```

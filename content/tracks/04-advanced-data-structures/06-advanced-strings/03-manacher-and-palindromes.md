@@ -195,31 +195,31 @@ hints:
 ```quiz
 - q: >-
     Why does Manacher insert a separator between every pair of characters?
-  options: ["To double the length, so the mirror step has more work to amortise", "So both odd and even palindromes are centred on a single index of T", "So the expansion loop can never run past either end of the string", "To mark character boundaries, so radii count characters, not bytes"]
-  answer: 1
+  options: ["So both odd and even palindromes are centred on a single index of T", "So the expansion loop can never run past either end of the string", "To mark character boundaries, so radii count characters, not bytes", "To double the length, so the mirror step has more work to amortise"]
+  answer: 0
   explanation: >-
     Even-length palindromes are centred between characters. With separators, that gap becomes a real index (a '#'), so one radius array and one expansion loop cover both kinds, and the radius in the transformed string equals the palindrome's length in the original. Guarding the ends is what the optional ^ and $ sentinels do, not the separators.
 - q: >-
     At position i inside the current rightmost palindrome (centre C, right edge R), the mirror i' has radius 5 and R - i = 3. What is the starting radius for i, and why not 5?
-  options: ["8, the mirror's radius plus the distance to R", "3, because the reflection is only known up to R", "5, because the mirror's radius carries over exactly", "0, because nothing is known about i until it expands"]
+  options: ["8, the mirror's radius plus the distance to R", "3, because the reflection is only known up to R", "0, because nothing is known about i until it expands", "5, because the mirror's radius carries over exactly"]
   answer: 1
   explanation: >-
     The palindrome at i' pokes outside the big palindrome on the left, so its reflection is only guaranteed up to the boundary at distance R - i. Copying 5 would assume characters beyond R match, which nothing has checked; the expansion loop then tests whether it extends further.
 - q: >-
     Which input makes expand-around-centre quadratic but leaves Manacher linear?
-  options: ["A string with no palindromes longer than 1, such as 'abcdefgh'", "A random string of lowercase letters, such as 'qhzbtkwa'", "One long palindrome of distinct letters, such as 'abcdcba'", "A long run of one repeated character, such as 'aaaaaaaa'"]
-  answer: 3
+  options: ["A string with no palindromes longer than 1, such as 'abcdefgh'", "A long run of one repeated character, such as 'aaaaaaaa'", "One long palindrome of distinct letters, such as 'abcdcba'", "A random string of lowercase letters, such as 'qhzbtkwa'"]
+  answer: 1
   explanation: >-
     Every centre in a run of identical characters expands to the nearest edge, so the radii sum to about n²/4. Manacher's mirror step supplies most of each radius for free and the total expansion work stays bounded by n. A single long palindrome costs expansion only at its one centre, so it stays linear.
 - q: >-
     You need to answer 10⁵ queries "is s[l..r] a palindrome" on a fixed string of length 10⁵. What do you precompute?
-  options: ["A hash set of every palindromic substring, looked up per query", "Nothing; checking each query with two pointers is fast enough", "The O(n²) DP table dp[l][r], filled once and read per query", "Manacher's radius array, then one check at each query's centre"]
+  options: ["Nothing; checking each query with two pointers is fast enough", "A hash set of every palindromic substring, looked up per query", "The O(n²) DP table dp[l][r], filled once and read per query", "Manacher's radius array, then one check at each query's centre"]
   answer: 3
   explanation: >-
     One O(n) pass gives the maximal radius at every centre; s[l..r] is a palindrome exactly when the radius at its centre is at least its length, an O(1) check. Direct checking is O(n) per query, up to 10¹⁰ steps in total, and the DP table needs 10¹⁰ cells.
 - q: >-
     In a 45-minute interview you are asked for the longest palindromic substring. The strongest opening is:
-  options: ["Brute force over all substrings, then optimise once it passes tests", "Manacher straight away, since linear time is what earns the credit", "Expand-around-centre, stating its O(n²) bound and Manacher's O(n)", "The O(n²) DP table, since it is the textbook answer and easy to verify"]
+  options: ["The O(n²) DP table, since it is the textbook answer and easy to verify", "Brute force over all substrings, then optimise once it passes tests", "Expand-around-centre, stating its O(n²) bound and Manacher's O(n)", "Manacher straight away, since linear time is what earns the credit"]
   answer: 2
   explanation: >-
     The simple correct solution with an honest bound, plus knowledge of the linear alternative, shows judgement. Leading with Manacher risks a bug under time pressure for no credit; the DP table uses n² memory for the same time bound as expansion.

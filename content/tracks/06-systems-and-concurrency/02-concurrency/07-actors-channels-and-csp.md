@@ -303,25 +303,25 @@ The third test is the point of the exercise. A buffer of 2 lets the producer fin
 ```quiz
 - q: >-
     A function starts a goroutine that sends its result on an unbuffered channel, then selects on that channel and a one-second timer. Under load, memory grows steadily. Why?
-  options: ["Unbuffered channels allocate a fresh buffer on every send", "Late goroutines block forever on a send that nobody will receive", "time.After leaks one timer per call that is never collected", "The select statement starves its channel case under load"]
-  answer: 1
+  options: ["Late goroutines block forever on a send that nobody will receive", "The select statement starves its channel case under load", "Unbuffered channels allocate a fresh buffer on every send", "time.After leaks one timer per call that is never collected"]
+  answer: 0
   explanation: >-
     An unbuffered send needs a receiver. Once the caller has returned on the timeout, the goroutine can never complete its send, never exits, and pins everything it references. A buffer of 1 lets the send complete and the goroutine finish; a context lets the work stop early. The growth tracks timeouts, not calls, which rules out a per-call allocation.
 - q: >-
     Which statement about Go channels is true?
-  options: ["Sending on a closed channel panics, so only the sender closes", "A nil channel returns the zero value immediately on receive", "Receiving from a closed channel panics, so receivers must check", "select always picks the first ready case in source order"]
-  answer: 0
+  options: ["Receiving from a closed channel panics, so receivers must check", "Sending on a closed channel panics, so only the sender closes", "A nil channel returns the zero value immediately on receive", "select always picks the first ready case in source order"]
+  answer: 1
   explanation: >-
     Sends on a closed channel panic, which is why closing is the sender's job. Receives on a closed channel return the zero value with ok == false. A nil channel blocks forever, which is useful to disable a select case. select chooses pseudo-randomly among ready cases.
 - q: >-
     What does Rust's type system add to channel-based designs compared with Go?
-  options: ["Rust channels are unbounded, so a sender never blocks", "Rust channels cannot deadlock, as the compiler checks cycles", "Sending moves the value, so the sender cannot reuse it", "Rust channels are lock-free, so they cannot contend"]
-  answer: 2
+  options: ["Sending moves the value, so the sender cannot reuse it", "Rust channels cannot deadlock, as the compiler checks cycles", "Rust channels are unbounded, so a sender never blocks", "Rust channels are lock-free, so they cannot contend"]
+  answer: 0
   explanation: >-
     Ownership transfer is checked at compile time (and the value must be Send), turning "share memory by communicating" from a convention into a guarantee. Rust channels can still deadlock (two threads each waiting to receive from the other), and bounded variants such as sync_channel block senders by design.
 - q: >-
     An Erlang system gives every chat room its own process. One room with a celebrity guest becomes slow and its node's memory climbs. What is happening?
-  options: ["Messages from different senders arrive out of order", "Stop-the-world garbage collection is pausing the node", "The supervisor keeps restarting the crashed room process", "One process serialises the room; its mailbox grows"]
+  options: ["The supervisor keeps restarting the crashed room process", "Messages from different senders arrive out of order", "Stop-the-world garbage collection is pausing the node", "One process serialises the room; its mailbox grows"]
   answer: 3
   explanation: >-
     An actor is a serialisation point by design: the room's process handles messages one at a time. A hot entity pushes more messages than one process can handle, and because sends are asynchronous with unbounded mailboxes, the backlog accumulates in memory. Shard the hot entity or add flow control. BEAM garbage collection is per process, not stop-the-world.

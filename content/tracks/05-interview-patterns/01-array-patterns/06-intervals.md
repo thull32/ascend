@@ -270,38 +270,38 @@ hints:
 ```quiz
 - q: >-
     To keep the maximum number of non-overlapping intervals, you sort by end time and keep greedily. Why is sorting by start time wrong?
-  options: ["Start order is fine for the count but cannot name which to remove", "It is not wrong; both orders keep the same number of intervals", "An early start can be a long interval that blocks many short ones", "Start order fails only when several intervals share the same start"]
-  answer: 2
+  options: ["Start order fails only when several intervals share the same start", "An early start can be a long interval that blocks many short ones", "It is not wrong; both orders keep the same number of intervals", "Start order is fine for the count but cannot name which to remove"]
+  answer: 1
   explanation: >-
     On [[1,100],[2,3],[4,5]] the start-time greedy keeps [1,100] and removes two, while the optimum removes one, so the counts differ. The exchange argument shows the earliest-ending interval belongs to some optimal solution and leaves the most room for the rest; no such argument exists for the earliest-starting one.
 - q: >-
     A merge implementation returns [[1, 3]] for the input [[1, 10], [2, 3]]. What is the bug?
-  options: ["It sorted by end instead of by start before sweeping", "It never sorted the input before starting the sweep", "It compared start with < instead of <= against the last end", "It set the merged end to the new end, not the max of both"]
-  answer: 3
+  options: ["It compared start with < instead of <= against the last end", "It sorted by end instead of by start before sweeping", "It set the merged end to the new end, not the max of both", "It never sorted the input before starting the sweep"]
+  answer: 2
   explanation: >-
     [2, 3] is contained in [1, 10]. Assigning `last[1] = 3` overwrites the larger end; `max(10, 3)` keeps it. Sorting by end would put [2,3] first and yield two intervals, the comparison direction only affects touching intervals, and this input is already sorted by start.
 - q: >-
     In the meeting-rooms heap sweep, you replace the `while ends[0] <= start: pop` loop with a single `if`. What is true?
-  options: ["The answer is wrong whenever two meetings end before the next starts", "The sweep drops to O(n) time, since each step pops at most once", "The maximum is still right, but heap size can overstate current use", "It stays correct only when the intervals are treated as half-open"]
-  answer: 2
+  options: ["The answer is wrong whenever two meetings end before the next starts", "The maximum is still right, but heap size can overstate current use", "It stays correct only when the intervals are treated as half-open", "The sweep drops to O(n) time, since each step pops at most once"]
+  answer: 1
   explanation: >-
     The heap only grows when its smallest end is later than the new start, which means every end in it is live, so the recorded maximum is exact. Stale entries can linger, so the heap size no longer equals the current concurrency, and a follow-up asking for concurrency at a given time needs the while loop. Complexity is unchanged: sorting and heap pushes still cost O(n log n).
 - q: >-
     Meetings are given as half-open [start, end): a room freed at time 5 can host a meeting starting at 5. In an event sweep with (+1 at start, -1 at end), how must ties be ordered?
-  options: ["No rule is needed, since half-open intervals never tie", "Ends before starts, so the room is freed before the count rises", "Starts before ends, so the new meeting is counted first", "Either order, since ties cannot change the maximum count"]
+  options: ["Starts before ends, so the new meeting is counted first", "Ends before starts, so the room is freed before the count rises", "Either order, since ties cannot change the maximum count", "No rule is needed, since half-open intervals never tie"]
   answer: 1
   explanation: >-
     If the start is processed first, the counter briefly counts both meetings and over-reports the peak by one. Releasing first matches the convention that the room is free at the exact end time. With closed intervals that touch, the order would flip.
 - q: >-
     Minimum Interval to Include Each Query has n intervals and q queries. What makes the O((n + q) log(n + q)) offline solution possible?
-  options: ["The queries are integers, so they can be bucketed by coordinate", "The queries are all known up front, so they can be processed sorted", "The intervals fit in a segment tree built once over all endpoints", "The intervals never overlap, so each query hits at most one"]
-  answer: 1
+  options: ["The queries are integers, so they can be bucketed by coordinate", "The intervals never overlap, so each query hits at most one", "The queries are all known up front, so they can be processed sorted", "The intervals fit in a segment tree built once over all endpoints"]
+  answer: 2
   explanation: >-
     Sweeping queries in increasing order lets each interval be pushed once (when its start is reached) and expired once (when its end falls behind the query), with results written back by original index. That amortisation is only valid because the query order is yours to choose. If queries arrived one at a time and had to be answered immediately, you would need an interval tree or segment tree instead.
 - q: >-
     Insert Interval gives you a sorted, disjoint list and one new interval. Which solution shows you read the constraints?
-  options: ["Build a difference array over the coordinates: O(n + range)", "Append the new interval, sort, and run merge: O(n log n)", "One pass: copy before, absorb overlaps, copy after: O(n)", "Binary search the slot, insert, merge neighbours: O(log n)"]
-  answer: 2
+  options: ["One pass: copy before, absorb overlaps, copy after: O(n)", "Append the new interval, sort, and run merge: O(n log n)", "Binary search the slot, insert, merge neighbours: O(log n)", "Build a difference array over the coordinates: O(n + range)"]
+  answer: 0
   explanation: >-
     The sorted, disjoint promise makes a single linear pass sufficient: copy intervals ending before the new start, absorb overlapping ones into a growing interval, copy the rest. Re-sorting works but wastes the promise; the difference array depends on the coordinate range, which may be huge. Binary search finds the slot in O(log n), but inserting still shifts O(n) elements, so that version is not O(log n).
 ```

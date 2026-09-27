@@ -171,31 +171,31 @@ From users and dependencies, not from the current graph. What latency do users n
 ```quiz
 - q: >-
     A dashboard panel shows the average of per-instance p99 latency across 50 instances. Why is this misleading?
-  options: ["The panel should show the fleet p50 instead of p99", "The p99 needs a longer window than the panel uses", "Percentiles do not average; merge histograms first", "Per-instance series are too high-cardinality to plot"]
+  options: ["The p99 needs a longer window than the panel uses", "Per-instance series are too high-cardinality to plot", "Percentiles do not average; merge histograms first", "The panel should show the fleet p50 instead of p99"]
   answer: 2
   explanation: >-
     The average of percentiles has no statistical meaning, and one very slow instance is hidden by it. Merge the histogram buckets first, then take the percentile; add a max panel to catch a single bad instance. A longer window does not fix averaging something that cannot be averaged.
 - q: >-
     A service has a 99.9% availability SLO over 30 days. Its error rate has been 1.5% for the last hour. What should happen?
-  options: ["A page, since the budget burns about 15x too fast", "A ticket, since only about 2% of the budget is gone", "An automatic rollback of the most recent deploy", "Nothing yet; the monthly budget is not exhausted"]
-  answer: 0
+  options: ["A ticket, since only about 2% of the budget is gone", "An automatic rollback of the most recent deploy", "Nothing yet; the monthly budget is not exhausted", "A page, since the budget burns about 15x too fast"]
+  answer: 3
   explanation: >-
     Burn rate = 1.5% / 0.1% = 15, above the 14.4 threshold for the 1-hour window; roughly 2% of the monthly budget went in one hour, and at that rate the whole budget is gone in about two days. Waiting for budget exhaustion means discovering the outage days later. Rollback may be the fix, but the alert is what starts the response.
 - q: >-
     An engineer adds user_id as a label on the http_requests_total counter. The likely consequence is:
-  options: ["Nothing; labels are compressed away by the TSDB", "More precise per-user dashboards at almost no extra cost", "Slightly higher scrape latency on each instance", "A series explosion that overloads the metrics system"]
-  answer: 3
+  options: ["Slightly higher scrape latency on each instance", "A series explosion that overloads the metrics system", "Nothing; labels are compressed away by the TSDB", "More precise per-user dashboards at almost no extra cost"]
+  answer: 1
   explanation: >-
     Each unique label combination is a separate time series: one per user per route per status. Millions of users multiplied by routes and statuses is hundreds of millions of series. Per-user detail belongs in trace attributes or sampled logs.
 - q: >-
     You need traces of the 0.5% of requests that fail, but head sampling at 1% almost never captures them. The fix is:
-  options: ["Sample consistently by user ID across services", "Log the failing requests instead of tracing them", "Tail sampling that keeps every error or slow trace", "Raise head sampling to 10% so more failures get caught"]
-  answer: 2
+  options: ["Tail sampling that keeps every error or slow trace", "Sample consistently by user ID across services", "Raise head sampling to 10% so more failures get caught", "Log the failing requests instead of tracing them"]
+  answer: 0
   explanation: >-
     Tail sampling decides after the trace completes, so it can keep exactly the interesting ones (errors, requests over the latency threshold) plus a small random sample. Raising head sampling multiplies cost while still missing most failures.
 - q: >-
     Which of these is the best candidate for a paging alert?
-  options: ["A checkout deploy finishing outside business hours", "Disk usage above 60% on the checkout database", "CPU above 80% on any checkout instance for over 5 minutes", "Checkout burn rate over 14.4 for 1 h and still over 5 min"]
+  options: ["Disk usage above 60% on the checkout database", "CPU above 80% on any checkout instance for over 5 minutes", "A checkout deploy finishing outside business hours", "Checkout burn rate over 14.4 for 1 h and still over 5 min"]
   answer: 3
   explanation: >-
     It measures user impact and its rate, confirms the problem is ongoing, and corresponds to a defined fraction of the error budget. CPU and disk at those levels are causes with no confirmed impact; a deploy is an annotation, not an alert.

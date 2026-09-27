@@ -152,32 +152,32 @@ In a disaggregated engine with on-demand pricing, cost is bytes scanned, so the 
 ```quiz
 - q: >-
     A ClickHouse table is ORDER BY (title_id, country, event_date). Which query benefits least from the sparse primary index?
-  options: ["WHERE device = 'tv' AND app_version = '5.2'", "WHERE title_id = 42 AND device = 'tv'", "WHERE title_id IN (42, 43) AND country = 'BR'", "WHERE title_id = 42 AND country = 'BR'"]
-  answer: 0
+  options: ["WHERE title_id = 42 AND device = 'tv'", "WHERE device = 'tv' AND app_version = '5.2'", "WHERE title_id IN (42, 43) AND country = 'BR'", "WHERE title_id = 42 AND country = 'BR'"]
+  answer: 1
   explanation: >-
     The sparse index is sorted by the ORDER BY key, so it can narrow granules only for filters on a prefix of that key. Neither device nor app_version is in the key at all, so every granule must be read unless a data-skipping index or projection covers it. The query on title_id = 42 AND device = 'tv' also filters on device, but its title_id prefix still narrows the granules.
 - q: >-
     Why does vectorised execution outperform the row-at-a-time iterator model on analytical queries?
-  options: ["It caches query results between repeated executions", "It skips reading the columns the query does not need", "It pays call overhead per batch, in SIMD-friendly loops", "It needs less memory per row than the iterator model does"]
-  answer: 2
+  options: ["It skips reading the columns the query does not need", "It pays call overhead per batch, in SIMD-friendly loops", "It needs less memory per row than the iterator model does", "It caches query results between repeated executions"]
+  answer: 1
   explanation: >-
     The Volcano model pays a virtual call per row per operator; vectorised engines pay it per batch of thousands and run tight cache- and SIMD-friendly loops over contiguous column values. Column pruning is a storage-format benefit available to both models, and result caching is unrelated.
 - q: >-
     500 application servers insert one row per event directly into ClickHouse, and inserts start failing with a too-many-parts error. What is the underlying cause?
-  options: ["ClickHouse cannot accept 500 concurrent writers at once", "Each insert makes a part faster than merges combine them", "The sort key has too many columns for each insert", "The sparse primary index has run out of memory on the server"]
+  options: ["The sort key has too many columns for each insert", "Each insert makes a part faster than merges combine them", "ClickHouse cannot accept 500 concurrent writers at once", "The sparse primary index has run out of memory on the server"]
   answer: 1
   explanation: >-
     MergeTree turns each insert into an immutable sorted part and relies on background merges, like LSM compaction. Tiny, frequent inserts create parts faster than the merges can combine them. Batch inserts, async insert buffering, or a Kafka consumer that batches are the fixes; the number of writers matters only because each sends tiny inserts.
 - q: >-
     A dashboard shows average session length per country from an hourly rollup that stores the average per (country, hour). Daily numbers disagree with a direct query on raw data. Why?
-  options: ["Floating-point rounding builds up across the hourly rollups", "Averages of averages ignore each hour's session count", "The hourly rollup is missing late-arriving sessions", "Each country must be rolled up in a separate table"]
-  answer: 1
+  options: ["Averages of averages ignore each hour's session count", "Each country must be rolled up in a separate table", "Floating-point rounding builds up across the hourly rollups", "The hourly rollup is missing late-arriving sessions"]
+  answer: 0
   explanation: >-
     Averages are not additive: averaging hourly averages weights each hour equally regardless of session count. Only additive measures can be re-aggregated correctly, so store sum and count per hour and compute the exact average as total sum over total count. Late data could cause small differences, but the systematic error comes from averaging averages.
 - q: >-
     Why has Trino traditionally failed a whole query when one worker dies, while Spark retries only the lost tasks?
-  options: ["Stages exchange data in memory, with no durable output", "Spark runs two copies of every task in case one fails", "Trino's SQL dialect has no way to express a task retry", "Each Trino worker holds the only copy of its table data"]
-  answer: 0
+  options: ["Spark runs two copies of every task in case one fails", "Stages exchange data in memory, with no durable output", "Each Trino worker holds the only copy of its table data", "Trino's SQL dialect has no way to express a task retry"]
+  answer: 1
   explanation: >-
     Trino pipelines exchange data in memory between concurrently running stages; that is what makes interactive engines fast, and it leaves nothing to restart from. Spark writes shuffle output to disk and recomputes from lineage, so it reruns only the missing work. Trino's optional fault-tolerant mode spools exchanges to storage to get retries back, at a latency cost.
 ```

@@ -179,26 +179,26 @@ Constraints cost an index probe per write. That is almost always cheaper than th
     product_name depends on part of the composite key (product_sku), which is exactly the 2NF partial-dependency case. The update anomaly is that renaming a product means updating every line that ever sold it, and one missed row leaves the table contradicting itself. It is not a 1NF issue (the value is atomic), and qty has no dependency on product_name.
 - q: >-
     An orders table stores unit_price_at_purchase on each order line even though products has a price column. A reviewer flags it as a 3NF violation. What is the correct response?
-  options: ["Move it into a materialised view refreshed from products nightly", "Remove it; the current price can always be joined from products", "Keep it, but sync it by trigger whenever products.price changes", "Keep it; it is a historical fact about the line, not a copy"]
+  options: ["Remove it; the current price can always be joined from products", "Keep it, but sync it by trigger whenever products.price changes", "Move it into a materialised view refreshed from products nightly", "Keep it; it is a historical fact about the line, not a copy"]
   answer: 3
   explanation: >-
     The price at purchase time is an attribute of the order line, not a copy of the product's current price, and product prices change over time. Joining to products would silently change past invoices when prices change. A trigger that keeps it in sync would reintroduce exactly that bug.
 - q: >-
     You add `customer_id bigint REFERENCES users(id)` to a 300-million-row orders table in Postgres and nothing else. What happens the next time someone runs DELETE FROM users WHERE id = 5?
-  options: ["It is fast; Postgres indexes foreign key columns automatically", "It cascades by default and deletes all of the customer's orders", "It sequentially scans orders to check for referencing rows", "It fails at once, because foreign keys forbid deleting parents"]
-  answer: 2
+  options: ["It cascades by default and deletes all of the customer's orders", "It sequentially scans orders to check for referencing rows", "It fails at once, because foreign keys forbid deleting parents", "It is fast; Postgres indexes foreign key columns automatically"]
+  answer: 1
   explanation: >-
     Postgres indexes primary keys and unique constraints but not the referencing side of a foreign key, so the referential check on delete becomes a sequential scan of orders, holding a lock on the users row while it runs. The default action is RESTRICT, which errors only if a referencing row is found, and CASCADE only applies if you asked for it.
 - q: >-
     Which denormalisation carries the least consistency risk?
-  options: ["posts.comment_count incremented by the application right after each comment insert", "orders.total_cents recomputed inside the transaction that modifies order_lines", "customer_email copied onto each order row and kept current by an event consumer", "A revenue-by-day materialised view refreshed from the base tables every hour"]
+  options: ["posts.comment_count incremented by the application right after each comment insert", "orders.total_cents recomputed inside the transaction that modifies order_lines", "A revenue-by-day materialised view refreshed from the base tables every hour", "customer_email copied onto each order row and kept current by an event consumer"]
   answer: 1
   explanation: >-
     A derived value maintained in the same transaction as its inputs is exact by the atomicity guarantee. The materialised view is explicitly stale, the counter cache drifts if the increment is skipped or the insert rolls back separately, and the cross-service copy depends on an event pipeline never dropping a message.
 - q: >-
     Why is a random UUIDv4 primary key a worse choice than a bigint sequence or UUIDv7 for a table receiving 5,000 inserts per second?
-  options: ["A 16-byte key makes every index comparison twice as costly as a bigint", "Random 122-bit values begin to collide at several thousand inserts per second", "Postgres cannot use a B-tree on uuid columns, so each lookup scans", "Random keys scatter inserts across the whole B-tree instead of the one hot leaf"]
-  answer: 3
+  options: ["Random 122-bit values begin to collide at several thousand inserts per second", "A 16-byte key makes every index comparison twice as costly as a bigint", "Random keys scatter inserts across the whole B-tree instead of the one hot leaf", "Postgres cannot use a B-tree on uuid columns, so each lookup scans"]
+  answer: 2
   explanation: >-
     B-tree inserts with monotonically increasing keys hit the same rightmost leaf page, which stays hot in cache. Random keys touch a random leaf each time, so the working set is the whole index and every insert may cause a page read, a page write and a full-page WAL image. Key width is not the problem: UUIDv7 is also 16 bytes, but it is time-ordered and so avoids the scatter while staying globally unique.
 ```

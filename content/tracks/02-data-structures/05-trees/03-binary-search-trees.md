@@ -365,32 +365,32 @@ hints:
 ```quiz
 - q: >-
     A BST validation checks that every left child is smaller than its parent and every right child is larger. Which tree does it wrongly accept?
-  options: ["10 with children 5 and 15, where 5 has left child 12", "10 with children 5 and 15, where 15 has right child 12", "10 with children 5 and 15, where 15 has left child 6", "10 with children 5 and 15, where 5 has right child 7"]
-  answer: 2
+  options: ["10 with children 5 and 15, where 5 has left child 12", "10 with children 5 and 15, where 5 has right child 7", "10 with children 5 and 15, where 15 has right child 12", "10 with children 5 and 15, where 15 has left child 6"]
+  answer: 3
   explanation: >-
     6 is smaller than its parent 15, so the parent-only check passes, but 6 lies in the right subtree of 10 and must be greater than 10. Only ancestor bounds catch it. 7 under 5 is a valid placement (between 5 and 10), and 12 as a left child of 5 or a right child of 15 fails even the parent-only check.
 - q: >-
     Deleting a node with two children by replacing it with its in-order successor never requires a further two-child deletion. Why?
-  options: ["It is the left subtree's max, so it has no right child", "It is always the direct right child, so it is spliced out", "It is the right subtree's minimum, so it has no left child", "It is always a leaf, so removing it needs no splicing"]
-  answer: 2
+  options: ["It is the right subtree's minimum, so it has no left child", "It is the left subtree's max, so it has no right child", "It is always the direct right child, so it is spliced out", "It is always a leaf, so removing it needs no splicing"]
+  answer: 0
   explanation: >-
     The leftmost node of a subtree has no left child by construction, so removing it is case 1 (leaf) or case 2 (one right child). It may not be a leaf, and it is the direct right child only when that child has no left subtree. The maximum of the left subtree is the in-order predecessor, the other valid choice, not the successor.
 - q: >-
     Keys 1 through 100,000 are inserted in ascending order into a plain BST. Searching for key 100,000 costs:
-  options: ["About 50,000, since search stops halfway on average", "About 100,000, since the tree is a right chain", "About 23, since expected height is 1.39 log₂ n", "About 17, since each step halves the remaining keys"]
-  answer: 1
+  options: ["About 23, since expected height is 1.39 log₂ n", "About 17, since each step halves the remaining keys", "About 50,000, since search stops halfway on average", "About 100,000, since the tree is a right chain"]
+  answer: 3
   explanation: >-
     Ascending insertion produces a right chain of height 99,999; the largest key is at the bottom, so the search walks every node. A balanced tree would take about 17, and the 1.39 log₂ n figure is the expected height only for random insertion order.
 - q: >-
     You need to support insert, delete and "how many stored keys are less than x" in O(log n) each. The right structure is:
-  options: ["A min-heap, popping until the top is at least x", "A sorted array, using binary search to find the rank", "A hash set, scanning every key to count the ones below x", "A balanced BST with a subtree size stored in each node"]
-  answer: 3
+  options: ["A sorted array, using binary search to find the rank", "A hash set, scanning every key to count the ones below x", "A balanced BST with a subtree size stored in each node", "A min-heap, popping until the top is at least x"]
+  answer: 2
   explanation: >-
     Subtree sizes let you compute rank(x) in one O(h) descent, and balancing keeps h logarithmic. A sorted array answers the query in O(log n) but inserts in O(n); a heap gives no rank information without destroying itself; a hash set has no order.
 - q: >-
     Python has no balanced tree in the standard library. For an ordered set of about 10,000 integers with frequent inserts and floor queries, the pragmatic choice is:
-  options: ["A sorted list, using bisect for search and insert", "A hand-written red-black tree for O(log n) inserts", "A dict, calling sorted() on its keys per query", "A heapq-ordered list, searched for the floor key"]
-  answer: 0
+  options: ["A hand-written red-black tree for O(log n) inserts", "A dict, calling sorted() on its keys per query", "A heapq-ordered list, searched for the floor key", "A sorted list, using bisect for search and insert"]
+  answer: 3
   explanation: >-
     bisect gives O(log n) search and O(n) insert, but the insert is a memmove of at most 80 KB, which is microseconds; a hand-written red-black tree is a lot of risky code that does not beat it below about 10^5 elements. Sorting a dict per query is O(n log n) each time; a heap cannot answer floor.
 ```

@@ -182,38 +182,38 @@ When these are exhausted, shard by the key that most of your transactions alread
 ```quiz
 - q: >-
     A 2 TB events table partitioned by month is queried with WHERE date_trunc('day', occurred_at) = '2026-09-20'. EXPLAIN shows every partition scanned. Why?
-  options: ["Pruning works only for equality on integer keys, not on timestamps", "A default partition exists, which disables pruning for every query", "Pruning needs an index on occurred_at in every partition to find the bounds", "The filter is on a function of the key, so it cannot be matched to bounds"]
-  answer: 3
+  options: ["A default partition exists, which disables pruning for every query", "Pruning works only for equality on integer keys, not on timestamps", "The filter is on a function of the key, so it cannot be matched to bounds", "Pruning needs an index on occurred_at in every partition to find the bounds"]
+  answer: 2
   explanation: >-
     Pruning compares the predicate to partition bounds; date_trunc(occurred_at) is an expression, not the key, and the planner does not invert it. Rewrite as occurred_at >= '2026-09-20' AND occurred_at < '2026-09-21' and only one partition remains. Indexes and the default partition are irrelevant.
 - q: >-
     A multi-tenant SaaS shards by tenant_id with hash(tenant_id) mod 8. One tenant is 30 times larger than any other and its shard is at 90% CPU while the rest idle. What is the right response?
-  options: ["Give the hot tenant its own shard via a directory, or split its data further", "Switch to range sharding so the big tenant's rows are split by range", "Add read replicas to every shard so the extra load is spread evenly", "Raise the modulus to 16 so the hot tenant's rows spread over more shards"]
-  answer: 0
+  options: ["Raise the modulus to 16 so the hot tenant's rows spread over more shards", "Give the hot tenant its own shard via a directory, or split its data further", "Switch to range sharding so the big tenant's rows are split by range", "Add read replicas to every shard so the extra load is spread evenly"]
+  answer: 1
   explanation: >-
     A hot key is not fixed by rehashing: the tenant still lands on exactly one shard, whatever the modulus. A directory lets you place that tenant explicitly, or split its data further by a secondary key. Range sharding on tenant_id has the same problem. Replicas help only if the load is reads, and even then only on the one hot shard.
 - q: >-
     You need "email must be unique" on a users table sharded by user_id. What is the standard approach?
-  options: ["A table keyed by email that maps to user_id, written with the user row", "Take a global advisory lock across all the shards around each user insert", "A unique index on email on each shard, since the shards never overlap", "Route every user insert through one designated shard to serialise them"]
-  answer: 0
+  options: ["A unique index on email on each shard, since the shards never overlap", "Take a global advisory lock across all the shards around each user insert", "A table keyed by email that maps to user_id, written with the user row", "Route every user insert through one designated shard to serialise them"]
+  answer: 2
   explanation: >-
     Per-shard unique indexes only prevent duplicates within a shard; two shards can each hold the same email. A lookup table sharded by email, written together with the user row and checked before insert, makes the uniqueness check single-shard. Routing inserts through one shard recreates the bottleneck you sharded to remove; cross-shard locks are slow and fragile.
 - q: >-
     During a reshard you double-write, backfill, and cut over reads. A month later 0.02% of rows are found only on the old shards. Which step was skipped or weak?
-  options: ["Verification of counts and checksums per key range before cutover", "Throttling the backfill, which let replication lag grow on the old shards", "Provisioning the new shards with enough capacity before double-writing", "Dropping the old data too early, before the rollback window had ended"]
-  answer: 0
+  options: ["Provisioning the new shards with enough capacity before double-writing", "Throttling the backfill, which let replication lag grow on the old shards", "Dropping the old data too early, before the rollback window had ended", "Verification of counts and checksums per key range before cutover"]
+  answer: 3
   explanation: >-
     Double-writes fail occasionally (the new shard timed out, a deploy raced the backfill window), and the backfill may miss rows updated during copy. Only a systematic comparison finds them. Throttling slows the copy without losing rows, and the rows are still on the old shards, so they were not dropped. Skipping verification means the discrepancy is discovered by users, not by you.
 - q: >-
     Which of these is a reason to partition rather than shard?
-  options: ["Deleting last year's data takes hours and bloats the table", "The primary is CPU-bound on writes during the afternoon peak", "A single tenant dominates the load on the primary", "Total data has grown past what one machine can store"]
+  options: ["Deleting last year's data takes hours and bloats the table", "A single tenant dominates the load on the primary", "Total data has grown past what one machine can store", "The primary is CPU-bound on writes during the afternoon peak"]
   answer: 0
   explanation: >-
     Retention is the canonical partitioning win: detach and drop a partition instead of deleting rows. Write CPU and total storage beyond one machine are sharding problems (or vertical scaling first). A dominant tenant is a hot-key problem that partitioning does nothing for.
 - q: >-
     A query with ORDER BY created_at DESC LIMIT 20 and no shard key runs against 16 hash shards. What does the router have to do?
-  options: ["Send it only to the shard holding the most recently written rows", "Send it to all 16 shards, fetch 20 from each, merge, and keep 20", "Send it to one random shard, since hashing spreads the rows evenly", "Reject it, since ORDER BY with LIMIT cannot run across hash shards"]
-  answer: 1
+  options: ["Reject it, since ORDER BY with LIMIT cannot run across hash shards", "Send it only to the shard holding the most recently written rows", "Send it to one random shard, since hashing spreads the rows evenly", "Send it to all 16 shards, fetch 20 from each, merge, and keep 20"]
+  answer: 3
   explanation: >-
     Hash sharding scatters time ranges across every shard, so the newest 20 rows can be anywhere. Correctness requires 20 from each shard (320 rows) and a merge, discarding 300. This is why hash sharding makes ORDER BY ... LIMIT expensive and why range sharding by time is sometimes preferred despite the hot-tail write problem.
 ```

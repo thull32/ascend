@@ -304,32 +304,32 @@ hints:
 ```quiz
 - q: >-
     In a Fenwick tree, which elements does tree[12] summarise?
-  options: ["values[12..15]", "values[1..12]", "values[9..12]", "values[12] only"]
-  answer: 2
+  options: ["values[9..12]", "values[12] only", "values[12..15]", "values[1..12]"]
+  answer: 0
   explanation: >-
     12 = 1100 in binary, so lowbit(12) = 4 and tree[12] covers the 4 elements ending at 12, i.e. positions 9 to 12. Only powers of two cover a prefix from 1.
 - q: >-
     Why does prefix(i) terminate in at most log n + 1 steps?
-  options: ["It stops at the first cell whose stored sum is zero", "It walks one level up a tree whose height is log n", "Each step halves i, so it reaches 0 within log n steps", "Each step clears one of i's at most log n + 1 set bits"]
-  answer: 3
+  options: ["It walks one level up a tree whose height is log n", "It stops at the first cell whose stored sum is zero", "Each step clears one of i's at most log n + 1 set bits", "Each step halves i, so it reaches 0 within log n steps"]
+  answer: 2
   explanation: >-
     i -= i & -i removes exactly one set bit; a number below n has at most floor(log2 n) + 1 set bits. i is not halved (7 goes to 6, not 3), there is no tree height being climbed, and cells are never zero-tested.
 - q: >-
     You need range minimum queries with arbitrary point updates. A Fenwick tree is the wrong tool because:
-  options: ["Its point updates would cost O(n), not O(log n)", "Min has no inverse to turn two prefixes into a range", "Its lowbit arithmetic breaks when values are negative", "Storing a min per block would need O(n log n) cells"]
-  answer: 1
+  options: ["Min has no inverse to turn two prefixes into a range", "Its lowbit arithmetic breaks when values are negative", "Storing a min per block would need O(n log n) cells", "Its point updates would cost O(n), not O(log n)"]
+  answer: 0
   explanation: >-
     The Fenwick tree only answers prefixes, and range sum = prefix(r) - prefix(l-1) relies on subtraction. There is no operation that recovers min(l..r) from min(1..r) and min(1..l-1). Memory (n + 1 cells) and update cost are strengths, not weaknesses, and lowbit works on indices, so negative values are fine.
 - q: >-
     To count inversions in [40, -7, 40, 12] with a Fenwick tree, what is the first thing you do?
-  options: ["Build a frequency array of size 41, indexed by value", "Reverse the array so later elements are processed first", "Map each value to its rank: -7 -> 1, 12 -> 2, 40 -> 3", "Sort the array so the tree can be filled in value order"]
+  options: ["Reverse the array so later elements are processed first", "Sort the array so the tree can be filled in value order", "Map each value to its rank: -7 -> 1, 12 -> 2, 40 -> 3", "Build a frequency array of size 41, indexed by value"]
   answer: 2
   explanation: >-
     Coordinate compression turns arbitrary (including negative) values into dense 1-based indices for the tree. A frequency array of size max value fails for negatives and wastes memory; sorting destroys the order the count depends on.
 - q: >-
     Which statement about memory is correct for n elements?
-  options: ["Fenwick 2n (values and sums); iterative 2n; recursive 2n", "Fenwick n; iterative segment tree n; recursive segment tree n", "Fenwick n + 1; iterative segment tree 2n; recursive up to 4n", "Fenwick 4n; iterative segment tree 2n; recursive n + 1"]
-  answer: 2
+  options: ["Fenwick n + 1; iterative segment tree 2n; recursive up to 4n", "Fenwick 4n; iterative segment tree 2n; recursive n + 1", "Fenwick 2n (values and sums); iterative 2n; recursive 2n", "Fenwick n; iterative segment tree n; recursive segment tree n"]
+  answer: 0
   explanation: >-
     The Fenwick tree stores only the block sums, one per index, so it does not need 2n for separate values and sums. The segment tree needs internal nodes as well as leaves, and the recursive layout over-allocates to handle n that is not a power of two.
 ```

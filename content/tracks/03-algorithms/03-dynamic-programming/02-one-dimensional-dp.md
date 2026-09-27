@@ -293,14 +293,14 @@ hints:
 ```quiz
 - q: >-
     For coins = [1, 3, 4] and amount = 6, what does the minimum-coins DP return, and what does greedy "largest coin first" return?
-  options: ["DP 3 (4 + 1 + 1); greedy 3 (4 + 1 + 1)", "DP 2 (3 + 3); greedy 3 (4 + 1 + 1)", "DP 2 (4 + 2); greedy 3 (4 + 1 + 1)", "DP 2 (3 + 3); greedy 2 (3 + 3)"]
-  answer: 1
+  options: ["DP 3 (4 + 1 + 1); greedy 3 (4 + 1 + 1)", "DP 2 (3 + 3); greedy 2 (3 + 3)", "DP 2 (4 + 2); greedy 3 (4 + 1 + 1)", "DP 2 (3 + 3); greedy 3 (4 + 1 + 1)"]
+  answer: 3
   explanation: >-
     dp[6] = 1 + min(dp[5], dp[3], dp[2]) = 1 + min(2, 1, 2) = 2 via coin 3 then coin 3. Greedy commits to the 4 and is left making 2 from ones. There is no coin 2, so 4 + 2 is not available, and the DP does not follow greedy: the 4 + 1 + 1 path is one of the candidates it considers (1 + dp[2] = 3), and it loses.
 - q: >-
     You want the number of multisets of coins that make the amount (order does not matter). Which loop nesting is correct?
-  options: ["Outer loop over coins, inner over amounts downwards", "Outer loop over coins, inner loop over amounts", "Either nesting, since addition is commutative", "Outer loop over amounts, inner loop over coins"]
-  answer: 1
+  options: ["Outer loop over coins, inner over amounts downwards", "Outer loop over amounts, inner loop over coins", "Outer loop over coins, inner loop over amounts", "Either nesting, since addition is commutative"]
+  answer: 2
   explanation: >-
     With coins outermost the table means "ways using only the coins seen so far", so each multiset is built in one canonical order. Amount-outermost counts every ordering separately, so the nesting is not interchangeable. Downward iteration is the 0/1 (use-once) variant, which is a different problem.
 - q: >-
@@ -311,14 +311,14 @@ hints:
     The state definition is 'best from houses 0..i-2, whether or not house i-2 was robbed', so it already encodes the best compatible history. Robbing house i only forbids house i-1, and dp[i-2] is by definition the best of everything up to i-2, so nothing further back needs inspecting. Adding dp[i-3] is redundant, not required, and the optimum need not alternate (on [2, 1, 1, 2] it robs houses 0 and 3).
 - q: >-
     num_decodings("100") returns what, and which transition rule produces it?
-  options: ["0, since neither 0 nor 00 is a valid code at the end", "1, via the two-digit code 10 followed by a single 0", "1, since 100 is read as one three-digit letter code", "2, via 1|00 and 10|0, since each split counts once"]
-  answer: 0
+  options: ["1, since 100 is read as one three-digit letter code", "0, since neither 0 nor 00 is a valid code at the end", "2, via 1|00 and 10|0, since each split counts once", "1, via the two-digit code 10 followed by a single 0"]
+  answer: 1
   explanation: >-
     dp[2] = 1 from '10'. At i = 3 the single digit '0' is invalid and the pair '00' is not in 10..26, so dp[3] = 0. The trailing 0 cannot stand alone, so '10' followed by '0' is not a decoding. Any string with a zero not preceded by 1 or 2 has no decoding.
 - q: >-
     The coin change DP runs in O(amount × coins). An interviewer says amount can be up to 10¹². What do you say?
-  options: ["Use memoisation, so that only reachable amounts are computed", "Sort the coins, so the inner loop can stop at the first c > a", "It is infeasible: pseudo-polynomial means 10¹² table cells", "It still works, because the running time is linear in amount"]
-  answer: 2
+  options: ["Sort the coins, so the inner loop can stop at the first c > a", "Use memoisation, so that only reachable amounts are computed", "It still works, because the running time is linear in amount", "It is infeasible: pseudo-polynomial means 10¹² table cells"]
+  answer: 3
   explanation: >-
     The table has one cell per unit of amount. Polynomial in the numeric value means exponential in the input's bit length, so "linear in amount" is exactly the problem; you need a different approach or a restriction on the coin system. Memoisation does not reduce the number of reachable states meaningfully here, and sorting does not change the count.
 ```

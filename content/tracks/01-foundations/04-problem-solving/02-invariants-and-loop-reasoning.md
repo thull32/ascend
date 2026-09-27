@@ -239,32 +239,32 @@ hints:
 ```quiz
 - q: >-
     In the two-pointer pair sum, why is the loop condition `lo < hi` rather than `lo <= hi`?
-  options: ["`lo <= hi` would loop forever once the pointers meet", "Both are correct; the choice is purely a matter of style", "A pair needs two indices, and lo == hi leaves only one", "`lo < hi` saves one iteration, which is the only reason"]
-  answer: 2
+  options: ["`lo < hi` saves one iteration, which is the only reason", "A pair needs two indices, and lo == hi leaves only one", "Both are correct; the choice is purely a matter of style", "`lo <= hi` would loop forever once the pointers meet"]
+  answer: 1
   explanation: >-
     The postcondition requires two distinct indices, i < j. When lo == hi the loop would compare an element with itself and could wrongly return [k, k], so it is not a style choice. The invariant plus exit condition lo >= hi is exactly what proves no pair remains.
 - q: >-
     For the first-true binary search with the invariant "all indices below lo are false, all at or above hi are true", why does `hi` start at `len(flags)` and not `len(flags) - 1`?
-  options: ["To avoid an index-out-of-range error on the first probe", "Nothing is known true yet except the index past the end", "It is arbitrary; both starting values give the same result", "Because Python ranges are half-open, so it must match"]
-  answer: 1
+  options: ["Because Python ranges are half-open, so it must match", "It is arbitrary; both starting values give the same result", "To avoid an index-out-of-range error on the first probe", "Nothing is known true yet except the index past the end"]
+  answer: 3
   explanation: >-
     Before any probe the only index known to be true is the imaginary one past the end. Starting hi at len - 1 would assert that the last element is true before checking it, which breaks the invariant when the array is all false. Starting at len keeps the invariant vacuously true and makes the all-false case return the sentinel len(flags).
 - q: >-
     You write a binary search with `mid = (lo + hi) // 2` and in one branch set `lo = mid`. What is the most likely consequence?
-  options: ["It returns an index that is off by one on some inputs", "Nothing; lo = mid is the standard form of that branch", "It loops forever once hi == lo + 1, since mid == lo", "It raises an index error when mid reaches the array end"]
-  answer: 2
+  options: ["It loops forever once hi == lo + 1, since mid == lo", "Nothing; lo = mid is the standard form of that branch", "It raises an index error when mid reaches the array end", "It returns an index that is off by one on some inputs"]
+  answer: 0
   explanation: >-
     With hi = lo + 1, mid rounds down to lo, so lo = mid leaves the range unchanged and the loop never shrinks it. The termination check (does every branch strictly shrink the range?) catches this before any test does. Use lo = mid + 1, or round mid up if the branch must keep mid.
 - q: >-
     Which statement is a useful loop invariant for the pair-sum algorithm?
-  options: ["nums stays sorted throughout the whole loop", "If a valid pair exists, one lies within [lo, hi]", "nums[lo] + nums[hi] moves steadily closer to target", "lo and hi are always valid indices into nums"]
-  answer: 1
+  options: ["lo and hi are always valid indices into nums", "nums stays sorted throughout the whole loop", "nums[lo] + nums[hi] moves steadily closer to target", "If a valid pair exists, one lies within [lo, hi]"]
+  answer: 3
   explanation: >-
     An invariant must connect the loop state to the postcondition. "Sorted" is the precondition and "valid indices" is true but proves nothing about the answer. "If a valid pair exists, one lies within [lo, hi]" is what lets you conclude, at exit, that no pair exists.
 - q: >-
     An interviewer asks why moving the pointer at the shorter line is safe in container-with-most-water. The senior-level answer is:
-  options: ["Because the taller line always yields the larger area", "Every pairing it skips is narrower with no higher limit", "It is the well-known greedy solution to this problem", "Because the array is sorted, so the short side is known"]
-  answer: 1
+  options: ["Every pairing it skips is narrower with no higher limit", "Because the taller line always yields the larger area", "Because the array is sorted, so the short side is known", "It is the well-known greedy solution to this problem"]
+  answer: 0
   explanation: >-
     That is the discard argument: keeping the shorter line, any inward move of the other pointer shrinks the width without raising the limiting height, so every configuration skipped is provably no better than one already considered. The array is not sorted, and "well known" is not a reason.
 ```

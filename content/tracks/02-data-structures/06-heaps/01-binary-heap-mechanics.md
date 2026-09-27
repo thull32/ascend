@@ -301,32 +301,32 @@ hints:
 ```quiz
 - q: >-
     Which of these arrays is a valid min-heap?
-  options: ["[1, 4, 3, 5, 2, 6, 7]", "[2, 5, 3, 9, 6, 4, 8]", "[1, 3, 4, 5, 7, 2, 8]", "[1, 2, 3, 0, 4, 5, 6]"]
-  answer: 1
+  options: ["[1, 2, 3, 0, 4, 5, 6]", "[1, 4, 3, 5, 2, 6, 7]", "[1, 3, 4, 5, 7, 2, 8]", "[2, 5, 3, 9, 6, 4, 8]"]
+  answer: 3
   explanation: >-
     Check each index against its parent at (i-1)//2. In [2,5,3,9,6,4,8]: 5≥2, 3≥2, 9≥5, 6≥5, 4≥3, 8≥3; 5 sitting before 3 is fine because siblings are unordered. [1,4,3,5,2,6,7] has 2 at index 4 under 4 at index 1; [1,3,4,5,7,2,8] has 2 at index 5 under 4 at index 2; [1,2,3,0,4,5,6] has 0 at index 3 under 2.
 - q: >-
     During sift-down you swap the node with its left child whenever the left child is smaller, without checking the right. What can go wrong?
-  options: ["It only slows down, costing an extra level of swaps per pop", "The shape breaks, because the array gains a gap at the end", "Nothing, because the right child is checked on the next pass", "A smaller right child ends up below a larger new parent"]
-  answer: 3
+  options: ["The shape breaks, because the array gains a gap at the end", "Nothing, because the right child is checked on the next pass", "A smaller right child ends up below a larger new parent", "It only slows down, costing an extra level of swaps per pop"]
+  answer: 2
   explanation: >-
     The child moved up becomes the parent of the other child, so it must be the smaller of the two. Swapping with the larger child puts a bigger value above a smaller one, and the next iteration moves down away from the broken pair, so it is never revisited. Swaps never create gaps, so the shape is unaffected.
 - q: >-
     Building a heap from 1,000,000 elements by calling push for each takes about how many element moves compared with bottom-up heapify?
-  options: ["About the same, since both run n sift operations in total", "Fewer, since push is O(1) on average for any input", "A million times more, since each push rescans the array", "Up to 20 times more, as each push climbs log₂ n levels"]
-  answer: 3
+  options: ["A million times more, since each push rescans the array", "Up to 20 times more, as each push climbs log₂ n levels", "Fewer, since push is O(1) on average for any input", "About the same, since both run n sift operations in total"]
+  answer: 1
   explanation: >-
     Heapify is O(n): under about n swaps, because most sift-downs start near the leaves. Repeated push is O(n log n) worst case, with log2(10^6) ≈ 20. The average-case O(1) push applies to random input only; sorted-descending input makes every push climb to the root.
 - q: >-
     Why is heap sort typically slower than quicksort on real hardware despite the better worst-case bound?
-  options: ["It needs deep recursion, so call overhead dominates", "It is not in place, so it copies the array into a heap", "It makes asymptotically more comparisons than quicksort", "Its sift-downs jump across the array, defeating the cache"]
-  answer: 3
+  options: ["Its sift-downs jump across the array, defeating the cache", "It is not in place, so it copies the array into a heap", "It needs deep recursion, so call overhead dominates", "It makes asymptotically more comparisons than quicksort"]
+  answer: 0
   explanation: >-
     Both are O(n log n) expected; heap sort's sift-down touches indices i, 2i+1, 2i+2 that spread across the array, so each level of each sift is a likely cache miss. Quicksort's partition streams through memory. Heap sort is in place and iterative, so neither copying nor recursion is the cost.
 - q: >-
     You need a structure supporting push, pop-min, and "remove the element with key k" for arbitrary k, all in O(log n). A plain binary heap:
-  options: ["Makes push and pop-min O(log n), but removal by key O(n)", "Makes removal O(log n) via binary search on the array", "Makes all three O(log n), since removal is a sift like pop", "Makes push O(n), since each append shifts elements up"]
-  answer: 0
+  options: ["Makes push O(n), since each append shifts elements up", "Makes push and pop-min O(log n), but removal by key O(n)", "Makes all three O(log n), since removal is a sift like pop", "Makes removal O(log n) via binary search on the array"]
+  answer: 1
   explanation: >-
     The heap order is only parent-child, so the array is not sorted and locating an arbitrary key is a linear scan before the O(log n) sift. Removal becomes O(log n) only with an auxiliary key-to-index map (an indexed heap) or with lazy deletion.
 ```

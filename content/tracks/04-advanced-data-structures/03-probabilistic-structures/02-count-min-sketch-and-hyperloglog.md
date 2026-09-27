@@ -265,32 +265,32 @@ hints:
 ```quiz
 - q: >-
     A count-min sketch estimates a key's count as 1,200. Which statement is guaranteed?
-  options: ["The true count is exactly 1,200", "The true count is at least 1,200", "The true count is at most 1,200", "The true count is within 1% of 1,200"]
-  answer: 2
+  options: ["The true count is at least 1,200", "The true count is at most 1,200", "The true count is within 1% of 1,200", "The true count is exactly 1,200"]
+  answer: 1
   explanation: >-
     Every counter a key touches holds its true count plus any collisions, so each row is ≥ the truth and so is their minimum. The sketch never underestimates. It can be exact, but that is not guaranteed.
 - q: >-
     You have a count-min sketch with w = 1000 over a stream of 10 billion events. Which key count can it report usefully?
-  options: ["A key with just 500 events", "None; the stream is too large", "A key with 50,000 events", "A key with 100 million events"]
-  answer: 3
+  options: ["A key with 100 million events", "None; the stream is too large", "A key with 50,000 events", "A key with just 500 events"]
+  answer: 0
   explanation: >-
     The error bound is additive in total traffic, about 2N/w = 20 million here. Only counts well above that (heavy hitters) are meaningful; the 500- and 50,000-event keys are lost in collision noise.
 - q: >-
     Two data centres each keep a HyperLogLog of unique users. How do you get the global unique count?
-  options: ["Add the two estimates together for the total", "Take the register-wise max and estimate from it", "Take the larger of the two estimates as the total", "They cannot be combined; recount from raw logs"]
-  answer: 1
+  options: ["Add the two estimates together for the total", "Take the larger of the two estimates as the total", "Take the register-wise max and estimate from it", "They cannot be combined; recount from raw logs"]
+  answer: 2
   explanation: >-
     A register holds the max leading-zero run of the elements routed to it, so the max over both structures is exactly what one structure over the union would hold. Adding estimates double-counts users seen in both centres; the larger estimate ignores users seen only in the other.
 - q: >-
     Why does HyperLogLog use a harmonic mean of the registers rather than an arithmetic mean of 2^M[j]?
-  options: ["The harmonic mean is unbiased, so no correction is needed", "One register with a freak long zero run would dominate", "Registers are stored as reciprocals to save space", "It is cheaper to compute than an arithmetic mean"]
+  options: ["Registers are stored as reciprocals to save space", "One register with a freak long zero run would dominate", "The harmonic mean is unbiased, so no correction is needed", "It is cheaper to compute than an arithmetic mean"]
   answer: 1
   explanation: >-
     Each register's 2^M[j] is a heavy-tailed estimate; one lucky hash gives a huge value that would dominate an arithmetic mean. The harmonic mean is dominated by small values and so is robust to that outlier. It is not unbiased: it still needs the α constant to correct bias.
 - q: >-
     Product wants "users who visited both page A and page B this week" from per-page HyperLogLogs. What do you say?
-  options: ["PFMERGE the two HyperLogLogs and read the merged count", "Raise the register count enough, then subtract as usual", "The error can dwarf a small intersection; use MinHash", "Compute |A| + |B| − |A ∪ B|, which is exact for HLLs"]
-  answer: 2
+  options: ["Compute |A| + |B| − |A ∪ B|, which is exact for HLLs", "The error can dwarf a small intersection; use MinHash", "Raise the register count enough, then subtract as usual", "PFMERGE the two HyperLogLogs and read the merged count"]
+  answer: 1
   explanation: >-
     Each term carries about 1% relative error on possibly large numbers, while the intersection may be tiny; the absolute errors do not cancel, so the subtraction error can exceed the answer. Use MinHash or count the intersection directly. More registers reduce but do not remove the problem. Merging gives the union, not the intersection.
 ```

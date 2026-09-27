@@ -217,32 +217,32 @@ Parallelism multiplies throughput and blast radius together. Five agents with no
 ```quiz
 - q: >-
     An agent reports that all tests pass. git diff --stat shows tests/test_exports.py changed with 4 lines removed, and those lines were assert statements. What is the right next step?
-  options: ["Ask the agent whether the change was safe, and merge if it says yes", "Delete the test file, since assertions the agent removed were probably flaky", "Restore the assertions, rerun, and have the agent fix the implementation", "Merge, since the agent ran the full suite and every test passed"]
-  answer: 2
+  options: ["Restore the assertions, rerun, and have the agent fix the implementation", "Merge, since the agent ran the full suite and every test passed", "Delete the test file, since assertions the agent removed were probably flaky", "Ask the agent whether the change was safe, and merge if it says yes"]
+  answer: 0
   explanation: >-
     Removed assertions are the classic form of verification gaming, the way an agent turns red into green. The tests are the spec; restore them, rerun, and make the implementation satisfy them. A green run proves nothing once the checks are gone, and asking the author of the change to certify it is not verification.
 - q: >-
     You are starting a task in a part of the codebase neither you nor the agent has touched. What is the best first instruction?
-  options: ["Run the full test suite repeatedly until you know it is stable", "Read the relevant code and explain how requests flow, without editing", "Implement the feature first, then explain the approach it took afterwards", "Write all the code in one new file so the diff is easy to review"]
+  options: ["Write all the code in one new file so the diff is easy to review", "Read the relevant code and explain how requests flow, without editing", "Implement the feature first, then explain the approach it took afterwards", "Run the full test suite repeatedly until you know it is stable"]
   answer: 1
   explanation: >-
     A read-only explanation exposes misunderstandings before any code exists, which is the cheapest place to catch them. Implementing first moves discovery to diff review or production.
 - q: >-
     Why ask the agent to run the new tests and show them failing before it implements anything?
-  options: ["Agents cannot write tests for code that already exists in the repository", "It proves the tests exercise the behaviour, so they can catch a wrong fix", "It is faster, because the agent writes less code when tests fail first", "Failing tests reduce token usage, since the agent has less output to read"]
-  answer: 1
+  options: ["It is faster, because the agent writes less code when tests fail first", "Failing tests reduce token usage, since the agent has less output to read", "Agents cannot write tests for code that already exists in the repository", "It proves the tests exercise the behaviour, so they can catch a wrong fix"]
+  answer: 3
   explanation: >-
     A test that has never failed might test nothing. Seeing it fail for the right reason (an assertion, not an import error) confirms it checks the intended behaviour and would catch a wrong implementation, and the reviewed test then becomes a spec the implementation cannot quietly redefine. Speed and token usage are not the point.
 - q: >-
     The agent is on its fourth attempt at the same failing test, each attempt a small variation, and the session transcript is very long. What should you do?
-  options: ["Keep going, since each variation narrows down the cause of the failing test", "Tell it the fix is urgent, so it tries harder and more carefully", "Ask it to disable the test for now, so the rest of the work can proceed", "Stop, note what you learned, and start a fresh session with a sharper spec"]
+  options: ["Ask it to disable the test for now, so the rest of the work can proceed", "Keep going, since each variation narrows down the cause of the failing test", "Tell it the fix is urgent, so it tries harder and more carefully", "Stop, note what you learned, and start a fresh session with a sharper spec"]
   answer: 3
   explanation: >-
     Repeated variations mean it lacks a key fact, and the failed attempts in context bias further attempts rather than narrowing anything down. A fresh session with one precise new constraint usually beats more iterations, which also cost more as the transcript grows. Disabling the test is verification gaming.
 - q: >-
     You want three agents working on the same repository at once. Which setup avoids the most problems?
-  options: ["One shared working tree, so each agent can see the others' changes as they land", "Disjoint file ownership, a worktree each, a shared validator and resource limits", "One agent writes code while the other two review it in the same session", "Shared files for all three, with conflicts resolved in one merge at the end"]
-  answer: 1
+  options: ["Disjoint file ownership, a worktree each, a shared validator and resource limits", "One agent writes code while the other two review it in the same session", "One shared working tree, so each agent can see the others' changes as they land", "Shared files for all three, with conflicts resolved in one merge at the end"]
+  answer: 0
   explanation: >-
     Shared working trees cause agents to overwrite each other and see each other's failures. Disjoint ownership prevents conflicts, a separate git worktree or sandbox per agent isolates their checkouts, a shared validation command keeps the pieces compatible, and resource limits on scripts stop one runaway process from taking down the machine for everyone.
 ```

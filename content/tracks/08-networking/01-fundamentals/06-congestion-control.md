@@ -266,14 +266,14 @@ Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is h
 ```quiz
 - q: >-
     During a large upload, ping from the same laptop rises from 20 ms to 600 ms, and falls back to 20 ms when the upload finishes. There is almost no packet loss. What is the best explanation and fix?
-  options: ["The Wi-Fi signal is weak; move closer to the router", "The upload uses UDP, which is starving the TCP flows", "Bufferbloat in the home router; enable fq_codel or SQM there", "The ISP is throttling ICMP during the upload; ignore it"]
-  answer: 2
+  options: ["The upload uses UDP, which is starving the TCP flows", "The Wi-Fi signal is weak; move closer to the router", "The ISP is throttling ICMP during the upload; ignore it", "Bufferbloat in the home router; enable fq_codel or SQM there"]
+  answer: 3
   explanation: >-
     Delay that tracks load without loss is queueing. A loss-based sender keeps an oversized buffer in the router or modem full, creating a standing queue that every packet waits behind. Active queue management with flow queueing (fq_codel or SQM) on the bottleneck device drops or marks early and isolates the ping and the call from the bulk flow. A weak signal would cause loss and variable delay whether or not the upload is running.
 - q: >-
     A Reno-style flow over a 100 ms path with 0.1% loss achieves about 4.5 Mbit/s. Which single change roughly doubles its throughput?
-  options: ["Halving the RTT to 50 ms from a closer edge", "Doubling the receiver's socket buffer size", "Doubling the bandwidth of the bottleneck link", "Halving the loss rate from 0.1% to 0.05%"]
-  answer: 0
+  options: ["Doubling the receiver's socket buffer size", "Halving the loss rate from 0.1% to 0.05%", "Halving the RTT to 50 ms from a closer edge", "Doubling the bandwidth of the bottleneck link"]
+  answer: 2
   explanation: >-
     Throughput is proportional to MSS/RTT times 1/sqrt(p). Halving RTT doubles it; halving loss multiplies it by only sqrt(2), about 1.41. The link and receive buffer are not the binding limit here, the loss-driven window is.
 - q: >-
@@ -284,8 +284,8 @@ Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is h
     If both flows lose together and both halve, the difference between them halves, while adding the same amount to both keeps the difference. Repeat and they converge to fair shares. With additive decrease both lose the same amount and the unfair split persists forever. Computation cost and powers of two have nothing to do with it.
 - q: >-
     You switch your origin servers from Cubic to BBR. Which effect should you expect?
-  options: ["No change unless clients also switch to BBR", "Lower CPU usage on clients receiving the data", "Faster uploads from users' browsers to your servers", "Better downloads to users on lossy or bloated paths"]
-  answer: 3
+  options: ["Lower CPU usage on clients receiving the data", "No change unless clients also switch to BBR", "Better downloads to users on lossy or bloated paths", "Faster uploads from users' browsers to your servers"]
+  answer: 2
   explanation: >-
     Congestion control is chosen and run by the sender alone; there is no negotiation. Server-to-client traffic uses the server's algorithm, so downloads on lossy or bloated paths get faster and see less queueing. Client uploads still use the client OS's algorithm.
 - q: >-

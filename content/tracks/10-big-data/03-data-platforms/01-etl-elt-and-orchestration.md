@@ -187,32 +187,32 @@ hints:
 ```quiz
 - q: >-
     A daily task computes WHERE order_date = CURRENT_DATE - 1 and writes with INSERT INTO. What goes wrong when it is retried after midnight?
-  options: ["The orchestrator skips retries once the logical day has passed", "The retry targets a different day and appends to it", "Nothing, because a retry repeats exactly the same query", "The retry fails because the target table is still locked"]
-  answer: 1
+  options: ["The retry targets a different day and appends to it", "The orchestrator skips retries once the logical day has passed", "Nothing, because a retry repeats exactly the same query", "The retry fails because the target table is still locked"]
+  answer: 0
   explanation: >-
     CURRENT_DATE moves with the clock, so the retry targets a different interval, and INSERT INTO appends to whatever is there: one day is missing its rerun and another is duplicated or partial. The query text is the same but its meaning is not. Using the run's logical date and overwriting its partition makes the retry repeat exactly the same work.
 - q: >-
     Why does ELT make recovering from a transformation bug easier than classic ETL?
-  options: ["ELT tools catch errors earlier, before any data is loaded", "The raw data is kept, so you fix the SQL and recompute", "ELT transforms data before it loads, so bad rows never land", "SQL transforms are declarative, so they rarely have bugs to fix"]
-  answer: 1
+  options: ["ELT tools catch errors earlier, before any data is loaded", "ELT transforms data before it loads, so bad rows never land", "The raw data is kept, so you fix the SQL and recompute", "SQL transforms are declarative, so they rarely have bugs to fix"]
+  answer: 2
   explanation: >-
     Keeping the raw layer in the lake or warehouse makes every transform reproducible: fix the SQL and recompute. Sources often retain only recent data or current state, so ETL pipelines that discarded raw inputs may be unable to rebuild history. Transforming before loading is ETL, not ELT.
 - q: >-
     You must backfill 400 daily partitions of a job that takes 30 minutes per partition, without delaying the 06:00 production refresh. What plan is best?
-  options: ["Run the backfill inside the production DAG so it shares retries", "Bounded concurrency, oldest partitions first so history fills in order", "A separate pool, bounded concurrency, newest partitions first", "Launch all 400 runs at once so it finishes as quickly as possible"]
-  answer: 2
+  options: ["Launch all 400 runs at once so it finishes as quickly as possible", "Run the backfill inside the production DAG so it shares retries", "Bounded concurrency, oldest partitions first so history fills in order", "A separate pool, bounded concurrency, newest partitions first"]
+  answer: 3
   explanation: >-
     400 × 30 minutes is 200 hours serially, so concurrency is needed, but unbounded concurrency starves production; a separate pool isolates it. Newest-first delivers the most-used data early, and a halted backfill leaves only old, rarely read data missing. Then backfill downstream assets, which are stale until they are recomputed, and validate before publishing to catch a bad fix.
 - q: >-
     A backfill of March revenue by country joins orders with the current customers table. What is wrong?
-  options: ["The current customers table is too large to join efficiently", "Customers who moved get March orders under today's country", "Nothing, as long as the job overwrites its partitions", "Joins in a backfill make it non-idempotent across reruns"]
-  answer: 1
+  options: ["Nothing, as long as the job overwrites its partitions", "Joins in a backfill make it non-idempotent across reruns", "The current customers table is too large to join efficiently", "Customers who moved get March orders under today's country"]
+  answer: 3
   explanation: >-
     Idempotent is not the same as correct. Reading dimension data as it is today, rather than as of the interval, attributes orders to customers' current country and silently rewrites history with today's attributes. Use snapshots as of the interval or a slowly changing dimension.
 - q: >-
     What is the main practical advantage of an asset-centric orchestrator for backfills?
-  options: ["It pushes SQL down to the warehouse, so each run is faster", "It knows partition dependencies, so it can find stale ones", "It stores the assets itself, so no separate warehouse is needed", "Its tasks are idempotent by construction, so reruns are safe"]
-  answer: 1
+  options: ["It knows partition dependencies, so it can find stale ones", "It pushes SQL down to the warehouse, so each run is faster", "Its tasks are idempotent by construction, so reruns are safe", "It stores the assets itself, so no separate warehouse is needed"]
+  answer: 0
   explanation: >-
     Declaring assets and partitions gives the orchestrator the data dependency graph, not just the task graph. After a fix, it can compute exactly which downstream partitions are stale and backfill them in dependency order, which task-centric DAGs leave to the engineer. Idempotency is still the task author's job in either model.
 ```

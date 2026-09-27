@@ -270,32 +270,32 @@ hints:
 ```quiz
 - q: >-
     A function does a single O(n) pass and then, inside a loop over all n elements, calls `list.insert(0, x)` on a list that grows to n elements. What is its overall time complexity?
-  options: ["O(n²)", "O(2n)", "O(n)", "O(n log n)"]
-  answer: 0
+  options: ["O(n)", "O(n²)", "O(2n)", "O(n log n)"]
+  answer: 1
   explanation: >-
     insert(0, x) shifts every existing element, costing O(current length). Summed over n inserts that is 0 + 1 + ... + (n-1) = O(n²), which dominates the earlier O(n) pass. "O(2n)" is not a distinct class; constants are dropped.
 - q: >-
     Two algorithms cost exactly 50n and n²/10 operations. For which input sizes is the "worse" quadratic one actually cheaper?
-  options: ["Whenever n is above 500", "Whenever n is below 5", "Whenever n is below 500", "Never; linear always wins"]
-  answer: 2
+  options: ["Whenever n is below 500", "Whenever n is below 5", "Whenever n is above 500", "Never; linear always wins"]
+  answer: 0
   explanation: >-
     Set n²/10 < 50n and solve: n < 500. Below that, the quadratic algorithm does fewer operations. Big-O describes the limit as n grows; it says nothing about which one wins at a specific small n, which is exactly why you check the constants when n is bounded.
 - q: >-
     Under the RAM model, which of these costs is most likely to be badly underestimated on real hardware?
-  options: ["Comparing two integers already held in registers", "Following a pointer to a node allocated far away", "Adding two 32-bit integers inside a tight loop", "Reading the next element of an array you are scanning"]
-  answer: 1
+  options: ["Adding two 32-bit integers inside a tight loop", "Comparing two integers already held in registers", "Following a pointer to a node allocated far away", "Reading the next element of an array you are scanning"]
+  answer: 2
   explanation: >-
     The model charges one unit for any memory access. A scattered pointer dereference misses cache and costs ~100 ns versus ~1 ns for a cached sequential read. The array scan benefits from prefetching, and the arithmetic operations really are about one step each.
 - q: >-
     You have a hash map keyed by strings that average 2 KB in length, with n entries. Which statement about lookup cost is the most honest?
-  options: ["O(log n), because long keys force a tree-based map", "O(1), because hashing is constant time for any key", "O(n), because long keys cause many more collisions", "O(L) in key length, since hashing reads every byte"]
-  answer: 3
+  options: ["O(n), because long keys cause many more collisions", "O(1), because hashing is constant time for any key", "O(L) in key length, since hashing reads every byte", "O(log n), because long keys force a tree-based map"]
+  answer: 2
   explanation: >-
     Hashing a 2 KB key touches every byte, and a successful lookup also compares the full key. That is O(L) per operation regardless of n. It is still independent of n, so it is not O(n); calling it O(1) hides a 2,000× factor relative to short keys.
 - q: >-
     A production sort routine switches to insertion sort (O(n²)) for slices shorter than about 20 elements. Why is this not a bug?
-  options: ["Its tiny constant factor beats merge/quick sort overhead at small n", "Insertion sort's growth class drops to O(n log n) for small n", "It cuts memory from O(n) to O(1), which matters more than time", "Short slices are almost always already sorted in practice"]
-  answer: 0
+  options: ["Insertion sort's growth class drops to O(n log n) for small n", "It cuts memory from O(n) to O(1), which matters more than time", "Its tiny constant factor beats merge/quick sort overhead at small n", "Short slices are almost always already sorted in practice"]
+  answer: 2
   explanation: >-
     Asymptotic classes only decide the winner for large n. Below a crossover point (empirically around 16–32 elements) the recursive overhead of merge/quick sort exceeds the cost of insertion sort's few dozen comparisons. Its growth class does not change with n, and small slices are not assumed sorted.
 ```

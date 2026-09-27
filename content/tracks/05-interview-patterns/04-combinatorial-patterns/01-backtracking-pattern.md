@@ -320,38 +320,38 @@ hints:
 ```quiz
 - q: >-
     A subsets solution records out.append(path) instead of out.append(path[:]). What is the output for [1, 2]?
-  options: ["[[], [1], [1, 2], [2]], which is correct", "[[1, 2], [1, 2], [1, 2], [1, 2]], the deepest state", "[[], [], [], []], four refs to one emptied list", "An exception, since a list is appended to itself"]
-  answer: 2
+  options: ["An exception, since a list is appended to itself", "[[], [1], [1, 2], [2]], which is correct", "[[1, 2], [1, 2], [1, 2], [1, 2]], the deepest state", "[[], [], [], []], four refs to one emptied list"]
+  answer: 3
   explanation: >-
     path is one shared list mutated by every append and pop. Each recorded entry is a reference to it, and after the recursion unwinds it is empty. Copying at the moment of recording snapshots the state.
 - q: >-
     In Subsets II on sorted input, why is the duplicate skip written as i > start and nums[i] == nums[i - 1] rather than i > 0 and nums[i] == nums[i - 1]?
-  options: ["They are equivalent once the input has been sorted", "i > 0 is correct, and i > start is the actual bug here", "The start version is only needed for permutations", "i > 0 would also skip a copy chosen deeper, losing [2, 2]"]
-  answer: 3
+  options: ["The start version is only needed for permutations", "i > 0 is correct, and i > start is the actual bug here", "i > 0 would also skip a copy chosen deeper, losing [2, 2]", "They are equivalent once the input has been sorted"]
+  answer: 2
   explanation: >-
     Equal values at one level generate identical subtrees, so only the first is taken, and i > start restricts the skip to alternatives at the same level. The second copy is still needed as a continuation of a branch that already took the first, which happens when i == start in the deeper call; i > 0 would skip it there too.
 - q: >-
     Combination Sum allows reusing candidates; Combination Sum II does not and has duplicate candidates. What changes between the two solutions?
-  options: ["Sum II needs a set of tuples to deduplicate its outputs", "i vs i + 1 in the recursive call, plus a duplicate skip", "A completely different algorithm is needed for Sum II", "Sum II switches to DP, since reuse is no longer allowed"]
-  answer: 1
+  options: ["Sum II switches to DP, since reuse is no longer allowed", "Sum II needs a set of tuples to deduplicate its outputs", "A completely different algorithm is needed for Sum II", "i vs i + 1 in the recursive call, plus a duplicate skip"]
+  answer: 3
   explanation: >-
     Reuse is controlled by whether the next call may pick the same index again (i) or must move on (i + 1). Duplicate candidates are handled by the sorted same-level skip, so no output set is needed. Recognising the one-character difference is what makes the second problem fast to solve.
 - q: >-
     In N-Queens, why do the sets keyed by r - c and r + c detect diagonal attacks in O(1)?
-  options: ["They do not; earlier rows must still be scanned each time", "Because the board is symmetric about both of its diagonals", "Because queens on one diagonal always share the same row", "Each diagonal keeps r - c or r + c constant along its cells"]
-  answer: 3
+  options: ["They do not; earlier rows must still be scanned each time", "Each diagonal keeps r - c or r + c constant along its cells", "Because queens on one diagonal always share the same row", "Because the board is symmetric about both of its diagonals"]
+  answer: 1
   explanation: >-
     Moving one step down and one right leaves r - c unchanged; one step down and one left leaves r + c unchanged. So set membership is exactly the attack test, and two sets plus a column set replace an O(n) scan of earlier queens.
 - q: >-
     The interviewer changes Combination Sum to ask only for the number of combinations, with target up to 10,000 and 100 candidates. What should change?
-  options: ["Nothing; backtracking stays the best choice for counting", "Switch to BFS so each combination is counted exactly once", "Use a greedy count that always takes the largest candidate", "Memoise on (index, remaining): DP in O(n · target)"]
-  answer: 3
+  options: ["Memoise on (index, remaining): DP in O(n · target)", "Use a greedy count that always takes the largest candidate", "Switch to BFS so each combination is counted exactly once", "Nothing; backtracking stays the best choice for counting"]
+  answer: 0
   explanation: >-
     Enumeration is forced only when every solution must be output. Here the answer no longer needs each combination, and the state (index, remaining) recurs, so a count over that small state space is dynamic programming (the unbounded-knapsack count), O(candidates * target), where backtracking is exponential.
 - q: >-
     In the find-any form of backtracking (Sudoku), a candidate writes: apply choice; if go() returns True, undo and return True. What goes wrong?
-  options: ["Every frame undoes its move, leaving the board unsolved", "It loops forever, since the undone cells are retried", "It finds every solution instead of stopping at the first", "Nothing; undoing is required on every path out of a frame"]
-  answer: 0
+  options: ["It finds every solution instead of stopping at the first", "It loops forever, since the undone cells are retried", "Nothing; undoing is required on every path out of a frame", "Every frame undoes its move, leaving the board unsolved"]
+  answer: 3
   explanation: >-
     In the find-any form the state on success is the answer. Undoing it on the way out of every frame means the caller receives True but an unsolved board. Return immediately on success without undoing (undo only on the failure path), or copy the solution at the leaf.
 ```

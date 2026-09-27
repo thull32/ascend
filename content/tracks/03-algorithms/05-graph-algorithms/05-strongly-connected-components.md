@@ -267,32 +267,32 @@ hints:
 ```quiz
 - q: >-
     In Kosaraju's algorithm, why are nodes processed in decreasing finish time on the reversed graph, rather than increasing?
-  options: ["The latest finisher is in a source SCC, a sink once reversed", "It keeps the recursion shallow on the reversed graph", "The latest finisher is in a sink SCC, so its DFS stays inside", "Either order works, since each DFS still finds one SCC"]
-  answer: 0
+  options: ["It keeps the recursion shallow on the reversed graph", "The latest finisher is in a source SCC, a sink once reversed", "The latest finisher is in a sink SCC, so its DFS stays inside", "Either order works, since each DFS still finds one SCC"]
+  answer: 1
   explanation: >-
     The first DFS orders components so that sources of the condensation finish last. Reversing edges turns sources into sinks; starting the second DFS from a sink collects exactly that component and cannot leak into others. The latest finisher is in a source of the original graph, not a sink. Increasing order would start from a source of the reversed graph and swallow several components.
 - q: >-
     During Tarjan's DFS, node u has an edge to an already-visited node v that has been popped off the stack. What should happen to low[u]?
-  options: ["Set low[u] = min(low[u], disc[v]), as for any back edge", "Set low[u] = min(low[u], low[v]), as after a tree edge", "Re-push v so its component can be reopened with u", "Nothing, because v's component is already closed"]
-  answer: 3
+  options: ["Nothing, because v's component is already closed", "Re-push v so its component can be reopened with u", "Set low[u] = min(low[u], low[v]), as after a tree edge", "Set low[u] = min(low[u], disc[v]), as for any back edge"]
+  answer: 0
   explanation: >-
     A popped node belongs to a finished SCC, which cannot be part of u's. Updating low[u] from it would incorrectly merge u into a closed component. Only edges to on-stack nodes (open components) update low, and they use disc[v].
 - q: >-
     Tarjan's algorithm outputs components in the order {F}, {D,E}, {A,B,C} for a graph whose condensation is {A,B,C} → {D,E} → {F}. What does this ordering give you for free?
-  options: ["Nothing useful, since emission order depends on the start", "A topological order of the condensation DAG, sources first", "The components sorted by size, smallest first", "A reverse topological order of the condensation DAG"]
-  answer: 3
+  options: ["A reverse topological order of the condensation DAG", "Nothing useful, since emission order depends on the start", "The components sorted by size, smallest first", "A topological order of the condensation DAG, sources first"]
+  answer: 0
   explanation: >-
     A component is emitted only when everything reachable from it has been emitted, so the sequence is a reverse topological order of the condensation: the sink {F} comes first, not the source. Processing components in emission order lets a DAG DP compute values that depend on successors without a separate sort.
 - q: >-
     Which of these problems is 2-SAT and therefore solvable in linear time?
-  options: ["Each job picks slot A or B; given pairs must or must not share", "Pick the fewest jobs so every conflict pair has one picked", "Jobs pick one of three slots; given pairs must not share", "Order the jobs so that every precedence pair is respected"]
+  options: ["Each job picks slot A or B; given pairs must or must not share", "Order the jobs so that every precedence pair is respected", "Jobs pick one of three slots; given pairs must not share", "Pick the fewest jobs so every conflict pair has one picked"]
   answer: 0
   explanation: >-
     Two choices per item with pairwise constraints is 2-SAT: 'must not share' is (a ∨ b) ∧ (¬a ∨ ¬b), 'must share' is (a ∨ ¬b) ∧ (¬a ∨ b). Three slots is 3-colouring-like and NP-hard in general; minimum vertex cover is NP-hard; ordering is topological sort.
 - q: >-
     A condensation DAG has 3 source components and 5 sink components. What is the minimum number of edges to add to make the whole graph strongly connected?
-  options: ["15", "3", "8", "5"]
-  answer: 3
+  options: ["8", "15", "5", "3"]
+  answer: 2
   explanation: >-
     Every source needs an incoming edge and every sink an outgoing one; one added edge from a sink to a source fixes one of each, so max(sources, sinks) = 5 edges are necessary, and a matching argument shows they suffice.
 ```

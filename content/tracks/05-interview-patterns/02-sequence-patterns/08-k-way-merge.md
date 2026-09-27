@@ -290,14 +290,14 @@ hints:
 ```quiz
 - q: >-
     Merging k sorted lists with N total elements by merging list 1 into list 2, then the result into list 3, and so on, costs:
-  options: ["O(k log N)", "O(N · k)", "O(N log N)", "O(N log k)"]
-  answer: 1
+  options: ["O(k log N)", "O(N log k)", "O(N · k)", "O(N log N)"]
+  answer: 2
   explanation: >-
     The i-th merge touches all elements merged so far, so the first list's elements are copied about k times. The heap version and the pairwise divide-and-conquer version are both O(N log k).
 - q: >-
     Why does the Python heap entry for a linked-list merge need the list index between the value and the node?
-  options: ["Because heapq only accepts three-element tuples", "To make equal values come out in a stable order", "To record which of the k lists has run out of nodes", "On ties Python would compare the unorderable nodes"]
-  answer: 3
+  options: ["On ties Python would compare the unorderable nodes", "Because heapq only accepts three-element tuples", "To record which of the k lists has run out of nodes", "To make equal values come out in a stable order"]
+  answer: 0
   explanation: >-
     Tuple comparison falls through to the second field on ties. An integer index resolves the tie before the node is ever compared, which matters because ListNode objects are not orderable; stability is a side effect, not the reason.
 - q: >-
@@ -308,14 +308,14 @@ hints:
     The heap costs O(k log n) with k about n²/2. Binary search on the value, counting cells ≤ mid with an O(n) staircase walk, costs O(n log 10⁹) ≈ 30n cell visits with O(1) space. Flattening is O(n² log n²) and quickselect O(n²) with a copy.
 - q: >-
     In the smallest-range problem, why is advancing the list that owns the current minimum the only sensible move?
-  options: ["Lists must be advanced in index order to stay valid", "It keeps the heap balanced across all k lists", "Raising the min is the only way to narrow the range", "It is the cheapest heap operation available"]
-  answer: 2
+  options: ["Raising the min is the only way to narrow the range", "Lists must be advanced in index order to stay valid", "It keeps the heap balanced across all k lists", "It is the cheapest heap operation available"]
+  answer: 0
   explanation: >-
     The range is [min of heads, max of heads]. Advancing a non-minimum list leaves the min unchanged and can only increase the max. Advancing the minimum's list may raise the min while every list stays represented, which is the only route to a smaller width.
 - q: >-
     A query router receives sorted result pages from 40 shards and must return the first 50 results in order. The right cost to quote is:
-  options: ["O(2000 log 40)", "O(2000 log 2000)", "O(40 + 50 log 40)", "O(50 + 40 log 50)"]
-  answer: 2
+  options: ["O(50 + 40 log 50)", "O(2000 log 2000)", "O(2000 log 40)", "O(40 + 50 log 40)"]
+  answer: 3
   explanation: >-
     Seed the heap with 40 heads (O(40) with heapify), then pop 50 times at O(log 40) each. The heap is sized by the number of shards, not the page length, and you never merge all 2000 candidates; stopping early is the point of the heap version.
 ```

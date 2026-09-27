@@ -187,32 +187,32 @@ Same bytes, same server code, twenty times faster. Every line item is a round tr
 ```quiz
 - q: >-
     A single TCP connection between two data centres with a 100 ms RTT is transferring at 5 Mbit/s on a 10 Gbit/s link with zero packet loss. The most likely limiting factor is:
-  options: ["The link is saturated by other traffic", "The receive window is capped at 64 KB", "Propagation delay of the fibre", "The application is CPU-bound"]
-  answer: 1
+  options: ["Propagation delay of the fibre", "The application is CPU-bound", "The receive window is capped at 64 KB", "The link is saturated by other traffic"]
+  answer: 2
   explanation: >-
     64 KB / 0.1 s = 640 KB/s ≈ 5 Mbit/s, exactly the observed rate. Zero loss rules out congestion; propagation sets the RTT but not the throughput ceiling for a given window. Check the advertised window and window scaling in the capture.
 - q: >-
     A page fans out to 50 backends in parallel; each has a 2% chance of exceeding 200 ms. Roughly what fraction of page loads take over 200 ms?
-  options: ["About 64%", "About 2%", "About 100%", "About 36%"]
-  answer: 0
+  options: ["About 36%", "About 100%", "About 64%", "About 2%"]
+  answer: 2
   explanation: >-
     P(all fast) = 0.98^50 ≈ 0.36, so about 64% of pages wait on at least one slow backend. The tail of the whole is far worse than the tail of any part, which is what motivates hedged requests.
 - q: >-
     Your API handles 2,000 requests per second with a mean latency of 50 ms. A downstream slowdown pushes mean latency to 250 ms. How many requests are in flight afterwards?
-  options: ["250", "2,000", "100", "500"]
-  answer: 3
+  options: ["2,000", "500", "100", "250"]
+  answer: 1
   explanation: >-
     Little's law: L = λW = 2,000 × 0.25 = 500, up from 100. Any pool or thread limit sized for the old number now queues, adding more latency.
 - q: >-
     You move a 1 MB API response from a cold connection to a pooled, warm connection over the same 70 ms path. Which saving is largest?
-  options: ["Skipping slow start, since cwnd has grown", "Skipping the TCP and TLS handshakes (2 RTTs)", "Removing the DNS lookup from the request", "Lower transmission delay for the 1 MB body"]
+  options: ["Skipping slow start, since cwnd has grown", "Removing the DNS lookup from the request", "Lower transmission delay for the 1 MB body", "Skipping the TCP and TLS handshakes (2 RTTs)"]
   answer: 0
   explanation: >-
     Handshakes save 2 RTTs (140 ms). A grown congestion window can deliver the megabyte in one or two RTTs instead of seven, saving around 5 RTTs (350 ms). DNS is at most one RTT, and transmission delay is 8 ms either way.
 - q: >-
     Which of these is unaffected by moving your servers closer to users?
-  options: ["Serialising a 1,500-byte packet at 1 Gbit/s", "Propagation delay on the path to users", "The wall-clock duration of slow start", "The cost in milliseconds of each handshake round trip"]
-  answer: 0
+  options: ["The cost in milliseconds of each handshake round trip", "Propagation delay on the path to users", "The wall-clock duration of slow start", "Serialising a 1,500-byte packet at 1 Gbit/s"]
+  answer: 3
   explanation: >-
     Transmission delay depends only on size and link bandwidth. Everything measured in round trips shrinks with distance, which is why proximity helps handshakes and slow start but not raw serialisation.
 ```

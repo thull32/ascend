@@ -274,32 +274,32 @@ hints:
 ```quiz
 - q: >-
     A trie contains "cart" and nothing else. What do search("car") and starts_with("car") return?
-  options: ["false, true", "false, false", "true, true", "true, false"]
+  options: ["false, true", "true, false", "false, false", "true, true"]
   answer: 0
   explanation: >-
     The path c-a-r exists (it is a prefix of cart) but the node it reaches is not marked terminal, so search is false and starts_with is true. Confusing the two is the canonical trie bug.
 - q: >-
     Why is a plain trie with a 26-pointer array per node usually larger than a hash set of the same words?
-  options: ["Most nodes have one child, so ~25 of 26 pointers sit null, and there is a node per character", "Shared prefixes are copied at every branch point, so popular prefixes end up stored many times", "Hash sets compress their keys into one shared buffer, so they use less than the raw text", "Each node also stores the full key string, so every word is duplicated along its path"]
-  answer: 0
+  options: ["Hash sets compress their keys into one shared buffer, so they use less than the raw text", "Shared prefixes are copied at every branch point, so popular prefixes end up stored many times", "Most nodes have one child, so ~25 of 26 pointers sit null, and there is a node per character", "Each node also stores the full key string, so every word is duplicated along its path"]
+  answer: 2
   explanation: >-
     Prefix sharing saves a little near the root, but the bulk of nodes are near the leaves with a single child each, and each pays for a full 208-byte pointer array. Nothing is duplicated: a trie stores each shared prefix exactly once, which is why the intuition that it saves memory is so tempting. Compact child vectors and path compression recover the memory.
 - q: >-
     An HTTP router with 5,000 registered routes matches an incoming path using a radix tree. The match cost is proportional to:
-  options: ["The number of registered routes", "The length of the request path", "Path length times the number of routes", "The log of the number of registered routes"]
+  options: ["Path length times the number of routes", "The length of the request path", "The log of the number of registered routes", "The number of registered routes"]
   answer: 1
   explanation: >-
     A radix walk consumes the path one edge label at a time; the number of registered routes affects only the branching at each node, which is bounded by the alphabet. It is not logarithmic in the route count either: that would be a sorted-array binary search. This is why routers can register thousands of routes at no per-request cost.
 - q: >-
     In word-search-ii, why does putting the dictionary in a trie and backtracking once per grid cell beat backtracking once per word?
-  options: ["The trie indexes the grid's letters, so each cell's neighbours are found in O(1) time", "The trie makes each grid step O(1) instead of O(L), because no word is compared per step", "The trie removes the need for a visited set, because a grid path can never revisit a trie node", "One grid traversal serves every word, and a path is cut off as soon as it leaves the trie"]
-  answer: 3
+  options: ["The trie removes the need for a visited set, because a grid path can never revisit a trie node", "One grid traversal serves every word, and a path is cut off as soon as it leaves the trie", "The trie makes each grid step O(1) instead of O(L), because no word is compared per step", "The trie indexes the grid's letters, so each cell's neighbours are found in O(1) time"]
+  answer: 1
   explanation: >-
     Per-word backtracking repeats the same grid exploration thousands of times. With a trie, one exploration serves all words, and any path whose prefix is not in the dictionary is pruned immediately. A visited set is still required, because the grid path can loop back to a cell even while the trie walk moves strictly downward.
 - q: >-
     You need "all keys with prefix p" over a static set of 10 million short strings, with minimal memory, in Rust. The pragmatic choice is:
-  options: ["A sorted Vec or BTreeMap, range-scanning from p until keys stop matching", "A hand-written trie with HashMap children, walking to p then enumerating", "A HashSet of the keys, scanning every key and testing whether it starts with p", "A min-heap of the keys, popping in order until a key no longer starts with p"]
-  answer: 0
+  options: ["A hand-written trie with HashMap children, walking to p then enumerating", "A HashSet of the keys, scanning every key and testing whether it starts with p", "A min-heap of the keys, popping in order until a key no longer starts with p", "A sorted Vec or BTreeMap, range-scanning from p until keys stop matching"]
+  answer: 3
   explanation: >-
     Sorted storage gives O(L log n + output) prefix enumeration with near-zero overhead per key. A trie gives O(L + output) but costs far more memory, especially with a HashMap per node; for a static set the log factor is a bargain.
 ```

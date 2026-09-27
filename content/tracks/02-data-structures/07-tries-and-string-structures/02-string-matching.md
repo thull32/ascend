@@ -284,32 +284,32 @@ hints:
 ```quiz
 - q: >-
     On which input does the naive string search do its worst-case O(nm) work?
-  options: ["Text of all a's and a pattern of a's ending in b", "Text of all a's and a pattern of b's ending in a", "Random text over a small alphabet and a random pattern", "A pattern whose first character never appears in the text"]
-  answer: 0
+  options: ["Random text over a small alphabet and a random pattern", "Text of all a's and a pattern of a's ending in b", "A pattern whose first character never appears in the text", "Text of all a's and a pattern of b's ending in a"]
+  answer: 1
   explanation: >-
     Every alignment matches m-1 characters before failing on the final b, so all n alignments cost about m each. Swapping the letters (b's ending in a) fails on the first character at every alignment, which is O(n). Random inputs also fail almost immediately, and a pattern whose first character never appears fails on the first comparison at every alignment, which is O(n) in total.
 - q: >-
     The KMP inner while loop can execute several times for a single text character. Why is the overall search still O(n + m)?
-  options: ["j grows at most once per text character, and every inner iteration makes j smaller", "Mismatches after a partial match are rare, so the fall-back chain is short on average", "The failure table is precomputed, so each fall-back step is a single O(1) table lookup", "The inner loop runs only on a mismatch, and every mismatch moves the text index forward"]
-  answer: 0
+  options: ["The failure table is precomputed, so each fall-back step is a single O(1) table lookup", "j grows at most once per text character, and every inner iteration makes j smaller", "The inner loop runs only on a mismatch, and every mismatch moves the text index forward", "Mismatches after a partial match are rare, so the fall-back chain is short on average"]
+  answer: 1
   explanation: >-
     This is an amortised argument: j increases by at most 1 per text character, every inner iteration strictly decreases it, and j never goes below zero, so there are at most n decrements in total. Precomputing the table makes each fall-back step O(1), but on its own says nothing about how many steps there are; the bound is worst case, not a claim about typical input.
 - q: >-
     A Rabin-Karp implementation returns a match whenever the window hash equals the pattern hash, with no character comparison. What is the consequence?
-  options: ["False positives whenever two different windows collide on the hash", "Nothing, because a hash modulo a large prime is unique per window", "Missed matches when the rolling update wraps around the modulus", "Missed matches wherever two occurrences of the pattern overlap"]
-  answer: 0
+  options: ["Missed matches when the rolling update wraps around the modulus", "False positives whenever two different windows collide on the hash", "Missed matches wherever two occurrences of the pattern overlap", "Nothing, because a hash modulo a large prime is unique per window"]
+  answer: 1
   explanation: >-
     Hashes map a large space to a small one, so collisions exist, and with a fixed base and modulus an adversary can construct colliding windows deliberately. The modular rolling update is exact, so a true occurrence always hashes equal and is never missed; the error is only ever a false positive. Verify on hash match, or use a randomised base and a 64-bit modulus and accept a stated error probability.
 - q: >-
     For the string s of length n with failure array lps, when is s a repetition of a shorter string?
-  options: ["When every lps value after index 0 is non-zero", "When lps[n-1] == n/2, so the two halves are equal", "When p = n - lps[n-1] divides n and p < n", "When lps[n-1] > 0, i.e. s has a non-empty border"]
-  answer: 2
+  options: ["When p = n - lps[n-1] divides n and p < n", "When lps[n-1] > 0, i.e. s has a non-empty border", "When lps[n-1] == n/2, so the two halves are equal", "When every lps value after index 0 is non-zero"]
+  answer: 0
   explanation: >-
     n - lps[n-1] is the smallest period of s. The string is a whole number of repetitions exactly when that period divides n; lps[n-1] > 0 alone only says some border exists (abcab has one but is not periodic), and abcabcabc is periodic with lps[n-1] = 6, not n/2.
 - q: >-
     Python's str.find, glibc's memmem and Rust's str::find do not use KMP. What do they use and why?
-  options: ["Naive search with a SIMD first-byte scan, fast on typical text but O(nm) in the worst case", "Rabin-Karp rolling hashes, which scan at memory bandwidth with O(1) extra space", "Suffix arrays built over the text, which answer each query in O(m log n) time", "Horspool-style skipping and Two-Way, sublinear on typical text with a linear worst case"]
-  answer: 3
+  options: ["Horspool-style skipping and Two-Way, sublinear on typical text with a linear worst case", "Suffix arrays built over the text, which answer each query in O(m log n) time", "Rabin-Karp rolling hashes, which scan at memory bandwidth with O(1) extra space", "Naive search with a SIMD first-byte scan, fast on typical text but O(nm) in the worst case"]
+  answer: 0
   explanation: >-
     KMP examines every text character. Skip-based algorithms jump over most of the text on large alphabets, and Two-Way provides the linear worst-case guarantee with O(1) extra memory. Naive-plus-memchr is Java's indexOf and Rabin-Karp is Go's medium-pattern path, but these three libraries chose Two-Way precisely to avoid the naive worst case. KMP's value is its guarantee and its failure function, not raw speed.
 ```

@@ -245,26 +245,26 @@ hints:
     Each position agrees with probability equal to the Jaccard similarity, independent of set sizes. 0.36 = 0.6² is the probability that two positions both agree; 0.77 = √0.6 plays no role here.
 - q: >-
     Your LSH uses 20 bands of 5 rows. Pairs at similarity 0.4 become candidates about 19% of the time, and you cannot afford the verification cost. What is the cheapest change?
-  options: ["Use a larger shingle size", "Use exact Jaccard on all pairs", "Use more bands of 5 rows each", "Use more rows in each band"]
-  answer: 3
+  options: ["Use more bands of 5 rows each", "Use more rows in each band", "Use a larger shingle size", "Use exact Jaccard on all pairs"]
+  answer: 1
   explanation: >-
     More rows per band lowers s^r for every s below 1, which pushes the S-curve threshold up and suppresses low-similarity candidates. More bands does the opposite. Shingle size changes what similarity means, not the LSH curve, and exact Jaccard on all pairs is the cost LSH exists to avoid.
 - q: >-
     Why does banding produce false negatives, and how do you reduce them?
-  options: ["They come from the verification step; skip verification", "Hash collisions hide similar pairs; use a stronger hash", "A similar pair can miss in all bands; add or shorten bands", "MinHash underestimates similarity; use more hash functions"]
-  answer: 2
+  options: ["They come from the verification step; skip verification", "A similar pair can miss in all bands; add or shorten bands", "Hash collisions hide similar pairs; use a stronger hash", "MinHash underestimates similarity; use more hash functions"]
+  answer: 1
   explanation: >-
     A pair at similarity s agrees in a band with probability s^r; if that fails in all b bands the pair is never a candidate. More bands (or fewer rows per band) raise 1 − (1 − s^r)^b at the cost of more false positives, which verification then filters. MinHash itself is an unbiased estimate of similarity, so more hash functions alone do not fix it.
 - q: >-
     You need the near-duplicate pairs among 2 billion web pages in a nightly batch job. Which approach fits?
-  options: ["Compare every pair with exact Jaccard on a large cluster", "MinHash over shingles, bucket by band, verify candidates", "Build an HNSW index over page embeddings and query each page", "Sort pages by length and compare adjacent neighbours"]
-  answer: 1
+  options: ["MinHash over shingles, bucket by band, verify candidates", "Compare every pair with exact Jaccard on a large cluster", "Build an HNSW index over page embeddings and query each page", "Sort pages by length and compare adjacent neighbours"]
+  answer: 0
   explanation: >-
     Banding turns the problem into a group-by on (band, bucket), which a batch engine shuffles efficiently, and Jaccard on shingles is the right similarity for near-duplicate text. HNSW is a query-time structure for vector nearest neighbours, not a batch join over sets. Pairwise is 2 × 10^18 comparisons.
 - q: >-
     Random-hyperplane hashing produces one bit per hyperplane. What does the fraction of agreeing bits between two vectors estimate?
-  options: ["The Jaccard similarity of their nonzero coordinates", "1 − θ/π, where θ is the angle between them", "Their dot product, normalised to lie in [0, 1]", "Their Euclidean distance, normalised by length"]
-  answer: 1
+  options: ["1 − θ/π, where θ is the angle between them", "The Jaccard similarity of their nonzero coordinates", "Their dot product, normalised to lie in [0, 1]", "Their Euclidean distance, normalised by length"]
+  answer: 0
   explanation: >-
     Two vectors fall on the same side of a random hyperplane with probability 1 − θ/π. That is a monotone function of cosine similarity, which is why SimHash fingerprints work for near-duplicate detection, but it is not the cosine value (the normalised dot product) itself.
 ```

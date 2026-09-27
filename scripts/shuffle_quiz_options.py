@@ -2,8 +2,9 @@
 """Deterministically shuffle quiz options so correct answers are spread
 evenly across positions, then rewrite each quiz block in canonical form.
 
-The permutation is seeded by the question text, so re-running is stable and
-diffs stay small. Explanations never refer to options by position (the UI
+The order is a function of the question text and the set of options only
+(options are sorted, then permuted by a seeded RNG), so re-running is a no-op
+and `--check` can guard it in CI. Explanations never refer to options by position (the UI
 shows no letters), so reordering is safe.
 
 Usage: python3 scripts/shuffle_quiz_options.py [--check] [paths...]
@@ -43,10 +44,10 @@ def render(questions: list[dict]) -> str:
 def shuffle(q: dict) -> dict:
     opts = [str(o) for o in q["options"]]
     correct = opts[int(q["answer"])]
-    rng = random.Random(int(hashlib.sha256(str(q["q"]).encode()).hexdigest(), 16))
-    order = list(range(len(opts)))
-    rng.shuffle(order)
-    new_opts = [opts[i] for i in order]
+    # Start from a canonical order so the result does not depend on the order
+    # the options happen to be in: shuffling twice must equal shuffling once.
+    new_opts = sorted(opts)
+    random.Random(int(hashlib.sha256(str(q["q"]).encode()).hexdigest(), 16)).shuffle(new_opts)
     return {**q, "options": new_opts, "answer": new_opts.index(correct)}
 
 

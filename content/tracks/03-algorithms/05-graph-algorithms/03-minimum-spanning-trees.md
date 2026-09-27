@@ -285,32 +285,32 @@ hints:
 ```quiz
 - q: >-
     All edge weights in a connected graph are distinct. How many minimum spanning trees does it have?
-  options: ["Exactly one", "At least one per node", "It depends on the graph's cycles", "One per connected cut"]
-  answer: 0
+  options: ["At least one per node", "Exactly one", "It depends on the graph's cycles", "One per connected cut"]
+  answer: 1
   explanation: >-
     With distinct weights the lightest crossing edge of every cut is unique, and the exchange argument shows any MST must contain it. Two different MSTs would disagree on some cut's lightest edge, which is impossible. Ties are the only source of multiple MSTs.
 - q: >-
     You need to connect 5,000 points in the plane with minimum total wire length; any two points may be joined directly. Which implementation is best?
-  options: ["Dijkstra from any point, O(E log V)", "Kruskal on all 12.5M edges, O(E log E)", "Prim with a binary heap, O(E log V)", "Prim with a best[] array scan, O(V²)"]
+  options: ["Prim with a binary heap, O(E log V)", "Dijkstra from any point, O(E log V)", "Kruskal on all 12.5M edges, O(E log E)", "Prim with a best[] array scan, O(V²)"]
   answer: 3
   explanation: >-
     The graph is complete, so E = V²/2 and O(V²) is already linear in the number of edges. Kruskal has to sort 12.5M edges and Prim-with-heap pays log factors on the same 12.5M pushes. The array version does 25M cheap operations with no allocation. Dijkstra builds a shortest-path tree, which is not an MST.
 - q: >-
     The MST of a graph contains the path A–C–E–D. Is A–C–E–D necessarily the shortest path from A to D?
-  options: ["No, because the MST minimises total weight, not each path", "Yes, because an MST path minimises its heaviest edge", "Yes, provided all edge weights are distinct so it is unique", "Yes, because every MST edge lies on some shortest path"]
-  answer: 0
+  options: ["Yes, because an MST path minimises its heaviest edge", "Yes, provided all edge weights are distinct so it is unique", "Yes, because every MST edge lies on some shortest path", "No, because the MST minimises total weight, not each path"]
+  answer: 3
   explanation: >-
     In the lesson's graph the MST path A–C–E–D costs 11 while A–C–D costs 10. The objectives differ: MST is a global sum, shortest path is per-pair, and uniqueness does not change that. The MST does minimise the heaviest edge on the path (bottleneck), which is a different guarantee from minimising the path's total.
 - q: >-
     Running Kruskal, you stop as soon as there are exactly k components left. What have you computed?
-  options: ["A k-approximation of the MST's total weight", "Complete-linkage clustering into k clusters", "Nothing useful; Kruskal must run to completion", "Single-linkage clustering into k clusters"]
-  answer: 3
+  options: ["A k-approximation of the MST's total weight", "Complete-linkage clustering into k clusters", "Single-linkage clustering into k clusters", "Nothing useful; Kruskal must run to completion"]
+  answer: 2
   explanation: >-
     Each Kruskal merge joins the two components with the closest pair of points, exactly single-linkage agglomerative clustering; complete-linkage would merge on the farthest pair instead. Stopping at k components leaves the k − 1 heaviest MST edges unused, and the lightest of those is the distance between the two closest clusters, which this clustering maximises.
 - q: >-
     Which operation is the reason union-find is the natural partner for Kruskal?
-  options: ["Sorting the edge list faster than a comparison sort", "Checking and merging components in near-constant time", "Finding the lightest remaining edge in near-constant time", "Detecting negative-weight edges before they are added"]
-  answer: 1
+  options: ["Finding the lightest remaining edge in near-constant time", "Detecting negative-weight edges before they are added", "Checking and merging components in near-constant time", "Sorting the edge list faster than a comparison sort"]
+  answer: 2
   explanation: >-
     Kruskal's only per-edge question is whether the endpoints are in the same tree; union-find answers it and merges in amortised near-constant time. The lightest edge comes from the sort, which is done separately and dominates the total cost.
 ```

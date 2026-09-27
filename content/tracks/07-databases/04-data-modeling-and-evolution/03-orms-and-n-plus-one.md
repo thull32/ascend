@@ -227,7 +227,6 @@ Session and user in one primary-key join, one round trip on the hottest path in 
 ```rust
 // Upsert returning the row: one statement, one round trip, no
 // read-modify-write race.
-super::activity::record(&self.db, user_id).await?;
 let row = LessonProgress::insert(model)
     .on_conflict(
         sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
@@ -240,6 +239,8 @@ let row = LessonProgress::insert(model)
     )
     .exec_with_returning(&self.db)
     .await?;
+// Only saved progress counts toward today's streak.
+super::activity::record(&self.db, user_id).await?;
 Ok(row)
 ```
 
@@ -255,7 +256,7 @@ ON CONFLICT ("user_id", "lesson_slug") DO UPDATE SET
 RETURNING "user_id", "lesson_slug", "status", "completed_at", "created_at", "updated_at"
 ```
 
-The ORM-shaped alternative, "find the row; if it exists update it, else insert it", is two or three round trips and a race: two tabs marking the same lesson complete at the same moment both find nothing and both insert, and one fails on the primary key. `ON CONFLICT` makes the unique index arbitrate atomically. Two details are deliberate: `created_at` is not in `update_columns`, so the first-seen time survives every later update; and `excluded` refers to the row that was proposed for insertion. `set_module_preference` uses the same pattern. The `activity::record` call before it is the same idea again: `INSERT INTO activity_days ... ON CONFLICT DO NOTHING` marks today as an active day for the streak, and repeating it on the same day changes nothing. The two statements are not in one transaction, which is acceptable here: if the upsert fails after the activity row lands, the only effect is a streak day for a click that did not save.
+The ORM-shaped alternative, "find the row; if it exists update it, else insert it", is two or three round trips and a race: two tabs marking the same lesson complete at the same moment both find nothing and both insert, and one fails on the primary key. `ON CONFLICT` makes the unique index arbitrate atomically. Two details are deliberate: `created_at` is not in `update_columns`, so the first-seen time survives every later update; and `excluded` refers to the row that was proposed for insertion. `set_module_preference` uses the same pattern. The `activity::record` call after it is the same idea again: `INSERT INTO activity_days ... ON CONFLICT DO NOTHING` marks today as an active day for the streak, and repeating it on the same day changes nothing. It used to run *before* the upsert, so a click whose upsert failed still earned a streak day; it now runs after, so only saved progress counts. The two statements are still not in one transaction, and the order decides which failure is possible: if the activity insert fails after the upsert, the request reports an error for progress that was saved, and a retry is harmless because the upsert is idempotent.
 
 This used to be two round trips. The first version called `.exec(&self.db)`, which returns only the primary key (`RETURNING "user_id", "lesson_slug"`), and then ran `LessonProgress::find_by_id(...)` to read the row back for the response. That doubled the database work on every progress click, and the pair was not atomic: another tab's write could land in between, so the response could describe a state this request never produced. `exec_with_returning` lists every column in `RETURNING` and gets the row back from the same statement, as it stands after the upsert (so `created_at` is the original first-seen time, not the proposed one). The general habit: when a write is followed by a read of the same row, ask whether the write can return it.
 
@@ -313,7 +314,7 @@ Forty million calls of a 0.011 ms query, one row each, for about a million comme
 
 ## Other ORM traps
 
-- **Read-modify-write in objects.** `progress.attempts += 1; progress.save()` reads, increments in memory and writes back: a lost update under concurrency ([isolation levels](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies)). Use an atomic `UPDATE ... SET attempts = attempts + 1` or an upsert. SeaORM narrows the damage by writing only the columns you `Set`: `CommentService::delete` sets `body` and `deleted_at`, and the resulting statement is `UPDATE "comments" SET "body" = $1, "deleted_at" = $2 WHERE "comments"."id" = $3` (plus `RETURNING` on Postgres), not a rewrite of every column. Django's `save()` writes every field unless you pass `update_fields`.
+- **Read-modify-write in objects.** `progress.attempts += 1; progress.save()` reads, increments in memory and writes back: a lost update under concurrency ([isolation levels](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies)). Use an atomic `UPDATE ... SET attempts = attempts + 1` or an upsert. SeaORM narrows the damage by writing only the columns you `Set`: `CommentService::delete` sets `body`, `deleted_at` and `updated_at`, and the resulting statement is `UPDATE "comments" SET "body" = $1, "deleted_at" = $2, "updated_at" = $3 WHERE "comments"."id" = $4` (plus `RETURNING` on Postgres), not a rewrite of every column. The flip side is that a column you forget to `Set` is not touched: the soft delete once left `updated_at` at the creation time, because the column's database default applies only on `INSERT`. Django's `save()` writes every field unless you pass `update_fields`.
 - **Check, then act, in two round trips.** The same `delete` first loads the comment to check ownership, then updates it. For a soft delete the gap between the two is harmless. For anything where it is not, fold the check into the write: `UPDATE ... WHERE id = $1 AND user_id = $2 RETURNING id`, and treat zero rows as "not found or not yours".
 - **Implicit transactions, or none.** Each ORM `save()` may be its own transaction. Two saves that must succeed together need an explicit transaction (`db.begin()` in SeaORM).
 - **Loading to count.** `len(Comment.objects.filter(...))` fetches every row to count them; `.count()` sends `SELECT count(*)`. The same applies to existence checks (`exists()` versus loading a row).
@@ -430,32 +431,32 @@ hints:
 ```quiz
 - q: >-
     A page renders 200 orders with each order's customer name. It issues 201 queries, each under 0.1 ms in Postgres, and the endpoint takes 120 ms. Where does the time go?
-  options: ["Serialising 200 orders and their customer names to JSON on the hot response path", "Fixed per-query costs (round trip, pool acquire, ORM work) paid 200 times over", "The orders query needs an index on customer_id to avoid a sequential scan", "Postgres is slow at primary-key lookups once a table holds millions of rows"]
-  answer: 1
+  options: ["The orders query needs an index on customer_id to avoid a sequential scan", "Serialising 200 orders and their customer names to JSON on the hot response path", "Postgres is slow at primary-key lookups once a table holds millions of rows", "Fixed per-query costs (round trip, pool acquire, ORM work) paid 200 times over"]
+  answer: 3
   explanation: >-
     Each lazy load pays a network round trip, a pool acquire and client-side ORM work that dwarf the execution time; the question already says each query runs in under 0.1 ms, so no index or Postgres tuning can recover 120 ms. Two queries (orders, then customers WHERE id = ANY($1)) or one join replace 201 round trips with one or two.
 - q: >-
     You need blog posts with their comments and their tags. Why is one query joining posts to both comments and tags a poor choice?
-  options: ["Tags must be stored as an array column, so they cannot be joined like rows", "Postgres cannot join more than two tables in one query without a subquery", "Two to-many joins return comments × tags rows for each post, duplicating the data", "Joins cannot use indexes on to-many relations, so each join scans both tables"]
+  options: ["Tags must be stored as an array column, so they cannot be joined like rows", "Joins cannot use indexes on to-many relations, so each join scans both tables", "Two to-many joins return comments × tags rows for each post, duplicating the data", "Postgres cannot join more than two tables in one query without a subquery"]
   answer: 2
   explanation: >-
     Joining a parent to two independent to-many relations produces their cartesian product: 20 comments and 10 tags yield 200 rows for one post, which the ORM must then deduplicate. Postgres joins many tables happily and uses indexes for each join; the problem is the shape of the result. Batch-load each relation separately or aggregate with json_agg to keep the result proportional to the data.
 - q: >-
     The first version of this app's CommentService::list used find_also_related(Users). What SQL did that generate, and what was the fair review comment?
-  options: ["A recursive CTE that threaded replies in SQL; the fix was threading in memory", "Two queries, one per table, joined in memory; the fix was a single database-side join", "N+1: one lazy load per comment to fetch its author; the fix was a single join", "One LEFT JOIN, not N+1, but it selected every users column, password_hash included"]
-  answer: 3
+  options: ["Two queries, one per table, joined in memory; the fix was a single database-side join", "One LEFT JOIN, not N+1, but it selected every users column, password_hash included", "N+1: one lazy load per comment to fetch its author; the fix was a single join", "A recursive CTE that threaded replies in SQL; the fix was threading in memory"]
+  answer: 1
   explanation: >-
     find_also_related is a single left join with prefixed column aliases, served by the (target_kind, target_slug, created_at) index, so the query count was already right and calling it N+1 misreads it. The projection was wider than necessary: every users column, including email and password_hash, when only display_name was used. That costs memory and is a defence-in-depth concern on a public endpoint. The current code selects only the comment's columns plus users.display_name (select_only, column_as) into a dedicated CommentRow struct.
 - q: >-
     Why does ProgressService::set_lesson_status use INSERT ... ON CONFLICT DO UPDATE instead of reading the row and choosing between insert and update?
-  options: ["The unique index arbitrates concurrent writers, so two requests cannot both insert", "SeaORM cannot update rows whose primary key spans two columns, like this one", "An upsert skips the write-ahead log when the row already holds the same values", "ON CONFLICT is parsed and planned only once, so it is faster than a separate SELECT"]
-  answer: 0
+  options: ["ON CONFLICT is parsed and planned only once, so it is faster than a separate SELECT", "An upsert skips the write-ahead log when the row already holds the same values", "The unique index arbitrates concurrent writers, so two requests cannot both insert", "SeaORM cannot update rows whose primary key spans two columns, like this one"]
+  answer: 2
   explanation: >-
     Read-then-write is a race: both requests can see no row and both insert, and one fails. An upsert makes the conflict check and the write one atomic statement, and it saves round trips as a side effect, which is a bonus rather than the reason. It still writes WAL like any other update. Leaving created_at out of update_columns also preserves the original timestamp.
 - q: >-
     pg_stat_statements shows SELECT ... FROM users WHERE id = $1 with 50 million calls, 0.01 ms mean time, and rows equal to calls, while the service handles about 1 million requests in the same period. What does that suggest?
-  options: ["Normal behaviour: each request authenticates, which looks up the user by id", "The users table needs a better index, since every call reads a single row", "The prepared-statement cache is too small, so the query text is re-sent each time", "N+1: about 50 single-row lookups per request, hidden because each one is fast"]
-  answer: 3
+  options: ["The prepared-statement cache is too small, so the query text is re-sent each time", "N+1: about 50 single-row lookups per request, hidden because each one is fast", "Normal behaviour: each request authenticates, which looks up the user by id", "The users table needs a better index, since every call reads a single row"]
+  answer: 1
   explanation: >-
     A cheap single-row statement whose call count is a large multiple of the request count is the fingerprint of per-row lazy loading. Authentication would account for about one lookup per request, not fifty, and a 0.01 ms mean says the index is already fine. Sorting pg_stat_statements by calls, not by mean time, is how you find it.
 ```

@@ -308,32 +308,32 @@ hints:
 ```quiz
 - q: >-
     A colleague proposes serialising a binary tree as its preorder traversal, with values only. What is the problem?
-  options: ["Preorder costs O(n log n), too slow for large trees", "Different trees share a preorder, so it cannot be rebuilt", "Preorder emits the root last, so the root cannot be found", "It fails on duplicate values but is fine for distinct ones"]
-  answer: 1
+  options: ["Different trees share a preorder, so it cannot be rebuilt", "It fails on duplicate values but is fine for distinct ones", "Preorder costs O(n log n), too slow for large trees", "Preorder emits the root last, so the root cannot be found"]
+  answer: 0
   explanation: >-
     A root with only a left child and a root with only a right child produce the same value sequence, even with all values distinct, so the tree cannot be rebuilt exactly. Null markers, or a second traversal, resolve the ambiguity; markers are simpler and also survive duplicate values. Preorder is O(n) and emits the root first.
 - q: >-
     A preorder serialisation with null markers of a tree with 1,000 nodes contains how many tokens?
-  options: ["1,000, one token per node only", "1,999, one per node and one per edge", "1,000 to 2,001, depending on shape", "2,001, one per node and one per null"]
-  answer: 3
+  options: ["1,000 to 2,001, depending on shape", "1,000, one token per node only", "2,001, one per node and one per null", "1,999, one per node and one per edge"]
+  answer: 2
   explanation: >-
     Every binary tree with n nodes has exactly n + 1 null child pointers, regardless of shape, so the encoding has n + (n + 1) = 2n + 1 tokens. Edges (n - 1) are implied by the order and are not emitted.
 - q: >-
     You have 200,000 rows with id and parent_id and need each node's depth. Which approach is O(n)?
-  options: ["For each node, follow parent_id up to the root and count", "Build children lists in one pass, then BFS assigning depths", "Sort by parent_id, then binary search for each node's children", "Issue one SELECT per node to fetch its parent's depth"]
-  answer: 1
+  options: ["Build children lists in one pass, then BFS assigning depths", "For each node, follow parent_id up to the root and count", "Issue one SELECT per node to fetch its parent's depth", "Sort by parent_id, then binary search for each node's children"]
+  answer: 0
   explanation: >-
     Following parents per node is O(n · depth), which is O(n²) on a chain. The children-list build plus one BFS from the root (depth = parent depth + 1) touches each node a constant number of times. Note that memoising the walk-up approach also gets to O(n), but the BFS is the standard form.
 - q: >-
     Checking whether tree s is a subtree of tree t by testing whether ser(s) is a substring of ser(t) requires:
-  options: ["Distinct values, so each value matches at most once", "Both trees to be BSTs, so values appear in sorted order", "Null markers plus a delimiter before every value", "The same traversal order for both, and nothing more"]
-  answer: 2
+  options: ["The same traversal order for both, and nothing more", "Null markers plus a delimiter before every value", "Distinct values, so each value matches at most once", "Both trees to be BSTs, so values appear in sorted order"]
+  answer: 1
   explanation: >-
     Without markers the shapes are ambiguous, and without delimiters the digits of one value can match inside another (2 inside 12), so a shared traversal order alone is not enough. With both, the encoding of s appears as a contiguous block in ser(t) exactly when s matches a subtree.
 - q: >-
     Serialising an object graph in which two parents share the same child node with a plain preorder tree format results in:
-  options: ["A shorter encoding, as the child is written only once", "An error, since the writer detects the second parent", "A cycle in the output, since the child is revisited", "Two independent copies of the shared child after reading"]
-  answer: 3
+  options: ["Two independent copies of the shared child after reading", "A cycle in the output, since the child is revisited", "An error, since the writer detects the second parent", "A shorter encoding, as the child is written only once"]
+  answer: 0
   explanation: >-
     Tree formats assume each node has one parent. A shared node is written once per path, and the reader creates a separate node each time; nothing detects the sharing and no cycle exists to loop on. Graph serialisers assign identities and emit references to avoid this.
 ```

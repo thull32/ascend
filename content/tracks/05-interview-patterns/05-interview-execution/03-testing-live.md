@@ -207,32 +207,32 @@ Testing is the easiest dimension to improve quickly, because it is mostly habit.
 ```quiz
 - q: >-
     You have six minutes to test. In what order should you run your tests?
-  options: ["Example, then degenerate input, then your riskiest line", "Only the edge cases, since the example obviously works", "Random inputs, one after another, until one of them fails", "The largest input you can think of, to check performance"]
-  answer: 0
+  options: ["Random inputs, one after another, until one of them fails", "The largest input you can think of, to check performance", "Example, then degenerate input, then your riskiest line", "Only the edge cases, since the example obviously works"]
+  answer: 2
   explanation: >-
     The example you wrote proves the main path and often exposes end-of-loop bugs; the smallest degenerate input catches crashes; the input aimed at the line you trust least catches the logic error you were least sure about. Skipping the example is risky because many bugs, such as a missing final flush, appear only when you trace the normal case to the return statement.
 - q: >-
     Your loop emits a group whenever the next group starts. Which bug does this shape invite, and which test exposes it?
-  options: ["A crash on duplicates; test with all-equal values", "The final group is never emitted; trace to the return", "Integer overflow in the counts; test with large values", "An off-by-one at the start; test with just two elements"]
-  answer: 1
+  options: ["The final group is never emitted; trace to the return", "A crash on duplicates; test with all-equal values", "Integer overflow in the counts; test with large values", "An off-by-one at the start; test with just two elements"]
+  answer: 0
   explanation: >-
     If a group is only emitted when the next one begins, the last group has no successor and is never emitted unless you flush after the loop. Tracing the given example all the way to the return usually shows it. Restructuring to write into the last output element removes the bug class entirely.
 - q: >-
     The interviewer asks what your code returns for a specific input, and you realise it is wrong. What is the strongest response?
-  options: ["Rewrite the whole solution using a different approach", "Add an if-statement that handles that input specifically", "Explain that the input is unusual and unlikely in practice", "Trace it, fix the root cause, and re-run earlier tests"]
-  answer: 3
+  options: ["Trace it, fix the root cause, and re-run earlier tests", "Add an if-statement that handles that input specifically", "Rewrite the whole solution using a different approach", "Explain that the input is unusual and unlikely in practice"]
+  answer: 0
   explanation: >-
     Interviewers score how you handle a found bug as well as the bug itself. Tracing the input, naming the root cause, fixing the logic and running a regression check shows the debugging habit they want. Special-casing the input or arguing about its likelihood are both clear negatives, and a full rewrite is rarely needed for a local bug.
 - q: >-
     Your code runs in the interview editor. Which habit best prevents "run and pray" debugging?
-  options: ["Predict each output first; change one thing per run", "Running the code after every single line you write", "Relying on the hidden tests to tell you what is wrong", "Adding print statements to every branch of the code"]
-  answer: 0
+  options: ["Running the code after every single line you write", "Adding print statements to every branch of the code", "Predict each output first; change one thing per run", "Relying on the hidden tests to tell you what is wrong"]
+  answer: 2
   explanation: >-
     Predicting the output shows you understand the code, and it makes a mismatch informative. One change per run keeps cause and effect clear. Constant running and scattered prints replace reasoning with trial and error, which is what the interviewer is watching for.
 - q: >-
     You claimed O(n) time. Your loop body contains "if x in seen:" where seen is a Python list you append to. What is the real complexity?
-  options: ["O(n), since each check is a hash lookup", "O(n log n), since the check bisects the list", "O(1) per item, since appends are amortised", "O(n²), since each check scans the list"]
-  answer: 3
+  options: ["O(1) per item, since appends are amortised", "O(n log n), since the check bisects the list", "O(n²), since each check scans the list", "O(n), since each check is a hash lookup"]
+  answer: 2
   explanation: >-
     Membership testing on a list is a linear scan, not a hash lookup or a bisection, and the list grows to size n, so n iterations each cost up to O(n). Switching seen to a set restores O(n) expected time. Re-checking the complexity of the code you actually wrote is part of testing.
 ```

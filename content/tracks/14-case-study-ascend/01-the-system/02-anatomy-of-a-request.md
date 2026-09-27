@@ -267,8 +267,12 @@ pub enum AppError {
     NotFound(&'static str),
     #[error("{0}")]
     Conflict(String),
-    #[error("rate limit exceeded: {0}")]
-    RateLimited(String),
+    #[error("rate limit exceeded: {message}")]
+    RateLimited {
+        message: String,
+        /// When a retry can succeed, if known; sent as `Retry-After`.
+        retry_after_secs: Option<u64>,
+    },
     #[error("AI features are not configured on this deployment")]
     AiDisabled,
     #[error("upstream AI provider error: {0}")]
@@ -289,7 +293,7 @@ let status = match &e {
     AppError::Forbidden => StatusCode::FORBIDDEN,
     AppError::NotFound(_) => StatusCode::NOT_FOUND,
     AppError::Conflict(_) => StatusCode::CONFLICT,
-    AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+    AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
     AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
     AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
     AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -306,11 +310,17 @@ let message = match &e {
     }
     other => other.to_string(),
 };
+let mut res = (status, Json(ErrorBody { code: e.code(), message })).into_response();
+if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+    res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
+}
 ```
 
 The client always receives `{"code": "...", "message": "..."}`, and the frontend branches on `code` (`e.code === "rate_limited"`), never on English text. Database and internal errors are logged with full detail inside the request's span, so the log line carries the request ID the user can quote, while the response says only "internal error".
 
-**Rejected alternatives** (the general design space is in [API and error design](/learn/senior-craft/software-craft/api-and-error-design)). `anyhow` all the way up makes every failure a 500 and loses the difference between "no such lesson" and "Postgres is down". Choosing status codes inside each handler produces thirty slightly different conventions. Passing database errors through leaks constraint names, column names and SQL fragments to anyone who can trigger them. **The failure mode prevented** is both inconsistency and information disclosure, fixed in one function.
+**Rejected alternatives** (the general design space is in [API and error design](/learn/senior-craft/software-craft/api-and-error-design)). `anyhow` all the way up makes every failure a 500 and loses the difference between "no such lesson" and "Postgres is down". Choosing status codes inside each handler produces thirty slightly different conventions. Passing database errors through leaks constraint names, column names and SQL fragments to anyone who can trigger them. **The failure mode prevented** is both inconsistency and information disclosure, fixed in one function, and pinned by a unit test, `internal_details_are_not_returned`, that builds an `Internal` error containing a connection string and asserts the response body does not contain it.
+
+The same rule reaches upstream errors through one constructor. `AiUpstream(String)` used to be built from whatever the provider or the HTTP client said, so a reqwest error or a JSON parse failure (which can quote the text it choked on) went straight into the response. Now every call site uses `AppError::ai_upstream(public, detail)`, which logs `detail` and keeps only the short `public` text, such as "could not reach the AI provider". A variant that carries a message is a promise that the message is safe to show; a constructor that separates the two is how you keep that promise at every call site.
 
 **Where the contract leaked.** When this module was first drafted, reading rather than testing found four gaps between the error contract as designed and as enforced. Three have since been closed, and each fix is worth reading as a before and after.
 
@@ -327,7 +337,7 @@ The client always receives `{"code": "...", "message": "..."}`, and the frontend
    ```
 
    and its `IntoResponse` picks a code from the status: 400 `bad_request` for malformed JSON, 413 `payload_too_large`, 415 `unsupported_media_type`, and 422 `validation_error` only for well-formed JSON of the wrong shape. The difference matters to clients: a 400 means "your bytes are broken", a 422 means "your fields are wrong", and a client that treats them alike cannot tell a serialisation bug from a form error. `malformed_json_uses_the_api_error_shape` now asserts 400. `Path` and `Query` rejections still answer in plain text, and two coach handlers still take an optional body through Axum's own `Json`.
-3. *Retry hints.* The middleware's 429 always said `Retry-After: 60`, though the general bucket refilled far faster. `governor` knows exactly when the next request would be allowed, and the middleware now says so, rounded up to whole seconds (`throttled_responses_say_when_to_retry` checks the header). The client uses it: `web/src/main.tsx` retries failed *queries* on 429, 5xx and network errors, waiting as long as `Retry-After` asks (at most ten seconds), and never retries a mutation. One 429 still carries no hint: the per-user AI budget's, whose reset time (midnight UTC) is known.
+3. *Retry hints.* The middleware's 429 always said `Retry-After: 60`, though the general bucket refilled far faster. `governor` knows exactly when the next request would be allowed, and the middleware now says so, rounded up to whole seconds (`throttled_responses_say_when_to_retry` checks the header). The client uses it: `web/src/main.tsx` retries failed *queries* on 429, 5xx and network errors, waiting as long as `Retry-After` asks (at most ten seconds), and never retries a mutation. The 429s that come from the domain rather than the middleware used to carry no hint at all, because `RateLimited(String)` had nowhere to put one, even though the AI budget knows exactly when it resets. The variant now carries `retry_after_secs`, the mapping above turns it into the header, the budget fills it with the seconds until the next UTC midnight, and a provider's own 429 asks for 30 seconds. The fix was a type change, not a header tweak: once the domain error could express "when", every producer could say it and one place could send it (`rate_limited_errors_carry_retry_after_when_known` pins the mapping).
 4. *The timeout is outside everything.* Still open. The timeout's 503 has an empty body and, because it is produced outside the security-headers layer, no CSP or HSTS header. The status is honest; the shape is not.
 
 ## The way back out, and the 100x view
@@ -366,26 +376,26 @@ At 100x the order stays and the parameters change:
     A rejection short-circuits only the layers inside the limiter (CSRF, extractors, handler). Everything outside it, including SetRequestId, PropagateRequestId, Trace, Compression and the security-headers layer, still processes the response on the way out. The request id is set by middleware, not by handlers.
 - q: >-
     Why does the Anthropic client use a 180 s timeout when the global TimeoutLayer is 240 s?
-  options: ["It is an accident, and the two numbers should be made to match", "The inner deadline fires first, so the specific AI error wins out", "The client timeout only applies to streaming responses anyway", "Railway requires every request to finish in under 200 seconds"]
-  answer: 1
+  options: ["It is an accident, and the two numbers should be made to match", "Railway requires every request to finish in under 200 seconds", "The client timeout only applies to streaming responses anyway", "The inner deadline fires first, so the specific AI error wins out"]
+  answer: 3
   explanation: >-
     When the inner deadline fires first, the domain can classify the failure and return AiUpstream (502 with a clear code) instead of the generic 503 with an empty body. If the outer one fired first, the domain would never know. The global layer is a backstop; inner deadlines shorter than outer ones is the general rule.
 - q: >-
     Ascend resolves sessions in an extractor rather than in a middleware that runs for every /api request. What is the main benefit, and what is the main cost?
-  options: ["Benefit: sessions are cached across requests. Cost: a revoked session may go stale", "Benefit: fewer lines of code. Cost: none worth naming in review", "Benefit: CSRF checks are no longer needed. Cost: logins become slower", "Benefit: public reads skip the session query. Cost: opt-in auth per handler"]
-  answer: 3
+  options: ["Benefit: public reads skip the session query. Cost: opt-in auth per handler", "Benefit: CSRF checks are no longer needed. Cost: logins become slower", "Benefit: sessions are cached across requests. Cost: a revoked session may go stale", "Benefit: fewer lines of code. Cost: none worth naming in review"]
+  answer: 0
   explanation: >-
     The extractor is lazy, so only handlers that name CurrentUser or MaybeUser pay for a lookup, which keeps public hot paths off Postgres. The flip side is that a handler that forgets CurrentUser is public, and middleware such as the rate limiter cannot ask who the user is. Sessions are resolved per request, never cached across requests.
 - q: >-
     Two registrations for the same new email arrive at the same moment. What does the losing client receive today, and why is the password hashed before the insert?
-  options: ["409: the unique violation maps to Conflict, and hashing first equalises timing", "500, because a unique violation is a database error, and all of those map to 500", "It waits, because the insert blocks on the first transaction until the timeout", "422, because the second request fails validation once the email is already claimed"]
-  answer: 0
+  options: ["422, because the second request fails validation once the email is already claimed", "409: the unique violation maps to Conflict, and hashing first equalises timing", "It waits, because the insert blocks on the first transaction until the timeout", "500, because a unique violation is a database error, and all of those map to 500"]
+  answer: 1
   explanation: >-
     The service lets the unique index decide and maps SqlErr::UniqueConstraintViolation to AppError::Conflict, so the race ends in a 409. Before the fix, a check-then-insert let both requests pass the check and the loser's DbErr surfaced as a 500. Hashing first also removes the fast path that made already-registered emails answer about 100 ms sooner.
 - q: >-
     An unauthenticated client sends PUT /api/progress/lessons/a/b/c with a malformed JSON body and a valid X-Requested-With header. Which status does it get, and why?
-  options: ["422, because validation of the body runs before authentication", "400, because the body is parsed first and it is not valid JSON", "401, because CurrentUser is extracted before the body is read", "403, because the CSRF check rejects bodies that fail to parse"]
-  answer: 2
+  options: ["401, because CurrentUser is extracted before the body is read", "400, because the body is parsed first and it is not valid JSON", "403, because the CSRF check rejects bodies that fail to parse", "422, because validation of the body runs before authentication"]
+  answer: 0
   explanation: >-
     Extractors run left to right and CurrentUser precedes AppJson in the handler signature, so the session is checked before a byte of the body is read. An authenticated client with the same body would get 400 bad_request. Rejecting strangers first is cheaper and reveals nothing about the expected payload.
 ```
