@@ -11,7 +11,7 @@ use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::anthropic::{AnthropicClient, ChatMessage, Effort, Request, Role};
+use super::anthropic::{AnthropicClient, ChatMessage, Effort, Request, Role, Usage};
 use super::budget::BudgetService;
 use crate::content::Curriculum;
 use crate::entities::prelude::*;
@@ -215,11 +215,11 @@ impl CoachService {
             kind: input.context.kind.or(context.kind),
             slug: input.context.slug.or(context.slug),
         };
-        let system = self.system_prompt(&context, progress);
-
         Ok(Request {
             model: self.model.clone(),
-            system,
+            system: self.stable_prompt(),
+            context: Some(self.context_prompt(&context, progress)),
+            cache_conversation: true,
             messages: msgs,
             max_tokens: 4000,
             effort: Effort::Medium,
@@ -227,14 +227,7 @@ impl CoachService {
         })
     }
 
-    pub async fn finish_turn(
-        &self,
-        user_id: Uuid,
-        conv_id: Uuid,
-        reply: String,
-        input_tokens: i64,
-        output_tokens: i64,
-    ) -> AppResult<()> {
+    pub async fn finish_turn(&self, user_id: Uuid, conv_id: Uuid, reply: String, usage: Usage) -> AppResult<()> {
         let now = Utc::now();
         if !reply.trim().is_empty() {
             messages::ActiveModel {
@@ -242,8 +235,8 @@ impl CoachService {
                 conversation_id: Set(conv_id),
                 role: Set("assistant".into()),
                 content: Set(reply),
-                input_tokens: Set(i32::try_from(input_tokens).unwrap_or(i32::MAX)),
-                output_tokens: Set(i32::try_from(output_tokens).unwrap_or(i32::MAX)),
+                input_tokens: Set(i32::try_from(usage.input_tokens).unwrap_or(i32::MAX)),
+                output_tokens: Set(i32::try_from(usage.output_tokens).unwrap_or(i32::MAX)),
                 created_at: Set(now),
             }
             .insert(&self.db)
@@ -254,11 +247,13 @@ impl CoachService {
             .filter(conversations::Column::Id.eq(conv_id))
             .exec(&self.db)
             .await?;
-        self.budget.record(user_id, input_tokens, output_tokens).await
+        self.budget.record(user_id, usage).await
     }
 
-    fn system_prompt(&self, ctx: &CoachContext, progress: Option<&ProgressSummary>) -> String {
-        let mut s = String::with_capacity(16_000);
+    /// Stable for every learner and every turn: persona and curriculum map.
+    /// This is the cached prefix.
+    fn stable_prompt(&self) -> String {
+        let mut s = String::with_capacity(8_000);
         s.push_str(COACH_PERSONA);
         s.push_str("\n\n# Curriculum map\n");
         for t in &self.curriculum.tracks {
@@ -266,8 +261,15 @@ impl CoachService {
             s.push_str(&t.modules.iter().map(|m| m.title.as_str()).collect::<Vec<_>>().join(", "));
             s.push('\n');
         }
-        // Volatile context goes last so the prefix above stays cacheable.
-        s.push_str("\n# Current context\n");
+        s
+    }
+
+    /// Changes between turns (the lesson being read, the code in the editor,
+    /// progress). Sent after the cache breakpoint so it never invalidates the
+    /// stable prefix.
+    fn context_prompt(&self, ctx: &CoachContext, progress: Option<&ProgressSummary>) -> String {
+        let mut s = String::with_capacity(16_000);
+        s.push_str("# Current context\n");
         match (ctx.kind.as_deref(), ctx.slug.as_deref()) {
             (Some("lesson"), Some(slug)) => {
                 if let Some(l) = self.curriculum.lesson(slug) {

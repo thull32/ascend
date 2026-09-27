@@ -52,8 +52,14 @@ impl AppState {
                 None
             }
         };
-        let budget =
-            BudgetService::new(db.clone(), config.ai.daily_request_budget, config.ai.daily_output_token_budget);
+        let budget = BudgetService::new(
+            db.clone(),
+            ascend_core::ai::budget::Limits {
+                daily_requests: config.ai.daily_request_budget,
+                daily_input_tokens: config.ai.daily_input_token_budget,
+                daily_output_tokens: config.ai.daily_output_token_budget,
+            },
+        );
         let coach = CoachService::new(
             db.clone(),
             curriculum.clone(),

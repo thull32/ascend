@@ -17,5 +17,5 @@ pub mod interview;
 pub mod quiz;
 pub mod roadmap;
 
-pub use anthropic::{AnthropicClient, ChatMessage, Role, StreamEvent};
+pub use anthropic::{AnthropicClient, ChatMessage, Role, StreamEvent, Usage};
 pub use budget::BudgetService;

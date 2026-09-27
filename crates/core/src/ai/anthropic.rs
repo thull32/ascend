@@ -38,7 +38,17 @@ pub enum Effort {
 #[derive(Debug, Clone)]
 pub struct Request {
     pub model: String,
+    /// Stable instructions. Sent as the first system block with a cache
+    /// breakpoint, so every request that shares it reuses the cached prefix.
     pub system: String,
+    /// Per-request context (lesson text, editor contents, progress). Sent as
+    /// a second, uncached system block *after* the breakpoint, so changing it
+    /// never invalidates the stable prefix.
+    pub context: Option<String>,
+    /// Multi-turn chats: also cache the conversation history (top-level
+    /// automatic breakpoint on the last message), so turn N+1 re-reads turns
+    /// 1..N from cache instead of paying for them again.
+    pub cache_conversation: bool,
     pub messages: Vec<ChatMessage>,
     pub max_tokens: u32,
     pub effort: Effort,
@@ -88,7 +98,8 @@ struct SystemBlock<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
     text: &'a str,
-    cache_control: CacheControl,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<CacheControl>,
 }
 #[derive(Serialize)]
 struct CacheControl {
@@ -120,6 +131,9 @@ struct Body<'a> {
     messages: &'a [ChatMessage],
     thinking: Thinking,
     output_config: OutputConfig,
+    /// Top-level automatic cache breakpoint (placed on the last cacheable block).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cache_control: Option<CacheControl>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     stream: bool,
 }
@@ -195,17 +209,20 @@ impl AnthropicClient {
         let body = Body {
             model: &req.model,
             max_tokens: req.max_tokens,
-            system: vec![SystemBlock {
+            system: std::iter::once(SystemBlock {
                 kind: "text",
                 text: &req.system,
-                cache_control: CacheControl { kind: "ephemeral" },
-            }],
+                cache_control: Some(CacheControl { kind: "ephemeral" }),
+            })
+            .chain(req.context.as_deref().map(|text| SystemBlock { kind: "text", text, cache_control: None }))
+            .collect(),
             messages: &req.messages,
             thinking: Thinking { kind: "adaptive" },
             output_config: OutputConfig {
                 effort: req.effort,
                 format: req.json_schema.clone().map(|schema| OutputFormat { kind: "json_schema", schema }),
             },
+            cache_control: req.cache_conversation.then_some(CacheControl { kind: "ephemeral" }),
             stream,
         };
         let json = serde_json::to_vec(&body).map_err(AppError::internal)?;
@@ -305,5 +322,50 @@ fn map_status(status: reqwest::StatusCode, body: &str) -> AppError {
             AppError::AiUpstream(format!("bad request to AI provider: {}", body.chars().take(200).collect::<String>()))
         }
         _ => AppError::AiUpstream(format!("HTTP {status}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn req(context: Option<&str>, cache_conversation: bool) -> Request {
+        Request {
+            model: "m".into(),
+            system: "stable".into(),
+            context: context.map(Into::into),
+            cache_conversation,
+            messages: vec![ChatMessage { role: Role::User, content: "hi".into() }],
+            max_tokens: 10,
+            effort: Effort::Low,
+            json_schema: None,
+        }
+    }
+
+    fn body_json(r: &Request) -> serde_json::Value {
+        let client = AnthropicClient::new(SecretString::from("k"), "http://x".into(), Duration::from_secs(1)).unwrap();
+        let built = client.builder(r, false).unwrap().build().unwrap();
+        serde_json::from_slice(built.body().unwrap().as_bytes().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn stable_prefix_is_cached_and_context_is_not() {
+        let b = body_json(&req(Some("volatile"), true));
+        let system = b["system"].as_array().unwrap();
+        assert_eq!(system.len(), 2);
+        assert_eq!(system[0]["text"], "stable");
+        assert_eq!(system[0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(system[1]["text"], "volatile");
+        assert!(system[1].get("cache_control").is_none(), "volatile context must sit after the breakpoint");
+        assert_eq!(b["cache_control"]["type"], "ephemeral", "conversation caching enabled");
+        assert_eq!(b["thinking"]["type"], "adaptive");
+    }
+
+    #[test]
+    fn single_shot_requests_skip_conversation_caching() {
+        let b = body_json(&req(None, false));
+        assert_eq!(b["system"].as_array().unwrap().len(), 1);
+        assert!(b.get("cache_control").is_none());
+        assert!(b.get("stream").is_none());
     }
 }

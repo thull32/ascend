@@ -22,7 +22,7 @@ pub async fn apply(req: Request<Body>, next: Next) -> Response {
             "worker-src 'self' blob:; ",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; ",
             "font-src 'self' https://fonts.gstatic.com data:; ",
-            "img-src 'self' data: blob: https:; ",
+            "img-src 'self' data: blob:; ",
             "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org; ",
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         )),

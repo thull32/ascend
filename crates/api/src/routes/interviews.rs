@@ -12,6 +12,7 @@ use axum::middleware;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult, bad_request};
@@ -105,25 +106,28 @@ async fn turn(
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
     let coach = state.coach.clone();
-    tokio::spawn(async move {
-        futures::pin_mut!(upstream);
-        let (reply, input_tokens, output_tokens, error) = sse::pump(upstream, &tx).await;
-        if let Some(e) = error {
-            tracing::warn!(error = %e, interview = %model.id, "interviewer stream error");
+    tokio::spawn(
+        async move {
+            futures::pin_mut!(upstream);
+            let (reply, usage, error) = sse::pump(upstream, &tx).await;
+            if let Some(e) = error {
+                tracing::warn!(error = %e, interview = %model.id, "interviewer stream error");
+            }
+            if !reply.trim().is_empty()
+                && let Err(e) = interviews
+                    .append_transcript(
+                        model,
+                        vec![TranscriptEntry { role: "interviewer".into(), content: reply, at: now() }],
+                        None,
+                    )
+                    .await
+            {
+                tracing::error!(error = %e, "failed to persist interviewer turn");
+            }
+            let _ = coach.budget().record(user.id, usage).await;
         }
-        if !reply.trim().is_empty()
-            && let Err(e) = interviews
-                .append_transcript(
-                    model,
-                    vec![TranscriptEntry { role: "interviewer".into(), content: reply, at: now() }],
-                    None,
-                )
-                .await
-        {
-            tracing::error!(error = %e, "failed to persist interviewer turn");
-        }
-        let _ = coach.budget().record(user.id, input_tokens, output_tokens).await;
-    });
+        .instrument(tracing::Span::current()),
+    );
     Ok(sse::respond(rx))
 }
 
@@ -169,20 +173,23 @@ async fn assistant(
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
     let coach = state.coach.clone();
-    tokio::spawn(async move {
-        futures::pin_mut!(upstream);
-        let (reply, input_tokens, output_tokens, _) = sse::pump(upstream, &tx).await;
-        if !reply.trim().is_empty() {
-            let _ = interviews
-                .append_transcript(
-                    model,
-                    vec![TranscriptEntry { role: "assistant".into(), content: reply, at: now() }],
-                    None,
-                )
-                .await;
+    tokio::spawn(
+        async move {
+            futures::pin_mut!(upstream);
+            let (reply, usage, _) = sse::pump(upstream, &tx).await;
+            if !reply.trim().is_empty() {
+                let _ = interviews
+                    .append_transcript(
+                        model,
+                        vec![TranscriptEntry { role: "assistant".into(), content: reply, at: now() }],
+                        None,
+                    )
+                    .await;
+            }
+            let _ = coach.budget().record(user.id, usage).await;
         }
-        let _ = coach.budget().record(user.id, input_tokens, output_tokens).await;
-    });
+        .instrument(tracing::Span::current()),
+    );
     Ok(sse::respond(rx))
 }
 

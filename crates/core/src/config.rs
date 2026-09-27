@@ -40,6 +40,9 @@ pub struct AiConfig {
     pub base_url: String,
     /// Per-user, per-day output-token ceiling. Free product; this is the fuse.
     pub daily_output_token_budget: i64,
+    /// Per-user, per-day input-token ceiling (large lessons and editor
+    /// contents make input the bigger share of cost).
+    pub daily_input_token_budget: i64,
     pub daily_request_budget: i32,
     pub request_timeout: Duration,
 }
@@ -96,6 +99,7 @@ impl Config {
                 fast_model: var_or("AI_FAST_MODEL", "claude-haiku-4-5"),
                 base_url: var_or("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
                 daily_output_token_budget: parse_or::<i64>("AI_DAILY_OUTPUT_TOKENS", 60_000)?,
+                daily_input_token_budget: parse_or::<i64>("AI_DAILY_INPUT_TOKENS", 2_000_000)?,
                 daily_request_budget: parse_or::<i32>("AI_DAILY_REQUESTS", 120)?,
                 request_timeout: Duration::from_secs(parse_or::<u64>("AI_TIMEOUT_SECS", 180)?),
             },

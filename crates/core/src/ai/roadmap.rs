@@ -94,13 +94,15 @@ pub async fn suggest(
     let req = Request {
         model: coach.model().to_string(),
         system,
+        context: None,
+        cache_conversation: false,
         messages: vec![ChatMessage { role: Role::User, content: user }],
         max_tokens: 3000,
         effort: Effort::Medium,
         json_schema: Some(schema),
     };
     let completion = client.complete(&req).await?;
-    coach.budget().record(user_id, completion.usage.input_tokens, completion.usage.output_tokens).await?;
+    coach.budget().record(user_id, completion.usage).await?;
     let mut out: RoadmapSuggestions = serde_json::from_str(&completion.text)
         .map_err(|e| AppError::AiUpstream(format!("roadmap suggestions did not parse: {e}")))?;
     // Defence in depth: the schema constrains values, but never trust model

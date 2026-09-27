@@ -5,7 +5,7 @@
 //! just a consumer of an mpsc channel.
 use std::convert::Infallible;
 
-use ascend_core::ai::StreamEvent;
+use ascend_core::ai::{StreamEvent, Usage};
 use axum::response::IntoResponse;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::Stream;
@@ -38,26 +38,22 @@ pub fn respond(rx: mpsc::Receiver<StreamEvent>) -> impl IntoResponse {
 
 /// Drives an upstream model stream: forwards deltas to `tx`, accumulates the
 /// full reply, and returns it with usage when the stream ends.
-pub async fn pump<S>(mut upstream: S, tx: &mpsc::Sender<StreamEvent>) -> (String, i64, i64, Option<String>)
+pub async fn pump<S>(mut upstream: S, tx: &mpsc::Sender<StreamEvent>) -> (String, Usage, Option<String>)
 where
     S: Stream<Item = StreamEvent> + Unpin,
 {
     let mut full = String::new();
-    let mut input = 0;
-    let mut output = 0;
+    let mut usage = Usage::default();
     let mut error = None;
     while let Some(ev) = upstream.next().await {
         match &ev {
             StreamEvent::Delta(t) => full.push_str(t),
-            StreamEvent::Done { usage, .. } => {
-                input = usage.input_tokens;
-                output = usage.output_tokens;
-            }
+            StreamEvent::Done { usage: u, .. } => usage = *u,
             StreamEvent::Error(e) => error = Some(e.clone()),
         }
         // A closed receiver just means the browser went away; keep consuming
-        // so the reply is still persisted.
+        // so the reply is still persisted and its usage still recorded.
         let _ = tx.send(ev).await;
     }
-    (full, input, output, error)
+    (full, usage, error)
 }

@@ -12,6 +12,8 @@ pub struct Model {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub requests: i32,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

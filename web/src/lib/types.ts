@@ -246,7 +246,15 @@ export interface CommentView {
 export interface CoachStatus {
   enabled: boolean;
   model: string;
-  budget: { requests_used: number; requests_limit: number; output_tokens_used: number; output_tokens_limit: number } | null;
+  budget: {
+    requests_used: number;
+    requests_limit: number;
+    input_tokens_used: number;
+    input_tokens_limit: number;
+    output_tokens_used: number;
+    output_tokens_limit: number;
+    cache_read_tokens: number;
+  } | null;
 }
 
 export interface Conversation {

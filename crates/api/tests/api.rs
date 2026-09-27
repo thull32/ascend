@@ -26,6 +26,7 @@ static MIGRATED: tokio::sync::OnceCell<()> = tokio::sync::OnceCell::const_new();
 struct TestApp {
     router: Router,
     db: DatabaseConnection,
+    state: state::AppState,
 }
 
 fn config(url: &str) -> Config {
@@ -41,6 +42,7 @@ fn config(url: &str) -> Config {
             fast_model: "test-fast".into(),
             base_url: "http://127.0.0.1:9".into(),
             daily_output_token_budget: 1000,
+            daily_input_token_budget: 100_000,
             daily_request_budget: 10,
             request_timeout: Duration::from_secs(5),
         },
@@ -66,7 +68,7 @@ async fn test_app() -> Option<TestApp> {
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/content");
     let curriculum = load_curriculum(&ContentSource::Disk(fixtures)).expect("fixture content loads");
     let st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum).expect("state");
-    Some(TestApp { router: app::build(st), db })
+    Some(TestApp { router: app::build(st.clone()), db, state: st })
 }
 
 struct Res {
@@ -431,4 +433,40 @@ async fn spa_fallback_serves_index_for_client_routes() {
     assert_eq!(res.status(), StatusCode::OK);
     assert!(res.headers()[header::CONTENT_TYPE].to_str().unwrap().starts_with("text/html"));
     assert_eq!(res.headers()[header::CACHE_CONTROL], "no-cache");
+}
+
+#[tokio::test]
+async fn ai_budget_reservation_cannot_be_overshot_by_concurrency() {
+    let Some(app) = test_app().await else { return };
+    let (_, user) = app.register().await;
+    let user_id: uuid::Uuid = user["id"].as_str().unwrap().parse().unwrap();
+    let budget = app.state.coach.budget().clone();
+    // The test config allows 10 requests per day. Fire 30 at once.
+    let attempts = (0..30).map(|_| {
+        let b = budget.clone();
+        tokio::spawn(async move { b.check_and_reserve(user_id).await.is_ok() })
+    });
+    let mut granted = 0;
+    for h in attempts {
+        if h.await.unwrap() {
+            granted += 1;
+        }
+    }
+    assert_eq!(granted, 10, "exactly the daily limit may be reserved");
+    let status = budget.status(user_id).await.unwrap();
+    assert_eq!(status.requests_used, 10);
+
+    // Recording usage accumulates, including prompt-cache tokens.
+    let usage = ascend_core::ai::Usage {
+        input_tokens: 1200,
+        output_tokens: 300,
+        cache_read_input_tokens: 5000,
+        cache_creation_input_tokens: 0,
+    };
+    budget.record(user_id, usage).await.unwrap();
+    budget.record(user_id, usage).await.unwrap();
+    let status = budget.status(user_id).await.unwrap();
+    assert_eq!(status.input_tokens_used, 2400);
+    assert_eq!(status.output_tokens_used, 600);
+    assert_eq!(status.cache_read_tokens, 10_000);
 }

@@ -6,6 +6,7 @@ use axum::middleware;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::error::ApiResult;
@@ -97,16 +98,29 @@ async fn send(
 
     let (tx, rx) = sse::channel();
     let coach = state.coach.clone();
-    tokio::spawn(async move {
-        futures::pin_mut!(upstream);
-        let (reply, input_tokens, output_tokens, error) = sse::pump(upstream, &tx).await;
-        if let Some(e) = &error {
-            tracing::warn!(error = %e, conversation = %conv.id, "coach stream error");
+    // The spawned task outlives the request; `.instrument` carries the request
+    // span (method, path, request id) into its logs.
+    tokio::spawn(
+        async move {
+            futures::pin_mut!(upstream);
+            let (reply, usage, error) = sse::pump(upstream, &tx).await;
+            if let Some(e) = &error {
+                tracing::warn!(error = %e, conversation = %conv.id, "coach stream error");
+            }
+            tracing::info!(
+                conversation = %conv.id,
+                input_tokens = usage.input_tokens,
+                output_tokens = usage.output_tokens,
+                cache_read_tokens = usage.cache_read_input_tokens,
+                cache_write_tokens = usage.cache_creation_input_tokens,
+                "coach turn complete"
+            );
+            if let Err(e) = coach.finish_turn(user.id, conv.id, reply, usage).await {
+                tracing::error!(error = %e, "failed to persist coach reply");
+            }
         }
-        if let Err(e) = coach.finish_turn(user.id, conv.id, reply, input_tokens, output_tokens).await {
-            tracing::error!(error = %e, "failed to persist coach reply");
-        }
-    });
+        .instrument(tracing::Span::current()),
+    );
     Ok(sse::respond(rx))
 }
 

@@ -69,13 +69,15 @@ pub async fn generate(
     let req = Request {
         model: coach.model().to_string(),
         system,
+        context: None,
+        cache_conversation: false,
         messages: vec![ChatMessage { role: Role::User, content: user }],
         max_tokens: 6000,
         effort: Effort::Medium,
         json_schema: Some(schema()),
     };
     let completion = client.complete(&req).await?;
-    coach.budget().record(user_id, completion.usage.input_tokens, completion.usage.output_tokens).await?;
+    coach.budget().record(user_id, completion.usage).await?;
     let mut quiz: GeneratedQuiz =
         serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
     quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());

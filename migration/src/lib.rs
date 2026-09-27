@@ -17,6 +17,7 @@ mod m0002_learning;
 mod m0003_ai;
 mod m0004_community;
 mod m0005_interviews;
+mod m0006_ai_usage_cache_tokens;
 
 pub struct Migrator;
 
@@ -29,6 +30,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0003_ai::Migration),
             Box::new(m0004_community::Migration),
             Box::new(m0005_interviews::Migration),
+            Box::new(m0006_ai_usage_cache_tokens::Migration),
         ]
     }
 }
