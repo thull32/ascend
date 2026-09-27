@@ -144,7 +144,7 @@ class H {
       if (!quiet) {
         h.tones[i] = "compare";
         h.tones[best] = "active";
-        this.f.push(`${ctx}Children of index ${i} are ${kids.join(" and ")}; the ${this.word(h)} one, ${vb} at index ${best}, beats ${vi}: swap and continue down.`, "swap down");
+        this.f.push(kids.length > 1 ? `${ctx}Children of index ${i} are ${kids.join(" and ")}; the ${this.word(h)} one, ${vb} at index ${best}, beats ${vi}: swap and continue down.` : `${ctx}The only child of index ${i}, ${vb} at index ${best}, is ${this.word(h)} than ${vi}: swap and continue down.`, "swap down");
       }
       i = best;
       path.push(i);

@@ -5,7 +5,7 @@
 // wait-for graph.
 import { Arrow, Cells, Circle, Legend, Vars, toneClass, type Tone } from "../primitives";
 import { Frames, type Family, type RendererProps } from "../engine";
-import { cn } from "../lib/utils";
+import { cn } from "../../lib/utils";
 
 export interface ConcurrencyInput {
   threads?: number;

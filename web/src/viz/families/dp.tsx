@@ -240,7 +240,7 @@ const houseRobber: G = ({ values }) => {
     const skip = d[i - 1]!;
     const take = d[i - 2]! + v[i]!;
     d[i] = Math.max(skip, take);
-    dp.values[i] = d[i];
+    dp.values[i] = d[i]!;
     base();
     dp.tones[i] = "active";
     dp.tones[i - 1] = "compare";
@@ -302,7 +302,7 @@ const lis: G = ({ values }) => {
           const old = d[i]!;
           d[i] = d[j]! + 1;
           prev[i] = j;
-          dp.values[i] = d[i];
+          dp.values[i] = d[i]!;
           s.formula = `dp[${i}] = max(dp[${i}], dp[${j}] + 1) = max(${old}, ${d[j]} + 1) = ${d[i]}`;
           f.push(`values[${j}] = ${v[j]} < ${v[i]} and dp[${j}] + 1 = ${d[j]! + 1} > ${old}: extend the subsequence ending at ${j}, dp[${i}] = ${d[i]}.`, "extend");
         } else {
@@ -356,7 +356,7 @@ const maxSubarray: G = ({ values }) => {
     const extend = prev > 0;
     d[i] = v[i]! + Math.max(prev, 0);
     start[i] = extend ? start[i - 1]! : i;
-    dp.values[i] = d[i];
+    dp.values[i] = d[i]!;
     if (d[i]! > d[best]!) best = i;
     base();
     dp.tones[i] = "active";

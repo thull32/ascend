@@ -1,7 +1,7 @@
 ---
 slug: system-design
 title: System Design
-description: Design, defend and operate systems at Netflix scale: the building blocks, the distributed-systems theory behind them, eighteen worked case studies and the judgement that separates senior from mid-level.
+description: "Design, defend and operate systems at Netflix scale: the building blocks, the distributed-systems theory behind them, eighteen worked case studies and the judgement that separates senior from mid-level."
 icon: server
 phase: 5
 ---

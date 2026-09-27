@@ -1,7 +1,7 @@
 ---
 slug: distributed-systems
 title: Distributed systems
-description: The theory underneath the building blocks: clocks, replication, consensus, transactions, partitioning, failure detection, locks, exactly-once, gossip and CRDTs, with the real systems that implement them.
+description: "The theory underneath the building blocks: clocks, replication, consensus, transactions, partitioning, failure detection, locks, exactly-once, gossip and CRDTs, with the real systems that implement them."
 prerequisites: [system-design/building-blocks, systems/concurrency]
 ---
 A distributed system is one in which a machine you have never heard of can fail and take your work down with it. Everything hard about them follows from three facts: there is no shared clock, messages can be delayed or lost, and a node that has stopped responding is indistinguishable from one that is merely slow. Replication, consensus, leases, fencing tokens, idempotent producers and CRDTs are all responses to those three facts, and the senior bar is being able to say which fact each one is answering.

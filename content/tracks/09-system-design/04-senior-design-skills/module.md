@@ -1,7 +1,7 @@
 ---
 slug: senior-design-skills
 title: Designing like a senior
-description: The judgement layer on top of the building blocks: articulating trade-offs, designing for failure, planning capacity and cost, evolving live systems safely, and presenting a design so a panel can see you think.
+description: "The judgement layer on top of the building blocks: articulating trade-offs, designing for failure, planning capacity and cost, evolving live systems safely, and presenting a design so a panel can see you think."
 prerequisites: [system-design/case-studies]
 ---
 Mid-level engineers who fail senior design rounds rarely fail on knowledge. They know what a cache is, they can draw a queue, they have read about consistent hashing. They fail because the interviewer cannot see judgement: every option sounds equally good, failure is an afterthought, numbers are missing, the design is frozen at version one, and the conversation is driven by the interviewer rather than the candidate.

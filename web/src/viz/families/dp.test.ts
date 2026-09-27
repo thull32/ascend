@@ -10,6 +10,7 @@ const run = (algo: string, raw: Record<string, unknown>) => dpFamily.algorithms[
 function check(frames: ReturnType<typeof run>) {
   expect(frames.length).toBeGreaterThan(0);
   expect(frames.length).toBeLessThanOrEqual(MAX_FRAMES + 1);
+  expect(frames.some((fr) => fr.tag === "limit"), "input caps must keep every input under MAX_FRAMES").toBe(false);
   for (const fr of frames) {
     expect(typeof fr.note).toBe("string");
     expect(fr.note.trim().length).toBeGreaterThan(0);

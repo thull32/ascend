@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { render } from "@testing-library/react";
 import { MAX_FRAMES, type Family, type Frame } from "../engine";
 import { treeFamily } from "./tree";
 import { heapFamily } from "./heap";
@@ -23,6 +25,17 @@ function check<S>(frames: Frame<S>[]) {
   }
 }
 
+/** Render the family's Renderer on the first, a middle and the last frame (jsdom smoke test). */
+function renderFrames<I, S>(family: Family<I, S>, frames: Frame<S>[], input: I) {
+  for (const idx of [0, Math.floor(frames.length / 2), frames.length - 1]) {
+    const frame = frames[idx]!;
+    const { container, unmount } = render(createElement(family.Renderer, { frame, input, index: idx, total: frames.length }));
+    expect(container.innerHTML.length).toBeGreaterThan(0);
+    expect(container.innerHTML).not.toContain("NaN");
+    unmount();
+  }
+}
+
 const big = Array.from({ length: 31 }, (_, i) => ((i * 7919) % 97) + 1);
 const chain = Array.from({ length: 40 }, (_, i) => i);
 
@@ -44,6 +57,12 @@ describe("tree family", () => {
       check(run(treeFamily, algo, { values: "garbage", target: "x" }));
     });
   }
+  it("renders every algorithm's example without errors", () => {
+    for (const algo of algos) {
+      const input = treeFamily.normalise!({ ...treeFamily.examples[algo] });
+      renderFrames(treeFamily, treeFamily.algorithms[algo]!(input), input);
+    }
+  });
   it("bst-insert builds a chain from sorted input", () => {
     const frames = run(treeFamily, "bst-insert", { values: [1, 2, 3, 4] });
     const last = frames[frames.length - 1]!.state;
@@ -96,6 +115,12 @@ describe("heap family", () => {
       check(run(heapFamily, algo, { values: "nope", k: "abc", kind: 3 }));
     });
   }
+  it("renders every algorithm's example without errors", () => {
+    for (const algo of algos) {
+      const input = heapFamily.normalise!({ ...heapFamily.examples[algo] });
+      renderFrames(heapFamily, heapFamily.algorithms[algo]!(input), input);
+    }
+  });
   it("heap-sort sorts ascending with a max-heap and handles duplicates", () => {
     const frames = run(heapFamily, "heap-sort", { values: [5, 2, 9, 1, 5, 6] });
     expect(frames[frames.length - 1]!.state.heaps[0]!.values).toEqual([1, 2, 5, 5, 6, 9]);
@@ -132,6 +157,12 @@ describe("trie family", () => {
       check(run(trieFamily, algo, { operations: [{ op: "insert", word: "Cat!" }, "dog", "search cat", { op: "startsWith", prefix: "ca" }] }));
     });
   }
+  it("renders every algorithm's example without errors", () => {
+    for (const algo of algos) {
+      const input = trieFamily.normalise!({ ...trieFamily.examples[algo] });
+      renderFrames(trieFamily, trieFamily.algorithms[algo]!(input), input);
+    }
+  });
   it("insert-search distinguishes prefix from key", () => {
     const frames = run(trieFamily, "insert-search", { operations: [["insert", "car"], ["insert", "cart"], ["search", "car"], ["search", "ca"], ["prefix", "ca"], ["search", "dot"]] });
     const results = frames[frames.length - 2]!.state.readouts[1]!.values;
