@@ -181,6 +181,8 @@ RETURNING requests
 
 The first request of the day inserts the row. Every later one hits the conflict, locks the existing row, and increments it only if the `WHERE` clause holds against the latest committed values. If the user is at a limit, nothing is updated, `RETURNING` produces no row, and the caller gets a rate-limit error. The check and the increment are one atomic step, so concurrent requests queue on the row lock instead of racing past the limit. It is the same move as the Redis script later in this lesson: put the read, the decision and the write in one place that executes atomically.
 
+Ascend's first version was the obvious one (read the status, then increment in a second statement), and a design review caught it. The fix shipped with a test aimed at exactly that race: `ai_budget_reservation_cannot_be_overshot_by_concurrency` in `crates/api/tests/api.rs` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed, where the read-then-write version could grant more. A race you fixed without a concurrent test is a race you believe you fixed.
+
 The token limits are softer, and it is worth being able to say why. Token counts are only known after the model responds, so `record` adds them after the call, and the reservation can only check that the user was under the token limits *before* the call. One long response can carry a user past the cap. A hard cap would need a reservation in tokens too: debit the request's `max_tokens` up front and refund the unused part afterwards, the way a card pre-authorisation works.
 
 The pattern generalises: a cheap in-memory limiter absorbs bursts before any request touches the database, and a durable per-user quota enforces the thing the business actually cares about.

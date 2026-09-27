@@ -100,14 +100,14 @@ pub fn respond(rx: mpsc::Receiver<StreamEvent>) -> impl IntoResponse {
                     "input_tokens": usage.input_tokens,
                     "output_tokens": usage.output_tokens,
                     "stop_reason": stop_reason,
-                }).to_string(),
+                })
+                .to_string(),
             ),
             StreamEvent::Error(msg) => Event::default().event("error").data(msg),
         };
         Ok::<_, Infallible>(event)
     });
-    Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(Duration::from_secs(15)).text("ping"))
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("ping"))
 }
 ```
 
@@ -115,7 +115,7 @@ Four decisions in that function map directly onto the properties above.
 
 1. **Named events.** `delta` carries a text fragment, `done` carries a JSON usage summary with `input_tokens`, `output_tokens` and `stop_reason`, and `error` carries a message. The browser registers three listeners and never has to sniff payloads.
 2. **A 15-second keep-alive comment** (`: ping`). Idle-timeout proxies and load balancers close connections that carry no bytes for 30, 60 or 90 s. A model that is thinking for 40 s before its first token would look idle. The comment line keeps bytes flowing and is invisible to `EventSource`.
-3. **Persistence is decoupled from the connection.** The model stream runs in a spawned task that owns writing the reply to the database; the HTTP response is only a consumer of a bounded `mpsc` channel (capacity 64). If you close the tab, the `Sender` sees a closed receiver, ignores the send error, and keeps consuming the model stream so the full reply is still persisted. Reload and the reply is there. The alternative, driving the model from the request handler, would abort the model call on disconnect and lose the reply.
+3. **Persistence is decoupled from the connection.** The model stream runs in a spawned task that owns writing the reply to the database; the HTTP response is only a consumer of a bounded `mpsc` channel (capacity 64). If you close the tab, the `Sender` sees a closed receiver, ignores the send error, and keeps consuming the model stream so the full reply is still persisted and its token usage still counted against the budget. Reload and the reply is there. Because that task outlives the request, the route wraps it in `.instrument(tracing::Span::current())`, so its log lines still carry the request's span and request ID. The alternative, driving the model from the request handler, would abort the model call on disconnect and lose the reply.
 4. **Bounded buffering.** The channel holds 64 events. If the browser stops reading (throttled background tab), the producer blocks on send rather than growing memory without bound: backpressure, not a leak.
 
 Why SSE rather than WebSockets here: the data flows one way (model to browser), the client's only upstream message is the initial prompt, which is an ordinary POST; the stream must pass through the same TLS-terminating proxy and mesh as every other request with no special configuration; and reconnection with `Last-Event-ID` is exactly what a flaky mobile connection needs. A WebSocket would add a second protocol, a second set of proxy rules and a hand-written reconnect loop to gain bidirectionality nobody uses.
