@@ -39,7 +39,7 @@ ALTER TABLE orders ADD COLUMN fulfilment_status text;
 -- on "canceling statement due to lock timeout": wait, retry, up to N times
 ```
 
-Tools such as `pg_repack`, `strong_migrations` and most migration frameworks either do this for you or can be configured to. This app's migrations run through `sea-orm-migration` (see `migration/src/lib.rs`, which applies `m0001_identity` through `m0005_interviews` in order); the framework does not set a lock timeout by default, so on a large table you would wrap a raw `SET lock_timeout` statement around the DDL yourself.
+Tools such as `pg_repack`, `strong_migrations` and most migration frameworks either do this for you or can be configured to. This app's migrations run through `sea-orm-migration` (see `migration/src/lib.rs`, which applies `m0001_identity` through `m0007_integrity` in order); the framework does not set a lock timeout by default, so on a large table you would wrap a raw `SET lock_timeout` statement around the DDL yourself.
 
 Also check what is in front of you before you start: `SELECT pid, state, xact_start, query FROM pg_stat_activity WHERE xact_start < now() - interval '1 minute'` shows the transactions that will make your DDL wait.
 
@@ -161,7 +161,11 @@ A useful variant for high-risk changes is shadow reading: the code reads both sh
 
 ## Migration tooling and the transaction question
 
-Migration frameworks (Flyway, Alembic, Django migrations, SeaORM's migrator) do three useful things: they give each migration a stable identity, they record which ones have been applied in a table in the database, and they apply the pending ones in order. This app's `migration/src/lib.rs` declares the conventions worth copying: one migration per bounded context, append-only ("never edit a migration that has shipped; add a new one"), every table gets `created_at`/`updated_at` with database-side defaults, every foreign key declares an `ON DELETE` policy, and each index is declared next to the columns it serves with a comment on the query pattern that needs it. The `idx_comments_target` index in `m0004_community.rs` carries exactly such a comment: "all comments on target X, oldest first".
+Migration frameworks (Flyway, Alembic, Django migrations, SeaORM's migrator) do three useful things: they give each migration a stable identity, they record which ones have been applied in a table in the database, and they apply the pending ones in order. This app's `migration/src/lib.rs` declares the conventions worth copying: one migration per bounded context, append-only ("never edit a migration that has shipped; add a new one"), mutable tables get `created_at`/`updated_at` with database-side defaults while append-only tables (sessions, messages, quiz attempts, submissions) get only `created_at`, every foreign key declares an `ON DELETE` policy (rows a user owns privately cascade; shared comments survive with `SET NULL`), and each index is declared next to the columns it serves with a comment on the query pattern that needs it. The `idx_comments_target` index in `m0004_community.rs` carries exactly such a comment: "all comments on target X, oldest first". (The query has since changed to fetch the newest 500 and reverse them in memory; a B-tree on `(target_kind, target_slug, created_at)` serves that scanned backwards, so the index is still right even though its comment now describes the old query.)
+
+`m0006` shows the append-only rule in practice. When the AI budget needed to record prompt-cache tokens, `m0006_ai_usage_cache_tokens.rs` added two `bigint NOT NULL DEFAULT 0` columns to `ai_usage` with `ALTER TABLE`, instead of editing `m0003_ai.rs`, which created that table and had already shipped. Editing `m0003` would have changed nothing on any database that had already applied it, so production and a fresh checkout would silently disagree about the schema. A constant default also keeps the change catalog-only on Postgres 11 and later, so it is safe on a large table.
+
+`m0007_integrity` is a repair to data that already exists, which is what many later migrations turn out to be. It does three things. It creates an `activity_days` table and backfills it with one `INSERT ... SELECT ... ON CONFLICT DO NOTHING` from `quiz_attempts`, `submissions` and `lesson_progress`, because streaks had been computed from `lesson_progress.updated_at`, which every update overwrote, so earlier active days vanished. It marks all but the newest active interview per user as abandoned and only then creates the partial unique index `uq_interviews_one_active_per_user` on `interviews (user_id) WHERE status = 'active'`: clean the data first, or the index build fails on the duplicates. And it makes `comments.user_id` nullable and swaps its `ON DELETE CASCADE` foreign key for `ON DELETE SET NULL`, because deleting an account used to delete that user's comments and, through the `parent_id` cascade, other people's replies to them. SeaORM's migrator runs each migration in its own transaction on Postgres, so all of that commits or none of it does. At this app's size every statement takes milliseconds. On a table with a billion rows the same migration would need this lesson's techniques instead: the backfill would be a batched job, the index would be built `CONCURRENTLY` (which cannot run in that transaction, so the migration would opt out by returning `Some(false)` from `use_transaction()`), and the new foreign key would be added `NOT VALID` and validated separately.
 
 What frameworks do not do is make a migration safe. A framework will happily run `ALTER COLUMN id TYPE bigint` on a billion rows. Three habits close the gap:
 
@@ -175,7 +179,7 @@ MySQL's InnoDB has grown online DDL for many operations, but the general-purpose
 
 ## Rollbacks and forward-only thinking
 
-Every migration framework offers a `down` migration, and every senior engineer knows when it is a lie. This app's `down` for `m0004_community` drops the `comments` table, which is a correct inverse in a development database and a data-loss event in production. Down migrations are for local development. In production, you roll forward: if deploy 3 reads the new columns and they are wrong, you fix the data or ship deploy 3a that reads the old ones again. The expand/contract phases are designed so that rolling back the *code* to the previous deploy is always safe, because the schema at every phase is compatible with the previous code version. That is the rollback that matters.
+Every migration framework offers a `down` migration, and every senior engineer knows when it is a lie. This app's `down` for `m0004_community` drops the `comments` table, which is a correct inverse in a development database and a data-loss event in production. The `down` for `m0007_integrity` is subtler: before it can make `comments.user_id` `NOT NULL` again it has to delete every comment whose author has deleted their account. Down migrations are for local development. In production, you roll forward: if deploy 3 reads the new columns and they are wrong, you fix the data or ship deploy 3a that reads the old ones again. The expand/contract phases are designed so that rolling back the *code* to the previous deploy is always safe, because the schema at every phase is compatible with the previous code version. That is the rollback that matters.
 
 The contract phase is the one place you lose the option. Once `name` is dropped, the old code cannot run. So the contract waits: a day, a week, until the metrics confirm nothing reads the old column, and it ships as its own deploy so that it can be delayed indefinitely without blocking anything else.
 
@@ -203,38 +207,38 @@ The bar at a top-tier company is that the migration plan is written down before 
 ```quiz
 - q: >-
     A migration runs ALTER TABLE orders ADD COLUMN note text (nullable, no default). It should take milliseconds, yet the API returns 503s for four minutes while it runs. What is the most likely cause?
-  options: ["Postgres rewrote the table to add the column", "A long-running transaction held a lock on orders, the ALTER queued behind it, and every new SELECT queued behind the ALTER", "The connection pool was too small", "The column type text is slow to add"]
+  options: ["Adding a text column writes an empty TOAST pointer into every existing row", "The ALTER queued behind a long transaction, and new reads queued behind the ALTER", "Postgres rewrote the whole table to add the column, holding its lock throughout", "The connection pool was too small to serve both the migration and the API traffic"]
   answer: 1
   explanation: >-
     Adding a nullable column is catalog-only, so the statement itself is fast. The damage comes from lock queueing: the ALTER waits for ACCESS EXCLUSIVE behind an existing lock holder, and Postgres grants locks in order, so new readers wait behind the ALTER. A lock_timeout with retry prevents this.
 - q: >-
     Which of these ALTER TABLE statements rewrites every row of a large table on Postgres 15?
-  options: ["ADD COLUMN status text NOT NULL DEFAULT 'new'", "ADD COLUMN created timestamptz DEFAULT now()", "DROP COLUMN legacy_flag", "ALTER COLUMN name TYPE varchar(500) from varchar(100)"]
-  answer: 1
+  options: ["DROP COLUMN legacy_flag", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "ADD COLUMN created timestamptz DEFAULT now()", "ALTER COLUMN name TYPE varchar(500) from varchar(100)"]
+  answer: 2
   explanation: >-
     A volatile default such as now() needs a distinct value per row, so the table is rewritten. A constant default is stored in the catalog since Postgres 11, DROP COLUMN only marks the column dropped, and widening a varchar needs no data change.
 - q: >-
     CREATE INDEX CONCURRENTLY was interrupted by a lock timeout. What state is the database in?
-  options: ["No index exists; simply retry", "An index marked INVALID exists, is maintained on every write and never used by the planner; drop it before retrying", "The index is complete but not yet visible", "The table is locked until the index is dropped"]
+  options: ["No index exists, because the failed build rolled back cleanly; simply retry", "An INVALID index remains, maintained on writes but unused; drop it, then retry", "The table stays locked against writes until the unfinished index is dropped", "The index is complete but stays invisible to the planner until the next ANALYZE"]
   answer: 1
   explanation: >-
     A failed concurrent build leaves an INVALID index behind. It costs write overhead and helps no query. Check pg_index.indisvalid and DROP INDEX CONCURRENTLY before retrying. The table is not locked.
 - q: >-
     In expand/contract, why does the code start writing the new column (deploy 2) before it starts reading it (deploy 3)?
-  options: ["Reads are more expensive than writes", "So that when the read path switches, every row written since deploy 2 is already correct and only older rows need the backfill", "Because Postgres requires a column to be written before it can be indexed", "To avoid running two migrations in one day"]
+  options: ["Postgres requires a column to hold data before any index can be built on it", "So rows written after deploy 2 are already right and only older rows need a backfill", "Reads cost more than writes, so the cheaper change should always ship first", "Reading first would force the column's migration and its backfill into a single deploy"]
   answer: 1
   explanation: >-
     Writing both shapes first means the backfill only has to cover rows that predate deploy 2, and the read switch can be verified against a complete data set. Reading first would return NULLs for every row not yet backfilled.
 - q: >-
     A backfill uses UPDATE ... WHERE id IN (SELECT id ... OFFSET $n LIMIT 5000) and gets slower with each batch. What is wrong?
-  options: ["The LIMIT is too small", "OFFSET forces Postgres to scan and discard all skipped rows, so batch cost grows linearly; range by primary key (id > $last_id) instead", "Autovacuum is disabled", "The UPDATE should be a single statement over the whole table"]
+  options: ["The backfill should be one UPDATE over the whole table instead of many batches", "OFFSET makes Postgres read and discard every skipped row; range on id > $last_id", "Autovacuum is switched off while a backfill runs, so dead rows pile up per batch", "The LIMIT of 5000 is too small, so per-batch overhead grows with the table"]
   answer: 1
   explanation: >-
     OFFSET pagination is O(n) per batch because the skipped rows are still read. Keyset pagination on the primary key turns each batch into an index range scan of constant cost. One giant UPDATE would hold locks and produce a huge WAL burst for hours.
 - q: >-
     Two services each dual-write a user's name to Postgres and to Elasticsearch. Occasionally the two stores disagree even though every request wrote both. What is the sound fix?
-  options: ["Add retries to the Elasticsearch write", "Write only to Postgres and derive the Elasticsearch document from its change stream (CDC or an outbox)", "Write Elasticsearch first, then Postgres", "Use a distributed lock around both writes"]
-  answer: 1
+  options: ["Write only to Postgres and build the search document from CDC or an outbox table", "Take a distributed lock around both writes so no other request interleaves", "Add retries with backoff to the Elasticsearch write so that it always lands", "Write Elasticsearch first and Postgres second, so the search index never lags"]
+  answer: 0
   explanation: >-
     Dual writes to independent stores can interleave in any order, so no ordering of the two writes prevents the race, and retries only affect failures, not ordering. Making one store the source of truth and replaying its committed changes into the other removes the race. A distributed lock works in principle but adds a coordination service and latency to every write.
 ```

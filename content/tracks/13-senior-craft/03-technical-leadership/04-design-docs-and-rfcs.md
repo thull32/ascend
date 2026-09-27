@@ -86,6 +86,8 @@ This app streams AI coach replies to the browser. The obvious first implementati
 
 That is the design the code in `crates/api/src/routes/sse.rs` implements, and the [Rust essentials](/learn/senior-craft/languages-for-senior-engineers/rust-essentials) lesson walks through it line by line. Notice what the doc did: it made the rejected option's strength (C survives crashes) explicit, fenced it off with a non-goal, and wrote down the trigger for revisiting. A reader two years later knows exactly what was traded away and when to reconsider.
 
+The consequences list also shows how a consequence can be understood and still be missed in code. The first implementation started the task with a bare `tokio::spawn`, and nothing waited for it at shutdown: once connections drained, `main` returned and the runtime dropped any reply whose browser had already gone, which is the exact case the design exists for, whenever a deploy landed mid-reply. The fix routes these tasks through a `TaskTracker` (`state.tasks`), and `crates/api/src/main.rs` now waits up to 30 seconds for them after the server stops accepting connections, bounded so a hung upstream cannot block the deploy. A consequence that says "must" is a requirement; give it a test or a checklist item, or it stays prose.
+
 ## RFCs: designs that change things for many teams
 
 A design doc is usually about a project a team owns. An **RFC** (request for comments) proposes a change that affects many teams: a shared standard, a platform capability, a cross-cutting convention. The audience is wider, adoption is voluntary until mandated, and the process matters more.
@@ -177,32 +179,32 @@ Put the recommendation first. Keep the summary to five sentences so an executive
 ```quiz
 - q: >-
     Which change most clearly needs a design doc?
-  options: ["Renaming an internal function across one service", "Adding a field to an internal log line", "Switching the primary datastore for user sessions", "Upgrading a patch version of a library"]
-  answer: 2
-  explanation: >-
-    A datastore change is hard to reverse, affects operations and data, and usually crosses teams. The others are reversible and local; a doc would be overhead.
-- q: >-
-    Reviewers keep critiquing your design for not supporting multi-region failover, which you never intended to build this quarter. What was most likely missing from the doc?
-  options: ["A diagram", "An explicit non-goals section", "A longer summary", "More alternatives"]
-  answer: 1
-  explanation: >-
-    Non-goals tell readers what is deliberately out of scope, which keeps review focused on the problem being solved. Without them, reviewers fill the gap with their own assumptions.
-- q: >-
-    In the reply-persistence example, why was the durable job queue (option C) rejected even though it survives server crashes?
-  options: ["Queues cannot carry streaming data", "It was the most expensive option to run in the cloud", "It could not provide backpressure", "Surviving crashes was an explicit non-goal, and C added infrastructure and per-event latency the stated goals did not justify"]
-  answer: 3
-  explanation: >-
-    The doc named C's strength honestly, then fenced it off with a non-goal and recorded a trigger to revisit. That is how a senior rejects a stronger-but-costlier option without hiding the trade-off.
-- q: >-
-    An RFC for a cross-team logging standard has been open for comments for four months. What process element is most likely missing?
-  options: ["A final comment period with a fixed end date after which the decision stands", "A longer motivation section", "More reviewers", "A prototype"]
+  options: ["Switching the primary datastore for user sessions", "Upgrading a library by a patch version everywhere", "Adding a field to an internal log line in one handler", "Renaming an internal function across one service"]
   answer: 0
   explanation: >-
-    Without a closing window there is no moment at which the proposal is accepted or rejected, so it drifts. A final comment period converts discussion into a decision.
+    A datastore change is hard to reverse, affects operations and data, and usually crosses teams. The rename, the log field and the patch upgrade are reversible and local, however widely they are applied; a doc would be overhead.
 - q: >-
-    A decision recorded in an ADR two years ago no longer holds. What should you do?
-  options: ["Edit the old ADR to reflect the new decision", "Delete the old ADR to avoid confusion", "Write a new ADR that supersedes it and mark the old one as superseded", "Leave both unchanged and mention it in the README"]
+    Reviewers keep critiquing your design for not supporting multi-region failover, which you never intended to build this quarter. What was most likely missing from the doc?
+  options: ["A clearer architecture diagram", "An explicit non-goals section", "More alternatives considered", "A longer executive summary"]
+  answer: 1
+  explanation: >-
+    Non-goals tell readers what is deliberately out of scope, which keeps review focused on the problem being solved. Without them, reviewers fill the gap with their own assumptions, and no diagram, summary or extra alternative tells them the omission was deliberate.
+- q: >-
+    In the reply-persistence example, why was the durable job queue (option C) rejected even though it survives server crashes?
+  options: ["A queue cannot carry token-by-token streaming data at the latency a chat needs", "It was the most expensive option to run, and cost alone decided the comparison", "Crash survival was a non-goal, so its infrastructure and latency were unjustified", "It offered no backpressure, so one slow browser could exhaust the server's memory"]
   answer: 2
   explanation: >-
-    ADRs are an immutable history of why things changed. Superseding preserves the original context and makes the evolution traceable; editing or deleting erases exactly the reasoning future engineers need.
+    The doc named C's strength honestly, then fenced it off with a non-goal and recorded a trigger to revisit. C adds a queue hop per event rather than making streaming impossible, and its queue depth is a form of backpressure; it lost because the goals did not justify its new infrastructure. That is how a senior rejects a stronger-but-costlier option without hiding the trade-off.
+- q: >-
+    An RFC for a cross-team logging standard has been open for comments for four months. What process element is most likely missing?
+  options: ["A final comment period with a fixed end date", "A working prototype that settles the debate", "A wider list of reviewers from every team", "A longer motivation section with more evidence"]
+  answer: 0
+  explanation: >-
+    Without a closing window there is no moment at which the proposal is accepted or rejected, so it drifts. A final comment period converts discussion into a decision; more evidence, reviewers or prototypes only feed a discussion that has no end.
+- q: >-
+    A decision recorded in an ADR two years ago no longer holds. What should you do?
+  options: ["Write a new ADR that supersedes it and mark the old one superseded", "Edit the old ADR so that it reflects the decision now in force", "Delete the old ADR so that nobody follows it by mistake", "Leave the ADR unchanged and note the change in the README instead"]
+  answer: 0
+  explanation: >-
+    ADRs are an immutable history of why things changed. Superseding preserves the original context and makes the evolution traceable; editing or deleting erases exactly the reasoning future engineers need, and a README note leaves the ADR log asserting something false.
 ```

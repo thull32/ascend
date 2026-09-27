@@ -1,7 +1,7 @@
 ---
 slug: rate-limiting-algorithms
 title: "Rate limiting: token buckets, leaky buckets, sliding windows and GCRA"
-description: How fixed windows, sliding logs, sliding counters, token buckets, leaky buckets and GCRA decide which requests to admit, what each costs per key, how Ascend's own per-IP limits and daily AI budgets use them, and how to limit across a fleet.
+description: How fixed windows, sliding logs, sliding counters, token buckets, leaky buckets and GCRA decide which requests to admit, what each costs per key, how Ascend's own per-IP, per-account and per-session limits and daily AI budgets use them, and how to limit across a fleet.
 minutes: 45
 difficulty: medium
 tags: [networking, rate-limiting, token-bucket, leaky-bucket, sliding-window, gcra, redis, api-design]
@@ -133,38 +133,50 @@ Ascend's API uses two layers of limiting that are worth reading as a pair. The f
 
 ```rust
 pub struct Limiters {
-    /// Login/register: 10 per minute per IP, burst 10.
+    /// Login/register: 30 per minute per IP. Loose enough for a class
+    /// signing up together behind one NAT address.
     pub auth: Keyed<IpAddr>,
-    /// Everything else: 300 per minute per IP.
+    /// Password attempts: 10 per minute per account (login and account
+    /// deletion). This, not the per-IP bucket, is what stops a distributed
+    /// attacker guessing one learner's password.
+    pub password_attempts: Keyed<String>,
+    /// Everything else: 1,200 per minute per IP. Deliberately loose: a whole
+    /// class or office can share one NAT address, and every route that is
+    /// expensive (password hashing, AI) has its own tight bucket. This one
+    /// only stops a single client from flooding cheap reads.
     pub general: Keyed<IpAddr>,
-    /// AI routes: 20 per minute per IP (the daily budget is enforced separately).
-    pub ai: Keyed<IpAddr>,
+    /// Model-calling routes: 20 per minute per session (IP when there is no
+    /// session cookie). The daily budget is enforced separately.
+    pub ai: Keyed<ClientKey>,
 }
 
 impl Limiters {
     pub fn new() -> Self {
         let per_min = |n: u32| Quota::per_minute(NonZeroU32::new(n).expect("non-zero"));
         Self {
-            auth: RateLimiter::keyed(per_min(10)),
-            general: RateLimiter::keyed(per_min(300)),
+            auth: RateLimiter::keyed(per_min(30)),
+            password_attempts: RateLimiter::keyed(per_min(10)),
+            general: RateLimiter::keyed(per_min(1200)),
             ai: RateLimiter::keyed(per_min(20)),
         }
     }
 }
 ```
 
-These are `governor` limiters, and `governor` implements GCRA. `Quota::per_minute(n)` means a burst of `n` and one replenished cell every $60/n$ seconds, so the auth limiter is exactly the worked example above (one attempt per 6 s after a burst of 10), the general limiter replenishes every 200 ms after a burst of 300, and the AI limiter every 3 s after a burst of 20. The state per IP is one atomic timestamp in a concurrent map.
+These are `governor` limiters, and `governor` implements GCRA. `Quota::per_minute(n)` means a burst of `n` and one replenished cell every $60/n$ seconds, so the password-attempt limiter is exactly the worked example above (one attempt per 6 s after a burst of 10), the auth limiter replenishes every 2 s after a burst of 30, the general limiter every 50 ms after a burst of 1,200, and the AI limiter every 3 s after a burst of 20. The state per key is one atomic timestamp in a concurrent map.
 
 Things a reviewer should notice:
 
-- **Layering.** The general limiter wraps every `/api` route and the AI routes add their own layer inside it, so an AI request spends from both buckets. Cheap, strict checks go on the expensive endpoints; a generous one protects everything.
-- **The key is an IP, which is both too coarse and too fine.** Every user behind one university NAT shares a bucket, which is part of why the general limit is a generous 300 per minute. And an attacker with a botnet has thousands of keys. Per-IP limits are an abuse brake, not fairness.
+- **Layering.** The general limiter wraps every `/api` route and the routes that call the model add their own layer inside it, so a model call spends from both buckets. The auth bucket wraps only `/auth/register` and `/auth/login`, the unauthenticated routes that pay for an Argon2 password hash. Cheap, strict checks go on the expensive endpoints; a generous one protects everything.
+- **For auth and general traffic the key is an IP, which is both too coarse and too fine.** Every user behind one university NAT shares a bucket, which is why the general limit was raised from 300 to a loose 1,200 per minute; the comment above gives the reasoning, and it only works because every expensive route has a tight bucket of its own. And an attacker with a botnet has thousands of keys. Per-IP limits are an abuse brake, not fairness.
+- **The key decides what an attacker must vary.** A per-IP login limit does little against someone guessing one learner's password from a thousand addresses: each address gets its own allowance. So login and account deletion also call `Limiters::check_password_attempt`, which charges the attempt to the account, keyed by the email trimmed, lowercased and capped at 254 characters (the address has not been validated at that point, so an unbounded key would let a client fill the map with very long strings). Now the attacker gets 10 guesses a minute per account however many addresses they own, and case or whitespace variants do not buy a fresh allowance. Deletion is included because it asks for the password too, and a stolen session must not become a password-guessing oracle. The price, shared by every per-account limit, is that anyone who knows a learner's email can spend that learner's allowance and make their real login wait; a per-minute quota keeps that wait to seconds rather than a lockout.
+- **The AI bucket is keyed by session instead.** Twenty model calls a minute shared by a whole classroom behind one address would throttle everyone, so that limiter's key is `enum ClientKey { Ip(IpAddr), Session([u8; 16]) }`. The middleware hashes the session cookie with SHA-256 and keeps the first 16 bytes (so raw session tokens never sit in the limiter's memory), falling back to the IP when there is no cookie. A client that invents cookies gets a fresh bucket for each, but authentication then rejects the request, and every attempt still spends from the per-IP general bucket. The bucket also wraps only the routes that call the model (sending a coach message, generating a quiz or roadmap suggestions, interview turns); listing conversations or reading history is ordinary traffic. `ai_throttling_is_per_session_and_only_for_model_calls` tests both: one learner's quiz requests start getting 429s once the burst of 20 is spent, while a second learner on the same IP is unaffected.
 - **Which IP?** Behind a proxy the TCP peer is the proxy, so keying on it would put every user in one bucket and let one abuser lock everyone out. The fix is to read the client address from a header, but `X-Forwarded-For`'s first entry is whatever the client chose to send, and a client that sends a random value per request gets a fresh bucket per request. The code's comment records the rule: trust only a header that your own proxy sets and overwrites (Railway's `X-Real-IP` here, selected by `CLIENT_IP_HEADER`), and fall back to the socket peer.
-- **`Retry-After` is a constant 60.** GCRA already knows the exact earliest time a request would be admitted (`governor` returns it in the rejection), and for the auth limiter that is 6 seconds, not 60. Sending the real value lets well-behaved clients back off precisely.
-- **State is per process.** The module comment says so and names Redis as the path to horizontal scale. With three instances behind a round-robin balancer, each IP effectively gets three times the limit.
-- **Keys never expire on their own.** `governor`'s keyed store keeps an entry for every IP it has ever seen until something calls `retain_recent()`. A long-running process should call it periodically, or the map grows with every distinct visitor.
+- **`Retry-After` used to be a constant 60.** GCRA already knows the exact earliest time a request would be admitted (`governor` returns it in the rejection as a `NotUntil`), and for the password-attempt limiter that is 6 seconds, not 60. The limiter now sends the real value: `not_until.wait_time_from(now)`, rounded up to whole seconds and never less than 1, checked by `throttled_responses_say_when_to_retry` in `crates/api/tests/api.rs`, which also checks that a second account from the same address is not throttled. The web client uses it: a read that fails with 429 is retried at most twice, after the number of seconds the server asked for (capped at 10).
+- **State is per process.** The module comment says so and names Redis as the path to horizontal scale. With three instances behind a round-robin balancer, each key effectively gets three times the limit.
+- **Keys never expire on their own.** `governor`'s keyed store keeps an entry for every key it has ever seen until something calls `retain_recent()`. The first version never called it, so the maps grew with every distinct visitor. Now `Limiters::prune` calls `retain_recent()` and `shrink_to_fit()` on every limiter, from the same hourly task in `main.rs` that sweeps expired sessions.
 
-The second layer is `crates/core/src/ai/budget.rs`, and it solves a different problem. The per-IP limiter smooths bursts; the budget caps **cost**: each user gets a daily allowance of AI requests and tokens, reset at midnight UTC. It is a fixed window counter stored in Postgres, one row per `(user_id, day)`. The fixed window is fine here: a user could spend a day's budget at 23:59 and another at 00:01, and the daily bill is still bounded.
+The second layer is `crates/core/src/ai/budget.rs`, and it solves a different problem. The in-memory limiters smooth bursts; the budget caps **cost**: each user gets a daily allowance of AI requests and tokens, reset at midnight UTC. It is a fixed window counter stored in Postgres, one row per `(user_id, day)`. The fixed window is fine here: a user could spend a day's budget at 23:59 and another at 00:01, and the daily bill is still bounded.
 
 The interesting part is how a request slot is reserved. The obvious version reads today's usage, compares it with the limit, and increments it in a second statement. Two concurrent requests from a user at 119 of 120 can then both read 119, both pass the check, and end at 121; with N concurrent requests the overshoot is N − 1. `check_and_reserve` does it in one statement instead:
 
@@ -365,38 +377,38 @@ hints:
 ```quiz
 - q: >-
     A fixed window limiter allows 100 requests per minute per client. What is the most a client can get through in any 2-second interval?
-  options: ["100", "About 3", "200", "Unlimited"]
-  answer: 2
+  options: ["About 3", "200", "Unlimited", "100"]
+  answer: 1
   explanation: >-
     Send 100 in the last second of one window and 100 in the first second of the next: both windows are within their limit, and 200 requests land within two seconds. Sliding windows, token buckets and GCRA do not have this boundary effect.
 - q: >-
     A sliding window counter has a limit of 60 per minute. The previous minute had 40 requests; you are 30 seconds into the current minute, which has had 35. Is the next request admitted?
-  options: ["Yes, because 35 is below 60", "No, because 40 + 35 = 75 exceeds 60", "Yes, because the estimate is 40 × 0.5 + 35 = 55, below 60", "No, because the previous window alone used two thirds of the limit"]
+  options: ["No, because the previous window alone used two thirds of the limit", "No, because 40 + 35 = 75 is more than the limit of 60", "Yes, because the estimate is 40 × 0.5 + 35 = 55, below 60", "Yes, because the current window's 35 is below 60"]
   answer: 2
   explanation: >-
     The previous window is weighted by the fraction of it still inside the sliding minute (0.5), giving 20 + 35 = 55. Adding the raw counts ignores that half the previous window has slid out; ignoring the previous window entirely would allow the boundary burst.
 - q: >-
     A token bucket has capacity 10 and refills 5 tokens per second. Starting full, what is the maximum number of requests it admits in the first 4 seconds?
-  options: ["20", "30", "10", "40"]
-  answer: 1
+  options: ["10", "20", "30", "40"]
+  answer: 2
   explanation: >-
     At most b + r·T = 10 + 5 × 4 = 30: the initial burst of 10, plus 20 tokens refilled over 4 seconds. The capacity bounds the burst, the rate bounds everything after it.
 - q: >-
     You put a leaky bucket queue of size 50, draining at 10 requests per second, in front of a fragile service. What is the main new risk?
-  options: ["The service now sees bursts of 50", "Requests are processed out of order", "Memory use grows without bound", "Queued requests can wait up to about 5 seconds, holding connections and possibly exceeding client timeouts"]
-  answer: 3
-  explanation: >-
-    A shaping queue converts bursts into delay: the last of 50 queued requests waits about 50 / 10 = 5 s. If the client's timeout is shorter, the work is wasted and probably retried. Size the queue by the delay you can accept.
-- q: >-
-    A daily quota is enforced by reading the user's usage and then incrementing it in a separate statement. A user at 119 of 120 sends two requests at the same instant. What can happen, and how does Ascend's budget code avoid it?
-  options: ["Both can read 119 and proceed, ending at 121; Ascend reserves with one conditional upsert (ON CONFLICT DO UPDATE ... WHERE requests < limit RETURNING), so the check and the increment are a single atomic step", "Nothing; Postgres serialises the two requests automatically", "The second request deadlocks", "Both are rejected because the upsert conflicts"]
+  options: ["Queued requests can wait about 5 s, past many clients' timeouts", "The service now receives bursts of up to 50 requests at once", "Queued requests are processed out of order when the queue fills", "Memory grows without bound because the queue never fully drains"]
   answer: 0
   explanation: >-
-    Check-then-act across two statements is a race under the default isolation level: both reads can see 119 before either write lands. A single conditional statement makes the two requests queue on the row lock; the second finds 120, updates nothing, gets no row back from RETURNING, and is rejected.
+    A shaping queue converts bursts into delay: the last of 50 queued requests waits about 50 / 10 = 5 s, holding its connection the whole time. If the client's timeout is shorter, the work is wasted and probably retried. The service itself sees a steady 10 per second, never the burst, and the queue is bounded at 50. Size the queue by the delay you can accept.
+- q: >-
+    A daily quota is enforced by reading the user's usage and then incrementing it in a separate statement. A user at 119 of 120 sends two requests at the same instant. What can happen, and how does Ascend's budget code avoid it?
+  options: ["Nothing; Postgres serialises the two statements, so Ascend needs no special care", "Both can read 119 and end at 121; Ascend's single conditional upsert rules it out", "Both are rejected as conflicts; Ascend retries the loser after a short backoff", "The second request deadlocks; Ascend avoids it by taking SELECT ... FOR UPDATE"]
+  answer: 1
+  explanation: >-
+    Check-then-act across two statements is a race under the default isolation level (Read Committed does not serialise them): both reads can see 119 before either write lands. Ascend reserves with one statement, INSERT ... ON CONFLICT DO UPDATE SET requests = requests + 1 WHERE requests < limit RETURNING requests, so the two requests queue on the row lock; the second finds 120, updates nothing, gets no row back from RETURNING, and is rejected.
 - q: >-
     Your service runs 5 instances, each with an in-process limit of 100 requests per second per API key, behind a round-robin load balancer. What does a client actually get, and what is the usual fix?
-  options: ["100 per second, because the limit is per key", "20 per second", "It depends only on the client's retry policy", "Up to about 500 per second; move the bucket to a shared store such as Redis (or divide the limit by the instance count and accept the skew)"]
-  answer: 3
+  options: ["Up to about 500 per second; keep one shared bucket per key, for example in Redis", "100 per second, since the limit is per key and every instance sees the same key", "20 per second, since the balancer splits the 100 limit five ways across instances", "It depends only on the client's retry policy, since rejected calls are retried"]
+  answer: 0
   explanation: >-
-    Each instance enforces its own bucket, so a client spread across all five gets up to five times the limit. Centralised state gives one bucket per key at the cost of a round trip and a dependency; dividing the limit is free but wrong under uneven balancing or autoscaling.
+    Each instance enforces its own bucket and none of them knows about the others, so a client spread across all five gets up to five times the limit. Centralised state gives one bucket per key at the cost of a round trip and a dependency. Dividing the limit by the instance count is the no-coordination alternative: free, but wrong under uneven balancing or autoscaling.
 ```

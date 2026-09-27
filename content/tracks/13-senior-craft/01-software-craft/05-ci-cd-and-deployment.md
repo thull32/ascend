@@ -32,16 +32,17 @@ Four rules carry most of the value:
 3. **Test the artifact, not the source.** End-to-end tests run against the built image, so packaging mistakes (a missing asset, a wrong entrypoint) are caught before users see them.
 4. **Keep it fast.** A pipeline people wait 45 minutes for gets bypassed. Cache dependencies, parallelise independent stages, and move slow suites to a non-blocking lane only if something else covers the risk.
 
-This repository's pipeline lives in `.github/workflows/ci.yml` and shows the rules at small scale. Four jobs run in parallel where they can:
+This repository's pipeline lives in `.github/workflows/ci.yml` and shows the rules at small scale. Five jobs run in parallel where they can:
 
 - **rust** starts a Postgres service container (with a health check, so tests do not begin before the database accepts connections), then runs `cargo fmt --check`, `cargo clippy`, `cargo test --workspace` (unit tests, the content test and the API integration suite) and the strict content validator.
 - **problems** executes every practice problem's reference solution against its own tests.
 - **web** installs with a frozen lockfile, type-checks, runs Vitest and builds the SPA.
 - **image** builds the production Dockerfile, with a layer cache, once the rust and web jobs pass.
+- **e2e**, also after rust and web, starts its own Postgres service, builds the SPA and the server, starts the binary, polls `/api/readyz` until it answers, runs the Playwright smoke suite (`e2e/smoke.spec.ts`) in Chromium on the desktop and mobile profiles, and uploads the Playwright report and the server log when anything fails.
 
-Two small details are worth stealing. A `concurrency` group cancels an in-progress run when a newer commit arrives on the same branch, so nobody waits for results about code that no longer exists. And the Rust job writes a one-line placeholder `web/dist/index.html`, because the server embeds the SPA at compile time: the Rust checks do not need a real frontend, so they do not wait for one. `make check` runs the same steps locally (the Makefile describes it as everything CI runs), which keeps "passes on my machine" and "passes CI" the same statement.
+Two small details are worth stealing. A `concurrency` group cancels an in-progress run when a newer commit arrives on the same branch, so nobody waits for results about code that no longer exists. And the Rust job writes a one-line placeholder `web/dist/index.html`, because the server embeds the SPA at compile time: the Rust checks do not need a real frontend, so they do not wait for one. `make check` runs the same lint and test steps locally (the Makefile describes it as everything CI runs; the image build and the browser suite are the exceptions, the latter available as `make e2e` against a running server), which keeps "passes on my machine" and "passes CI" close to the same statement.
 
-Measured against the four rules, one gap stands out. The image job builds the Dockerfile but does not push it (`push: false`), and the platform builds its own image from the same commit when `main` changes. That is two builds of one commit, the pattern rule 2 warns about. Frozen lockfiles make the two builds very likely identical, and for a one-person project the simplicity is a fair trade; the stricter design pushes CI's image to a registry and deploys that digest. Similarly, the Playwright suite, the only test of the real browser, cookies and in-browser runners together, runs on demand (`make e2e`) rather than as one of the jobs, so its risks are covered less often than the rest.
+Measured against the four rules, one gap stands out. The image job builds the Dockerfile but does not push it (`push: false`), and the platform builds its own image from the same commit when `main` changes. That is two builds of one commit, the pattern rule 2 warns about. Frozen lockfiles make the two builds very likely identical, and for a one-person project the simplicity is a fair trade; the stricter design pushes CI's image to a registry and deploys that digest. A second gap has been closed, and how it was closed is instructive. The Playwright suite, the only test of the real browser, cookies and in-browser runners together, used to run only on demand (`make e2e`), so a change that broke the browser journey could merge with every check green. The new `e2e` job runs it on every pull request and every push to `main`. It tests a debug build compiled from source rather than the image the `image` job produced, though, so rule 3 is still only approximated: a packaging mistake in the Dockerfile would pass it. Closing a gap usually means naming the next one, and running the same suite against the built image is that next step.
 
 ## Environments and configuration
 
@@ -56,8 +57,8 @@ Three pieces define the deploy. The `Dockerfile` builds the image in stages: Nod
 ```typescript
 // excerpt from .railway/railway.ts
 const app = service("ascend", {
-  // Builds the root Dockerfile. Pushing to main deploys.
-  source: github("thull32/ascend", { checkSuites: false }),
+  // Builds the root Dockerfile. A push to main deploys once CI passes.
+  source: github("thull32/ascend", { checkSuites: true }),
   replicas: { [region]: 1 },
   // Migrations run on boot before the server binds, so a passing readiness
   // probe means the schema is current and Postgres is reachable.
@@ -67,7 +68,7 @@ const app = service("ascend", {
 });
 ```
 
-The third piece is the process itself. The boot sequence in `crates/api/src/main.rs` is ordered to make that health check meaningful: load and validate config, initialise logging, connect to Postgres, **run pending migrations**, load the curriculum, and only then bind the port. `/api/readyz` (in `crates/api/src/routes/health.rs`) runs `SELECT 1` and reports the database status, whether AI is enabled and the content version. So a 200 from readiness means "config valid, schema current, database reachable, content loaded". If a migration fails, the process exits non-zero, the new deployment never turns healthy, and the platform keeps sending traffic to the old one.
+The third piece is the process itself. The boot sequence in `crates/api/src/main.rs` is ordered to make that health check meaningful: load and validate config, initialise logging, connect to Postgres, **run pending migrations**, load the curriculum, and only then bind the port. `/api/readyz` (in `crates/api/src/routes/health.rs`) runs `SELECT 1` and reports the database status, whether AI is enabled, the content version and the build (the commit the binary was compiled from). So a 200 from readiness means "config valid, schema current, database reachable, content loaded". If a migration fails, the process exits non-zero, the new deployment never turns healthy, and the platform keeps sending traffic to the old one.
 
 ```mermaid
 sequenceDiagram
@@ -87,9 +88,9 @@ sequenceDiagram
   O-->>P: exit
 ```
 
-Zero downtime needs one more piece: the old version must finish what it started. Once the new deployment is healthy, the platform stops the old one with SIGTERM. `main.rs` listens for it and shuts Axum down gracefully ("draining connections"), so requests in flight complete instead of being cut off. How long the platform waits between SIGTERM and a hard kill is a platform setting, and it must be longer than your slowest legitimate request, which for a streamed AI reply is minutes rather than seconds. The whole sequence is a small-scale version of the next strategy.
+Zero downtime needs one more piece: the old version must finish what it started. Once the new deployment is healthy, the platform stops the old one with SIGTERM. `main.rs` listens for it and shuts Axum down gracefully ("draining connections"), so requests in flight complete instead of being cut off, then waits up to 30 seconds for background tasks, such as an AI reply still being saved for a learner who already closed the tab. How long the platform waits between SIGTERM and a hard kill is a platform setting, and it must be longer than your slowest legitimate request, which for a streamed AI reply is minutes rather than seconds. The whole sequence is a small-scale version of the next strategy.
 
-One line in the service definition deserves a reviewer's question: the source is configured with `checkSuites: false`. If that means what it says, a push to `main` deploys without waiting for GitHub's checks, and the only thing keeping a red build out of production is branch protection that requires CI to pass before anything merges. That can be a sound arrangement, but it should be a decision someone made, not a default nobody noticed.
+One line in the service definition used to deserve a reviewer's question. The source was configured with `checkSuites: false`, so a push to `main` deployed without waiting for GitHub's checks, and the only thing keeping a red build out of production was branch protection requiring CI to pass before anything merged. That can be a sound arrangement, but nothing in the file said it was a decision rather than a default. The line now reads `checkSuites: true`, with the comment "A push to main deploys once CI passes": the platform waits for the commit's check suites, the CI jobs above, to pass before it deploys. The lesson outlives the fix: a setting that decides whether untested code can reach production should be a decision someone made and a reviewer can see, not a default nobody noticed.
 
 Readiness and liveness are different questions. `/api/healthz` answers "is the process up?" and checks nothing else; `/api/readyz` answers "should this instance get traffic?" and checks the database. An orchestrator that restarts containers on failed *liveness* must never use a check that depends on the database, or a brief database outage becomes every instance restarting at once.
 
@@ -143,7 +144,7 @@ During overlap, blue-green and any rollback, **old code runs against the new sch
 4. Deploy code that reads the new column.
 5. Contract: stop writing the old column, then drop it in a later release.
 
-This repository's migration conventions, written at the top of `migration/src/lib.rs`, are the same discipline in miniature. Migrations are **append-only**: never edit one that has shipped, add a new one, because production has already recorded it as applied and an edit would only change what fresh databases get. Every table gets `created_at`/`updated_at` with database-side defaults, so application code cannot forget them. Every foreign key declares an `ON DELETE` policy; user-owned rows cascade so that deleting an account erases the user's data.
+This repository's migration conventions, written at the top of `migration/src/lib.rs`, are the same discipline in miniature. Migrations are **append-only**: never edit one that has shipped, add a new one, because production has already recorded it as applied and an edit would only change what fresh databases get. Mutable tables get `created_at`/`updated_at` with database-side defaults, so application code cannot forget them; append-only tables such as sessions and messages get only `created_at`. Every foreign key declares an `ON DELETE` policy: rows a user owns privately cascade, so deleting an account erases their data, while shared comments switch to `SET NULL` and survive as "deleted user". That last rule is itself an append-only fix. The original comments table cascaded on user deletion, which also deleted other people's replies through the `parent_id` cascade; the correction shipped as a new migration, `m0007_integrity`, not as an edit to `m0004_community`.
 
 Running migrations at boot is simple and fits a single instance, with two caveats to raise in review. With several instances starting together, they race to migrate, so you need a lock or a separate release step. And a migration that takes longer than the platform's health-check window (120 seconds here) fails the deploy midway, so large-table changes, such as building an index on a big table, belong in a separate, online operation. Know whether your migration tool wraps each migration in a transaction before you rely on a failed one leaving no trace. The deep treatment is in [schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale).
 
@@ -220,32 +221,32 @@ Notice what the gate does not do: it does not stop fixes. A frozen team still de
 ```quiz
 - q: >-
     A team rebuilds the Docker image from the same Git commit when promoting from staging to production. What is the risk?
-  options: ["None; the same commit produces the same image", "Rebuilding is slower but otherwise identical", "Production images must be built with debug symbols", "The production image can differ from the tested one, for example through a changed base image or dependency resolution"]
-  answer: 3
-  explanation: >-
-    Builds are not reliably reproducible: base image tags move, and caches and registries change. Promoting the exact digest that passed tests is the only way to know production runs what you tested.
-- q: >-
-    Ascend runs migrations before binding the port and gates traffic on /api/readyz. A new release contains a migration that fails. What happens?
-  options: ["The new version serves traffic with the old schema", "The process exits non-zero, readiness never passes, and the platform keeps the previous deployment serving", "The platform rolls the database back automatically", "Both versions serve traffic until someone intervenes"]
-  answer: 1
-  explanation: >-
-    Because migrations run before the listener binds, a failed migration means the process never becomes ready, so traffic never shifts. Whether the failed migration left partial changes depends on the migration tool's transaction handling, which you should know before relying on it.
-- q: >-
-    A service handles 200 requests per second with a 0.2% error rate. You start a 1% canary. Roughly how many errors do you expect from the canary per minute if it is healthy?
-  options: ["About 0.24", "About 2.4", "About 24", "About 240"]
+  options: ["The rebuilt image can differ from the tested one, via a moved base tag or dependency", "None, because one commit always builds a byte-identical image on any machine", "Only speed; rebuilding repeats work but yields the same tested artifact", "Production images must have debug symbols stripped, so a rebuild is needed anyway"]
   answer: 0
   explanation: >-
-    1% of 200 req/s is 2 req/s, or 120 requests per minute. At 0.2% that is 0.24 expected errors per minute. With counts that small, one minute of data cannot distinguish a healthy canary from a moderately broken one, so early stages must run longer.
+    Builds are not reliably reproducible: base image tags move, and dependency resolution and caches change. Promoting the exact digest that passed tests is the only way to know production runs what you tested; frozen lockfiles narrow the gap but do not pin the base image.
 - q: >-
-    You need to rename a column that the current release reads and writes. Which plan keeps every deploy reversible?
-  options: ["One migration that renames the column, deployed with the code change", "Add the new column, dual-write, backfill, switch reads, then drop the old column in a later release", "Rename the column during a maintenance window", "Create a database view with the new name and drop the table"]
-  answer: 1
-  explanation: >-
-    Expand and contract keeps the schema compatible with both the old and new code at every step, so overlap and rollback are safe. A one-step rename breaks whichever version expects the other name the moment it runs.
-- q: >-
-    Your SLO is 99.9% over 30 days and the error budget is exhausted on day 12. What does a typical error budget policy say?
-  options: ["Lower the SLO to 99.5% for the rest of the month", "Stop all deploys, including fixes", "Freeze feature launches and ship only reliability work until the budget recovers", "Ignore it until the monthly review"]
+    Ascend runs migrations before binding the port and gates traffic on /api/readyz. A new release contains a migration that fails. What happens?
+  options: ["The new version starts anyway and serves traffic against the old, unmigrated schema", "The platform rolls the database back to its previous state and retries the deploy", "The process exits non-zero, never turns ready, and the old deployment keeps serving", "Both versions share traffic until someone intervenes and picks which one to keep"]
   answer: 2
   explanation: >-
-    The budget exists to trade velocity for reliability automatically. Fixes still ship, through the normal pipeline, because they restore the budget. Moving the SLO to fit the outage defeats its purpose.
+    Because migrations run before the listener binds, a failed migration means the process never becomes ready, so traffic never shifts. Nothing rolls the database back for you: whether the failed migration left partial changes depends on the migration tool's transaction handling, which you should know before relying on it.
+- q: >-
+    A service handles 200 requests per second with a 0.2% error rate. You start a 1% canary. Roughly how many errors do you expect from the canary per minute if it is healthy?
+  options: ["About 2.4", "About 24", "About 0.24", "About 0.024"]
+  answer: 2
+  explanation: >-
+    1% of 200 req/s is 2 req/s, or 120 requests per minute. At 0.2% that is 0.24 expected errors per minute; forgetting that the canary sees only 1% of traffic gives 24. With counts that small, one minute of data cannot distinguish a healthy canary from a moderately broken one, so early stages must run longer.
+- q: >-
+    You need to rename a column that the current release reads and writes. Which plan keeps every deploy reversible?
+  options: ["Rename the column during a maintenance window when no traffic reaches the database", "Ship a single migration that renames the column together with the matching code change", "Add the new column, dual-write, backfill, switch reads, then drop the old one later", "Create a view with the new name over the table, then rename the table beneath it"]
+  answer: 2
+  explanation: >-
+    Expand and contract keeps the schema compatible with both the old and new code at every step, so overlap and rollback are safe. A one-step rename, with or without a maintenance window, breaks whichever version expects the other name the moment it runs, and a rollback after it has the same problem.
+- q: >-
+    Your SLO is 99.9% over 30 days and the error budget is exhausted on day 12. What does a typical error budget policy say?
+  options: ["Lower the SLO to 99.5% for the rest of the window so the budget is positive", "Freeze feature launches and ship only reliability work until it recovers", "Keep shipping as normal and review the overspend at the monthly meeting", "Stop every deploy, fixes included, until the 30-day window has rolled over"]
+  answer: 1
+  explanation: >-
+    The budget exists to trade velocity for reliability automatically. Fixes still ship, through the normal pipeline, because they restore the budget; freezing them too prolongs the problem. Moving the SLO to fit the outage defeats its purpose.
 ```

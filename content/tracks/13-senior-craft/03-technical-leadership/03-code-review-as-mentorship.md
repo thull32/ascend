@@ -55,10 +55,11 @@ Here is a hypothetical pull request against this app's authentication service, t
 ```rust
 pub async fn login(&self, email: &str, password: String) -> AppResult<Session> {
     let Some(user) = self.users.find_by_email(email).await? else {
-        return Err(AppError::Unauthorized); // unknown email: skip the expensive hash
+        // unknown email: skip the expensive hash
+        return Err(AppError::Validation("invalid email or password".into()));
     };
     if !password::verify(password, Some(user.password_hash.clone())).await {
-        return Err(AppError::Unauthorized);
+        return Err(AppError::Validation("invalid email or password".into()));
     }
     self.sessions.create(user.id).await
 }
@@ -85,15 +86,15 @@ It is hostile, mixes taste with substance, gives no reasons, and never mentions 
 > let ok = password::verify(password, user.as_ref().map(|u| u.password_hash.clone())).await;
 > match (ok, user) {
 >     (true, Some(user)) => self.sessions.create(user.id).await,
->     _ => Err(AppError::Unauthorized),
+>     _ => Err(AppError::Validation("invalid email or password".into())),
 > }
 > ```
 >
 > Happy to pair on it if useful.
 >
-> **question:** Is there a test that would have caught this? A test that asserts `verify` is called on both branches (with a counting fake) would lock the behaviour in.
+> **question:** Is there a test that would have caught this? `login_errors_do_not_leak_account_existence` checks that the two response bodies are identical, which this change still passes, because a test that compares bodies cannot see timing. A test that asserts `verify` is called on both branches (with a counting fake) would lock the behaviour in.
 >
-> **praise:** Returning the same `Unauthorized` error for both failure paths is exactly right: identical responses mean the error body cannot leak which emails exist. The fix above just makes the timing match too.
+> **praise:** Returning the same "invalid email or password" error for both failure paths is exactly right: identical responses mean the error body cannot leak which emails exist. The fix above just makes the timing match too.
 
 Why it works: the one blocking issue is clearly labelled and explained in terms of impact, it points to the mechanism the codebase already has (teaching the codebase, not just the fix), it proposes concrete code, the question pushes toward a test that prevents regression, and the praise is specific. The personal-taste comments are simply gone.
 
@@ -159,32 +160,32 @@ Mentorship extends beyond review, of course: regular one-to-ones, stretch assign
 ```quiz
 - q: >-
     You open a 700-line pull request and immediately see a fundamental problem with the approach. What should you do first?
-  options: ["Post the design concern on its own first, before line comments, so the author does not polish code that may be rewritten", "Leave line-by-line comments on everything, then mention the approach at the end", "Approve it and open a follow-up ticket", "Rewrite it yourself on a branch"]
-  answer: 0
-  explanation: >-
-    Design feedback determines whether the lines matter at all. Leading with nits wastes the author's effort and buries the important point; rewriting it yourself removes the author's learning and ownership.
-- q: >-
-    A mid-level engineer's PR introduces an early return for unknown emails in login. What makes this worth a blocking comment?
-  options: ["let-else is less readable than match", "It adds a database query", "Unknown emails now respond much faster than wrong passwords, which lets attackers enumerate registered emails by timing", "It changes the error message"]
-  answer: 2
-  explanation: >-
-    Argon2 verification is deliberately slow, so skipping it creates a measurable timing difference. The existing dummy-hash path in password.rs exists to equalise it. The other options are taste or non-issues.
-- q: >-
-    You have left the same "use the shared retry helper" comment on five pull requests this month. What is the senior move?
-  options: ["Keep leaving it; repetition teaches", "Encode it: a lint rule, a template change or a line in the review guide, so tooling catches it", "Block every PR that misses it until people learn", "Stop reviewing that team's code"]
+  options: ["Rewrite it yourself on a branch, since explaining the problem would take longer", "Post the design concern alone first, so the author does not polish doomed code", "Comment on every line first, then raise the approach once the details are fixed", "Approve it to keep things moving and open a follow-up ticket for the design"]
   answer: 1
   explanation: >-
-    Repeated comments are a signal that a rule belongs in automation or documentation. That frees review for problems only humans can spot.
+    Design feedback determines whether the lines matter at all. Leading with line comments wastes the author's effort and buries the important point; approving defers a known problem, and rewriting it yourself removes the author's learning and ownership.
 - q: >-
-    A junior engineer's PR has a subtle race condition in a non-urgent background job. Which comment teaches best?
-  options: ["\"This is racy.\"", "Rewrite the function and push to their branch", "Approve and fix it later yourself", "\"question: what happens if two workers pick up the same job at once? Worth walking through before we merge.\""]
+    A mid-level engineer's PR introduces an early return for unknown emails in login. What makes this worth a blocking comment?
+  options: ["It changes the error message, so the client can no longer show a friendly error", "Unknown emails now answer faster than wrong passwords, so timing reveals accounts", "It adds a database query to the login path, which slows every sign-in down", "let-else is harder to read than match, and the team style guide prefers match"]
+  answer: 1
+  explanation: >-
+    Argon2 verification is deliberately slow, so skipping it creates a measurable timing difference; the dummy-hash path in password.rs exists to equalise it. The PR adds no query and keeps the same error message, and let-else versus match is taste, which never earns a blocking label.
+- q: >-
+    You have left the same "use the shared retry helper" comment on five pull requests this month. What is the senior move?
+  options: ["Keep leaving it on every PR, because repetition is how a team learns rules", "Stop reviewing that team's code, since they are clearly not reading comments", "Block every PR that misses it until the team stops making the mistake", "Encode it in a lint rule, template or review guide so tooling catches it"]
   answer: 3
   explanation: >-
-    For a non-urgent issue, a leading question lets the author find the race and remember it. A bare verdict gives no reasoning, and silently fixing it removes the learning and the author's ownership.
+    Repeated comments are a signal that a rule belongs in automation or documentation. That frees review for problems only humans can spot, instead of turning it into a toll booth for a rule a machine could check.
+- q: >-
+    A junior engineer's PR has a subtle race condition in a non-urgent background job. Which comment teaches best?
+  options: ["\"blocking: this is racy; add a lock around the job pickup before merge.\"", "Push a fix to their branch yourself, so the race never reaches main", "Approve now and quietly fix the race yourself in a later pull request", "\"question: what happens if two workers pick up the same job at once?\""]
+  answer: 3
+  explanation: >-
+    For a non-urgent issue, a leading question lets the author find the race and remember it. Stating the fix is right for urgent or security problems, but here it skips the learning; pushing a fix or quietly fixing it later removes both the learning and the author's ownership.
 - q: >-
     One senior engineer performs about 60% of a team's code reviews and is praised for their thoroughness. What is the concern?
-  options: ["None; thorough reviews are always good", "Their reviews are probably too slow", "They are a bottleneck and a single point of failure, and knowledge is not spreading; rotation and guidance should distribute review", "Seniors should not review code"]
-  answer: 2
+  options: ["Thorough reviews are wasted on routine changes, so they should review less deeply", "None; thorough reviews are always good, whoever happens to be doing them", "Seniors should not review code at all, because their time is better spent on design work", "They are a bottleneck and single point of failure, and review skill is not spreading"]
+  answer: 3
   explanation: >-
-    Concentrated review delays everyone when that person is busy or away and keeps others from learning to review. Leverage means making the team capable of good review, not doing it all personally.
+    Concentrated review delays everyone when that person is busy or away and keeps others from learning to review. The depth of the reviews is not the problem; leverage means making the team capable of good review, with rotation and written guidance, not doing it all personally.
 ```

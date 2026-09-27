@@ -109,15 +109,22 @@ async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     headers: HeaderMap,
-    Json(input): Json<LoginInput>,
-) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
+    AppJson(input): AppJson<LoginInput>,
+) -> ApiResult<Response> {
+    if let Some(throttled) = state.limiter.check_password_attempt(&input.email) {
+        return Ok(throttled);
+    }
     let (user, session) = state.auth.login(input, user_agent(&headers)).await?;
     let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
-    Ok((jar, Json(user)))
+    Ok((jar, Json(user)).into_response())
 }
 ```
 
-`AuthService::login` in `crates/core/src/auth/service.rs` validates the input, normalises the email, verifies the password, and creates a session. It returns a `NewSession { token, expires_at }`. It does not know what a cookie is. The api crate decides that the token travels in an `HttpOnly`, `SameSite=Lax` cookie whose `Secure` flag comes from configuration. If Ascend grew a mobile client that wanted a bearer token instead, only the adapter would change.
+The one step that is not translation is a throttle: ten password attempts per minute per account, answered with a `429` before the service runs. Rate limiting is an edge policy that lives with the other limiters in the api crate, so the domain's `login` stays a pure "check these credentials" use case that a CLI could call without inheriting HTTP throttling.
+
+Even the body extractor is an adapter decision. `AppJson` (in `crates/api/src/extractors.rs`) wraps Axum's `Json` so that a rejected body comes back in the API's own `{"code": ..., "message": ...}` shape instead of Axum's plain-text rejection, while keeping the status Axum chose: `400 bad_request` for JSON that does not parse, `413` for an oversized body, `415` for the wrong content type, and `422 validation_error` for well-formed JSON with the wrong fields. Every handler with a JSON body uses it, so clients handle every error the same way. The first version collapsed all of these into `422 validation_error`, which told a client whose serialiser was broken that a field value was wrong; keeping the distinction is transport vocabulary, so it lives in the adapter.
+
+`AuthService::login` in `crates/core/src/auth/service.rs` validates the input, normalises the email, verifies the password, and creates a session. It returns the user and a `NewSession { token, expires_at }`. It does not know what a cookie is. The api crate decides that the token travels in an `HttpOnly`, `SameSite=Lax` cookie whose `Secure` flag comes from configuration. If Ascend grew a mobile client that wanted a bearer token instead, only the adapter would change.
 
 | Concern | Where it lives | Why there |
 |---|---|---|
@@ -152,17 +159,22 @@ Router::new()
     .fallback(get(static_handler))
     .layer(middleware::from_fn(security_headers::apply))
     .layer(CompressionLayer::new().br(true).gzip(true))
-    .layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(240)))
+    .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
     .layer(TraceLayer::new_for_http() /* span records request_id */)
     .layer(PropagateRequestIdLayer::x_request_id())
     .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+    // Outermost: a client-supplied id is kept only if it is a UUID, so
+    // logs cannot be polluted or correlated with attacker-chosen values.
+    .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
 ```
 
-Read outermost first: set a request ID, propagate it to the response, open a tracing span, start the timeout, compress, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
+Read outermost first: drop a client-supplied request ID unless it is a UUID, set one if none survived, propagate it to the response, open a tracing span, start the timeout, compress, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
 
+- **Sanitising outside everything.** The first version trusted any `x-request-id` a client sent, so a caller could put arbitrary text into every log line of its request, or reuse one ID across many requests to muddy correlation. The check has to run before `SetRequestIdLayer`, which only fills the header when it is absent.
 - **Request ID before tracing.** The span reads `x-request-id` from the headers. Swap the two and every span records `-`.
 - **Timeout inside tracing.** A timed-out request still gets a span and a logged status, so you can see it.
 - **240 seconds.** Deliberately above the AI client's own default timeout of 180 seconds (`AI_TIMEOUT_SECS` in `crates/core/src/config.rs`). Nested timeouts should shrink as you go inward, so the innermost call fails first with a specific error instead of the outer layer killing it with a generic one.
+- **503, not 408.** The first version answered a handler timeout with `408 Request Timeout`, which tells the client that *it* was too slow sending the request. Here the server failed to produce a response in time, so it now returns `503 Service Unavailable`, the status that retry logic and dashboards read as a server-side failure.
 - **Security headers outside the router.** They apply to everything, including the SPA fallback and error responses, which are exactly the pages attackers frame or sniff.
 - **Rate limiting before CSRF.** A flood of forged requests still spends the attacker's rate budget, and the cheap check runs first.
 - **Body limit only on `/api`.** Static assets never read a body; the JSON API caps it at 512 KiB before a handler allocates anything.
@@ -267,32 +279,32 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
 ```quiz
 - q: >-
     An Axum router is built as Router::new().route("/x", get(h)).layer(A).layer(B). A request for /x arrives. In what order does it pass through the layers?
-  options: ["A, then B, then h", "B, then A, then h", "A and B run concurrently", "Only B runs because it replaced A"]
+  options: ["A, then B, then h", "B, then A, then h", "Only B runs because it replaced A", "A and B run concurrently"]
   answer: 1
   explanation: >-
-    Each .layer call wraps everything added before it, so B wraps A, which wraps the route. The request meets the outermost layer (B) first. Tower's ServiceBuilder reads top-to-bottom in the opposite sense, which is a common source of confusion when switching between the two styles.
+    Each .layer call wraps everything added before it, so B wraps A, which wraps the route. The request meets the outermost layer, B, first. Tower's ServiceBuilder reads top-to-bottom in the opposite sense, which is a common source of confusion when switching between the two styles.
 - q: >-
     Ascend's crates/core has no dependency on axum or http. What is the main thing that buys?
-  options: ["Faster HTTP handling", "The compiler rejects any attempt to leak transport types into the domain, and the domain can be reused by other entry points", "Smaller binaries", "Automatic API documentation"]
-  answer: 1
+  options: ["The compiler keeps HTTP types out of the domain, so a CLI or test can reuse it", "The release binary shrinks because the core crate compiles without any web framework", "Requests run faster because the domain no longer parses HTTP types on the hot path", "Core types can be exported as an OpenAPI schema without any extra HTTP annotations"]
+  answer: 0
   explanation: >-
-    The build graph enforces the dependency rule on every compile. The same services can then be driven by a CLI, a worker or a test without an HTTP server. Binary size and speed are unaffected; the benefit is changeability.
+    The build graph enforces the dependency rule on every compile: a use axum::... line in core simply does not compile. The same services can then be driven by a CLI, a worker or a test without an HTTP server. Speed and binary size are essentially unchanged, because the api crate still links Axum into the same binary, and API documentation has nothing to do with it; the benefit is changeability.
 - q: >-
     In hexagonal terms, which of these is a driven (outbound) adapter?
-  options: ["The Axum route handler for POST /api/auth/login", "A Playwright test that clicks the login button", "The HTTP client that calls the AI provider", "The login use case itself"]
+  options: ["A Playwright test that clicks the login button", "The login use case itself", "The HTTP client that sends requests to the AI provider", "The Axum route handler for POST /api/auth/login"]
   answer: 2
   explanation: >-
     Driven adapters implement what the core needs from the outside world: storage, clocks, vendors. Route handlers and tests are driving adapters that call into the core; the use case is the core.
 - q: >-
     A handler inserts an order row and then publishes an OrderPlaced message to a broker. Occasionally the publish fails after the commit. Which change makes the two effects consistent?
-  options: ["Publish first, then insert the row", "Retry the publish three times", "Write the message to an outbox table in the same transaction and relay it asynchronously", "Wrap both calls in a try/catch"]
-  answer: 2
-  explanation: >-
-    Reordering or retrying only moves the window where one effect happened without the other. The outbox puts both writes inside one transaction; the relay then delivers at least once, so consumers must deduplicate.
-- q: >-
-    A reviewer proposes adding a repository interface in front of every SeaORM query in Ascend's core. When is that the wrong call?
-  options: ["When the service is a thin layer over one Postgres database and the team already tests against a real Postgres", "When there are more than ten tables", "When the code is written in Rust", "Never; every dependency should be behind an interface"]
+  options: ["Insert an outbox row in the same transaction and relay it", "Publish the message first and insert the order row after", "Wrap both calls in a try/catch that logs any failure", "Retry the failed publish three times with exponential backoff"]
   answer: 0
   explanation: >-
-    Boundaries cost indirection and mapping code. Storage is the dependency least likely to be swapped, and fakes of a relational database hide exactly the behaviour (transactions, constraints) you most need to test. A port pays off first for slow, costly, non-deterministic dependencies such as an LLM client.
+    Reordering or retrying only moves the window where one effect happened without the other: a crash between the two steps still loses one of them. The outbox puts both writes inside one database transaction, and a relay delivers the message afterwards at least once, so consumers must deduplicate. Logging the failure is an explicit "acceptable loss" decision, fine for a chat transcript but not for an order.
+- q: >-
+    A reviewer proposes adding a repository interface in front of every SeaORM query in Ascend's core. When is that the wrong call?
+  options: ["When the schema has grown past ten tables and a dozen migrations", "When a move to a second database engine is already planned for next year", "When storage is one Postgres the team already tests against directly", "Never, because hexagonal design puts every dependency behind a port"]
+  answer: 2
+  explanation: >-
+    Boundaries cost indirection and mapping code. Storage is the dependency least likely to be swapped, and fakes of a relational database hide exactly the behaviour (transactions, constraints) you most need to test, so testing against the real Postgres is simpler and more honest. A planned engine move is the one case where that port would earn its keep, and hexagonal design does not require a port for everything: one pays off first for slow, costly, non-deterministic dependencies such as an LLM client. Table count is not the deciding factor.
 ```

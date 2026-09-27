@@ -128,7 +128,7 @@ This app's data layer is SeaORM on top of sqlx, with every service in `crates/co
 
 ### Comments: one query, threaded in memory
 
-`CommentService::list` fetches every comment for a lesson or problem together with its author:
+`CommentService::list` fetches the comments for a lesson or problem together with each author's name. The first version did it like this:
 
 ```rust
 // Single query with the author joined; threading is done in memory.
@@ -156,16 +156,55 @@ ORDER BY "comments"."created_at" ASC
 LIMIT $3
 ```
 
-The composite index `idx_comments_target (target_kind, target_slug, created_at)` from the comments migration serves the `WHERE` and the `ORDER BY` in one index scan, so there is no sort and the `LIMIT` can stop early (the [indexes lesson](/learn/databases/relational-fundamentals/indexes) shows the plan). The join to `users` is a primary-key probe per comment or a hash join, whichever the planner prefers. One round trip for the whole thread.
+The composite index `idx_comments_target (target_kind, target_slug, created_at)` from the comments migration serves the `WHERE` and the `ORDER BY` in one index scan, so there is no sort and the `LIMIT` can stop early (the [indexes lesson](/learn/databases/relational-fundamentals/indexes) shows the plan). The join to `users` is a primary-key probe per comment or a hash join, whichever the planner prefers. One round trip for the whole thread: not N+1. A review still found two problems, and both are now fixed.
+
+1. **The projection was wider than it needed to be.** `find_also_related(Users)` selected every `users` column for every comment, including `email` and `password_hash`, and the code only used `display_name`. Nothing leaked (the view model copied only the name, and the model skips `password_hash` when serialising), but a public endpoint was loading credential hashes into memory it did not need, one careless serialisation change away from sending them.
+2. **Oldest-first with a limit hid new comments.** On a lesson with 600 comments, the 100 newest were never returned: the thread froze for everyone at comment 500.
+
+The current code:
+
+```rust
+// One query with the author's display name joined (not the whole user
+// row: never select password hashes you don't need). Newest 500 first,
+// then reversed so threads read oldest to newest.
+let mut rows: Vec<(comments::Model, Option<String>)> = Comments::find()
+    .select_only()
+    .columns(comments::Column::iter())
+    .column_as(users::Column::DisplayName, "author_name")
+    .left_join(Users)
+    .filter(comments::Column::TargetKind.eq(kind))
+    .filter(comments::Column::TargetSlug.eq(slug))
+    .order_by_desc(comments::Column::CreatedAt)
+    .limit(500)
+    .into_model::<CommentRow>()
+    .all(&self.db)
+    .await?
+    .into_iter()
+    .map(|r| (r.comment(), r.author_name))
+    .collect();
+rows.reverse();
+```
+
+`select_only()` clears the default projection, `columns(...)` puts back the comment's own columns, and `column_as` adds exactly one user column under the alias `author_name`. `into_model::<CommentRow>()` maps each row onto a flat struct declared for this query (the comment's fields plus `author_name: Option<String>`) instead of two full models:
+
+```sql
+SELECT "comments"."id", "comments"."user_id", ..., "comments"."updated_at",
+       "users"."display_name" AS "author_name"
+FROM "comments"
+LEFT JOIN "users" ON "comments"."user_id" = "users"."id"
+WHERE "comments"."target_kind" = $1 AND "comments"."target_slug" = $2
+ORDER BY "comments"."created_at" DESC
+LIMIT $3
+```
+
+Still one round trip, and still the same index, now scanned backwards (a B-tree reads in either direction, so `DESC` needs no second index). The cap keeps the 500 newest comments, and `rows.reverse()` restores oldest-to-newest reading order in memory. It is still a cap rather than pagination: anything older than the newest 500 is unreachable, and a new reply whose root is older than that window is not shown either, because the attach step finds no root for it. Keyset pagination on `(created_at, id)` is the next step if threads grow that long. The general lesson from both fixes: an ORM's convenient defaults (load whole related models, order the obvious way) are decisions about data exposure and correctness, not just query count, so review the projection and the ordering as well as the number of queries.
 
 The code then builds the thread structure in memory: one pass splits rows into roots and replies, and a second pass attaches each reply to its root. Replies are one level deep by design; `create` rejects a reply to a reply ("one level of nesting keeps threads readable on a phone"). Threading in the application rather than with a recursive CTE is the right call here: the data is small, the shape is fixed, and Rust is fast at it.
 
-Four observations a reviewer might make, in order of importance:
+Two further observations a reviewer might make:
 
-1. **The projection is wider than it needs to be.** `find_also_related(Users)` selects every `users` column for every comment, including `email` and `password_hash`, and the code only uses `display_name`. Nothing leaks (the view model copies only the name, and the model skips `password_hash` when serialising), but a public endpoint is loading credential hashes into memory it does not need. Selecting only the needed columns into a dedicated struct (SeaORM's `select_only().column(...)` with `into_model` or `into_tuple`) is tighter, and it is the kind of defence-in-depth comment senior reviewers leave.
-2. **Oldest-first with a limit hides new comments.** On a lesson with 600 comments, the 100 newest are never returned. Keyset pagination on `(created_at, id)` fixes it when threads grow that long.
-3. **The attach step is quadratic in the worst case.** Each reply does a linear `find` over the roots, so 250 roots and 250 replies cost about 62,500 comparisons. That is microseconds, and a `HashMap` from root ID to position would make it linear. At a 500-row cap it does not matter, which is itself the point: know the complexity, then decide it is fine.
-4. **The `Option` handles a case the schema forbids.** The join is a left join, so the author is typed `Option<users::Model>`, and the code falls back to `"deleted user"`. But the foreign key is `ON DELETE CASCADE`, so deleting a user deletes their comments and the fallback never runs. Keep it (it is cheap, and schemas change), but know why it is dead today.
+1. **The attach step is quadratic in the worst case.** Each reply does a linear `find` over the roots, so 250 roots and 250 replies cost about 62,500 comparisons. That is microseconds, and a `HashMap` from root ID to position would make it linear. At a 500-row cap it does not matter, which is itself the point: know the complexity, then decide it is fine.
+2. **The `Option` used to handle a case the schema forbade.** The join is a left join, so the author's name is typed `Option<String>`, and the code falls back to `"deleted user"`. The foreign key was originally `ON DELETE CASCADE`, so the fallback could never run: deleting a user deleted their comments and, through the `parent_id` cascade, every reply other people had written to them. Once accounts could be deleted, that cascade was a real bug, and migration `m0007_integrity` fixed it by making `comments.user_id` nullable with `ON DELETE SET NULL`. A deleted account's comments now stay, shown as by "deleted user" with a null `author_id`, and the fallback is live code. Cheap handling of a case the schema forbids is worth keeping for exactly this reason: schemas change.
 
 The exercise at the end of this lesson asks you to write the threading step in linear time.
 
@@ -186,8 +225,10 @@ Session and user in one primary-key join, one round trip on the hottest path in 
 `ProgressService::set_lesson_status` records progress with an upsert:
 
 ```rust
-// Upsert: one statement, no read-modify-write race.
-LessonProgress::insert(model)
+// Upsert returning the row: one statement, one round trip, no
+// read-modify-write race.
+super::activity::record(&self.db, user_id).await?;
+let row = LessonProgress::insert(model)
     .on_conflict(
         sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
             .update_columns([
@@ -197,8 +238,9 @@ LessonProgress::insert(model)
             ])
             .to_owned(),
     )
-    .exec(&self.db)
+    .exec_with_returning(&self.db)
     .await?;
+Ok(row)
 ```
 
 which sends:
@@ -210,23 +252,23 @@ ON CONFLICT ("user_id", "lesson_slug") DO UPDATE SET
   "status"       = "excluded"."status",
   "completed_at" = "excluded"."completed_at",
   "updated_at"   = "excluded"."updated_at"
-RETURNING "user_id", "lesson_slug"
+RETURNING "user_id", "lesson_slug", "status", "completed_at", "created_at", "updated_at"
 ```
 
-The ORM-shaped alternative, "find the row; if it exists update it, else insert it", is two or three round trips and a race: two tabs marking the same lesson complete at the same moment both find nothing and both insert, and one fails on the primary key. `ON CONFLICT` makes the unique index arbitrate atomically. Two details are deliberate: `created_at` is not in `update_columns`, so the first-seen time survives every later update; and `excluded` refers to the row that was proposed for insertion. `set_module_preference` uses the same pattern.
+The ORM-shaped alternative, "find the row; if it exists update it, else insert it", is two or three round trips and a race: two tabs marking the same lesson complete at the same moment both find nothing and both insert, and one fails on the primary key. `ON CONFLICT` makes the unique index arbitrate atomically. Two details are deliberate: `created_at` is not in `update_columns`, so the first-seen time survives every later update; and `excluded` refers to the row that was proposed for insertion. `set_module_preference` uses the same pattern. The `activity::record` call before it is the same idea again: `INSERT INTO activity_days ... ON CONFLICT DO NOTHING` marks today as an active day for the streak, and repeating it on the same day changes nothing. The two statements are not in one transaction, which is acceptable here: if the upsert fails after the activity row lands, the only effect is a streak day for a click that did not save.
 
-One thing a reviewer could tighten: after the upsert, the method runs `find_by_id` to read the row back, a second round trip. SeaORM's `exec_with_returning` would return the full model from the same statement via `RETURNING *`.
+This used to be two round trips. The first version called `.exec(&self.db)`, which returns only the primary key (`RETURNING "user_id", "lesson_slug"`), and then ran `LessonProgress::find_by_id(...)` to read the row back for the response. That doubled the database work on every progress click, and the pair was not atomic: another tab's write could land in between, so the response could describe a state this request never produced. `exec_with_returning` lists every column in `RETURNING` and gets the row back from the same statement, as it stands after the upsert (so `created_at` is the original first-seen time, not the proposed one). The general habit: when a write is followed by a read of the same row, ask whether the write can return it.
 
 ### The dashboard: a few queries is not N+1
 
-`ProgressService::summary` runs four queries in sequence: the user's lesson progress, module preferences, the distinct problems they have solved, and their quiz attempts. That is a fixed number of queries whatever the user's history, which is a different thing from N+1, where the count grows with the data. The solved-problems query is also a good example of a narrow projection:
+`ProgressService::summary` runs five queries in sequence: the user's lesson progress, module preferences, the distinct problems they have solved, their quiz attempts, and the days they were active in the last 400 (for the streak). That is a fixed number of queries whatever the user's history, which is a different thing from N+1, where the count grows with the data. The solved-problems query is also a good example of a narrow projection:
 
 ```sql
 SELECT DISTINCT "submissions"."target_slug" FROM "submissions"
 WHERE "submissions"."user_id" = $1 AND "submissions"."target_kind" = $2 AND "submissions"."passed" = $3
 ```
 
-The four queries are independent, so they could run concurrently with `tokio::try_join!`, cutting latency from the sum of four round trips to roughly the slowest one. The costs: each concurrent query holds its own pooled connection, so one request would use four connections at once; and the four queries would each see their own snapshot rather than one consistent view. At this app's scale, sequential is simpler and fast enough. That is the right kind of answer: name the optimisation, name its cost, decide.
+The five queries are independent, so they could run concurrently with `tokio::try_join!`, cutting latency from the sum of five round trips to roughly the slowest one. The costs: each concurrent query holds its own pooled connection, so one request would use five connections at once; and the five queries would each see their own snapshot rather than one consistent view. At this app's scale, sequential is simpler and fast enough. That is the right kind of answer: name the optimisation, name its cost, decide.
 
 All of these share the single 20-connection pool configured in `crates/api/src/state.rs`, which is why keeping per-request query counts constant matters more than shaving microseconds off any one query.
 
@@ -289,9 +331,9 @@ GraphQL makes N+1 the default: each field's resolver runs independently, so reso
 id: thread-comments
 title: Thread comments in one pass
 prompt: |
-  This app fetches all comments for a target in one query, ordered by
-  `created_at`, then builds threads in memory. Implement that step in linear
-  time.
+  This app fetches up to 500 comments for a target in one query, puts them
+  in `created_at` order, then builds threads in memory. Implement that step
+  in linear time.
 
   `rows` is a list of `{"id": str, "parent_id": str or null}` in `created_at`
   order. A row with a null `parent_id` is a root. Replies attach only to roots
@@ -388,32 +430,32 @@ hints:
 ```quiz
 - q: >-
     A page renders 200 orders with each order's customer name. It issues 201 queries, each under 0.1 ms in Postgres, and the endpoint takes 120 ms. Where does the time go?
-  options: ["Postgres is slow at primary-key lookups", "The orders query needs an index", "Per-query fixed costs (network round trip, pool acquire, ORM work) multiplied by 200; batching the customer lookups into one query removes nearly all of it", "JSON serialisation of 200 rows"]
-  answer: 2
-  explanation: >-
-    Each lazy load pays a round trip and client-side overhead that dwarfs the execution time. Two queries (orders, then customers WHERE id = ANY($1)) or one join replace 201 round trips with one or two.
-- q: >-
-    You need blog posts with their comments and their tags. Why is one query joining posts to both comments and tags a poor choice?
-  options: ["Postgres cannot join three tables", "Joins cannot use indexes", "Tags must be stored as an array", "Two to-many joins produce the cartesian product per post (comments × tags rows), duplicating data the ORM must then deduplicate; batch-load each relation or aggregate with json_agg instead"]
-  answer: 3
-  explanation: >-
-    Joining a parent to two independent to-many relations multiplies rows: 20 comments and 10 tags yield 200 rows for one post. Separate batched queries or SQL-side aggregation keep the result proportional to the data.
-- q: >-
-    In this app, CommentService::list uses find_also_related(Users). What does the generated SQL look like, and what is a fair review comment?
-  options: ["One LEFT JOIN query served by the (target_kind, target_slug, created_at) index; it is not N+1, but it selects every users column, including email and password_hash, when only display_name is needed", "N+1 lazy loads of each user; switch to a join", "Two queries, one per table", "A recursive CTE that threads the comments"]
-  answer: 0
-  explanation: >-
-    find_also_related is a single left join with prefixed column aliases. The query count is right. The projection is wider than necessary, which costs memory and is a defence-in-depth concern on a public endpoint; selecting specific columns into a struct would fix it.
-- q: >-
-    Why does ProgressService::set_lesson_status use INSERT ... ON CONFLICT DO UPDATE instead of reading the row and choosing between insert and update?
-  options: ["SeaORM cannot update composite primary keys", "The unique index arbitrates concurrent writers atomically in one statement, so two simultaneous requests cannot both decide to insert, and it saves round trips", "ON CONFLICT is faster to parse", "It avoids writing to the WAL"]
+  options: ["Serialising 200 orders and their customer names to JSON on the hot response path", "Fixed per-query costs (round trip, pool acquire, ORM work) paid 200 times over", "The orders query needs an index on customer_id to avoid a sequential scan", "Postgres is slow at primary-key lookups once a table holds millions of rows"]
   answer: 1
   explanation: >-
-    Read-then-write is a race: both requests can see no row and both insert, and one fails. An upsert makes the conflict check and the write one atomic operation. Leaving created_at out of update_columns also preserves the original timestamp.
+    Each lazy load pays a network round trip, a pool acquire and client-side ORM work that dwarf the execution time; the question already says each query runs in under 0.1 ms, so no index or Postgres tuning can recover 120 ms. Two queries (orders, then customers WHERE id = ANY($1)) or one join replace 201 round trips with one or two.
 - q: >-
-    pg_stat_statements shows SELECT ... FROM users WHERE id = $1 with 50 million calls, 0.01 ms mean time, and rows equal to calls, while the service handles about 1 million requests in the same period. What does that suggest?
-  options: ["The users table needs a better index", "The statement cache is too small", "Normal behaviour for authentication", "An N+1 pattern: roughly 50 single-row lookups per request, invisible in slow-query views because each call is fast"]
+    You need blog posts with their comments and their tags. Why is one query joining posts to both comments and tags a poor choice?
+  options: ["Tags must be stored as an array column, so they cannot be joined like rows", "Postgres cannot join more than two tables in one query without a subquery", "Two to-many joins return comments × tags rows for each post, duplicating the data", "Joins cannot use indexes on to-many relations, so each join scans both tables"]
+  answer: 2
+  explanation: >-
+    Joining a parent to two independent to-many relations produces their cartesian product: 20 comments and 10 tags yield 200 rows for one post, which the ORM must then deduplicate. Postgres joins many tables happily and uses indexes for each join; the problem is the shape of the result. Batch-load each relation separately or aggregate with json_agg to keep the result proportional to the data.
+- q: >-
+    The first version of this app's CommentService::list used find_also_related(Users). What SQL did that generate, and what was the fair review comment?
+  options: ["A recursive CTE that threaded replies in SQL; the fix was threading in memory", "Two queries, one per table, joined in memory; the fix was a single database-side join", "N+1: one lazy load per comment to fetch its author; the fix was a single join", "One LEFT JOIN, not N+1, but it selected every users column, password_hash included"]
   answer: 3
   explanation: >-
-    A cheap single-row statement whose call count is a large multiple of the request count is the fingerprint of per-row lazy loading. Sorting pg_stat_statements by calls, not by mean time, is how you find it.
+    find_also_related is a single left join with prefixed column aliases, served by the (target_kind, target_slug, created_at) index, so the query count was already right and calling it N+1 misreads it. The projection was wider than necessary: every users column, including email and password_hash, when only display_name was used. That costs memory and is a defence-in-depth concern on a public endpoint. The current code selects only the comment's columns plus users.display_name (select_only, column_as) into a dedicated CommentRow struct.
+- q: >-
+    Why does ProgressService::set_lesson_status use INSERT ... ON CONFLICT DO UPDATE instead of reading the row and choosing between insert and update?
+  options: ["The unique index arbitrates concurrent writers, so two requests cannot both insert", "SeaORM cannot update rows whose primary key spans two columns, like this one", "An upsert skips the write-ahead log when the row already holds the same values", "ON CONFLICT is parsed and planned only once, so it is faster than a separate SELECT"]
+  answer: 0
+  explanation: >-
+    Read-then-write is a race: both requests can see no row and both insert, and one fails. An upsert makes the conflict check and the write one atomic statement, and it saves round trips as a side effect, which is a bonus rather than the reason. It still writes WAL like any other update. Leaving created_at out of update_columns also preserves the original timestamp.
+- q: >-
+    pg_stat_statements shows SELECT ... FROM users WHERE id = $1 with 50 million calls, 0.01 ms mean time, and rows equal to calls, while the service handles about 1 million requests in the same period. What does that suggest?
+  options: ["Normal behaviour: each request authenticates, which looks up the user by id", "The users table needs a better index, since every call reads a single row", "The prepared-statement cache is too small, so the query text is re-sent each time", "N+1: about 50 single-row lookups per request, hidden because each one is fast"]
+  answer: 3
+  explanation: >-
+    A cheap single-row statement whose call count is a large multiple of the request count is the fingerprint of per-row lazy loading. Authentication would account for about one lookup per request, not fifty, and a 0.01 ms mean says the index is already fine. Sorting pg_stat_statements by calls, not by mean time, is how you find it.
 ```

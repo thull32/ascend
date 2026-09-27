@@ -32,7 +32,7 @@ Rationale lives at three altitudes here, and each suits a different kind of deci
 - `crates/core/src/lib.rs` says the core is transport-agnostic *and why*: the domain stays testable without a web server and reusable from other binaries.
 - `crates/api/src/main.rs` explains the boot order: migrations run before the server binds, so a healthy `/readyz` means the schema is current, and a failed migration leaves the previous deployment serving.
 - `crates/api/src/middleware/security_headers.rs` explains why the CSP allows `'unsafe-eval'` and what compensates for it.
-- `crates/api/src/middleware/rate_limit.rs` says in-memory limiting "is the right call for a single-instance deployment" and that the same interface can be backed by Redis "if we scale horizontally".
+- `crates/api/src/middleware/rate_limit.rs` says in-memory limiting "is the right call for a single-instance deployment; the state is per process. If we scale horizontally the same interface can be backed by Redis."
 
 That last one is a complete decision record in two sentences: the decision, the context that makes it right, and the **trigger** that would make it wrong. The trigger is the most valuable part, because it tells a future engineer when they are allowed, even expected, to change it.
 
@@ -55,7 +55,7 @@ stateDiagram-v2
   Accepted --> Deprecated: no longer relevant
 ```
 
-This repository has four: `0001` one Rust binary with embedded content and SPA, `0002` server-side sessions, `0003` running learner code in the browser, and `0004` bounded LLM costs. Here is most of `docs/adr/0002-server-side-sessions.md`:
+This repository has four: `0001` one Rust binary with embedded content and SPA, `0002` server-side sessions, `0003` running learner code in the browser, and `0004` bounded LLM costs. Here is `docs/adr/0002-server-side-sessions.md` in full:
 
 ```text
 # 0002. Server-side sessions with hashed opaque tokens, not JWTs
@@ -64,31 +64,43 @@ This repository has four: `0001` one Rust binary with embedded content and SPA, 
 - Date: 2026-09-26
 
 ## Context
-Users sign in from phones and laptops. We need logout, "log out everywhere",
-and the ability to revoke a compromised session immediately. There is a single
-backend, so there is no need for tokens other services can verify offline.
+
+Users sign in from phones and laptops. We need logout, "log out everywhere", and the ability to revoke a
+compromised session immediately. There is a single backend, so there is no need for tokens other services
+can verify offline.
 
 ## Decision
-Issue a random 256-bit token in an HttpOnly, Secure, SameSite=Lax cookie.
-Store only SHA-256(token) in sessions, with an expiry and a last_seen_at that
-is refreshed at most hourly. ...
+
+Issue a random 256-bit token in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie. Store only `SHA-256(token)`
+in `sessions`, with an expiry and a `last_seen_at` that is refreshed at most hourly. CSRF is handled by
+`SameSite`, an `Origin` check, and a required custom header.
 
 ## Alternatives considered
-- JWT access + refresh tokens. Stateless verification is irrelevant with one
-  service; revocation needs a denylist anyway; tokens in JavaScript-readable
-  storage are exposed to XSS.
-- Storing the raw token. A read-only database leak (backup, replica, log)
-  would become account takeover.
+
+- **JWT access + refresh tokens.** Stateless verification is irrelevant with one service; revocation needs a
+  denylist anyway; tokens in JavaScript-readable storage are exposed to XSS.
+- **Storing the raw token.** A read-only database leak (backup, replica, log) would become account takeover.
 
 ## Consequences
-- One indexed primary-key lookup per authenticated request (cached per
-  request in extensions).
-- Revocation is a DELETE. Expired rows are swept hourly. ...
+
+- One indexed primary-key lookup per authenticated request (cached per request in extensions).
+- Revocation is a `DELETE`. Expired rows are swept hourly.
+- CSRF defence is layered, so one misconfiguration does not open the door.
+
+## Revisit when
+
+- A second service must authenticate users without calling this one (issue
+  short-lived signed tokens from the session, keep the session as the source
+  of truth).
+- Session lookups show up in latency profiles (cache sessions in-process for
+  seconds, or in Redis).
 ```
 
 Notice what makes it useful. The context names the constraint that makes the decision right ("There is a single backend"), so a reader can tell when it stops holding. The alternatives section explains why the obvious option lost, which stops the next person from reopening the question without new information. And the consequences include the cost (a lookup per request), not just the benefits; an ADR with only upsides is a sales document.
 
-The review note a senior engineer would add: none of the four has an explicit **"Revisit when"** section, yet the triggers are there in disguise. ADR 0001 ends with "Horizontal scaling needs one change: the in-process rate limiter moves to a shared store." ADR 0003 says "Leaderboards or competitive features would need server-side verification." Lifting those into a named section makes them findable by the person about to cross the line.
+The last section was added after a review. As first written, none of the four ADRs had an explicit **"Revisit when"** section, although the triggers were there in disguise: ADR 0001 ended with "Horizontal scaling needs one change: the in-process rate limiter moves to a shared store", and ADR 0003 said "Leaderboards or competitive features would need server-side verification." A trigger buried in a consequence is found only by someone already reading that ADR. Each record now ends with named triggers: ADR 0001 lists "A second replica is needed (move rate limiting to Redis first)", ADR 0003 lists competitive or credentialing features, and ADR 0004 even names a metric, "Cache hit rates in the `ai_usage` cache columns fall (a prompt change broke the stable prefix)". A trigger tied to a number someone can watch is the strongest kind.
+
+Notice that adding those sections edited accepted records, which the rule above forbids. Many teams allow appending clarifications that leave the decision itself unchanged (a revisit trigger, a link, a corrected typo) and require a superseding ADR for anything that changes what was decided. Whichever line your team draws, write it down, because "never edited" and "quietly edited" are the two failure modes.
 
 When to write one: the decision is **hard to reverse** (storage engine, auth model, public API shape), **cross-cutting** (affects many modules or teams), or **contested** (you had to argue for it). You do not need an ADR for which HTTP client library to use. A good test: would you otherwise explain this decision to every new hire?
 
@@ -148,9 +160,9 @@ hints:
 
 A README has one job: get a competent stranger from `git clone` to a running system and a passing test, then point them to everything else. It should answer, in this order: what is this, how do I run it, how do I test it, and where do I go next.
 
-This repository's `README.md` follows that order: a two-line pitch, a table of what the product contains, a pointer to the architecture document and ADRs, the stack, then "Run it locally" as four commands (`make db`, copy `.env.example` to `.env`, `make web`, `make run`), then `make check`, `make e2e` and `make image`, then how to contribute content. The `.env.example` file is itself documentation: the variables you need to run locally, with safe defaults. It is not the full list; the optional knobs (session lifetime, AI budgets and timeouts, the trusted client-IP header) are discoverable only in `crates/core/src/config.rs`, which is the complete reference. A reference table in the docs, or comments in `.env.example`, would close that gap.
+This repository's `README.md` follows that order: a two-line pitch, a table of what the product contains, a pointer to the architecture document and ADRs, the stack, then "Run it locally" as four commands (`make db`, copy `.env.example` to `.env`, `make web`, `make run`), then `make check`, `make e2e` and `make image`, then how to contribute content. The `.env.example` file is itself documentation, and it shows a gap being closed. It used to hold only the seven variables you need to run locally; the optional knobs (session lifetime, AI budgets and timeouts, the trusted client-IP header) were discoverable only by reading `crates/core/src/config.rs`. It now lists every variable the config loader reads, grouped under required, server, content, AI and tests, with the optional ones commented out at their defaults and a one-line note on the ones with sharp edges: `PUBLIC_ORIGIN` is the "exact origin for CSRF checks", and `CLIENT_IP_HEADER` is safe "only behind a proxy that sets and overwrites it". The file you copy to get started is now also the reference, so the two cannot disagree without someone noticing in review.
 
-The `Makefile` is documentation that cannot drift. Each target carries a `## description` comment, and `make help` greps those comments into a menu, so the list of commands and their explanations are the same text. `make check` is described as everything CI runs, so the command the README gives you and the pipeline that gates merges check the same things. The stronger version has CI literally invoke `make check`, so the two can never drift apart.
+The `Makefile` is documentation that cannot drift. Each target carries a `## description` comment, and `make help` greps those comments into a menu, so the list of commands and their explanations are the same text. `make check` is described as everything CI runs, so the command the README gives you and the pipeline that gates merges check the same things, with two exceptions that need more than a checkout: the Docker image build and the Playwright suite, which CI now runs against a live server. The stronger version has CI literally invoke `make check`, so the two can never drift apart.
 
 The rule that keeps a README honest: **the first command must work**, on a clean machine, today. Documentation that lives in the repository and changes in the same pull request as the code ("docs as code") is the only kind that stays current. Module doc comments have an extra advantage: `cargo doc` renders them as the crate's reference documentation, so the rationale in `lib.rs` becomes the first page a reader of the API docs sees.
 
@@ -175,10 +187,10 @@ This codebase already emits the signals a runbook needs, which is itself a desig
 
 - **Impact**: none yet. Readiness gates traffic, so the previous deployment keeps serving.
 - **Check the boot log.** A configuration failure prints `configuration:` followed by the variable's name (`missing required environment variable DATABASE_URL`, or `invalid value for COOKIE_SECURE: ...`), because `crates/core/src/config.rs` names the variable in every error. A migration failure appears after `running migrations`.
-- **Check readiness on the instance still serving.** `GET /api/readyz` returns `503` with `"database": false` if Postgres itself is unreachable (which would also stop the new version from booting), and reports `content_version` so you can confirm which build is answering.
+- **Check readiness on the instance still serving.** `GET /api/readyz` returns `503` with `"database": false` if Postgres itself is unreachable (which would also stop the new version from booting), and reports `content_version` and `build` (the commit the binary was compiled from) so you can confirm which build is answering.
 - **Mitigate**: fix the variable and redeploy, or roll back to the previous image.
 
-And an "AI features failing" runbook: readiness shows `"ai": false` when no API key is configured; errors with code `ai_upstream` and the message about the provider being overloaded mean the vendor is struggling and there is nothing to fix locally; `rate_limited` means per-IP limits, a user's daily budget, or the provider throttling us, and the message says which.
+And an "AI features failing" runbook: readiness shows `"ai": false` when no API key is configured; errors with code `ai_upstream` and the message about the provider being overloaded mean the vendor is struggling and there is nothing to fix locally; `rate_limited` means a request-rate limit (per IP, or per session on the routes that call the model), a user's daily budget, or the provider throttling us, and the message says which; and a `conflict` from the coach while a solo mock interview is active is the no-AI lock doing its job, not a fault.
 
 Runbooks rot faster than any other document, because they describe operations nobody performs until something breaks. Link every alert to its runbook, rehearse the important ones in game days, and make "update the runbook" a standard action item after each incident (see [incidents and postmortems](/learn/senior-craft/technical-leadership/incidents-and-postmortems)).
 
@@ -209,31 +221,31 @@ AI tools are good at drafting reference documentation and summarising a pull req
 ```quiz
 - q: >-
     A decision to use in-memory rate limiting is documented as: "In-memory is the right call for a single-instance deployment; if we scale horizontally the same interface can be backed by Redis." What makes this more useful than "We use in-memory rate limiting"?
-  options: ["It states the context that makes the decision right and the trigger that would make it wrong", "It is longer", "It mentions a specific technology", "It is written as a comment rather than a document"]
+  options: ["It states the context that makes it right and the trigger that would make it wrong", "It is longer, and longer rationale is more likely to survive the next few refactors", "It names a specific technology, so the next engineer knows what to install", "It lives in a code comment, where readers see it more often than a document"]
   answer: 0
   explanation: >-
-    The trigger tells a future engineer when changing the decision is expected rather than reckless. Naming Redis is incidental; the value is the conditional reasoning.
+    The trigger tells a future engineer when changing the decision is expected rather than reckless, and the context says why it is right until then. Naming Redis is incidental, and where the sentence lives or how long it is matters far less than the conditional reasoning.
 - q: >-
     An accepted ADR turns out to be wrong six months later. What should the team do?
-  options: ["Edit the ADR to describe the new decision", "Delete the ADR so it does not mislead", "Write a new ADR that supersedes it and mark the old one Superseded", "Add a comment in the code and leave the ADR alone"]
+  options: ["Leave the ADR alone and explain the change in a comment next to the code", "Delete the ADR so nobody is misled by an outdated decision", "Write a new ADR that supersedes it and mark the old one as Superseded", "Edit the ADR in place so it describes the decision the team made instead"]
   answer: 2
   explanation: >-
-    ADRs are an append-only history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history.
+    ADRs are an append-only history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history, and a code comment leaves the ADR log asserting something false.
 - q: >-
     Which of these most needs an ADR?
-  options: ["Choosing between two equivalent JSON libraries", "Switching session handling from server-side sessions to JWTs", "Renaming a private helper function", "Upgrading a patch version of a dependency"]
-  answer: 1
-  explanation: >-
-    Authentication design is hard to reverse, cross-cutting (cookies, CSRF, storage, revocation) and likely to be contested. The others are local, cheap to reverse, or routine.
-- q: >-
-    A runbook step says "check whether the database is healthy". What is the main problem?
-  options: ["It is too short", "Runbooks should not mention databases", "It should be written as an ADR", "It is not actionable at 3 a.m.; it should give the exact command or endpoint and what healthy and unhealthy output look like"]
+  options: ["Choosing between two equivalent JSON libraries for one service", "Upgrading a dependency by a patch version across the workspace", "Renaming a private helper function used in a dozen files", "Switching session handling from server-side sessions to JWTs"]
   answer: 3
   explanation: >-
-    On-call readers need copy-pasteable checks with expected results, such as calling /api/readyz and reading the database field. Vague steps force the reader to rediscover the system under pressure.
+    Authentication design is hard to reverse, cross-cutting (cookies, CSRF, storage, revocation) and likely to be contested. The library choice, the rename and the patch upgrade are local, cheap to reverse, or routine, however many files they touch.
+- q: >-
+    A runbook step says "check whether the database is healthy". What is the main problem?
+  options: ["It is too short; runbook steps should explain the database architecture first", "It is not actionable: give the exact command and what healthy output looks like", "It belongs in an ADR, because database health is an architectural decision", "Runbooks should leave databases to the DBA team and cover only the application"]
+  answer: 1
+  explanation: >-
+    On-call readers need copy-pasteable checks with expected results, such as calling /api/readyz and reading the database field. Vague steps force the reader to rediscover the system under pressure, and more background or a different document does not fix that.
 - q: >-
     A README's setup section has not been tested for a year. What is the most reliable way to keep it correct?
-  options: ["Add a warning that it may be outdated", "Have CI run the same setup and test commands the README lists", "Move it to a wiki", "Ask new hires to fix it when it breaks"]
+  options: ["Add a banner warning readers that the steps may be out of date", "Have CI run the same setup and test commands the README lists", "Ask each new hire to fix whatever breaks during their first week", "Move the setup steps to a wiki where anyone can edit them"]
   answer: 1
   explanation: >-
     If the documented commands are exercised by CI, a breaking change fails the build instead of silently rotting the docs. Warnings and wikis only move the problem, and relying on new hires makes their first day the test.

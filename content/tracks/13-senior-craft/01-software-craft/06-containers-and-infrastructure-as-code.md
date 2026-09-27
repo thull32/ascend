@@ -64,7 +64,7 @@ flowchart LR
 ```
 
 1. **Node builds the SPA.** The stage copies `package.json` and the lockfile first and installs with a frozen lockfile, so the dependency layer is cached and the build fails if the lockfile and manifest disagree. Then it copies the source and runs `pnpm build`, producing `web/dist`.
-2. **Rust builds the server.** A tool called `cargo-chef` derives a "recipe" from the Cargo manifests so that dependencies compile in their own cached layer, the same trick as above for a multi-crate workspace. Then the stage copies the crates, the migrations, the `content/` directory and `web/dist` from the Node stage, and compiles `ascend-api`. The `include_dir!` macros in `crates/api/src/app.rs` and `crates/core/src/content/loader.rs` embed the SPA and the curriculum into the binary. Finally the build runs the binary with `--check-content`, so a broken lesson fails the image build. Strictness is a build argument that defaults to strict (`ARG CONTENT_LENIENT=0`), with a comment reserving the lenient setting for preview builds while content is being authored.
+2. **Rust builds the server.** A tool called `cargo-chef` derives a "recipe" from the Cargo manifests so that dependencies compile in their own cached layer, the same trick as above for a multi-crate workspace. Then the stage copies the crates, the migrations, the `content/` directory and `web/dist` from the Node stage, and compiles `ascend-api`. The `include_dir!` macros in `crates/api/src/app.rs` and `crates/core/src/content/loader.rs` embed the SPA and the curriculum into the binary. The stage also turns the platform's `RAILWAY_GIT_COMMIT_SHA` build argument into `ASCEND_BUILD_ID`, which `crates/api/src/build_info.rs` reads at compile time, so the binary knows which commit it is: `/api/readyz` reports it as `build`, and content ETags include it, so a deploy that changes the response format invalidates cached lesson responses even when no lesson changed. Finally the build runs the binary with `--check-content`, so a broken lesson fails the image build. Strictness is a build argument that defaults to strict (`ARG CONTENT_LENIENT=0`), with a comment reserving the lenient setting for preview builds while content is being authored.
 3. **The runtime stage is almost empty.** It starts from a distroless base (a C library and CA certificates, no shell, no package manager), copies the single binary, sets production defaults such as `APP_ENV=production`, and runs as a non-root user.
 
 The trade-offs are worth being able to state. The image is small, starts fast and has very little for an attacker to use: no shell to spawn, no package manager to install tools with. Debugging is harder for the same reason: you cannot `exec` a shell into it, so you rely on logs, metrics and ephemeral debug containers. Embedding content means every content change is a new image and a new deploy, which is a feature here: lessons are versioned, validated and rolled back exactly like code.
@@ -113,7 +113,7 @@ spec:
             limits: { memory: 512Mi }
 ```
 
-Read it as a list of decisions. The image is pinned by digest. `maxUnavailable: 0` means capacity never drops during a rollout. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The memory limit is where exit 137 will come from. With three replicas, two things in this codebase would need attention. The in-memory rate limiter would give each client three times the budget; `docs/ARCHITECTURE.md` already names the fix (move the `Limiters` type, "the seam", to Redis). And all three pods would run the migrator at boot, so you need to know whether it serialises concurrent runs, for example with a database lock, or move migrations into a separate release step.
+Read it as a list of decisions. The image is pinned by digest. `maxUnavailable: 0` means capacity never drops during a rollout. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The memory limit is where exit 137 will come from. With three replicas, two things in this codebase would need attention. The in-memory rate limiter would give each client three times the budget; `docs/ARCHITECTURE.md` already names the fix: move rate limiting to Redis ("the `Limiters` type is the seam"). And all three pods would run the migrator at boot, so you need to know whether it serialises concurrent runs, for example with a database lock, or move migrations into a separate release step.
 
 Clusters often add a **service mesh**: a proxy beside every pod that handles mutual TLS, retries, timeouts and per-request metrics without application changes.
 
@@ -152,18 +152,22 @@ Terraform's HCL is one syntax among several. Pulumi and the AWS CDK express the 
 ```typescript
 // excerpt from .railway/railway.ts
 const app = service("ascend", {
-  source: github("thull32/ascend", { checkSuites: false }),
+  // Builds the root Dockerfile. A push to main deploys once CI passes.
+  source: github("thull32/ascend", { checkSuites: true }),
   healthcheck: "/api/readyz",
   env: {
-    DATABASE_URL: db.env.DATABASE_URL,   // a reference, not a copied secret
+    DATABASE_URL: db.env.DATABASE_URL,
+    // Railway's edge sets X-Real-IP; the rate limiter trusts only that header.
     CLIENT_IP_HEADER: "x-real-ip",
     AI_DAILY_OUTPUT_TOKENS: "120000",
-    ANTHROPIC_API_KEY: preserve(),       // keep the value already set in the platform
+    ANTHROPIC_API_KEY: preserve(),
+    // Strict: a dangling cross-reference or malformed block fails the build.
+    CONTENT_LENIENT: "0",
   },
 });
 ```
 
-Two details show the craft. Secrets never appear in the file: `preserve()` tells the tool to keep whatever value is already set in the platform, so the IaC can be public while the key stays private. And the database URL is wired by **reference** (`db.env.DATABASE_URL`), not pasted, so rotating the database credentials cannot leave the app pointing at a stale copy. The danger to respect is the flip side of declarative tools: in whole-project mode, a resource you delete from the file is a resource the next apply deletes from the world. Read every plan before you apply it, and look hardest at anything marked for destruction.
+Three details show the craft. Secrets never appear in the file: `preserve()` tells the tool to keep whatever value is already set in the platform, so the IaC can be public while the key stays private. And the database URL is wired by **reference** (`db.env.DATABASE_URL`), not pasted, so rotating the database credentials cannot leave the app pointing at a stale copy. The third is a fix worth copying. `CONTENT_LENIENT` used to be `preserve()` as well, which left a build setting, not a secret, to whatever value someone had last typed into the dashboard; Railway passes service variables to the Docker build as build arguments, so a lenient value left over from authoring would have let a lesson with a dangling cross-reference ship. It is now the literal `"0"`, with a comment saying why. `preserve()` is for values that must stay out of the repository; every other setting belongs in the reviewed file. The danger to respect is the flip side of declarative tools: in whole-project mode, a resource you delete from the file is a resource the next apply deletes from the world. Read every plan before you apply it, and look hardest at anything marked for destruction.
 
 ## GitOps
 
@@ -246,32 +250,32 @@ hints:
 ```quiz
 - q: >-
     A container is killed and its exit code is 137. There is nothing in the application's logs. What is the most likely cause?
-  options: ["The process was killed with SIGKILL, most often by the OOM killer after exceeding its memory limit", "The application called exit(137)", "A failed readiness probe", "The image was pulled with the wrong architecture"]
-  answer: 0
+  options: ["The image was built for the wrong CPU architecture, so the binary could not start", "The application called exit(137) after catching an unrecoverable internal error", "A failed readiness probe made the platform stop the container and restart it", "SIGKILL, most often from the OOM killer after the container exceeded its memory limit"]
+  answer: 3
   explanation: >-
     137 is 128 + 9, meaning SIGKILL. A cgroup memory limit breach is the usual sender, and SIGKILL gives the process no chance to log. A failed readiness probe removes the pod from the Service but does not kill it; liveness failures do restart it, but via SIGTERM first.
 - q: >-
     A Dockerfile does COPY . . followed by RUN npm ci and RUN npm run build. Every commit, even a README change, reinstalls all dependencies. What is the fix?
-  options: ["Use a larger build machine", "Copy package.json and the lockfile first, run npm ci, then copy the rest of the source", "Add node_modules to the image", "Use a smaller base image"]
-  answer: 1
+  options: ["Commit node_modules to the repository so npm ci has nothing to download", "Move to a larger build machine so the dependency install finishes faster", "Copy package.json and the lockfile first, run npm ci, then copy the rest", "Switch to a smaller base image so each layer is quicker to rebuild and push"]
+  answer: 2
   explanation: >-
-    The layer cache is invalidated from the first changed layer onward. With the manifests copied separately, the dependency layer's inputs change only when dependencies do. Hardware and base images do not change the invalidation rule.
+    The layer cache is invalidated from the first changed layer onward. With the manifests copied separately, the dependency layer's inputs change only when dependencies do. Hardware and base images do not change the invalidation rule, and committing node_modules does not help, because npm ci still runs after the same COPY . . that every commit invalidates.
 - q: >-
     Why does Ascend's runtime stage contain no shell or package manager?
-  options: ["They do not work with Rust binaries", "Because Railway forbids shells", "To make builds faster", "To reduce image size and what an attacker could use after compromising the process, at the cost of harder interactive debugging"]
-  answer: 3
+  options: ["To shrink the image and the attacker's toolkit, at the cost of harder debugging", "To make image builds faster, since fewer packages have to be downloaded each time", "A shell would conflict with the Rust binary's own signal handling as PID 1", "Railway forbids interactive shells inside the containers it deploys"]
+  answer: 0
   explanation: >-
-    A distroless runtime removes tools an attacker would use to explore, download or persist, and shrinks the image. The trade-off is that you debug through logs, metrics and ephemeral debug containers instead of exec'ing a shell.
+    A distroless runtime removes tools an attacker would use to explore, download or persist, and shrinks the image. The trade-off is that you debug through logs, metrics and ephemeral debug containers instead of exec'ing a shell. The binary is PID 1 because of the exec-form entrypoint, not because the shell is missing, and a smaller runtime base barely changes build time, which the compile stages dominate.
 - q: >-
     In a three-replica Kubernetes Deployment, the liveness probe calls an endpoint that queries the database. The database fails over for 40 seconds. What happens?
-  options: ["Nothing; probes ignore database errors", "Pods are removed from the Service but keep running", "All pods fail liveness and are restarted together, adding a restart storm on top of the database outage", "Kubernetes promotes a new database"]
+  options: ["Nothing, because probes ignore errors from downstream dependencies", "Kubernetes pauses the probes until the database's own health check is passing again", "Every pod fails liveness and restarts together, adding a restart storm to the outage", "Pods leave the Service but keep running, then rejoin once the database has recovered"]
   answer: 2
   explanation: >-
-    Liveness answers "should this process be killed?" and must check only the process itself. Dependency checks belong in readiness, which removes pods from rotation without restarting them. That is why this app separates /api/healthz from /api/readyz.
+    Liveness answers "should this process be killed?" and must check only the process itself. Leaving the Service while running is what a failing readiness probe does, which is why dependency checks belong there. That is why this app separates /api/healthz from /api/readyz.
 - q: >-
     What is the main security advantage of pull-based GitOps over a CI pipeline that runs kubectl apply against production?
-  options: ["Deploys are faster", "It removes the need for code review", "Production credentials stay inside the cluster; CI only builds images and proposes changes in Git", "It encrypts container images"]
-  answer: 2
+  options: ["It removes the need for code review, since the agent validates every manifest itself", "It encrypts container images at rest, so a leaked registry token is harmless", "Deploys are faster, because the agent applies changes without waiting for CI", "Production credentials stay in the cluster; CI only builds images and opens PRs"]
+  answer: 3
   explanation: >-
     In push-based deploys, compromising CI compromises production. With an in-cluster agent pulling from Git, CI needs no production access, and every change is a reviewed, revertible commit.
 ```

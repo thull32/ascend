@@ -173,7 +173,7 @@ This curriculum was written by parallel agents from two files you can read in th
 
 **A contract backed by a checker.** "Only use the types and algorithms listed here. Unknown types fail the build." The brief gives the exact validation command, says to run it after each module, and lists which warnings are acceptable while other authors are still writing.
 
-**The environment's traps.** "The interactive shell may be fish. For anything beyond a one-liner, write a script file and run it with `bash script.sh`." An agent cannot infer this until a command fails; one sentence saves every author the failure.
+**The environment's traps.** "The interactive shell may be fish. For anything beyond a one-liner, write a script file and run it with `bash script.sh`, or use `bash -c '...'`." An agent cannot infer this until a command fails; one sentence saves every author the failure.
 
 **The history of what went wrong.** The resource-safety section begins "A previous authoring run crashed the machine because a buggy reference solution looped forever allocating memory" and then mandates limits. The reason makes the rule stick and tells the agent what the rule is protecting against, so it can apply it to cases the rule did not list.
 
@@ -207,32 +207,32 @@ What generalises: a spec for agents is a contract with examples, a checkable def
 ```quiz
 - q: >-
     An agent implements pagination with offset, page size 20 and a total count, although your codebase uses cursor pagination capped at 100. What is the root cause?
-  options: ["The model is not capable enough for API work", "The spec left those decisions unstated, so the model filled them with common defaults from public code", "Offset pagination is always the correct default", "The agent ignored its instructions on purpose"]
-  answer: 1
+  options: ["The spec never stated those decisions, so the model filled them with its own defaults", "The model was too small for API work; a larger model would have inferred the convention", "Offset pagination is the safer default, so the agent rightly overrode the convention", "The agent found the wiki convention but ignored it, as agents often ignore guidance"]
+  answer: 0
   explanation: >-
-    Every decision you do not write down is made by the model's defaults, and offset pagination is among the most common patterns in public code. Pointing the agent at the existing cursor implementation or stating the convention fixes it; a more capable model would still have to guess.
+    Every decision you do not write down is made by the model's defaults, and offset pagination is among the most common patterns in public code. The wiki page was invisible to the agent, and a more capable model would still have had to guess. Pointing the agent at the existing cursor implementation, or stating the convention, fixes it.
 - q: >-
     Which acceptance criterion is most useful for a cursor pagination task?
-  options: ["Pagination should be robust and follow best practices", "The code should be clean and well tested", "Paging through 250 orders with limit=100 returns 100, 100 and 50 items with a null final cursor, and orders sharing a created_at are neither skipped nor duplicated at a page boundary", "Pagination should work like other modern APIs"]
-  answer: 2
+  options: ["The code is clean and well tested, and the paging logic is easy for reviewers to follow", "Pagination works like other modern APIs, so clients can page through orders without surprises", "Pagination follows industry best practices and stays robust under heavy concurrent load", "Paging 250 orders at limit=100 yields 100, 100, 50, with no skips or repeats on created_at ties"]
+  answer: 3
   explanation: >-
-    It is checkable by a test and it names the specific edge case (timestamp ties) that a single-column keyset query gets wrong. The others are judged by the model's taste.
+    Only the 250-order criterion can be decided by a test, and it names the edge case (timestamp ties at a page boundary) that a single-column keyset query gets wrong. Best practices, clean code and behaving like other modern APIs are judged by the model's taste, so they mean whatever the model thinks they mean.
 - q: >-
     Which of these belongs in the repository's standing memory file rather than in a single task spec?
-  options: ["For this ticket, cap limit at 100", "The payments client already retries with backoff; never wrap it in another retry", "Rename the variable total to order_count in list.py", "The customer who reported this bug is on the enterprise plan"]
-  answer: 1
+  options: ["The customer who reported this bug is on the enterprise plan and needs it by Friday", "For this ticket, cap the limit parameter at 100 and return 400 above it", "The payments client already retries with backoff, so never wrap it in a retry", "Rename the variable total to order_count in api/orders/list.py for clarity"]
+  answer: 2
   explanation: >-
-    It is a stable fact about the codebase that every future task touching payments needs. The others are specific to one task, and putting them in the memory file would mislead future sessions.
+    The retry behaviour is a stable fact about the codebase that every future task touching payments needs. The limit cap, the rename and the customer's deadline are true only for one task, and putting them in the memory file would mislead every later session.
 - q: >-
     Editing existing database migrations must never happen. What is the most reliable way to make that hold for agent-driven work?
-  options: ["Write it in capital letters in CLAUDE.md", "State it in the memory file and also enforce it with a permission rule denying edits to migrations/ and a CI check that fails when an existing migration changes", "Mention it in each task prompt", "Trust code review to catch it"]
-  answer: 1
+  options: ["Repeat it in every task prompt so it is always the most recent instruction", "Write it in capital letters at the top of CLAUDE.md so the model weights it highly", "Rely on code review, since a human reads every migration diff before it merges", "State it in the memory file and enforce it with a permission rule and a CI check"]
+  answer: 3
   explanation: >-
-    Instructions are requests that models can fail to follow under pressure. The memory file states the intent; permissions and CI enforce it mechanically, and review remains a final backstop rather than the only one.
+    Instructions are requests that models can fail to follow under pressure, however loud or recent they are. The memory file states the intent; a permission rule denying edits to migrations/ and a CI check that fails when a shipped migration changes enforce it mechanically, and review remains a backstop rather than the only defence.
 - q: >-
     Why is a 2,000-line memory file usually worse than a 200-line one?
-  options: ["Tools refuse to load files over 1,000 lines", "It is loaded into every session, costing tokens each time and diluting attention so the rules that matter get less weight", "Longer files are always out of date", "Agents only read the first 100 lines"]
+  options: ["A long file overflows the context window, so the task itself no longer fits", "It loads into every session, costing tokens and diluting attention on the key rules", "Long memory files are always out of date, because nobody reviews them after a month", "Memory files load only when the agent asks for them, so a long one is rarely read"]
   answer: 1
   explanation: >-
-    Memory files are loaded in full every session. More text means more cost and more competition for attention with the actual task, so critical rules get buried. Length is not the problem in itself; irrelevant length is.
+    Memory files are loaded in full at the start of every session, so every line costs tokens on every task and competes with the task for the model's attention; the rules that matter get buried. They are not loaded on request, 2,000 lines fits easily in a modern context window, and length alone does not make a file stale: irrelevant length is the problem.
 ```

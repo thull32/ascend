@@ -69,15 +69,16 @@ tracing::info!(
 );
 ```
 
-`version` is a hash of every content file, and `/api/readyz` reports the same value. "Which lessons are live right now?" is answered by one field, not by reconstructing the deploy history.
+`version` is a hash of every content file, and `/api/readyz` reports the same value next to `build`, the commit the binary was compiled from. "Which lessons are live right now?" and "which code is live?" are each answered by one field, not by reconstructing the deploy history.
 
 ## Request IDs: one key that joins everything
 
-A request ID is only useful if it is on every line of the request and visible to the person reporting the problem. `crates/api/src/app.rs` wires it up with three layers from `tower-http`, outermost first:
+A request ID is only useful if it is on every line of the request and visible to the person reporting the problem. `crates/api/src/app.rs` wires it up with one small middleware of its own and three layers from `tower-http`, outermost first:
 
-1. `SetRequestIdLayer` gives every incoming request an `x-request-id` header, generating a UUID when the client did not send one.
-2. `PropagateRequestIdLayer` copies that header onto the response, so the browser's network panel, a support ticket or a failing test can quote it.
-3. `TraceLayer` opens a `request` span that records the method, the path and `request_id`, and logs the response status and latency when the request completes.
+1. `request_id::sanitise` (in `crates/api/src/middleware/request_id.rs`) removes a client-supplied `x-request-id` unless it parses as a UUID.
+2. `SetRequestIdLayer` gives every incoming request an `x-request-id` header, generating a UUID when none survived.
+3. `PropagateRequestIdLayer` copies that header onto the response, so the browser's network panel, a support ticket or a failing test can quote it.
+4. `TraceLayer` opens a `request` span that records the method, the path and `request_id`, and logs the response status and latency when the request completes.
 
 ```mermaid
 sequenceDiagram
@@ -86,7 +87,7 @@ sequenceDiagram
   participant H as Handler
   participant L as Logs
   B->>M: POST /api/coach/.../messages
-  M->>M: set x-request-id (generate if absent)
+  M->>M: drop x-request-id unless a UUID, generate if absent
   M->>H: request inside span request_id=abc
   H->>L: warn coach stream error, conversation=...
   H-->>M: response
@@ -94,18 +95,20 @@ sequenceDiagram
   Note over B,L: support searches the logs for abc
 ```
 
-Notice where the ID lives: on the `request` span, not in each `warn!` or `error!` call. Handlers never pass it around, yet every event emitted inside the request inherits it, because the JSON formatter prints the current span's fields alongside the event's own. `docs/ARCHITECTURE.md` summarises the result as JSON logs with the request ID on each line. The mechanism is one formatter flag: build the same layer with `with_current_span(false)` and the ID silently disappears from production logs while development's compact output still shows span context, so nothing looks wrong until the first incident. Test your telemetry by reading what it actually emits, exactly as you would test any other output.
+Notice where the ID lives: on the `request` span, not in each `warn!` or `error!` call. Handlers never pass it around, yet every event emitted inside the request inherits it, because the JSON formatter prints the current span's fields alongside the event's own. `docs/ARCHITECTURE.md` summarises the logs as JSON, "one line per request with the request ID", which undersells the result: every line emitted inside the request carries the ID, not only the request's own line. The mechanism is one formatter flag: build the same layer with `with_current_span(false)` and the ID silently disappears from production logs while development's compact output still shows span context, so nothing looks wrong until the first incident. Test your telemetry by reading what it actually emits, exactly as you would test any other output.
 
-Reading the configuration closely also turns up something worth knowing about the ID itself.
+Span inheritance has one gap that bit this codebase. The coach streams its reply from a spawned task (`state.tasks.spawn`, a `TaskTracker` that hands the future to Tokio and lets shutdown wait for it), so the reply is still saved if the browser disconnects, and a spawned task does not run inside the span that was current when it was spawned. In the first version, "coach stream error" and "failed to persist coach reply", the two lines you most want during an incident, carried no request ID at all: the search in the opening story would have found the request line and nothing about why it failed. The fix is one call, `.instrument(tracing::Span::current())` on the spawned future, which attaches the handler's span to the task. Any work that outlives its request (spawned tasks, queued jobs, retries) must be handed its context explicitly, because nothing inherits it by accident.
 
-**A client can choose its own ID.** `SetRequestIdLayer` keeps an `x-request-id` that is already present. That is convenient when a trusted proxy in front of you assigns IDs, but any client can send one, including a very long one, a duplicate of someone else's, or one containing characters that confuse log tooling. Either validate the incoming value's length and format, or generate your own and record the caller's as a separate field.
+Reading the configuration closely also turned up something about the ID itself.
+
+**A client could choose its own ID.** `SetRequestIdLayer` keeps an `x-request-id` that is already present. That is convenient when a trusted proxy in front of you assigns IDs, but any client can send one, including a very long one, a duplicate of someone else's, or one containing characters that confuse log tooling. The first version accepted whatever arrived. The `sanitise` layer above is the fix: a well-formed UUID is still propagated, so a trusted caller can join its logs to yours, and anything else is replaced by a fresh ID. The integration test `request_ids_are_server_controlled` checks both paths. Validating the incoming value's format is one answer; generating your own and recording the caller's as a separate field is the other.
 
 ## Metrics: measure distributions, bound the labels
 
 Metrics are numbers aggregated over time: **counters** (requests served, tokens consumed), **gauges** (connections in use) and **histograms** (latency distributions). Two checklists cover most services:
 
 - **RED**, for anything that serves requests: rate, errors, duration.
-- **USE**, for anything with capacity: utilisation, saturation, errors. For this app the obvious resource is the database pool, which `crates/api/src/state.rs` caps at 20 connections with a 10-second acquire timeout.
+- **USE**, for anything with capacity: utilisation, saturation, errors. For this app the obvious resource is the database pool, which `crates/api/src/state.rs` caps at 20 connections with a 5-second acquire timeout.
 
 Latency must be a **histogram**, never an average. An average of 80 ms can hide a p99 of 4 seconds, and averages of percentiles are meaningless: you cannot combine the p99 of three instances by averaging them. Record bucketed counts and compute percentiles from the merged buckets.
 
@@ -120,7 +123,7 @@ LATENCY = Histogram("http_request_duration_seconds", "Request latency", ["route"
 AI_TOKENS = Counter("ai_output_tokens_total", "Model output tokens", ["model"])
 ```
 
-This codebase does not export application metrics today; it relies on the platform's CPU, memory and network graphs plus logs. If you were adding them, the order of value is: a request counter and latency histogram per route template and status class (one middleware layer covers every route), AI output tokens by model (the dominant variable cost of a free product), database pool usage, and a counter of requests refused by the daily AI budget.
+This codebase does not export application metrics today; it relies on the platform's CPU, memory and network graphs plus logs. The closest thing to a metric is a structured event, `coach turn complete`, logged once per coach turn with input, output, cache-read and cache-write token counts, which a log-based metric in the platform can aggregate. If you were adding them, the order of value is: a request counter and latency histogram per route template and status class (one middleware layer covers every route), AI output tokens by model (the dominant variable cost of a free product), database pool usage, and a counter of requests refused by the daily AI budget.
 
 ## Traces: where did the nine seconds go?
 
@@ -223,32 +226,32 @@ hints:
 ```quiz
 - q: >-
     Which log statement is the most useful in production?
-  options: ["info!(user = %id, lesson = %slug, seconds = secs, \"lesson completed\")", "info!(\"user {} completed lesson {} in {}s\", id, slug, secs)", "println!(\"lesson completed\")", "debug!(\"{:?}\", request)"]
-  answer: 0
-  explanation: >-
-    A constant message with typed fields can be counted, grouped and filtered by user or lesson. The interpolated version makes every line unique text; println bypasses levels and structure; dumping the whole request at debug level is both noisy and a data-leak risk.
-- q: >-
-    A latency dashboard shows the average of each instance's p99, averaged across 10 instances. What is wrong?
-  options: ["Nothing, averaging percentiles is standard", "Percentiles cannot be averaged; merge the underlying histogram buckets and compute the percentile from the combined distribution", "It should use the median of the p99s", "It should use the maximum of the averages"]
+  options: ["println!(\"[info] user={} lesson={} secs={} lesson completed\", id, slug, secs)", "info!(user = %id, lesson = %slug, seconds = secs, \"lesson completed\")", "info!(\"user {} completed lesson {} in {}s\", id, slug, secs)", "debug!(request = ?req, user = %id, \"lesson completed\")"]
   answer: 1
   explanation: >-
-    A percentile is a property of a whole distribution. Averaging per-instance p99s can badly understate the true p99, especially when one instance is slow. Histograms merge correctly; percentiles do not.
+    A constant message with typed fields at info level can be counted, grouped and filtered by user or lesson. The interpolated version makes every line unique text; println bypasses levels, the subscriber and its JSON output even when it imitates key=value text; and the debug line is off in production and dumps the whole request, which is noisy and a data-leak risk when it is on.
+- q: >-
+    A latency dashboard shows the average of each instance's p99, averaged across 10 instances. What is wrong?
+  options: ["Percentiles cannot be averaged; merge the histogram buckets and take p99 from them", "It should weight each instance's p99 by its request count before averaging the ten", "Nothing; averaging per-instance percentiles is the standard way to combine them", "It should take the median of the p99s, which is robust to one slow instance"]
+  answer: 0
+  explanation: >-
+    A percentile is a property of a whole distribution. Averaging per-instance p99s, weighted or not, can badly understate the true p99, especially when one instance is slow, and a median of them has the same flaw. Histograms merge correctly; percentiles do not.
 - q: >-
     A teammate adds a user_id label to the request latency histogram so they can debug individual users. The service has 200,000 users and 40 routes. What is the concern?
-  options: ["Histograms do not support labels", "Privacy law forbids user IDs in metrics", "It makes the histogram less accurate", "Series cardinality multiplies to millions, overloading the metrics backend; per-user detail belongs in logs and traces"]
-  answer: 3
+  options: ["Per-user buckets hold so few samples that the latency percentiles become inaccurate", "Series count multiplies into the millions; per-user detail belongs in logs and traces", "Privacy law forbids user IDs in metrics, so the change fails compliance review", "Histograms cannot carry labels, so the metric would be rejected at registration"]
+  answer: 1
   explanation: >-
-    Every label combination is a separate series, and a histogram has one series per bucket too. 200,000 users times 40 routes times a dozen buckets is about 96 million series. Logs and traces are built for high-cardinality detail.
+    Every label combination is a separate series, and a histogram has one series per bucket too. 200,000 users times 40 routes times a dozen buckets is about 96 million series, which overloads the metrics backend. Logs and traces are built for high-cardinality detail.
 - q: >-
     In Ascend, request_id is recorded on the request span rather than passed to every log call. Which formatter setting makes it appear on each production JSON log line?
-  options: ["flatten_event(true)", "with_span_list(false)", "with_current_span(true)", "The RUST_LOG filter"]
-  answer: 2
+  options: ["with_current_span(true)", "The RUST_LOG filter string", "with_span_list(false)", "flatten_event(true)"]
+  answer: 0
   explanation: >-
     with_current_span(true) prints the fields of the span an event occurred in, so every event inside the request inherits request_id. flatten_event only moves the event's own fields to the top level, with_span_list(false) omits the ancestor chain, and RUST_LOG decides which events are emitted, not what they contain. Flip the flag to false and the IDs vanish from production logs without any error.
 - q: >-
     You keep 1% of traces with head-based sampling, and incidents usually involve rare errors. What change best preserves the traces you need?
-  options: ["Switch to tail-based sampling that keeps all error and slow traces plus a small share of the rest", "Increase head sampling to 5%", "Stop sampling and keep everything", "Sample only on the client"]
+  options: ["Tail-based sampling that keeps every error and slow trace plus a share of the rest", "Sample on the client instead, where errors are first visible to the user", "Stop sampling and keep every trace, since storage is cheaper than blind spots", "Raise head-based sampling to 5%, so five times as many of the rare errors are captured"]
   answer: 0
   explanation: >-
-    Head sampling decides before the outcome is known, so it discards most rare failures. Tail sampling decides after the trace completes and can keep every interesting one, at the cost of buffering spans in the collector. Keeping everything is usually unaffordable.
+    Head sampling decides before the outcome is known, so even at 5% it discards most rare failures. Tail sampling decides after the trace completes and can keep every interesting one, at the cost of buffering spans in the collector. Keeping everything is usually unaffordable.
 ```

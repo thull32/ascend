@@ -85,8 +85,8 @@ Constrained decoding supports a subset of JSON Schema, and the subset is smaller
 This app's quiz generator (`crates/core/src/ai/quiz.rs`) handles that gap in a few lines. It requests questions with a schema of `{q, options, answer, explanation}`, and its system prompt says each question has exactly four options and exactly one correct index. After parsing, it still enforces the invariant the schema could not:
 
 ```rust
-let mut quiz: GeneratedQuiz = serde_json::from_str(&completion.text)
-    .map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
+let mut quiz: GeneratedQuiz =
+    serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
 quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());
 if quiz.questions.is_empty() {
     return Err(AppError::AiUpstream("quiz generation returned no usable questions".into()));
@@ -275,32 +275,32 @@ hints:
 ```quiz
 - q: >-
     With schema-constrained decoding, how does the provider stop the model from emitting a value outside an enum?
-  options: ["It retries the request until the output validates", "It post-processes the output and replaces invalid values with the closest valid one", "It fine-tunes the model on your schema", "At each step it masks the logits of tokens the schema's grammar does not allow, so invalid continuations have zero probability"]
-  answer: 3
-  explanation: >-
-    The schema is compiled into a grammar that masks illegal next tokens before sampling, the same mask-and-renormalise step as top-p. No retries are needed for structure, but the model now picks the most probable valid value, which can still be wrong.
-- q: >-
-    A structured-output response comes back with stop_reason "max_tokens". What should your code conclude?
-  options: ["The JSON is valid because decoding was constrained", "The model refused the request", "The output was cut off and is incomplete; treat it as an error and raise max_tokens or shorten the task", "The schema was too complex and was ignored"]
-  answer: 2
-  explanation: >-
-    Constrained decoding guarantees every emitted token is legal, not that generation finished. A truncated document fails to parse or, worse, parses into a partial object in lenient parsers. A refusal has its own stop reason.
-- q: >-
-    A tool is declared as get_invoice(user_id, invoice_id), and the model fills in both arguments from the conversation. What is the flaw?
-  options: ["Authorisation should come from the authenticated session, not from an id the model supplies; an injected or confused model can request another user's invoices", "Two parameters are too many for a tool", "invoice_id should be an integer", "Tools must not take ids"]
+  options: ["It masks the logits of tokens the schema's grammar forbids at each step", "It post-processes the output and swaps invalid values for the nearest valid one", "It retries the request in the background until the output validates", "It fine-tunes a copy of the model on your schema before serving the request"]
   answer: 0
   explanation: >-
-    The model's arguments are untrusted input. Deriving the user from the session makes cross-tenant reads impossible regardless of what text the model has read; checking a model-supplied user_id against itself checks nothing.
+    The schema is compiled into a grammar that masks illegal next tokens before sampling, the same mask-and-renormalise step as top-p, so invalid continuations have zero probability. Nothing is repaired after the fact and no retries are needed for structure, but the model now picks the most probable valid value, which can still be wrong.
 - q: >-
-    The model returns one assistant message with three tool_use blocks. How do you send the results back?
-  options: ["Three separate user messages, one per result", "One user message containing all three tool_result blocks, each with its tool_use_id", "Only the first result; the model will ask again for the rest", "As an assistant message appended after the tool calls"]
+    A structured-output response comes back with stop_reason "max_tokens". What should your code conclude?
+  options: ["The model refused the request, and the partial text explains the refusal", "The output is incomplete; treat it as an error, then raise max_tokens", "The JSON is valid and complete, because every token was constrained", "The schema was too complex, so the provider ignored it for this request"]
   answer: 1
   explanation: >-
-    Each tool_use must be answered by a tool_result with the matching id in the next user message. Returning them together keeps the transcript well-formed and lets the model use all results in its next step.
+    Constrained decoding guarantees every emitted token is legal, not that generation finished. A truncated document fails to parse or, worse, parses into a partial object in lenient parsers. Treat it as an error, then raise max_tokens or shorten the task. A refusal has its own stop reason.
+- q: >-
+    A tool is declared as get_invoice(user_id, invoice_id), and the model fills in both arguments from the conversation. What is the flaw?
+  options: ["Two required parameters are too many; each tool should take one argument", "invoice_id should be declared as an integer so the model cannot invent ids", "Tools must never take ids, only natural-language descriptions of records", "The user should come from the session, not from an id the model supplies"]
+  answer: 3
+  explanation: >-
+    The model's arguments are untrusted input: an injected or confused model can ask for another user's invoices. Deriving the user from the authenticated session makes cross-tenant reads impossible regardless of what text the model has read; checking a model-supplied user_id against itself checks nothing. Typing invoice_id as an integer changes its format, not whose invoice it is.
+- q: >-
+    The model returns one assistant message with three tool_use blocks. How do you send the results back?
+  options: ["One user message holding all three tool_result blocks, each with its own id", "Three separate user messages, one per tool_result, in the order called", "An assistant message appended after the calls, holding all three results", "Only the first result; the model will ask again for the remaining two"]
+  answer: 0
+  explanation: >-
+    Each tool_use must be answered by a tool_result with the matching tool_use_id in the next user message. Returning them together keeps the transcript well-formed and lets the model use all results in its next step; splitting them across several user messages breaks the alternation the API expects.
 - q: >-
     A grading schema lists "verdict" before "reasoning". Why is swapping the order likely to improve the verdicts?
-  options: ["JSON parsers read keys alphabetically", "Shorter fields should always come last", "Generation is left to right, so reasoning emitted first becomes context for the verdict; with the verdict first, the reasoning can only justify a choice already made", "Providers reject schemas whose last field is a string"]
-  answer: 2
+  options: ["Shorter fields should always come last so the model spends its effort early", "JSON parsers read keys alphabetically, so reasoning is always parsed before verdict", "Providers reject schemas whose last property is a short enum-like string", "Tokens are generated in order, so reasoning written first informs the verdict"]
+  answer: 3
   explanation: >-
-    Each token is conditioned on the tokens before it. Putting reasoning first lets the conclusion depend on it, which is the same reason step-by-step reasoning helps in free text.
+    Each token is conditioned on the tokens before it. Putting reasoning first lets the conclusion depend on it; with the verdict first, the reasoning can only justify a choice already made. It is the same reason step-by-step reasoning helps in free text. Key order matters to the generator, not to the parser.
 ```

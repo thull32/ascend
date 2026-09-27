@@ -52,7 +52,7 @@ The app compiles with `noUncheckedIndexedAccess`, which makes `arr[i]` have type
 
 ## Discriminated unions: the runner protocol
 
-The UI talks to the code runners (Web Workers executing Python or JavaScript) over `postMessage`. `web/src/runner/protocol.ts` defines the messages:
+The UI talks to the code runners (Web Workers executing Python or JavaScript) over `postMessage`. `web/src/runner/protocol.ts` defines the messages (condensed here to one line per type):
 
 ```typescript
 export interface RunRequest { id: number; kind: "run"; code: string; entry: string; tests: TestCase[]; timeLimitMs: number }
@@ -127,7 +127,7 @@ export interface Family<I = Record<string, unknown>, S = unknown> {
 }
 ```
 
-`I` is a family's input type and `S` its per-frame state. Within one family, the generator's input, the examples, `normalise`'s output and the renderer's props must all agree on `I`, and the compiler checks that agreement. `Family<I = Record<string, unknown>, S = unknown>` gives the parameters defaults, so `Family` alone is valid. The `Frames<S>` builder is constructed with a snapshot closure, `new Frames(() => clone(state))`, and TypeScript infers `S` from the closure's return type without annotation.
+`I` is a family's input type and `S` its per-frame state. Within one family, the generator's input, the examples, `normalise`'s output and the renderer's props must all agree on `I`, and the compiler checks that agreement. `Family<I = Record<string, unknown>, S = unknown>` gives the parameters defaults, so `Family` alone is valid. The `Frames<S>` builder is constructed with a snapshot closure, for example `new Frames<MemoryState>(() => clone(this.s))` in the memory family. TypeScript could infer `S` from the closure's return type, but every family passes it explicitly, which matters most where the closure builds an object literal: inference would produce an anonymous structural type instead of the named state type the renderer expects.
 
 The interesting line is in `viz/families/index.ts`, where every family goes into one registry:
 
@@ -183,7 +183,7 @@ Conditional types can also extract types with `infer`: `type ElementOf<T> = T ex
 
 ## Where types stop being true
 
-Every `as`, every `any`, and every annotation on data that crosses a boundary is a claim the compiler does not check. The app's API client (`lib/api.ts`) ends with:
+Every `as`, every `any`, and every annotation on data that crosses a boundary is a claim the compiler does not check. The app's API client (`lib/api.ts`) ends its `request` function, which every JSON call goes through, with:
 
 ```typescript
 return data as T;
@@ -302,39 +302,39 @@ hints:
 
 ```quiz
 - q: >-
-    Which line reports that the required `message` property is missing?
-  options: ["const a = { id: -1, kind: \"status\" } as RunnerResponse", "const b = { id: -1, kind: \"status\" } satisfies RunnerResponse", "Both", "Neither, because types are erased"]
-  answer: 1
-  explanation: >-
-    An `as` assertion only requires the types to overlap sufficiently, and an object missing `message` is a supertype of StatusResponse, so it is accepted. `satisfies` requires the literal to conform to the type and keeps its narrow type for inference.
-- q: >-
-    What is `Omit<RunnerRequest, "id">`, where RunnerRequest = RunRequest | EvalRequest?
-  options: ["Omit<RunRequest, \"id\"> | Omit<EvalRequest, \"id\">", "never", "RunnerRequest unchanged", "One object type with only the keys the members share, minus id: kind, code and timeLimitMs"]
+    Given const a = { id: -1, kind: "status" } as RunnerResponse and const b = { id: -1, kind: "status" } satisfies RunnerResponse, which line reports that the required `message` property is missing?
+  options: ["Only the as line, because an assertion checks every required field", "Both lines, because each one compares the literal against the union", "Neither line, because the types are erased before anything is checked", "Only the satisfies line, because it requires the literal to conform"]
   answer: 3
   explanation: >-
-    Omit is built on keyof of the whole union, which yields only common keys, and it produces a single object type. Fields like entry and tests disappear. Distributing requires a conditional type such as T extends unknown ? Omit<T, K> : never.
+    An `as` assertion only requires the types to overlap sufficiently, and an object missing `message` is a supertype of StatusResponse, so it is accepted. `satisfies` requires the literal to conform to the type and keeps its narrow type for inference. Erasure happens after type checking, so it excuses neither line.
+- q: >-
+    What is `Omit<RunnerRequest, "id">`, where RunnerRequest = RunRequest | EvalRequest?
+  options: ["One merged type with only the shared keys: kind, code, timeLimitMs", "Omit<RunRequest, \"id\"> | Omit<EvalRequest, \"id\">, one for each member", "never, because the two members disagree about the type of kind", "RunnerRequest unchanged, because id is required in both members"]
+  answer: 0
+  explanation: >-
+    Omit is built on keyof of the whole union, which yields only the common keys, and it produces a single object type: entry and tests disappear, along with the link between kind and its fields. The per-member union, which WorkerHandle.send spells out by hand, needs a conditional type such as T extends unknown ? Omit<T, K> : never. Plain Omit neither collapses to never nor leaves the union intact; it removes id from one merged type.
 - q: >-
     Why does viz/families/index.ts cast each family to Family<never, unknown> instead of assigning it to Family<unknown, unknown>?
-  options: ["I appears both as a function parameter and in output positions, so Family is invariant in I and no safe common supertype exists for a heterogeneous registry", "TypeScript cannot infer generic parameters from objects", "React components cannot be generic", "never is cheaper at runtime"]
+  options: ["Family is invariant in I, so no common supertype fits every family", "never is erased to a smaller type, so the registry costs less memory", "TypeScript cannot infer generic parameters from an object literal", "React components stored in a registry are not allowed to be generic"]
   answer: 0
   explanation: >-
-    Parameters are checked contravariantly and properties covariantly; a parameter used both ways admits no subtyping. Without existential types the registry must erase, and the cast records that decision. unknown would fail for the same reason, as the compiler reports.
+    I appears both as a function parameter (checked contravariantly) and in output positions (checked covariantly), and a parameter used both ways admits no subtyping. Without existential types the registry must erase, and the cast records that decision; unknown fails for the same reason, as the compiler reports. Inference works fine here, generic components are allowed, and types have no runtime cost at all.
 - q: >-
     The backend renames `lesson_count` to `lessons` in the curriculum response. The frontend calls api.get<Curriculum>(...). What happens?
-  options: ["tsc fails the frontend build", "request() throws a TypeError when parsing", "The build passes and the UI reads undefined at runtime", "The HTTP request fails"]
-  answer: 2
+  options: ["request() throws a TypeError while parsing the unexpected field", "tsc fails the frontend build, because Curriculum no longer matches", "The HTTP request fails, because the response no longer fits the type T", "The build passes, and the UI reads undefined for the count at runtime"]
+  answer: 3
   explanation: >-
-    `return data as T` is an unchecked claim; types are erased and nothing compares the JSON with Curriculum. Runtime validation, generated types or contract tests are the ways to turn this drift into an early failure.
+    `return data as T` is an unchecked claim: types are erased and nothing compares the JSON with Curriculum, so tsc never sees the server's shape, and the request and the JSON parse both succeed. Runtime validation, generated types or contract tests are the ways to turn this drift into an early failure.
 - q: >-
     A component's state is typed `{ loading: boolean; error?: string; data?: Curriculum }`. What is the strongest review comment?
-  options: ["Use an interface instead of a type alias", "It admits combinations that cannot happen, such as loading with both data and an error; a union tagged by status makes them unrepresentable", "Optional properties are slow in V8", "Replace Curriculum with any to simplify"]
-  answer: 1
-  explanation: >-
-    Three independent fields allow eight combinations and every consumer must defend against the impossible ones. A discriminated union has exactly the four real states and narrows automatically in a switch.
-- q: >-
-    A learner submits `while (true) {}` to the JavaScript runner. Why does the runner terminate the Worker from the main thread instead of setting a timeout inside the worker?
-  options: ["The loop never yields to the worker's event loop, so no timer or message callback inside the worker can ever run", "Promises cannot have timeouts", "Workers do not implement setTimeout", "terminate() is cheaper than clearTimeout()"]
+  options: ["It admits impossible states; a union tagged by status rules them out", "Type data as any so the component can also hold other responses", "Optional properties are slow in V8, so give every field a default", "Use an interface rather than a type alias, so that it can be extended"]
   answer: 0
   explanation: >-
-    Callbacks run only when the call stack is empty. A synchronous infinite loop never empties it, so the worker cannot stop itself; only another thread can kill it, which is what WorkerHandle does on its wall-clock budget.
+    Three independent fields allow eight combinations, such as loading with both data and an error, and every consumer must defend against the impossible ones. A discriminated union has exactly the four real states and narrows automatically in a switch. Interface versus alias changes nothing here, and any removes checking rather than adding it.
+- q: >-
+    A learner submits `while (true) {}` to the JavaScript runner. Why does the runner terminate the Worker from the main thread instead of setting a timeout inside the worker?
+  options: ["Web Workers do not implement setTimeout, so only the page has timers", "The loop never yields, so no timer inside the worker can ever get to fire", "Promises cannot carry a timeout, and the runner is promise-based", "terminate() is cheaper than clearTimeout() for a worker that is idle"]
+  answer: 1
+  explanation: >-
+    Callbacks run only when the call stack is empty. A synchronous infinite loop never empties it, so the worker cannot stop itself; only another thread can kill it, which is what WorkerHandle does on its wall-clock budget. Workers do have setTimeout, and promise-based code can race a timer; neither helps when the thread never yields.
 ```

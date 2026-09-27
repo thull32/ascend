@@ -49,33 +49,50 @@ This app creates its pool once at startup in `crates/api/src/state.rs`:
 ```rust
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
     let mut opts = ConnectOptions::new(config.database_url.expose_secret().to_string());
-    opts.max_connections(20)
+    opts
+        // Sized for one replica on a small Postgres (max_connections ~100):
+        // leaves headroom for migrations, psql, and a second replica during
+        // a rolling deploy.
+        .max_connections(20)
         .min_connections(2)
-        .connect_timeout(Duration::from_secs(10))
-        .acquire_timeout(Duration::from_secs(10))
+        // SeaORM passes this to sqlx as the acquire timeout: how long a
+        // request waits for a free connection before failing fast.
+        .acquire_timeout(Duration::from_secs(5))
         .idle_timeout(Duration::from_secs(300))
+        // Recycle connections so server-side memory and plan caches reset
+        // and failovers are picked up.
+        .max_lifetime(Duration::from_secs(30 * 60))
+        // Ping only connections idle for a while, not every checkout: saves
+        // a round trip per request while still catching dead sockets.
+        .test_before_acquire_if_idle_for(Duration::from_secs(60))
         .sqlx_logging(false);
     let db = Database::connect(opts).await?;
     Ok(db)
 }
 ```
 
-SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState` clones that handle into every service: comments, progress, auth, submissions, the AI budget tracker. So each API process has exactly one pool of at most 20 connections, shared by every request it serves. Here is what each setting does, including the ones the code does not set.
+SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState` clones that handle into every service: comments, progress, auth, submissions, the AI budget tracker. So each API process has exactly one pool of at most 20 connections, shared by every request it serves. Here is what each setting does.
 
 | Setting | Value here | Effect |
 |---|---|---|
 | `max_connections` | 20 | At most 20 open connections from this process. The 21st concurrent acquire waits. |
 | `min_connections` | 2 | Keep two connections open while idle, so the first requests after a quiet period skip connection setup. |
-| `connect_timeout` / `acquire_timeout` | 10 s / 10 s | How long an acquire may wait, including opening a new connection. In SeaORM 2 both map onto sqlx's single acquire timeout (the second call wins), so they are one knob set twice. |
+| `acquire_timeout` | 5 s | How long an acquire may wait, including opening a new connection, before it fails (this app surfaces that as a 500). There is deliberately no `connect_timeout`: in SeaORM 2 both setters map onto sqlx's single acquire timeout (`acquire_timeout` is applied last, so it always wins), so setting both would be one knob set twice. |
 | `idle_timeout` | 300 s | Close connections idle for five minutes, down to the minimum. |
-| `max_lifetime` | not set (sqlx default: 30 min) | Retire every connection after 30 minutes. This bounds server-side memory growth and lets a pool drift back to a new primary's address after a DNS change. |
-| `test_before_acquire` | not set (default: on) | Before handing out an idle connection, send a protocol-level ping and wait for the reply. That is one extra round trip on every acquire. SeaORM 2 also offers `test_before_acquire_if_idle_for`, which only pings connections that have been idle past a threshold. |
+| `max_lifetime` | 30 min | Retire every connection after 30 minutes. This bounds server-side memory growth and lets a pool drift back to a new primary's address after a DNS change or failover. It equals sqlx's default; setting it explicitly records the intent and survives a change of default. |
+| `test_before_acquire_if_idle_for` | 60 s | Before handing out a connection that has been idle for at least 60 seconds, send a protocol-level ping and wait for the reply. It replaces sqlx's default (`test_before_acquire`, on), which pings on every acquire: one extra round trip per query. |
 
 One detail about how SeaORM uses the pool matters for sizing. When a service method runs `Comments::find()...all(&self.db)`, the query acquires a connection, runs, and releases it. Four sequential queries in one request are four separate acquires, and between them the connection goes back into the pool. Only a transaction (`self.db.begin()`) holds one connection across several statements. So the unit of pool usage in this app is the *query*, not the request.
 
-### A critique worth making
+### A critique that was acted on
 
-A 10-second acquire timeout is generous for an interactive API. When the pool is exhausted (say, because one slow query pattern is holding connections), every new request waits up to 10 seconds before failing, holding its Tokio task and its HTTP connection. Clients time out first and retry, adding more waiters. A shorter acquire timeout (a second or two, returning a 503) fails fast and sheds load while the cause is fixed, at the cost of spurious failures during very brief spikes. The rule is that the acquire timeout must be well inside the request's own deadline. Neither choice is wrong in general. Choosing without thinking is.
+The first version of this function set `connect_timeout(10 s)` and `acquire_timeout(10 s)`, left `max_lifetime` and the health check at their defaults, and carried no comments. A review found three problems, and the code above is the fix.
+
+- **Ten seconds is a long time to wait for a connection.** When the pool is exhausted (say, because one slow query pattern is holding connections), every new request waited up to 10 seconds before failing, holding its Tokio task and its HTTP connection. Clients time out first and retry, adding more waiters, so the queue grows exactly when the database is least able to drain it. At 5 seconds a request that cannot get a connection fails sooner and sheds load while the cause is fixed. The price is spurious failures during very brief spikes, which is why it is not 500 ms.
+- **One knob was set twice.** Both setters land on sqlx's single acquire timeout, so two lines implied two behaviours that did not exist. The next person to change only the first would have changed nothing.
+- **A ping on every checkout.** In this app the unit of pool usage is the query, so a request running four queries paid four health-check round trips. Pinging only connections idle for 60 seconds still catches the sockets most likely to be dead, and costs nothing under steady load.
+
+The general lesson: every pool setting is a timeout or a budget, so choose each against a number you can name (the request deadline, the database's `max_connections`, how long a firewall lets an idle socket live) and write that number in a comment beside it, as the current code does. The acquire timeout must sit well inside the request's own deadline. Defaults are not wrong; relying on them without looking is.
 
 ## Sizing a pool with Little's law
 
@@ -85,15 +102,15 @@ $$ L = \lambda \times W $$
 
 For a pool, `L` is the average number of connections in use, `λ` is the rate of acquires, and `W` is how long each is held.
 
-Work it for this app. Suppose one API instance serves 300 dashboard loads a second at peak, and each load calls `ProgressService::summary`, which runs four sequential queries (lesson progress, module preferences, solved problems, quiz attempts). Each query holds a connection for about 1.3 ms: a 0.3 ms ping from `test_before_acquire` plus roughly 1 ms to send the query, execute it and read the rows.
+Work it for this app. Suppose one API instance serves 300 dashboard loads a second at peak, and each load calls `ProgressService::summary`, which runs five sequential queries (lesson progress, module preferences, solved problems, quiz attempts, and the activity days its streak is computed from). Each query holds a connection for about 1.3 ms to send the query, execute it and read the rows. No health-check ping is included: under steady load no connection sits idle for 60 seconds, so `test_before_acquire_if_idle_for` never fires. With sqlx's default of pinging on every acquire, each hold would grow by a round trip, roughly 0.3 ms on a local network.
 
-- Acquire rate: 300 × 4 = 1,200 per second.
+- Acquire rate: 300 × 5 = 1,500 per second.
 - Hold time: 1.3 ms = 0.0013 s.
-- Connections in use on average: 1,200 × 0.0013 ≈ 1.6.
+- Connections in use on average: 1,500 × 0.0013 ≈ 2.
 
 A pool of 20 is enormous for that load. At 100% utilisation it could sustain 20 / 0.0013 ≈ 15,000 acquires per second; queueing theory says waits climb steeply above roughly 70–80% utilisation, so call it 10,000.
 
-That calculation also shows what really empties pools. It is rarely a traffic spike. It is `W`. If a missing index makes one of the four queries take 400 ms instead of 1 ms, that query alone needs 300 × 0.4 = 120 connections. The pool of 20 is exhausted in milliseconds and every endpoint that touches the database starts queueing, including ones that have nothing to do with the slow query. A pool is a bulkhead that turns one slow query into a site-wide latency problem unless you protect it with `statement_timeout`.
+That calculation also shows what really empties pools. It is rarely a traffic spike. It is `W`. If a missing index makes one of the five queries take 400 ms instead of 1 ms, that query alone needs 300 × 0.4 = 120 connections. The pool of 20 is exhausted in milliseconds and every endpoint that touches the database starts queueing, including ones that have nothing to do with the slow query. A pool is a bulkhead that turns one slow query into a site-wide latency problem unless you protect it with `statement_timeout`.
 
 The sizing procedure, then:
 
@@ -288,32 +305,32 @@ From the application side, export pool metrics: current size, idle count and, mo
 ```quiz
 - q: >-
     An API has 12 instances, each with a pool of max 25, against Postgres with max_connections = 200. Average pool usage is 3 per instance. Why might this still fail?
-  options: ["It cannot; average usage is only 36 connections", "Postgres rejects pools larger than 20", "Idle connections time out too quickly", "Pools grow to their maximum under load or slow queries, and 12 × 25 = 300 exceeds 200, so at peak (or during a deploy surge) new connections are refused"]
-  answer: 3
+  options: ["Postgres refuses any client pool configured above 20 connections", "Under load every pool can fill to 25, and 12 × 25 = 300 exceeds 200", "It cannot; average usage is 36 connections, far below the 200 limit", "Idle connections time out and reconnect so often that slots run out"]
+  answer: 1
   explanation: >-
-    The budget must hold at the maximum, not the average. Load spikes and slow queries push every pool to its cap at the same moment. Shrink pools to fit the budget or put a server-side pooler in front.
+    The budget must hold at the maximum, not the average. Load spikes and slow queries push every pool to its cap at the same moment, and a rolling deploy adds more pools on top, so at peak new connections are refused. The average of 36 says nothing about that moment. Shrink pools to fit the budget or put a server-side pooler in front.
 - q: >-
     A service handles 800 requests per second, each running 3 queries that hold a connection for 2 ms each. Roughly how many connections are in use on average?
-  options: ["About 1.6", "About 48", "About 4.8", "About 800"]
-  answer: 2
+  options: ["About 1.6", "About 4.8", "About 800", "About 48"]
+  answer: 1
   explanation: >-
     Little's law: acquires per second × hold time = 800 × 3 × 0.002 = 4.8. With a burst factor of 2 you might provision around 10 across all instances. If the hold time grows to 200 ms, the same load needs 480.
 - q: >-
     After moving behind PgBouncer in transaction mode, a Rust service using sqlx logs prepared statement "sqlx_s_4" does not exist. What is happening?
-  options: ["The migration did not run", "sqlx prepares named statements on one server connection and later executes them on another one that PgBouncer assigned; enable max_prepared_statements on PgBouncer 1.21+ or disable the driver's statement cache", "PgBouncer does not support the extended protocol at all", "The statement cache is too small"]
-  answer: 1
-  explanation: >-
-    Named prepared statements are session state on a server connection. In transaction mode, consecutive transactions can land on different server connections. Newer PgBouncer versions track and re-prepare protocol-level statements when max_prepared_statements is set.
-- q: >-
-    Why is raising max_connections from 200 to 2,000 usually the wrong fix for too many clients errors?
-  options: ["Each connection is a process with its own memory, and active connections beyond a small multiple of the core count add contention rather than throughput, so the failure turns into a slow database instead of refused connections", "Postgres caps max_connections at 1,000", "It requires a restart, which is never acceptable", "It disables autovacuum"]
-  answer: 0
-  explanation: >-
-    Connections are not free capacity. More backends consume memory and compete for the same CPUs and locks. Queueing in a pool or PgBouncer, with timeouts, keeps the number of concurrently active queries near what the hardware can execute.
-- q: >-
-    An HTTP handler has a 2-second deadline. The pool's acquire timeout is 10 seconds and statement_timeout is unset. What happens during a slow-query incident?
-  options: ["Requests fail after 2 seconds and the database recovers", "The pool automatically cancels slow queries", "Requests wait up to 10 seconds for a connection after their callers have given up, and slow queries keep running with no one waiting for the results, so load on the database stays high", "Nothing; the timeouts are independent"]
+  options: ["The driver's statement cache is too small and evicts statements early", "A migration that creates the service's prepared statements did not run", "A statement prepared on one server connection is run on a different one", "PgBouncer rejects the extended query protocol, so every prepare fails"]
   answer: 2
   explanation: >-
-    Outer timeouts shorter than inner ones create work nobody wants. The acquire timeout should be well inside the request deadline, and statement_timeout should cancel queries whose callers cannot use the result.
+    Named prepared statements are session state on a server connection. In transaction mode, consecutive transactions can land on different server connections, and the new one has never seen sqlx_s_4. A small cache would only cause re-preparing on the same connection, not this error. Fix it with max_prepared_statements on PgBouncer 1.21 and later, which tracks and re-prepares protocol-level statements, or by disabling the driver's statement cache.
+- q: >-
+    Why is raising max_connections from 200 to 2,000 usually the wrong fix for too many clients errors?
+  options: ["Postgres caps max_connections at 1,000, so the new value is silently ignored", "Changing it needs a restart, which is never acceptable for a busy production database", "The superuser reservation grows with max_connections, so few slots are gained", "Extra backends use memory and add contention, not throughput, so it just gets slow"]
+  answer: 3
+  explanation: >-
+    Connections are not free capacity. Each is a process with its own memory, and active connections beyond a small multiple of the core count compete for the same CPUs and locks, so the failure turns from refused connections into a slow database. A restart is a real cost but a schedulable one, not the reason. Queueing in a pool or PgBouncer, with timeouts, keeps the number of concurrently active queries near what the hardware can execute.
+- q: >-
+    An HTTP handler has a 2-second deadline. The pool's acquire timeout is 10 seconds and statement_timeout is unset. What happens during a slow-query incident?
+  options: ["The pool cancels any query that outlives its 10-second acquire timeout", "Waits and slow queries continue after callers give up, keeping the database loaded", "Requests fail after 2 seconds, which frees their connections so the database recovers", "Nothing unusual; each timeout guards a different layer, so they never interact"]
+  answer: 1
+  explanation: >-
+    Outer timeouts shorter than inner ones create work nobody wants. Requests keep waiting up to 10 seconds for a connection after their callers have gone, and slow queries run to completion with no one reading the results, so load stays high. The acquire timeout bounds waiting for a connection, not query runtime. It should sit well inside the request deadline, and statement_timeout should cancel queries whose callers cannot use the result.
 ```
