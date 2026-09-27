@@ -13,7 +13,8 @@ cheap as possible without degrading quality.
 
 - Per-user, per-UTC-day request and output-token budgets in `ai_usage`, reserved before each call and
   settled with actual usage after, using single-statement upserts.
-- A per-IP request-rate limit on AI routes on top of the daily budget.
+- A per-session request-rate limit on model-calling routes on top of the daily budget. (Amended: this was
+  per IP until end-to-end tests showed a whole class behind one NAT address sharing a single allowance.)
 - System prompts ordered stable-first with `cache_control`, so multi-turn conversations reuse the cached
   prefix; volatile context (lesson text, editor contents, progress) goes last.
 - JSON-schema constrained outputs for quizzes and evaluations, so there is no retry loop on malformed JSON.

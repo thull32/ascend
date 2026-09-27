@@ -47,7 +47,10 @@ docs             this file and architecture decision records
    client-IP source the rate limiter trusts (`CLIENT_IP_HEADER=x-real-ip`).
 2. **Middleware** (outermost first, `crates/api/src/app.rs`): request ID (generated, then propagated to the
    response), tracing span, 240 s timeout, Brotli/gzip compression, security headers (CSP, HSTS, frame
-   denial). Under `/api` only: a 512 KiB body limit, a per-IP rate limit, and CSRF enforcement.
+   denial). Under `/api` only: a 512 KiB body limit, a loose per-IP rate limit, and CSRF enforcement.
+   Tighter buckets sit on the expensive routes: sign-up and login per IP, password attempts per account,
+   and model calls per session, so learners sharing one NAT address do not throttle each other. A 429
+   always carries `Retry-After`, and the client's retry policy honours it.
 3. **Extractors** resolve the session cookie once per request and cache the user in request extensions
    (`crates/api/src/extractors.rs`). `CurrentUser` rejects with 401; `MaybeUser` never fails.
 4. **Routes** are thin: parse input, call one service, map the result. They never touch the database
@@ -58,10 +61,13 @@ docs             this file and architecture decision records
 
 ## Data
 
-Eleven tables in five migrations: `users`, `sessions`, `lesson_progress`, `module_preferences`,
-`quiz_attempts`, `submissions`, `conversations`/`messages`, `ai_usage`, `comments`, `interviews`.
-Everything a user owns cascades on user deletion. Progress and preferences use composite primary keys
+Twelve tables in seven append-only migrations: `users`, `sessions`, `lesson_progress`, `module_preferences`,
+`quiz_attempts`, `submissions`, `activity_days`, `conversations`/`messages`, `ai_usage`, `comments`,
+`interviews`. Everything a user owns cascades on account deletion, except comments: they keep their text
+with a null author so replies keep their context. Progress and preferences use composite primary keys
 and single-statement upserts (`INSERT … ON CONFLICT DO UPDATE`), so there is no read-modify-write race.
+Invariants live in the schema where they can: a partial unique index allows one active interview per
+learner, and `activity_days` has one row per learner per day, which is what streaks are computed from.
 
 Content is **not** in the database. Rows reference content by stable slug (`track/module/lesson`), so
 lessons can be edited and redeployed without a migration, and progress survives re-ordering.
@@ -70,8 +76,9 @@ lessons can be edited and redeployed without a migration, and progress survives 
 
 `crates/core/src/content` embeds `content/` with `include_dir!`, parses front matter, extracts the special
 fenced blocks (`exercise`, `quiz`, `viz`), strips quiz answers from what the client receives, builds a table
-of contents, links previous/next lessons, validates every cross-reference, fingerprints the whole corpus
-for ETags, and builds an in-memory search index. It runs once at boot and again in the Docker build
+of contents, links previous/next lessons, validates every cross-reference and every quiz and exercise block
+(unknown keys are errors), fingerprints the corpus for ETags (combined with the build id and SPA shell, so a
+deploy that changes a response's shape invalidates cached copies), and builds an in-memory search index. It runs once at boot and again in the Docker build
 (`ascend-api --check-content`), so a broken lesson fails the build, not the deploy.
 
 ## Authentication
