@@ -53,8 +53,9 @@ export function App() {
           <Route path="/learn/:track/:module/:lesson" element={<LessonPage />} />
           <Route path="/practice" element={<Practice />} />
           <Route path="/practice/:slug" element={<ProblemPage />} />
-          <Route path="/coach" element={<RequireAuth><CoachPage /></RequireAuth>} />
-          <Route path="/coach/:id" element={<RequireAuth><CoachPage /></RequireAuth>} />
+          {/* One route with an optional segment: creating a conversation navigates
+              /coach -> /coach/:id without remounting the page mid-stream. */}
+          <Route path="/coach/:id?" element={<RequireAuth><CoachPage /></RequireAuth>} />
           <Route path="/interviews" element={<RequireAuth><Interviews /></RequireAuth>} />
           <Route path="/interviews/:id" element={<RequireAuth><InterviewRoom /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />

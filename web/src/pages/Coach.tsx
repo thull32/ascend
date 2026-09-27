@@ -30,6 +30,7 @@ export default function CoachPage() {
   const create = useMutation({
     mutationFn: () => api.post<Conversation>("/coach/conversations", { context: { kind: "general" } }),
     onSuccess: (c) => {
+      localConv.current = null;
       void qc.invalidateQueries({ queryKey: ["conversations"] });
       navigate(`/coach/${c.id}`);
     },
@@ -45,6 +46,9 @@ export default function CoachPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const convId = useRef<string | undefined>(id);
   convId.current = id;
+  // The conversation this page instance created and is streaming into. Its
+  // turns live in local state; server history must not overwrite them.
+  const localConv = useRef<string | null>(null);
 
   const send = useCallback(
     async (content: string, onDelta: (t: string) => void, signal: AbortSignal) => {
@@ -53,19 +57,27 @@ export default function CoachPage() {
         const c = await api.post<Conversation>("/coach/conversations", { context: { kind: "general" } });
         cid = c.id;
         convId.current = cid;
+        localConv.current = cid;
         void qc.invalidateQueries({ queryKey: ["conversations"] });
         navigate(`/coach/${c.id}`, { replace: true });
       }
       await streamPost(`/coach/conversations/${cid}/messages`, { content, context: { kind: "general" } }, { onDelta, onError: (m) => onDelta(`\n\n> ${m}`) }, signal);
       void qc.invalidateQueries({ queryKey: ["coach-status"] });
+      void qc.invalidateQueries({ queryKey: ["conversations"] });
     },
     [navigate, qc],
   );
   const chat = useStreamingChat(send);
 
+  // Hydrate turns from the server when switching conversations, but never
+  // for the one being streamed into by this page.
   useEffect(() => {
-    if (detail.data) chat.setTurns(ChatHistoryToTurns(detail.data.messages));
-    else if (!id) chat.setTurns([]);
+    if (!id) {
+      if (!chat.busy) chat.setTurns([]);
+      return;
+    }
+    if (id === localConv.current) return;
+    chat.setTurns(detail.data?.conversation.id === id ? ChatHistoryToTurns(detail.data.messages) : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail.data, id]);
   useEffect(() => {
@@ -149,11 +161,11 @@ export default function CoachPage() {
             data-testid="coach-input"
           />
           {chat.busy ? (
-            <Button type="button" variant="secondary" onClick={chat.stop}>
+            <Button type="button" variant="secondary" onClick={chat.stop} aria-label="Stop generating">
               <Square className="h-4 w-4" />
             </Button>
           ) : (
-            <Button type="submit" disabled={!enabled || !input.trim()}>
+            <Button type="submit" disabled={!enabled || !input.trim()} aria-label="Send">
               <Send className="h-4 w-4" />
             </Button>
           )}

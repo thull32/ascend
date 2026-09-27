@@ -488,8 +488,27 @@ Module `04-getting-the-job` "Getting the senior job"
 5. negotiation — Levelling, compensation structures, negotiating an offer
 6. the-first-90-days — Landing as a senior, building trust, early wins, avoiding traps
 
-### Track `14-case-study-ascend` → slug `case-study-ascend` "Case Study: How Ascend Is Built" (icon: shield)
-Written by the platform team; walks through this repository as a production reference.
+### Track `14-case-study-ascend` → slug `case-study-ascend` "Case Study: How Ascend Is Built" (icon: shield, phase 6)
+Walks through this repository as a production reference. Every lesson cites real files and line-level
+patterns, explains the alternatives that were rejected, and ends with "what we would change at 100x".
+
+Module `01-the-system` "The system end to end" (prereq: senior-craft/software-craft)
+1. tour-of-the-repository — Layout, the core/api boundary, how to read an unfamiliar codebase in an hour
+2. anatomy-of-a-request — Middleware order, extractors and per-request caching, thin routes, AppError to HTTP
+3. the-content-engine — Content as code, include_dir, block extraction, answer stripping, validation as CI, ETags, search
+4. authentication-and-security — Argon2id, hashed opaque sessions, timing, layered CSRF, CSP, rate limiting, secrets
+5. data-and-migrations — Schema walk-through, composite keys, single-statement upserts, cascades, append-only migrations
+
+Module `02-product-systems` "Product systems" (prereq: case-study-ascend/the-system)
+1. building-the-ai-coach — The typed Anthropic client, SSE streaming through a channel, prompt caching order, budgets
+2. designing-mock-interviews — Solo vs assisted, transcripts, JSON-schema rubrics, locking the coach
+3. running-code-in-the-browser — Web Workers, Pyodide, the test harness, time limits by termination, trust model
+4. the-visualisation-engine — Frames as snapshots, pure generators, the DSL families, testing 250 animations
+
+Module `03-shipping` "Shipping and operating" (prereq: case-study-ascend/product-systems)
+1. testing-the-system — Unit, API integration against real Postgres, Vitest, Playwright, validators that execute content
+2. build-and-deploy — Multi-stage Docker with cargo-chef, distroless, infrastructure as code, health-gated rollouts
+3. what-we-would-change-at-scale — The scaling roadmap, the known weaknesses, and a design review of this codebase
 
 ## Practice problems — the Ascend 150
 

@@ -152,7 +152,7 @@ export default function InterviewRoom() {
               data-testid="interview-input"
             />
             {chat.busy ? (
-              <Button type="button" variant="secondary" onClick={chat.stop}>
+              <Button type="button" variant="secondary" onClick={chat.stop} aria-label="Stop generating">
                 <Square className="h-4 w-4" />
               </Button>
             ) : (
@@ -186,7 +186,7 @@ export default function InterviewRoom() {
           </section>
         )}
         {assistantOpen && assisted && (
-          <aside className="flex min-h-0 flex-col border-l border-line">
+          <aside className="flex min-h-0 flex-col border-l border-line" data-testid="assistant-panel">
             <div className="border-b border-line px-3 py-2 text-xs text-muted">
               <Bot className="mr-1 inline h-3.5 w-3.5" /> Your AI pair-programmer. It will write code if asked. Everything you ask it is visible to the grader.
             </div>
@@ -205,7 +205,7 @@ export default function InterviewRoom() {
               }}
             >
               <textarea value={assistantInput} onChange={(e) => setAssistantInput(e.target.value)} rows={2} placeholder="Ask the assistant…" className="flex-1 resize-none rounded-lg border border-line bg-bg px-3 py-2 text-sm outline-none focus:border-accent" data-testid="assistant-input" />
-              <Button type="submit" disabled={assistant.busy || !assistantInput.trim()}>
+              <Button type="submit" disabled={assistant.busy || !assistantInput.trim()} aria-label={assistant.busy ? "Assistant is replying" : "Send to assistant"}>
                 <Send className="h-4 w-4" />
               </Button>
             </form>

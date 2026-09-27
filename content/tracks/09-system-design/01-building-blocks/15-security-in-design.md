@@ -1,7 +1,7 @@
 ---
 slug: security-in-design
 title: "Security in design: threat modelling, identity, secrets and the boundaries on the diagram"
-description: How to put security into a system design rather than around it: trust boundaries, sessions versus JWTs, OAuth and OIDC flows, service identity with mTLS, authorization models, envelope encryption, secrets rotation, abuse limits and the failures that come from trusting the network.
+description: "How to put security into a system design rather than around it: trust boundaries, sessions versus JWTs, OAuth and OIDC flows, service identity with mTLS, authorization models, envelope encryption, secrets rotation, abuse limits and the failures that come from trusting the network."
 minutes: 30
 difficulty: hard
 tags: [system-design, security, authentication, authorization, oauth, secrets, threat-modelling]
