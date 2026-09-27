@@ -73,7 +73,7 @@ The interviewer asks: "Return which houses to take, not just the total." Then: "
 
 ### The naive approach
 
-Try every subset of houses with no two adjacent and keep the best sum. The number of such subsets grows like the Fibonacci numbers, about `1.618ⁿ`, which is around `10²⁰` for `n = 100`. The equivalent recursion ("take house `i` and jump to `i + 2`, or skip to `i + 1`") recomputes the same suffixes over and over.
+Try every subset of houses with no two adjacent and keep the best sum. The number of such subsets grows like the Fibonacci numbers, about `1.618ⁿ`, which is about `10²¹` for `n = 100`. The equivalent recursion ("take house `i` and jump to `i + 2`, or skip to `i + 1`") recomputes the same suffixes over and over.
 
 ### The insight
 
@@ -137,7 +137,7 @@ Time `O(n)`, space `O(1)`. Starting both variables at 0 makes the first iteratio
 
 ### Common mistakes
 
-- Greedy on the largest value, or the even/odd split. Both fail; see `[2, 9, 4]` and `[1, 3, 1, 3, 100]`.
+- Greedy on the largest value fails on `[8, 9, 8]` (it takes 9; the two ends give 16). The even/odd split fails on `[1, 3, 1, 3, 100]`.
 - Indexing confusion between `best[i]` over prefix *length* and `nums[i]` over *index*. Decide which one your state uses and say it out loud; the off-by-one lives here.
 - Crashing on a single house because the table code reads `nums[1]` unconditionally.
 

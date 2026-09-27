@@ -113,7 +113,7 @@ Time `O(n)`, space `O(n)`.
 
 ### Space-optimised version
 
-Row `i` reads only rows `i - 1` and `i - 2`, so keep two rolling variables.
+Entry `i` reads only entries `i - 1` and `i - 2`, so keep two rolling variables.
 
 ```python
 def climbing_stairs(n: int) -> int:
@@ -139,4 +139,4 @@ Time `O(n)`, space `O(1)`. For `n = 1` the loop does not run and the function re
 
 State the recurrence from the last move ("the last step was 1 or 2, those cases are disjoint, so add"), name the base case `ways[0] = 1` and justify it, then write the two-variable loop. Mention that this is the Fibonacci sequence shifted by one, so `ways[n] = F(n + 1)`.
 
-For the arbitrary step set, the transition becomes `ways[i] = Σ ways[i - s]` over allowed sizes `s ≤ i`; time `O(n · |steps|)`, and the rolling window must hold `max(steps)` values instead of two. For `n = 10¹⁸`, the recurrence is linear, so write it as a matrix: `[ways[i], ways[i - 1]] = [[1, 1], [1, 0]] · [ways[i - 1], ways[i - 2]]`, and raise the matrix to the `n`-th power by repeated squaring in `O(log n)` multiplications of `2 × 2` matrices, reducing modulo `10⁹ + 7` after each. That generalises to any fixed step set with a `k × k` companion matrix in `O(k³ log n)`. Knowing that linear recurrences admit matrix exponentiation is the senior signal on an otherwise easy problem.
+For the arbitrary step set, the transition becomes `ways[i] = Σ ways[i - s]` over allowed sizes `s ≤ i`; time `O(n · |steps|)`, and the rolling window must hold `max(steps)` values instead of two. For `n = 10¹⁸`, the recurrence is linear, so write it as a matrix: `[ways[i], ways[i - 1]] = [[1, 1], [1, 0]] · [ways[i - 1], ways[i - 2]]`, raise the matrix to the power `n - 1` by repeated squaring (`O(log n)` multiplications of `2 × 2` matrices) and apply it to `[ways[1], ways[0]] = [1, 1]`, reducing modulo `10⁹ + 7` after each. That generalises to any fixed step set with a `k × k` companion matrix in `O(k³ log n)`. Knowing that linear recurrences admit matrix exponentiation is the senior signal on an otherwise easy problem.

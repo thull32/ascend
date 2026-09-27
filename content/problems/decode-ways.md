@@ -151,7 +151,7 @@ Time `O(n)`, space `O(1)`. The string comparison is safe because both sides are 
 
 ### Common mistakes
 
-- Treating `0` like any other digit, which makes `"10"` return 2 and `"100"` return 1.
+- Treating `0` like any other digit, which makes `"10"` return 2 instead of 1 and `"100"` return 2 instead of 0.
 - Accepting `"05"` as a two-digit letter because `int("05") = 5` lies in 1–26. Check for the leading zero first.
 - Returning early with 0 on the first `0` seen. `"10"` and `"2101"` are valid; only a `0` that cannot pair is fatal (and the DP discovers that on its own, because `ways[i]` becomes 0 and every later value built on it inherits the 0).
 - `ways[0] = 0`, which zeroes the whole table.

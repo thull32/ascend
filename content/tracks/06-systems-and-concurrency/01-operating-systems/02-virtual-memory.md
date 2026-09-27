@@ -9,7 +9,7 @@ problems: [lru-cache]
 ---
 Your Java service runs in a container with a 2 GiB memory limit and `-Xmx1536m`. The JVM's metrics say the heap holds 900 MiB. Twice a day Kubernetes restarts it with `OOMKilled` and exit code 137, and there is no `OutOfMemoryError` in the logs, because the JVM never got the chance to throw one. On the same fleet, `ps` reports that a Go sidecar has a virtual size of 34 GiB on a 16 GiB machine, and nothing bad ever happens to it.
 
-Both puzzles have one explanation: the numbers you are looking at measure different layers of virtual memory. The heap is a region of an address space. An address space is mostly promises. Physical memory is handed out one 4 KiB page at a time, on first touch, by a page fault. And the kernel kills processes based on pages actually backed by RAM, which include far more than your heap. To debug either case you need the mechanism, and the mechanism also explains huge pages, `mmap`, cold-start latency and why databases distrust the kernel's page cache.
+Both puzzles have one explanation: the numbers you are looking at measure different layers of virtual memory. The heap is a region of an address space. An address space is mostly promises. Physical memory is handed out one 4 KiB page at a time, on first touch, by a page fault. And the kernel kills processes based on pages actually backed by RAM, which include far more than your heap. To debug either case you need the mechanism, and the mechanism also explains huge pages, `mmap`, cold-start latency and why most databases refuse to let the kernel manage their data pages through `mmap`.
 
 ## Every address you have ever printed is virtual
 
@@ -191,7 +191,7 @@ Most databases still refuse to use it for their main data files, for reasons tha
 
 The 2022 CIDR paper "Are You Sure You Want to Use MMAP in Your Database Management System?" makes this case in detail, and MongoDB replaced its original mmap-based storage engine with WiredTiger. The rule of thumb: `mmap` is excellent for read-mostly, immutable files (index segments, model weights, lookup tables) and risky for mutable data whose write ordering matters.
 
-Anonymous `mmap` (no file) is how allocators get memory from the kernel in the first place. glibc `malloc` serves small requests from heaps it grows with `brk` or `mmap`, and gives each allocation above a threshold (128 KiB by default, adjusted dynamically) its own `mmap`, which is `munmap`ed on `free`. A hot loop that allocates and frees 1 MiB buffers therefore pays a system call, 256 minor faults and possibly a TLB shootdown per iteration. Reusing a buffer removes all of it.
+Anonymous `mmap` (no file) is how allocators get memory from the kernel in the first place. glibc `malloc` serves small requests from heaps it grows with `brk` or `mmap`, and gives each allocation above a threshold (128 KiB initially, raised dynamically as such blocks are freed) its own `mmap`, which is `munmap`ed on `free`. Memory that goes back to the kernel has to be faulted in again when it is reused: an allocator or runtime that returns 1 MiB buffers eagerly pays a system call, 256 minor faults and possibly a TLB shootdown every time it gets one back. Pooling buffers avoids it.
 
 ## Overcommit and the OOM killer
 
@@ -215,7 +215,7 @@ Now return to the opening. The kernel does not know what a heap is. The containe
 
 That sum crosses 2 GiB without any leak. The fixes are all about budgeting: set the heap as a fraction of the container limit (`-XX:MaxRAMPercentage=60` to `75`), cap direct memory (`-XX:MaxDirectMemorySize`), set `MALLOC_ARENA_MAX=2` for glibc, and measure what is left with Native Memory Tracking (`-XX:NativeMemoryTracking=summary`, then `jcmd <pid> VM.native_memory summary`). Alert on the cgroup's `anon` figure in `memory.stat` approaching the limit, not on "heap used".
 
-The same analysis applies to every runtime: Go's `GOMEMLIMIT` and Node's `--max-old-space-size` bound the managed heap only, and everything outside it is still charged to the container.
+The same analysis applies to every runtime: Go's `GOMEMLIMIT` and Node's `--max-old-space-size` bound only the memory the language runtime manages, and everything outside it (native libraries, buffers, the runtime's own overhead) is still charged to the container.
 
 ## Exercises
 
@@ -341,20 +341,20 @@ hints:
 ```quiz
 - q: >-
     On a Linux host with 4 GiB of RAM, no swap and default overcommit settings, a program calls malloc for 8 GiB and the call succeeds. What happens next?
-  options: ["Nothing can go wrong; the kernel has promised 8 GiB", "Physical frames are assigned as pages are first touched, and once touched memory exceeds what the kernel can reclaim, the OOM killer kills a process", "malloc has already zeroed 8 GiB, so the machine is swapping", "The next malloc call returns NULL"]
-  answer: 1
+  options: ["Nothing can go wrong; the kernel has promised 8 GiB", "malloc has already zeroed 8 GiB, so the machine is swapping", "Physical frames are assigned as pages are first touched, and once touched memory exceeds what the kernel can reclaim, the OOM killer kills a process", "The next malloc call returns NULL"]
+  answer: 2
   explanation: >-
     With overcommit, a successful malloc only reserves address space. Frames are assigned on first touch by minor faults. When a fault cannot be satisfied there is no error path for a memory store, so the kernel's OOM killer sends SIGKILL to the highest-scoring process, which may not even be this one.
 - q: >-
     A service does random lookups over a 16 GiB in-memory index. Switching the index to 2 MiB huge pages makes it noticeably faster. What mostly improved?
-  options: ["The L1 data cache hit rate", "TLB reach rose from a few MiB to a few GiB, so far fewer accesses need a page-table walk", "The index now fits in RAM", "Huge pages are prefetched by the hardware"]
-  answer: 1
+  options: ["TLB reach rose from a few MiB to a few GiB, so far fewer accesses need a page-table walk", "The L1 data cache hit rate", "The index now fits in RAM", "Huge pages are prefetched by the hardware"]
+  answer: 0
   explanation: >-
     Huge pages do not change which cache lines are fetched, so data-cache behaviour is similar. They change how many translations the TLB can hold coverage for: around 1,500 entries cover about 6 MiB with 4 KiB pages and about 3 GiB with 2 MiB pages, removing most page walks on random access.
 - q: >-
     A JVM in a 2 GiB container runs with -Xmx1536m, reports 900 MiB of heap used, and is repeatedly OOMKilled with exit code 137. Which is the most accurate diagnosis?
-  options: ["The heap is leaking and will throw OutOfMemoryError soon", "The cgroup charges all resident anonymous memory (committed heap, metaspace, stacks, direct buffers, GC structures, malloc arenas) and that total exceeds 2 GiB", "Kubernetes counts virtual size, which is larger than 2 GiB", "Exit code 137 means the JVM crashed with a segfault"]
-  answer: 1
+  options: ["The heap is leaking and will throw OutOfMemoryError soon", "Kubernetes counts virtual size, which is larger than 2 GiB", "Exit code 137 means the JVM crashed with a segfault", "The cgroup charges all resident anonymous memory (committed heap, metaspace, stacks, direct buffers, GC structures, malloc arenas) and that total exceeds 2 GiB"]
+  answer: 3
   explanation: >-
     Used heap is a GC statistic. The kernel sees resident pages, and a JVM's non-heap memory easily adds hundreds of MiB to a heap whose committed pages stay resident. 137 is 128 plus SIGKILL, the OOM killer's signal, not a segfault (which would be 139). Virtual size is not charged.
 - q: >-
@@ -365,14 +365,14 @@ hints:
     FIFO can hold a different, not larger, set of pages with more frames, so faults can rise. Under LRU the pages resident with k frames are always a subset of those resident with k plus one, so faults never increase with memory.
 - q: >-
     A service on a swapless Kubernetes node shows a steady 300 major page faults per second. Where are those faults coming from?
-  options: ["Anonymous heap pages being read back from swap", "File-backed pages (the binary's code, shared libraries or mmapped files) that the kernel evicted under memory pressure and must re-read", "First touches of newly allocated heap memory", "Copy-on-write breaks after fork"]
-  answer: 1
+  options: ["Anonymous heap pages being read back from swap", "First touches of newly allocated heap memory", "File-backed pages (the binary's code, shared libraries or mmapped files) that the kernel evicted under memory pressure and must re-read", "Copy-on-write breaks after fork"]
+  answer: 2
   explanation: >-
     Without swap, anonymous pages cannot be evicted, and first touches and copy-on-write breaks are minor faults. Major faults therefore mean file pages are being dropped and re-read, a sign the container or node is close to its memory limit.
 - q: >-
     Why do most databases avoid mmap for their main, mutable data files?
-  options: ["mmap cannot map files larger than RAM", "The kernel controls when pages are evicted and written back, faults block threads invisibly, and I/O errors arrive as SIGBUS, so the database loses control of write ordering and latency", "mmap requires huge pages", "Reads through mmap always copy data twice"]
-  answer: 1
+  options: ["The kernel controls when pages are evicted and written back, faults block threads invisibly, and I/O errors arrive as SIGBUS, so the database loses control of write ordering and latency", "mmap cannot map files larger than RAM", "mmap requires huge pages", "Reads through mmap always copy data twice"]
+  answer: 0
   explanation: >-
     mmap maps files larger than RAM fine and avoids copies. The problem is control: write-ahead logging needs pages to reach disk only after their log records, and a database wants to schedule I/O and handle errors, none of which it can do when the kernel services faults and write-back on its own schedule.
 ```

@@ -130,8 +130,8 @@ Time `O(n)`, space `O(1)`.
 
 ### Common mistakes
 
-- Treating the top as the last step (`n - 1`) instead of one past it. On `[10, 5, 20]` that returns 10 instead of 5, because it forces you to stand on the fee-20 step or pay 10 to get there.
-- Using the other framing ("cost including the fee of step `i`") and then returning `best[n - 1]` instead of `min(best[n - 1], best[n - 2])`. Both framings work; mixing them does not.
+- Treating the top as the last step. In the other common framing, `f[i] = cost[i] + min(f[i - 1], f[i - 2])` (fee of step `i` included), the answer is `min(f[n - 1], f[n - 2])`. Returning `f[n - 1]` forces you to stand on the last step and pay its fee: 25 instead of 5 on `[10, 5, 20]`.
+- Mixing the two framings. Both work, but their base cases and final answers differ; pick one and say which.
 - Charging a fee for the starting step. Starting is free; leaving is not.
 
 ### How to discuss it

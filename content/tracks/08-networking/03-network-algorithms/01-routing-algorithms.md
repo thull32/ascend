@@ -62,7 +62,7 @@ The cost is that every router stores the full graph and runs $O(E \log V)$ per c
 
 ### Equal-cost multipath
 
-If two paths tie, Dijkstra picks one arbitrarily. Real routers install *all* of them (ECMP) and hash each flow (5-tuple: source and destination address, protocol, source and destination port) onto one of the next hops. Hashing by flow, not by packet, keeps a TCP connection's packets on one path so they do not reorder. This is the same idea as load balancing by consistent hash in [Consistent hashing and routing](/learn/networking/networking-in-practice/service-meshes-and-proxies), and it has the same failure mode: a single elephant flow cannot be split, and a fixed hash of a small number of flows can be badly balanced.
+If two paths tie, Dijkstra picks one arbitrarily. Real routers install *all* of them (ECMP) and hash each flow (5-tuple: source and destination address, protocol, source and destination port) onto one of the next hops. Hashing by flow, not by packet, keeps a TCP connection's packets on one path so they do not reorder. This is the same idea as load balancing by consistent hash in [Consistent hashing and routing](/learn/networking/network-algorithms/consistent-hashing-and-routing), and it has the same failure mode: a single elephant flow cannot be split, and a fixed hash of a small number of flows can be badly balanced.
 
 ## Distance-vector: Bellman-Ford by gossip
 

@@ -2,7 +2,7 @@
 slug: rust-essentials
 title: "Rust essentials: ownership, traits and async, read through a real backend"
 description: Ownership, borrowing, lifetimes, enums, traits and async Rust explained by mechanism, then used to read this app's Axum backend line by line.
-minutes: 35
+minutes: 30
 difficulty: hard
 tags: [rust, ownership, borrowing, lifetimes, traits, async, tokio, languages]
 ---
@@ -35,7 +35,7 @@ fn main() {
 }                                  // t is dropped here and the buffer is freed, once
 ```
 
-A move is a bitwise copy of the stack part (pointer, length and capacity: 24 bytes on a 64-bit machine) plus a compile-time note that the source is dead. Nothing on the heap is touched. Types that own no resources (integers, floats, `bool`, `char`, shared references, tuples of those) implement `Copy` and are duplicated instead of moved. A deep copy only happens when you write `.clone()`, which makes every allocation visible in review: grep a hot path for `.clone()` and you have found its copies.
+A move is a bitwise copy of the stack part (pointer, length and capacity: 24 bytes on a 64-bit machine) plus a compile-time note that the source is dead; the heap is untouched. Types that own no resources (integers, floats, `bool`, `char`, shared references, tuples of those) implement `Copy` and are duplicated instead of moved. A deep copy only happens when you write `.clone()`, which makes every allocation visible in review: grep a hot path for `.clone()` and you have found its copies.
 
 Compare the same two lines elsewhere. In Python, Java or Go, `t = s` makes two names for one object and a garbage collector decides when it dies. In C++, `t = s` deep-copies by default and `std::move` leaves the source "valid but unspecified", a runtime hazard. Rust picks move-by-default and makes the moved-from name unusable, so there is always exactly one owner to free the buffer: no double free, no leak by forgetting, no collector.
 
@@ -65,7 +65,7 @@ println!("{first}");
 
 The same rule, applied across threads, is what rules out data races. A data race needs two accesses to the same memory, at least one a write, without synchronisation. "Many readers or one writer" forbids exactly that combination, so shared mutable state across threads has to go through a type that provides synchronisation (`Mutex<T>`, `RwLock<T>`, atomics, channels).
 
-Where the rule hurts: data structures with cycles or back-pointers (doubly linked lists, graphs, trees with parent links) and structs that borrow from themselves. The idiomatic fixes are to store nodes in a `Vec` and link them by index, to use an arena, or to opt into runtime-checked sharing with `Rc<RefCell<T>>`. In an interview, represent a graph as `Vec<Vec<usize>>` and move on.
+Where the rule hurts: data structures with cycles or back-pointers (doubly linked lists, graphs, trees with parent links) and structs that borrow from themselves. The idiomatic fixes are to store nodes in a `Vec` and link them by index, to use an arena, or to opt into runtime-checked sharing with `Rc<RefCell<T>>`. In an interview, use `Vec<Vec<usize>>` for graphs.
 
 ## Lifetimes: names for how long a borrow is valid
 
@@ -90,7 +90,7 @@ This says "the returned reference borrows from `a` or `b`, so it is valid only w
 
 ## Enums and errors as values
 
-A Rust `enum` is a tagged union: each variant can carry different data, and the value is as large as the largest variant plus a tag. The app's whole error vocabulary is one (`crates/core/src/error.rs`, abridged):
+A Rust `enum` is a tagged union: each variant can carry different data, and the value is roughly as large as its largest variant plus a tag. The app's whole error vocabulary is one (`crates/core/src/error.rs`, abridged):
 
 ```rust
 #[derive(Debug, thiserror::Error)]
@@ -111,7 +111,7 @@ pub enum AppError {
 }
 ```
 
-`match` on an enum must be exhaustive. `AppError::code()` and the `IntoResponse` impl in `crates/api/src/error.rs` each list every variant with no `_ =>` wildcard, deliberately. Add `PaymentRequired` and the build fails at both sites until someone decides its machine code and HTTP status. The compiler becomes the checklist a reviewer would otherwise have to remember. A wildcard arm would silently map the new variant to whatever the default was.
+`match` on an enum must be exhaustive. `AppError::code()` and the status mapping in `ApiError`'s `IntoResponse` impl (`crates/api/src/error.rs`) each list every variant with no `_ =>` wildcard, deliberately. Add `PaymentRequired` and the build fails at both sites until someone decides its machine code and HTTP status. The compiler becomes the checklist a reviewer would otherwise have to remember. A wildcard arm would silently map the new variant to whatever the default was.
 
 `thiserror` is a derive macro. `#[error("...")]` generates `Display`, and `#[from]` generates a conversion:
 
@@ -167,7 +167,7 @@ Generics and trait objects are the two ways to be polymorphic:
 | Cost | Zero runtime overhead; larger binaries, longer compiles | A pointer indirection; blocks inlining |
 | Use when | Hot paths, known types at compile time | Heterogeneous collections, plugin points, shrinking compile times |
 
-`pump<S>` is generic, so each upstream stream type gets its own specialised copy. `respond` returns `impl IntoResponse`: "some concrete type I choose not to name", still statically dispatched. That matters because the real type is a nest of stream adapters nobody wants to spell.
+`pump<S>` is generic, so each upstream stream type gets its own specialised copy. `respond` returns `impl IntoResponse`: "some concrete type I choose not to name", still statically dispatched, which spares everyone from spelling a nest of stream adapter types.
 
 `#[derive(Clone)]` on `AppState` is cheap because every field is an `Arc` or a pool handle, and cloning an `Arc` increments an atomic counter rather than copying data. `Arc<T>` is reference counting, with the classic weakness: two `Arc`s pointing at each other never reach zero. The fix is `Weak<T>` for back-pointers.
 
@@ -199,7 +199,7 @@ Now read the signature with ownership in mind:
 - **The nested `Result`.** `.await` on the join handle yields `Result<AppResult<String>, JoinError>`. `map_err` turns a `JoinError` (the closure panicked) into `AppError`, `?` unwraps the outer layer, and the inner `AppResult<String>` is the function's return value.
 - **`verify` fails closed.** It ends with `.await.unwrap_or(false)`: if the verifier panics, the login fails. It also verifies against `DUMMY_HASH` when the email does not exist, so response time does not reveal which emails have accounts. `DUMMY_HASH` is a `once_cell::sync::Lazy`, initialised on first use; `std::sync::LazyLock` is the standard-library equivalent in current Rust.
 
-The production follow-up a senior asks: the blocking pool bounds *threads*, not *memory*. Two hundred concurrent login attempts during a credential-stuffing burst means about 200 × 19 MiB ≈ 3.8 GiB of Argon2 working memory. Bound it explicitly with a `tokio::sync::Semaphore` or a rate limit in front of the route.
+The production follow-up a senior asks: the blocking pool bounds *threads*, not *memory*. Two hundred concurrent login attempts during a credential-stuffing burst means about 200 × 19 MiB ≈ 3.7 GiB of Argon2 working memory. Bound it explicitly with a `tokio::sync::Semaphore` or a rate limit in front of the route.
 
 Two marker traits govern threads. `Send`: the value may move to another thread. `Sync`: `&T` may be shared between threads. `tokio::spawn` requires a `Send` future because the task may resume on a different worker after any `.await`. Hold an `Rc` or a `std::sync::MutexGuard` across an `.await` and the future stops being `Send`: the compile error is telling you that you were about to keep a non-thread-safe handle, or a lock, across a suspension point.
 
@@ -261,7 +261,7 @@ The [actors, channels and CSP](/learn/systems/concurrency/actors-channels-and-cs
 
 | You see | It means |
 |---|---|
-| `x?` | Return early with `From::from(err)` if `x` is `Err`/`None` |
+| `x?` | Unwrap `x`, or return early if it is `Err` (converted with `From`) or `None` |
 | `&T`, `&mut T` | Shared borrow, exclusive borrow |
 | `'a`, `'static` | A named borrow region; "valid for the whole program" or, as a bound, "owns its data" |
 | `impl Trait` (argument or return) | Some single concrete type implementing `Trait`, statically dispatched |
@@ -299,20 +299,20 @@ Follow-up questions interviewers use to probe depth:
 ```quiz
 - q: >-
     Why does `password::hash` take a `String` rather than a `&str`?
-  options: ["Owned strings hash faster than slices", "The closure passed to spawn_blocking must be 'static because the blocking task can outlive the caller's future, so it must own its data", "Argon2 only accepts heap-allocated input", "A &str can never be sent to another thread"]
-  answer: 1
+  options: ["Owned strings hash faster than slices", "Argon2 only accepts heap-allocated input", "The closure passed to spawn_blocking must be 'static because the blocking task can outlive the caller's future, so it must own its data", "A &str can never be sent to another thread"]
+  answer: 2
   explanation: >-
     If the client disconnects, Axum drops the handler future, but the blocking thread keeps hashing. A borrow of request data would dangle, so the 'static bound forces the closure to own the String. A &'static str can be sent between threads; the problem is the lifetime of a request-scoped borrow, not Send.
 - q: >-
     A teammate adds `AppError::PaymentRequired` with an `#[error(...)]` attribute and nothing else. What happens?
-  options: ["It compiles; the new variant falls into a default 500 arm", "The build fails in AppError::code() and in ApiError's IntoResponse until each match handles the new variant", "It compiles and panics the first time the variant is returned", "thiserror picks an HTTP status automatically"]
-  answer: 1
+  options: ["The build fails in AppError::code() and in ApiError's IntoResponse until each match handles the new variant", "It compiles; the new variant falls into a default 500 arm", "It compiles and panics the first time the variant is returned", "thiserror picks an HTTP status automatically"]
+  answer: 0
   explanation: >-
     Both matches are exhaustive with no wildcard, so the compiler lists every site that must decide a machine code and a status. That is the point of avoiding `_ =>` on domain enums; a wildcard would have silently produced a 500.
 - q: >-
     Why does the api crate wrap AppError in `ApiError` instead of implementing Axum's IntoResponse for AppError directly?
-  options: ["Newtypes compile to faster code", "The orphan rule forbids implementing a foreign trait for a foreign type; the local wrapper is allowed, and it keeps HTTP concerns out of the core crate", "AppError is not Send", "IntoResponse can only be implemented for tuple structs"]
-  answer: 1
+  options: ["Newtypes compile to faster code", "AppError is not Send", "IntoResponse can only be implemented for tuple structs", "The orphan rule forbids implementing a foreign trait for a foreign type; the local wrapper is allowed, and it keeps HTTP concerns out of the core crate"]
+  answer: 3
   explanation: >-
     In crates/api both IntoResponse (Axum) and AppError (ascend_core) are foreign, so the direct impl is rejected. The newtype is local. The constraint also enforces the intended layering: the domain crate has no dependency on the web framework.
 - q: >-
@@ -323,14 +323,14 @@ Follow-up questions interviewers use to probe depth:
     Dropping the receiver closes the channel; sends then fail fast instead of blocking. `let _ =` discards the error and the task continues to finish_turn. Nothing links rx to the upstream stream, which is the design: the work outlives the request.
 - q: >-
     You call `hash_sync` directly inside an async handler on a Tokio runtime with 8 worker threads. What happens under 8 simultaneous logins?
-  options: ["Nothing; Tokio preempts long-running tasks", "All 8 workers are stuck hashing, so every other request, including health checks, waits behind them", "Tokio detects the blocking call and moves it to the blocking pool", "It does not compile because hash_sync is not async"]
-  answer: 1
+  options: ["All 8 workers are stuck hashing, so every other request, including health checks, waits behind them", "Nothing; Tokio preempts long-running tasks", "Tokio detects the blocking call and moves it to the blocking pool", "It does not compile because hash_sync is not async"]
+  answer: 0
   explanation: >-
     Tokio schedules cooperatively: a task yields only at an .await. A synchronous tens-of-milliseconds computation holds its worker the whole time. It compiles fine, which is why this bug reaches production; spawn_blocking is the fix.
 - q: >-
     What does the bound `T: 'static` on tokio::spawn's future actually require?
-  options: ["The value lives until the program exits", "The value holds no borrows shorter than the whole program; owned data such as String qualifies", "The value is stored in static memory", "The value is immutable"]
-  answer: 1
+  options: ["The value lives until the program exits", "The value is stored in static memory", "The value holds no borrows shorter than the whole program; owned data such as String qualifies", "The value is immutable"]
+  answer: 2
   explanation: >-
     As a bound, 'static means "owns everything it references". A String satisfies it and is dropped as normal. What fails the bound is a reference into a stack frame or request that could end while the task is still running.
 ```

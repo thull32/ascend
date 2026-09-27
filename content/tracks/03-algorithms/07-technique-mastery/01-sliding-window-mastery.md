@@ -166,7 +166,7 @@ Where to record also follows from the theorem. For longest and count, record aft
 {"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3, "title": "Window maximum without subtraction", "caption": "Dominated values are evicted from the back; expired indices from the front. The front is always the window maximum."}
 ```
 
-**Any associative operation: the two-stack queue.** gcd, bitwise OR, matrix products and "max with a tie-break" have no inverse and no monotone shortcut. A queue built from two stacks handles all of them. Each stack entry stores its value together with the aggregate of everything beneath it in that stack. The window aggregate is `op(front_top_aggregate, back_aggregate)`. Pushing onto the back is `O(1)`. Popping from the front is `O(1)`, except when the front stack is empty, in which case you move the whole back stack across and recompute the aggregates on the way. Each element crosses once, so pops are amortised `O(1)`.
+**Any associative operation: the two-stack queue.** gcd, bitwise AND and OR, and matrix products have no inverse and no monotone shortcut. A queue built from two stacks handles all of them. Each stack entry stores its value together with the aggregate of itself and everything beneath it in that stack, so the top entry of each stack holds that whole stack's aggregate. The window aggregate is `op(front_top_aggregate, back_top_aggregate)`, oldest values first. Pushing onto the back is `O(1)`. Popping from the front is `O(1)`, except when the front stack is empty, in which case you move the whole back stack across and recompute the aggregates on the way. Each element crosses once, so pops are amortised `O(1)`.
 
 ```python
 from math import gcd
@@ -195,7 +195,7 @@ class WindowAggregate:
         b = self.back[-1][1] if self.back else self.identity
         return self.op(a, b)
 
-# Longest subarray whose gcd is > 1 ("gcd > 1" is hereditary: a subset's gcd is a multiple of the superset's).
+# Longest subarray with gcd > 1 (hereditary: a sub-window's gcd is a multiple of the window's gcd).
 def longest_gcd_above_one(nums):
     w, left, best = WindowAggregate(gcd, 0), 0, 0
     for right, x in enumerate(nums):

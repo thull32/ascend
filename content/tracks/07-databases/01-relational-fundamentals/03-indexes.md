@@ -2,7 +2,7 @@
 slug: indexes
 title: "Indexes: from B-tree pages to index-only scans"
 description: How a B-tree index turns a scan of millions of rows into a handful of page reads, how to order a composite index, when the planner ignores your index on purpose, and what every index costs on the write path.
-minutes: 36
+minutes: 34
 difficulty: medium
 tags: [indexes, b-tree, gin, brin, covering-index, postgres, query-planner]
 ---
@@ -108,7 +108,7 @@ Postgres 18 added **skip scan**, which lets a B-tree on `(a, b)` serve a conditi
 Now the index this app actually has. The migration for comments creates `idx_comments_target` on `(target_kind, target_slug, created_at)` with the comment "Query pattern: all comments on target X, oldest first". The query from the opening, which is what `CommentService::list` sends, gets this plan:
 
 ```text
-Limit  (cost=0.69..1062.43 rows=500 width=312) (actual time=0.041..0.690 rows=312 loops=1)
+Limit  (cost=0.69..676.11 rows=318 width=312) (actual time=0.041..0.690 rows=312 loops=1)
   Buffers: shared hit=318 read=4
   ->  Index Scan using idx_comments_target on comments
         (cost=0.69..676.11 rows=318 width=312) (actual time=0.040..0.655 rows=312 loops=1)
@@ -183,7 +183,7 @@ B-trees handle equality, ranges, sorting and prefix matching on anything with a 
 | BRIN | Min/max summary per block range (128 pages by default) | Ranges on naturally ordered data | Append-only time-series or log tables, hundreds of GB | Worthless when correlation is low: every range overlaps the query |
 | `bloom` (extension) | One Bloom-filter signature per row | `=` on any subset of many columns | Wide tables queried by arbitrary column combinations | Lossy; false positives rechecked; equality only |
 
-BRIN deserves a number because it surprises people. A 500 GB `events` table ordered by insertion time needs a B-tree on `created_at` of around 20 GB. A BRIN index on the same column stores one min/max pair per 128 pages, so it is a few megabytes, and a query for one day of data skips every block range whose max is before that day or whose min is after it. The catch is that it only works because `created_at` is correlated with physical position. Run a big `UPDATE` that scatters rows or backfill old data at the end of the table, and every range's min/max widens until BRIN excludes nothing.
+BRIN deserves a number because it surprises people. A 500 GB `events` table ordered by insertion time needs a B-tree on `created_at` measured in tens of gigabytes. A BRIN index on the same column stores one min/max pair per 128 pages (1 MiB of table), so it is tens of megabytes, and a query for one day of data skips every block range whose max is before that day or whose min is after it. The catch is that it only works because `created_at` is correlated with physical position. Run a big `UPDATE` that scatters rows or backfill old data at the end of the table, and every range's min/max widens until BRIN excludes nothing.
 
 The `bloom` extension is the lesser-known answer to "users filter on any combination of 12 columns". Twelve B-trees cost twelve index writes per insert and still cannot combine efficiently for every subset. One Bloom signature per row answers "definitely does not match" for most rows cheaply:
 
@@ -199,7 +199,7 @@ Reads get cheaper with each index. Writes get more expensive, and the bill is ea
 
 **Every insert writes every index.** A row inserted into a table with eight indexes is one heap write plus eight index insertions, each of which may need to read a leaf page that is not in memory and each of which generates WAL. On a write-heavy table, the indexes are usually most of the write cost. Adding a ninth index to speed up one report makes every insert more expensive, forever.
 
-**Updates may write every index too.** Because Postgres never updates a row in place, an `UPDATE` creates a new row version at a new TID, and every index needs an entry pointing to it. The escape hatch is the **heap-only tuple (HOT)** update: if no indexed column changed *and* the new version fits on the same heap page, Postgres chains the new version from the old one and skips all index writes. Two consequences follow. Indexing a column that is updated constantly (`last_seen_at`, `view_count`) disables HOT for every update to that row. And leaving free space in pages (`ALTER TABLE ... SET (fillfactor = 90)`) makes HOT more likely on update-heavy tables.
+**Updates may write every index too.** Because Postgres never updates a row in place, an `UPDATE` creates a new row version at a new TID, and every index needs an entry pointing to it. The escape hatch is the **heap-only tuple (HOT)** update: if no indexed column changed *and* the new version fits on the same heap page, Postgres chains the new version from the old one and skips all index writes. Two consequences follow. Indexing a column that is updated constantly (`last_seen_at`, `view_count`) disables HOT for every update that changes it. And leaving free space in pages (`ALTER TABLE ... SET (fillfactor = 90)`) makes HOT more likely on update-heavy tables.
 
 ```sql
 -- How often do updates avoid index maintenance?
@@ -302,20 +302,20 @@ hints:
 ```quiz
 - q: >-
     A table has 20 million rows. An index exists on status, and 40% of rows have status = 'complete'. The planner does a sequential scan for WHERE status = 'complete'. What is going on?
-  options: ["Statistics are stale; run ANALYZE and the index will be used", "The planner is correct: fetching 8 million rows by random heap access costs far more than reading every page sequentially", "The index is corrupt and should be rebuilt", "B-tree indexes cannot be used for text columns"]
-  answer: 1
+  options: ["Statistics are stale; run ANALYZE and the index will be used", "The index is corrupt and should be rebuilt", "The planner is correct: fetching 8 million rows by random heap access costs far more than reading every page sequentially", "B-tree indexes cannot be used for text columns"]
+  answer: 2
   explanation: >-
     At 40% selectivity an index scan would do millions of random heap reads, each charged at random_page_cost, against one sequential pass of the table. Refreshing statistics would only confirm the estimate. If the query only needs the rare statuses, a partial index serves it.
 - q: >-
     You have an index on (created_at, account_id). A hot query is WHERE account_id = $1 AND created_at > now() - interval '7 days'. EXPLAIN shows both columns under Index Cond, but the query reads 30,000 buffers to return 12 rows. Why, and what is the fix?
-  options: ["account_id is not selective enough; add a separate index on it", "Only the leading range column bounds the scan, so every entry from the last 7 days for every account is read and filtered; create the index as (account_id, created_at)", "The planner needs a higher random_page_cost", "Index Cond means the index was not used"]
-  answer: 1
+  options: ["Only the leading range column bounds the scan, so every entry from the last 7 days for every account is read and filtered; create the index as (account_id, created_at)", "account_id is not selective enough; add a separate index on it", "The planner needs a higher random_page_cost", "Index Cond means the index was not used"]
+  answer: 0
   explanation: >-
     In a composite B-tree, scanning stops being bounded after the first range column. With created_at first, the matching entries for one account are scattered through a week of all accounts' entries. Equality first, then range, turns it into one contiguous slice.
 - q: >-
     An index-only scan shows Heap Fetches: 45,000 for a 50,000-row result. What does that tell you?
-  options: ["The index is missing an INCLUDE column", "Most heap pages are not marked all-visible in the visibility map, so Postgres had to check the heap for row visibility; vacuum is lagging on this table", "The query uses SELECT *", "The planner chose the wrong index"]
-  answer: 1
+  options: ["The index is missing an INCLUDE column", "The query uses SELECT *", "The planner chose the wrong index", "Most heap pages are not marked all-visible in the visibility map, so Postgres had to check the heap for row visibility; vacuum is lagging on this table"]
+  answer: 3
   explanation: >-
     Index entries carry no visibility information. Postgres can skip the heap only for pages the visibility map says are all-visible, and vacuum sets those bits. Recent heavy writes or lagging autovacuum turn an index-only scan back into heap visits. An INCLUDE column would not help because the plan is already index-only.
 - q: >-
@@ -323,11 +323,11 @@ hints:
   options: ["None; indexes only affect reads", "Every one of those updates now changes an indexed column, so HOT updates are no longer possible and every update writes a new entry into every index on the table", "The index will be too large to fit in memory", "The report will lock the table"]
   answer: 1
   explanation: >-
-    A HOT update requires that no indexed column changes. Indexing last_seen_at means the most frequent write in the system now inserts entries into every index on users, plus WAL and bloat. The report would be better served by a summary table, a replica, or a BRIN-style approach.
+    A HOT update requires that no indexed column changes. Indexing last_seen_at means the most frequent write in the system now inserts entries into every index on users, plus WAL and bloat. The report would be better served by a periodically refreshed summary table or an analytics copy of the data.
 - q: >-
     Which workload is the best fit for a BRIN index?
-  options: ["Looking up users by email", "Range queries on created_at over a 2 TB append-only events table whose rows are inserted in time order", "Searching jsonb documents for a key", "A status column with five values that is updated frequently"]
-  answer: 1
+  options: ["Looking up users by email", "Searching jsonb documents for a key", "Range queries on created_at over a 2 TB append-only events table whose rows are inserted in time order", "A status column with five values that is updated frequently"]
+  answer: 2
   explanation: >-
     BRIN stores a min/max per block range and is tiny, but it only excludes ranges when physical order correlates with the column. Append-only time-ordered data is the ideal case. Email lookups need a B-tree, jsonb containment needs GIN, and a frequently updated low-cardinality column breaks correlation.
 ```

@@ -2,7 +2,7 @@
 slug: spark
 title: "Spark: lazy plans, shuffles, partitions, joins and skew"
 description: How Spark turns DataFrame code into stages and tasks, how to size partitions and shuffles with arithmetic instead of folklore, how it picks a join strategy, and how to find and fix skew.
-minutes: 30
+minutes: 20
 difficulty: hard
 tags: [big-data, spark, pyspark, shuffle, partitioning, joins, data-skew, adaptive-query-execution]
 ---

@@ -43,7 +43,7 @@ Assume 50,000 hosts running 200,000 containers.
 
 **Sample size.** A sample is a timestamp and a float, 16 bytes raw. Time-series codecs in the style of Facebook's published Gorilla design compress regular timestamps and slowly changing values to around 1–2 bytes per sample; assume 2. Raw tier: $10^6 \times 2 \text{ B} = 2$ MB/s, which is $2 \times 86{,}400 \approx 170$ GB/day and ~2.6 TB for 15 days. Small.
 
-**Rollups.** One rollup per series per minute is $10^7 / 60 \approx 167{,}000$ rollups/s. Each stores min, max, sum and count, ~20 bytes compressed, so 3.3 MB/s, ~290 GB/day, and about 110 TB over 13 months. The long-term tier is forty times the raw tier. On triple-replicated SSD at roughly $0.10 per GB-month that is 330 TB and ~$33,000 a month; in object storage at roughly $0.02 per GB-month, stored once (the store handles durability), it is ~$2,200 a month. That single comparison decides that historical blocks live in object storage.
+**Rollups.** One rollup per series per minute is $10^7 / 60 \approx 167{,}000$ rollups/s. Each stores min, max, sum and count, ~20 bytes compressed, so 3.3 MB/s, ~290 GB/day, and about 110 TB over 13 months. The long-term tier is forty times the raw tier. On triple-replicated SSD at roughly \$0.10 per GB-month that is 330 TB and ~\$33,000 a month; in object storage at roughly \$0.02 per GB-month, stored once (the store handles durability), it is ~\$2,200 a month. That single comparison decides that historical blocks live in object storage.
 
 **In-memory head.** Recent data is served from memory. A few KB per active series for labels, index entries and the open chunk (assume 4 KB) gives $10^7 \times 4 \text{ KB} = 40$ GB, plus two hours of samples, $10^7 \times 720 \times 2 \text{ B} \approx 14$ GB. Replicated three times, ~160 GB across the ingester fleet: twenty 32 GB machines with headroom. Memory scales with *series*, not samples, which is why cardinality is the capacity unit.
 
@@ -133,7 +133,7 @@ flowchart LR
   D["Dashboards and log search"] --> QF
 ```
 
-The agent on each host scrapes its own containers, pushes compressed batches to the gateway, and spools to a bounded local disk buffer when the gateway says `429`, dropping the oldest data when the buffer fills. Metric ingesters consume partitions, append to a write-ahead log, hold the last two hours in memory, and every two hours upload an immutable block to object storage. Recent queries go to ingesters; older ranges go to store gateways that cache block indexes and hot chunks. The query frontend splits a 30-day query into 30 one-day queries and caches each day's result, so the 499th engineer opening the same dashboard costs almost nothing.
+The agent on each host scrapes its own containers, pushes compressed batches to the gateway, and spools to a bounded local disk buffer when the gateway says `429`, dropping the oldest data when the buffer fills. Metric ingesters consume [Kafka](/learn/big-data/streaming/kafka-internals) partitions, append to a write-ahead log, hold the last two hours in memory, and every two hours upload an immutable block to object storage. Recent queries go to ingesters; older ranges go to store gateways that cache block indexes and hot chunks. The query frontend splits a 30-day query into 30 one-day queries and caches each day's result, so the 499th engineer opening the same dashboard costs almost nothing.
 
 The rule evaluator reads only from ingesters for recent windows, so alerting keeps working if object storage or the store gateways are down. That is a deliberate asymmetry: dashboards over last month can degrade, alerts cannot.
 
@@ -157,7 +157,7 @@ The mechanisms that keep it bounded, from cheapest to most intrusive:
 
 1. **Admission limits per tenant and per metric.** The gateway tracks active series per tenant (a HyperLogLog is enough for an estimate) and rejects *new* series over the limit with an explicit error, while continuing to accept samples for existing ones. Existing dashboards keep working; the team that added the label sees the rejection in its own metrics.
 2. **Aggregate before storing.** Most dashboards want per-service, not per-pod, latency. Recording rules or agent-side aggregation sum the histogram buckets across pods and drop `pod`, dividing that metric's series by 30. Keep the per-pod version with a 24-hour retention for debugging.
-3. **Put high-cardinality identity in logs and traces, not metrics.** Per-user or per-request data belongs in an event store that is priced per event, not per distinct value. *Exemplars* attach a sample trace ID to a histogram bucket, so a latency spike on the dashboard links directly to a slow trace without a `trace_id` label.
+3. **Put high-cardinality identity in logs and traces, not metrics** ([observability](/learn/system-design/building-blocks/observability) covers what each signal is for). Per-user or per-request data belongs in an event store that is priced per event, not per distinct value. *Exemplars* attach a sample trace ID to a histogram bucket, so a latency spike on the dashboard links directly to a slow trace without a `trace_id` label.
 4. **Watch churn, not just the total.** Every deploy gives every pod a new name, so a fleet that redeploys daily creates millions of new series a day even if the active count is flat. The in-memory head holds every series seen in its window, so churn inflates memory. Labels that change on every deploy (pod name, container ID, build SHA) are the usual culprits.
 
 Percentiles deserve their own warning: the mean of 30 pods' p99s is not a p99 of anything. Store histograms, sum the buckets across pods, and compute the quantile at query time, as the PromQL example above does; mergeable sketches (t-digest, DDSketch) do the same with bounded error. The [median of a data stream](/practice/find-median-data-stream) problem is the exact-but-unmergeable version of the question.
@@ -166,7 +166,7 @@ Percentiles deserve their own warning: the mean of 30 pods' p99s is not a p99 of
 
 A relational table with one row per sample fails on arithmetic alone: 10^6 inserts/s is 100 times a Postgres primary's comfortable write rate, with 30+ bytes of row overhead per 2 bytes of payload. A wide-column store can absorb the writes but compresses individual samples poorly and turns "sum 10,000 series over an hour" into a scatter-gather.
 
-The design that works is log-structured and specialised: append to an in-memory head and a WAL, seal and compress chunks, compact immutable blocks and downsample them. That is the LSM pattern with time doing the partitioning. Because data arrives roughly in time order and is never updated, compaction is cheap and retention deletes whole blocks instead of tombstoning rows.
+The design that works is log-structured and specialised: append to an in-memory head and a WAL, seal and compress chunks, compact immutable blocks and downsample them. That is the [LSM pattern](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) with time doing the partitioning. Because data arrives roughly in time order and is never updated, compaction is cheap and retention deletes whole blocks instead of tombstoning rows.
 
 ```viz
 {"type": "system", "scenario": "lsm-tree",
@@ -182,14 +182,14 @@ This is the decision that sets the logging bill, so compare both with the number
 
 **Option A, full-text inverted index (Elasticsearch-class).** Every token is indexed and queries of any shape are fast. But indexing a million documents per second takes a large CPU-heavy cluster sized for the 3× incident peak, and stored size including the index is of the same order as the raw data: at 43 TB/day with one replica and 7 days hot, ~600 TB of SSD before the 90-day archive.
 
-**Option B, label index plus compressed chunks in object storage (Loki-class).** Index only the stream labels, compress lines ~8× into chunks, and brute-force scan at query time. Storage is 43 TB / 8 ≈ 5.4 TB/day; 90 days is ~490 TB in object storage, roughly $10,000 a month. Ingest is cheap because there is no per-token work.
+**Option B, label index plus compressed chunks in object storage (Loki-class).** Index only the stream labels, compress lines ~8× into chunks, and brute-force scan at query time. Storage is 43 TB / 8 ≈ 5.4 TB/day; 90 days is ~490 TB in object storage, roughly \$10,000 a month. Ingest is cheap because there is no per-token work.
 
 The price of B is paid at query time, and whether it is acceptable depends on the query's selectivity:
 
 - "Errors from checkout in the last hour, containing `timeout`": if checkout produces 1% of volume, the label index narrows the scan to $1.8 \text{ TB/hour} \times 1\% = 18$ GB raw (~2 GB compressed). At roughly 1 GB/s of decompress-and-match per core, that is 18 core-seconds, well under a second on 100 query cores.
 - "Any line containing this IP address, all services, last 24 hours": 43 TB raw, ~43,000 core-seconds, most of a minute even on 1,000 cores. Slow, and expensive every time it runs.
 
-**Bloom filters close most of the gap for needle queries.** The common needle query is "every line for this `trace_id`". Each chunk stores a Bloom filter of the trace IDs it contains; the querier checks the filter (a few KB, cached) and fetches only chunks that *might* contain the ID. A chunk of 10,000 lines with ~5,000 distinct trace IDs needs about 9.6 bits per ID for a 1% false-positive rate, so ~6 KB per chunk, about 1% of the chunk's compressed size, and it cuts a 24-hour trace lookup from scanning every chunk to scanning the handful that match plus 1% false positives.
+**[Bloom filters](/learn/advanced-data-structures/probabilistic-structures/bloom-filters) close most of the gap for needle queries.** The common needle query is "every line for this `trace_id`". Each chunk stores a Bloom filter of the trace IDs it contains; the querier checks the filter (a few KB, cached) and fetches only chunks that *might* contain the ID. A chunk of 10,000 lines with ~5,000 distinct trace IDs needs about 9.6 bits per ID for a 1% false-positive rate, so ~6 KB per chunk, about 1% of the chunk's compressed size, and it cuts a 24-hour trace lookup from scanning every chunk to scanning the handful that match plus 1% false positives.
 
 ```viz
 {"type": "system", "scenario": "bloom-filter", "keys": ["trace-4bf9", "trace-a3c1", "trace-77e0", "trace-19d2"],
@@ -261,14 +261,14 @@ Measure it per team and per log line pattern first; logging cost is always conce
     Quantiles are not additive; the mean or median of per-pod p99s is not a p99 of anything. Histograms (or mergeable sketches) can be summed across pods and the quantile computed from the merged distribution. The maximum is an upper-bound heuristic, not the fleet p99.
 - q: >-
     Why does the design make alert evaluation read only from the in-memory ingesters rather than from object storage?
-  options: ["Object storage cannot store time-series data", "Alerts need only recent windows, and this keeps alerting working when the historical tier is slow or down", "Ingesters have more complete data than object storage", "It is cheaper per query"]
-  answer: 1
+  options: ["Alerts need only recent windows, and this keeps alerting working when the historical tier is slow or down", "Object storage cannot store time-series data", "Ingesters have more complete data than object storage", "It is cheaper per query"]
+  answer: 0
   explanation: >-
     Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. Designing the most critical path to have the fewest dependencies is the point.
 - q: >-
     Logs are stored as compressed chunks indexed only by labels. Which query becomes cheap once each chunk carries a Bloom filter of trace IDs?
-  options: ["Count all error lines across every service for a month", "Find every line for one specific trace_id across all services in the last day", "Full-text search for any word in any line", "Compute p99 latency from log lines"]
-  answer: 1
+  options: ["Count all error lines across every service for a month", "Full-text search for any word in any line", "Compute p99 latency from log lines", "Find every line for one specific trace_id across all services in the last day"]
+  answer: 3
   explanation: >-
     A Bloom filter answers "definitely not here" for most chunks, so the querier fetches only chunks that might contain that trace ID, plus about 1% false positives. It does nothing for aggregate scans or arbitrary words that were not put in the filter.
 - q: >-

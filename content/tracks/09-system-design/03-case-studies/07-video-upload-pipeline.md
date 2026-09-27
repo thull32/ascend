@@ -43,9 +43,9 @@ The split between first-playable and full-ladder is the most useful requirement 
 
 **Concurrent uploads.** A 10-minute file at 10 Mbps is 750 MB. On a 15 Mbps home uplink that takes $750 \times 8 / 15 = 400$ seconds. By Little's law, $50/\text{s} \times 400\text{ s} = 20{,}000$ uploads in flight on average, 60,000 at peak. Each is a long-lived session that must survive your deploys.
 
-**Storage.** Originals: $720{,}000 \text{ h} \times 4.5 \text{ GB/h} = 3.2$ PB per day, about 1.2 EB per year before replication or erasure-coding overhead. An H.264 ladder of 240p/360p/480p/720p/1080p at roughly 0.4 + 0.8 + 1.4 + 2.5 + 5 = 10 Mbps adds about the same again. At hot object-storage prices of about $0.02 per GB-month, a year of originals alone costs on the order of $24 million per month by year end. **Design consequence: originals move to an archive tier (an order of magnitude cheaper) as soon as processing finishes, and storage tiering is a requirement, not an optimisation.**
+**Storage.** Originals: $720{,}000 \text{ h} \times 4.5 \text{ GB/h} = 3.2$ PB per day, about 1.2 EB per year before replication or erasure-coding overhead. An H.264 ladder of 240p/360p/480p/720p/1080p at roughly 0.4 + 0.8 + 1.4 + 2.5 + 5 = 10 Mbps adds about the same again. At hot object-storage prices of about \$0.02 per GB-month, a year of originals alone costs on the order of \$24 million per month by year end. **Design consequence: originals move to an archive tier (an order of magnitude cheaper) as soon as processing finishes, and storage tiering is a requirement, not an optimisation.**
 
-**Compute.** Assume an 8-vCPU worker encodes 1080p H.264 at about 2× real time, so the 1080p rung costs 4 vCPU-seconds per second of video. The lower rungs have 44%, 20%, 11% and 5% of the pixels, so the whole ladder costs about $4 \times 1.8 \approx 7$ vCPU-seconds per video-second. $30{,}000 \times 7 = 210{,}000$ vCPUs busy around the clock, 500,000 at peak. At roughly $0.015 per vCPU-hour for preemptible capacity, that is about $75,000 a day. **Design consequence: compute is the dominant *elastic* cost and sets latency; any codec that costs 10× more per second cannot be applied to every upload.**
+**Compute.** Assume an 8-vCPU worker encodes 1080p H.264 at about 2× real time, so the 1080p rung costs 4 vCPU-seconds per second of video. The lower rungs have 44%, 20%, 11% and 5% of the pixels, so the whole ladder costs about $4 \times 1.8 \approx 7$ vCPU-seconds per video-second. $30{,}000 \times 7 = 210{,}000$ vCPUs busy around the clock, 500,000 at peak. At roughly \$0.015 per vCPU-hour for preemptible capacity, that is about \$75,000 a day. **Design consequence: compute is the dominant *elastic* cost and sets latency; any codec that costs 10× more per second cannot be applied to every upload.**
 
 **Task rate.** Split a 10-minute video into 30-second chunks and encode each chunk per rung: $20 \times 5 = 100$ encode tasks, plus a handful for probing, audio, thumbnails and packaging. $50 \times 100 = 5{,}000$ tasks per second on average and 15,000 at peak, each with two or three state transitions. That is a queue-class and sharded-store number, not a single-Postgres number.
 
@@ -192,7 +192,7 @@ The completion signal deserves care. Object-store event notifications are at-lea
 
 View counts on user-generated video are extremely skewed: most uploads are watched a handful of times and a small fraction earns most of the watch time. Newer codecs such as AV1 deliver the same quality in roughly 30–50% fewer bits than H.264, but software encoders for them cost an order of magnitude or more compute. So the question is not "which codec is best" but "when does it pay for itself?"
 
-Work it for a 10-minute video. A full view at 1080p and 5 Mbps is about 375 MB; saving 35% saves ~130 MB per view. At a CDN egress cost of the order of $0.01–0.02 per GB, that is roughly $0.002 per view. The AV1 ladder at ~10× the H.264 cost is $600 \times 7 \times 10 = 42{,}000$ vCPU-seconds, about 12 vCPU-hours, or roughly $0.18. Break-even is on the order of 100 full views. So: every video gets the cheap H.264 ladder immediately, and a view-count event (say, 1,000 views in a day) enqueues the AV1 ladder on the low-priority queue. The same logic justifies adding 1440p and 4K rungs only for sources that have them and videos that get watched.
+Work it for a 10-minute video. A full view at 1080p and 5 Mbps is about 375 MB; saving 35% saves ~130 MB per view. At a CDN egress cost of the order of \$0.01–0.02 per GB, that is roughly \$0.002 per view. The AV1 ladder at ~10× the H.264 cost is $600 \times 7 \times 10 = 42{,}000$ vCPU-seconds, about 12 vCPU-hours, or roughly \$0.18. Break-even is on the order of 100 full views. So: every video gets the cheap H.264 ladder immediately, and a view-count event (say, 1,000 views in a day) enqueues the AV1 ladder on the low-priority queue. The same logic justifies adding 1440p and 4K rungs only for sources that have them and videos that get watched.
 
 The ladder itself should not be fixed. A static cartoon needs far fewer bits than handheld concert footage for the same perceived quality; Netflix has written publicly about per-title and per-shot encoding, which analyses each source's complexity and picks bitrates per rung, measured with a perceptual metric such as VMAF. For a user-generated platform, a cheap complexity probe on the first chunks that adjusts the ladder is most of the win at a fraction of the cost.
 
@@ -218,7 +218,7 @@ Nothing on the server changes: the parts already uploaded are durable in the mul
 
 **Q: "How do you get a 2-hour 4K upload playable quickly?"**
 
-The same way as a 10-minute one, with more parallelism: 240 chunks of 30 seconds, low rungs first on the high-priority queue, so 240p and 360p are playable within a few minutes of upload completion. The 4K rung is the expensive part and can take much longer; that is acceptable because the manifest is rewritten as rungs complete and the player picks up higher qualities on its next manifest fetch. I would also start probing and chunking before the upload finishes, since parts arrive in order and the first chunks are complete long before the last byte lands.
+The same way as a 10-minute one, with more parallelism: 240 chunks of 30 seconds, low rungs first on the high-priority queue, so 240p and 360p are playable within a few minutes of upload completion. The 4K rung is the expensive part and can take much longer; that is acceptable because the manifest is rewritten as rungs complete and the player picks up higher qualities on its next manifest fetch. I would also start probing and chunking before the upload finishes, since parts arrive roughly in order and the first chunks are complete long before the last byte lands.
 
 **Q: "You shipped a better encoder. How do you re-encode a billion existing videos?"**
 
@@ -250,8 +250,8 @@ Autoscale on queue age per priority class. Keep a baseline of reserved capacity 
 ```quiz
 - q: >-
     Uploads average 300 Gbps of ingest. What is the main reason to have clients write directly to object storage with pre-signed URLs?
-  options: ["Pre-signed URLs are more secure than API authentication", "It avoids running a large byte-copying fleet whose deploys would kill in-flight uploads, and lets the store handle durability", "Object stores compress video automatically", "It removes the need for a metadata database"]
-  answer: 1
+  options: ["It avoids running a large byte-copying fleet whose deploys would kill in-flight uploads, and lets the store handle durability", "Pre-signed URLs are more secure than API authentication", "Object stores compress video automatically", "It removes the need for a metadata database"]
+  answer: 0
   explanation: >-
     At hundreds of Gbps and tens of thousands of long-lived sessions, application servers would exist only to copy bytes, and every deploy would interrupt uploads. Pre-signed URLs are a scoping mechanism, not a stronger form of auth; the metadata database is still needed for sessions and status.
 - q: >-
@@ -262,8 +262,8 @@ Autoscale on queue age per priority class. Keep a baseline of reserved capacity 
     At 5 MiB a 50 GB file needs about 10,000 parts, right at the limit. At 1 GiB a dropped connection on a phone wastes minutes of transfer. 16 MiB leaves ample headroom under the limit and loses about 9 seconds of a 15 Mbps uplink per failure.
 - q: >-
     A transcode worker is preempted after uploading its output but before reporting success. The task is redelivered. What makes this safe?
-  options: ["The queue guarantees exactly-once delivery", "The output key is derived from the input hash, chunk, rendition and encoder version, so the retry writes identical bytes to the same key", "The orchestrator deletes partial outputs before retrying", "Workers take a distributed lock on the video"]
-  answer: 1
+  options: ["The queue guarantees exactly-once delivery", "The orchestrator deletes partial outputs before retrying", "Workers take a distributed lock on the video", "The output key is derived from the input hash, chunk, rendition and encoder version, so the retry writes identical bytes to the same key"]
+  answer: 3
   explanation: >-
     Queues deliver at least once; safety comes from idempotent tasks. A deterministic output key means the retry overwrites the same object with the same content, so it does not matter whether the first attempt finished. Locks do not help when the lock holder is the process that died.
 - q: >-

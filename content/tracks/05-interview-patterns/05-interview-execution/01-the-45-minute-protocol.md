@@ -2,7 +2,7 @@
 slug: the-45-minute-protocol
 title: "The 45-minute protocol: a minute-by-minute plan for the coding round"
 description: A time budget for every phase of a 45-minute coding interview, the checkpoints that tell you to change course, and the exact sentences that move you from one phase to the next.
-minutes: 25
+minutes: 22
 difficulty: medium
 tags: [interview, coding-round, time-management, protocol, communication]
 problems: [merge-intervals, insert-interval, top-k-frequent]
@@ -191,20 +191,20 @@ Reading a budget does not install it. Three practice loops do.
 ```quiz
 - q: >-
     At minute 16 you have only an O(n²) brute force for a problem with n up to 10⁵, and no idea how to improve it. What is the best move?
-  options: ["Keep thinking silently until the optimisation comes", "Say what you are stuck on, then either code the brute force now or ask a targeted hint, and say which you chose", "Start coding an O(n log n) idea you are not sure is correct", "Ask the interviewer to switch to a different problem"]
-  answer: 1
+  options: ["Keep thinking silently until the optimisation comes", "Start coding an O(n log n) idea you are not sure is correct", "Say what you are stuck on, then either code the brute force now or ask a targeted hint, and say which you chose", "Ask the interviewer to switch to a different problem"]
+  answer: 2
   explanation: >-
     Minute 15 is the checkpoint where you should be typing. Naming the blocker and making an explicit choice keeps the round moving and shows you are managing the clock. Silent thinking past the checkpoint is the most common way rounds run out of time, and coding an unverified idea risks fifteen minutes on something that does not work.
 - q: >-
     Why ask "does that sound reasonable?" after describing your approach and before coding?
-  options: ["It is polite and interviewers expect it", "It lets the interviewer redirect you before you spend fifteen minutes on an approach they would reject", "It makes the interviewer give you the optimal answer", "Rubrics award points for asking questions"]
-  answer: 1
+  options: ["It lets the interviewer redirect you before you spend fifteen minutes on an approach they would reject", "It is polite and interviewers expect it", "It makes the interviewer give you the optimal answer", "Rubrics award points for asking questions"]
+  answer: 0
   explanation: >-
     The question buys information at the cheapest possible moment. If the interviewer wanted a better complexity, you find out at minute 12 rather than minute 30. It does not extract the answer, and asking questions for their own sake is not rewarded.
 - q: >-
     In a phone screen with two problems in 45 minutes, you have a correct, tested O(n log n) solution to the warm-up at minute 14 and you can see how to make it O(n). What do you do?
-  options: ["Implement the O(n) version now", "Describe the O(n) idea in a sentence or two and move on to problem two", "Ask the interviewer to skip problem two", "Rewrite the solution in a faster language"]
-  answer: 1
+  options: ["Implement the O(n) version now", "Rewrite the solution in a faster language", "Ask the interviewer to skip problem two", "Describe the O(n) idea in a sentence or two and move on to problem two"]
+  answer: 3
   explanation: >-
     In a two-problem round the budget for the warm-up is about 15 minutes. Mentioning the improvement shows you see it; implementing it costs time that problem two needs. An unfinished second problem is a much bigger negative than a warm-up that is correct but not optimal.
 - q: >-

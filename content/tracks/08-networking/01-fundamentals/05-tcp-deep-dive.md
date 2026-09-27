@@ -57,13 +57,11 @@ TcpExtListenOverflows           48213              0.0
 TcpExtListenDrops               48213              0.0
 ```
 
-For a `LISTEN` socket, `Recv-Q` is the current accept-queue length and `Send-Q` is its limit. `129` against `128` means the queue is full: your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel then drops the client's final ACK or its SYN, the client retransmits its SYN after the initial retransmission timeout of **one second**, and your latency histogram grows a spike at exactly 1,000 ms (and 3,000 ms for the second retry). Whenever you see connection latency clustered at 1 s and 3 s, check `ListenOverflows` before anything else.
-
-SYN floods target the SYN queue. **SYN cookies** (`net.ipv4.tcp_syncookies=1`, on by default) let the server keep no state at all: it encodes the MSS and a keyed hash into its ISN and reconstructs the connection when the ACK comes back with ISN+1.
+For a `LISTEN` socket, `Recv-Q` is the current accept-queue length and `Send-Q` is its limit. `129` against `128` means the queue is full: your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel drops the handshake, the client retransmits its SYN after the initial timeout of **one second**, and your latency histogram grows spikes at 1,000 ms and 3,000 ms. Connection latency clustered at 1 s and 3 s means: check `ListenOverflows` first. (SYN floods target the other queue; **SYN cookies**, on by default, let the server encode the handshake state in its ISN and keep none.)
 
 ### Refused versus silent
 
-A SYN to a host with nothing listening on the port gets an immediate `RST`, and `connect()` fails with `ECONNREFUSED` in one RTT. A SYN into a firewall or security group that drops packets gets nothing. Linux retransmits the SYN `net.ipv4.tcp_syn_retries` times (default 6) with the timeout doubling each time: 1, 2, 4, 8, 16, 32 seconds, then a final 64-second wait. That is 127 seconds before `connect()` returns `ETIMEDOUT`, the "just over two minutes" from the opening. Every client you write needs its own connect timeout, a few RTTs to a second or two, rather than inheriting the kernel's.
+A SYN to a port with nothing listening gets an immediate `RST`: `ECONNREFUSED` in one RTT. A SYN into a firewall that drops packets gets nothing, and Linux retransmits it `tcp_syn_retries` times (default 6) with the timeout doubling: 1, 2, 4, 8, 16, 32 seconds, then a final 64-second wait. That is 127 seconds before `ETIMEDOUT`, the "just over two minutes" from the opening. Every client needs its own connect timeout rather than the kernel's.
 
 ## Data, cumulative ACKs and delayed ACKs
 
@@ -105,12 +103,11 @@ The first sample initialises `SRTT = R` and `RTTVAR = R/2`. Work it for samples 
 
 One slow sample more than doubles the RTO, because the variance term reacts four times faster than the mean. That is deliberate: a path whose RTT has become erratic should be given more slack before TCP declares a packet lost.
 
-Four details that matter in production:
+Three details that matter in production:
 
-- **Minimum RTO.** The RFC says 1 second; Linux uses 200 ms and applies the floor to the variance term, so on a LAN with a 0.3 ms RTT, `ss` shows `rto:201` or so. A single lost segment that has to wait for the timer therefore costs 200 ms, which is enormous next to a sub-millisecond RTT and is why datacentre operators care so much about tail loss.
+- **Minimum RTO.** The RFC says 1 second; Linux uses 200 ms and applies the floor to the variance term, so on a LAN `ss` shows `rto:201` to `rto:204`. A lost segment that waits for the timer costs 200 ms, hundreds of times a datacentre RTT.
 - **Karn's rule.** An ACK for a retransmitted segment is ambiguous (did it ack the original or the copy?), so it produces no RTT sample. Timestamps remove the ambiguity.
-- **Exponential backoff.** Each consecutive timeout doubles the RTO. Linux gives up on established data after `net.ipv4.tcp_retries2` (default 15) retransmissions, which the kernel documentation puts at about 924.6 seconds. A peer that vanishes without a RST (power loss, a partition, a firewall state table flush) leaves your writes blocked for around 15 minutes unless you set `TCP_USER_TIMEOUT` or, more commonly, an application-level request timeout.
-- **Keepalive is not a liveness check by default.** `tcp_keepalive_time` defaults to 7,200 seconds. An idle connection to a dead peer is discovered after two hours plus nine probes, long after every load balancer and NAT in the path has forgotten it.
+- **Exponential backoff.** Each consecutive timeout doubles the RTO. Linux gives up after `tcp_retries2` (default 15) retransmissions, about 924.6 seconds by the kernel documentation. A peer that vanishes without a RST (power loss, a partition) leaves your writes blocked for around 15 minutes unless you set `TCP_USER_TIMEOUT` or an application-level timeout. TCP keepalive will not save you either: its default first probe is after two hours of idleness.
 
 ```exercise
 id: rto-estimator
@@ -171,7 +168,7 @@ Waiting 200 ms or more for a timer is a disaster on a 20 ms path. Most losses ar
 {"type": "network", "scenario": "tcp-retransmit", "title": "Three duplicate ACKs trigger fast retransmit", "caption": "The receiver buffers segments 3 and 4 but keeps ACKing the hole. The retransmission fills it and the cumulative ACK jumps past everything buffered."}
 ```
 
-With SACK, each duplicate ACK also carries the ranges the receiver does hold (`sack 1 {2897:5793}` in `tcpdump`), so the sender can repair several holes in one RTT instead of one per RTT. Modern Linux goes further with RACK, which marks a segment lost when a segment sent after it has been acknowledged and a reordering window has passed, and with **tail loss probes**: if the *last* segments of a response are lost there are no later segments to generate duplicate ACKs, so the sender retransmits the final segment after about two RTTs rather than waiting for the full RTO. Tail loss is the common case for request/response traffic, which is why this matters more for APIs than for bulk transfers.
+With SACK, each duplicate ACK also carries the ranges the receiver does hold (`sack 1 {2897:5793}` in `tcpdump`), so the sender can repair several holes in one RTT. Modern Linux adds time-based loss detection (RACK) and **tail loss probes**: if the *last* segments of a response are lost, nothing follows them to generate duplicate ACKs, so the sender re-sends the final segment after about two RTTs instead of waiting for the RTO. Tail loss is the common case for request/response traffic, so this matters more for APIs than for bulk transfers.
 
 ## Flow control: the receive window
 
@@ -244,11 +241,11 @@ Nagle's algorithm (RFC 896) stops a sender from flooding the network with tiny s
 sequenceDiagram
     participant C as Client
     participant S as Server
-    C->>S: write 1: header (small, sent at once)
-    Note over C: write 2: body is small and write 1 is unacked, so Nagle holds it
-    Note over S: has header, needs body before replying, so delays the ACK
-    S-->>C: ACK after delayed-ACK timer (~40 ms)
-    C->>S: write 2: body released
+    C->>S: write 1, the header (small, sent at once)
+    Note over C: write 2 (body) is small and write 1 is unacked, so Nagle holds it
+    Note over S: has the header, needs the body to reply, so delays the ACK
+    S-->>C: ACK when the delayed-ACK timer fires (about 40 ms)
+    C->>S: write 2, the body, released
     S-->>C: response
 ```
 
@@ -256,7 +253,6 @@ That is the 41 ms RPC from the opening: 1 ms of work plus one delayed-ACK timer.
 
 1. **Write once.** Build the whole message in a buffer, or use `writev`, so the request is one write. This also halves syscalls.
 2. **Set `TCP_NODELAY`.** It disables Nagle on the socket. Go's `net` package sets it by default, as do most RPC libraries and HTTP clients; check yours rather than assume.
-3. For bulk senders that want the opposite, `TCP_CORK` (or `MSG_MORE`) tells the kernel to hold partial segments until you uncork.
 
 If a latency histogram has a mode at 40 ms (Linux peers) or 200 ms (Windows peers) that does not move with load, suspect this before anything else.
 
@@ -316,7 +312,7 @@ ESTAB  0       1286512  10.0.0.5:8443         203.0.113.9:51220
 	 advmss:1448 cwnd:42 ssthresh:30 bytes_sent:52431872 bytes_acked:51145360
 	 segs_out:36244 segs_in:12031 data_segs_out:36240 send 6.0Mbps lastsnd:4
 	 lastrcv:9120 lastack:4 pacing_rate 7.2Mbps delivery_rate 5.8Mbps busy:9120ms
-	 retrans:0/412 rcv_space:14480 minrtt:79.9
+	 retrans:0/61 rcv_space:14480 minrtt:79.9
 ```
 
 | Field | Reading |
@@ -328,9 +324,9 @@ ESTAB  0       1286512  10.0.0.5:8443         203.0.113.9:51220
 | `mss:1448` | 1,460 minus the 12-byte timestamp option |
 | `cwnd:42 ssthresh:30` | 42 segments allowed in flight; `ssthresh` below cwnd means a loss has already happened and the connection is in congestion avoidance |
 | `send 6.0Mbps` | cwnd × MSS / RTT: $42 \times 1448 \times 8 / 0.0812 \approx 6.0$ Mbit/s, the ceiling the congestion window allows |
-| `retrans:0/412` | Nothing outstanding right now, 412 retransmissions over the connection's life: roughly 1.1% of 36,240 data segments |
+| `retrans:0/61` | Nothing outstanding right now, 61 retransmissions over the connection's life: about 0.17% of 36,240 data segments |
 
-That connection is limited by congestion, not by the receiver: the window is small because the path is losing about 1% of packets, which is the subject of [Congestion control](/learn/networking/fundamentals/congestion-control). If instead `cwnd` were large and the peer were advertising a small window, the receiver would be the bottleneck. `ss` separates the two in one command.
+That connection is limited by congestion, not by the receiver: every loss has cut the window, and even a loss rate of a fraction of a percent keeps it small on an 80 ms path, which is the subject of [Congestion control](/learn/networking/fundamentals/congestion-control). If instead `cwnd` were large and the peer were advertising a small window, the receiver would be the bottleneck. `ss` separates the two in one command.
 
 ## Senior signals
 

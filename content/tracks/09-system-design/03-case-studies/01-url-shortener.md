@@ -340,20 +340,20 @@ hints:
 ```quiz
 - q: >-
     You expect 3 x 10^10 links over five years. Why choose 7 base62 characters rather than 6?
-  options: ["6 characters cannot represent 3 x 10^10 values", "6 characters give about 5.7 x 10^10 keys, so the space would be over half full: random keys would collide constantly and a guesser would hit a real link about every other try", "7 characters are required by the HTTP specification", "6 characters would make the URL too short to be memorable"]
-  answer: 1
+  options: ["6 characters cannot represent 3 x 10^10 values", "7 characters are required by the HTTP specification", "6 characters give about 5.7 x 10^10 keys, so the space would be over half full: random keys would collide constantly and a guesser would hit a real link about every other try", "6 characters would make the URL too short to be memorable"]
+  answer: 2
   explanation: >-
-    6 characters can technically hold 3 x 10^10 values, which is exactly why the tempting first option is wrong. At 53% density, collisions make random generation retry-heavy and enumeration becomes trivial. With 7 characters the space is 0.85% full, so both problems vanish.
+    6 characters can technically hold 3 x 10^10 values, so "cannot represent" is the wrong reason. At 53% density, collisions make random generation retry-heavy and enumeration becomes trivial. With 7 characters the space is 0.85% full, so both problems vanish.
 - q: >-
     A link takes 30,000 requests/s. Your Redis cluster has 8 primaries, each good for about 100,000 ops/s. What is the real risk, and what is the fix?
-  options: ["None; the cluster has 800,000 ops/s of capacity", "The key lives on one primary, which takes all 30,000 ops/s and slows every other key on it; an in-process cache with request coalescing cuts it to a few fetches per second", "Redis will evict the key because it is accessed too often", "The link store will be overloaded, so add read replicas"]
-  answer: 1
+  options: ["The key lives on one primary, which takes all 30,000 ops/s and slows every other key on it; an in-process cache with request coalescing cuts it to a few fetches per second", "None; the cluster has 800,000 ops/s of capacity", "Redis will evict the key because it is accessed too often", "The link store will be overloaded, so add read replicas"]
+  answer: 0
   explanation: >-
     Cluster capacity is irrelevant for a single key, because one key maps to one slot on one node. Caching the key in each redirect instance for 10 seconds turns 30,000 Redis reads per second into roughly one per instance per TTL, and coalescing stops the expiry moment from turning into a stampede.
 - q: >-
     Requirements say a disabled link must stop redirecting everywhere within one minute, and every click must be counted. Which redirect design fits?
-  options: ["301 with Cache-Control max-age of one year", "302 without freshness headers, in-process cache TTL of at most 30 s, and an invalidation broadcast on disable", "301 without any cache headers", "302 with Cache-Control public, max-age of one day"]
-  answer: 1
+  options: ["301 with Cache-Control max-age of one year", "301 without any cache headers", "302 with Cache-Control public, max-age of one day", "302 without freshness headers, in-process cache TTL of at most 30 s, and an invalidation broadcast on disable"]
+  answer: 3
   explanation: >-
     A 301 is heuristically cacheable by browsers, so repeat clicks are invisible and a disable cannot reach clients that cached it. A 302 without freshness information is not cached by browsers. The short in-process TTL is the backstop if an invalidation message is lost. A day-long public max-age breaks the one-minute requirement.
 - q: >-
@@ -364,8 +364,8 @@ hints:
     Conditional puts are only linearizable within a region. LWW replication then resolves the conflict by discarding one write, which re-points a link that a user has already shared. Partitioning the key space by region makes the collision impossible instead of merely unlikely.
 - q: >-
     Why does the design partition the clicks topic by producer instance and pre-aggregate, instead of keying events by short link?
-  options: ["Kafka cannot key messages by string", "Counting is commutative, so per-key ordering is unnecessary, while keying by link sends a viral link's entire load to one partition and one consumer", "Keying by link loses events", "Pre-aggregation makes the counts exact"]
-  answer: 1
+  options: ["Kafka cannot key messages by string", "Keying by link loses events", "Counting is commutative, so per-key ordering is unnecessary, while keying by link sends a viral link's entire load to one partition and one consumer", "Pre-aggregation makes the counts exact"]
+  answer: 2
   explanation: >-
     Keyed partitioning buys ordering you do not need and concentrates hot keys. Pre-aggregation turns 30,000 events per second into one message per instance per second. It does not make counts more exact; the design accepts losing up to 100 ms of buffered clicks per crash.
 ```

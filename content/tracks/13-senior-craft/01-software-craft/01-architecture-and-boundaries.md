@@ -2,7 +2,7 @@
 slug: architecture-and-boundaries
 title: "Architecture and boundaries: layers, dependency direction and hexagonal design"
 description: Where to draw boundaries so the domain stays testable and the framework replaceable, why dependencies must point inward, and how this app's core/api split and middleware stack put that into practice.
-minutes: 32
+minutes: 30
 difficulty: medium
 tags: [architecture, boundaries, hexagonal-architecture, dependency-inversion, modular-monolith, middleware, senior-craft]
 ---
@@ -91,7 +91,7 @@ What it buys: fast tests with fakes, several entry points sharing one set of rul
 
 Ascend's backend is two Rust crates with one hard boundary between them. The module doc in `crates/core/src/lib.rs` states the contract: the domain layer is "transport-agnostic: no Axum, no HTTP types. The API crate is a thin adapter that maps HTTP to these services and back."
 
-The boundary is not enforced by a wiki page. It is enforced by the build graph: `crates/core/Cargo.toml` does not list `axum`, `tower` or `http` as dependencies, so a `use axum::...` in core fails to compile. `crates/api/Cargo.toml` depends on `ascend-core`, never the reverse. That is the cheapest possible fitness function: the compiler runs it on every build.
+The rule is written down (the repository's `CLAUDE.md` says "`crates/core` must not depend on HTTP types. Routes stay thin; logic lives in services."), but it is not *enforced* by a document. It is enforced by the build graph: `crates/core/Cargo.toml` does not list `axum`, `tower` or `http` as dependencies, so a `use axum::...` in core fails to compile. `crates/api/Cargo.toml` depends on `ascend-core`, never the reverse. That is the cheapest possible fitness function: the compiler runs it on every build.
 
 ```mermaid
 flowchart LR
@@ -134,7 +134,7 @@ The last row is a boundary decision too. Lessons are not database rows; they are
 
 Read the code honestly and you will see that the core is not a pure hexagon. `AuthService` holds a concrete `sea_orm::DatabaseConnection`; the entities in `crates/core/src/entities` are SeaORM models; `AppError` has a `Database(#[from] sea_orm::DbErr)` variant; and the AI client in `crates/core/src/ai` uses `reqwest` directly. There are no repository traits.
 
-That is a defensible trade-off, not an accident. The one boundary that changes often (transport) is hard; the one that almost never changes (Postgres) is soft. The price is that service-level tests need a real database, and the coach cannot be tested deterministically without either the network or a fake HTTP server. If you were reviewing this, the proportionate ask is not "abstract everything"; it is "put a port in front of the LLM client", because that is the dependency that is slow, costly, non-deterministic and most likely to be swapped.
+That is a defensible trade-off, not an accident. The one boundary that changes often (transport) is hard; the one that almost never changes (Postgres) is soft. The price is that service-level tests need a real database, which is exactly how the repository tests them: `crates/api/src/lib.rs` exposes the api crate as a library precisely so that integration tests can build the exact production router against a real Postgres, and `crates/api/tests/api.rs` does so. The coach, however, cannot be tested deterministically without either the network or a fake HTTP server. If you were reviewing this, the proportionate ask is not "abstract everything"; it is "put a port in front of the LLM client", because that is the dependency that is slow, costly, non-deterministic and most likely to be swapped.
 
 ## The middleware stack is architecture too
 
@@ -187,7 +187,7 @@ The outbox moves the boundary instead of pretending it is not there: the guarant
 
 ## Modules before services
 
-Ascend is a single binary. Its boundaries are crates and modules, checked by the compiler, not network hops. That is a **modular monolith**, and for a small team it is usually the right default: a function call cannot time out, a refactor across a boundary is one commit, and there is one thing to deploy and observe.
+Ascend is a single binary. Its boundaries are crates and modules, checked by the compiler, not network hops. That is a **modular monolith**, and for a small team it is usually the right default: a function call cannot time out, a refactor across a boundary is one commit, and there is one thing to deploy and observe. The repository's first decision record, `docs/adr/0001-rust-monolith-with-embedded-content.md`, considered splitting auth, content and AI into services and rejected it in one line: "No team or scale reason to pay the operational cost."
 
 Network boundaries buy independent deployment and independent scaling, and cost you partial failure, serialisation, versioned contracts and distributed tracing. Extract a service when a team or a scaling profile genuinely needs to move independently, and extract it along a module boundary that has already proven stable inside the monolith. [Microservices vs monolith](/learn/system-design/building-blocks/microservices-vs-monolith) works through the arithmetic.
 
@@ -202,7 +202,7 @@ prompt: |
   Write the check that fails the build when a module reaches across a
   boundary it should not.
 
-  `allowed` maps each layer to the list of *other* top-level names it may
+  `allowed` maps each layer to the list of other top-level names it may
   import. A module's layer (or a package's name) is the part of its path
   before the first `/`: `core/auth/service` is in layer `core`, and
   `axum/extract` belongs to the package `axum`.

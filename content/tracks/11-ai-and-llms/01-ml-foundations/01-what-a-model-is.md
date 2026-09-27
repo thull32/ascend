@@ -2,7 +2,7 @@
 slug: what-a-model-is
 title: "What a model is: parameters, loss and gradient descent"
 description: A model is a function with adjustable numbers, a loss that scores it and an optimiser that tunes it. Worked by hand on a four-point linear regression, including why the learning rate makes or breaks training.
-minutes: 35
+minutes: 31
 difficulty: easy
 tags: [machine-learning, linear-regression, gradient-descent, loss-functions, optimisation]
 problems: []
@@ -145,7 +145,7 @@ for step in range(1, 501):
 
 ### Why the last 0.01 of loss took 490 steps
 
-Look at the table again. The loss is within 5% of optimal after three steps, but $b$ crawls from 0.75 to 1.00 over hundreds of steps. That is not bad luck; it is the shape of the bowl.
+Look at the table again. The loss is within about 6% of optimal after three steps, but $b$ crawls from 0.75 to 1.00 over hundreds of steps. That is not bad luck; it is the shape of the bowl.
 
 The curvature of the MSE surface is described by its matrix of second derivatives, which here is $\begin{pmatrix} 2\overline{x^2} & 2\bar{x} \\ 2\bar{x} & 2 \end{pmatrix} = \begin{pmatrix} 15 & 5 \\ 5 & 2 \end{pmatrix}$. Its eigenvalues are about **16.7** and **0.30**. The bowl is a long, narrow valley: steep across, almost flat along. In the steep direction, each step with $\eta = 0.05$ shrinks the error by a factor $|1 - 0.05 \times 16.7| = 0.17$, which is why the first steps are dramatic. In the flat direction the factor is $1 - 0.05 \times 0.30 = 0.985$, so the remaining error halves only every 46 steps.
 
@@ -233,9 +233,9 @@ tests:
   - args: [[1, 2], [5, 5], 3, 3, 0]
     expected: [3, 3]
     label: zero learning rate changes nothing
-  - args: [[1, 2, 3, 4], [3, 5, 8, 9], 2.1, 1.0, 0.05]
-    expected: [2.1, 1.0]
-    label: at the least-squares optimum the gradient is zero
+  - args: [[0, 2], [0.25, 1.25], 0.5, 0.25, 0.1]
+    expected: [0.5, 0.25]
+    label: a perfect fit has zero gradient
   - args: [[-1, 0, 1], [1, 0, -1], 0.5, 0.5, 0.1]
     expected: [0.3, 0.4]
     hidden: true
@@ -263,26 +263,26 @@ hints:
 ```quiz
 - q: >-
     Gradient descent on a line fit uses learning rate 0.2 and the loss goes 44.75, 244, 1337, 7319. What is happening and what do you change?
-  options: ["The model is underfitting; add more parameters", "Each step overshoots the minimum and lands further away; lower the learning rate", "The data has outliers; switch from MSE to MAE", "The gradient is being computed on too few examples; increase the batch size"]
-  answer: 1
+  options: ["The model is underfitting; add more parameters", "The data has outliers; switch from MSE to MAE", "Each step overshoots the minimum and lands further away; lower the learning rate", "The gradient is being computed on too few examples; increase the batch size"]
+  answer: 2
   explanation: >-
     A loss that grows by a constant factor per step is the signature of a learning rate above 2 divided by the largest curvature: every update jumps past the minimum and lands further up the other side. Lowering the learning rate (here below about 0.12) fixes it. More parameters, a different loss or a bigger batch do not change the overshoot.
 - q: >-
-    After three steps the loss is within 5% of optimal, but the intercept b takes hundreds more steps to settle. What is the most effective fix?
+    After three steps the loss is within about 6% of optimal, but the intercept b takes hundreds more steps to settle. What is the most effective fix?
   options: ["Raise the learning rate until b moves faster", "Standardise the input feature (subtract its mean, divide by its standard deviation)", "Train for more epochs", "Switch to the MAE loss"]
   answer: 1
   explanation: >-
     The slow crawl comes from a badly conditioned, elongated valley: uncentred x tangles slope and intercept. Standardising the feature rounds the bowl so every direction converges at a similar rate. Raising the learning rate would make the steep direction diverge long before it speeds up the flat one; more epochs only waits it out.
 - q: >-
     Your runtime history contains one 90-minute job caused by a node failure among hundreds of 3 to 10 minute jobs. With MSE loss, what happens to the fitted line?
-  options: ["Nothing; one point out of hundreds is negligible", "It is pulled noticeably toward the outlier, because squared error weights a large error far more than many small ones", "Training fails to converge", "The model automatically ignores points it cannot fit"]
-  answer: 1
+  options: ["It is pulled noticeably toward the outlier, because squared error weights a large error far more than many small ones", "Nothing; one point out of hundreds is negligible", "Training fails to converge", "The model automatically ignores points it cannot fit"]
+  answer: 0
   explanation: >-
     Squaring makes an error of 80 minutes cost as much as 6,400 errors of 1 minute, so the optimum shifts toward the outlier. MAE, a robust loss such as Huber, or cleaning the data are the usual remedies. The optimisation still converges fine; it converges to a worse line.
 - q: >-
     Why do large-scale training runs use mini-batch gradients rather than the exact gradient over the full dataset?
-  options: ["Mini-batch gradients are more accurate", "The exact gradient needs a pass over all the data for every single update, which is infeasible at trillions of examples; a mini-batch gives an unbiased estimate at fixed cost", "Full-batch gradients cannot be computed for neural networks", "Mini-batches remove the need for a learning rate"]
-  answer: 1
+  options: ["Mini-batch gradients are more accurate", "Full-batch gradients cannot be computed for neural networks", "Mini-batches remove the need for a learning rate", "The exact gradient needs a pass over all the data for every single update, which is infeasible at trillions of examples; a mini-batch gives an unbiased estimate at fixed cost"]
+  answer: 3
   explanation: >-
     The mini-batch gradient is noisier, not more accurate, but it is an unbiased estimate whose cost does not grow with the dataset, so you get millions of cheap updates instead of a handful of exact ones. Full-batch gradients are computable for any differentiable model; they are just too expensive per step.
 - q: >-

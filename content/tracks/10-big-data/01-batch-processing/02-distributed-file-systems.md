@@ -2,7 +2,7 @@
 slug: distributed-file-systems
 title: "Distributed file systems and object stores: what HDFS and S3 actually promise"
 description: How HDFS splits files into replicated blocks, why its NameNode is both its strength and its limit, how object stores like S3 differ, and why rename, listing and small files shape every data platform built on them.
-minutes: 27
+minutes: 20
 difficulty: medium
 tags: [big-data, hdfs, s3, object-storage, replication, erasure-coding, consistency, small-files]
 ---
