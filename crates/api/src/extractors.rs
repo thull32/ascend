@@ -49,3 +49,16 @@ impl FromRequestParts<AppState> for MaybeUser {
         Ok(MaybeUser(resolve(parts, state).await?))
     }
 }
+
+/// JSON body extractor whose failures use the API's error shape
+/// (`{"code": "validation_error", "message": ...}`) instead of Axum's
+/// plain-text rejection, so clients handle every error the same way.
+#[derive(Debug, Clone, Copy, Default, axum::extract::FromRequest)]
+#[from_request(via(axum::Json), rejection(ApiError))]
+pub struct AppJson<T>(pub T);
+
+impl From<axum::extract::rejection::JsonRejection> for ApiError {
+    fn from(rejection: axum::extract::rejection::JsonRejection) -> Self {
+        ApiError(ascend_core::AppError::Validation(format!("invalid request body: {}", rejection.body_text())))
+    }
+}

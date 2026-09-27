@@ -16,7 +16,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult, bad_request};
-use crate::extractors::CurrentUser;
+use crate::extractors::{AppJson, CurrentUser};
 use crate::middleware::rate_limit::{Bucket, limit};
 use crate::routes::sse;
 use crate::state::AppState;
@@ -55,7 +55,7 @@ async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> 
 async fn start(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(input): Json<StartInterview>,
+    AppJson(input): AppJson<StartInterview>,
 ) -> ApiResult<Json<Model>> {
     state.coach.client()?;
     Ok(Json(state.interviews.start(user.id, input).await?))
@@ -83,7 +83,7 @@ async fn turn(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<TurnBody>,
+    AppJson(body): AppJson<TurnBody>,
 ) -> ApiResult<impl axum::response::IntoResponse> {
     let client = state.coach.client()?.clone();
     let model = state.interviews.get(user.id, id).await?;
@@ -141,7 +141,7 @@ async fn assistant(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<AssistantBody>,
+    AppJson(body): AppJson<AssistantBody>,
 ) -> ApiResult<impl axum::response::IntoResponse> {
     let client = state.coach.client()?.clone();
     let model = state.interviews.get(user.id, id).await?;
@@ -202,7 +202,7 @@ async fn finish(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<FinishBody>,
+    AppJson(body): AppJson<FinishBody>,
 ) -> ApiResult<Json<Model>> {
     let model = state.interviews.get(user.id, id).await?;
     if model.status != "active" {

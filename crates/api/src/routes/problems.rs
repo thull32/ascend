@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ApiError, ApiResult};
-use crate::extractors::CurrentUser;
+use crate::extractors::{AppJson, CurrentUser};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -74,7 +74,7 @@ async fn solution(
 async fn submit(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(input): Json<SubmissionInput>,
+    AppJson(input): AppJson<SubmissionInput>,
 ) -> ApiResult<Json<ascend_core::entities::submissions::Model>> {
     Ok(Json(state.submissions.record(user.id, input).await?))
 }

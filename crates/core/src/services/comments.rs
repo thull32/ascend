@@ -32,6 +32,37 @@ pub struct CommentView {
     pub replies: Vec<CommentView>,
 }
 
+/// Flat projection of a comment plus its author's display name.
+#[derive(Debug, FromQueryResult)]
+struct CommentRow {
+    id: Uuid,
+    user_id: Uuid,
+    target_kind: String,
+    target_slug: String,
+    parent_id: Option<Uuid>,
+    body: String,
+    deleted_at: Option<chrono::DateTime<Utc>>,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+    author_name: Option<String>,
+}
+
+impl CommentRow {
+    fn comment(&self) -> comments::Model {
+        comments::Model {
+            id: self.id,
+            user_id: self.user_id,
+            target_kind: self.target_kind.clone(),
+            target_slug: self.target_slug.clone(),
+            parent_id: self.parent_id,
+            body: self.body.clone(),
+            deleted_at: self.deleted_at,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CommentService {
     db: DatabaseConnection,
@@ -84,24 +115,34 @@ impl CommentService {
 
     pub async fn list(&self, kind: &str, slug: &str) -> AppResult<Vec<CommentView>> {
         self.validate_target(kind, slug)?;
-        // Single query with the author joined; threading is done in memory.
-        let rows: Vec<(comments::Model, Option<users::Model>)> = Comments::find()
-            .find_also_related(Users)
+        // One query with the author's display name joined (not the whole user
+        // row: never select password hashes you don't need). Newest 500 first,
+        // then reversed so threads read oldest to newest.
+        let mut rows: Vec<(comments::Model, Option<String>)> = Comments::find()
+            .select_only()
+            .columns(comments::Column::iter())
+            .column_as(users::Column::DisplayName, "author_name")
+            .left_join(Users)
             .filter(comments::Column::TargetKind.eq(kind))
             .filter(comments::Column::TargetSlug.eq(slug))
-            .order_by_asc(comments::Column::CreatedAt)
+            .order_by_desc(comments::Column::CreatedAt)
             .limit(500)
+            .into_model::<CommentRow>()
             .all(&self.db)
-            .await?;
+            .await?
+            .into_iter()
+            .map(|r| (r.comment(), r.author_name))
+            .collect();
+        rows.reverse();
         let mut roots: Vec<CommentView> = Vec::new();
         let mut replies: Vec<CommentView> = Vec::new();
-        for (c, u) in rows {
+        for (c, author) in rows {
             let deleted = c.deleted_at.is_some();
             let view = CommentView {
                 id: c.id,
                 parent_id: c.parent_id,
                 body: if deleted { String::new() } else { c.body },
-                author_name: u.map(|u| u.display_name).unwrap_or_else(|| "deleted user".into()),
+                author_name: author.unwrap_or_else(|| "deleted user".into()),
                 author_id: c.user_id,
                 deleted,
                 created_at: c.created_at,

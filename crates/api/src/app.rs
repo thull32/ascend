@@ -50,7 +50,7 @@ pub fn build(state: AppState) -> Router {
         .fallback(get(static_handler))
         .layer(middleware::from_fn(security_headers::apply))
         .layer(CompressionLayer::new().br(true).gzip(true))
-        .layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(240)))
+        .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|req: &Request<Body>| {
@@ -61,6 +61,9 @@ pub fn build(state: AppState) -> Router {
         )
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+        // Outermost: a client-supplied id is kept only if it is a UUID, so
+        // logs cannot be polluted or correlated with attacker-chosen values.
+        .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
         .with_state(state)
 }
 

@@ -27,3 +27,9 @@ worker, and results are posted to the API, which validates test counts against t
 - Zero marginal cost per run; works offline after first load; instant feedback.
 - Python's first run downloads the runtime (~10 MB, then cached).
 - Submissions are self-reported. Leaderboards or competitive features would need server-side verification.
+
+## Revisit when
+
+- Competitive or credentialing features appear (leaderboards, certificates):
+  results must then be verified server-side in a sandbox.
+- Learners need languages without a mature WebAssembly runtime.

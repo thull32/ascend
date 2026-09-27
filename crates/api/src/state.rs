@@ -31,11 +31,22 @@ pub struct AppState {
 
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
     let mut opts = ConnectOptions::new(config.database_url.expose_secret().to_string());
-    opts.max_connections(20)
+    opts
+        // Sized for one replica on a small Postgres (max_connections ~100):
+        // leaves headroom for migrations, psql, and a second replica during
+        // a rolling deploy.
+        .max_connections(20)
         .min_connections(2)
-        .connect_timeout(Duration::from_secs(10))
-        .acquire_timeout(Duration::from_secs(10))
+        // SeaORM passes this to sqlx as the acquire timeout: how long a
+        // request waits for a free connection before failing fast.
+        .acquire_timeout(Duration::from_secs(5))
         .idle_timeout(Duration::from_secs(300))
+        // Recycle connections so server-side memory and plan caches reset
+        // and failovers are picked up.
+        .max_lifetime(Duration::from_secs(30 * 60))
+        // Ping only connections idle for a while, not every checkout: saves
+        // a round trip per request while still catching dead sockets.
+        .test_before_acquire_if_idle_for(Duration::from_secs(60))
         .sqlx_logging(false);
     let db = Database::connect(opts).await?;
     Ok(db)

@@ -52,8 +52,10 @@ def normalise(v):
         return [normalise(x) for x in v]
     if isinstance(v, dict):
         return {str(k): normalise(x) for k, x in v.items()}
-    if isinstance(v, float) and v.is_integer():
-        return int(v)
+    if isinstance(v, float):
+        # Same rule as the browser runners: round to 6 dp, collapse integers.
+        r = round(v, 6)
+        return int(r) if r.is_integer() else r
     return v
 
 

@@ -10,7 +10,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::error::ApiResult;
-use crate::extractors::CurrentUser;
+use crate::extractors::{AppJson, CurrentUser};
 use crate::middleware::rate_limit::{Bucket, limit};
 use crate::routes::sse;
 use crate::state::AppState;
@@ -88,7 +88,7 @@ async fn send(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
-    Json(input): Json<SendMessageInput>,
+    AppJson(input): AppJson<SendMessageInput>,
 ) -> ApiResult<impl axum::response::IntoResponse> {
     let client = state.coach.client()?.clone();
     let (conv, _) = state.coach.get_conversation(user.id, id).await?;
@@ -153,7 +153,7 @@ struct RoadmapBody {
 async fn roadmap_suggestions(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(body): Json<RoadmapBody>,
+    AppJson(body): AppJson<RoadmapBody>,
 ) -> ApiResult<Json<ascend_core::ai::roadmap::RoadmapSuggestions>> {
     let goal = match (&user.target_level, &user.target_company) {
         (Some(l), Some(c)) => Some(format!("{l} at {c}")),

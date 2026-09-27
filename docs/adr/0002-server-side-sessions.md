@@ -26,3 +26,11 @@ in `sessions`, with an expiry and a `last_seen_at` that is refreshed at most hou
 - One indexed primary-key lookup per authenticated request (cached per request in extensions).
 - Revocation is a `DELETE`. Expired rows are swept hourly.
 - CSRF defence is layered, so one misconfiguration does not open the door.
+
+## Revisit when
+
+- A second service must authenticate users without calling this one (issue
+  short-lived signed tokens from the session, keep the session as the source
+  of truth).
+- Session lookups show up in latency profiles (cache sessions in-process for
+  seconds, or in Redis).

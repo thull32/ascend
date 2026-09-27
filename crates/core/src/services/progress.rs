@@ -112,8 +112,9 @@ impl ProgressService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        // Upsert: one statement, no read-modify-write race.
-        LessonProgress::insert(model)
+        // Upsert returning the row: one statement, one round trip, no
+        // read-modify-write race.
+        let row = LessonProgress::insert(model)
             .on_conflict(
                 sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
                     .update_columns([
@@ -123,12 +124,9 @@ impl ProgressService {
                     ])
                     .to_owned(),
             )
-            .exec(&self.db)
+            .exec_with_returning(&self.db)
             .await?;
-        LessonProgress::find_by_id((user_id, lesson_slug.to_string()))
-            .one(&self.db)
-            .await?
-            .ok_or(AppError::NotFound("progress"))
+        Ok(row)
     }
 
     pub async fn set_module_preference(

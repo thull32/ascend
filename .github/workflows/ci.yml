@@ -88,3 +88,53 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  e2e:
+    name: End-to-end (Playwright, desktop + mobile)
+    runs-on: ubuntu-latest
+    needs: [rust, web]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ascend
+          POSTGRES_PASSWORD: ascend
+          POSTGRES_DB: ascend_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ascend" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: web
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p ascend-api
+      - name: Start the server
+        env:
+          DATABASE_URL: postgres://ascend:ascend@localhost:5432/ascend_e2e
+          PUBLIC_ORIGIN: http://localhost:8080
+        run: |
+          ./target/debug/ascend-api > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8080/api/readyz && exit 0; sleep 1; done
+          cat server.log; exit 1
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npx playwright test e2e/smoke.spec.ts
+        working-directory: web
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+            server.log

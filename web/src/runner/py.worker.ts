@@ -113,8 +113,9 @@ def _encode(v, depth=0):
     if isinstance(v, (set, frozenset)): return [_encode(x, depth + 1) for x in v]
     if isinstance(v, dict): return {str(k): _encode(x, depth + 1) for k, x in v.items()}
     if isinstance(v, float):
-        if v.is_integer(): return int(v)
-        return round(v, 6)
+        # Round first, then collapse integral values: 0.9999999999999998 -> 1.
+        r = round(v, 6)
+        return int(r) if r.is_integer() else r
     if isinstance(v, (int, str, bool)) or v is None: return v
     return str(v)
 

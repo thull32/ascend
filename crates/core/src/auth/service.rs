@@ -43,6 +43,12 @@ pub struct CurrentUser {
     pub created_at: chrono::DateTime<Utc>,
 }
 
+impl CurrentUser {
+    pub fn is_admin(&self) -> bool {
+        self.role == "admin"
+    }
+}
+
 impl From<users::Model> for CurrentUser {
     fn from(u: users::Model) -> Self {
         Self {

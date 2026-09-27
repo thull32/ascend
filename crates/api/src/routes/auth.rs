@@ -8,7 +8,7 @@ use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 
 use crate::error::ApiResult;
-use crate::extractors::{CurrentUser, SESSION_COOKIE};
+use crate::extractors::{AppJson, CurrentUser, SESSION_COOKIE};
 use crate::middleware::rate_limit::{Bucket, limit};
 use crate::state::AppState;
 
@@ -47,7 +47,7 @@ async fn register(
     State(state): State<AppState>,
     jar: CookieJar,
     headers: HeaderMap,
-    Json(input): Json<RegisterInput>,
+    AppJson(input): AppJson<RegisterInput>,
 ) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
     let (user, session) = state.auth.register(input, user_agent(&headers)).await?;
     let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
@@ -58,7 +58,7 @@ async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
     headers: HeaderMap,
-    Json(input): Json<LoginInput>,
+    AppJson(input): AppJson<LoginInput>,
 ) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
     let (user, session) = state.auth.login(input, user_agent(&headers)).await?;
     let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
@@ -90,7 +90,7 @@ async fn me(CurrentUser(user): CurrentUser) -> Json<ascend_core::auth::CurrentUs
 async fn update_profile(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(update): Json<ProfileUpdate>,
+    AppJson(update): AppJson<ProfileUpdate>,
 ) -> ApiResult<Json<ascend_core::auth::CurrentUser>> {
     Ok(Json(state.auth.update_profile(user.id, update).await?))
 }

@@ -6,7 +6,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::error::ApiResult;
-use crate::extractors::CurrentUser;
+use crate::extractors::{AppJson, CurrentUser};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -26,7 +26,7 @@ async fn list(State(state): State<AppState>, Query(q): Query<ListQuery>) -> ApiR
 async fn create(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
-    Json(input): Json<NewComment>,
+    AppJson(input): AppJson<NewComment>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let id = state.comments.create(user.id, input).await?;
     Ok(Json(serde_json::json!({ "id": id })))
@@ -37,6 +37,6 @@ async fn remove(
     CurrentUser(user): CurrentUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    state.comments.delete(user.id, user.role == "admin", id).await?;
+    state.comments.delete(user.id, user.is_admin(), id).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

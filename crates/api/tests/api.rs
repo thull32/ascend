@@ -54,6 +54,8 @@ fn config(url: &str) -> Config {
 
 async fn test_app() -> Option<TestApp> {
     let Ok(url) = std::env::var("TEST_DATABASE_URL") else {
+        // Offline developer runs may skip; CI must never pass by skipping.
+        assert!(std::env::var_os("CI").is_none(), "TEST_DATABASE_URL must be set in CI");
         eprintln!("TEST_DATABASE_URL not set; skipping API integration test");
         return None;
     };
@@ -469,4 +471,38 @@ async fn ai_budget_reservation_cannot_be_overshot_by_concurrency() {
     assert_eq!(status.input_tokens_used, 2400);
     assert_eq!(status.output_tokens_used, 600);
     assert_eq!(status.cache_read_tokens, 10_000);
+}
+
+#[tokio::test]
+async fn malformed_json_uses_the_api_error_shape() {
+    let Some(app) = test_app().await else { return };
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/auth/login")
+        .header("x-requested-with", "fetch")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{not json"))
+        .unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body: Value = serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(body["code"], "validation_error");
+    assert!(body["message"].as_str().unwrap().starts_with("invalid request body"));
+}
+
+#[tokio::test]
+async fn request_ids_are_server_controlled() {
+    let Some(app) = test_app().await else { return };
+    let send = |id: &'static str| {
+        let router = app.router.clone();
+        async move {
+            let req = Request::builder().uri("/api/healthz").header("x-request-id", id).body(Body::empty()).unwrap();
+            router.oneshot(req).await.unwrap().headers()["x-request-id"].to_str().unwrap().to_string()
+        }
+    };
+    let forged = send("<script>alert(1)</script>").await;
+    assert_ne!(forged, "<script>alert(1)</script>");
+    assert!(uuid::Uuid::parse_str(&forged).is_ok(), "replaced with a fresh UUID");
+    let propagated = send("0192f6a4-5b1a-7c3e-9a7b-3d2f1e0c4b5a").await;
+    assert_eq!(propagated, "0192f6a4-5b1a-7c3e-9a7b-3d2f1e0c4b5a", "valid UUIDs propagate");
 }

@@ -6,7 +6,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 
 use crate::error::ApiResult;
-use crate::extractors::CurrentUser;
+use crate::extractors::{AppJson, CurrentUser};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
@@ -31,7 +31,7 @@ async fn set_lesson(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path((t, m, l)): Path<(String, String, String)>,
-    Json(body): Json<LessonBody>,
+    AppJson(body): AppJson<LessonBody>,
 ) -> ApiResult<Json<ascend_core::entities::lesson_progress::Model>> {
     Ok(Json(state.progress.set_lesson_status(user.id, &format!("{t}/{m}/{l}"), body.status).await?))
 }
@@ -45,7 +45,7 @@ async fn set_module(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path((t, m)): Path<(String, String)>,
-    Json(body): Json<ModuleBody>,
+    AppJson(body): AppJson<ModuleBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     state.progress.set_module_preference(user.id, &format!("{t}/{m}"), body.preference).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -55,7 +55,7 @@ async fn grade(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path((t, m, l)): Path<(String, String, String)>,
-    Json(input): Json<GradeInput>,
+    AppJson(input): AppJson<GradeInput>,
 ) -> ApiResult<Json<GradeResult>> {
     Ok(Json(state.quiz.grade(user.id, &format!("{t}/{m}/{l}"), input).await?))
 }
@@ -71,7 +71,7 @@ async fn record_generated(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     Path((t, m, l)): Path<(String, String, String)>,
-    Json(body): Json<GeneratedBody>,
+    AppJson(body): AppJson<GeneratedBody>,
 ) -> ApiResult<Json<serde_json::Value>> {
     state.quiz.record_generated(user.id, &format!("{t}/{m}/{l}"), body.score, body.total, body.answers).await?;
     Ok(Json(serde_json::json!({ "ok": true })))

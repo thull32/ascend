@@ -242,7 +242,7 @@ impl AnthropicClient {
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             tracing::warn!(%status, body = %text.chars().take(500).collect::<String>(), "anthropic error");
-            return Err(map_status(status, &text));
+            return Err(map_status(status));
         }
         let parsed: MessageResponse = resp.json().await.map_err(|e| AppError::AiUpstream(e.to_string()))?;
         if parsed.stop_reason.as_deref() == Some("refusal") {
@@ -268,7 +268,7 @@ impl AnthropicClient {
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             tracing::warn!(%status, body = %text.chars().take(500).collect::<String>(), "anthropic stream error");
-            return Err(map_status(status, &text));
+            return Err(map_status(status));
         }
         let bytes = resp.bytes_stream();
         let events = eventsource_stream::EventStream::new(bytes);
@@ -313,14 +313,14 @@ impl AnthropicClient {
     }
 }
 
-fn map_status(status: reqwest::StatusCode, body: &str) -> AppError {
+fn map_status(status: reqwest::StatusCode) -> AppError {
     match status.as_u16() {
         429 => AppError::RateLimited("the AI provider is rate limiting us; try again in a moment".into()),
         529 | 503 => AppError::AiUpstream("the AI provider is overloaded; try again shortly".into()),
         401 | 403 => AppError::AiUpstream("AI provider rejected our credentials".into()),
-        400 => {
-            AppError::AiUpstream(format!("bad request to AI provider: {}", body.chars().take(200).collect::<String>()))
-        }
+        // The provider's error body is logged by the caller, never forwarded:
+        // it can echo request content and internal details.
+        400 => AppError::AiUpstream("the AI provider rejected the request".into()),
         _ => AppError::AiUpstream(format!("HTTP {status}")),
     }
 }

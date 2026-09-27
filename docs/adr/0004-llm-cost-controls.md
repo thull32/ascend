@@ -25,3 +25,12 @@ cheap as possible without degrading quality.
 
 - The worst-case daily cost is bounded by (active users) x (daily token budget).
 - Budgets are configuration (`AI_DAILY_REQUESTS`, `AI_DAILY_OUTPUT_TOKENS`), tunable without a deploy of code.
+
+## Revisit when
+
+- Daily AI spend approaches the budget ceiling multiplied by active users
+  (introduce tiers or a shared global circuit breaker).
+- Cache hit rates in the `ai_usage` cache columns fall (a prompt change broke
+  the stable prefix).
+- A second model provider is added (the budget seam stays; the client grows a
+  trait).
