@@ -13,6 +13,7 @@ import type { RunResponse, TestResult } from "../runner/protocol";
 import { CodeEditor, type Language } from "./CodeEditor";
 import { Button, ErrorBox } from "./ui";
 import { useCoachDock } from "./CoachDock";
+import { Markdown } from "./Markdown";
 
 interface Props {
   source: string;
@@ -50,19 +51,7 @@ export default function ExerciseBlock({ source, lessonSlug }: Props) {
 }
 
 function ExercisePrompt({ text }: { text: string }) {
-  // Prompts are short Markdown; a tiny inline renderer avoids a heavy import.
-  return (
-    <div>
-      {text.split(/\n{2,}/).map((p, i) => (
-        <p key={i} dangerouslySetInnerHTML={{ __html: inlineMd(p) }} />
-      ))}
-    </div>
-  );
-}
-
-function inlineMd(s: string): string {
-  const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return esc.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br/>");
+  return <Markdown source={text} />;
 }
 
 export interface CodeRunnerProps {

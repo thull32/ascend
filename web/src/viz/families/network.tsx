@@ -464,7 +464,7 @@ function Renderer({ frame }: RendererProps<NetworkInput, NetworkState>) {
   const cx = (i: number) => gap * i + gap / 2;
   return (
     <div className="flex flex-col gap-3">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W * 1.3 }} role="img" aria-label="Network hosts and packets">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W * 1.3, minWidth: Math.min(W, 640) }} role="img" aria-label="Network hosts and packets">
         {state.hosts.map((h, i) => (
           <Box key={h.name} x={cx(i) - 52} y={12} w={104} h={40} label={h.name.length > 16 ? h.name.slice(0, 15) + "…" : h.name} sub={h.sub} tone={h.tone ?? "default"} />
         ))}

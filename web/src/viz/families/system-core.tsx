@@ -242,7 +242,7 @@ export function SystemRenderer({ frame }: RendererProps<SystemInput, SystemState
   return (
     <div className="flex flex-col gap-3">
       {state.nodes.length > 0 && (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[720px]" role="img" aria-label="System diagram">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-[720px]" style={{ minWidth: 500 }} role="img" aria-label="System diagram">
           {state.messages.map((m, i) => {
             const a = pos[m.from];
             const b = pos[m.to];

@@ -817,7 +817,7 @@ function Renderer({ frame, input }: RendererProps<GraphInput, GraphState>) {
   const py = (v: number) => 30 + (v / 100) * (H - 60);
   return (
     <div className="flex flex-col gap-2">
-      <svg viewBox={`0 0 ${W} ${H}`} className="max-h-[320px] w-full max-w-[520px]" role="img" aria-label="Graph">
+      <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto max-h-[320px] w-full max-w-[520px]" style={{ minWidth: 300 }} role="img" aria-label="Graph">
         {input.edges.map((e) => {
           const a = pos[e.from];
           const b = pos[e.to];

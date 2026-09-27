@@ -94,8 +94,8 @@ export default function Interviews() {
 
       <h2 className="mb-3 mt-10 text-lg font-semibold">History</h2>
       {list.data && list.data.length === 0 && <p className="text-sm text-muted">No interviews yet.</p>}
-      <ul className="divide-y divide-line rounded-xl border border-line bg-elev">
-        {list.data?.map((i) => (
+      {list.data && list.data.length > 0 && <ul className="divide-y divide-line rounded-xl border border-line bg-elev">
+        {list.data.map((i) => (
           <li key={i.id}>
             <Link to={`/interviews/${i.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-elev-2">
               <span className="w-28 text-sm capitalize">{i.kind.replace("_", " ")}</span>
@@ -106,7 +106,7 @@ export default function Interviews() {
             </Link>
           </li>
         ))}
-      </ul>
+      </ul>}
     </div>
   );
 }
