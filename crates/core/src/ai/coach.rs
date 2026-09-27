@@ -92,6 +92,10 @@ impl CoachService {
         &self.fast_model
     }
 
+    pub fn curriculum(&self) -> &Curriculum {
+        &self.curriculum
+    }
+
     pub fn curriculum_lesson(&self, slug: &str) -> Option<Arc<crate::content::Lesson>> {
         self.curriculum.lesson(slug)
     }

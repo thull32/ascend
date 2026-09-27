@@ -79,3 +79,21 @@ test("assisted system design interview: assistant panel works and is graded", as
   await expect(page.getByTestId("evaluation")).toBeVisible({ timeout: 180_000 });
   await expect(page.getByTestId("evaluation")).toContainText(/AI direction|verification/i);
 });
+
+test("roadmap personaliser suggests changes that apply only after review", async ({ page }) => {
+  await register(page);
+  await page.goto("/roadmap");
+  const panel = page.getByTestId("roadmap-personaliser");
+  await panel.getByRole("button", { name: /Tell the coach/ }).click();
+  await panel.getByTestId("background-input").fill(
+    "Six years of backend engineering in Java and Go. I design and run Postgres schemas, tune indexes and handle replication daily. I have never studied dynamic programming and I struggle with system design interviews.",
+  );
+  await panel.getByRole("button", { name: "Suggest changes" }).click();
+  const list = panel.getByTestId("roadmap-suggestions");
+  await expect(list).toBeVisible({ timeout: 120_000 });
+  await expect(list.locator("li").first()).toBeVisible();
+  await panel.getByRole("button", { name: /^Apply/ }).click();
+  await expect(panel).toContainText("Applied");
+  // At least one module on the roadmap now reflects a preference.
+  await expect(page.getByTestId("roadmap-module").filter({ has: page.locator("button", { hasText: "Confident" }) }).or(page.locator("[aria-label='Toggle priority'] .fill-current")).first()).toBeVisible();
+});

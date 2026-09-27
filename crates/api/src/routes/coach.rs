@@ -21,6 +21,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/coach/conversations/{id}", get(detail).delete(remove))
         .route("/coach/conversations/{id}/messages", post(send))
         .route("/coach/quiz/{track}/{module}/{lesson}", post(generate_quiz))
+        .route("/coach/roadmap-suggestions", post(roadmap_suggestions))
         .layer(middleware::from_fn_with_state(state, |s, r, n| limit(Bucket::Ai, s, r, n)))
 }
 
@@ -126,4 +127,24 @@ async fn generate_quiz(
 ) -> ApiResult<Json<GeneratedQuiz>> {
     let count = body.map(|b| b.0.count).unwrap_or(5);
     Ok(Json(ascend_core::ai::quiz::generate(&state.coach, user.id, &format!("{t}/{m}/{l}"), count).await?))
+}
+
+#[derive(Deserialize)]
+struct RoadmapBody {
+    background: String,
+}
+
+/// Proposes roadmap preferences from a free-text background. Suggestions are
+/// returned for the learner to review; nothing is applied here.
+async fn roadmap_suggestions(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(body): Json<RoadmapBody>,
+) -> ApiResult<Json<ascend_core::ai::roadmap::RoadmapSuggestions>> {
+    let goal = match (&user.target_level, &user.target_company) {
+        (Some(l), Some(c)) => Some(format!("{l} at {c}")),
+        (None, Some(c)) => Some(format!("senior engineer at {c}")),
+        _ => None,
+    };
+    Ok(Json(ascend_core::ai::roadmap::suggest(&state.coach, user.id, &body.background, goal.as_deref()).await?))
 }

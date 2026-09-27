@@ -76,7 +76,7 @@ export default function Onboarding() {
       {step === 2 && (
         <section>
           <h1 className="mt-1 text-2xl font-semibold">What do you already know well?</h1>
-          <p className="mt-1 text-sm text-muted">Mark modules you are confident in. They stay available but drop out of your roadmap. You can change this any time.</p>
+          <p className="mt-1 text-sm text-muted">Mark modules you are confident in. They stay available but drop out of your roadmap. You can change this any time, or describe your background to the coach on the roadmap page and let it suggest changes.</p>
           <ul className="mt-5 grid gap-2 sm:grid-cols-2">
             {modules.map((m) => {
               const on = confident.has(m.slug);

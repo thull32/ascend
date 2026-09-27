@@ -407,6 +407,20 @@ async fn ai_features_degrade_gracefully_without_a_key() {
         .await;
     assert_eq!(start.status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(start.body["code"], "ai_disabled");
+    let short = app
+        .call("POST", "/api/coach/roadmap-suggestions", Some(json!({"background": "too short"})), Some(&cookie), true)
+        .await;
+    assert_eq!(short.status, StatusCode::UNPROCESSABLE_ENTITY, "input validated before the model is needed");
+    let suggest = app
+        .call(
+            "POST",
+            "/api/coach/roadmap-suggestions",
+            Some(json!({"background": "Five years of backend work in Go and Postgres."})),
+            Some(&cookie),
+            true,
+        )
+        .await;
+    assert_eq!(suggest.status, StatusCode::SERVICE_UNAVAILABLE);
 }
 
 #[tokio::test]

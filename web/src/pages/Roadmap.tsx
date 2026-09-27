@@ -5,6 +5,7 @@ import { useRoadmap, useSetModulePreference } from "../lib/queries";
 import { PageTitle, Progress, Spinner } from "../components/ui";
 import { cn, formatHours } from "../lib/utils";
 import type { RoadmapModule } from "../lib/types";
+import { RoadmapPersonaliser } from "../components/RoadmapPersonaliser";
 
 export default function RoadmapPage() {
   const { user } = useAuth();
@@ -22,6 +23,7 @@ export default function RoadmapPage() {
             : "The full path, foundations to senior craft. Sign in to personalise it and track progress."
         }
       />
+      {user && <RoadmapPersonaliser moduleTitles={Object.fromEntries(r.phases.flatMap((p) => p.modules.map((m) => [m.slug, `${m.track_title} / ${m.title}`])))} />}
       <ol className="space-y-8">
         {r.phases.map((phase) => (
           <li key={phase.phase}>

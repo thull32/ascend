@@ -9,11 +9,13 @@
 //! * [`coach`]     – the always-available tutor with lesson/problem context.
 //! * [`quiz`]      – generates fresh quizzes for a lesson as strict JSON.
 //! * [`interview`] – runs and grades mock interviews.
+//! * [`roadmap`]   – proposes roadmap personalisation from a self-description.
 pub mod anthropic;
 pub mod budget;
 pub mod coach;
 pub mod interview;
 pub mod quiz;
+pub mod roadmap;
 
 pub use anthropic::{AnthropicClient, ChatMessage, Role, StreamEvent};
 pub use budget::BudgetService;
