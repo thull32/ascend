@@ -2,9 +2,9 @@
 //! think about status codes. Error bodies follow RFC 9457 ("problem details")
 //! loosely: `{ "code": "...", "message": "..." }`.
 use ascend_core::AppError;
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 
 pub type ApiResult<T> = Result<T, ApiError>;

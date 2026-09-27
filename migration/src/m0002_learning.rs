@@ -69,7 +69,12 @@ impl MigrationTrait for Migration {
                 .col(ColumnDef::new(QuizAttempts::Score).small_integer().not_null())
                 .col(ColumnDef::new(QuizAttempts::Total).small_integer().not_null())
                 .col(ColumnDef::new(QuizAttempts::Answers).json_binary().not_null())
-                .col(ColumnDef::new(QuizAttempts::CreatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                .col(
+                    ColumnDef::new(QuizAttempts::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
                 .foreign_key(
                     ForeignKey::create()
                         .from(QuizAttempts::Table, QuizAttempts::UserId)
@@ -105,7 +110,12 @@ impl MigrationTrait for Migration {
                 .col(ColumnDef::new(Submissions::TotalCount).small_integer().not_null())
                 .col(ColumnDef::new(Submissions::RuntimeMs).integer().null())
                 .col(ColumnDef::new(Submissions::Results).json_binary().not_null())
-                .col(ColumnDef::new(Submissions::CreatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                .col(
+                    ColumnDef::new(Submissions::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
                 .foreign_key(
                     ForeignKey::create()
                         .from(Submissions::Table, Submissions::UserId)

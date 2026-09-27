@@ -19,7 +19,6 @@ pub enum Difficulty {
     Expert,
 }
 
-
 /// A heading extracted from a lesson body, for the table of contents.
 #[derive(Debug, Clone, Serialize)]
 pub struct Heading {

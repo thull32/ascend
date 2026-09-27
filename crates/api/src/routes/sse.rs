@@ -6,13 +6,12 @@
 use std::convert::Infallible;
 
 use ascend_core::ai::StreamEvent;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::Stream;
 use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::StreamExt;
-
+use tokio_stream::wrappers::ReceiverStream;
 
 pub fn channel() -> (mpsc::Sender<StreamEvent>, mpsc::Receiver<StreamEvent>) {
     mpsc::channel(64)
@@ -34,8 +33,7 @@ pub fn respond(rx: mpsc::Receiver<StreamEvent>) -> impl IntoResponse {
         };
         Ok::<_, Infallible>(event)
     });
-    Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("ping"))
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(std::time::Duration::from_secs(15)).text("ping"))
 }
 
 /// Drives an upstream model stream: forwards deltas to `tx`, accumulates the

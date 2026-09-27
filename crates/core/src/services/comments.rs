@@ -59,7 +59,9 @@ impl CommentService {
             let p = Comments::find_by_id(parent).one(&self.db).await?.ok_or(AppError::NotFound("parent comment"))?;
             if p.target_slug != input.target_slug || p.parent_id.is_some() {
                 // One level of nesting keeps threads readable on a phone.
-                return Err(AppError::validation("replies can only be attached to top-level comments on the same target"));
+                return Err(AppError::validation(
+                    "replies can only be attached to top-level comments on the same target",
+                ));
             }
         }
         let now = Utc::now();

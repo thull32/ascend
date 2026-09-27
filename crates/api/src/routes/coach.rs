@@ -36,7 +36,10 @@ async fn status(State(state): State<AppState>, CurrentUser(user): CurrentUser) -
     Ok(Json(Status { enabled: state.coach.enabled(), model: state.coach.model().to_string(), budget }))
 }
 
-async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> ApiResult<Json<Vec<ascend_core::entities::conversations::Model>>> {
+async fn list(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+) -> ApiResult<Json<Vec<ascend_core::entities::conversations::Model>>> {
     Ok(Json(state.coach.list_conversations(user.id).await?))
 }
 
@@ -61,12 +64,20 @@ struct Detail {
     messages: Vec<ascend_core::entities::messages::Model>,
 }
 
-async fn detail(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<Uuid>) -> ApiResult<Json<Detail>> {
+async fn detail(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Detail>> {
     let (conversation, messages) = state.coach.get_conversation(user.id, id).await?;
     Ok(Json(Detail { conversation, messages }))
 }
 
-async fn remove(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<Uuid>) -> ApiResult<Json<serde_json::Value>> {
+async fn remove(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
     state.coach.delete_conversation(user.id, id).await?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }

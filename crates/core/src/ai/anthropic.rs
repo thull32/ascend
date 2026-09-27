@@ -148,7 +148,11 @@ enum SseEvent {
     #[serde(rename = "content_block_delta")]
     ContentBlockDelta { delta: Delta },
     #[serde(rename = "message_delta")]
-    MessageDelta { delta: MessageDeltaInner, #[serde(default)] usage: Usage },
+    MessageDelta {
+        delta: MessageDeltaInner,
+        #[serde(default)]
+        usage: Usage,
+    },
     #[serde(rename = "error")]
     Error { error: ErrorInner },
     #[serde(other)]
@@ -191,7 +195,11 @@ impl AnthropicClient {
         let body = Body {
             model: &req.model,
             max_tokens: req.max_tokens,
-            system: vec![SystemBlock { kind: "text", text: &req.system, cache_control: CacheControl { kind: "ephemeral" } }],
+            system: vec![SystemBlock {
+                kind: "text",
+                text: &req.system,
+                cache_control: CacheControl { kind: "ephemeral" },
+            }],
             messages: &req.messages,
             thinking: Thinking { kind: "adaptive" },
             output_config: OutputConfig {
@@ -293,7 +301,9 @@ fn map_status(status: reqwest::StatusCode, body: &str) -> AppError {
         429 => AppError::RateLimited("the AI provider is rate limiting us; try again in a moment".into()),
         529 | 503 => AppError::AiUpstream("the AI provider is overloaded; try again shortly".into()),
         401 | 403 => AppError::AiUpstream("AI provider rejected our credentials".into()),
-        400 => AppError::AiUpstream(format!("bad request to AI provider: {}", body.chars().take(200).collect::<String>())),
+        400 => {
+            AppError::AiUpstream(format!("bad request to AI provider: {}", body.chars().take(200).collect::<String>()))
+        }
         _ => AppError::AiUpstream(format!("HTTP {status}")),
     }
 }

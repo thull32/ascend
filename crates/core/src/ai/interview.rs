@@ -29,9 +29,15 @@ This is a classic interview with no AI assistance allowed. Evaluate the candidat
 
 fn kind_addendum(kind: InterviewKind) -> &'static str {
     match kind {
-        InterviewKind::Coding => "\n\nFormat: coding interview. The candidate has a code editor; they will share code snippets and run tests. Expect them to state an approach and complexity before coding, and to walk through test cases after.",
-        InterviewKind::SystemDesign => "\n\nFormat: system design interview. Expect requirements clarification, back-of-envelope estimates, a high-level design, then deep dives (data model, scaling, consistency, failure modes). Push on the parts they gloss over.",
-        InterviewKind::Behavioral => "\n\nFormat: behavioural interview. Use the STAR structure implicitly: probe for the Situation, the candidate's specific Actions (not the team's), and measurable Results. Ask follow-ups that test ownership, judgement, and how they handle conflict.",
+        InterviewKind::Coding => {
+            "\n\nFormat: coding interview. The candidate has a code editor; they will share code snippets and run tests. Expect them to state an approach and complexity before coding, and to walk through test cases after."
+        }
+        InterviewKind::SystemDesign => {
+            "\n\nFormat: system design interview. Expect requirements clarification, back-of-envelope estimates, a high-level design, then deep dives (data model, scaling, consistency, failure modes). Push on the parts they gloss over."
+        }
+        InterviewKind::Behavioral => {
+            "\n\nFormat: behavioural interview. Use the STAR structure implicitly: probe for the Situation, the candidate's specific Actions (not the team's), and measurable Results. Ask follow-ups that test ownership, judgement, and how they handle conflict."
+        }
     }
 }
 
@@ -129,9 +135,15 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
     let transcript = InterviewService::transcript(model);
     let kind = InterviewKind::parse(&model.kind).unwrap_or(InterviewKind::Coding);
     let dims = match kind {
-        InterviewKind::Coding => "Problem understanding & clarification; Algorithmic approach & complexity; Code quality & correctness; Testing & edge cases; Communication",
-        InterviewKind::SystemDesign => "Requirements & estimation; High-level architecture; Data model & storage choices; Scalability & reliability; Trade-off reasoning & communication",
-        InterviewKind::Behavioral => "Ownership & impact; Judgement & decision-making; Collaboration & conflict; Growth & self-awareness; Communication clarity",
+        InterviewKind::Coding => {
+            "Problem understanding & clarification; Algorithmic approach & complexity; Code quality & correctness; Testing & edge cases; Communication"
+        }
+        InterviewKind::SystemDesign => {
+            "Requirements & estimation; High-level architecture; Data model & storage choices; Scalability & reliability; Trade-off reasoning & communication"
+        }
+        InterviewKind::Behavioral => {
+            "Ownership & impact; Judgement & decision-making; Collaboration & conflict; Growth & self-awareness; Communication clarity"
+        }
     };
     let assisted_note = if model.assistant_mode == "assisted" {
         "The candidate was allowed an AI assistant. Add a dimension 'AI direction & verification' and weigh it heavily: did they verify, test, and critique assistant output rather than accept it blindly?"
@@ -166,8 +178,8 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
     };
     let completion = client.complete(&req).await?;
     coach.budget().record(user_id, completion.usage.input_tokens, completion.usage.output_tokens).await?;
-    let mut eval: Evaluation =
-        serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("evaluation did not parse: {e}")))?;
+    let mut eval: Evaluation = serde_json::from_str(&completion.text)
+        .map_err(|e| AppError::AiUpstream(format!("evaluation did not parse: {e}")))?;
     eval.overall_score = eval.overall_score.clamp(0, 100);
     Ok(eval)
 }
@@ -180,5 +192,12 @@ pub fn assistant_request(coach: &CoachService, model: &interviews::Model, histor
          Be concise. Do not pretend to be the interviewer. Do not evaluate the candidate.\n\n# The interview question\n{}\n",
         model.prompt
     );
-    Request { model: coach.model().to_string(), system, messages: super::coach::collapse_roles(history), max_tokens: 3000, effort: Effort::Medium, json_schema: None }
+    Request {
+        model: coach.model().to_string(),
+        system,
+        messages: super::coach::collapse_roles(history),
+        max_tokens: 3000,
+        effort: Effort::Medium,
+        json_schema: None,
+    }
 }

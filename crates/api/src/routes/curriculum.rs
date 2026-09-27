@@ -116,7 +116,11 @@ struct ModuleResponse<'a> {
     track_title: &'a str,
 }
 
-async fn module(State(state): State<AppState>, headers: HeaderMap, Path((track, module)): Path<(String, String)>) -> ApiResult<Response> {
+async fn module(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((track, module)): Path<(String, String)>,
+) -> ApiResult<Response> {
     let slug = format!("{track}/{module}");
     let t = state.curriculum.track(&track).ok_or(ApiError(ascend_core::AppError::NotFound("track")))?;
     let m = t.modules.iter().find(|m| m.slug == slug).ok_or(ApiError(ascend_core::AppError::NotFound("module")))?;
@@ -154,12 +158,18 @@ fn default_limit() -> usize {
     20
 }
 
-async fn search(State(state): State<AppState>, Query(q): Query<SearchQuery>) -> Json<Vec<ascend_core::content::search::SearchHit>> {
+async fn search(
+    State(state): State<AppState>,
+    Query(q): Query<SearchQuery>,
+) -> Json<Vec<ascend_core::content::search::SearchHit>> {
     let q_trim: String = q.q.chars().take(100).collect();
     Json(state.curriculum.search.query(&q_trim, q.limit.min(50)))
 }
 
-async fn roadmap(State(state): State<AppState>, MaybeUser(user): MaybeUser) -> ApiResult<Json<ascend_core::services::roadmap::Roadmap>> {
+async fn roadmap(
+    State(state): State<AppState>,
+    MaybeUser(user): MaybeUser,
+) -> ApiResult<Json<ascend_core::services::roadmap::Roadmap>> {
     let (progress, hours) = match &user {
         Some(u) => (Some(state.progress.summary(u.id).await?), u.weekly_hours as f32),
         None => (None, 8.0),

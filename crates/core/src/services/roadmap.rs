@@ -78,9 +78,8 @@ impl RoadmapService {
     pub fn build(&self, progress: Option<&ProgressSummary>, weekly_hours: f32) -> Roadmap {
         let completed: HashSet<&str> =
             progress.map(|p| p.completed_slugs.iter().map(String::as_str).collect()).unwrap_or_default();
-        let prefs: HashMap<&str, ModulePreference> = progress
-            .map(|p| p.module_preferences.iter().map(|(k, v)| (k.as_str(), *v)).collect())
-            .unwrap_or_default();
+        let prefs: HashMap<&str, ModulePreference> =
+            progress.map(|p| p.module_preferences.iter().map(|(k, v)| (k.as_str(), *v)).collect()).unwrap_or_default();
 
         let mut modules: Vec<RoadmapModule> = Vec::new();
         for t in &self.curriculum.tracks {
@@ -97,7 +96,11 @@ impl RoadmapService {
                     completed: done,
                     preference: prefs.get(m.slug.as_str()).copied().unwrap_or(ModulePreference::Normal),
                     locked_by: Vec::new(),
-                    first_incomplete_lesson: m.lessons.iter().find(|l| !completed.contains(l.slug.as_str())).map(|l| l.slug.clone()),
+                    first_incomplete_lesson: m
+                        .lessons
+                        .iter()
+                        .find(|l| !completed.contains(l.slug.as_str()))
+                        .map(|l| l.slug.clone()),
                 });
             }
         }
@@ -137,10 +140,11 @@ impl RoadmapService {
                     let frac = 1.0 - (m.completed as f32 / m.lesson_count.max(1) as f32);
                     remaining_hours += m.estimated_hours * frac;
                     if next.is_none()
-                        && let Some(slug) = &m.first_incomplete_lesson {
-                            let title = self.curriculum.lesson(slug).map(|l| l.summary.title.clone()).unwrap_or_default();
-                            next = Some(RoadmapNext { slug: slug.clone(), title, module_title: m.title.clone() });
-                        }
+                        && let Some(slug) = &m.first_incomplete_lesson
+                    {
+                        let title = self.curriculum.lesson(slug).map(|l| l.summary.title.clone()).unwrap_or_default();
+                        next = Some(RoadmapNext { slug: slug.clone(), title, module_title: m.title.clone() });
+                    }
                 }
             }
             phases.push(RoadmapPhase { phase, title: phase_title(phase).to_string(), modules: mods });

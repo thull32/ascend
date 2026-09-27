@@ -77,7 +77,11 @@ impl AuthService {
         Self { db, session_ttl: Duration::from_std(session_ttl).unwrap_or_else(|_| Duration::days(30)) }
     }
 
-    pub async fn register(&self, input: RegisterInput, user_agent: Option<String>) -> AppResult<(CurrentUser, NewSession)> {
+    pub async fn register(
+        &self,
+        input: RegisterInput,
+        user_agent: Option<String>,
+    ) -> AppResult<(CurrentUser, NewSession)> {
         input.validate()?;
         let email = input.email.trim().to_lowercase();
         if Users::find().filter(users::Column::Email.eq(&email)).one(&self.db).await?.is_some() {

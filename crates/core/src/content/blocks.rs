@@ -93,10 +93,7 @@ pub struct QuizPublicQuestion {
 
 impl QuizSpec {
     pub fn public(&self) -> Vec<QuizPublicQuestion> {
-        self.questions
-            .iter()
-            .map(|q| QuizPublicQuestion { q: q.q.clone(), options: q.options.clone() })
-            .collect()
+        self.questions.iter().map(|q| QuizPublicQuestion { q: q.q.clone(), options: q.options.clone() }).collect()
     }
 }
 
@@ -152,8 +149,8 @@ pub fn extract(file: &str, body: &str) -> Result<Extracted, BlockError> {
                 if out.quiz.is_some() {
                     return Err(BlockError::MultipleQuizzes { file: file.into() });
                 }
-                let questions: Vec<QuizQuestion> = serde_yaml_ng::from_str(inner)
-                    .map_err(|source| BlockError::Quiz { file: file.into(), source })?;
+                let questions: Vec<QuizQuestion> =
+                    serde_yaml_ng::from_str(inner).map_err(|source| BlockError::Quiz { file: file.into(), source })?;
                 let spec = QuizSpec { questions };
                 public.push_str("```quiz\n");
                 public.push_str(&serde_json::to_string(&spec.public()).expect("serialisable"));
@@ -161,8 +158,8 @@ pub fn extract(file: &str, body: &str) -> Result<Extracted, BlockError> {
                 out.quiz = Some(spec);
             }
             "viz" => {
-                let value: serde_json::Value = serde_json::from_str(inner)
-                    .map_err(|source| BlockError::Viz { file: file.into(), source })?;
+                let value: serde_json::Value =
+                    serde_json::from_str(inner).map_err(|source| BlockError::Viz { file: file.into(), source })?;
                 public.push_str("```viz\n");
                 public.push_str(&serde_json::to_string(&value).expect("serialisable"));
                 public.push_str("\n```");

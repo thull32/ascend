@@ -82,7 +82,12 @@ impl SubmissionService {
         Ok(model.insert(&self.db).await?)
     }
 
-    pub async fn list_for_target(&self, user_id: Uuid, target_slug: &str, limit: u64) -> AppResult<Vec<submissions::Model>> {
+    pub async fn list_for_target(
+        &self,
+        user_id: Uuid,
+        target_slug: &str,
+        limit: u64,
+    ) -> AppResult<Vec<submissions::Model>> {
         Ok(Submissions::find()
             .filter(submissions::Column::UserId.eq(user_id))
             .filter(submissions::Column::TargetSlug.eq(target_slug))

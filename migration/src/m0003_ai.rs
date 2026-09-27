@@ -54,7 +54,12 @@ impl MigrationTrait for Migration {
                 .col(ColumnDef::new(Messages::Content).text().not_null())
                 .col(ColumnDef::new(Messages::InputTokens).integer().not_null().default(0))
                 .col(ColumnDef::new(Messages::OutputTokens).integer().not_null().default(0))
-                .col(ColumnDef::new(Messages::CreatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                .col(
+                    ColumnDef::new(Messages::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
                 .foreign_key(
                     ForeignKey::create()
                         .from(Messages::Table, Messages::ConversationId)

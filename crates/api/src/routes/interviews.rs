@@ -51,12 +51,20 @@ async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> 
     Ok(Json(state.interviews.list(user.id).await?))
 }
 
-async fn start(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(input): Json<StartInterview>) -> ApiResult<Json<Model>> {
+async fn start(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(input): Json<StartInterview>,
+) -> ApiResult<Json<Model>> {
     state.coach.client()?;
     Ok(Json(state.interviews.start(user.id, input).await?))
 }
 
-async fn detail(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<Uuid>) -> ApiResult<Json<Model>> {
+async fn detail(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Model>> {
     Ok(Json(state.interviews.get(user.id, id).await?))
 }
 
@@ -104,9 +112,16 @@ async fn turn(
             tracing::warn!(error = %e, interview = %model.id, "interviewer stream error");
         }
         if !reply.trim().is_empty()
-            && let Err(e) = interviews.append_transcript(model, vec![TranscriptEntry { role: "interviewer".into(), content: reply, at: now() }], None).await {
-                tracing::error!(error = %e, "failed to persist interviewer turn");
-            }
+            && let Err(e) = interviews
+                .append_transcript(
+                    model,
+                    vec![TranscriptEntry { role: "interviewer".into(), content: reply, at: now() }],
+                    None,
+                )
+                .await
+        {
+            tracing::error!(error = %e, "failed to persist interviewer turn");
+        }
         let _ = coach.budget().record(user.id, input_tokens, output_tokens).await;
     });
     Ok(sse::respond(rx))
@@ -142,7 +157,11 @@ async fn assistant(
     let prompt = last.content.clone();
     let model = state
         .interviews
-        .append_transcript(model, vec![TranscriptEntry { role: "candidate_to_assistant".into(), content: prompt, at: now() }], None)
+        .append_transcript(
+            model,
+            vec![TranscriptEntry { role: "candidate_to_assistant".into(), content: prompt, at: now() }],
+            None,
+        )
         .await?;
     let request = interview::assistant_request(&state.coach, &model, body.messages);
     let upstream = client.stream(&request).await?;
@@ -154,7 +173,13 @@ async fn assistant(
         futures::pin_mut!(upstream);
         let (reply, input_tokens, output_tokens, _) = sse::pump(upstream, &tx).await;
         if !reply.trim().is_empty() {
-            let _ = interviews.append_transcript(model, vec![TranscriptEntry { role: "assistant".into(), content: reply, at: now() }], None).await;
+            let _ = interviews
+                .append_transcript(
+                    model,
+                    vec![TranscriptEntry { role: "assistant".into(), content: reply, at: now() }],
+                    None,
+                )
+                .await;
         }
         let _ = coach.budget().record(user.id, input_tokens, output_tokens).await;
     });
@@ -179,7 +204,15 @@ async fn finish(
     let model = state.interviews.append_transcript(model, vec![], body.code).await?;
     if InterviewService::transcript(&model).iter().filter(|e| e.role == "candidate").count() < 2 {
         // Not enough signal to grade; mark abandoned rather than burn tokens.
-        let m = state.interviews.finish(model, serde_json::json!({ "summary": "Interview ended before enough discussion to evaluate." }), 0, "abandoned").await?;
+        let m = state
+            .interviews
+            .finish(
+                model,
+                serde_json::json!({ "summary": "Interview ended before enough discussion to evaluate." }),
+                0,
+                "abandoned",
+            )
+            .await?;
         return Ok(Json(m));
     }
     let evaluation = interview::evaluate(&state.coach, user.id, &model).await?;

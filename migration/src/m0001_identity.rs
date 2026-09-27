@@ -44,8 +44,18 @@ impl MigrationTrait for Migration {
                 .col(ColumnDef::new(Sessions::UserId).uuid().not_null())
                 .col(ColumnDef::new(Sessions::ExpiresAt).timestamp_with_time_zone().not_null())
                 .col(ColumnDef::new(Sessions::UserAgent).string_len(255).null())
-                .col(ColumnDef::new(Sessions::CreatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
-                .col(ColumnDef::new(Sessions::LastSeenAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                .col(
+                    ColumnDef::new(Sessions::CreatedAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
+                .col(
+                    ColumnDef::new(Sessions::LastSeenAt)
+                        .timestamp_with_time_zone()
+                        .not_null()
+                        .default(Expr::current_timestamp()),
+                )
                 .foreign_key(
                     ForeignKey::create()
                         .from(Sessions::Table, Sessions::UserId)
@@ -59,19 +69,11 @@ impl MigrationTrait for Migration {
         // Query pattern: "delete all sessions for user X" (logout everywhere) and
         // the periodic sweep of expired sessions.
         m.create_index(
-            Index::create()
-                .name("idx_sessions_user_id")
-                .table(Sessions::Table)
-                .col(Sessions::UserId)
-                .to_owned(),
+            Index::create().name("idx_sessions_user_id").table(Sessions::Table).col(Sessions::UserId).to_owned(),
         )
         .await?;
         m.create_index(
-            Index::create()
-                .name("idx_sessions_expires_at")
-                .table(Sessions::Table)
-                .col(Sessions::ExpiresAt)
-                .to_owned(),
+            Index::create().name("idx_sessions_expires_at").table(Sessions::Table).col(Sessions::ExpiresAt).to_owned(),
         )
         .await?;
         Ok(())

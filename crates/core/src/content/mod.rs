@@ -32,5 +32,5 @@ pub mod loader;
 pub mod model;
 pub mod search;
 
-pub use loader::{load_curriculum, ContentSource};
+pub use loader::{ContentSource, load_curriculum};
 pub use model::*;

@@ -33,9 +33,7 @@ struct Doc {
 }
 
 fn tokenize(text: &str) -> impl Iterator<Item = String> + '_ {
-    text.split(|c: char| !c.is_alphanumeric())
-        .filter(|t| t.len() > 1)
-        .map(|t| t.to_lowercase())
+    text.split(|c: char| !c.is_alphanumeric()).filter(|t| t.len() > 1).map(|t| t.to_lowercase())
 }
 
 impl SearchIndex {

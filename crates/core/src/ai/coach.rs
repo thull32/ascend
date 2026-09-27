@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::*;
 use sea_orm::sea_query::Expr;
+use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -128,7 +128,11 @@ impl CoachService {
             .await?)
     }
 
-    pub async fn get_conversation(&self, user_id: Uuid, id: Uuid) -> AppResult<(conversations::Model, Vec<messages::Model>)> {
+    pub async fn get_conversation(
+        &self,
+        user_id: Uuid,
+        id: Uuid,
+    ) -> AppResult<(conversations::Model, Vec<messages::Model>)> {
         let conv = Conversations::find_by_id(id).one(&self.db).await?.ok_or(AppError::NotFound("conversation"))?;
         if conv.user_id != user_id {
             return Err(AppError::NotFound("conversation"));
@@ -191,7 +195,10 @@ impl CoachService {
         let mut msgs: Vec<ChatMessage> = history
             .into_iter()
             .rev()
-            .map(|m| ChatMessage { role: if m.role == "assistant" { Role::Assistant } else { Role::User }, content: m.content })
+            .map(|m| ChatMessage {
+                role: if m.role == "assistant" { Role::Assistant } else { Role::User },
+                content: m.content,
+            })
             .collect();
         // The API requires alternating roles starting with `user`; collapse
         // any accidental doubles (e.g. a failed assistant turn).
@@ -206,10 +213,24 @@ impl CoachService {
         };
         let system = self.system_prompt(&context, progress);
 
-        Ok(Request { model: self.model.clone(), system, messages: msgs, max_tokens: 4000, effort: Effort::Medium, json_schema: None })
+        Ok(Request {
+            model: self.model.clone(),
+            system,
+            messages: msgs,
+            max_tokens: 4000,
+            effort: Effort::Medium,
+            json_schema: None,
+        })
     }
 
-    pub async fn finish_turn(&self, user_id: Uuid, conv_id: Uuid, reply: String, input_tokens: i64, output_tokens: i64) -> AppResult<()> {
+    pub async fn finish_turn(
+        &self,
+        user_id: Uuid,
+        conv_id: Uuid,
+        reply: String,
+        input_tokens: i64,
+        output_tokens: i64,
+    ) -> AppResult<()> {
         let now = Utc::now();
         if !reply.trim().is_empty() {
             messages::ActiveModel {
@@ -246,7 +267,10 @@ impl CoachService {
         match (ctx.kind.as_deref(), ctx.slug.as_deref()) {
             (Some("lesson"), Some(slug)) => {
                 if let Some(l) = self.curriculum.lesson(slug) {
-                    s.push_str(&format!("The learner is reading the lesson \"{}\" (track: {}, module: {}).\n", l.summary.title, l.track_title, l.module_title));
+                    s.push_str(&format!(
+                        "The learner is reading the lesson \"{}\" (track: {}, module: {}).\n",
+                        l.summary.title, l.track_title, l.module_title
+                    ));
                     s.push_str("Lesson text (for grounding; do not recite it back):\n<lesson>\n");
                     s.push_str(&truncate(&l.body, 24_000));
                     s.push_str("\n</lesson>\n");
@@ -254,7 +278,12 @@ impl CoachService {
             }
             (Some("problem"), Some(slug)) => {
                 if let Some(p) = self.curriculum.problem(slug) {
-                    s.push_str(&format!("The learner is solving the practice problem \"{}\" ({:?}; patterns: {}).\n", p.title, p.difficulty, p.patterns.join(", ")));
+                    s.push_str(&format!(
+                        "The learner is solving the practice problem \"{}\" ({:?}; patterns: {}).\n",
+                        p.title,
+                        p.difficulty,
+                        p.patterns.join(", ")
+                    ));
                     s.push_str("<problem>\n");
                     s.push_str(&truncate(&p.statement, 8_000));
                     s.push_str("\n</problem>\nHints the author wrote (reveal progressively, one at a time, only when asked):\n");
@@ -267,7 +296,11 @@ impl CoachService {
             _ => s.push_str("General coaching session.\n"),
         }
         if let Some(code) = &ctx.code {
-            s.push_str(&format!("\nThe learner's current editor contents ({}):\n```\n{}\n```\n", ctx.language.as_deref().unwrap_or("code"), truncate(code, 12_000)));
+            s.push_str(&format!(
+                "\nThe learner's current editor contents ({}):\n```\n{}\n```\n",
+                ctx.language.as_deref().unwrap_or("code"),
+                truncate(code, 12_000)
+            ));
         }
         if let Some(p) = progress {
             s.push_str(&format!(

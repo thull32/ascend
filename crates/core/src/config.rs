@@ -82,10 +82,7 @@ impl Config {
         let cookie_secure = parse_or::<bool>("COOKIE_SECURE", public_origin.starts_with("https://"))?;
         let session_ttl_days = parse_or::<u64>("SESSION_TTL_DAYS", 30)?;
 
-        let api_key = std::env::var("ANTHROPIC_API_KEY")
-            .ok()
-            .filter(|k| !k.trim().is_empty())
-            .map(SecretString::from);
+        let api_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty()).map(SecretString::from);
 
         let cfg = Self {
             bind_addr: format!("{host}:{port}"),

@@ -62,7 +62,11 @@ struct SolutionResponse {
 }
 
 /// The editorial is gated behind login so the "try first" nudge means something.
-async fn solution(State(state): State<AppState>, CurrentUser(_): CurrentUser, Path(slug): Path<String>) -> ApiResult<Json<SolutionResponse>> {
+async fn solution(
+    State(state): State<AppState>,
+    CurrentUser(_): CurrentUser,
+    Path(slug): Path<String>,
+) -> ApiResult<Json<SolutionResponse>> {
     let p = state.curriculum.problem(&slug).ok_or(ApiError(ascend_core::AppError::NotFound("problem")))?;
     Ok(Json(SolutionResponse { slug: p.slug.clone(), solution: p.solution.clone() }))
 }

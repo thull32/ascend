@@ -8,12 +8,12 @@
 //!    origin, and that the request carries the custom `X-Requested-With`
 //!    header — a cross-origin page cannot set custom headers without a CORS
 //!    preflight, which we never grant.
+use axum::Json;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 
 use crate::error::ErrorBody;
 use crate::state::AppState;
@@ -45,5 +45,6 @@ pub async fn enforce(State(state): State<AppState>, req: Request<Body>, next: Ne
 /// In development the Vite dev server (5173) proxies to the API (8080); allow
 /// localhost origins only when the configured origin itself is localhost.
 fn is_local_dev(origin: &str, expected: &str) -> bool {
-    expected.starts_with("http://localhost") && (origin.starts_with("http://localhost") || origin.starts_with("http://127.0.0.1"))
+    expected.starts_with("http://localhost")
+        && (origin.starts_with("http://localhost") || origin.starts_with("http://127.0.0.1"))
 }

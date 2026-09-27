@@ -115,9 +115,10 @@ fn default_problem_time_limit() -> u32 {
 fn collect_embedded(dir: &Dir<'static>, out: &mut BTreeMap<String, String>) {
     for f in dir.files() {
         if f.path().extension().and_then(|e| e.to_str()) == Some("md")
-            && let Some(text) = f.contents_utf8() {
-                out.insert(f.path().to_string_lossy().replace('\\', "/"), text.to_string());
-            }
+            && let Some(text) = f.contents_utf8()
+        {
+            out.insert(f.path().to_string_lossy().replace('\\', "/"), text.to_string());
+        }
     }
     for d in dir.dirs() {
         collect_embedded(d, out);
@@ -140,12 +141,10 @@ fn collect_disk(root: &Path, dir: &Path, out: &mut BTreeMap<String, String>) -> 
 
 fn parse<T: for<'de> Deserialize<'de>>(file: &str, text: &str) -> Result<(T, String), ContentError> {
     let matter = Matter::<YAML>::new();
-    let parsed = matter
-        .parse::<T>(text)
-        .map_err(|e| ContentError::FrontMatter { file: file.into(), reason: e.to_string() })?;
-    let data = parsed
-        .data
-        .ok_or_else(|| ContentError::FrontMatter { file: file.into(), reason: "no front matter".into() })?;
+    let parsed =
+        matter.parse::<T>(text).map_err(|e| ContentError::FrontMatter { file: file.into(), reason: e.to_string() })?;
+    let data =
+        parsed.data.ok_or_else(|| ContentError::FrontMatter { file: file.into(), reason: "no front matter".into() })?;
     Ok((data, parsed.content))
 }
 
@@ -208,7 +207,11 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
             time_limit_ms: fm.time_limit_ms,
         });
         if let Some(prev) = problems_by_slug.insert(fm.slug.clone(), p.clone()) {
-            return Err(ContentError::DuplicateSlug { slug: prev.slug.clone(), a: path.clone(), b: "another problem".into() });
+            return Err(ContentError::DuplicateSlug {
+                slug: prev.slug.clone(),
+                a: path.clone(),
+                b: "another problem".into(),
+            });
         }
         search.add("problem", &p.slug, &p.title, &p.patterns.join(", "), &p.patterns, &p.statement);
         problems.push(p);
@@ -279,9 +282,7 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
 
             let mut lesson_files: Vec<&String> = files
                 .keys()
-                .filter(|p| {
-                    p.starts_with(&format!("tracks/{track_dir}/{module_dir}/")) && !p.ends_with("/module.md")
-                })
+                .filter(|p| p.starts_with(&format!("tracks/{track_dir}/{module_dir}/")) && !p.ends_with("/module.md"))
                 .collect();
             lesson_files.sort_by_key(|p| order_of(p.rsplit('/').next().unwrap_or("")));
 
@@ -305,7 +306,11 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
                             eprintln!("warning: {lfile}: unknown problem '{p}' (lenient mode)");
                             continue;
                         }
-                        return Err(ContentError::DanglingRef { file: (*lfile).clone(), kind: "problem", slug: p.clone() });
+                        return Err(ContentError::DanglingRef {
+                            file: (*lfile).clone(),
+                            kind: "problem",
+                            slug: p.clone(),
+                        });
                     }
                 }
                 let extracted = match blocks::extract(lfile, &lbody) {
@@ -401,8 +406,11 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
 
     // Link prev/next across the global order (tracks are already sorted by dir).
     for i in 0..ordered.len() {
-        let prev = i.checked_sub(1).map(|j| LessonRef { slug: ordered[j].0.summary.slug.clone(), title: ordered[j].0.summary.title.clone() });
-        let next = ordered.get(i + 1).map(|n| LessonRef { slug: n.0.summary.slug.clone(), title: n.0.summary.title.clone() });
+        let prev = i
+            .checked_sub(1)
+            .map(|j| LessonRef { slug: ordered[j].0.summary.slug.clone(), title: ordered[j].0.summary.title.clone() });
+        let next =
+            ordered.get(i + 1).map(|n| LessonRef { slug: n.0.summary.slug.clone(), title: n.0.summary.title.clone() });
         let mut l = (*ordered[i].0).clone();
         l.prev = prev;
         l.next = next;
@@ -418,7 +426,11 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
                 eprintln!("warning: problems/{}.md: unknown lesson '{ls}' (lenient mode)", p.slug);
                 continue;
             }
-            return Err(ContentError::DanglingRef { file: format!("problems/{}.md", p.slug), kind: "lesson", slug: ls.clone() });
+            return Err(ContentError::DanglingRef {
+                file: format!("problems/{}.md", p.slug),
+                kind: "lesson",
+                slug: ls.clone(),
+            });
         }
     }
 
@@ -433,9 +445,10 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
     for l in lessons.values() {
         for tag in &l.summary.tags {
             if let Some(t) = tag.strip_prefix("pattern:")
-                && let Some(e) = pattern_map.get_mut(t) {
-                    e.0 = Some(l.summary.slug.clone());
-                }
+                && let Some(e) = pattern_map.get_mut(t)
+            {
+                e.0 = Some(l.summary.slug.clone());
+            }
         }
     }
     let patterns = pattern_map

@@ -5,13 +5,13 @@
 //! are applied to the API sub-router only; static assets skip them.
 use std::time::Duration;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::http::{HeaderValue, Request, StatusCode, Uri, header};
 use axum::middleware;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
 use include_dir::{Dir, include_dir};
 use tower_http::compression::CompressionLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
@@ -54,11 +54,7 @@ pub fn build(state: AppState) -> Router {
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|req: &Request<Body>| {
-                    let request_id = req
-                        .headers()
-                        .get("x-request-id")
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or("-");
+                    let request_id = req.headers().get("x-request-id").and_then(|v| v.to_str().ok()).unwrap_or("-");
                     tracing::info_span!("request", method = %req.method(), uri = %req.uri().path(), request_id)
                 })
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
@@ -69,7 +65,11 @@ pub fn build(state: AppState) -> Router {
 }
 
 async fn api_not_found() -> Response {
-    (StatusCode::NOT_FOUND, axum::Json(crate::error::ErrorBody { code: "not_found", message: "no such endpoint".into() })).into_response()
+    (
+        StatusCode::NOT_FOUND,
+        axum::Json(crate::error::ErrorBody { code: "not_found", message: "no such endpoint".into() }),
+    )
+        .into_response()
 }
 
 /// Serves the SPA. Hashed assets under `/assets/` are immutable; everything

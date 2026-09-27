@@ -34,7 +34,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Interviews::Language).string_len(16).null())
                     .col(ColumnDef::new(Interviews::Evaluation).json_binary().null())
                     .col(ColumnDef::new(Interviews::Score).small_integer().null())
-                    .col(ColumnDef::new(Interviews::StartedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+                    .col(
+                        ColumnDef::new(Interviews::StartedAt)
+                            .timestamp_with_time_zone()
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .col(ColumnDef::new(Interviews::EndedAt).timestamp_with_time_zone().null())
                     .foreign_key(
                         ForeignKey::create()

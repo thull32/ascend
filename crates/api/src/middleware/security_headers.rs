@@ -13,10 +13,7 @@ pub async fn apply(req: Request<Body>, next: Next) -> Response {
     h.insert("x-frame-options", HeaderValue::from_static("DENY"));
     h.insert("referrer-policy", HeaderValue::from_static("strict-origin-when-cross-origin"));
     h.insert("permissions-policy", HeaderValue::from_static("camera=(), microphone=(), geolocation=()"));
-    h.insert(
-        header::STRICT_TRANSPORT_SECURITY,
-        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-    );
+    h.insert(header::STRICT_TRANSPORT_SECURITY, HeaderValue::from_static("max-age=31536000; includeSubDomains"));
     h.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(concat!(

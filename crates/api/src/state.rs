@@ -4,12 +4,12 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use ascend_core::Config;
 use ascend_core::ai::coach::CoachService;
 use ascend_core::ai::{AnthropicClient, BudgetService};
 use ascend_core::auth::AuthService;
 use ascend_core::content::Curriculum;
 use ascend_core::services::*;
-use ascend_core::Config;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use secrecy::ExposeSecret;
 
@@ -44,13 +44,16 @@ pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
 impl AppState {
     pub fn build(config: Arc<Config>, db: DatabaseConnection, curriculum: Arc<Curriculum>) -> anyhow::Result<Self> {
         let client = match &config.ai.api_key {
-            Some(key) => Some(AnthropicClient::new(key.clone(), config.ai.base_url.clone(), config.ai.request_timeout)?),
+            Some(key) => {
+                Some(AnthropicClient::new(key.clone(), config.ai.base_url.clone(), config.ai.request_timeout)?)
+            }
             None => {
                 tracing::warn!("ANTHROPIC_API_KEY not set: AI coach, quizzes and interviews are disabled");
                 None
             }
         };
-        let budget = BudgetService::new(db.clone(), config.ai.daily_request_budget, config.ai.daily_output_token_budget);
+        let budget =
+            BudgetService::new(db.clone(), config.ai.daily_request_budget, config.ai.daily_output_token_budget);
         let coach = CoachService::new(
             db.clone(),
             curriculum.clone(),

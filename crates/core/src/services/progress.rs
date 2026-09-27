@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{Datelike, Duration, Utc};
-use sea_orm::*;
 use sea_orm::sea_query;
+use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -93,7 +93,12 @@ impl ProgressService {
         Self { db, curriculum }
     }
 
-    pub async fn set_lesson_status(&self, user_id: Uuid, lesson_slug: &str, status: LessonStatus) -> AppResult<lesson_progress::Model> {
+    pub async fn set_lesson_status(
+        &self,
+        user_id: Uuid,
+        lesson_slug: &str,
+        status: LessonStatus,
+    ) -> AppResult<lesson_progress::Model> {
         if self.curriculum.lesson(lesson_slug).is_none() {
             return Err(AppError::NotFound("lesson"));
         }
@@ -126,7 +131,12 @@ impl ProgressService {
             .ok_or(AppError::NotFound("progress"))
     }
 
-    pub async fn set_module_preference(&self, user_id: Uuid, module_slug: &str, pref: ModulePreference) -> AppResult<()> {
+    pub async fn set_module_preference(
+        &self,
+        user_id: Uuid,
+        module_slug: &str,
+        pref: ModulePreference,
+    ) -> AppResult<()> {
         if self.curriculum.module(module_slug).is_none() {
             return Err(AppError::NotFound("module"));
         }
@@ -139,9 +149,12 @@ impl ProgressService {
             updated_at: Set(now),
         })
         .on_conflict(
-            sea_query::OnConflict::columns([module_preferences::Column::UserId, module_preferences::Column::ModuleSlug])
-                .update_columns([module_preferences::Column::Preference, module_preferences::Column::UpdatedAt])
-                .to_owned(),
+            sea_query::OnConflict::columns([
+                module_preferences::Column::UserId,
+                module_preferences::Column::ModuleSlug,
+            ])
+            .update_columns([module_preferences::Column::Preference, module_preferences::Column::UpdatedAt])
+            .to_owned(),
         )
         .exec(&self.db)
         .await?;
@@ -154,7 +167,8 @@ impl ProgressService {
             .order_by_desc(lesson_progress::Column::UpdatedAt)
             .all(&self.db)
             .await?;
-        let prefs = ModulePreferences::find().filter(module_preferences::Column::UserId.eq(user_id)).all(&self.db).await?;
+        let prefs =
+            ModulePreferences::find().filter(module_preferences::Column::UserId.eq(user_id)).all(&self.db).await?;
         let solved: Vec<String> = Submissions::find()
             .select_only()
             .column(submissions::Column::TargetSlug)
@@ -212,7 +226,10 @@ impl ProgressService {
             completed_slugs: completed,
             in_progress_slugs: in_progress,
             solved_problem_slugs: solved,
-            module_preferences: prefs.into_iter().map(|p| (p.module_slug, ModulePreference::parse(&p.preference))).collect(),
+            module_preferences: prefs
+                .into_iter()
+                .map(|p| (p.module_slug, ModulePreference::parse(&p.preference)))
+                .collect(),
             per_track,
         })
     }

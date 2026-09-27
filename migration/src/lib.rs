@@ -36,18 +36,8 @@ impl MigratorTrait for Migrator {
 /// Shared column helpers so every table gets identical timestamp semantics.
 pub(crate) fn timestamps(table: &mut TableCreateStatement) -> &mut TableCreateStatement {
     table
-        .col(
-            ColumnDef::new(Common::CreatedAt)
-                .timestamp_with_time_zone()
-                .not_null()
-                .default(Expr::current_timestamp()),
-        )
-        .col(
-            ColumnDef::new(Common::UpdatedAt)
-                .timestamp_with_time_zone()
-                .not_null()
-                .default(Expr::current_timestamp()),
-        )
+        .col(ColumnDef::new(Common::CreatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
+        .col(ColumnDef::new(Common::UpdatedAt).timestamp_with_time_zone().not_null().default(Expr::current_timestamp()))
 }
 
 #[derive(DeriveIden)]

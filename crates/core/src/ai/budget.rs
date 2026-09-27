@@ -5,10 +5,10 @@
 //! this is the only place that touches `ai_usage`, changing the policy (e.g.
 //! per-plan tiers) is a one-file change.
 use chrono::Utc;
-use sea_orm::*;
+use sea_orm::ExprTrait;
 use sea_orm::sea_query;
 use sea_orm::sea_query::Expr;
-use sea_orm::ExprTrait;
+use sea_orm::*;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -78,9 +78,18 @@ impl BudgetService {
         })
         .on_conflict(
             sea_query::OnConflict::columns([ai_usage::Column::UserId, ai_usage::Column::Day])
-                .value(ai_usage::Column::InputTokens, Expr::col((ai_usage::Entity, ai_usage::Column::InputTokens)).add(input))
-                .value(ai_usage::Column::OutputTokens, Expr::col((ai_usage::Entity, ai_usage::Column::OutputTokens)).add(output))
-                .value(ai_usage::Column::Requests, Expr::col((ai_usage::Entity, ai_usage::Column::Requests)).add(requests))
+                .value(
+                    ai_usage::Column::InputTokens,
+                    Expr::col((ai_usage::Entity, ai_usage::Column::InputTokens)).add(input),
+                )
+                .value(
+                    ai_usage::Column::OutputTokens,
+                    Expr::col((ai_usage::Entity, ai_usage::Column::OutputTokens)).add(output),
+                )
+                .value(
+                    ai_usage::Column::Requests,
+                    Expr::col((ai_usage::Entity, ai_usage::Column::Requests)).add(requests),
+                )
                 .to_owned(),
         )
         .exec(&self.db)

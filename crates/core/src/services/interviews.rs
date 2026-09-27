@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use sea_orm::*;
 use sea_orm::sea_query::Expr;
+use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -84,16 +84,46 @@ pub struct InterviewService {
 /// System-design prompts. Kept in code (not content) because they are short
 /// and the interviewer prompt references them directly.
 pub const SYSTEM_DESIGN_PROMPTS: &[(&str, &str)] = &[
-    ("video-streaming", "Design the playback path for a Netflix-scale video streaming service: catalogue browse → play → adaptive bitrate delivery, for 200M subscribers across the globe."),
-    ("url-shortener", "Design a URL shortener handling 100M new links/month and 10B redirects/month with sub-50ms p99 redirect latency."),
-    ("news-feed", "Design a social news feed (fan-out, ranking, and pagination) for 500M users where the median user follows 300 accounts."),
-    ("chat", "Design a real-time messaging system supporting 1:1 and group chat, delivery receipts, and offline users, at WhatsApp scale."),
-    ("rate-limiter", "Design a distributed rate limiter used by an API gateway across 50 regions, supporting per-user and per-endpoint limits."),
-    ("metrics", "Design a metrics ingestion and query system (like Datadog) that ingests 10M data points/second and serves dashboards with 1s resolution."),
-    ("search-autocomplete", "Design typeahead search suggestions for a product with 1B queries/day and a p99 latency budget of 100ms."),
-    ("ride-matching", "Design the driver–rider matching and location tracking system for a ride-hailing app in a city with 100k concurrent drivers."),
-    ("payments", "Design a payment processing system with exactly-once charge semantics, idempotent retries, and reconciliation with external providers."),
-    ("notifications", "Design a notification platform delivering push, email, and SMS with per-user preferences, rate limits, and at-least-once delivery."),
+    (
+        "video-streaming",
+        "Design the playback path for a Netflix-scale video streaming service: catalogue browse → play → adaptive bitrate delivery, for 200M subscribers across the globe.",
+    ),
+    (
+        "url-shortener",
+        "Design a URL shortener handling 100M new links/month and 10B redirects/month with sub-50ms p99 redirect latency.",
+    ),
+    (
+        "news-feed",
+        "Design a social news feed (fan-out, ranking, and pagination) for 500M users where the median user follows 300 accounts.",
+    ),
+    (
+        "chat",
+        "Design a real-time messaging system supporting 1:1 and group chat, delivery receipts, and offline users, at WhatsApp scale.",
+    ),
+    (
+        "rate-limiter",
+        "Design a distributed rate limiter used by an API gateway across 50 regions, supporting per-user and per-endpoint limits.",
+    ),
+    (
+        "metrics",
+        "Design a metrics ingestion and query system (like Datadog) that ingests 10M data points/second and serves dashboards with 1s resolution.",
+    ),
+    (
+        "search-autocomplete",
+        "Design typeahead search suggestions for a product with 1B queries/day and a p99 latency budget of 100ms.",
+    ),
+    (
+        "ride-matching",
+        "Design the driver–rider matching and location tracking system for a ride-hailing app in a city with 100k concurrent drivers.",
+    ),
+    (
+        "payments",
+        "Design a payment processing system with exactly-once charge semantics, idempotent retries, and reconciliation with external providers.",
+    ),
+    (
+        "notifications",
+        "Design a notification platform delivering push, email, and SMS with per-user preferences, rate limits, and at-least-once delivery.",
+    ),
 ];
 
 pub const BEHAVIORAL_PROMPTS: &[&str] = &[
@@ -143,7 +173,9 @@ impl InterviewService {
                 let idx = pseudo_random(SYSTEM_DESIGN_PROMPTS.len());
                 (Some(SYSTEM_DESIGN_PROMPTS[idx].0.to_string()), SYSTEM_DESIGN_PROMPTS[idx].1.to_string())
             }
-            InterviewKind::Behavioral => (None, BEHAVIORAL_PROMPTS[pseudo_random(BEHAVIORAL_PROMPTS.len())].to_string()),
+            InterviewKind::Behavioral => {
+                (None, BEHAVIORAL_PROMPTS[pseudo_random(BEHAVIORAL_PROMPTS.len())].to_string())
+            }
         };
 
         let now = Utc::now();
@@ -225,7 +257,12 @@ impl InterviewService {
         serde_json::from_value(model.transcript.clone()).unwrap_or_default()
     }
 
-    pub async fn append_transcript(&self, model: interviews::Model, entries: Vec<TranscriptEntry>, code: Option<String>) -> AppResult<interviews::Model> {
+    pub async fn append_transcript(
+        &self,
+        model: interviews::Model,
+        entries: Vec<TranscriptEntry>,
+        code: Option<String>,
+    ) -> AppResult<interviews::Model> {
         let mut transcript = Self::transcript(&model);
         transcript.extend(entries);
         if transcript.len() > 400 {
@@ -243,7 +280,13 @@ impl InterviewService {
         Ok(active.update(&self.db).await?)
     }
 
-    pub async fn finish(&self, model: interviews::Model, evaluation: serde_json::Value, score: i16, status: &str) -> AppResult<interviews::Model> {
+    pub async fn finish(
+        &self,
+        model: interviews::Model,
+        evaluation: serde_json::Value,
+        score: i16,
+        status: &str,
+    ) -> AppResult<interviews::Model> {
         let mut active: interviews::ActiveModel = model.into();
         active.evaluation = Set(Some(evaluation));
         active.score = Set(Some(score));

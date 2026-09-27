@@ -85,7 +85,14 @@ impl QuizService {
 
     /// Records an attempt at an AI-generated quiz (graded client-side because
     /// the questions were generated for that session only).
-    pub async fn record_generated(&self, user_id: Uuid, lesson_slug: &str, score: usize, total: usize, answers: serde_json::Value) -> AppResult<()> {
+    pub async fn record_generated(
+        &self,
+        user_id: Uuid,
+        lesson_slug: &str,
+        score: usize,
+        total: usize,
+        answers: serde_json::Value,
+    ) -> AppResult<()> {
         if self.curriculum.lesson(lesson_slug).is_none() {
             return Err(AppError::NotFound("lesson"));
         }

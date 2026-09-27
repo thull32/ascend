@@ -73,7 +73,11 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<(Coo
     Ok((jar, Json(serde_json::json!({ "ok": true }))))
 }
 
-async fn logout_all(State(state): State<AppState>, CurrentUser(user): CurrentUser, jar: CookieJar) -> ApiResult<(CookieJar, Json<serde_json::Value>)> {
+async fn logout_all(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    jar: CookieJar,
+) -> ApiResult<(CookieJar, Json<serde_json::Value>)> {
     let n = state.auth.logout_everywhere(user.id).await?;
     let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/").build());
     Ok((jar, Json(serde_json::json!({ "revoked": n }))))

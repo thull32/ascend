@@ -44,7 +44,12 @@ fn schema() -> serde_json::Value {
     })
 }
 
-pub async fn generate(coach: &CoachService, user_id: Uuid, lesson_slug: &str, count: usize) -> AppResult<GeneratedQuiz> {
+pub async fn generate(
+    coach: &CoachService,
+    user_id: Uuid,
+    lesson_slug: &str,
+    count: usize,
+) -> AppResult<GeneratedQuiz> {
     let client = coach.client()?;
     let curriculum_lesson = coach_lesson(coach, lesson_slug)?;
     coach.budget().check_and_reserve(user_id).await?;
@@ -71,8 +76,8 @@ pub async fn generate(coach: &CoachService, user_id: Uuid, lesson_slug: &str, co
     };
     let completion = client.complete(&req).await?;
     coach.budget().record(user_id, completion.usage.input_tokens, completion.usage.output_tokens).await?;
-    let mut quiz: GeneratedQuiz = serde_json::from_str(&completion.text)
-        .map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
+    let mut quiz: GeneratedQuiz =
+        serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
     quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());
     if quiz.questions.is_empty() {
         return Err(AppError::AiUpstream("quiz generation returned no usable questions".into()));

@@ -17,11 +17,8 @@ async fn healthz() -> Json<serde_json::Value> {
 
 /// Readiness: dependencies are reachable. Railway health checks hit this.
 async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<serde_json::Value>) {
-    let db_ok = state
-        .db
-        .execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, "SELECT 1"))
-        .await
-        .is_ok();
+    let db_ok =
+        state.db.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, "SELECT 1")).await.is_ok();
     let status = if db_ok { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
     (
         status,

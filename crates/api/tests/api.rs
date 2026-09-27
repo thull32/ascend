@@ -100,7 +100,13 @@ impl TestApp {
     async fn register(&self) -> (String, Value) {
         let email = format!("t-{}@example.com", uuid::Uuid::now_v7());
         let r = self
-            .call("POST", "/api/auth/register", Some(json!({"email": email, "password": "correct-horse-battery", "display_name": "Tester"})), None, true)
+            .call(
+                "POST",
+                "/api/auth/register",
+                Some(json!({"email": email, "password": "correct-horse-battery", "display_name": "Tester"})),
+                None,
+                true,
+            )
             .await;
         assert_eq!(r.status, StatusCode::OK, "register: {:?}", r.body);
         let set_cookie = r.headers.get(header::SET_COOKIE).expect("session cookie").to_str().unwrap();
@@ -118,7 +124,13 @@ async fn health_and_security_headers() {
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(r.body["database"], true);
     assert_eq!(r.body["ai"], false);
-    for h in ["content-security-policy", "x-frame-options", "x-content-type-options", "strict-transport-security", "x-request-id"] {
+    for h in [
+        "content-security-policy",
+        "x-frame-options",
+        "x-content-type-options",
+        "strict-transport-security",
+        "x-request-id",
+    ] {
         assert!(r.headers.contains_key(h), "missing header {h}");
     }
     let r = app.call("GET", "/api/nope", None, None, false).await;
@@ -161,15 +173,41 @@ async fn login_errors_do_not_leak_account_existence() {
     let Some(app) = test_app().await else { return };
     let (_, user) = app.register().await;
     let email = user["email"].as_str().unwrap();
-    let wrong_pw = app.call("POST", "/api/auth/login", Some(json!({"email": email, "password": "wrong-password-123"})), None, true).await;
-    let no_user = app.call("POST", "/api/auth/login", Some(json!({"email": "nobody-xyz@example.com", "password": "wrong-password-123"})), None, true).await;
+    let wrong_pw = app
+        .call("POST", "/api/auth/login", Some(json!({"email": email, "password": "wrong-password-123"})), None, true)
+        .await;
+    let no_user = app
+        .call(
+            "POST",
+            "/api/auth/login",
+            Some(json!({"email": "nobody-xyz@example.com", "password": "wrong-password-123"})),
+            None,
+            true,
+        )
+        .await;
     assert_eq!(wrong_pw.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(wrong_pw.body, no_user.body, "responses must be identical");
 
-    let dup = app.call("POST", "/api/auth/register", Some(json!({"email": email, "password": "correct-horse-battery", "display_name": "Dup"})), None, true).await;
+    let dup = app
+        .call(
+            "POST",
+            "/api/auth/register",
+            Some(json!({"email": email, "password": "correct-horse-battery", "display_name": "Dup"})),
+            None,
+            true,
+        )
+        .await;
     assert_eq!(dup.status, StatusCode::CONFLICT);
 
-    let weak = app.call("POST", "/api/auth/register", Some(json!({"email": "weak@example.com", "password": "short", "display_name": "W"})), None, true).await;
+    let weak = app
+        .call(
+            "POST",
+            "/api/auth/register",
+            Some(json!({"email": "weak@example.com", "password": "short", "display_name": "W"})),
+            None,
+            true,
+        )
+        .await;
     assert_eq!(weak.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(weak.body["message"].as_str().unwrap().contains("password"));
 }
@@ -201,18 +239,46 @@ async fn progress_quiz_and_roadmap() {
     let Some(app) = test_app().await else { return };
     let (cookie, _) = app.register().await;
 
-    let missing = app.call("PUT", "/api/progress/lessons/basics/intro/nope", Some(json!({"status": "completed"})), Some(&cookie), true).await;
+    let missing = app
+        .call(
+            "PUT",
+            "/api/progress/lessons/basics/intro/nope",
+            Some(json!({"status": "completed"})),
+            Some(&cookie),
+            true,
+        )
+        .await;
     assert_eq!(missing.status, StatusCode::NOT_FOUND);
 
-    let done = app.call("PUT", "/api/progress/lessons/basics/intro/hello", Some(json!({"status": "completed"})), Some(&cookie), true).await;
+    let done = app
+        .call(
+            "PUT",
+            "/api/progress/lessons/basics/intro/hello",
+            Some(json!({"status": "completed"})),
+            Some(&cookie),
+            true,
+        )
+        .await;
     assert_eq!(done.status, StatusCode::OK);
     // Upsert: repeating is idempotent.
-    let again = app.call("PUT", "/api/progress/lessons/basics/intro/hello", Some(json!({"status": "completed"})), Some(&cookie), true).await;
+    let again = app
+        .call(
+            "PUT",
+            "/api/progress/lessons/basics/intro/hello",
+            Some(json!({"status": "completed"})),
+            Some(&cookie),
+            true,
+        )
+        .await;
     assert_eq!(again.status, StatusCode::OK);
 
-    let wrong_len = app.call("POST", "/api/quizzes/basics/intro/hello/grade", Some(json!({"answers": [1]})), Some(&cookie), true).await;
+    let wrong_len = app
+        .call("POST", "/api/quizzes/basics/intro/hello/grade", Some(json!({"answers": [1]})), Some(&cookie), true)
+        .await;
     assert_eq!(wrong_len.status, StatusCode::UNPROCESSABLE_ENTITY);
-    let graded = app.call("POST", "/api/quizzes/basics/intro/hello/grade", Some(json!({"answers": [1, 0]})), Some(&cookie), true).await;
+    let graded = app
+        .call("POST", "/api/quizzes/basics/intro/hello/grade", Some(json!({"answers": [1, 0]})), Some(&cookie), true)
+        .await;
     assert_eq!(graded.status, StatusCode::OK);
     assert_eq!(graded.body["score"], 1);
     assert_eq!(graded.body["total"], 2);
@@ -226,7 +292,15 @@ async fn progress_quiz_and_roadmap() {
     assert_eq!(roadmap.status, StatusCode::OK);
     assert!(roadmap.body["next_lesson"].is_null(), "only lesson is complete");
 
-    let pref = app.call("PUT", "/api/progress/modules/basics/intro", Some(json!({"preference": "confident"})), Some(&cookie), true).await;
+    let pref = app
+        .call(
+            "PUT",
+            "/api/progress/modules/basics/intro",
+            Some(json!({"preference": "confident"})),
+            Some(&cookie),
+            true,
+        )
+        .await;
     assert_eq!(pref.status, StatusCode::OK);
     let summary = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
     assert_eq!(summary.body["module_preferences"]["basics/intro"], "confident");
@@ -243,7 +317,11 @@ async fn lesson_payload_hides_quiz_answers() {
     assert!(!body.contains("\"answer\""), "quiz answers leaked into the lesson body");
     assert!(r.headers.contains_key(header::ETAG));
     let etag = r.headers[header::ETAG].to_str().unwrap().to_string();
-    let req = Request::builder().uri("/api/lessons/basics/intro/hello").header(header::IF_NONE_MATCH, etag).body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri("/api/lessons/basics/intro/hello")
+        .header(header::IF_NONE_MATCH, etag)
+        .body(Body::empty())
+        .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_MODIFIED);
 }
@@ -284,7 +362,15 @@ async fn comments_threading_and_authorisation() {
     let Some(app) = test_app().await else { return };
     let (alice, _) = app.register().await;
     let (bob, _) = app.register().await;
-    let root = app.call("POST", "/api/comments", Some(json!({"target_kind": "lesson", "target_slug": "basics/intro/hello", "body": "Question?"})), Some(&alice), true).await;
+    let root = app
+        .call(
+            "POST",
+            "/api/comments",
+            Some(json!({"target_kind": "lesson", "target_slug": "basics/intro/hello", "body": "Question?"})),
+            Some(&alice),
+            true,
+        )
+        .await;
     assert_eq!(root.status, StatusCode::OK);
     let root_id = root.body["id"].as_str().unwrap().to_string();
     let reply = app
@@ -316,7 +402,9 @@ async fn ai_features_degrade_gracefully_without_a_key() {
     let status = app.call("GET", "/api/coach/status", None, Some(&cookie), false).await;
     assert_eq!(status.status, StatusCode::OK);
     assert_eq!(status.body["enabled"], false);
-    let start = app.call("POST", "/api/interviews", Some(json!({"kind": "coding", "assistant_mode": "solo"})), Some(&cookie), true).await;
+    let start = app
+        .call("POST", "/api/interviews", Some(json!({"kind": "coding", "assistant_mode": "solo"})), Some(&cookie), true)
+        .await;
     assert_eq!(start.status, StatusCode::SERVICE_UNAVAILABLE);
     assert_eq!(start.body["code"], "ai_disabled");
 }
