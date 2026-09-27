@@ -13,9 +13,22 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** Seconds the server asked us to wait (429 `Retry-After`), if any. */
+    public retryAfter?: number,
   ) {
     super(message);
   }
+}
+
+function retryAfterSeconds(res: Response): number | undefined {
+  const v = Number(res.headers.get("retry-after"));
+  return Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+/** Transient failures worth retrying: throttling, server errors, network. */
+export function isTransient(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return true;
+  return err.status === 429 || err.status >= 500;
 }
 
 const BASE = "/api";
@@ -40,7 +53,7 @@ async function request<T>(method: string, path: string, body?: unknown, signal?:
   }
   if (!res.ok) {
     const err = (data ?? {}) as Partial<ApiErrorBody>;
-    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `HTTP ${res.status}`);
+    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `HTTP ${res.status}`, retryAfterSeconds(res));
   }
   return data as T;
 }
@@ -75,7 +88,7 @@ export async function streamPost(path: string, body: unknown, handlers: SseHandl
     } catch {
       /* not json */
     }
-    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `HTTP ${res.status}`);
+    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `HTTP ${res.status}`, retryAfterSeconds(res));
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

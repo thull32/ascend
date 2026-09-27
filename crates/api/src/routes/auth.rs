@@ -3,6 +3,7 @@ use ascend_core::auth::{LoginInput, RegisterInput};
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::middleware;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
@@ -59,10 +60,13 @@ async fn login(
     jar: CookieJar,
     headers: HeaderMap,
     AppJson(input): AppJson<LoginInput>,
-) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
+) -> ApiResult<Response> {
+    if let Some(throttled) = state.limiter.check_password_attempt(&input.email) {
+        return Ok(throttled);
+    }
     let (user, session) = state.auth.login(input, user_agent(&headers)).await?;
     let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
-    Ok((jar, Json(user)))
+    Ok((jar, Json(user)).into_response())
 }
 
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<(CookieJar, Json<serde_json::Value>)> {
@@ -105,8 +109,12 @@ async fn delete_account(
     CurrentUser(user): CurrentUser,
     jar: CookieJar,
     AppJson(body): AppJson<DeleteAccount>,
-) -> ApiResult<(CookieJar, Json<serde_json::Value>)> {
+) -> ApiResult<Response> {
+    // A stolen session must not become a password-guessing oracle.
+    if let Some(throttled) = state.limiter.check_password_attempt(&user.email) {
+        return Ok(throttled);
+    }
     state.auth.delete_account(user.id, body.password).await?;
     let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/").build());
-    Ok((jar, Json(serde_json::json!({ "deleted": true }))))
+    Ok((jar, Json(serde_json::json!({ "deleted": true }))).into_response())
 }

@@ -137,4 +137,23 @@ test.describe("authenticated flows", () => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/login/);
   });
+
+  test("account deletion needs the password and cannot be undone", async ({ page }) => {
+    const email = await register(page);
+    await page.goto("/profile");
+    await page.getByRole("button", { name: "Delete my account…" }).click();
+    await page.getByLabel("Confirm with your password").fill("not-my-password");
+    await page.getByRole("button", { name: "Delete permanently" }).click();
+    await expect(page.getByRole("alert")).toContainText("password is incorrect");
+    await expect(page).toHaveURL(/\/profile/);
+
+    await page.getByLabel("Confirm with your password").fill("correct-horse-battery-staple");
+    await page.getByRole("button", { name: "Delete permanently" }).click();
+    await expect(page).toHaveURL("/");
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill("correct-horse-battery-staple");
+    await page.getByRole("button", { name: /sign in|log in/i }).click();
+    await expect(page.getByRole("alert")).toBeVisible();
+  });
 });

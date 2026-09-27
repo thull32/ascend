@@ -93,7 +93,7 @@ impl Config {
             session_ttl: Duration::from_secs(session_ttl_days * 86_400),
             ai: AiConfig {
                 api_key,
-                model: var_or("AI_MODEL", "claude-opus-5"),
+                model: var_or("AI_MODEL", "claude-opus-5-5"),
                 base_url: var_or("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
                 daily_output_token_budget: parse_or::<i64>("AI_DAILY_OUTPUT_TOKENS", 60_000)?,
                 daily_input_token_budget: parse_or::<i64>("AI_DAILY_INPUT_TOKENS", 2_000_000)?,

@@ -35,7 +35,7 @@ content: ## Validate curriculum and practice problems
 	python3 scripts/validate_problems.py
 
 e2e: ## Run Playwright against a running server on :8080 (uses the Playwright docker image)
-	docker run --rm --network host -v $(PWD)/web:/work -w /work -e HOME=/tmp -e BASE_URL=http://localhost:8080 \
+	docker run --rm --user $$(id -u):$$(id -g) --network host -v $(PWD)/web:/work -w /work -e HOME=/tmp -e BASE_URL=http://localhost:8080 \
 	  mcr.microsoft.com/playwright:v1.63.0-noble npx playwright test
 
 image: ## Build the production image

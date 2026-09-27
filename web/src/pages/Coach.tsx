@@ -6,7 +6,7 @@ import { api, streamPost } from "../lib/api";
 import { ChatBubble, ChatHistoryToTurns, useStreamingChat } from "../components/CoachDock";
 import { useCoachStatus } from "../lib/queries";
 import type { ChatMessage, Conversation } from "../lib/types";
-import { Button, Spinner } from "../components/ui";
+import { Button, ErrorBox, Spinner } from "../components/ui";
 import { cn, timeAgo } from "../lib/utils";
 
 const STARTERS = [
@@ -117,7 +117,15 @@ export default function CoachPage() {
         <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto p-4">
           {!enabled && <p className="text-sm text-muted">The AI coach is not configured on this deployment (no API key).</p>}
           {detail.isLoading && <Spinner />}
-          {chat.turns.length === 0 && enabled && !detail.isLoading && (
+          {detail.isError && (
+            <div className="flex flex-wrap items-center gap-3">
+              <ErrorBox error={detail.error} />
+              <Button variant="secondary" onClick={() => void detail.refetch()}>
+                Try again
+              </Button>
+            </div>
+          )}
+          {chat.turns.length === 0 && enabled && !detail.isLoading && !detail.isError && (
             <div>
               <p className="text-sm text-muted">Your coach knows the whole curriculum and your progress. Try:</p>
               <ul className="mt-3 grid gap-2 sm:grid-cols-2">

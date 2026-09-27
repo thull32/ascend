@@ -16,8 +16,8 @@ export default defineRailway(() => {
   });
 
   const app = service("ascend", {
-    // Builds the root Dockerfile. Pushing to main deploys.
-    source: github("thull32/ascend", { checkSuites: false }),
+    // Builds the root Dockerfile. A push to main deploys once CI passes.
+    source: github("thull32/ascend", { checkSuites: true }),
     replicas: { [region]: 1 },
     // Migrations run on boot before the server binds, so a passing readiness
     // probe means the schema is current and Postgres is reachable.
@@ -29,11 +29,12 @@ export default defineRailway(() => {
       DATABASE_URL: db.env.DATABASE_URL,
       // Railway's edge sets X-Real-IP; the rate limiter trusts only that header.
       CLIENT_IP_HEADER: "x-real-ip",
-      AI_MODEL: "claude-opus-5",
+      AI_MODEL: "claude-opus-5-5",
       AI_DAILY_REQUESTS: "150",
       AI_DAILY_OUTPUT_TOKENS: "120000",
       ANTHROPIC_API_KEY: preserve(),
-      CONTENT_LENIENT: preserve(),
+      // Strict: a dangling cross-reference or malformed block fails the build.
+      CONTENT_LENIENT: "0",
     },
   });
 

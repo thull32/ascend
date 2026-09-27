@@ -16,14 +16,18 @@ use crate::routes::sse;
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
+    // Only routes that call the model share the tight AI bucket; reading
+    // history and status is ordinary traffic.
+    let model_calls = Router::new()
+        .route("/coach/conversations/{id}/messages", post(send))
+        .route("/coach/quiz/{track}/{module}/{lesson}", post(generate_quiz))
+        .route("/coach/roadmap-suggestions", post(roadmap_suggestions))
+        .layer(middleware::from_fn_with_state(state, |s, r, n| limit(Bucket::Ai, s, r, n)));
     Router::new()
         .route("/coach/status", get(status))
         .route("/coach/conversations", get(list).post(create))
         .route("/coach/conversations/{id}", get(detail).delete(remove))
-        .route("/coach/conversations/{id}/messages", post(send))
-        .route("/coach/quiz/{track}/{module}/{lesson}", post(generate_quiz))
-        .route("/coach/roadmap-suggestions", post(roadmap_suggestions))
-        .layer(middleware::from_fn_with_state(state, |s, r, n| limit(Bucket::Ai, s, r, n)))
+        .merge(model_calls)
 }
 
 #[derive(Serialize)]

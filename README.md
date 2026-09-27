@@ -16,7 +16,7 @@ an AI coach that hints instead of answering, and mock interviews with and withou
 
 | | |
 |---|---|
-| **Curriculum** | 14 tracks in 6 phases: foundations, data structures, algorithms, advanced data structures, interview patterns, operating systems and concurrency, databases, networking, system design, big data, AI and LLMs, AI-assisted engineering, senior craft, and a case study of this codebase. Each lesson goes one level deeper than the usual explainer and ends with "senior signals" and a quiz. |
+| **Curriculum** | 343 lessons in 14 tracks and 6 phases: foundations, data structures, algorithms, advanced data structures, interview patterns, operating systems and concurrency, databases, networking, system design, big data, AI and LLMs, AI-assisted engineering, senior craft, and a case study of this codebase. Each lesson goes one level deeper than the usual explainer and ends with "senior signals" and a quiz (1,756 questions in all). |
 | **Visualisations** | 17 families and 229 steppable animations (sorting, graphs, DP tables, trees, heaps, TCP, DNS, TLS, Raft, consistent hashing, MVCC, LSM trees, attention, RAG pipelines, …). Every frame carries a sentence explaining the step. Scrub backwards, change the input. |
 | **Live coding** | Python (CPython 3.14 via Pyodide/WebAssembly) and JavaScript/TypeScript run in sandboxed Web Workers with hard time limits. Lesson exercises and 180 practice problems (the "Ascend 150" plus a "Core 75" subset) are graded against visible and hidden tests. |
 | **AI coach** | Grounded in the lesson you are reading, the problem you are solving and the code in your editor. It asks the next question; it does not hand over solutions. Also generates fresh quizzes. |

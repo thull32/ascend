@@ -1,6 +1,7 @@
 // Full-content rendering crawl: opens every lesson and problem and records
 // anything that rendered as an error (Mermaid, KaTeX, viz, exercise, quiz)
 // plus uncaught page errors. Run with CRAWL=1; writes test-results/crawl.json.
+// CRAWL_ONLY=a,b limits the crawl to URLs containing any of those substrings.
 import { expect, test, type Page } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 
@@ -61,10 +62,14 @@ test("every lesson and problem renders cleanly", async ({ page, request }, info)
   const problems = await (await request.get("/api/problems")).json();
   for (const p of problems) urls.push(`/practice/${p.slug}`);
 
+  const only = (process.env.CRAWL_ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const selected = only.length ? urls.filter((u) => only.some((o) => u.includes(o))) : urls;
+  expect(selected.length, "CRAWL_ONLY matched no pages").toBeGreaterThan(0);
+
   const issues: Issue[] = [];
-  for (const url of urls) await collect(page, url, issues);
+  for (const url of selected) await collect(page, url, issues);
   mkdirSync("test-results", { recursive: true });
-  writeFileSync("test-results/crawl.json", JSON.stringify({ pages: urls.length, issues }, null, 2));
-  console.log(`crawled ${urls.length} pages, ${issues.length} issues`);
+  writeFileSync("test-results/crawl.json", JSON.stringify({ pages: selected.length, issues }, null, 2));
+  console.log(`crawled ${selected.length} pages, ${issues.length} issues`);
   expect(issues, JSON.stringify(issues.slice(0, 20), null, 2)).toEqual([]);
 });

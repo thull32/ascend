@@ -118,8 +118,8 @@ Most classifiers output a score, and you choose a **threshold**. Raise it and pr
 
 | Threshold | TP | FP | FN | Cost |
 |---|---|---|---|---|
-| Lower (flags 150) | 80 | 70 | 20 | $20 \times 500 + 70 \times 5 = \$10{,}350$ |
-| Higher (flags 90) | 70 | 20 | 30 | $30 \times 500 + 20 \times 5 = \$15{,}100$ |
+| Lower (flags 150) | 80 | 70 | 20 | $20 \times 500 + 70 \times 5$ = \$10,350 |
+| Higher (flags 90) | 70 | 20 | 30 | $30 \times 500 + 20 \times 5$ = \$15,100 |
 
 The higher threshold has much better precision (0.78) and costs more. Put the costs in writing and the threshold choice becomes arithmetic.
 

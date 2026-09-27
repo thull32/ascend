@@ -650,6 +650,8 @@ async fn activity_counts_toward_the_streak_and_is_recorded_once_per_day() {
 #[tokio::test]
 async fn throttled_responses_say_when_to_retry() {
     let Some(app) = test_app().await else { return };
+    // Repeated guesses at one account are throttled per account, whatever
+    // the source address.
     let body = json!({"email": "nobody@example.com", "password": "wrong-password-123"});
     let mut throttled = None;
     for _ in 0..15 {
@@ -659,10 +661,22 @@ async fn throttled_responses_say_when_to_retry() {
             break;
         }
     }
-    let r = throttled.expect("the auth bucket throttles repeated logins");
+    let r = throttled.expect("repeated logins to one account are throttled");
     let secs: u64 = r.headers["retry-after"].to_str().unwrap().parse().unwrap();
     assert!((1..=60).contains(&secs), "retry-after {secs}");
     assert_eq!(r.body["code"], "rate_limited");
+    // Case and whitespace do not buy a fresh allowance.
+    let variant = json!({"email": "  NoBody@Example.com ", "password": "wrong-password-123"});
+    assert_eq!(
+        app.call("POST", "/api/auth/login", Some(variant), None, true).await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // Another account from the same address is unaffected.
+    let other = json!({"email": "somebody-else@example.com", "password": "wrong-password-123"});
+    assert_eq!(
+        app.call("POST", "/api/auth/login", Some(other), None, true).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
 }
 
 #[tokio::test]
@@ -674,4 +688,34 @@ async fn content_etag_revalidates_and_names_the_build() {
     assert_ne!(etag, format!("\"{}\"", app.state.curriculum.version), "the build is part of the validator");
     let ready = app.call("GET", "/api/readyz", None, None, false).await;
     assert_eq!(ready.body["build"], ascend_api::build_info::BUILD_ID);
+}
+
+#[tokio::test]
+async fn ai_throttling_is_per_session_and_only_for_model_calls() {
+    let Some(app) = test_app().await else { return };
+    let (alice, _) = app.register().await;
+    let (bob, _) = app.register().await;
+    // Reading history is ordinary traffic, not an AI call.
+    for _ in 0..25 {
+        let r = app.call("GET", "/api/coach/conversations", None, Some(&alice), false).await;
+        assert_eq!(r.status, StatusCode::OK);
+    }
+    // Model calls: without an API key they fail with 503 after the limiter,
+    // so a 429 can only come from the limiter itself.
+    let quiz = |cookie: String| {
+        let app = &app;
+        async move { app.call("POST", "/api/coach/quiz/basics/intro/hello", Some(json!({})), Some(&cookie), true).await }
+    };
+    let mut throttled = false;
+    for _ in 0..25 {
+        let r = quiz(alice.clone()).await;
+        if r.status == StatusCode::TOO_MANY_REQUESTS {
+            throttled = true;
+            break;
+        }
+        assert_eq!(r.status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+    assert!(throttled, "one session is throttled after its per-minute allowance");
+    // Same IP, different learner: unaffected.
+    assert_eq!(quiz(bob).await.status, StatusCode::SERVICE_UNAVAILABLE);
 }
