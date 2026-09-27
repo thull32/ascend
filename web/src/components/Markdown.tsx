@@ -11,6 +11,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { Link } from "react-router";
 import { Spinner } from "./ui";
+import { escapeCurrency } from "../lib/markdown";
 
 const Mermaid = lazy(() => import("./Mermaid"));
 const VizBlock = lazy(() => import("../viz/VizBlock"));
@@ -61,6 +62,7 @@ export function Markdown({ source, lessonSlug, className }: Props) {
     [lessonSlug],
   );
 
+  const prepared = useMemo(() => escapeCurrency(source), [source]);
   return (
     <div className={className}>
       <ReactMarkdown
@@ -68,7 +70,7 @@ export function Markdown({ source, lessonSlug, className }: Props) {
         rehypePlugins={[rehypeSlug, rehypeKatex, [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         components={components}
       >
-        {source}
+        {prepared}
       </ReactMarkdown>
     </div>
   );
