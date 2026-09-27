@@ -198,7 +198,7 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
     let completion = client.complete(&req).await?;
     coach.budget().record(user_id, completion.usage).await?;
     let mut eval: Evaluation = serde_json::from_str(&completion.text)
-        .map_err(|e| AppError::AiUpstream(format!("evaluation did not parse: {e}")))?;
+        .map_err(|e| AppError::ai_upstream("the evaluation could not be produced; try again", e))?;
     eval.overall_score = eval.overall_score.clamp(0, 100);
     Ok(eval)
 }

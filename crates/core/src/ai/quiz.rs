@@ -78,8 +78,8 @@ pub async fn generate(
     };
     let completion = client.complete(&req).await?;
     coach.budget().record(user_id, completion.usage).await?;
-    let mut quiz: GeneratedQuiz =
-        serde_json::from_str(&completion.text).map_err(|e| AppError::AiUpstream(format!("quiz did not parse: {e}")))?;
+    let mut quiz: GeneratedQuiz = serde_json::from_str(&completion.text)
+        .map_err(|e| AppError::ai_upstream("the quiz could not be generated; try again", e))?;
     quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());
     if quiz.questions.is_empty() {
         return Err(AppError::AiUpstream("quiz generation returned no usable questions".into()));

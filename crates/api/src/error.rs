@@ -39,7 +39,7 @@ impl IntoResponse for ApiError {
             AppError::Forbidden => StatusCode::FORBIDDEN,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
-            AppError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
             AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -56,11 +56,39 @@ impl IntoResponse for ApiError {
             }
             other => other.to_string(),
         };
-        (status, Json(ErrorBody { code: e.code(), message })).into_response()
+        let mut res = (status, Json(ErrorBody { code: e.code(), message })).into_response();
+        if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+            res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
+        }
+        res
     }
 }
 
 /// Convenience for handlers that produce ad-hoc validation failures.
 pub fn bad_request(msg: impl Into<String>) -> ApiError {
     ApiError(AppError::Validation(msg.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rate_limited_errors_carry_retry_after_when_known() {
+        let res =
+            ApiError(AppError::RateLimited { message: "slow down".into(), retry_after_secs: Some(42) }).into_response();
+        assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(res.headers()[axum::http::header::RETRY_AFTER], "42");
+        let res =
+            ApiError(AppError::RateLimited { message: "slow down".into(), retry_after_secs: None }).into_response();
+        assert!(res.headers().get(axum::http::header::RETRY_AFTER).is_none());
+    }
+
+    #[test]
+    fn internal_details_are_not_returned() {
+        let res = ApiError(AppError::Internal("connection string postgres://secret".into())).into_response();
+        assert_eq!(res.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = futures::executor::block_on(http_body_util::BodyExt::collect(res.into_body())).unwrap().to_bytes();
+        assert!(!String::from_utf8_lossy(&body).contains("secret"));
+    }
 }

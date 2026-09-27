@@ -70,7 +70,7 @@ pub struct StartInterview {
 /// One entry in the interview transcript.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptEntry {
-    pub role: String, // "interviewer" | "candidate" | "assistant" | "system"
+    pub role: String, // "interviewer" | "candidate" | "candidate_to_assistant" | "assistant" | "system"
     pub content: String,
     pub at: chrono::DateTime<Utc>,
 }
@@ -294,16 +294,23 @@ impl InterviewService {
                    final_code = COALESCE($3, final_code),
                    updated_at = now()
              WHERE id = $1
+               AND status = 'active'
                AND jsonb_array_length(transcript) + jsonb_array_length($2::jsonb) <= $4
             RETURNING *
             "#,
             [model.id.into(), new_entries.into(), code.into(), (MAX_TRANSCRIPT_ENTRIES as i32).into()],
         );
-        Interviews::find()
-            .from_raw_sql(stmt)
-            .one(&self.db)
-            .await?
-            .ok_or_else(|| AppError::validation("interview transcript is too long"))
+        if let Some(updated) = Interviews::find().from_raw_sql(stmt).one(&self.db).await? {
+            return Ok(updated);
+        }
+        // Nothing matched: say which guard refused. A transcript is frozen
+        // once the interview ends, so a reply still streaming when the
+        // learner clicks "finish" cannot change what was graded.
+        let current = Interviews::find_by_id(model.id).one(&self.db).await?.ok_or(AppError::NotFound("interview"))?;
+        if current.status != "active" {
+            return Err(AppError::Conflict("the interview has already ended".into()));
+        }
+        Err(AppError::validation("interview transcript is too long"))
     }
 
     /// True while the user has a solo interview in progress (within its time
@@ -327,13 +334,22 @@ impl InterviewService {
         score: i16,
         status: &str,
     ) -> AppResult<interviews::Model> {
-        let mut active: interviews::ActiveModel = model.into();
-        active.evaluation = Set(Some(evaluation));
-        active.score = Set(Some(score));
-        active.status = Set(status.into());
-        active.ended_at = Set(Some(Utc::now()));
-        active.updated_at = Set(Utc::now());
-        Ok(active.update(&self.db).await?)
+        // Conditional on still being active, so two racing "finish" requests
+        // cannot both write an evaluation: exactly one wins.
+        let now = Utc::now();
+        Interviews::update_many()
+            .col_expr(interviews::Column::Evaluation, Expr::value(evaluation))
+            .col_expr(interviews::Column::Score, Expr::value(score))
+            .col_expr(interviews::Column::Status, Expr::value(status))
+            .col_expr(interviews::Column::EndedAt, Expr::value(now))
+            .col_expr(interviews::Column::UpdatedAt, Expr::value(now))
+            .filter(interviews::Column::Id.eq(model.id))
+            .filter(interviews::Column::Status.eq("active"))
+            .exec_with_returning(&self.db)
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::Conflict("the interview has already ended".into()))
     }
 }
 

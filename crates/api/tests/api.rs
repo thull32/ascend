@@ -467,7 +467,8 @@ async fn ai_budget_reservation_cannot_be_overshot_by_concurrency() {
     budget.record(user_id, usage).await.unwrap();
     budget.record(user_id, usage).await.unwrap();
     let status = budget.status(user_id).await.unwrap();
-    assert_eq!(status.input_tokens_used, 2400);
+    // Billed input: 2 × 1,200 uncached + 10,000 cache reads at a tenth.
+    assert_eq!(status.input_tokens_used, 3400);
     assert_eq!(status.output_tokens_used, 600);
     assert_eq!(status.cache_read_tokens, 10_000);
 }
@@ -718,4 +719,57 @@ async fn ai_throttling_is_per_session_and_only_for_model_calls() {
     assert!(throttled, "one session is throttled after its per-minute allowance");
     // Same IP, different learner: unaffected.
     assert_eq!(quiz(bob).await.status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let budget = app.state.coach.budget();
+    budget.check_and_reserve(id).await.unwrap();
+    // 90k cache-write tokens bill as 112.5k input tokens: over the 100k test limit
+    // even though "uncached input" is zero.
+    let usage = ascend_core::ai::Usage { cache_creation_input_tokens: 90_000, output_tokens: 10, ..Default::default() };
+    budget.record(id, usage).await.unwrap();
+    match budget.check_and_reserve(id).await {
+        Err(ascend_core::AppError::RateLimited { retry_after_secs: Some(secs), .. }) => {
+            assert!((1..=86_400).contains(&secs), "retry at the next UTC midnight, got {secs}")
+        }
+        other => panic!("expected the budget to refuse with a retry time, got {other:?}"),
+    }
+    assert_eq!(budget.status(id).await.unwrap().input_tokens_used, 112_500);
+}
+
+#[tokio::test]
+async fn transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries() {
+    use ascend_core::services::interviews::{InterviewService, TranscriptEntry};
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let interview = app.state.interviews.start(id, solo_coding()).await.unwrap();
+    let entry =
+        |n: usize| TranscriptEntry { role: "candidate".into(), content: format!("turn {n}"), at: chrono::Utc::now() };
+
+    // Concurrent appends (a reply persisting while the learner types) are
+    // each applied exactly once: no read-modify-write lost updates.
+    let appends = (0..20).map(|n| app.state.interviews.append_transcript(interview.clone(), vec![entry(n)], None));
+    for r in futures::future::join_all(appends).await {
+        r.unwrap();
+    }
+    let current = app.state.interviews.get(id, interview.id).await.unwrap();
+    assert_eq!(InterviewService::transcript(&current).len(), 20);
+
+    // Exactly one of two racing "finish" calls wins.
+    let finishes =
+        (0..2).map(|_| app.state.interviews.finish(current.clone(), json!({"summary": "ok"}), 3, "completed"));
+    let results = futures::future::join_all(finishes).await;
+    assert_eq!(results.iter().filter(|r| r.is_ok()).count(), 1);
+    assert!(results.iter().any(|r| matches!(r, Err(ascend_core::AppError::Conflict(_)))));
+
+    // A reply that arrives after the end cannot change what was graded.
+    let late = app.state.interviews.append_transcript(current.clone(), vec![entry(99)], None).await;
+    assert!(matches!(late, Err(ascend_core::AppError::Conflict(_))), "{late:?}");
+    let ended = app.state.interviews.get(id, interview.id).await.unwrap();
+    assert_eq!(InterviewService::transcript(&ended).len(), 20);
 }

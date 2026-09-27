@@ -38,8 +38,9 @@ pub struct AiConfig {
     pub base_url: String,
     /// Per-user, per-day output-token ceiling. Free product; this is the fuse.
     pub daily_output_token_budget: i64,
-    /// Per-user, per-day input-token ceiling (large lessons and editor
-    /// contents make input the bigger share of cost).
+    /// Per-user, per-day ceiling on *billed* input tokens: cache writes
+    /// count 1.25x and cache reads 0.1x (large lessons and editor contents
+    /// make input the bigger share of cost).
     pub daily_input_token_budget: i64,
     pub daily_request_budget: i32,
     pub request_timeout: Duration,

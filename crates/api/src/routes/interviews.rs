@@ -116,18 +116,8 @@ async fn turn(
             if let Some(e) = error {
                 tracing::warn!(error = %e, interview = %model.id, "interviewer stream error");
             }
-            if !reply.trim().is_empty()
-                && let Err(e) = interviews
-                    .append_transcript(
-                        model,
-                        vec![TranscriptEntry { role: "interviewer".into(), content: reply, at: now() }],
-                        None,
-                    )
-                    .await
-            {
-                tracing::error!(error = %e, "failed to persist interviewer turn");
-            }
-            let _ = coach.budget().record(user.id, usage).await;
+            persist_reply(&interviews, model, "interviewer", reply).await;
+            record_usage(&coach, user.id, usage).await;
         }
         .instrument(tracing::Span::current()),
     );
@@ -179,21 +169,40 @@ async fn assistant(
     state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
-            let (reply, usage, _) = sse::pump(upstream, &tx).await;
-            if !reply.trim().is_empty() {
-                let _ = interviews
-                    .append_transcript(
-                        model,
-                        vec![TranscriptEntry { role: "assistant".into(), content: reply, at: now() }],
-                        None,
-                    )
-                    .await;
+            let (reply, usage, error) = sse::pump(upstream, &tx).await;
+            if let Some(e) = error {
+                tracing::warn!(error = %e, interview = %model.id, "assistant stream error");
             }
-            let _ = coach.budget().record(user.id, usage).await;
+            persist_reply(&interviews, model, "assistant", reply).await;
+            record_usage(&coach, user.id, usage).await;
         }
         .instrument(tracing::Span::current()),
     );
     Ok(sse::respond(rx))
+}
+
+/// Saves a streamed reply once the stream ends. Runs after the response, so
+/// failures can only be logged; an interview that ended mid-stream is the
+/// expected case (its transcript is frozen), not an error.
+async fn persist_reply(interviews: &InterviewService, model: Model, role: &str, reply: String) {
+    if reply.trim().is_empty() {
+        return;
+    }
+    let id = model.id;
+    let entry = TranscriptEntry { role: role.into(), content: reply, at: now() };
+    match interviews.append_transcript(model, vec![entry], None).await {
+        Ok(_) => {}
+        Err(ascend_core::AppError::Conflict(_)) => {
+            tracing::info!(interview = %id, role, "interview ended before the reply finished; reply not saved")
+        }
+        Err(e) => tracing::error!(error = %e, interview = %id, role, "failed to persist interview reply"),
+    }
+}
+
+async fn record_usage(coach: &ascend_core::ai::coach::CoachService, user_id: Uuid, usage: ascend_core::ai::Usage) {
+    if let Err(e) = coach.budget().record(user_id, usage).await {
+        tracing::error!(error = %e, "failed to record AI usage");
+    }
 }
 
 #[derive(Deserialize)]

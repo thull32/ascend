@@ -56,7 +56,23 @@ pub struct CoachService {
     model: String,
 }
 
+/// At most this many past messages are sent with each turn.
 const MAX_HISTORY: u64 = 30;
+/// The window's start moves in steps of this many messages rather than one
+/// turn at a time. A window that slid every turn would change the prompt's
+/// first message on every request and so miss the prompt cache on every
+/// long conversation; stepping keeps the prefix identical for five turns.
+const HISTORY_STEP: u64 = 10;
+
+/// Index of the first message to send, for a conversation of `total`
+/// messages: 0 until the window is full, then advancing in whole steps so
+/// between `MAX_HISTORY - HISTORY_STEP` and `MAX_HISTORY` messages are kept.
+fn history_start(total: u64) -> u64 {
+    if total <= MAX_HISTORY {
+        return 0;
+    }
+    (total - MAX_HISTORY).div_ceil(HISTORY_STEP) * HISTORY_STEP
+}
 const MAX_MESSAGE_CHARS: usize = 8000;
 
 impl CoachService {
@@ -184,15 +200,16 @@ impl CoachService {
         .insert(&self.db)
         .await?;
 
-        let history = Messages::find()
-            .filter(messages::Column::ConversationId.eq(conv.id))
-            .order_by_desc(messages::Column::CreatedAt)
+        let in_conversation = Messages::find().filter(messages::Column::ConversationId.eq(conv.id));
+        let total = in_conversation.clone().count(&self.db).await?;
+        let history = in_conversation
+            .order_by_asc(messages::Column::CreatedAt)
+            .offset(history_start(total))
             .limit(MAX_HISTORY)
             .all(&self.db)
             .await?;
         let mut msgs: Vec<ChatMessage> = history
             .into_iter()
-            .rev()
             .map(|m| ChatMessage {
                 role: if m.role == "assistant" { Role::Assistant } else { Role::User },
                 content: m.content,
@@ -351,6 +368,22 @@ pub fn collapse_roles(msgs: Vec<ChatMessage>) -> Vec<ChatMessage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_window_moves_in_steps_so_the_cached_prefix_survives() {
+        assert_eq!(history_start(0), 0);
+        assert_eq!(history_start(MAX_HISTORY), 0);
+        // One message over: the start jumps a whole step, not one message.
+        assert_eq!(history_start(MAX_HISTORY + 1), HISTORY_STEP);
+        // ...and stays put while the conversation grows by up to a step.
+        assert_eq!(history_start(MAX_HISTORY + HISTORY_STEP), HISTORY_STEP);
+        assert_eq!(history_start(MAX_HISTORY + HISTORY_STEP + 1), 2 * HISTORY_STEP);
+        for total in 0..500 {
+            let kept = total - history_start(total);
+            assert!(kept <= MAX_HISTORY, "total {total} keeps {kept}");
+            assert!(total <= MAX_HISTORY || kept > MAX_HISTORY - HISTORY_STEP, "total {total} keeps {kept}");
+        }
+    }
 
     #[test]
     fn collapse_makes_roles_alternate_and_start_with_user() {

@@ -53,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let state = state::AppState::build(Arc::new(config.clone()), db, curriculum)?;
+    ascend_core::auth::password::warm_up().await;
     let app = app::build(state.clone());
 
     // Background maintenance: sweep expired sessions and prune rate-limiter

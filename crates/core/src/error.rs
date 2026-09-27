@@ -19,8 +19,12 @@ pub enum AppError {
     NotFound(&'static str),
     #[error("{0}")]
     Conflict(String),
-    #[error("rate limit exceeded: {0}")]
-    RateLimited(String),
+    #[error("rate limit exceeded: {message}")]
+    RateLimited {
+        message: String,
+        /// When a retry can succeed, if known; sent as `Retry-After`.
+        retry_after_secs: Option<u64>,
+    },
     #[error("AI features are not configured on this deployment")]
     AiDisabled,
     #[error("upstream AI provider error: {0}")]
@@ -38,6 +42,13 @@ impl AppError {
     pub fn validation(msg: impl Into<String>) -> Self {
         Self::Validation(msg.into())
     }
+    /// An upstream AI failure. `public` is shown to the learner; `detail`
+    /// (provider messages, transport errors, parse errors) is logged only,
+    /// because it can echo request content or internal addresses.
+    pub fn ai_upstream(public: &str, detail: impl fmt::Display) -> Self {
+        tracing::warn!(detail = %detail, "{public}");
+        Self::AiUpstream(public.to_string())
+    }
     /// Machine-readable code for clients (stable across wording changes).
     pub fn code(&self) -> &'static str {
         match self {
@@ -46,7 +57,7 @@ impl AppError {
             Self::Forbidden => "forbidden",
             Self::NotFound(_) => "not_found",
             Self::Conflict(_) => "conflict",
-            Self::RateLimited(_) => "rate_limited",
+            Self::RateLimited { .. } => "rate_limited",
             Self::AiDisabled => "ai_disabled",
             Self::AiUpstream(_) => "ai_upstream",
             Self::Database(_) => "database_error",

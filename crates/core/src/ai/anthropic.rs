@@ -191,6 +191,9 @@ struct MessageDeltaInner {
 }
 #[derive(Deserialize)]
 struct ErrorInner {
+    #[serde(rename = "type", default)]
+    kind: String,
+    #[serde(default)]
     message: String,
 }
 
@@ -237,14 +240,19 @@ impl AnthropicClient {
 
     /// One-shot completion (used for JSON outputs and short titles).
     pub async fn complete(&self, req: &Request) -> AppResult<Completion> {
-        let resp = self.builder(req, false)?.send().await.map_err(|e| AppError::AiUpstream(e.to_string()))?;
+        let resp = self
+            .builder(req, false)?
+            .send()
+            .await
+            .map_err(|e| AppError::ai_upstream("could not reach the AI provider", e))?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             tracing::warn!(%status, body = %text.chars().take(500).collect::<String>(), "anthropic error");
             return Err(map_status(status));
         }
-        let parsed: MessageResponse = resp.json().await.map_err(|e| AppError::AiUpstream(e.to_string()))?;
+        let parsed: MessageResponse =
+            resp.json().await.map_err(|e| AppError::ai_upstream("the AI provider sent an unreadable reply", e))?;
         if parsed.stop_reason.as_deref() == Some("refusal") {
             return Err(AppError::AiUpstream("the model declined this request".into()));
         }
@@ -263,7 +271,11 @@ impl AnthropicClient {
     /// Streams text deltas. The returned stream always ends with exactly one
     /// `Done` or `Error` event.
     pub async fn stream(&self, req: &Request) -> AppResult<impl Stream<Item = StreamEvent> + Send + 'static> {
-        let resp = self.builder(req, true)?.send().await.map_err(|e| AppError::AiUpstream(e.to_string()))?;
+        let resp = self
+            .builder(req, true)?
+            .send()
+            .await
+            .map_err(|e| AppError::ai_upstream("could not reach the AI provider", e))?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
@@ -292,16 +304,19 @@ impl AnthropicClient {
                             break;
                         }
                         Ok(SseEvent::Error { error }) => {
+                            // Log the provider's words; show the learner ours.
+                            tracing::warn!(kind = %error.kind, message = %error.message, "anthropic stream error event");
                             finished = true;
-                            yield StreamEvent::Error(error.message);
+                            yield StreamEvent::Error(interrupted_message(&error.kind).into());
                             break;
                         }
                         Ok(_) => {}
                         Err(e) => tracing::debug!(error = %e, "unparsed sse event"),
                     },
                     Err(e) => {
+                        tracing::warn!(error = %e, "anthropic stream transport error");
                         finished = true;
-                        yield StreamEvent::Error(e.to_string());
+                        yield StreamEvent::Error(interrupted_message("transport").into());
                         break;
                     }
                 }
@@ -313,11 +328,26 @@ impl AnthropicClient {
     }
 }
 
+/// What the learner sees when a reply stops part-way. Provider error text is
+/// logged, never shown: it can echo request content or internal details.
+fn interrupted_message(kind: &str) -> &'static str {
+    match kind {
+        "overloaded_error" => "The AI provider is overloaded, so the reply stopped early. Try again shortly.",
+        "rate_limit_error" => "The AI provider is busy, so the reply stopped early. Try again in a moment.",
+        _ => "The reply was interrupted. Try again.",
+    }
+}
+
 fn map_status(status: reqwest::StatusCode) -> AppError {
     match status.as_u16() {
-        429 => AppError::RateLimited("the AI provider is rate limiting us; try again in a moment".into()),
+        429 => AppError::RateLimited {
+            message: "the AI provider is rate limiting us; try again in a moment".into(),
+            retry_after_secs: Some(30),
+        },
         529 | 503 => AppError::AiUpstream("the AI provider is overloaded; try again shortly".into()),
-        401 | 403 => AppError::AiUpstream("AI provider rejected our credentials".into()),
+        // A credentials problem is ours to fix; the learner only needs to know
+        // the feature is down. The caller logs the status.
+        401 | 403 => AppError::AiUpstream("the AI coach is temporarily unavailable".into()),
         // The provider's error body is logged by the caller, never forwarded:
         // it can echo request content and internal details.
         400 => AppError::AiUpstream("the AI provider rejected the request".into()),
@@ -359,6 +389,51 @@ mod tests {
         assert!(system[1].get("cache_control").is_none(), "volatile context must sit after the breakpoint");
         assert_eq!(b["cache_control"]["type"], "ephemeral", "conversation caching enabled");
         assert_eq!(b["thinking"]["type"], "adaptive");
+    }
+
+    /// Serves one canned HTTP response on a local port and returns its URL.
+    async fn one_shot_server(response: &'static str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 64 * 1024];
+            let _ = sock.read(&mut buf).await;
+            sock.write_all(response.as_bytes()).await.unwrap();
+            sock.shutdown().await.ok();
+        });
+        format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn provider_error_text_never_reaches_the_learner() {
+        let body = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":7}}}\n\n\
+                    event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"SECRET internal detail\"}}\n\n";
+        let response: &'static str = Box::leak(
+            format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\n\r\n{body}",
+                body.len()
+            )
+            .into_boxed_str(),
+        );
+        let url = one_shot_server(response).await;
+        let client = AnthropicClient::new(SecretString::from("k"), url, Duration::from_secs(5)).unwrap();
+        let events: Vec<StreamEvent> = client.stream(&req(None, false)).await.unwrap().collect().await;
+        let Some(StreamEvent::Error(shown)) = events.last() else { panic!("stream must end in an error event") };
+        assert!(!shown.contains("SECRET"), "provider text leaked: {shown}");
+        assert!(shown.contains("overloaded"), "the learner is told what kind of failure it was: {shown}");
+    }
+
+    #[tokio::test]
+    async fn upstream_throttling_carries_a_retry_hint() {
+        let url = one_shot_server("HTTP/1.1 429 Too Many Requests\r\ncontent-length: 2\r\n\r\n{}").await;
+        let client = AnthropicClient::new(SecretString::from("k"), url, Duration::from_secs(5)).unwrap();
+        match client.stream(&req(None, false)).await {
+            Err(AppError::RateLimited { retry_after_secs: Some(s), .. }) => assert!(s > 0),
+            Err(other) => panic!("expected RateLimited, got {other:?}"),
+            Ok(_) => panic!("expected RateLimited, got a stream"),
+        }
     }
 
     #[test]

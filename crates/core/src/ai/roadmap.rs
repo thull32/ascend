@@ -104,7 +104,7 @@ pub async fn suggest(
     let completion = client.complete(&req).await?;
     coach.budget().record(user_id, completion.usage).await?;
     let mut out: RoadmapSuggestions = serde_json::from_str(&completion.text)
-        .map_err(|e| AppError::AiUpstream(format!("roadmap suggestions did not parse: {e}")))?;
+        .map_err(|e| AppError::ai_upstream("the coach could not produce suggestions; try again", e))?;
     // Defence in depth: the schema constrains values, but never trust model
     // output as input to state changes. Drop unknown modules and duplicates.
     let mut seen = std::collections::HashSet::new();

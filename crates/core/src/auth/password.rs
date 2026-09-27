@@ -40,10 +40,20 @@ pub async fn hash(password: String) -> AppResult<String> {
 /// `None`, so both branches cost the same.
 pub async fn verify(password: String, hash: Option<String>) -> bool {
     let exists = hash.is_some();
-    let hash = hash.unwrap_or_else(|| DUMMY_HASH.clone());
     let Ok(_permit) = HASH_PERMITS.acquire().await else { return false };
-    let ok = tokio::task::spawn_blocking(move || verify_sync(&password, &hash)).await.unwrap_or(false);
+    // The dummy hash is read on the blocking pool, inside the permit: its
+    // first use computes it, which is Argon2 work like any other.
+    let ok = tokio::task::spawn_blocking(move || verify_sync(&password, hash.as_deref().unwrap_or(&DUMMY_HASH)))
+        .await
+        .unwrap_or(false);
     ok && exists
+}
+
+/// Computes the dummy hash at boot, so the first login for an unknown email
+/// is not slower than the rest (which would reveal that it is unknown).
+pub async fn warm_up() {
+    let _permit = HASH_PERMITS.acquire().await;
+    let _ = tokio::task::spawn_blocking(|| LazyLock::force(&DUMMY_HASH).len()).await;
 }
 
 #[cfg(test)]

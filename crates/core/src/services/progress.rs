@@ -114,7 +114,6 @@ impl ProgressService {
         };
         // Upsert returning the row: one statement, one round trip, no
         // read-modify-write race.
-        super::activity::record(&self.db, user_id).await?;
         let row = LessonProgress::insert(model)
             .on_conflict(
                 sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
@@ -127,6 +126,8 @@ impl ProgressService {
             )
             .exec_with_returning(&self.db)
             .await?;
+        // Only saved progress counts toward today's streak.
+        super::activity::record(&self.db, user_id).await?;
         Ok(row)
     }
 

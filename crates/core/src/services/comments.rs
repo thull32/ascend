@@ -164,8 +164,10 @@ impl CommentService {
         if c.user_id != Some(user_id) && !is_admin {
             return Err(AppError::Forbidden);
         }
+        let now = Utc::now();
         let mut active: comments::ActiveModel = c.into();
-        active.deleted_at = Set(Some(Utc::now()));
+        active.deleted_at = Set(Some(now));
+        active.updated_at = Set(now);
         active.body = Set(String::new());
         active.update(&self.db).await?;
         Ok(())
