@@ -125,32 +125,32 @@ A final consequence is that the log becomes the integration point. Many independ
 ```quiz
 - q: >-
     What was the main reason the lambda architecture kept a batch layer as the source of truth?
-  options: ["Batch jobs were faster than streams", "Early stream processors lacked exactly-once state, event-time semantics and replay, so their results could not be trusted to be complete or correct", "Streams cannot compute aggregations", "Batch storage was cheaper than Kafka"]
+  options: ["Stream processors could not compute aggregations over keys", "Early stream engines lacked exactly-once state and replay", "HDFS storage was far cheaper than keeping events in Kafka", "Batch jobs finished faster than streams could process data"]
   answer: 1
   explanation: >-
-    Lambda bounded the damage of unreliable streaming by recomputing everything in a trustworthy batch system. Once stream processors gained durable state, event time and replay, that justification weakened, which is the argument behind kappa.
+    Early stream processors lacked exactly-once state, event-time semantics and replay, so their results could not be trusted to be complete or correct. Lambda bounded that damage by recomputing everything in a slow but trustworthy batch system; speed was never batch's advantage. Once stream processors gained durable state, event time and replay, that justification weakened, which is the argument behind kappa.
 - q: >-
     You must reprocess 60 days of events that arrived at an average of 50,000 events/s, and you want it done in 12 hours. Roughly what replay rate do you need?
-  options: ["50,000 events/s", "About 600,000 events/s", "About 6 million events/s", "About 60 million events/s"]
+  options: ["About 50,000 events/s", "About 600,000 events/s", "About 6 million events/s", "About 60 million events/s"]
   answer: 2
   explanation: >-
     60 days is 120 times 12 hours, so you need 120 times the live rate: 50,000 × 120 = 6 million events/s. That requires enough partitions for the parallelism, brokers able to serve cold reads, and capacity to rebuild state, which is why large backfills often read from lake tables instead.
 - q: >-
     A downstream job consumes the output of a streaming count-per-title aggregation and sums the counts it receives to get a daily total. The totals are far too high. Why?
-  options: ["The upstream job is at-least-once", "The aggregation emits updated counts for the same key as the count changes; summing updates counts earlier values again. The consumer must treat records as upserts per key", "The watermark is too small", "Kafka reordered the records"]
-  answer: 1
+  options: ["The watermark is too short, so late events are counted twice", "Kafka reordered the records, so updates are applied twice", "Records are updated counts per key, so sums re-add old values", "The upstream job is at-least-once, so records are duplicated"]
+  answer: 2
   explanation: >-
-    An aggregation turns a stream into a table and emits the table's changes. Each record replaces the previous value for its key. Summing them treats updates as independent facts, a classic stream-table duality bug.
+    An aggregation turns a stream into a table and emits the table's changes as the count for a key changes. Each record replaces the previous value for its key, so the consumer must treat records as upserts per key. Summing them treats updates as independent facts, a classic stream-table duality bug; occasional at-least-once duplicates could not inflate totals this much.
 - q: >-
     Finance needs daily partner numbers that include events arriving up to 48 hours late, while operations wants per-minute numbers within 30 seconds. What design fits best?
-  options: ["A single streaming job with a 48-hour watermark", "A streaming job with a short watermark for operations, plus a batch job over the lake table that produces the final daily numbers at T+2 and overwrites the streaming estimates, both using the same logic", "Two separately written pipelines merged in the serving layer", "Processing-time windows"]
-  answer: 1
+  options: ["A stream estimate plus a T+2 batch overwrite, sharing code", "Two separately written pipelines merged in the serving layer", "One streaming job with processing-time windows, so nothing is late", "A single streaming job with a 48-hour watermark for both"]
+  answer: 0
   explanation: >-
-    One watermark cannot satisfy both freshness and completeness. A fast stream estimate plus a batch overwrite from complete data gives each consumer what it needs; sharing the logic avoids lambda's drift. A 48-hour watermark would make operations wait two days.
+    One watermark cannot satisfy both freshness and completeness. A streaming job with a short watermark serves operations, and a batch job over the lake table produces the final daily numbers at T+2 and overwrites the streaming estimates. Sharing the logic avoids lambda's drift, which is the problem with two separately written pipelines. A 48-hour watermark would make operations wait two days.
 - q: >-
     Which of these is an example of the stream-table duality?
-  options: ["Sharding a table by hash", "Rebuilding a Kafka Streams state store by replaying its compacted changelog topic", "Adding an index to speed up a query", "Compressing a Parquet file"]
+  options: ["Compressing each column chunk of a Parquet file with zstd", "Rebuilding a state store from its compacted changelog", "Sharding a table by the hash of its primary key", "Adding a secondary index so a range query runs faster"]
   answer: 1
   explanation: >-
-    The changelog is the stream of changes; the state store is the table it materialises. Replaying one produces the other. The other options are storage techniques unrelated to converting between streams and tables.
+    Rebuilding a Kafka Streams state store by replaying its compacted changelog topic: the changelog is the stream of changes; the state store is the table it materialises. Replaying one produces the other. The other options are storage techniques unrelated to converting between streams and tables.
 ```

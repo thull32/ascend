@@ -319,38 +319,38 @@ hints:
 ```quiz
 - q: >-
     Coin Change II (count combinations) with coins [1, 2] and amount 3. Looping amounts outside and coins inside gives:
-  options: ["2, correct", "3, because 1+2 and 2+1 are counted separately; the coin loop must be outermost so each combination is built in one fixed coin order", "1", "0"]
-  answer: 1
+  options: ["3, since 1+2 and 2+1 both count", "2, which is the correct count", "4, since 1+1+1 is counted twice", "1, since only 1+1+1 is found"]
+  answer: 0
   explanation: >-
-    With amounts outermost, every ordering of the same multiset of coins reaches the amount by a different path and is added separately. Fixing the coin order by putting coins outermost counts each multiset once.
+    With amounts outermost, every ordering of the same multiset of coins reaches the amount by a different path and is added separately, so 1+1+1, 1+2 and 2+1 give 3. Putting the coin loop outermost fixes the coin order and counts each multiset once, giving the correct 2.
 - q: >-
     Which statement of the DP state for Longest Common Subsequence is complete enough to derive the recurrence?
-  options: ["dp[i][j] is the best answer so far", "dp[i][j] is the length of the longest common subsequence of the first i characters of A and the first j characters of B", "dp[i][j] is 1 if A[i] equals B[j]", "dp[i] is the LCS ending at i"]
+  options: ["dp[i][j] is the best answer found so far in the table", "dp[i][j] is the LCS length of A[:i] and B[:j]", "dp[i][j] is 1 if A[i] equals B[j], and 0 otherwise", "dp[i] is the length of the LCS that ends at index i"]
   answer: 1
   explanation: >-
-    The state must describe a subproblem fully: which prefixes, and what quantity. From that sentence the two cases (last characters match or not) follow directly. The other options either omit the second string or describe a different problem.
+    The state must describe a subproblem fully: which prefixes (the first i characters of A and the first j of B), and what quantity. From that sentence the two cases (last characters match or not) follow directly. The other options are vague, omit the second string, or describe a different problem.
 - q: >-
     A 0/1 knapsack solution uses a single dp row and iterates capacities from 0 upward. What is the effect?
-  options: ["It is correct and faster", "Each item can be used more than once because dp[c - w] may already include the current item; capacities must be iterated downward for 0/1", "It undercounts", "It only fails for weights of 1"]
-  answer: 1
+  options: ["An item can be reused: dp[c - w] may already hold it", "It is still correct, and faster than iterating downward", "It undercounts, since each capacity is only read once", "It fails only when some item has a weight of exactly 1"]
+  answer: 0
   explanation: >-
-    Upward iteration reads a cell updated in the same pass for the same item, which is the unbounded-knapsack behaviour. Downward iteration reads only values from before this item was considered.
+    Upward iteration reads a cell updated in the same pass for the same item, which is the unbounded-knapsack behaviour. Capacities must be iterated downward for 0/1, so that each read sees only values from before this item was considered.
 - q: >-
     Why does House Robber II run the linear solution twice rather than add a dimension to the state?
-  options: ["Because the array is too short for a 2D table", "Because the circular constraint only links house 0 and house n-1; any optimal solution omits at least one of them, so the answer is the better of two linear instances that each exclude one end", "Because the second run corrects rounding errors in the first", "Because DP cannot handle circular arrays"]
+  options: ["Because DP cannot be applied to circular arrays at all", "Only the end houses conflict; an optimum skips one", "Because the array is too short to justify a 2D table", "Because the second run corrects errors left by the first"]
   answer: 1
   explanation: >-
-    Case-splitting on the one constraint that breaks linearity reuses the existing solution. Adding a took-house-0 flag to the state also works but is more code for the same complexity.
+    The circular constraint only links house 0 and house n-1, so any optimal solution omits at least one of them, and the answer is the better of two linear instances that each exclude one end. Case-splitting on the one constraint that breaks linearity reuses the existing solution. Adding a took-house-0 flag to the state also works but is more code for the same complexity.
 - q: >-
     Word Break on a 10,000-character string with a dictionary whose longest word has 10 letters. What does bounding the inner loop by the longest word length change?
-  options: ["Nothing; the hash lookups dominate anyway", "The number of substring checks falls from about n^2 / 2 to n * 10, and each check is at most 10 characters, turning O(n^2) into O(n * L)", "It makes the answer wrong for words longer than 10", "It removes the need for the dp table"]
-  answer: 1
+  options: ["Substring checks drop from about n²/2 to about 10n", "It removes the need for the dp table altogether", "Nothing, since the hash lookups dominate the cost anyway", "It gives wrong answers for words longer than 10 letters"]
+  answer: 0
   explanation: >-
-    No dictionary word can span more than L characters, so any split point further back than L cannot end a word at i. The bound is safe and removes the quadratic factor.
+    No dictionary word can span more than L characters, so any split point further back than L cannot end a word at i. The bound is safe, each check is at most 10 characters, and it turns O(n^2) substring checks into O(n * L).
 - q: >-
     The interviewer asks for the longest increasing subsequence on 100,000 elements after you wrote the O(n^2) DP. What is the expected follow-up answer?
-  options: ["It cannot be done faster", "Maintain an array where tails[k] is the smallest possible tail of an increasing subsequence of length k+1; each element replaces the first tail not smaller than it via binary search, giving O(n log n)", "Use a heap for O(n log n)", "Sort the array first"]
-  answer: 1
+  options: ["It cannot be done faster than O(n²) by any method", "Sort the array first, then scan it once for runs", "Use a heap of the current tails for O(n log n)", "Keep sorted tails and binary search into them"]
+  answer: 3
   explanation: >-
-    The tails array is always sorted, so binary search finds the position, and its final length is the LIS length. It does not directly give the subsequence itself, which needs an extra predecessor array.
+    tails[k] is the smallest possible tail of an increasing subsequence of length k+1. Each element replaces the first tail not smaller than it, found by binary search because tails stays sorted, giving O(n log n); the final length of tails is the LIS length. It does not directly give the subsequence itself, which needs an extra predecessor array.
 ```

@@ -342,38 +342,38 @@ That connection is limited by congestion, not by the receiver: every loss has cu
 ```quiz
 - q: >-
     A reverse proxy opens a new TCP connection to its single backend for every request and closes it after the response. At about 470 requests per second it starts failing with EADDRNOTAVAIL. What is the most effective fix?
-  options: ["Raise net.core.somaxconn on the backend", "Enable HTTP keep-alive and pool connections to the backend, so ports are not consumed and locked in TIME_WAIT per request", "Enable tcp_tw_recycle", "Increase the backend's accept backlog"]
+  options: ["Enable tcp_tw_recycle so TIME_WAIT ports recycle", "Pool keep-alive connections to the backend", "Increase the backend's listen() accept backlog", "Raise net.core.somaxconn on the backend host"]
   answer: 1
   explanation: >-
-    The proxy closes first, so each connection leaves a port in TIME_WAIT for 60 seconds; 28,232 ephemeral ports divided by 60 s is about 470 per second to one destination. Reusing connections removes the churn and the handshakes. somaxconn and backlog are server-side accept limits and unrelated. tcp_tw_recycle broke NAT'd clients and no longer exists in Linux.
+    The proxy closes first, so each connection leaves a port in TIME_WAIT for 60 seconds; 28,232 ephemeral ports divided by 60 s is about 470 per second to one destination. Keep-alive and pooling mean ports are no longer consumed and locked per request, and they remove a handshake per request too. somaxconn and backlog are server-side accept limits and unrelated. tcp_tw_recycle broke NAT'd clients and no longer exists in Linux.
 - q: >-
     A client sends a small request header with one write() and the body with a second write(), then waits for the reply. Round trips are 0.5 ms, yet every call takes about 40 ms. What is happening?
-  options: ["The server's event loop is blocked for 40 ms", "Nagle's algorithm holds the second small write until the first is ACKed, while the server delays its ACK waiting for data to piggyback on; the delayed-ACK timer breaks the deadlock", "The retransmission timeout is firing because the first segment is lost", "Slow start limits the connection to one segment per RTT"]
-  answer: 1
+  options: ["Nagle holds write two while the ACK is delayed", "The server's event loop is blocked for 40 ms per call", "Slow start limits the connection to one segment per RTT", "The first segment is lost and the RTO fires each time"]
+  answer: 0
   explanation: >-
-    Write-write-read with small writes is the classic Nagle and delayed-ACK interaction. Linux's minimum delayed-ACK time is 40 ms. Coalescing the writes into one or setting TCP_NODELAY removes it. A lost segment would cost at least the 200 ms minimum RTO, and slow start does not add a fixed 40 ms per request.
+    Write-write-read with small writes is the classic Nagle and delayed-ACK interaction: Nagle holds the second small write until the first is ACKed, while the server delays its ACK hoping to piggyback it on data, and the delayed-ACK timer (40 ms minimum on Linux) breaks the deadlock. Coalescing the writes into one or setting TCP_NODELAY removes it. A lost segment would cost at least the 200 ms minimum RTO, and slow start does not add a fixed 40 ms per request.
 - q: >-
     Connecting to port 5432 on host A fails instantly with connection refused. Connecting to port 5432 on host B hangs for about two minutes and then times out. What is the likely difference?
-  options: ["Host B is overloaded", "Host A has no process listening, so its kernel replies with RST; host B's SYNs are being silently dropped by a firewall or security group, so the client retransmits SYNs with exponential backoff until tcp_syn_retries is exhausted", "Host B uses a larger receive window", "Host A is using SYN cookies"]
+  options: ["Host B advertises a much larger receive window than A", "A has no listener and sends RST; B's SYNs are silently dropped", "Host B is overloaded and cannot accept new connections", "Host A has SYN cookies enabled and B does not"]
   answer: 1
   explanation: >-
-    RST produces ECONNREFUSED in one RTT. Silence produces SYN retransmissions at 1, 2, 4, 8, 16 and 32 seconds and a final wait, about 127 seconds on Linux defaults. That is why clients need an explicit connect timeout.
+    A port with no listener makes the kernel reply with RST, which produces ECONNREFUSED in one RTT. A firewall or security group that drops SYNs silently produces SYN retransmissions at 1, 2, 4, 8, 16 and 32 seconds and a final wait until tcp_syn_retries is exhausted, about 127 seconds on Linux defaults. An overloaded host would still answer or overflow its queue, not fail at a fixed two minutes. That is why clients need an explicit connect timeout.
 - q: >-
     Your service has 9,000 sockets in CLOSE_WAIT and is approaching its file-descriptor limit. Which statement is true?
-  options: ["The peers failed to send their final ACK; lowering the TIME_WAIT duration will help", "Your application received FIN from the peers and has not called close() on those sockets; this is a leak in your code, typically an unclosed response body or missing cleanup path", "The kernel will reap CLOSE_WAIT sockets after 60 seconds", "CLOSE_WAIT is caused by Nagle's algorithm"]
-  answer: 1
+  options: ["The kernel will reap CLOSE_WAIT sockets after 60 s", "Nagle's algorithm is holding the sockets' final FIN", "Peers never sent their final ACK; shorten TIME_WAIT", "Your code received FIN but never called close()"]
+  answer: 3
   explanation: >-
-    CLOSE_WAIT means the remote side has closed and the local application has not. There is no kernel timer for it. TIME_WAIT is the state on the side that closes first and has nothing to do with this. The fix is in the code path that should close the socket.
+    CLOSE_WAIT means the remote side has closed and the local application has not called close(). There is no kernel timer for it. TIME_WAIT is the state on the side that closes first and has nothing to do with this. The fix is in the code path that should close the socket, typically an unclosed response body or a missing cleanup path.
 - q: >-
     A bulk transfer between regions runs at 50 Mbit/s on a 10 Gbit/s link with an 80 ms RTT, and ss -ti shows no retransmissions and a large cwnd. The receiving application calls setsockopt(SO_RCVBUF, 512 KB) at startup. What limits throughput?
-  options: ["Congestion control, because cwnd is large", "The receive window: setting SO_RCVBUF disables autotuning, and 512 KB per 80 ms is about 50 Mbit/s, far below the path's bandwidth-delay product of about 100 MB", "The MSS is too small", "TIME_WAIT on the sender"]
-  answer: 1
+  options: ["The 512 KB receive window, with autotuning disabled", "TIME_WAIT sockets piling up on the sending host", "The MSS is too small for a 10 Gbit/s link to fill", "Congestion control, since the cwnd has grown large"]
+  answer: 0
   explanation: >-
-    Throughput is bounded by min(cwnd, rwnd) per RTT. With no loss and a large cwnd, the receiver's window is the binding limit: 524,288 bytes x 8 / 0.08 s is about 52 Mbit/s. The fixed buffer turned off autotuning, which would have grown the window toward the tcp_rmem maximum. Removing the setsockopt call usually fixes it.
+    Throughput is bounded by min(cwnd, rwnd) per RTT. With no loss and a large cwnd, the receiver's window is the binding limit: 524,288 bytes x 8 / 0.08 s is about 52 Mbit/s, far below the path's bandwidth-delay product of about 100 MB. Setting SO_RCVBUF turned off autotuning, which would have grown the window toward the tcp_rmem maximum. Removing the setsockopt call usually fixes it.
 - q: >-
     Behind a load balancer with a 60-second idle timeout, a Node service with the default 5-second keepAliveTimeout returns occasional 502s at low traffic. Why?
-  options: ["Node cannot handle keep-alive", "The backend closes idle connections before the balancer does, so the balancer sometimes sends a new request on a connection the backend has just closed; the backend's idle timeout should exceed the balancer's", "The balancer's TIME_WAIT table is full", "The 502s are caused by Nagle's algorithm"]
+  options: ["The balancer's TIME_WAIT table fills at low traffic", "Backend idle timeout is shorter than the balancer's", "Node's HTTP server cannot handle keep-alive at all", "Nagle's algorithm delays the balancer's requests"]
   answer: 1
   explanation: >-
-    Two hops with idle timeouts race to close the same connection. When the side that did not expect it to close sends a request just as the FIN arrives, the request fails. Making each hop's idle timeout longer than the one in front of it ensures the client side of every connection closes first.
+    Two hops with idle timeouts race to close the same connection. The backend closes idle connections after 5 seconds, so the balancer sometimes sends a new request on a connection the backend has just closed, and that request fails. Making each hop's idle timeout longer than the one in front of it ensures the client side of every connection closes first.
 ```

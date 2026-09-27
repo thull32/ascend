@@ -256,32 +256,32 @@ hints:
 ```quiz
 - q: >-
     In the read/write two-pointer compaction, what guarantees that writing at `write` never destroys an element you have not yet read?
-  options: ["The array is sorted", "The invariant `write <= read`: the write pointer only advances when the read pointer does, so it never overtakes it", "Elements are swapped rather than overwritten", "The array has no duplicates"]
-  answer: 1
-  explanation: >-
-    Every element at index < read has already been examined; write never exceeds read, so any slot it writes to has been consumed. Swapping vs overwriting changes what happens to discarded elements, not this safety property.
-- q: >-
-    In the Dutch national flag algorithm, after swapping a 2 at `mid` with the element at `hi`, why is `mid` not advanced?
-  options: ["To keep the loop O(n)", "Because the element swapped in from `hi` has not been examined and may itself be 0 or 2", "Because `hi` must be decremented first", "Because `mid` is only advanced on 1s"]
-  answer: 1
-  explanation: >-
-    The region `a[mid..hi]` is the unknown region. The swap brings an unexamined element into position `mid`; advancing would classify it without looking. On a 0 the swapped-in element from `lo` is a known 1 (or `mid` itself), so advancing is safe there.
-- q: >-
-    Which in-place technique preserves the relative order of the elements it keeps?
-  options: ["Hoare partition", "Dutch national flag", "Read/write pointer compaction", "Three-reversal rotation of a subset"]
+  options: ["Elements are swapped rather than overwritten, so none is ever lost", "The array is sorted, so each kept element only ever moves leftward", "The invariant `write <= read`, so every slot written was already read", "The array has no duplicates, so each slot is written at most once"]
   answer: 2
   explanation: >-
-    The read pointer visits kept elements in order and the write pointer places them in order, so relative order is preserved (stable). Swap-based partitions move elements across the array and scramble order within regions.
+    The write pointer only advances when the read pointer does, so it never overtakes it. Every element at index < read has already been examined, so any slot write touches has been consumed. Swapping vs overwriting changes what happens to discarded elements, not this safety property, and the technique needs neither sorted nor distinct input.
+- q: >-
+    In the Dutch national flag algorithm, after swapping a 2 at `mid` with the element at `hi`, why is `mid` not advanced?
+  options: ["Advancing would make the loop exceed O(n) on inputs full of 2s", "`mid` only advances on 1s, since 0s and 2s are always swapped", "The element swapped in from `hi` has not been examined yet", "The swapped-in element is always a 1, which the next step skips"]
+  answer: 2
+  explanation: >-
+    The region `a[mid..hi]` is the unknown region. The swap brings an unexamined element, which may itself be a 0 or a 2, into position `mid`; advancing would classify it without looking. `mid` does advance on a 0: the element swapped in from `lo` is a known 1 (or `mid` itself), so advancing is safe there.
+- q: >-
+    Which in-place technique preserves the relative order of the elements it keeps?
+  options: ["Read/write pointer compaction", "Hoare partition from opposite ends", "Dutch national flag partition", "Three-reversal rotation of a subset"]
+  answer: 0
+  explanation: >-
+    The read pointer visits kept elements in order and the write pointer places them in order, so relative order is preserved (stable). Swap-based partitions such as Hoare and the Dutch flag move elements across the array and scramble order within regions.
 - q: >-
     Rotating an array of length 5 right by k = 7 with the three-reversal method without reducing k first will:
-  options: ["Work correctly because reversal wraps around", "Index past the end of the array (or reverse the wrong ranges)", "Produce the rotation by 2 anyway", "Rotate left instead of right"]
-  answer: 1
+  options: ["Produce the rotation by 2 anyway, since 7 mod 5 is applied implicitly", "Rotate left by 2 instead, since k exceeds n and the direction flips", "Index past the end when it reverses the first k elements", "Work correctly, because each reversal wraps indices around the end"]
+  answer: 2
   explanation: >-
-    The method reverses the first k elements, and k = 7 exceeds the length. Reduce k to k mod n = 2 first; rotating by n is the identity, so only the remainder matters.
+    The method reverses the first k elements, and k = 7 exceeds the length, so it indexes past the end (or, with clamped slices, reverses the wrong ranges). Nothing reduces k for you: take k mod n = 2 first; rotating by n is the identity, so only the remainder matters.
 - q: >-
     An interviewer asks you to reverse a Python string in place with O(1) extra space. The best response is:
-  options: ["Use s[::-1]", "Explain that Python strings are immutable, convert to a list, reverse with two pointers, and join; note the O(n) buffer is unavoidable", "Refuse; it is impossible", "Use recursion"]
-  answer: 1
+  options: ["Say it is impossible, since strings are immutable, and stop there", "Use s[::-1], since slicing reverses the string in O(1) extra space", "Reverse it recursively, swapping the first and last characters each call", "Note strings are immutable, then reverse a list copy with two pointers"]
+  answer: 3
   explanation: >-
-    The technique (two pointers) is what is being tested. Stating the immutability constraint and its consequence shows you understand the runtime; s[::-1] hides the algorithm and recursion adds O(n) stack space.
+    The technique (two pointers) is what is being tested. Stating the immutability constraint and its consequence, that the O(n) list buffer is unavoidable, shows you understand the runtime. s[::-1] allocates a new string and hides the algorithm, and recursion adds O(n) stack space on top of the copies.
 ```

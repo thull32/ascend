@@ -237,32 +237,32 @@ Hot keys and the dedupe state. A viral ad at 10% of traffic is 100,000 clicks/s 
 ```quiz
 - q: >-
     After a 20-minute stream job outage, the job recovers and processes the backlog. If windows use processing time, what goes wrong?
-  options: ["Nothing; the counts are identical", "Clicks are lost", "Twenty minutes of clicks are counted in the minute the job recovered, producing a false spike and empty minutes before it", "Kafka rejects the old events"]
-  answer: 2
+  options: ["Kafka rejects the backlog as older than retention", "The backlog is counted in the recovery minute", "The 20 minutes of clicks are dropped as too late", "Nothing; each minute's count comes out the same"]
+  answer: 1
   explanation: >-
-    Processing-time windows assign events by when the job sees them, so a backlog lands in the recovery minute. Event-time windows assign each click to the minute it happened, regardless of when it is processed.
+    Processing-time windows assign events by when the job sees them, so twenty minutes of clicks land in the recovery minute: a false spike, with empty minutes before it. Nothing is dropped; it is misattributed. Event-time windows assign each click to the minute it happened, regardless of when it is processed.
 - q: >-
     The watermark policy is max event time seen minus 30 seconds. When does the window [10:00, 10:01) fire?
-  options: ["At 10:01:00 wall-clock time", "When an event with event time at or after 10:01:30 has been seen, pushing the watermark past 10:01:00", "When 1,000 events have arrived", "Only after allowed lateness expires"]
-  answer: 1
-  explanation: >-
-    The watermark is derived from event times, not wall-clock time. It reaches 10:01:00 once the maximum event time is 10:01:30. Allowed lateness governs corrections after firing, not the first firing.
-- q: >-
-    The stream job restarts from a checkpoint and reprocesses 2 minutes of events. Which sink design keeps the minute counts correct?
-  options: ["Upsert the window's absolute count keyed by (ad_id, window_start, dimensions)", "UPDATE clicks = clicks + n for each window", "Append every result as a new row and sum at query time", "Disable checkpoints to avoid replays"]
-  answer: 0
-  explanation: >-
-    Replays re-emit results. Increments double-count them; absolute counts keyed by window overwrite with the same value, so the replay is harmless. Appending rows and summing has the same double-counting problem as increments.
-- q: >-
-    Why is the billing number computed by a daily batch job rather than taken from the real-time stream?
-  options: ["Batch jobs are always more accurate than streams", "Streams cannot count", "The stream is too expensive to run", "Fraud filtering needs a day of context, late clicks have a long tail, and invoices must be reproducible from immutable inputs"]
+  options: ["At 10:01:00 on the wall clock of the job's host", "When 1,000 events for that window have arrived", "Only once the allowed-lateness period has expired", "Once an event stamped 10:01:30 or later is seen"]
   answer: 3
   explanation: >-
-    Each reason is a property of the billing requirement, not a general claim about batch versus streaming. The stream is correct for dashboards and pacing; the batch path is authoritative for money, and reconciliation keeps them honest.
+    The watermark is derived from event times, not wall-clock time. It reaches 10:01:00 once the maximum event time is 10:01:30, which pushes it past the window end. Allowed lateness governs corrections after firing, not the first firing.
 - q: >-
-    Dashboards stop updating every night at 3 a.m. although clicks are still arriving in most regions. What is the most likely cause?
-  options: ["Kafka deletes data at night", "An idle partition from a quiet region is holding back the job's watermark, which is the minimum across partitions", "The OLAP store is compacting", "Clock skew on the click servers"]
+    The stream job restarts from a checkpoint and reprocesses 2 minutes of events. Which sink design keeps the minute counts correct?
+  options: ["Upsert absolute counts keyed by the window and dimensions", "Increment with UPDATE clicks = clicks + n for each window", "Disable checkpoints so the job never replays events", "Append every result as a new row and sum at query time"]
+  answer: 0
+  explanation: >-
+    Replays re-emit results. Increments double-count them; absolute counts keyed by (ad_id, window_start, dimensions) overwrite with the same value, so the replay is harmless. Appending rows and summing has the same double-counting problem as increments.
+- q: >-
+    Why is the billing number computed by a daily batch job rather than taken from the real-time stream?
+  options: ["Batch jobs are always more accurate than streams", "Fraud filtering, late clicks and reproducible invoices", "Streams cannot count exactly, only approximately, at scale", "The stream is too expensive to run for every click"]
   answer: 1
   explanation: >-
-    The operator's watermark is the minimum of its inputs' watermarks, so one partition with no events stops every window from firing. An idleness timeout excludes silent partitions from the minimum.
+    Fraud filtering needs a day of context, late clicks have a long tail, and invoices must be reproducible from immutable inputs. Each reason is a property of the billing requirement, not a general claim about batch versus streaming. The stream is correct for dashboards and pacing; the batch path is authoritative for money, and reconciliation keeps them honest.
+- q: >-
+    Dashboards stop updating every night at 3 a.m. although clicks are still arriving in most regions. What is the most likely cause?
+  options: ["Clock skew on the click servers stamps events wrongly", "An idle partition is holding back the job's watermark", "The OLAP store is compacting segments and blocks writes", "Kafka's nightly retention sweep deletes the input"]
+  answer: 1
+  explanation: >-
+    The operator's watermark is the minimum of its inputs' watermarks, so one partition from a quiet region with no events stops every window from firing. An idleness timeout excludes silent partitions from the minimum.
 ```

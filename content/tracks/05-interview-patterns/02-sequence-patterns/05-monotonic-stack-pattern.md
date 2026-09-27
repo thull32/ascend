@@ -313,32 +313,32 @@ hints:
 ```quiz
 - q: >-
     A monotonic-stack solution has a while loop inside a for loop. Why is the total running time O(n) rather than O(n²)?
-  options: ["The while loop runs at most once per iteration", "Each index is pushed exactly once and popped at most once, so all pops together cost at most n", "The stack never holds more than a constant number of elements", "The input is assumed to be sorted"]
-  answer: 1
+  options: ["Each index is pushed once and popped at most once overall", "The input is assumed sorted, so pops are rare and cheap", "The while loop runs at most once per outer iteration", "The stack never holds more than a constant number of items"]
+  answer: 0
   explanation: >-
-    Pops are charged to the element being popped, not to the iteration doing the popping. Each element can be popped only once, so the sum of all inner-loop iterations is bounded by n. The stack can grow to n elements on a monotone input, so the third option is false.
+    Pops are charged to the element being popped, not to the iteration doing the popping. Each element can be popped only once, so the sum of all inner-loop iterations is bounded by n, even though one iteration may pop many. The stack can grow to n elements on a monotone input, so a constant-size bound is false.
 - q: >-
     You need, for each element, the nearest element to its right that is strictly smaller. Which stack do you keep, and when do you pop?
-  options: ["Decreasing values; pop while top is less than the new element", "Increasing values; pop while top is greater than the new element", "Decreasing values; pop while top is greater than the new element", "Increasing values; pop while top is less than the new element"]
-  answer: 1
+  options: ["Decreasing values; pop while top is greater than the new element", "Increasing values; pop while top is less than the new element", "Increasing values; pop while top is greater than the new element", "Decreasing values; pop while top is less than the new element"]
+  answer: 2
   explanation: >-
-    A new element that is smaller than the top resolves the top's query, so you pop while top is greater. What remains is increasing from bottom to top. The first option is the next-greater configuration.
+    A new element that is smaller than the top resolves the top's query, so you pop while top is greater. What remains is increasing from bottom to top. A decreasing stack that pops while the top is less is the next-greater configuration.
 - q: >-
     In the histogram algorithm, bar j is popped at index i and the stack top after the pop is index p. What is the width of bar j's rectangle?
-  options: ["i - p", "i - p - 1", "i - j", "p - j + 1"]
-  answer: 1
+  options: ["i - j - 1", "i - j + 1", "i - p - 1", "i - p + 1"]
+  answer: 2
   explanation: >-
-    p and i are the strictly shorter walls on each side; the rectangle covers the bars strictly between them, which number i - p - 1. If the stack is empty, treat p as -1 so the width is i.
+    p and i are the strictly shorter walls on each side; the rectangle covers the bars strictly between them, which number i - p - 1. Measuring from j ignores how far the bar extends to the left over bars that were popped earlier. If the stack is empty, treat p as -1 so the width is i.
 - q: >-
     Remove K Digits on "12345" with k = 2 should return "123". Where does the answer come from?
-  options: ["The stack pops 4 and 5 when they arrive", "No pops occur, so the leftover budget removes two digits from the end of the stack", "The lstrip removes the last two digits", "The algorithm returns \"0\" because the budget is unspent"]
+  options: ["It returns \"0\" because the budget is left unspent", "No pops fire, so the leftover budget trims the tail", "The lstrip step at the end strips off the last two digits", "The stack pops 4 and 5 as soon as each one arrives"]
   answer: 1
   explanation: >-
     Every digit is larger than the previous, so the pop condition never fires. The final step slices off k digits from the end of a non-decreasing stack, which is the correct greedy choice because the largest digits are at the end.
 - q: >-
     Why is the sliding window maximum solved with a deque instead of a plain stack?
-  options: ["A stack cannot hold indices", "The window's oldest index must be evicted from the front while the invariant is maintained at the back", "A deque has O(1) random access", "A heap would be faster but is harder to code"]
-  answer: 1
+  options: ["A deque gives O(1) random access into the window", "A heap would be faster, but a deque is easier to code", "Expired indices leave from the front as the window slides", "A plain stack cannot store indices, only values"]
+  answer: 2
   explanation: >-
     The monotone invariant is maintained by popping from the back, exactly as in a stack, but the maximum is read from the front and must be dropped when its index leaves the window. Two-ended access is the only extra requirement. A heap is slower, O(n log k), not faster.
 ```

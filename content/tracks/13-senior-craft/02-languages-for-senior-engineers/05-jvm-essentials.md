@@ -185,38 +185,38 @@ With the subtraction comparator, a heap containing `Integer.MAX_VALUE` and `-5` 
 ```quiz
 - q: >-
     A JVM with -Xmx4g runs in a container with a 4 GiB memory limit and is killed by the kernel with no OutOfMemoryError logged. What is the most likely explanation?
-  options: ["The heap is too small for the live set", "The process uses memory outside the heap (thread stacks, metaspace, code cache, direct buffers), so resident memory exceeds 4 GiB", "The garbage collector is disabled in containers", "Compressed oops are turned off above 4 GB"]
-  answer: 1
+  options: ["The heap is too small for the live set, so the GC thrashes until the kernel steps in", "Compressed oops switch off at 4 GB, so every object reference doubles in size", "Native memory outside the heap (stacks, metaspace, buffers) pushes RSS past 4 GiB", "The garbage collector is disabled in containers, so the heap never shrinks"]
+  answer: 2
   explanation: >-
-    -Xmx bounds only the Java heap. Everything else the JVM allocates is native memory, so a heap equal to the container limit guarantees an OOM kill. Size the heap at roughly 50 to 75% of the limit.
+    -Xmx bounds only the Java heap. Thread stacks, metaspace, the code cache and direct buffers are native memory, so a heap equal to the container limit guarantees an OOM kill. A heap too small for the live set would throw OutOfMemoryError, which is logged. Size the heap at roughly 50 to 75% of the limit.
 - q: >-
     Your service allocates 800 MB/s and runs a young collection every second with a 800 MB Eden. You double Eden. What happens to total young-GC work, assuming the amount of live data per collection stays similar?
-  options: ["It doubles, because each collection scans twice the memory", "It is unchanged", "It roughly halves, because collections happen half as often and each copies about the same surviving data", "Young collections stop entirely"]
-  answer: 2
-  explanation: >-
-    Copying collectors pay for survivors, not for garbage. A larger Eden means fewer collections with similar survivor volume, so total work drops. That is why allocation rate and young-generation sizing are the first levers.
-- q: >-
-    A `running` flag is a plain boolean read in a worker loop and set to false by another thread. The worker never stops. Why, and what fixes it?
-  options: ["Without a happens-before edge the JIT may hoist the read out of the loop; declaring the field volatile makes the write visible", "The flag needs to be a Boolean object", "Threads cannot share fields in Java", "The worker must call Thread.yield() for the write to propagate"]
-  answer: 0
-  explanation: >-
-    The memory model only guarantees visibility across threads through happens-before edges. A volatile write happens-before subsequent reads of that field, and it forbids caching the value in a register. yield() gives no visibility guarantee.
-- q: >-
-    Why is Executors.newFixedThreadPool(32) a risky default for a request-handling service?
-  options: ["It creates threads lazily", "It cannot run Callable tasks", "Its threads are daemon threads", "Its queue is unbounded, so under overload tasks accumulate in memory and latency grows without limit instead of being rejected"]
-  answer: 3
-  explanation: >-
-    The fixed pool uses an unbounded LinkedBlockingQueue. A bounded queue with an explicit rejection policy such as CallerRunsPolicy turns overload into visible backpressure.
-- q: >-
-    In a sliding-window solution you compare counts with `need.get(c) == have.get(c)` on two HashMap<Character, Integer>. Small tests pass and a large test fails. Why?
-  options: ["HashMap iteration order changed", "== compares Integer references; values from -128 to 127 are cached and share objects, larger values do not", "Character keys collide in HashMap", "Integer overflow in the counts"]
+  options: ["It doubles, because each collection scans twice as much memory", "It roughly halves, because there are half as many collections", "It is unchanged, because the same bytes are allocated per second", "It drops to zero, because objects now die before Eden ever fills"]
   answer: 1
   explanation: >-
-    Autoboxing uses Integer.valueOf, which caches small values, so == happens to work until a count exceeds 127. Use equals() or compare unboxed ints.
+    Copying collectors pay for survivors, not for garbage. A larger Eden means collections happen half as often, each copying about the same surviving data, so total work roughly halves. Allocation continues at the same rate, so Eden still fills and collections do not stop. That is why allocation rate and young-generation sizing are the first levers.
+- q: >-
+    A `running` flag is a plain boolean read in a worker loop and set to false by another thread. The worker never stops. Why, and what fixes it?
+  options: ["The worker never yields the CPU; call Thread.yield() so the write propagates", "A primitive is copied per thread; make the flag a shared Boolean object", "No happens-before edge lets the JIT hoist the read; declare the field volatile", "The flag must be static to be shared; make it a static field of the class"]
+  answer: 2
+  explanation: >-
+    The memory model only guarantees visibility across threads through happens-before edges; without one, the JIT may hoist the read out of the loop. A volatile write happens-before subsequent reads of that field, and it forbids caching the value in a register. yield() gives no visibility guarantee, and boxing or making the field static changes nothing about visibility.
+- q: >-
+    Why is Executors.newFixedThreadPool(32) a risky default for a request-handling service?
+  options: ["Its threads are daemon threads, so in-flight requests die on shutdown", "Its queue is unbounded, so overload piles up tasks instead of rejecting them", "It creates all 32 threads eagerly, so idle services waste memory on their stacks", "It cannot run Callable tasks, so errors from handlers are silently lost"]
+  answer: 1
+  explanation: >-
+    The fixed pool uses an unbounded LinkedBlockingQueue, so under overload tasks accumulate in memory and latency grows without limit. A bounded queue with an explicit rejection policy such as CallerRunsPolicy turns overload into visible backpressure. The pool creates threads lazily and runs Callables fine.
+- q: >-
+    In a sliding-window solution you compare counts with `need.get(c) == have.get(c)` on two HashMap<Character, Integer>. Small tests pass and a large test fails. Why?
+  options: ["== compares Integer references, and only values from -128 to 127 are cached", "The counts overflow Integer once the input is large enough to exceed its range", "HashMap iteration order changes as the map grows past its resize threshold", "Character keys collide in the HashMap once the window holds many distinct letters"]
+  answer: 0
+  explanation: >-
+    Autoboxing uses Integer.valueOf, which caches values from -128 to 127, so == happens to work until a count exceeds 127 and the two sides become different objects. Use equals() or compare unboxed ints. Key collisions affect performance, not correctness, and counts nowhere near 2^31 cannot overflow.
 - q: >-
     You move a blocking-I/O service to virtual threads on JDK 21 and throughput collapses under load. Which cause is most plausible?
-  options: ["Virtual threads cannot perform I/O", "Virtual threads use more stack memory than platform threads", "Blocking calls inside synchronized blocks pin carrier threads, so a few pinned virtual threads starve the small carrier pool", "Virtual threads disable the JIT"]
-  answer: 2
+  options: ["Virtual threads use more stack memory than platform threads, so the heap fills", "Virtual threads cannot do blocking I/O, so each call falls back to a platform thread", "Virtual threads disable JIT compilation, so hot paths run in the interpreter", "Blocking inside synchronized blocks pins the carrier threads, starving the carrier pool"]
+  answer: 3
   explanation: >-
     On JDK 21, a virtual thread that blocks while holding a monitor cannot unmount, tying up its carrier. With carriers roughly equal to cores, a handful of pinned threads stalls everything. Replace synchronized around blocking calls with ReentrantLock or upgrade to a JDK that removes this pinning.
 ```

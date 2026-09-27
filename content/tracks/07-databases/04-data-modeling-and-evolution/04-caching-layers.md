@@ -284,32 +284,32 @@ Size the cache from the working set, watch the hit ratio and the eviction rate, 
 ```quiz
 - q: >-
     A service handles 50,000 reads per second with a 98% cache hit ratio. A deploy changes the cache key format and the hit ratio drops to 60% for twenty minutes. By how much does database read load change?
-  options: ["It rises by about 40%", "It doubles", "It rises twentyfold, from 1,000 to 20,000 queries per second", "It is unchanged because the cache refills"]
-  answer: 2
-  explanation: >-
-    Database load is proportional to the miss ratio: 2% of 50,000 is 1,000; 40% is 20,000. Small changes in hit ratio are large changes in miss ratio, which is why key-format changes and cold starts need planning.
-- q: >-
-    In cache-aside, why should the write path delete the key rather than set the new value?
-  options: ["Deleting is faster than setting", "Two concurrent writers can commit in one order and set the cache in the other, leaving a value the database no longer has; deletes are idempotent and order-independent", "Setting would bypass the TTL", "Redis cannot overwrite existing keys"]
+  options: ["It stays near 1,000 per second, since misses refill the cache", "It rises twentyfold, from 1,000 to 20,000 queries per second", "It rises by about 40%, from 1,000 to 1,400 queries per second", "It roughly doubles, from 1,000 to 2,000 queries per second"]
   answer: 1
   explanation: >-
-    SET after commit races with other writers' SETs, and the loser's value can stick until the TTL expires. A delete leaves the cache empty whatever the order, and the next reader fills it from the database.
+    Database load is proportional to the miss ratio, not the hit ratio: 2% of 50,000 is 1,000; 40% is 20,000. Refilling does not help while every new key format starts cold. Small changes in hit ratio are large changes in miss ratio, which is why key-format changes and cold starts need planning.
+- q: >-
+    In cache-aside, why should the write path delete the key rather than set the new value?
+  options: ["Concurrent SETs can land in another order than the commits did", "Redis cannot overwrite a key that already has a TTL attached", "Setting a value would reset and so bypass the key's jittered TTL", "Deleting is cheaper than setting, since no value is serialised"]
+  answer: 0
+  explanation: >-
+    Two concurrent writers can commit in one order and set the cache in the other, and the loser's value sticks until the TTL expires, though the database no longer has it. A delete is idempotent and order-independent: it leaves the cache empty whatever the order, and the next reader fills it from the database.
 - q: >-
     A handler runs BEGIN; UPDATE products SET price = ...; DEL product:7; ...; COMMIT. Occasionally the old price is cached for a full TTL after the change. Why?
-  options: ["Between the delete and the commit, another request misses, reads the last committed (old) price, and fills the cache; the commit then lands behind a stale entry", "Redis delete is asynchronous", "The UPDATE did not use an index", "The TTL is too short"]
-  answer: 0
+  options: ["Redis DEL is asynchronous, so the key can outlive the transaction", "The TTL is too short, so the key is refilled before the commit", "The DEL was sent before the UPDATE finished, so Redis rejected it", "A reader refills the old price in the gap between DEL and COMMIT"]
+  answer: 3
   explanation: >-
-    Until COMMIT, other transactions see the old row under MVCC. Deleting inside the transaction opens a window for a reader to refill the cache with the old value. Invalidate after the commit, ideally from the WAL via CDC.
+    Until COMMIT, other transactions see the old row under MVCC. Deleting inside the transaction opens a window in which another request misses, reads the last committed (old) price and fills the cache; the commit then lands behind a stale entry. Invalidate after the commit, ideally from the WAL via CDC.
 - q: >-
     How do memcache-style leases prevent the stale-fill race?
-  options: ["They lock the database row until the cache is filled", "They make every cache entry expire after one read", "A reader gets a token on a miss; any delete of the key invalidates outstanding tokens, and a fill with an invalidated token is rejected, so a reader that loaded data before a write cannot install it afterwards", "They force all reads to go to the primary"]
-  answer: 2
+  options: ["They lock the database row until the reader has filled the cache", "They route every fill to the primary, so no fill reads old data", "They make every cache entry expire after it has been read once", "A delete revokes the miss token, so the late fill is rejected"]
+  answer: 3
   explanation: >-
-    The lease ties a fill to the absence of any intervening invalidation. The slow reader's fill fails, the next reader misses and loads the new value. Leases also let the cache limit refills per key, which mitigates stampedes.
+    A reader gets a token on a miss; any delete of the key invalidates outstanding tokens, and a fill with an invalidated token is rejected. The lease ties a fill to the absence of any intervening invalidation, so a reader that loaded data before a write cannot install it afterwards; the next reader misses and loads the new value. Leases also let the cache limit refills per key, which mitigates stampedes.
 - q: >-
     Cache fills read from a replica that is typically 1 second behind. A user renames themselves and some pages show the old name for up to an hour. What is the mechanism?
-  options: ["After the invalidation, a reader missed, read the not-yet-updated replica, and cached the old value for the full TTL, turning one second of lag into TTL-long staleness", "Replica lag is always one hour", "The CDN is caching the page", "The primary did not commit"]
+  options: ["A reader refilled from the lagging replica after the invalidation", "Replica lag grows to an hour whenever the primary takes writes", "The CDN cached the rendered page for its own one-hour max-age", "The primary had not yet committed the rename when it was read"]
   answer: 0
   explanation: >-
-    Filling from a lagging replica can repopulate the cache with data that was stale when read. Fill hot keys from the primary, delay invalidation until replicas have applied the change, or use versioned fills.
+    After the invalidation, a reader missed, read the not-yet-updated replica, and cached the old value for the full TTL, turning one second of lag into TTL-long staleness. Fill hot keys from the primary, delay invalidation until replicas have applied the change, or use versioned fills.
 ```

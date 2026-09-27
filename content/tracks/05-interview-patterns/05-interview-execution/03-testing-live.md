@@ -207,32 +207,32 @@ Testing is the easiest dimension to improve quickly, because it is mostly habit.
 ```quiz
 - q: >-
     You have six minutes to test. In what order should you run your tests?
-  options: ["Random inputs until one fails", "The largest input you can think of, to check performance", "The example you wrote, then the smallest degenerate input, then an input aimed at the line you trust least", "Only the edge cases, since the example obviously works"]
-  answer: 2
-  explanation: >-
-    The example proves the main path and often exposes end-of-loop bugs; the degenerate input catches crashes; the targeted input catches the logic error you were least sure about. Skipping the example is risky because many bugs, such as a missing final flush, appear only when you trace the normal case to the return statement.
-- q: >-
-    Your loop emits a group whenever the next group starts. Which bug does this shape invite, and which test exposes it?
-  options: ["The final group is never emitted; trace the example all the way to the return", "An off-by-one at the start; test with two elements", "Integer overflow; test with large values", "A crash on duplicates; test with all-equal values"]
+  options: ["Example, then degenerate input, then your riskiest line", "Only the edge cases, since the example obviously works", "Random inputs, one after another, until one of them fails", "The largest input you can think of, to check performance"]
   answer: 0
   explanation: >-
-    If a group is only emitted when the next one begins, the last group has no successor and is never emitted unless you flush after the loop. Tracing the given example to the end usually shows it. Restructuring to write into the last output element removes the bug class entirely.
+    The example you wrote proves the main path and often exposes end-of-loop bugs; the smallest degenerate input catches crashes; the input aimed at the line you trust least catches the logic error you were least sure about. Skipping the example is risky because many bugs, such as a missing final flush, appear only when you trace the normal case to the return statement.
 - q: >-
-    The interviewer asks what your code returns for a specific input, and you realise it is wrong. What is the strongest response?
-  options: ["Add an if-statement that handles that input specifically", "Trace the input, name the root cause, fix the logic, and re-run your earlier tests", "Explain that the input is unusual and unlikely in practice", "Rewrite the whole solution with a different approach"]
+    Your loop emits a group whenever the next group starts. Which bug does this shape invite, and which test exposes it?
+  options: ["A crash on duplicates; test with all-equal values", "The final group is never emitted; trace to the return", "Integer overflow in the counts; test with large values", "An off-by-one at the start; test with just two elements"]
   answer: 1
   explanation: >-
-    Interviewers score how you handle a found bug as well as the bug itself. A root-cause fix with a regression check shows the debugging habit they want. Special-casing the input or arguing about its likelihood are both clear negatives, and a full rewrite is rarely needed for a local bug.
+    If a group is only emitted when the next one begins, the last group has no successor and is never emitted unless you flush after the loop. Tracing the given example all the way to the return usually shows it. Restructuring to write into the last output element removes the bug class entirely.
+- q: >-
+    The interviewer asks what your code returns for a specific input, and you realise it is wrong. What is the strongest response?
+  options: ["Rewrite the whole solution using a different approach", "Add an if-statement that handles that input specifically", "Explain that the input is unusual and unlikely in practice", "Trace it, fix the root cause, and re-run earlier tests"]
+  answer: 3
+  explanation: >-
+    Interviewers score how you handle a found bug as well as the bug itself. Tracing the input, naming the root cause, fixing the logic and running a regression check shows the debugging habit they want. Special-casing the input or arguing about its likelihood are both clear negatives, and a full rewrite is rarely needed for a local bug.
 - q: >-
     Your code runs in the interview editor. Which habit best prevents "run and pray" debugging?
-  options: ["Running the code after every line you write", "Relying on the hidden tests to tell you what is wrong", "Adding print statements everywhere", "Stating the expected output before each run and changing one thing per run"]
-  answer: 3
+  options: ["Predict each output first; change one thing per run", "Running the code after every single line you write", "Relying on the hidden tests to tell you what is wrong", "Adding print statements to every branch of the code"]
+  answer: 0
   explanation: >-
     Predicting the output shows you understand the code, and it makes a mismatch informative. One change per run keeps cause and effect clear. Constant running and scattered prints replace reasoning with trial and error, which is what the interviewer is watching for.
 - q: >-
     You claimed O(n) time. Your loop body contains "if x in seen:" where seen is a Python list you append to. What is the real complexity?
-  options: ["O(n)", "O(n log n)", "O(n²)", "O(1)"]
-  answer: 2
+  options: ["O(n), since each check is a hash lookup", "O(n log n), since the check bisects the list", "O(1) per item, since appends are amortised", "O(n²), since each check scans the list"]
+  answer: 3
   explanation: >-
-    Membership testing on a list is a linear scan, and the list grows to size n, so n iterations each cost up to O(n). Switching seen to a set restores O(n) expected time. Re-checking the complexity of the code you actually wrote is part of testing.
+    Membership testing on a list is a linear scan, not a hash lookup or a bisection, and the list grows to size n, so n iterations each cost up to O(n). Switching seen to a set restores O(n) expected time. Re-checking the complexity of the code you actually wrote is part of testing.
 ```

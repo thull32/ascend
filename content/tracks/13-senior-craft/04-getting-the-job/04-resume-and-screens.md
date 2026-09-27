@@ -161,32 +161,32 @@ The technical screen is usually 45 to 60 minutes of coding in a shared editor, s
 ```quiz
 - q: >-
     Which resume bullet is strongest for a senior role?
-  options: ["\"Responsible for the payments service and its on-call rotation\"", "\"Worked with the team to improve reliability of payments\"", "\"Redesigned payment retries around idempotency keys, cutting duplicate charges from about 40 a week to zero across 2M monthly transactions\"", "\"Expert in Go, Kafka, Postgres, Kubernetes, Redis and AWS\""]
-  answer: 2
-  explanation: >-
-    It shows ownership, the key technical decision, scale and a measurable result, and it opens a story you can tell. The others list duties, blur your role, or list keywords without evidence.
-- q: >-
-    You do not have an exact figure for the latency improvement you delivered. What should you do?
-  options: ["Use an honest estimate or a relative term such as \"roughly halved\", and be ready to explain how you know", "Leave out the result entirely", "Invent a plausible number, since nobody will check", "Replace it with a list of the technologies used"]
-  answer: 0
-  explanation: >-
-    Interviewers treat resume bullets as story prompts, and a number you cannot explain damages your credibility. An honest approximation or relative change still shows impact.
-- q: >-
-    What is the most effective way to ask a former colleague for a referral?
-  options: ["Send your resume with no message", "Explain why the role fits, attach your resume and a short summary they can paste into the form, and make it easy to decline", "Ask them to put in a good word with the hiring manager personally", "Ask them to forward your resume to as many teams as possible"]
-  answer: 1
-  explanation: >-
-    A specific, low-effort, easy-to-decline request gets better referrals. The pasteable summary matters because referral forms ask why the referrer recommends you.
-- q: >-
-    Early in a recruiter screen you are asked for your salary expectations. What is a sound default approach?
-  options: ["State your current salary exactly", "Refuse to discuss compensation at all", "Name the highest number you have ever heard for the role", "Defer until you understand the level and scope, ask for the role's range, and if pressed give a researched range whose bottom you would accept"]
+  options: ["\"Worked closely with the team to improve payment reliability, which significantly reduced customer-facing incidents\"", "\"Expert in Go, Kafka, Postgres, Kubernetes, Redis and AWS, applied daily to build and run high-volume, low-latency payment systems\"", "\"Owned the payments service end to end, including its on-call rotation, roadmap and 2M monthly transactions\"", "\"Redesigned payment retries around idempotency keys, cutting duplicate charges from ~40 a week to zero on 2M monthly transactions\""]
   answer: 3
   explanation: >-
-    Deferring and asking for the range avoids anchoring the offer to your past pay, and in many places employers must post ranges or may not ask about salary history. Refusing outright creates friction, and an unfounded extreme number damages credibility.
+    It shows ownership, the key technical decision, scale and a measurable result, and it opens a story you can tell. The others list duties (a scale number attached to a duty is still a duty), blur your role behind an unmeasured "significantly", or list keywords without evidence.
 - q: >-
-    How should you treat the technical phone screen compared with the loop?
-  options: ["As a formality; the loop is what counts", "As a bar check that decides whether the loop happens, prepared for with the same execution protocol and timed practice", "As a chance to try a new language", "As mainly a test of typing speed"]
+    You do not have an exact figure for the latency improvement you delivered. What should you do?
+  options: ["Pick a plausible precise figure, since specific numbers read as more credible", "Replace it with the technologies used, since those match recruiter searches", "Leave the result out, since an unverifiable number weakens the whole bullet", "Give an honest estimate or relative change, such as \"roughly halved\""]
+  answer: 3
+  explanation: >-
+    Interviewers treat resume bullets as story prompts, and a number you cannot explain damages your credibility, so estimate honestly, signal it ("about", "roughly") and be ready to explain how you know. Leaving the result out throws away the impact; an honest approximation or relative change still shows it. Never invent a figure.
+- q: >-
+    What is the most effective way to ask a former colleague for a referral?
+  options: ["Send your resume with a short note and let them decide what to write in the form", "Explain why the role fits and attach your resume plus a short summary they can paste in", "Ask them to forward your resume to as many teams as possible to widen your chances", "Ask them to put in a good word with the hiring manager personally before you apply"]
   answer: 1
   explanation: >-
-    The screen decides whether the company invests a whole loop in you, so it deserves the same preparation. Trying a new language or treating it as a formality are common and avoidable ways to fail it.
+    A specific, low-effort request that is easy to decline gets better referrals. The pasteable summary matters because referral forms ask why the referrer recommends you, and a referrer who has to write that from scratch will write something vague.
+- q: >-
+    Early in a recruiter screen you are asked for your salary expectations. What is a sound default approach?
+  options: ["State your current salary exactly, so the offer is anchored to a verifiable figure", "Ask for the role's range; if pressed, give a researched range you would accept", "Name the highest figure you have heard for the role, so the offer is anchored high", "Refuse to discuss compensation at all until you have a written offer in hand"]
+  answer: 1
+  explanation: >-
+    Defer until you understand the level and scope, and ask for the role's range; if pressed, give a researched range whose bottom you would be happy with. That avoids anchoring the offer to your past pay, and in many places employers must post ranges or may not ask about salary history. Refusing outright creates friction, and an unfounded extreme number damages credibility.
+- q: >-
+    How should you treat the technical phone screen compared with the loop?
+  options: ["As a low-stakes chance to try out the new language you want to use in the loop", "As a bar check that gates the loop, prepared for with the same timed practice", "As a formality, since the loop is where the hiring decision is really made", "As mainly a test of speed, so aim to finish as many problems as possible"]
+  answer: 1
+  explanation: >-
+    The screen decides whether the company invests a whole loop in you, so it deserves the same execution protocol and timed practice. Trying a new language or treating it as a formality are common and avoidable ways to fail it.
 ```

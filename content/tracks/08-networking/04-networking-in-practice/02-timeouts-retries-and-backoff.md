@@ -216,32 +216,32 @@ Each line removes one way for a partial failure to spread. The forty-minute inci
 ```quiz
 - q: >-
     A dependency's latency is p50 30 ms, p99 250 ms, p99.9 900 ms. Your call has a 1,000 ms total budget. The most defensible request timeout is:
-  options: ["30 ms, to keep the service fast", "300 ms, just above the p99, leaving room for one retry", "900 ms, above the p99.9", "1,000 ms, matching the budget"]
-  answer: 1
+  options: ["300 ms, just above the p99, leaving room to retry", "30 ms, the p50, to keep the service fast", "900 ms, the p99.9, so almost nothing is cut off", "1,000 ms, matching the caller's whole budget exactly"]
+  answer: 0
   explanation: >-
     Just above the p99 cancels the genuinely stuck 1% while leaving budget for a single backoff-and-retry within the 1,000 ms deadline. 30 ms cuts through the body of the distribution and would retry half your traffic; 900 or 1,000 ms leaves no room to recover from a slow attempt.
 - q: >-
     A request with a 500 ms read timeout to POST /orders times out. The order service does not support idempotency keys. What should the client do?
-  options: ["Retry immediately", "Retry after backoff", "Do not retry; surface the ambiguity to the caller", "Retry with a GET first"]
-  answer: 2
+  options: ["Retry immediately, since timeouts are usually transient", "Send a GET first, then retry the POST if it is absent", "Retry after a jittered exponential backoff delay", "Do not retry; surface the ambiguous outcome"]
+  answer: 3
   explanation: >-
-    A read timeout means the server may have created the order. Without an idempotency key a retry risks a duplicate. Connect failures are retryable; ambiguous outcomes on non-idempotent operations are not.
+    A read timeout means the server may have created the order. Without an idempotency key a retry, with or without backoff, risks a duplicate, and a GET cannot reliably tell whether a still-running create will land. Connect failures are retryable; ambiguous outcomes on non-idempotent operations are surfaced to the caller instead.
 - q: >-
     Four tiers each retry up to 3 attempts. When the bottom tier degrades, what load does it see relative to normal, in the worst case?
-  options: ["4×", "12×", "27×", "81×"]
-  answer: 3
+  options: ["81×", "27×", "12×", "4×"]
+  answer: 0
   explanation: >-
     Attempts multiply through the chain: 3 × 3 × 3 × 3 = 81×. A retry budget (cap retries at ~10% of traffic) turns that into about 1.1×.
 - q: >-
     Why does plain exponential backoff without jitter still overload a recovering dependency?
-  options: ["The sleeps are too short", "Clients that failed together retry together, producing synchronised waves at each backoff step", "It never stops retrying", "It ignores Retry-After"]
-  answer: 1
+  options: ["The backoff sleeps are too short to help at all", "It ignores the server's Retry-After header entirely", "Exponential backoff never stops retrying on its own", "Clients that failed together retry together in waves"]
+  answer: 3
   explanation: >-
-    Deterministic backoff preserves the alignment of the original failure; every client wakes at the same instants. Full jitter spreads each retry uniformly across the interval, smoothing the load.
+    Deterministic backoff preserves the alignment of the original failure; every client wakes at the same instants, producing synchronised waves at each backoff step. Full jitter spreads each retry uniformly across the interval, smoothing the load. The sleep lengths themselves are fine.
 - q: >-
     Which statement about hedged requests is correct?
-  options: ["They reduce load because the first response cancels the second", "Hedging at the p50 is the sweet spot for tail latency", "Hedging at the p95 adds about 5% load and cuts the tail, and requires idempotent calls", "Hedging replaces the need for timeouts"]
-  answer: 2
+  options: ["At the p95 it adds ~5% load and needs idempotency", "Hedging at the p50 is the sweet spot for tail latency", "Hedging removes the need for timeouts on the call", "They cut load, since the first reply cancels the second"]
+  answer: 0
   explanation: >-
-    A hedge is a second copy of the request sent after a percentile elapses; at the p95 that is 5% of calls. At the p50 it would double load. The duplicate can reach the backend, so the call must be idempotent, and timeouts are still needed for the case where both copies stall.
+    A hedge is a second copy of the request sent after a percentile elapses; at the p95 that is about 5% extra load, and it cuts the tail. At the p50 it would double load. The duplicate can reach the backend before cancellation, so the call must be idempotent, and timeouts are still needed for the case where both copies stall.
 ```

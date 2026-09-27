@@ -276,32 +276,32 @@ Because it cannot answer the questions the scheduler needs: when was this URL la
 ```quiz
 - q: >-
     A crawler must sustain 2,000 fetches per second while fetching any single host at most once per second. What does this imply for the frontier?
-  options: ["Nothing; add more fetcher threads", "Each host must be fetched 2,000 times per second", "At least 2,000 distinct hosts must be in rotation every second, so the frontier must hold URLs across many more hosts than that", "The crawler needs 2,000 machines"]
+  options: ["Each host must be fetched 2,000 times per second", "Nothing special; add more fetcher threads to go faster", "It must keep far more than 2,000 hosts in rotation", "The crawler needs 2,000 machines, one fetch each per second"]
   answer: 2
   explanation: >-
-    Politeness caps each host's contribution at about one fetch per second, so throughput comes from breadth across hosts. The scheduler needs a large pool of hosts whose delay has expired. Adding threads does nothing if they all wait on the same few hosts.
+    Politeness caps each host's contribution at about one fetch per second, so throughput comes from breadth across hosts: at least 2,000 distinct hosts every second, which means the frontier must hold URLs across many more hosts than that. The scheduler needs a large pool of hosts whose delay has expired. Adding threads does nothing if they all wait on the same few hosts.
 - q: >-
     Why does the Mercator-style frontier keep one back queue per host with a heap keyed by next allowed fetch time?
-  options: ["To enforce per-host politeness structurally, so a host cannot be fetched again before its delay expires and never has two fetches in flight", "To sort URLs alphabetically", "To store the visited set", "To make BFS run in O(1)"]
-  answer: 0
+  options: ["To keep each host's URLs in priority order for fetching", "So politeness is structural, not a check in the fetcher", "To make the breadth-first traversal run in O(1) per URL", "To act as the visited set so no URL is fetched twice"]
+  answer: 1
   explanation: >-
-    A host is returned by the heap only when its delay has expired and it is not in flight, so politeness is a property of the data structure. Priority is handled separately by the front queues.
+    A host is returned by the heap only when its delay has expired and it is not in flight, so a host cannot be fetched early and never has two fetches at once: politeness is a property of the data structure. Priority is handled separately by the front queues, and the seen set is a separate component.
 - q: >-
     A Bloom filter for the seen set returns "probably seen" for a URL that has never been crawled. What happens, and what is the usual mitigation?
-  options: ["Nothing; Bloom filters have no false positives", "The URL would be skipped; for important URLs, confirm a 'maybe' against the exact URL table", "The filter corrupts and must be rebuilt", "The URL is crawled twice"]
-  answer: 1
+  options: ["The URL is crawled twice, wasting one fetch of bandwidth", "The filter is now corrupt and must be rebuilt from scratch", "It is wrongly skipped; confirm 'maybe' with the URL table", "Nothing, because Bloom filters never give false positives"]
+  answer: 2
   explanation: >-
-    False positives mean a new URL looks seen and would never be crawled, about 1% of the time at 10 bits per key. A 'no' is always correct. Backing 'maybe' answers with the exact URL table for high-priority URLs removes the loss where it matters.
+    False positives mean a new URL looks seen and would never be crawled, about 1% of the time at 10 bits per key. A 'no' is always correct. Backing 'maybe' answers with the exact URL table for high-priority URLs removes the loss where it matters. A false positive causes a skip, not a double crawl.
 - q: >-
     Pages A and B are equally important and both are crawled once a day. A changes about once an hour, B about once a day. You can afford one extra crawl per day. Which choice improves average freshness more?
-  options: ["Crawl A more, because it changes more", "It makes no difference", "Crawl neither; use sitemaps only", "Crawl B more, because A changes faster than any affordable crawl rate can keep fresh"]
+  options: ["Crawl neither; rely on sitemaps to signal the changes", "Crawl A more, because it changes 24 times as often", "It makes no difference, since both pages matter equally", "Crawl B more; one more crawl barely helps A's freshness"]
   answer: 3
   explanation: >-
-    With F = (1 - e^(-λI)) / (λI), A crawled daily or twice daily stays fresh only 4–8% of the time, while B gains substantially from a second daily crawl. Spending budget in proportion to change rate is the intuitive mistake.
+    With F = (1 - e^(-λI)) / (λI), A crawled daily or twice daily stays fresh only 4–8% of the time, because it changes faster than any affordable crawl rate can keep up with, while B gains substantially from a second daily crawl. Spending budget in proportion to change rate is the intuitive mistake.
 - q: >-
     robots.txt for a host returns HTTP 503 for an hour. What should the crawler do under RFC 9309?
-  options: ["Treat the site as having no restrictions and crawl normally", "Assume everything is disallowed (or keep using a previously cached copy) until robots.txt can be fetched again", "Crawl only the home page", "Delete the host from the URL table"]
-  answer: 1
+  options: ["Treat the site as having no restrictions and crawl normally", "Crawl only the home page until robots.txt returns", "Treat it as full disallow until robots.txt can be fetched", "Delete the host and its URLs from the URL table"]
+  answer: 2
   explanation: >-
-    A server error on robots.txt signals that the site is unhealthy, and the standard says to assume full disallow. A 404, in contrast, means no restrictions. Crawling hard while a site is failing is exactly the rudeness the protocol exists to prevent.
+    A server error on robots.txt signals that the site is unhealthy, and the standard says to assume full disallow (or keep using a previously cached copy). A 404, in contrast, means no restrictions. Crawling hard while a site is failing is exactly the rudeness the protocol exists to prevent.
 ```

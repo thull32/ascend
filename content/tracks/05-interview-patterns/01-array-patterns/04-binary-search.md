@@ -322,38 +322,38 @@ hints:
 ```quiz
 - q: >-
     In the loop `while lo < hi: mid = lo + (hi - lo) // 2; if pred(mid): hi = mid else: lo = mid + 1`, which single change causes an infinite loop on some inputs?
-  options: ["Changing `hi = mid` to `hi = mid - 1`", "Changing `lo = mid + 1` to `lo = mid`", "Changing `mid` to `(lo + hi) // 2`", "Returning `hi` instead of `lo`"]
-  answer: 1
+  options: ["Returning `hi` instead of `lo`", "Changing `mid` to `(lo + hi) // 2`", "Changing `hi = mid` to `hi = mid - 1`", "Changing `lo = mid + 1` to `lo = mid`"]
+  answer: 3
   explanation: >-
     With a floored midpoint and a two-element range, mid equals lo, so `lo = mid` makes no progress and the loop never exits. `hi = mid - 1` is merely wrong (it can skip the boundary), and `(lo + hi) // 2` is the same value in Python; returning `hi` is fine since `lo == hi` at exit.
 - q: >-
     A sorted array contains duplicates and you need the index of the last element that is `<= t`. Which search do you write?
-  options: ["Predicate `a[i] <= t`, return the first true index", "Predicate `a[i] > t`, return the first true index minus one", "Predicate `a[i] == t`, return the found index", "Predicate `a[i] >= t`, return the first true index"]
-  answer: 1
+  options: ["Predicate `a[i] >= t`, return the first true index minus one", "Predicate `a[i] == t`, return the index where it first holds", "Predicate `a[i] > t`, return the first true index minus one", "Predicate `a[i] <= t`, return the first true index"]
+  answer: 2
   explanation: >-
-    `a[i] > t` is false for a prefix and true afterwards, so first-true is well defined; the element just before it is the last `<= t`. `a[i] <= t` is true-then-false, the wrong shape for a first-true search. `a[i] >= t` finds the first `>= t`, which is the wrong end of a run of equal values.
+    `a[i] > t` is false for a prefix and true afterwards, so first-true is well defined; the element just before it is the last `<= t`. `a[i] >= t` minus one lands on the last element `< t`, one short of a run of values equal to t. `a[i] <= t` is true-then-false, the wrong shape for a first-true search.
 - q: >-
     You are searching a rotated sorted array that may contain duplicates and hit `nums[lo] == nums[mid] == nums[hi]`. What is the honest statement about complexity?
-  options: ["It stays O(log n) if you always discard the right half", "You cannot tell which half is sorted; shrink both ends by one and accept an O(n) worst case", "Sort the array first, then binary search", "The problem is unsolvable with duplicates"]
+  options: ["It stays O(log n) as long as you discard the right half on a tie", "No half is known to be sorted; shrink both ends and accept O(n)", "Sort the array first, then run an ordinary O(log n) binary search", "It becomes O(log² n), since each tie costs one extra binary search"]
   answer: 1
   explanation: >-
-    Equal values at both ends and the middle carry no information about where the pivot lies, so no half can be safely discarded. Stepping both ends inward is correct, and on an array like all 1s with a single 2 it degrades to a linear scan. Sorting costs O(n log n) and destroys the indices.
+    Equal values at both ends and the middle carry no information about where the pivot lies, so no half can be safely discarded. Stepping both ends inward is correct, and on an array like all 1s with a single 2 it degrades to a linear scan. Discarding a half on a tie can throw away the target, and sorting costs O(n log n) and destroys the indices.
 - q: >-
     For Koko Eating Bananas, what is the tightest correct upper bound on the speed to search?
-  options: ["`h`, the number of hours", "`sum(piles)`, the total number of bananas", "`max(piles)`, the largest pile", "`len(piles)`, the number of piles"]
-  answer: 2
+  options: ["`sum(piles)`, the total banana count", "`max(piles)`, the largest pile size", "`len(piles)`, the number of piles", "`h`, the number of hours available"]
+  answer: 1
   explanation: >-
     At speed `max(piles)` every pile takes one hour, and no larger speed can reduce that, so the minimum feasible speed is at most `max(piles)`. The total also works but wastes iterations. `h` and `len(piles)` are unrelated to speed and can exclude the answer.
 - q: >-
     First Bad Version has one billion versions and each `isBadVersion` call takes a second. Roughly how long does the search take?
-  options: ["About 30 seconds", "About 1,000 seconds", "About 500 million seconds", "About 1 million seconds"]
-  answer: 0
+  options: ["About 5 × 10⁸ seconds", "About 30 seconds", "About 1,000 seconds", "About 10⁶ seconds"]
+  answer: 1
   explanation: >-
-    Binary search makes about log2(10^9) ≈ 30 predicate calls. A linear scan from either end is the 500-million-second answer, and there is no comparison-based strategy that beats log n in the worst case.
+    Binary search makes about log2(10^9) ≈ 30 predicate calls. A linear scan from either end is the 5 × 10⁸-second answer, and there is no comparison-based strategy that beats log n in the worst case.
 - q: >-
     In Median of Two Sorted Arrays, why binary search over the shorter array's partition index rather than the longer one's?
-  options: ["It has a smaller constant factor", "So that the derived partition index in the longer array is always within bounds", "Because only the shorter array is guaranteed sorted", "To reduce memory usage"]
-  answer: 1
+  options: ["To keep the extra memory for the partition arrays smaller", "Because only the shorter array is guaranteed to be sorted", "So the derived index in the longer array always stays in bounds", "It has a smaller constant factor per iteration of the loop"]
+  answer: 2
   explanation: >-
     The longer array's cut is `j = (m + n + 1) // 2 - i`. If `i` ranges over the shorter array of length `m`, then `j` stays between 0 and `n` inclusive; if you iterated over the longer array instead, `j` could go negative. Both arrays are sorted and memory is O(1) either way.
 ```

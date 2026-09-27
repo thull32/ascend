@@ -186,32 +186,32 @@ Three tolerates one failure and commits fastest, which covers a single-AZ loss w
 ```quiz
 - q: >-
     A candidate requests votes in term 7. Its last log entry is (index 40, term 5). A voter's last entry is (index 38, term 6). Does the voter grant the vote?
-  options: ["Yes, because index 40 is greater than 38", "No, because the voter's last entry has a higher term, so its log is more up to date", "Yes, because term 7 is higher than 6", "Only if the voter has not yet voted in term 7"]
-  answer: 1
+  options: ["Yes, because the candidate's term 7 is higher than 6", "Yes, because its index 40 is greater than the voter's 38", "Only if the voter has not yet voted in term 7", "No, because the voter's last entry has a higher term"]
+  answer: 3
   explanation: >-
-    Up-to-dateness compares last-entry term first, then index. Term 6 beats term 5 regardless of index. This restriction is what guarantees a new leader holds every committed entry.
+    Up-to-dateness compares last-entry term first, then index. Term 6 beats term 5 regardless of index, so the voter's log is more up to date. This restriction is what guarantees a new leader holds every committed entry. The candidate's own term only lets it ask; it does not win the log comparison.
 - q: >-
     Why does a newly elected Raft leader append a no-op entry immediately?
-  options: ["To reset followers' election timers", "To commit an entry from its own term, which indirectly commits any earlier-term entries it holds, since it may not commit those by counting replicas", "To trigger a snapshot", "To announce the membership configuration"]
-  answer: 1
+  options: ["To announce the membership configuration to all followers", "To reset every follower's election timer in the new term", "To commit a current-term entry, which commits earlier ones", "To trigger a snapshot so that lagging followers can catch up"]
+  answer: 2
   explanation: >-
-    A leader cannot safely treat an earlier-term entry as committed just because it is on a majority (a higher-term log elsewhere could still win an election). Committing a current-term entry on top makes the prefix safe via log matching.
+    A leader cannot safely treat an earlier-term entry as committed just because it is on a majority (a higher-term log elsewhere could still win an election), so it may not commit those by counting replicas. Committing a current-term entry on top makes the prefix safe via log matching. Heartbeats, not the no-op, reset election timers.
 - q: >-
     A five-node cluster is partitioned into {A, B} with the current leader A, and {C, D, E}. What happens to writes?
-  options: ["Both sides continue accepting and committing writes", "A keeps accepting writes but cannot commit them; {C, D, E} elect a new leader and commit normally", "All writes stop until the partition heals", "C, D and E cannot elect because they lack the leader's log"]
-  answer: 1
+  options: ["C, D, E elect a leader and commit; A's writes never commit", "Both sides continue accepting and committing writes", "C, D and E cannot elect because they lack the leader's log", "All writes stop on both sides until the partition heals"]
+  answer: 0
   explanation: >-
-    Commitment needs 3 of 5. A's side has 2, so its accepted entries never commit and are discarded on heal. The majority side elects a leader whose log is at least as current as any of theirs and proceeds. CheckQuorum makes A step down sooner.
+    Commitment needs 3 of 5. A may keep accepting writes, but its side has 2, so those entries never commit and are discarded on heal. The majority side elects a leader whose log is at least as current as any of theirs and proceeds. CheckQuorum makes A step down sooner.
 - q: >-
     An etcd cluster's write latency jumps and leader elections become frequent. The most likely cause is:
-  options: ["Too many clients", "Slow disk fsync delaying both appends and heartbeats, which share the WAL path", "Clock skew between nodes", "An even number of members"]
-  answer: 1
+  options: ["Clock skew between nodes corrupting election timeouts", "An even number of members splitting every vote", "Slow fsync delaying appends and heartbeats alike", "Too many clients opening watches on the leader"]
+  answer: 2
   explanation: >-
-    Raft commits are bounded by fsync on the leader and a majority; when the disk stalls, heartbeats are late too, followers time out and elect. Dedicated fast disks and fsync-latency alerts are the fix.
+    Raft commits are bounded by fsync on the leader and a majority; appends and heartbeats share the WAL path, so when the disk stalls, heartbeats are late too, followers time out and elect. Dedicated fast disks and fsync-latency alerts are the fix. Election timeouts are measured on local monotonic timers, so skew does not affect them.
 - q: >-
     You want to expand a three-node Raft cluster to five. The safe procedure is:
-  options: ["Add both servers at once as voters", "Add one server at a time, each first as a non-voting learner that catches up, then promote it, before adding the next", "Stop the cluster, copy the log to the new servers, restart all five", "Add both as learners simultaneously and promote them together"]
-  answer: 1
+  options: ["Stop the cluster, copy the log to the new servers, restart all five", "Add both as learners simultaneously and promote them together", "Add one at a time: learner first, promote, then the next", "Add both new servers at once as full voting members"]
+  answer: 2
   explanation: >-
-    Single-server changes keep every old and new majority overlapping; a learner avoids stalling commits while it catches up. Adding two voters at once allows disjoint majorities ({S1,S2} vs {S3,S4,S5}) and two leaders in one term.
+    Single-server changes keep every old and new majority overlapping; starting each as a non-voting learner avoids stalling commits while it catches up. Adding two voters at once (or promoting two learners together) allows disjoint majorities ({S1,S2} vs {S3,S4,S5}) and two leaders in one term.
 ```

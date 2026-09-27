@@ -307,38 +307,38 @@ hints:
 ```quiz
 - q: >-
     A balanced binary search tree holds 2^40 keys (about a trillion). About how many node visits does a lookup take?
-  options: ["About 40", "About 1,000", "About a million", "About 2^20"]
-  answer: 0
+  options: ["About 1,000", "About a million", "About 40", "About 2^20"]
+  answer: 2
   explanation: >-
     A balanced tree's height is log2 of its size, so 40 visits. This is the sense in which O(log n) is "free": a trillion keys cost forty steps. The tempting answers scale with n itself, which is what the logarithm avoids.
 - q: >-
     Why does Big-O notation write O(log n) without specifying the base?
-  options: ["Because computers use base 2 by convention", "Because log_a n and log_b n differ only by a constant factor, which Big-O ignores", "Because the base is always e in analysis", "Because the base only affects space, not time"]
-  answer: 1
+  options: ["Because any two bases differ only by a constant factor", "Because the base changes the space cost, not the time", "Because computers use base 2, so it is always implied", "Because asymptotic analysis always uses the natural log e"]
+  answer: 0
   explanation: >-
-    The change-of-base rule gives log_a n = log_b n / log_b a, and 1/log_b a is a constant independent of n. Base 2 is a convention for step counts, not a requirement; the base matters again only when you want an actual number, such as the height of a B-tree.
+    The change-of-base rule gives log_a n = log_b n / log_b a, and 1/log_b a is a constant independent of n, which Big-O ignores. Base 2 is a convention for step counts, not a requirement; the base matters again only when you want an actual number, such as the height of a B-tree.
 - q: >-
     A brute-force solution tries every subset of an input of size n. For which n does it stop being feasible (about a second of CPU at ~10^9 simple operations per second)?
-  options: ["Around n = 10", "Around n = 30", "Around n = 100", "Around n = 1,000"]
-  answer: 1
+  options: ["Around n = 30", "Around n = 1,000", "Around n = 100", "Around n = 10"]
+  answer: 0
   explanation: >-
     There are 2^n subsets and 2^30 is about a billion, so n around 30 is the edge of one second; n = 40 is a thousand times worse (twenty minutes). n = 10 is trivial (1,024 subsets), and 100 or 1,000 are astronomically out of reach.
 - q: >-
     A dynamic array grows by doubling. After appending n elements one at a time, roughly how many element copies have been performed in total by all the resizes?
-  options: ["About n log n", "About n^2 / 2", "Less than 2n", "Exactly n"]
-  answer: 2
+  options: ["Less than 2n", "About n log n", "About n^2 / 2", "Exactly n"]
+  answer: 0
   explanation: >-
     Resizes copy 1 + 2 + 4 + ... + (largest size <= n) elements. A geometric series is bounded by twice its largest term, so the total is under 2n. That constant-times-largest-term fact is what makes append amortised O(1); a fixed-increment growth policy would give the quadratic answer.
 - q: >-
     You generate random 32-bit identifiers at 50,000 per second. Which statement is correct?
-  options: ["The ID space lasts about a year", "The ID space lasts about a day, and collisions appear far sooner", "Collisions cannot happen until the space is half full", "32 bits is enough because 2^32 is about 4 trillion"]
-  answer: 1
+  options: ["It is safe: 2^32 is about 4 trillion, decades of headroom", "The space lasts about a year at that rate, so it is safe", "No collision is possible until about half the space is used", "The space lasts a day, and collisions start within seconds"]
+  answer: 3
   explanation: >-
-    2^32 is about 4.3 billion (not trillion), so at 50k/s the space is exhausted in roughly 86,000 seconds, a day. Random IDs collide long before the space fills: the birthday bound puts the first expected collision near 1.18 * sqrt(2^32), about 77,000 IDs, under two seconds of generation.
+    2^32 is about 4.3 billion (not trillion), so at 50k/s the space is exhausted in roughly 86,000 seconds, a day. Random IDs collide long before the space fills: the birthday bound puts the first expected collision near 1.18 * sqrt(2^32), about 77,000 IDs, under two seconds of generation. The "half full" intuition is exactly what the birthday bound refutes.
 - q: >-
     The code `for i in range(1, n+1): for j in range(0, n, i): work()` runs `work()` how many times, asymptotically?
-  options: ["O(n)", "O(n log n)", "O(n^2)", "O(n sqrt n)"]
-  answer: 1
+  options: ["O(n^2)", "O(n)", "O(n sqrt n)", "O(n log n)"]
+  answer: 3
   explanation: >-
     The inner loop runs n/i times, so the total is n(1 + 1/2 + 1/3 + ... + 1/n) = n * H_n, and the harmonic number H_n grows like ln n. O(n^2) is the tempting misread of two nested loops; the shrinking inner loop is what saves it.
 ```

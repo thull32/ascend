@@ -181,32 +181,32 @@ For a Kafka sink, the transactional producer's epoch: when the replacement insta
 ```quiz
 - q: >-
     A consumer commits its Kafka offset and then crashes before writing the event's effect to Postgres. Which guarantee did it implement, and what is the consequence?
-  options: ["At-least-once; the event is reprocessed", "At-most-once; the event is lost", "Exactly-once; nothing happens", "Ordered delivery; the event is delayed"]
+  options: ["At-least-once; the event is reprocessed", "At-most-once; the event's effect is lost", "Exactly-once; the offset rolls back on restart", "Ordered delivery; the event is delayed"]
   answer: 1
   explanation: >-
-    Committing before the effect means a replay never happens for that offset, so the effect is lost. Process-then-commit gives at-least-once; offset-in-transaction removes the window entirely.
+    Committing before the effect means a replay never happens for that offset, so the effect is lost; nothing rolls the committed offset back. Process-then-commit gives at-least-once; offset-in-transaction removes the window entirely.
 - q: >-
     Kafka's idempotent producer prevents:
-  options: ["Duplicates caused by the application calling send twice", "Duplicates caused by the producer resending a batch after a lost acknowledgement, within one producer session to one partition", "Duplicates at an external sink after consumer replay", "Duplicates across partitions"]
-  answer: 1
+  options: ["Duplicates from resending a batch after a lost ack", "Duplicates from the application calling send() twice", "Duplicates at an external sink after a consumer replay", "Duplicates from a restarted producer resending its batch"]
+  answer: 0
   explanation: >-
-    The broker dedupes on (producer ID, sequence) per partition. A restarted producer has a new ID; application-level double sends are new records; downstream sinks are out of scope.
+    The broker dedupes on (producer ID, sequence) per partition, within one producer session. A restarted producer has a new ID, so its resends are not recognised; application-level double sends are new records; downstream sinks are out of scope.
 - q: >-
     A stream processor reads from Kafka, writes rows to Postgres, and has Kafka transactions enabled. After a crash and replay, why can Postgres still contain duplicates?
-  options: ["Transactions are disabled by default", "The Postgres write is outside the Kafka transaction; only Kafka partitions and offsets are covered by the commit markers", "Postgres does not support transactions", "The consumer used read_uncommitted"]
-  answer: 1
+  options: ["The Postgres write is outside the Kafka transaction", "Transactions are silently disabled after a crash", "Postgres commits are not durable until a checkpoint", "The consumer read with isolation level read_uncommitted"]
+  answer: 0
   explanation: >-
-    Exactly-once holds for consume-transform-produce where the sink is Kafka. External effects need idempotent writes (upsert on event ID) or the offset stored in the same sink transaction.
+    Only Kafka partitions and offsets are covered by the commit markers, so exactly-once holds for consume-transform-produce where the sink is Kafka. External effects need idempotent writes (upsert on event ID) or the offset stored in the same sink transaction.
 - q: >-
     Which design makes a Postgres sink effectively-once with no separate dedupe store and no time window?
-  options: ["Commit offsets more frequently", "A unique constraint on event_id with INSERT ... ON CONFLICT DO NOTHING, optionally with the consumed offset in the same transaction", "A Bloom filter of processed IDs", "Reducing the consumer's batch size"]
-  answer: 1
+  options: ["Commit offsets more often so the replay window shrinks", "A smaller consumer batch so fewer events are replayed", "A unique event_id with INSERT ... ON CONFLICT DO NOTHING", "A Bloom filter of processed IDs checked before each insert"]
+  answer: 2
   explanation: >-
-    The unique constraint makes every replay a no-op atomically with the write and never expires. Bloom filters have false positives and need a backing store; batch size and commit frequency shrink windows but do not remove them.
+    The unique constraint makes every replay a no-op atomically with the write and never expires; storing the consumed offset in the same transaction is an optional extra. Bloom filters have false positives and need a backing store; batch size and commit frequency shrink windows but do not remove them.
 - q: >-
     After a rebalance, an old consumer instance keeps producing to the output topic for a few seconds. In a transactional pipeline, what fences it?
-  options: ["The consumer group protocol", "The producer epoch: the replacement's initTransactions bumps the epoch and the broker rejects the old epoch's writes", "A shorter session timeout", "Partition reassignment"]
-  answer: 1
+  options: ["The consumer group protocol revoking its partitions", "Partition reassignment moving the output leader elsewhere", "A shorter session timeout on the old consumer instance", "The producer epoch, which the replacement bumps on init"]
+  answer: 3
   explanation: >-
-    Zombie fencing is done at the broker by epoch, which does not depend on the old instance noticing it lost its partitions. Timeouts and reassignment are what created the zombie window in the first place.
+    The replacement's initTransactions bumps the epoch and the broker rejects the old epoch's writes. Zombie fencing is done at the broker, which does not depend on the old instance noticing it lost its partitions. Timeouts and reassignment are what created the zombie window in the first place.
 ```

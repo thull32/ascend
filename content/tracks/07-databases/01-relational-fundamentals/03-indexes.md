@@ -302,32 +302,32 @@ hints:
 ```quiz
 - q: >-
     A table has 20 million rows. An index exists on status, and 40% of rows have status = 'complete'. The planner does a sequential scan for WHERE status = 'complete'. What is going on?
-  options: ["Statistics are stale; run ANALYZE and the index will be used", "The index is corrupt and should be rebuilt", "The planner is correct: fetching 8 million rows by random heap access costs far more than reading every page sequentially", "B-tree indexes cannot be used for text columns"]
-  answer: 2
-  explanation: >-
-    At 40% selectivity an index scan would do millions of random heap reads, each charged at random_page_cost, against one sequential pass of the table. Refreshing statistics would only confirm the estimate. If the query only needs the rare statuses, a partial index serves it.
-- q: >-
-    You have an index on (created_at, account_id). A hot query is WHERE account_id = $1 AND created_at > now() - interval '7 days'. EXPLAIN shows both columns under Index Cond, but the query reads 30,000 buffers to return 12 rows. Why, and what is the fix?
-  options: ["Only the leading range column bounds the scan, so every entry from the last 7 days for every account is read and filtered; create the index as (account_id, created_at)", "account_id is not selective enough; add a separate index on it", "The planner needs a higher random_page_cost", "Index Cond means the index was not used"]
-  answer: 0
-  explanation: >-
-    In a composite B-tree, scanning stops being bounded after the first range column. With created_at first, the matching entries for one account are scattered through a week of all accounts' entries. Equality first, then range, turns it into one contiguous slice.
-- q: >-
-    An index-only scan shows Heap Fetches: 45,000 for a 50,000-row result. What does that tell you?
-  options: ["The index is missing an INCLUDE column", "The query uses SELECT *", "The planner chose the wrong index", "Most heap pages are not marked all-visible in the visibility map, so Postgres had to check the heap for row visibility; vacuum is lagging on this table"]
-  answer: 3
-  explanation: >-
-    Index entries carry no visibility information. Postgres can skip the heap only for pages the visibility map says are all-visible, and vacuum sets those bits. Recent heavy writes or lagging autovacuum turn an index-only scan back into heap visits. An INCLUDE column would not help because the plan is already index-only.
-- q: >-
-    A users table is updated on every request to set last_seen_at. Someone adds an index on last_seen_at for an admin report. What is the most important side effect?
-  options: ["None; indexes only affect reads", "Every one of those updates now changes an indexed column, so HOT updates are no longer possible and every update writes a new entry into every index on the table", "The index will be too large to fit in memory", "The report will lock the table"]
+  options: ["The index is bloated from updates; REINDEX it and the planner will use it", "The planner is right; 8 million random heap reads cost more than a seq scan", "B-trees cannot serve equality on a text column; it needs a hash index", "Statistics are stale; run ANALYZE and the planner will switch over to the index"]
   answer: 1
   explanation: >-
-    A HOT update requires that no indexed column changes. Indexing last_seen_at means the most frequent write in the system now inserts entries into every index on users, plus WAL and bloat. The report would be better served by a periodically refreshed summary table or an analytics copy of the data.
+    At 40% selectivity an index scan would do millions of random heap reads, each charged at random_page_cost, against one sequential pass of the table. Refreshing statistics would only confirm the estimate, and rebuilding the index would not change the arithmetic. If the query only needs the rare statuses, a partial index serves it.
+- q: >-
+    You have an index on (created_at, account_id). A hot query is WHERE account_id = $1 AND created_at > now() - interval '7 days'. EXPLAIN shows both columns under Index Cond, but the query reads 30,000 buffers to return 12 rows. Why, and what is the fix?
+  options: ["Both columns are checked after the heap fetch; add INCLUDE (account_id) to the index", "Only the leading range column bounds the scan; reorder to (account_id, created_at)", "account_id is not selective enough to bound it; add a separate index on account_id", "The heap is not correlated with created_at; CLUSTER the table on that index"]
+  answer: 1
+  explanation: >-
+    In a composite B-tree, scanning stops being bounded after the first range column. With created_at first, every entry from the last 7 days for every account is read and filtered, because one account's entries are scattered through a week of all accounts' entries. Equality first, then range, turns it into one contiguous slice. The buffers are index pages, not heap pages, so clustering the heap would not help.
+- q: >-
+    An index-only scan shows Heap Fetches: 45,000 for a 50,000-row result. What does that tell you?
+  options: ["The query uses SELECT *, so every row is fetched from the heap regardless", "The index lacks an INCLUDE column, so each row's value comes from the heap", "Most heap pages are not all-visible, so vacuum is lagging on this table", "The planner picked the wrong index, so most rows were rechecked in the heap"]
+  answer: 2
+  explanation: >-
+    Index entries carry no visibility information. Postgres can skip the heap only for pages the visibility map says are all-visible, and vacuum sets those bits. Recent heavy writes or lagging autovacuum turn an index-only scan back into heap visits. A missing INCLUDE column or SELECT * would prevent an index-only plan altogether, and this plan already is one.
+- q: >-
+    A users table is updated on every request to set last_seen_at. Someone adds an index on last_seen_at for an admin report. What is the most important side effect?
+  options: ["None of note; an index only adds cost when a query actually reads it", "The index grows past memory, so each request's lookup by id misses cache", "Those updates lose HOT, so each one now writes to every index on the table", "The report's index scan will lock the table against those frequent updates"]
+  answer: 2
+  explanation: >-
+    A HOT update requires that no indexed column changes. Indexing last_seen_at means the most frequent write in the system now inserts a new entry into every index on users, plus WAL and bloat. Indexes cost on every write, not only when read. The report would be better served by a periodically refreshed summary table or an analytics copy of the data.
 - q: >-
     Which workload is the best fit for a BRIN index?
-  options: ["Looking up users by email", "Searching jsonb documents for a key", "Range queries on created_at over a 2 TB append-only events table whose rows are inserted in time order", "A status column with five values that is updated frequently"]
-  answer: 2
+  options: ["Point lookups of users by email across a 50-million-row users table", "Range queries on created_at over a 2 TB table appended in time order", "Containment searches for a key across a large table of jsonb documents", "Filtering on a five-value status column that is updated very frequently"]
+  answer: 1
   explanation: >-
     BRIN stores a min/max per block range and is tiny, but it only excludes ranges when physical order correlates with the column. Append-only time-ordered data is the ideal case. Email lookups need a B-tree, jsonb containment needs GIN, and a frequently updated low-cardinality column breaks correlation.
 ```

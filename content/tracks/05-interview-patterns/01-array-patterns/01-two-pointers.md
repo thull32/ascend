@@ -304,32 +304,32 @@ hints:
 ```quiz
 - q: >-
     In the opposite-ends template on a sorted array, the current pair sums to less than the target. Which candidates does moving lo right eliminate, and why is that safe?
-  options: ["Only the pair (lo, hi); the others still need checking", "Every pair (lo, j) with j in (lo, hi]; nums[hi] is the largest remaining value, so nums[lo] cannot reach the target with anything left", "Every pair (i, hi) with i in [lo, hi); nums[lo] is the smallest remaining value", "Nothing is eliminated; the loop simply tries the next index"]
+  options: ["Only the pair (lo, hi), because lo's other partners have not been compared with it yet", "Every pair (lo, j) with j up to hi, because nums[hi] is the largest partner lo has left", "Every pair (i, hi) with i from lo up, because nums[lo] is the smallest partner hi has left", "None for certain, because moving lo is a guess that the loop may need to revisit later"]
   answer: 1
   explanation: >-
-    Sortedness bounds every remaining partner of lo by nums[hi]. If even nums[lo] + nums[hi] is too small, no remaining partner works, so index lo and all its pairs are retired in one move. Option 2 describes the argument for moving hi when the sum is too large.
+    Sortedness bounds every remaining partner of lo by nums[hi]. If even nums[lo] + nums[hi] is too small, no remaining partner works, so index lo and all its pairs are retired in one move. Retiring every (i, hi) is the mirror argument, which justifies moving hi when the sum is too large.
 - q: >-
     Your Three Sum solution returns [[-1, 0, 1]] for [-1, 0, 1, 2, -1, -4] but the expected output also contains [-1, -1, 2]. The most likely bug is:
-  options: ["The array was not sorted", "The anchor-skip compares nums[i] to nums[i + 1] instead of nums[i - 1]", "The inner loop uses lo <= hi", "Duplicates are skipped after recording a match"]
-  answer: 1
+  options: ["The result list is deduplicated through a set of tuples at the end", "Duplicate lo and hi values are skipped after a match is recorded", "The inner loop keeps running while lo <= hi rather than lo < hi", "The anchor skip compares nums[i] with nums[i + 1], not nums[i - 1]"]
+  answer: 3
   explanation: >-
-    Comparing to the next element skips the first -1 as an anchor, so the triple that needs two -1s is never formed. Comparing to the previous anchor skips only repeated anchors. Skipping after a match (option 3) is the correct placement, not a bug.
+    Comparing to the next element skips the first -1 as an anchor, so the triple that needs two -1s is never formed. Comparing to the previous anchor skips only repeated anchors. Skipping lo and hi duplicates after recording a match is the correct placement, not a bug, and a lo <= hi loop adds bad triples rather than losing good ones.
 - q: >-
     In Container With Most Water, heights[lo] = 5 and heights[hi] = 9. Why is moving hi never beneficial?
-  options: ["Because 9 is the global maximum", "Because any container (lo, r) with r < hi is narrower and its height is still capped at 5, so it holds at most the current amount", "Because the area formula only depends on the left line", "It can be beneficial; you should try both moves"]
+  options: ["Because width dominates the area, so the widest pair seen so far always wins", "Because every container (lo, r) with r < hi is narrower and still capped at 5", "Because 9 is the tallest line, so no container without it can be taller", "It can be; a taller line left of hi might raise the area, so try both moves"]
   answer: 1
   explanation: >-
-    Height is min of the two lines, so with the shorter line fixed at 5 the height cannot rise, and the width only falls. Only moving the shorter line can raise the cap. Trying both moves would make the algorithm exponential.
+    Height is the min of the two lines, so with the shorter line fixed at 5 the height cannot rise, and the width only falls. Only moving the shorter line can raise the cap. Nothing says 9 is the global maximum, and trying both moves would make the search exponential.
 - q: >-
     The problem asks for the two indices in an unsorted array whose values sum to a target. A candidate sorts the array and runs two pointers. What is wrong?
-  options: ["Nothing; this is optimal", "Two pointers only works on arrays without duplicates", "Sorting destroys the original indices that the answer requires; a hash map keyed by value solves it in one pass", "Two pointers is O(n log n) but a nested loop is faster on small inputs"]
-  answer: 2
+  options: ["Two pointers needs non-negative values, and the input may hold negatives", "Nothing; sorting then sweeping two pointers is the optimal approach here", "Two pointers breaks when the array holds duplicate values that could pair", "Sorting loses the original indices; a value-to-index hash map fits better"]
+  answer: 3
   explanation: >-
-    The returned positions would refer to the sorted array. You would need to carry indices through the sort, at which point a single pass with a value-to-index map is simpler and O(n). The signal for two pointers is sorted input where values, not positions, are the answer.
+    The returned positions would refer to the sorted array. You would need to carry indices through the sort, at which point a single pass with a value-to-index map is simpler and O(n). Duplicates and negatives are no problem for two pointers; the signal for it is sorted input where values, not positions, are the answer.
 - q: >-
     In the O(1)-space Trapping Rain Water solution, lmax = 4 and rmax = 6. Which position can be settled now, and what is its water?
-  options: ["The next left position; its water is max(lmax, h) - h after updating lmax", "The next right position; its water is rmax - h", "Either; they are symmetric", "Neither; you need both full max arrays"]
-  answer: 0
+  options: ["Neither side until the full maxLeft and maxRight arrays are built", "The next right position, holding the updated rmax minus its height", "Either side, since both running maxima bound the water from above", "The next left position, holding the updated lmax minus its height"]
+  answer: 3
   explanation: >-
     Because lmax <= rmax, the true right-side maximum for the next left position is at least 6, so min(maxLeft, maxRight) there equals the updated lmax. That side is fully determined; the right side is not, because its left wall might still grow.
 ```

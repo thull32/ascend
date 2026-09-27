@@ -247,32 +247,32 @@ hints:
 ```quiz
 - q: >-
     After "add 10 to [2,5]" on an 8-element tree, which nodes have a non-zero lazy value?
-  options: ["Every node on the paths from leaf 2 and leaf 5 to the root", "Only the nodes that exactly cover [2,5]: [2,3] and [4,5]", "All leaves from 2 to 5", "Only the root"]
-  answer: 1
+  options: ["Every node on the paths from leaves 2 and 5 up to the root", "Only the root, which holds the pending add for the whole tree", "Only [2,3] and [4,5], the nodes that exactly cover [2,5]", "Every leaf from 2 to 5, since those are the updated elements"]
+  answer: 2
   explanation: >-
     Fully covered nodes receive the update as a pending value and stop. Their ancestors have their sums corrected but no pending value, because their other children were not affected. The leaves are untouched and stale.
 - q: >-
     A lazy tree returns correct sums after one range update but wrong sums after a second update that overlaps the first. The most likely bug is:
-  options: ["The build step is wrong", "Descending into a partially covered node without pushing, so the recomputed parent sum discards the pending add", "Using 4n instead of 2n array slots", "Using closed instead of half-open intervals"]
-  answer: 1
+  options: ["The build step computes internal sums from the wrong children", "Closed and half-open intervals are mixed in the length calculation", "A partially covered node is descended into without a push first", "The tree allocates 4n array slots where 2n would be correct"]
+  answer: 2
   explanation: >-
-    The first update is recorded as a pending value; the second update descends through that node, recomputes its sum from stale children, and loses the first update. Pushing before descending prevents it.
+    The first update is recorded as a pending value; the second update descends through that node without pushing, recomputes its sum from stale children, and loses the first update. Pushing before descending prevents it. A closed/half-open mix-up would already give wrong sums after the first update, off by a multiple of the delta.
 - q: >-
     You need range assign and range add on the same tree. The robust approach is:
-  options: ["Two separate lazy arrays and an if/else in push", "Represent the pending update as x -> mul*x + add and define composition", "Convert every assign into an add by reading the current values first", "Rebuild the tree on every assign"]
-  answer: 1
+  options: ["Rebuild the whole tree from scratch whenever an assign arrives", "Turn every assign into an add by first reading the current values", "Model pending updates as x -> mul*x + add and compose them", "Keep separate lazy add and assign arrays, branching on them in push"]
+  answer: 2
   explanation: >-
     Add is (1, d), assign is (0, v), and composing two updates has one formula. Separate flags require handling four orderings and usually get one wrong; reading current values makes assign O(n).
 - q: >-
     Your updates are all range adds but your queries are all single-element reads. What should you use?
-  options: ["A lazy segment tree", "A difference array over a Fenwick tree", "A plain segment tree with point updates", "A hash map"]
+  options: ["A plain segment tree with point updates", "A Fenwick tree over a difference array", "A prefix-sum array rebuilt per update", "A lazy segment tree with range add"]
   answer: 1
   explanation: >-
-    Range add becomes two point updates on a difference array, and a point read is a prefix sum; a Fenwick tree gives O(log n) for both with far less code and memory than a lazy tree.
+    Range add becomes two point updates on a difference array, and a point read is a prefix sum; a Fenwick tree gives O(log n) for both with far less code and memory than a lazy tree. A plain segment tree with point updates would need O(n) point updates per range add.
 - q: >-
     Why is the cost of a lazy range update O(log n) worst-case rather than amortised?
-  options: ["Because pushes are batched", "Because the update visits at most O(log n) fully covered nodes and O(log n) partially covered ancestors, each doing O(1) work, regardless of history", "Because the tree is rebalanced", "It is amortised; a single update can cost O(n)"]
-  answer: 1
+  options: ["It is amortised; one update may still have to touch O(n) nodes", "Pushes are batched and flushed together at the next query", "The walk touches O(log n) nodes per update, each with O(1) work", "The tree is rebalanced after each update to keep it shallow"]
+  answer: 2
   explanation: >-
-    The walk is bounded by the same two-nodes-per-level argument as a query, and each push is constant time. No operation ever cascades further than that.
+    The walk visits at most O(log n) fully covered nodes and O(log n) partially covered ancestors, the same two-nodes-per-level argument as a query, and each push is constant time regardless of history. No operation ever cascades further than that, so no single update can cost O(n).
 ```

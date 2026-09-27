@@ -141,32 +141,32 @@ A team lands 2 TB of events per day and asks where to store them.
 ```quiz
 - q: >-
     A Spark job writes 800 GB to S3 using the classic rename-based output committer. Why is job commit slow and unsafe?
-  options: ["S3 is eventually consistent for new objects", "Rename is emulated by copying every object and deleting the original, so commit copies 800 GB and a crash leaves partial output visible", "S3 limits objects to 5 GB", "The NameNode must record every file"]
-  answer: 1
+  options: ["Rename is emulated by copying all 800 GB, non-atomically", "S3 is eventually consistent, so new files appear late", "S3 caps objects at 5 GB, so large outputs must be split", "The NameNode must record every one of the written files"]
+  answer: 0
   explanation: >-
-    Object stores have no rename. The committer's final "rename" becomes a server-side copy of all 800 GB plus deletes, which takes a long time and is not atomic across files. S3 has been strongly consistent since 2020, so consistency is not the issue here.
+    Object stores have no rename. The committer's final "rename" becomes a server-side copy of all 800 GB plus deletes, which takes a long time and is not atomic across files, so a crash leaves partial output visible. S3 has been strongly consistent since 2020, so consistency is not the issue here, and S3 has no NameNode.
 - q: >-
     An HDFS cluster stores 400 million files averaging 200 KB. What problem are you most likely to hit first?
-  options: ["Disk capacity", "NameNode heap and garbage collection, because every file and block is an in-memory object", "Network bandwidth between racks", "Checksum verification cost"]
+  options: ["Running out of disk capacity on the DataNodes", "NameNode heap pressure from its in-memory objects", "The CPU cost of verifying every block's checksum", "Saturated cross-rack network bandwidth during writes"]
   answer: 1
   explanation: >-
-    400 million files plus their blocks is on the order of 800 million namespace objects, far past what one NameNode heap handles comfortably. The total data (80 TB) is modest; the object count is the problem.
+    Every file and block is an in-memory object in the NameNode heap. 400 million files plus their blocks is on the order of 800 million namespace objects, far past what one NameNode heap handles comfortably, with garbage-collection pauses to match. The total data (80 TB) is modest; the object count is the problem.
 - q: >-
     Why does HDFS place the second and third replicas of a block on a different rack from the first, but on the same rack as each other?
-  options: ["To maximise read bandwidth for the writer", "To survive the loss of a whole rack while crossing the rack boundary only once per write", "Because the NameNode can only track two racks per block", "To make erasure coding possible later"]
-  answer: 1
+  options: ["So that the block can be erasure-coded later without copying", "To maximise read bandwidth for clients on the writer's rack", "Because the NameNode can only track two racks per block", "To survive a rack loss, crossing racks only once per write"]
+  answer: 3
   explanation: >-
-    A rack can fail as a unit (switch, power). Two racks are enough to survive that; putting replicas 2 and 3 together means the write pipeline crosses racks once, conserving scarce cross-rack bandwidth.
+    A rack can fail as a unit (switch, power). Two racks are enough to survive that; putting replicas 2 and 3 together means the write pipeline crosses racks once, conserving scarce cross-rack bandwidth. Read bandwidth for the writer's rack would argue for keeping replicas local, the opposite of this placement.
 - q: >-
     When an 8 TB disk fails in a 1,000-node HDFS cluster, why is recovery much faster than rebuilding a RAID array?
-  options: ["HDFS compresses blocks during recovery", "The lost blocks' surviving replicas are spread across many nodes, so re-replication runs in parallel across the cluster", "HDFS only re-replicates blocks that are read", "RAID rebuilds must verify checksums"]
+  options: ["HDFS compresses the blocks before copying them to new disks", "Surviving replicas are spread out, so many nodes copy at once", "A RAID rebuild must verify checksums, which HDFS skips", "HDFS re-replicates only the blocks that clients actually read"]
   answer: 1
   explanation: >-
-    Declustered replication means hundreds of nodes each copy a few gigabytes concurrently. A RAID rebuild writes all 8 TB onto one spare disk at single-disk speed, which takes many hours.
+    Declustered replication means the lost blocks' other replicas are scattered over hundreds of nodes, each copying a few gigabytes concurrently. A RAID rebuild writes all 8 TB onto one spare disk at single-disk speed, which takes many hours. HDFS verifies checksums too; the difference is parallelism.
 - q: >-
     A streaming job writes one Parquet file per partition every 30 seconds to S3, producing about 3 million files a day of about 300 KB each. Downstream queries are slow and expensive. What is the right first fix?
-  options: ["Enable S3 strong consistency", "Increase the S3 request-rate limit", "Compact files into roughly 128 MB to 1 GB and buffer longer before writing", "Switch to erasure coding"]
-  answer: 2
+  options: ["Enable S3 strong consistency for the output prefix", "Raise the S3 request-rate limit on the output bucket", "Switch the bucket's storage to erasure coding", "Compact into 128 MB to 1 GB files and buffer longer"]
+  answer: 3
   explanation: >-
-    Each small file costs a request and its latency for every query that reads it, and it inflates planning. Compaction and larger write batches reduce object count by orders of magnitude. Consistency and erasure coding are unrelated to the problem.
+    Each small file costs a request and its latency for every query that reads it, and it inflates planning. Compaction and larger write batches reduce object count by orders of magnitude. A higher request-rate limit still pays per-request latency and cost for 3 million objects; consistency and erasure coding are unrelated to the problem.
 ```

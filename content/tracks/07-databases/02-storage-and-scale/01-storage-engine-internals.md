@@ -198,31 +198,31 @@ The engine is not a black box. Each of these is a page, a buffer, a log record o
 ```quiz
 - q: >-
     A single-row UPDATE that normally takes 1 ms occasionally takes 30 ms with the same plan and no lock waits. pg_stat_bgwriter shows buffers_backend growing steadily. What is the most likely mechanism?
-  options: ["The WAL fsync is slow because the disk is saturated", "The backend had to evict a dirty page and write it to disk before it could load the page it needed", "The row was TOASTed and had to be detoasted", "A checkpoint was in progress and blocked the write"]
+  options: ["A checkpoint was in progress and held the page lock for the whole write", "The backend had to write out a dirty page before reusing the buffer", "The row's large column was TOASTed and had to be detoasted on update", "The WAL fsync stalled because a checkpoint was saturating the disk"]
   answer: 1
   explanation: >-
-    buffers_backend counts pages written by foreground processes, which happens when a backend needs a free buffer and the candidates are dirty. That write is the stall. Checkpoints do not block writers; WAL fsync would affect every commit, not occasional ones; TOAST affects reads of large columns.
+    buffers_backend counts pages written by foreground processes, which happens when a backend needs a free buffer and the candidates are dirty. That write is the stall. Checkpoints do not block writers; a slow WAL fsync would affect every commit, not occasional ones; TOAST affects reads of large columns.
 - q: >-
     Why does Postgres log the entire 8 KiB page the first time it is modified after a checkpoint, rather than only the changed bytes?
-  options: ["To make replication faster", "Because a page write can be torn by a crash mid-write, and a delta record cannot repair a half-written page", "To reduce WAL volume", "Because the buffer pool does not track which bytes changed"]
+  options: ["Replicas need whole pages because they cannot apply byte-level deltas", "A crash can tear a page write, and a small delta cannot repair a torn page", "The buffer pool does not track which bytes changed within a page", "A full image compresses better than deltas, so WAL volume goes down"]
   answer: 1
   explanation: >-
-    Disks do not guarantee atomic 8 KiB writes. If a crash tears a page, redo needs a full image to reconstruct it; after the first full-page write in a checkpoint interval, deltas are safe because recovery will first restore the full image. Full-page writes increase, not reduce, WAL volume.
+    Disks do not guarantee atomic 8 KiB writes. If a crash tears a page, redo needs a full image to reconstruct it; after the first full-page write in a checkpoint interval, deltas are safe because recovery will first restore the full image. Full-page writes increase, not reduce, WAL volume, and replicas apply the same delta records the primary's recovery does.
 - q: >-
     You raise checkpoint_timeout from 5 minutes to 60 minutes on a write-heavy database. Which consequence should you expect?
-  options: ["Committed transactions become less durable", "Crash recovery takes longer because more WAL must be replayed", "The buffer pool hit ratio drops", "Group commit stops working"]
-  answer: 1
+  options: ["WAL volume rises, since pages are logged in full more often", "The buffer pool hit ratio drops, since dirty pages crowd it out", "Crash recovery takes longer, because more WAL must be replayed first", "Commits become less durable, since pages reach disk less often"]
+  answer: 2
   explanation: >-
-    Durability comes from the WAL fsync at commit, not from checkpoints. Longer intervals mean fewer full-page writes and smoother I/O, but everything since the last checkpoint must be replayed after a crash, so recovery time grows. The hit ratio and group commit are unrelated.
+    Durability comes from the WAL fsync at commit, not from checkpoints. Longer intervals mean fewer full-page writes and smoother I/O, but everything since the last checkpoint must be replayed after a crash, so recovery time grows. The hit ratio is unrelated.
 - q: >-
     EXPLAIN (ANALYZE, BUFFERS) on a query shows Buffers shared hit=2 read=480 and 40 ms; running it again shows hit=482 read=0 and 3 ms. What does this tell you?
-  options: ["The second run used a better plan", "The query is I/O-bound on a cold cache and the pool now holds its pages; the 40 ms is what users see when the working set does not fit", "The index is missing and should be added", "Statistics were stale on the first run"]
-  answer: 1
+  options: ["Statistics were stale on the first run and refreshed by the query itself", "The second run chose a better plan once the first had warmed statistics", "The first run hit a cold cache; the second found every page in the pool", "The first run paid for planning, which the second reused from a plan cache"]
+  answer: 2
   explanation: >-
-    Same plan, same page count; the only difference is where the pages came from. If this query's pages are regularly evicted between runs, users see the 40 ms figure, and the fix is more memory, a smaller working set (fewer pages per query, e.g. a covering index), or accepting the cold cost.
+    Same plan, same page count; the only difference is where the pages came from, and planning cost is far below 37 ms. If this query's pages are regularly evicted between runs, users see the 40 ms figure, and the fix is more memory, a smaller working set (fewer pages per query, e.g. a covering index), or accepting the cold cost.
 - q: >-
     Which workload favours a log-structured (LSM) engine over a B-tree engine like Postgres?
-  options: ["Read-mostly with a working set that fits in memory", "Sustained heavy inserts and updates on SSDs where random page rewrites are expensive", "Complex joins with many secondary indexes", "Small tables with frequent range scans"]
+  options: ["Complex multi-way joins over tables with many secondary indexes", "Sustained heavy writes on SSDs, where random page rewrites are costly", "Point reads and range scans that must be fast on the very first try", "Read-mostly traffic whose whole working set fits comfortably in memory"]
   answer: 1
   explanation: >-
     LSMs turn every write into sequential appends plus background compaction, which is what a write-heavy SSD workload wants. B-trees win on reads that must be fast the first time, on join-heavy relational workloads, and when the data is in memory anyway so write amplification barely matters.

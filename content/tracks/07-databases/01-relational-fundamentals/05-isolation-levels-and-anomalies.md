@@ -252,32 +252,32 @@ hints:
 ```quiz
 - q: >-
     Two sessions at Postgres REPEATABLE READ each run SELECT count(*) FROM bookings WHERE room = 3 AND day = '2026-10-01' (result 0) and then INSERT a booking for that room and day. What happens?
-  options: ["The second INSERT blocks until the first commits, then fails", "Both commit: the inserts touch no common row, so snapshot isolation sees no write-write conflict, and the room is double-booked", "The second COMMIT fails with a serialisation error", "The second SELECT sees the first INSERT"]
-  answer: 1
-  explanation: >-
-    This is write skew through phantoms. Each snapshot legitimately showed zero bookings; the writes are new rows, so first-updater-wins has nothing to compare. SERIALIZABLE would abort one, and an exclusion or unique constraint would reject the second insert at any level.
-- q: >-
-    Why is UPDATE items SET stock = stock - 1 WHERE id = 7 safe against lost updates under READ COMMITTED, while SELECT stock followed by UPDATE items SET stock = <value computed in the app> is not?
-  options: ["When the single UPDATE waits on another transaction's row lock, Postgres re-reads the newly committed row version and re-evaluates the expression against it; the two-statement version wrote a value computed from a stale read", "The single statement takes a table lock", "READ COMMITTED runs single statements at SERIALIZABLE", "It is not safe; both can lose updates"]
-  answer: 0
-  explanation: >-
-    Under READ COMMITTED an UPDATE that was blocked re-checks its row against the latest committed version, so stock - 1 is computed from the current value. In the two-statement form, the application computed the new value from a read that is out of date by the time it writes.
-- q: >-
-    A nightly job sums balances across 2 million accounts with one SELECT per batch of 10,000 rows, inside one transaction at READ COMMITTED, while transfers run. The total is occasionally wrong. What is the anomaly and the fix?
-  options: ["Dirty reads; use SERIALIZABLE", "Lost update; use SELECT FOR UPDATE", "Read skew: each statement sees a different snapshot, so a transfer committed between batches is counted on one side only; run the transaction at REPEATABLE READ so every batch uses the same snapshot", "Phantoms; add an index"]
+  options: ["The second INSERT blocks on the first's row lock, then fails at commit", "The second COMMIT fails with 40001, since both read the same predicate", "Both commit, since the inserts share no row; the room is double-booked", "The second SELECT sees the first INSERT, so it never inserts a booking"]
   answer: 2
   explanation: >-
-    READ COMMITTED takes a snapshot per statement. Batches read before and after a transfer see it half-applied. REPEATABLE READ (or SERIALIZABLE READ ONLY DEFERRABLE) gives the whole report one consistent snapshot without blocking writers.
+    This is write skew through phantoms. Each snapshot legitimately showed zero bookings; the writes are new rows, so snapshot isolation's first-updater-wins has no write-write conflict to compare. Aborting on a shared read predicate is what SERIALIZABLE adds, not REPEATABLE READ. An exclusion or unique constraint would reject the second insert at any level.
+- q: >-
+    Why is UPDATE items SET stock = stock - 1 WHERE id = 7 safe against lost updates under READ COMMITTED, while SELECT stock followed by UPDATE items SET stock = <value computed in the app> is not?
+  options: ["READ COMMITTED silently promotes single statements to SERIALIZABLE", "It is not safe either; both forms can lose updates under READ COMMITTED", "A single UPDATE takes a table lock, so no other writer can interleave with it", "A blocked UPDATE re-reads the newly committed row and recomputes stock - 1"]
+  answer: 3
+  explanation: >-
+    Under READ COMMITTED an UPDATE that was blocked on another transaction's row lock re-checks its row against the latest committed version, so stock - 1 is computed from the current value. In the two-statement form, the application computed the new value from a read that is out of date by the time it writes. The UPDATE takes only a row lock, not a table lock.
+- q: >-
+    A nightly job sums balances across 2 million accounts with one SELECT per batch of 10,000 rows, inside one transaction at READ COMMITTED, while transfers run. The total is occasionally wrong. What is the anomaly and the fix?
+  options: ["Lost updates from the transfers; read each batch with SELECT ... FOR UPDATE", "Dirty reads of uncommitted transfers; run the job at SERIALIZABLE instead", "Read skew; run the whole job at REPEATABLE READ so batches share a snapshot", "Phantom rows appearing mid-scan; add an index so each batch is bounded"]
+  answer: 2
+  explanation: >-
+    READ COMMITTED takes a snapshot per statement, so a transfer committed between batches is counted on one side only. REPEATABLE READ (or SERIALIZABLE READ ONLY DEFERRABLE) gives the whole report one consistent snapshot without blocking writers. Postgres never allows dirty reads, and the job writes nothing, so there is no lost update.
 - q: >-
     A team switches to SERIALIZABLE and sees a high rate of 40001 errors on a table that is queried by sequential scans. What is the most likely contributor?
-  options: ["Sequential scans record a predicate lock on the whole relation, so any concurrent write to the table forms an rw-dependency and triggers more aborts, including false positives; adding suitable indexes makes the tracking finer", "SERIALIZABLE takes exclusive locks on every row read", "The retry loop is too aggressive", "40001 errors mean the data is corrupt"]
+  options: ["Sequential scans take relation-level SIRead locks, so any table write conflicts", "SERIALIZABLE takes exclusive locks on every single row a transaction reads", "The retry loop is too aggressive, so each retry collides with the last", "READ COMMITTED sessions on the same table are counted as conflicts too"]
   answer: 0
   explanation: >-
-    SSI's SIRead locks block nothing but determine conflict detection. A sequential scan records a relation-level lock, the coarsest granularity, so almost every concurrent write is a potential conflict. Index scans lock index pages instead, which cuts false positives.
+    SSI's SIRead locks block nothing but determine conflict detection. A sequential scan records a relation-level lock, the coarsest granularity, so almost every concurrent write to the table forms an rw-dependency, including false positives. Index scans lock index pages instead, so adding suitable indexes cuts the abort rate. READ COMMITTED transactions are invisible to SSI tracking, not extra conflicts.
 - q: >-
     Which invariant can a constraint enforce, removing the need for SERIALIZABLE?
-  options: ["A shift must always have at least one active doctor", "The sum of line items must equal the order total", "An account balance must equal the sum of its ledger entries", "A user may hold at most one active subscription"]
-  answer: 3
+  options: ["The sum of line items must equal the order total", "An account balance must equal the sum of its ledger entries", "A user may hold at most one active subscription", "A shift must always have at least one active doctor"]
+  answer: 2
   explanation: >-
     At most one active subscription per user is a unique partial index: CREATE UNIQUE INDEX ON subscriptions (user_id) WHERE status = 'active'. At least one doctor and the aggregate invariants span multiple rows in ways a single-row CHECK or uniqueness constraint cannot express; they need locks, SERIALIZABLE, or a redesigned schema.
 ```

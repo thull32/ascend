@@ -300,32 +300,32 @@ hints:
 ```quiz
 - q: >-
     Why does counting opens and closes per bracket type fail as a validity check for strings like "([)]"?
-  options: ["Counting is O(n²)", "It ignores the order in which brackets close; the last opened must be the first closed", "It cannot handle more than one bracket type", "It fails only on odd-length strings"]
-  answer: 1
+  options: ["It ignores order, and the last opened must close first", "Counting per type costs O(n²) once several types are mixed", "It fails only on strings whose length is odd", "It cannot handle more than one bracket type at once"]
+  answer: 0
   explanation: >-
     Counts are equal for "([)]" yet the string is invalid because ")" arrives while "[" is the innermost open bracket. The stack enforces order, which counts cannot see.
 - q: >-
     In Decode String, what state must be saved when you encounter "[" so that the outer context is restored correctly after the matching "]"?
-  options: ["Only the repeat count", "Only the string built so far", "Both the repeat count and the string built so far, then reset both", "The index of the bracket"]
-  answer: 2
+  options: ["The index of the bracket, to rescan from it after ']'", "The count and the string built so far, then reset both", "Only the string built so far, since counts are re-read", "Only the repeat count, since the string is rebuilt later"]
+  answer: 1
   explanation: >-
     The count applies to the substring inside this bracket pair, and the string built before it must be prepended afterwards. Both go on the stack; forgetting to reset either leaks outer content into the inner segment.
 - q: >-
     A min-stack uses a parallel stack that pushes a value only when it is strictly less than the current minimum. What breaks?
-  options: ["Nothing; strict comparison is correct", "Pushing 2, 2 and popping once removes the only min record, so getMin becomes wrong", "getMin becomes O(n)", "Push becomes O(log n)"]
-  answer: 1
+  options: ["Push becomes O(log n), since the min stack must stay sorted", "Nothing; a strict comparison is correct and saves memory", "getMin becomes O(n), since duplicates must be rescanned", "Pushing 2, 2 then popping once loses the only min record"]
+  answer: 3
   explanation: >-
-    With strict less-than, the second 2 is never recorded. Popping one 2 pops the min record, and the remaining 2 in the main stack has no minimum entry. Use less-than-or-equal on push.
+    With strict less-than, the second 2 is never recorded. Popping one 2 pops the min record, and the remaining 2 in the main stack has no minimum entry, so getMin becomes wrong. Use less-than-or-equal on push; the complexity of every operation is unaffected.
 - q: >-
     In Car Fleet, the car at position 3 (speed 3, alone-arrival 3.0) is behind a fleet arriving at 7.0. Which time does the stack keep for deciding whether the next car behind joins?
-  options: ["3.0, because the faster car is the leader", "7.0, because the car is held to the fleet ahead", "The average, 5.0", "Whichever is smaller"]
-  answer: 1
+  options: ["7.0, because the car is held to the fleet ahead", "Both, pushed as separate entries for later cars", "3.0, because the faster car now leads the fleet", "5.0, the average of the two arrival times"]
+  answer: 0
   explanation: >-
     A car that catches a fleet cannot pass it, so its effective arrival time becomes the fleet's. The stack stores the fleet head's time; the joining car is not pushed at all.
 - q: >-
     Evaluating the RPN tokens ["6", "-132", "/"] should give 0. Which implementation detail matters?
-  options: ["Use floor division", "Use truncation towards zero, and pop the right operand first", "Use floating point throughout", "Push the operator before the operands"]
+  options: ["Use floating point throughout and round at the end", "Truncate towards zero, and pop the right operand first", "Truncate towards zero, and pop the left operand first", "Use floor division, then pop the right operand first"]
   answer: 1
   explanation: >-
-    Floor division gives -1 for 6 / -132; the problem wants truncation towards zero, which is int(a / b) in Python or Math.trunc in JavaScript. The second pop is the left operand because operands were pushed in order.
+    Floor division gives -1 for 6 / -132; the problem wants truncation towards zero, which is int(a / b) in Python or Math.trunc in JavaScript. The first pop is the right operand and the second pop is the left, because operands were pushed in order; popping them the other way round computes -132 / 6.
 ```

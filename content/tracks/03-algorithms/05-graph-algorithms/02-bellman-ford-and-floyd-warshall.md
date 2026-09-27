@@ -272,32 +272,32 @@ hints:
 ```quiz
 - q: >-
     A graph has no negative cycle, and the shortest path from the source to node X uses 4 edges. After how many full rounds of Bellman-Ford is dist[X] guaranteed to be correct, regardless of edge order?
-  options: ["1", "4", "V − 1 always", "It depends on the weights"]
+  options: ["V − 1 always", "4", "1", "It depends on the weights"]
   answer: 1
   explanation: >-
     Round i finalises every node whose shortest path has at most i edges, by induction on the path. V − 1 is the worst case over all nodes, not the bound for a specific one. With a lucky edge order it can be faster, but 4 rounds is the guarantee.
 - q: >-
     You omit the `dist[u] != INF` guard and represent infinity as the integer 10^18. What can go wrong?
-  options: ["Nothing; the comparison still fails for unreachable nodes", "An unreachable node with an incoming negative edge acquires a finite distance, and an unreachable negative cycle is reported", "The algorithm becomes O(V²E)", "Only the early-exit optimisation breaks"]
-  answer: 1
-  explanation: >-
-    10^18 + (−3) < 10^18 is true, so relaxation proceeds from an unreachable node. That produces bogus finite distances and lets a negative cycle the source cannot reach trigger the V-th round check. Float infinity happens to behave, which is why the bug hides in Python and appears in C++.
-- q: >-
-    Why must `k` be the outermost loop in Floyd-Warshall?
-  options: ["For cache locality on the inner row", "Because stage k of the DP must finish for all (i, j) pairs before stage k+1 can use d[i][k] and d[k][j] as 'paths through intermediates < k+1'", "It does not matter; any order gives the same result", "Because the diagonal must be updated first"]
-  answer: 1
-  explanation: >-
-    d[i][j] at stage k means the best path using only intermediates below k. If k varies innermost, you compute 'at most one intermediate' paths and miss multi-hop improvements. Locality is a real but secondary concern.
-- q: >-
-    You need the cheapest route with at most 3 flights between two airports. What is the right approach?
-  options: ["Dijkstra with early exit", "4 rounds of Bellman-Ford, relaxing against a copy of the previous round's distances", "4 rounds of Bellman-Ford relaxing in place", "Floyd-Warshall and read off the entry"]
-  answer: 1
-  explanation: >-
-    k rounds against a copy computes 'cheapest using at most k edges' exactly. In-place relaxation can chain several edges within one round and violate the limit. Dijkstra's per-node 'settled' invariant fails when a cheaper path may be disqualified by edge count.
-- q: >-
-    After Floyd-Warshall finishes, d[3][3] = −5. What does it mean?
-  options: ["A bug; the diagonal is always 0", "Node 3 is unreachable from itself", "Node 3 lies on a negative cycle, so shortest paths through it are undefined", "The graph is undirected"]
+  options: ["It overflows on the first addition and crashes the program", "Only the early exit breaks, so it always runs V − 1 rounds", "Unreachable nodes can gain finite distances and phantom cycles", "Nothing; the comparison still fails for unreachable nodes"]
   answer: 2
   explanation: >-
-    The diagonal starts at 0 and can only decrease if some cycle through i has negative total weight. This is the global negative-cycle check Bellman-Ford from a single source cannot provide.
+    10^18 + (−3) < 10^18 is true, so relaxation proceeds from an unreachable node. That produces bogus finite distances and lets a negative cycle the source cannot reach trigger the V-th round check. A 64-bit integer holds about 9.2 × 10^18, so small weights do not overflow; the bug is silent. Float infinity happens to behave, which is why it hides in Python and appears in C++.
+- q: >-
+    Why must `k` be the outermost loop in Floyd-Warshall?
+  options: ["For cache locality: the inner loop then scans a single row", "It doesn't; any loop order converges to the same distances", "Stage k must finish for all pairs before stage k+1 uses it", "So the diagonal d[k][k] is updated before any pair uses it"]
+  answer: 2
+  explanation: >-
+    d[i][j] at stage k means the best path using only intermediates below k, and stage k+1 builds on d[i][k] and d[k][j] from that stage. If k varies innermost, you compute 'at most one intermediate' paths and miss multi-hop improvements. Locality is a real but secondary concern.
+- q: >-
+    You need the cheapest route with at most 3 stops between two airports. What is the right approach?
+  options: ["Floyd-Warshall, then read d[src][dst] from the matrix", "4 rounds of Bellman-Ford, relaxing against a copied array", "4 rounds of Bellman-Ford, relaxing in place to save memory", "Dijkstra, stopping as soon as the destination is popped"]
+  answer: 1
+  explanation: >-
+    Three stops means at most four flights, and k rounds against a copy of the previous round's distances computes 'cheapest using at most k edges' exactly. In-place relaxation can chain several edges within one round and violate the limit. Dijkstra's per-node 'settled' invariant fails when a cheaper path may be disqualified by edge count, and Floyd-Warshall ignores the limit entirely.
+- q: >-
+    After Floyd-Warshall finishes, d[3][3] = −5. What does it mean?
+  options: ["The cheapest edge out of node 3 has weight −5", "A bug; the diagonal is set to 0 and can never change", "Node 3 lies on a cycle whose total weight is negative", "Node 3 cannot reach itself, so −5 marks it as unreachable"]
+  answer: 2
+  explanation: >-
+    The diagonal starts at 0 and can only decrease if some cycle through i has negative total weight, so shortest paths through node 3 are undefined. This is the global negative-cycle check Bellman-Ford from a single source cannot provide.
 ```

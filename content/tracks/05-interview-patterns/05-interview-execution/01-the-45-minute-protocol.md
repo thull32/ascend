@@ -191,32 +191,32 @@ Reading a budget does not install it. Three practice loops do.
 ```quiz
 - q: >-
     At minute 16 you have only an O(n²) brute force for a problem with n up to 10⁵, and no idea how to improve it. What is the best move?
-  options: ["Keep thinking silently until the optimisation comes", "Start coding an O(n log n) idea you are not sure is correct", "Say what you are stuck on, then either code the brute force now or ask a targeted hint, and say which you chose", "Ask the interviewer to switch to a different problem"]
+  options: ["Ask the interviewer to switch you to a different problem", "Keep thinking silently until the optimisation comes to you", "Name the blocker, then code the brute force or ask a hint", "Start coding an O(n log n) idea you are not sure is correct"]
   answer: 2
   explanation: >-
-    Minute 15 is the checkpoint where you should be typing. Naming the blocker and making an explicit choice keeps the round moving and shows you are managing the clock. Silent thinking past the checkpoint is the most common way rounds run out of time, and coding an unverified idea risks fifteen minutes on something that does not work.
+    Minute 15 is the checkpoint where you should be typing. Saying what you are stuck on and making an explicit choice, out loud, keeps the round moving and shows you are managing the clock. Silent thinking past the checkpoint is the most common way rounds run out of time, and coding an unverified idea risks fifteen minutes on something that does not work.
 - q: >-
     Why ask "does that sound reasonable?" after describing your approach and before coding?
-  options: ["It lets the interviewer redirect you before you spend fifteen minutes on an approach they would reject", "It is polite and interviewers expect it", "It makes the interviewer give you the optimal answer", "Rubrics award points for asking questions"]
-  answer: 0
+  options: ["It is polite, and interviewers expect to be asked it", "It prompts the interviewer to reveal the optimal answer", "It lets them redirect you before you spend time coding", "Rubrics award points for every question a candidate asks"]
+  answer: 2
   explanation: >-
-    The question buys information at the cheapest possible moment. If the interviewer wanted a better complexity, you find out at minute 12 rather than minute 30. It does not extract the answer, and asking questions for their own sake is not rewarded.
+    The question buys information at the cheapest possible moment. If the interviewer wanted a better complexity, you find out at minute 12 rather than after fifteen minutes of coding at minute 30. It does not extract the answer, and asking questions for their own sake is not rewarded.
 - q: >-
     In a phone screen with two problems in 45 minutes, you have a correct, tested O(n log n) solution to the warm-up at minute 14 and you can see how to make it O(n). What do you do?
-  options: ["Implement the O(n) version now", "Rewrite the solution in a faster language", "Ask the interviewer to skip problem two", "Describe the O(n) idea in a sentence or two and move on to problem two"]
-  answer: 3
+  options: ["Implement the O(n) version now, while the idea is fresh", "Mention the O(n) idea briefly, then start problem two", "Ask the interviewer whether to skip problem two", "Rewrite the solution in a faster language first"]
+  answer: 1
   explanation: >-
     In a two-problem round the budget for the warm-up is about 15 minutes. Mentioning the improvement shows you see it; implementing it costs time that problem two needs. An unfinished second problem is a much bigger negative than a warm-up that is correct but not optimal.
 - q: >-
     You finish coding at minute 33. Which testing plan fits the time left?
-  options: ["Skip testing and go straight to follow-ups", "Trace one input fully, then name each edge case and the line that handles it", "Write a randomised test harness", "Re-read the code silently for five minutes"]
-  answer: 1
+  options: ["Write a quick randomised test harness and run it", "Skip testing and go straight to the follow-ups", "Trace one input; name each edge case and its line", "Re-read the whole program silently for five minutes"]
+  answer: 2
   explanation: >-
     The compressed test proves the main path and covers the edge cases verbally in about three minutes, leaving room for a follow-up. Skipping testing leaves a scored dimension blank; a harness takes too long; silent re-reading gives the interviewer nothing to evaluate.
 - q: >-
     Two candidates write identical, correct code for the base problem. What most often separates a senior rating from a mid-level one?
-  options: ["Typing speed", "The language they chose", "How they handle follow-ups and trade-offs, which requires reaching them with time to spare", "Whether they used helper functions"]
-  answer: 2
+  options: ["Whether they split the code into helper functions", "Their follow-up answers, which need time to spare", "Typing speed, which frees up extra time at the end", "The language they chose and how idiomatic it is"]
+  answer: 1
   explanation: >-
-    Base-problem code is often the same for both levels. The follow-ups (scale, streaming, concurrency) are where interviewers test judgement, and a candidate who finishes at minute 44 never gets asked. Language and helpers matter far less than getting to that conversation.
+    Base-problem code is often the same for both levels. The follow-ups (scale, streaming, concurrency) are where interviewers test judgement and trade-offs, and a candidate who finishes at minute 44 never gets asked. Typing speed, language and helpers matter far less than getting to that conversation.
 ```

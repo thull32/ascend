@@ -51,7 +51,7 @@ sequenceDiagram
     A->>K: ping-req(T)
     K->>T: ping
     T-->>K: ack
-    K-->>A: ack (T alive; A's link is bad)
+    K-->>A: ack (T alive, A's link is bad)
     Note over A: no suspicion raised
 ```
 
@@ -172,26 +172,26 @@ Not as it is. With a 10-day `gc_grace_seconds`, tombstones for deletes it missed
     Informed nodes grow by roughly the fanout each round, so log base 3 of 1,000 is about 6.3, plus a few rounds for the tail: around 8 to 10. Doubling the cluster adds about one round.
 - q: >-
     In SWIM, why does a node ask three other members to probe a target before suspecting it?
-  options: ["To reduce ping traffic", "So that a failure of the link between the prober and the target, rather than the target itself, does not produce a false suspicion", "To elect a leader", "To measure latency"]
-  answer: 1
+  options: ["So a bad link is not mistaken for a dead target", "To elect a leader that decides whether the target is dead", "To measure latency from several points and average it", "To spread the ping load across more of the members"]
+  answer: 0
   explanation: >-
-    If any indirect prober gets an ack, the target is alive and the original prober's path was the problem. This removes the single-bad-link false positive without a coordinator.
+    If any indirect prober gets an ack, the target is alive and the original prober's path was the problem. This removes the single-bad-link false positive without a coordinator; the extra probes add traffic rather than reduce it.
 - q: >-
     Two replicas exchange Merkle tree roots and they differ. What happens next?
-  options: ["They exchange all keys", "They exchange the children hashes and descend only into subtrees that differ, until differing buckets are found", "The replica with the larger dataset wins", "They rebuild the trees"]
-  answer: 1
+  options: ["They compare child hashes and descend where they differ", "The replica with the larger dataset overwrites the other", "They rebuild both trees from scratch and compare again", "They exchange all keys in the key range to find the gap"]
+  answer: 0
   explanation: >-
-    The tree localises differences in a depth-of-tree number of exchanges; equal subtrees are skipped. The full scan happens once when building the tree, not during comparison.
+    The tree localises differences in a depth-of-tree number of exchanges; equal subtrees are skipped until the differing buckets are found. The full scan happens once when building the tree, not during comparison.
 - q: >-
     A replica misses a delete, stays down for 15 days, and rejoins a cluster with gc_grace_seconds of 10 days. The likely outcome is:
-  options: ["The delete is applied on rejoin", "The deleted row is resurrected, because the tombstone was purged from the other replicas and repair copies the stale live value back", "The node is rejected automatically", "Nothing; repair handles it"]
-  answer: 1
-  explanation: >-
-    Once the tombstone is gone there is nothing to shadow the old value. A node down longer than the grace window must be rebuilt from live replicas rather than repaired.
-- q: >-
-    Which task is gossip the wrong tool for?
-  options: ["Spreading node liveness across 1,000 nodes", "Distributing schema version numbers", "Deciding exactly once which node takes over a dead node's partitions", "Propagating token ring changes"]
+  options: ["The delete reaches it on rejoin through normal repair", "Nothing; repair treats the stale row as already deleted", "The deleted row comes back; its tombstone is gone elsewhere", "The cluster rejects the node for exceeding the grace window"]
   answer: 2
   explanation: >-
-    Gossip gives eventual, probabilistic convergence of a view, not an agreed decision at one logical moment. Ownership reassignment must happen once, which needs consensus with gossip as its input.
+    The tombstone was purged from the other replicas after 10 days, so there is nothing to shadow the old value, and repair copies the stale live row back. A node down longer than the grace window must be rebuilt from live replicas rather than repaired; nothing rejects it automatically.
+- q: >-
+    Which task is gossip the wrong tool for?
+  options: ["Spreading node liveness across a 1,000-node cluster", "Propagating token ring changes around the cluster", "Distributing schema version numbers to every node", "Choosing, once, who takes a dead node's partitions"]
+  answer: 3
+  explanation: >-
+    Gossip gives eventual, probabilistic convergence of a view, not an agreed decision at one logical moment. Ownership reassignment must happen exactly once, which needs consensus with gossip as its input.
 ```

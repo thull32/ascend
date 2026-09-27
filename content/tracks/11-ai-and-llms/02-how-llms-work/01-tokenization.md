@@ -220,32 +220,32 @@ hints:
 ```quiz
 - q: >-
     A BPE tokenizer learned merges in this order: (o, g), (l, og), (c, og), (log, s), (b, log). How does it encode "blogs"?
-  options: ["[blog, s]", "[b, logs]", "[b, l, og, s]", "[blogs]"]
-  answer: 1
+  options: ["[b, l, og, s]", "[blogs]", "[b, logs]", "[blog, s]"]
+  answer: 2
   explanation: >-
     Encoding replays merges in training order. After (o, g) and (l, og) the word is b log s; (c, og) does not apply; (log, s) fires next and gives b logs; by the time (b, log) is tried, log has already been absorbed into logs. BPE is not a longest-match lookup, so [blog, s] is the tempting wrong answer.
 - q: >-
     Your feature launches in a new language and the cost per request rises far more than the change in request volume. What is the most likely explanation?
-  options: ["The provider charges more for non-English requests", "Non-English prompts disable caching", "The tokenizer splits text in that language into many more tokens per word, so each request uses more input and output tokens", "The model generates longer answers in other languages by design"]
-  answer: 2
-  explanation: >-
-    Pricing is per token, and tokenizers learn fewer merges for languages that were less represented in their training mix, so the same content costs more tokens. Measure token counts on real samples in each language. Answers may also be longer, but the tokenization effect is systematic and usually the larger one.
-- q: >-
-    Why is it risky to ask a model to copy 40 order IDs of the form 7f3a9c2e-1b4d-4e8f-a6c1-0d2e3f4a5b6c from the prompt into its answer?
-  options: ["Each ID becomes many short, rarely seen tokens, which costs a lot of context and makes exact copying error-prone", "The IDs will be removed by the tokenizer", "Models cannot output hyphens", "IDs are special tokens and end the response"]
-  answer: 0
-  explanation: >-
-    Hex-and-hyphen strings fragment into many tokens with little training signal, and reproducing long sequences of them exactly is where models slip. Give the model short handles and map them back to IDs in code. The tokenizer never drops the text; it just encodes it expensively.
-- q: >-
-    What happens when a byte-level BPE tokenizer meets a word, emoji or script it never saw during training?
-  options: ["It emits an unknown-token placeholder and the content is lost", "It raises an error", "It maps the word to the nearest known word", "It falls back to smaller learned pieces and ultimately to individual bytes, so the text is always encodable, just in more tokens"]
-  answer: 3
-  explanation: >-
-    Byte-level fallback means every possible string has an encoding. Unfamiliar text simply costs more tokens and gives the model less familiar input. Unknown-token placeholders were a problem of word-level vocabularies.
-- q: >-
-    A team estimates the monthly cost of a Llama-based deployment by counting tokens with a GPT tokenizer library. What is wrong?
-  options: ["Nothing; all tokenizers produce the same counts", "Different model families use different vocabularies and merge rules, so token counts for the same text differ; count with the target model's own tokenizer", "Llama models are priced per word, not per token", "Tokenizer libraries only count input tokens"]
+  options: ["Non-English prompts bypass the provider's prompt cache entirely", "The tokenizer splits that language into many more tokens per word", "The provider charges a higher per-token rate for non-English text", "The model writes longer answers in other languages by design"]
   answer: 1
   explanation: >-
-    Each family trains its own tokenizer, so the same text yields different counts, sometimes by a meaningful margin. Use the model's tokenizer or the provider's token-counting endpoint, and reconcile against the usage figures returned by real requests.
+    Pricing is per token, and tokenizers learn fewer merges for languages that were less represented in their training mix, so the same content costs more input and output tokens. Measure token counts on real samples in each language. Answers may also be longer, but the tokenization effect is systematic and usually the larger one; per-token rates do not depend on language.
+- q: >-
+    Why is it risky to ask a model to copy 40 order IDs of the form 7f3a9c2e-1b4d-4e8f-a6c1-0d2e3f4a5b6c from the prompt into its answer?
+  options: ["Each ID matches a special token, so emitting one ends the response", "Hyphens are control tokens, so the model cannot emit them in output", "The tokenizer strips unfamiliar hex strings before the model sees them", "Each ID splits into many rare tokens, so exact copying is highly error-prone"]
+  answer: 3
+  explanation: >-
+    Hex-and-hyphen strings fragment into many tokens with little training signal, which costs a lot of context, and reproducing long sequences of them exactly is where models slip. Give the model short handles and map them back to IDs in code. The tokenizer never drops the text; it just encodes it expensively.
+- q: >-
+    What happens when a byte-level BPE tokenizer meets a word, emoji or script it never saw during training?
+  options: ["It emits an unknown-token placeholder, so that content is lost", "It falls back to smaller pieces and, at worst, to single bytes", "It raises an encoding error that the caller must handle", "It maps the input to the nearest known word in its vocabulary"]
+  answer: 1
+  explanation: >-
+    Byte-level fallback means every possible string has an encoding. Unfamiliar text simply costs more tokens and gives the model less familiar input. Unknown-token placeholders were a problem of word-level vocabularies, not byte-level BPE.
+- q: >-
+    A team estimates the monthly cost of a Llama-based deployment by counting tokens with a GPT tokenizer library. What is wrong?
+  options: ["Llama deployments are billed per word, so token counts are irrelevant", "Nothing, because all modern tokenizers produce the same counts", "Each model family has its own vocabulary, so the counts will differ", "Tokenizer libraries only count input tokens, not generated output"]
+  answer: 2
+  explanation: >-
+    Each family trains its own tokenizer with its own vocabulary and merge rules, so the same text yields different counts, sometimes by a meaningful margin. Count with the target model's own tokenizer or the provider's token-counting endpoint, and reconcile against the usage figures returned by real requests.
 ```

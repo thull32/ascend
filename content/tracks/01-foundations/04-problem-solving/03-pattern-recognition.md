@@ -150,32 +150,32 @@ Ascend's practice problems are tagged by pattern so you can do this deliberately
 ```quiz
 - q: >-
     A statement asks for the longest contiguous subarray whose sum is at most k, with all elements positive. Which pattern, and what property justifies it?
-  options: ["Prefix sum with hash map, because sums are involved", "Sliding window, because with positive elements the sum grows monotonically as the window grows", "Kadane, because it is a subarray problem", "Binary search on the answer, because the length is monotone"]
-  answer: 1
+  options: ["Kadane's algorithm, because it is a subarray problem", "Two pointers from both ends, since the array is sorted", "Prefix sum with a hash map, because sums are involved", "Sliding window, since positives make the sum monotone"]
+  answer: 3
   explanation: >-
-    Positive elements make the window sum monotone: extending never decreases it and shrinking from the left never increases it, so a violation is always fixed by shrinking. With negatives allowed that property breaks and prefix sums would be needed. Kadane answers "maximum sum", a different question.
+    Positive elements make the window sum monotone: extending never decreases it and shrinking from the left never increases it, so a violation is always fixed by shrinking. With negatives allowed that property breaks and prefix sums would be needed. Kadane answers "maximum sum", a different question, and nothing says the array is sorted.
 - q: >-
     Which change to a statement most clearly moves a problem from sliding window to prefix sum plus hash map?
-  options: ["Asking for the shortest window instead of the longest", "Allowing negative numbers when the question is about the window's sum", "Making the array sorted", "Increasing n from 10^3 to 10^5"]
+  options: ["Guaranteeing the input array is sorted ascending", "Allowing negative numbers when the sum is what matters", "Raising n from 10^3 to 10^5, which rules out O(n^2)", "Asking for the shortest window instead of the longest"]
   answer: 1
   explanation: >-
-    Negative numbers destroy the monotone relationship between window size and window sum, so there is no rule for when to shrink. Prefix sums turn "subarray with sum k" into "two prefixes that differ by k", a hash-map lookup.
+    Negative numbers destroy the monotone relationship between window size and window sum, so there is no rule for when to shrink. Prefix sums turn "subarray with sum k" into "two prefixes that differ by k", a hash-map lookup. Shortest versus longest changes the window's bookkeeping, not the pattern.
 - q: >-
     A problem says n ≤ 16 and asks for the minimum cost to visit every node exactly once. The constraint is a signal for:
-  options: ["Dijkstra, because it asks for minimum cost", "An exponential-state approach such as bitmask DP or backtracking, because 2^16 states are affordable", "Greedy nearest-neighbour, because n is small", "Union-find, because it is about connectivity"]
+  options: ["Dijkstra, because the problem asks for a minimum cost", "Bitmask DP or backtracking, since 2^16 states are cheap", "Union-find, because visiting every node is connectivity", "Greedy nearest-neighbour, because n is small enough"]
   answer: 1
   explanation: >-
     Tiny n is the signal that an exponential number of states is fine; 2^16 × 16 is about a million. Dijkstra finds single-source shortest paths, not tours, and nearest-neighbour greedy has no exchange argument and gives wrong answers.
 - q: >-
     "Given prerequisites between tasks, return the minimum number of rounds needed if independent tasks run in parallel." Which pattern?
-  options: ["Shortest path with Dijkstra", "Topological sort by levels (Kahn's algorithm counting rounds)", "Union-find over task groups", "Backtracking over orderings"]
-  answer: 1
+  options: ["Union-find, merging tasks that share a prerequisite", "Shortest path with Dijkstra, weighting each edge 1", "Backtracking over every valid ordering of the tasks", "Topological sort by levels, counting Kahn's rounds"]
+  answer: 3
   explanation: >-
-    Prerequisites are directed edges; rounds are the levels of a topological ordering, produced by repeatedly removing all zero-in-degree nodes. Dijkstra needs weights and answers a different question; union-find ignores direction.
+    Prerequisites are directed edges; rounds are the levels of a topological ordering, produced by repeatedly removing all zero-in-degree nodes. Dijkstra answers a shortest-path question, while rounds are set by the longest prerequisite chain; union-find ignores direction.
 - q: >-
     Why is greedy the wrong reflex for minimum-coins with denominations {1, 3, 4} and target 6?
-  options: ["Greedy is never used for minimisation", "Taking the largest coin first gives 4+1+1 (three coins) but 3+3 (two coins) is optimal; no exchange argument holds for this coin system", "Greedy only works when the target is a power of two", "It is correct; greedy gives 3+3"]
-  answer: 1
+  options: ["Largest-first gives 4+1+1, but 3+3 uses fewer coins", "It is not wrong; largest-first also finds 3+3 here", "Greedy is never valid for minimisation problems", "Greedy only works when the target is a power of two"]
+  answer: 0
   explanation: >-
-    Greedy requires that a locally best choice can always be exchanged into some optimal solution. That holds for canonical coin systems like {1, 5, 10, 25} but not for {1, 3, 4}. The safe reflex is DP unless you can state the exchange argument.
+    Taking the largest coin first gives 4+1+1 (three coins) while 3+3 (two coins) is optimal. Greedy requires that a locally best choice can always be exchanged into some optimal solution. That holds for canonical coin systems like {1, 5, 10, 25} but not for {1, 3, 4}, so greedy is sometimes valid, just not here. The safe reflex is DP unless you can state the exchange argument.
 ```

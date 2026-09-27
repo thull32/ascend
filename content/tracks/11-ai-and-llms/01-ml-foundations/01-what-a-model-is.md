@@ -263,32 +263,32 @@ hints:
 ```quiz
 - q: >-
     Gradient descent on a line fit uses learning rate 0.2 and the loss goes 44.75, 244, 1337, 7319. What is happening and what do you change?
-  options: ["The model is underfitting; add more parameters", "The data has outliers; switch from MSE to MAE", "Each step overshoots the minimum and lands further away; lower the learning rate", "The gradient is being computed on too few examples; increase the batch size"]
-  answer: 2
+  options: ["Each step overshoots the minimum; lower the learning rate", "Outliers dominate the squared loss; switch from MSE to MAE", "The model is underfitting the data; add more parameters so it can fit", "The mini-batch gradient is too noisy; increase the batch size"]
+  answer: 0
   explanation: >-
     A loss that grows by a constant factor per step is the signature of a learning rate above 2 divided by the largest curvature: every update jumps past the minimum and lands further up the other side. Lowering the learning rate (here below about 0.12) fixes it. More parameters, a different loss or a bigger batch do not change the overshoot.
 - q: >-
     After three steps the loss is within about 6% of optimal, but the intercept b takes hundreds more steps to settle. What is the most effective fix?
-  options: ["Raise the learning rate until b moves faster", "Standardise the input feature (subtract its mean, divide by its standard deviation)", "Train for more epochs", "Switch to the MAE loss"]
-  answer: 1
+  options: ["Standardise the input feature to zero mean and unit variance", "Switch to the MAE loss so large residuals stop dominating b", "Raise the learning rate so the intercept takes much bigger steps", "Keep training for more epochs until the intercept settles"]
+  answer: 0
   explanation: >-
     The slow crawl comes from a badly conditioned, elongated valley: uncentred x tangles slope and intercept. Standardising the feature rounds the bowl so every direction converges at a similar rate. Raising the learning rate would make the steep direction diverge long before it speeds up the flat one; more epochs only waits it out.
 - q: >-
     Your runtime history contains one 90-minute job caused by a node failure among hundreds of 3 to 10 minute jobs. With MSE loss, what happens to the fitted line?
-  options: ["It is pulled noticeably toward the outlier, because squared error weights a large error far more than many small ones", "Nothing; one point out of hundreds is negligible", "Training fails to converge", "The model automatically ignores points it cannot fit"]
+  options: ["It is pulled toward the outlier, because squaring amplifies large errors", "It fails to converge, because the outlier makes the loss surface non-convex", "It ignores the point, because gradient descent discounts points it cannot fit", "It barely moves, because one point among hundreds has negligible weight"]
   answer: 0
   explanation: >-
-    Squaring makes an error of 80 minutes cost as much as 6,400 errors of 1 minute, so the optimum shifts toward the outlier. MAE, a robust loss such as Huber, or cleaning the data are the usual remedies. The optimisation still converges fine; it converges to a worse line.
+    Squaring makes an error of 80 minutes cost as much as 6,400 errors of 1 minute, so the optimum shifts noticeably toward the outlier; one point among hundreds is not negligible under MSE. MAE, a robust loss such as Huber, or cleaning the data are the usual remedies. The optimisation still converges fine (MSE on a line is a convex bowl); it converges to a worse line.
 - q: >-
     Why do large-scale training runs use mini-batch gradients rather than the exact gradient over the full dataset?
-  options: ["Mini-batch gradients are more accurate", "Full-batch gradients cannot be computed for neural networks", "Mini-batches remove the need for a learning rate", "The exact gradient needs a pass over all the data for every single update, which is infeasible at trillions of examples; a mini-batch gives an unbiased estimate at fixed cost"]
-  answer: 3
+  options: ["Mini-batch gradients are more accurate than the exact full-batch one", "The exact gradient costs a full pass over all the data for every update", "Full-batch gradients cannot be computed for deep neural networks", "Mini-batches remove the need to choose and tune a learning rate"]
+  answer: 1
   explanation: >-
-    The mini-batch gradient is noisier, not more accurate, but it is an unbiased estimate whose cost does not grow with the dataset, so you get millions of cheap updates instead of a handful of exact ones. Full-batch gradients are computable for any differentiable model; they are just too expensive per step.
+    At trillions of examples, a full pass per update is infeasible. The mini-batch gradient is noisier, not more accurate, but it is an unbiased estimate whose cost does not grow with the dataset, so you get millions of cheap updates instead of a handful of exact ones. Full-batch gradients are computable for any differentiable model; they are just too expensive per step, and mini-batch training still needs a learning rate.
 - q: >-
     A model fitted on jobs of 1 to 4 million rows predicts 211 minutes for a 100-million-row job. What is the right senior reaction?
-  options: ["Trust it; the line fits the training data almost perfectly", "Treat it as an extrapolation far outside the training range, where the model has no evidence, and add a guard or fallback", "Retrain with a lower learning rate", "Add more parameters so the model can represent larger jobs"]
-  answer: 1
+  options: ["Treat it as an extrapolation beyond the training range and add a guard", "Trust it, because the line fits the training data almost perfectly", "Add more parameters so the model can represent very large jobs", "Retrain with a lower learning rate so the line generalises to bigger jobs"]
+  answer: 0
   explanation: >-
     A good fit inside the data range says nothing about behaviour far outside it; effects such as disk spill never appeared in training. The right move is to detect out-of-range inputs and fall back or flag them, and to collect data in that range. The learning rate and the parameter count are irrelevant to missing evidence.
 ```

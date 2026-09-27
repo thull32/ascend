@@ -201,32 +201,32 @@ hints:
 ```quiz
 - q: >-
     Why can a sparse table answer range-minimum in O(1) but not range-sum?
-  options: ["Sum needs 64-bit integers", "Min is idempotent, so two overlapping power-of-two windows give the right answer; overlapping windows double-count for sum", "The table only stores minima", "Sum requires the data to be sorted"]
-  answer: 1
+  options: ["Min is idempotent, so two overlapping windows are harmless", "Sums of 2^k windows overflow unless you use 64-bit integers", "The table stores only minima, so sum needs a second table", "Sum has no inverse, so the two windows cannot be subtracted"]
+  answer: 0
   explanation: >-
-    Any range is covered by two windows of length 2^k that may overlap. min(a, a) = a makes the overlap harmless; sum counts the overlap twice, so sum needs non-overlapping decomposition (log n windows or a segment tree).
+    Any range is covered by two windows of length 2^k that may overlap. min(a, a) = a makes the overlap harmless; sum counts the overlap twice, so sum needs non-overlapping decomposition (log n windows or a segment tree). A second table of window sums would still double-count, and sum does have an inverse (that is what a Fenwick tree relies on).
 - q: >-
     Your latency samples are immutable once a day closes, but the current day receives writes every second. Queries span both. The pragmatic design is:
-  options: ["One giant sparse table rebuilt every second", "A segment tree over all history", "A sparse table per sealed day plus a segment (or Fenwick) tree for the live day, with the query split across them", "Scan the raw samples"]
-  answer: 2
+  options: ["One segment tree over all history, sealed days included", "Scan the raw samples for every query, sealed or not", "One sparse table over all history, rebuilt every second", "A sparse table per sealed day, a Fenwick tree for today"]
+  answer: 3
   explanation: >-
-    Sealed data gets O(1) queries and no update cost; the live chunk gets O(log n) updates. Rebuilding a sparse table per write is O(n log n) per second; a single segment tree pays log n on everything and doubles memory for data that never changes.
+    Sealed data gets O(1) queries and no update cost; the live chunk gets O(log n) updates from a segment or Fenwick tree, and each query is split across the two. Rebuilding a sparse table per write is O(n log n) per second; a single segment tree pays log n on everything and doubles memory for data that never changes.
 - q: >-
     A Parquet reader evaluates WHERE ts BETWEEN a AND b using per-row-group min/max statistics. Which range-query technique is this?
-  options: ["A segment tree query", "Lazy propagation", "Square-root (block) decomposition: skip whole blocks by summary, scan the partial blocks at the ends", "A sparse table lookup"]
+  options: ["A sparse table lookup: two overlapping min/max windows", "A segment tree query: descend by each node's min/max", "Square-root decomposition: skip blocks by summary", "Lazy propagation: push pending bounds down to rows"]
   answer: 2
   explanation: >-
-    Block statistics are exactly the per-block summaries of sqrt decomposition; the block size is chosen to match an I/O unit rather than √n, but the query shape (whole blocks by summary, edges by scan) is the same.
+    Block statistics are exactly the per-block summaries of sqrt decomposition: whole blocks in the middle are skipped by summary and the partial blocks at the ends are scanned. The block size is chosen to match an I/O unit rather than √n, and there is only one level of summaries, not a tree of them.
 - q: >-
     You must answer 10⁵ queries of the form "how many distinct values in [l, r]" on a static array of 10⁵ elements, all queries known in advance. The best fit is:
-  options: ["A sparse table", "A Fenwick tree", "Mo's algorithm: sort queries by (l // √n, r) and slide a window with a frequency counter", "A lazy segment tree"]
+  options: ["A lazy segment tree merging the distinct counts of halves", "A Fenwick tree of prefix distinct counts, subtracted", "Mo's algorithm: sort the queries and slide one window", "A sparse table of distinct counts over overlapping windows"]
   answer: 2
   explanation: >-
-    Distinct count does not combine from two halves, so trees do not apply directly. Mo's algorithm exploits the offline setting to move the window O((n + q)√n) steps in total, each a constant-time counter update.
+    Distinct count does not combine from two halves or from overlapping windows, and it has no inverse, so distinct(1..r) − distinct(1..l−1) is not distinct(l..r). Mo's algorithm sorts queries by (l // √n, r) to exploit the offline setting, moving the window O((n + q)√n) steps in total, each a constant-time counter update.
 - q: >-
     After building a sparse table over 10⁶ values, one value changes. What does it cost to make the table correct again?
-  options: ["O(1)", "O(log n)", "O(n) in the worst case, because every window containing that index across all rows is stale", "O(n log n) always"]
-  answer: 2
+  options: ["O(1): only the row-0 cell for that index changes", "O(log n): one window per row contains the index", "O(n log n): the whole table must always be rebuilt", "O(n): up to 2^k windows in row k contain the index"]
+  answer: 3
   explanation: >-
-    Row k has up to 2^k windows containing the index; summed over rows that is O(n). Full rebuild is O(n log n) but a targeted fix is O(n); either way it is not a structure for mutable data.
+    Row k has up to 2^k windows containing the index; summed over rows that is O(n), not one window per row. Full rebuild is O(n log n) but a targeted fix is O(n); either way it is not a structure for mutable data.
 ```

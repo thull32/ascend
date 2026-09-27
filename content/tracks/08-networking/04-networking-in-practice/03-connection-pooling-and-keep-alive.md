@@ -224,38 +224,38 @@ From a shell, `ss -tan state established '( dport = :5432 )' | wc -l` counts ope
 ```quiz
 - q: >-
     A service makes 1,500 requests per second to a dependency with a mean latency of 40 ms over HTTP/1.1. About how many pooled connections are in use on average?
-  options: ["About 6", "About 60", "About 600", "About 1,500"]
-  answer: 1
+  options: ["About 6", "About 600", "About 60", "About 1,500"]
+  answer: 2
   explanation: >-
     Little's law: 1,500 × 0.04 = 60 connections in use on average. HTTP/1.1 carries one request per connection at a time, so this is also the concurrency. Size the cap above this for peaks and latency spikes, but nowhere near 1,500.
 - q: >-
     After scaling a gRPC service from 4 to 8 instances behind an L4 load balancer, the 4 new instances get almost no traffic. Why?
-  options: ["gRPC does not support load balancing", "The new instances failed their health checks", "DNS TTLs are too long", "Each client holds one long-lived HTTP/2 connection that carries all its requests, and the L4 balancer only makes a decision when a connection opens"]
-  answer: 3
-  explanation: >-
-    L4 balancing picks a backend per connection. Existing clients keep their connections, and HTTP/2 multiplexes every request over them. Use L7 or client-side balancing, or a server-side maximum connection age so clients reconnect and redistribute.
-- q: >-
-    A database fails over by updating a DNS record with a 30-second TTL. Ten minutes later, one service is still failing every write with "read-only transaction" errors. What is the most likely cause?
-  options: ["The service's pool still holds connections opened to the old primary, which is now a healthy read-only replica, so nothing forced a reconnect", "Resolvers ignored the TTL", "The new primary is overloaded", "TCP keepalive is disabled"]
-  answer: 0
-  explanation: >-
-    DNS is consulted when a connection opens. Old connections to a demoted but healthy primary never error at the network level, so the pool keeps them. A bounded max lifetime, or closing connections that report a read-only server, makes the failover converge.
-- q: >-
-    A Go service calls one backend with 200 concurrent goroutines using the default http.Transport. Which symptom do you expect?
-  options: ["Requests queue because only 2 connections may be open", "HTTP/2 is disabled", "A high rate of new connections and many sockets in TIME_WAIT, because only 2 idle connections per host are kept and the rest are closed after each use", "No effect; the default is tuned for high concurrency"]
+  options: ["The new instances are failing their health checks", "Clients cache DNS answers past the record's TTL", "Long-lived HTTP/2 connections stay on the old four", "gRPC clients do not support load balancing at all"]
   answer: 2
   explanation: >-
-    MaxIdleConnsPerHost defaults to 2 while the number of open connections is unlimited. Under concurrency, most connections are closed on check-in and reopened on the next request, paying handshakes and consuming ports. Raise MaxIdleConnsPerHost and cap MaxConnsPerHost.
+    L4 balancing picks a backend only when a connection opens. Existing clients keep their long-lived connections, and HTTP/2 multiplexes every request over them, so all their traffic stays on the original instances. Use L7 or client-side balancing, or a server-side maximum connection age so clients reconnect and redistribute.
 - q: >-
-    A dependency's latency jumps from 20 ms to 2 s. Your service's HTTP pool to it is capped at 50 connections with a 100 ms acquire timeout. What does the cap achieve?
-  options: ["Nothing; the dependency is the problem", "It bounds the threads and connections that can be stuck on the slow dependency and fails excess requests quickly, so the rest of the service stays healthy and the dependency is not flooded", "It makes the dependency faster", "It guarantees every request eventually succeeds"]
+    A database fails over by updating a DNS record with a 30-second TTL. Ten minutes later, one service is still failing every write with "read-only transaction" errors. What is the most likely cause?
+  options: ["Old pooled connections still reach the demoted primary", "The new primary is too overloaded to accept writes", "Resolvers are ignoring the record's 30-second TTL", "TCP keepalive is disabled on the service's sockets"]
+  answer: 0
+  explanation: >-
+    DNS is consulted when a connection opens. Old connections to a demoted primary that is now a healthy read-only replica never error at the network level, so nothing forces a reconnect and the pool keeps them; keepalive would find them perfectly alive. A bounded max lifetime, or closing connections that report a read-only server, makes the failover converge.
+- q: >-
+    A Go service calls one backend with 200 concurrent goroutines using the default http.Transport. Which symptom do you expect?
+  options: ["HTTP/2 is disabled because of the transport defaults", "High connection churn and many TIME_WAIT sockets", "Requests queue, since only 2 connections may be open", "No effect, as the defaults suit high concurrency"]
   answer: 1
   explanation: >-
-    Without a cap, the connections needed rise a hundredfold and your service's resources drain into one slow dependency. The cap plus a short acquire timeout is a bulkhead: bounded damage, fast failure, and room for the dependency to recover.
+    MaxIdleConnsPerHost defaults to 2 while the number of open connections is unlimited, so nothing queues. Under concurrency, most connections are closed on check-in and reopened on the next request, paying handshakes and leaving sockets in TIME_WAIT. Raise MaxIdleConnsPerHost and cap MaxConnsPerHost.
 - q: >-
-    Sixty pods each run 4 worker processes with a database pool of 10, and the database allows 500 connections. What happens once load fills the pools, and what is the standard fix?
-  options: ["Nothing; pools connect lazily", "The database automatically queues extra connections", "Throughput doubles", "Up to 2,400 connections are attempted and new ones fail with too many clients; size pools from the database budget and put a transaction-mode pooler such as PgBouncer in front"]
+    A dependency's latency jumps from 20 ms to 2 s. Your service's HTTP pool to it is capped at 50 connections with a 100 ms acquire timeout. What does the cap achieve?
+  options: ["It guarantees every request eventually succeeds", "Nothing, because the dependency itself is the problem", "It makes the slow dependency respond faster", "A bulkhead: bounded stuck work and fast failure"]
   answer: 3
   explanation: >-
-    Pools multiply across pods and processes: 60 × 4 × 10 = 2,400. Beyond max_connections, new connections are refused. A pooler multiplexes many client connections onto a few server connections, which also keeps the database near its throughput peak.
+    Without a cap, the connections needed rise a hundredfold and your service's threads and connections drain into one slow dependency. The cap plus a short acquire timeout is a bulkhead: it bounds what can be stuck, fails excess requests quickly so the rest of the service stays healthy, and keeps the dependency from being flooded while it recovers.
+- q: >-
+    Sixty pods each run 4 worker processes with a database pool of 10, and the database allows 500 connections. What happens once load fills the pools, and what is the standard fix?
+  options: ["Nothing, because the pools connect only lazily", "Throughput roughly doubles with the extra pools", "The database queues the extra connections itself", "Connections are refused; put PgBouncer in front"]
+  answer: 3
+  explanation: >-
+    Pools multiply across pods and processes: 60 × 4 × 10 = 2,400 attempted connections. Beyond max_connections, new ones fail with too many clients rather than queueing. Size pools from the database's budget and put a transaction-mode pooler such as PgBouncer in front: it multiplexes many client connections onto a few server connections, which also keeps the database near its throughput peak.
 ```

@@ -187,32 +187,32 @@ Up to the pipeline's latency, which I budget at under a second: CDC in tens of m
 ```quiz
 - q: >-
     A service inserts an order, commits, then publishes OrderPlaced to Kafka. The publish times out. What is the state of the system?
-  options: ["The order was rolled back", "The order exists and downstream consumers never learn of it", "Kafka will retry the publish automatically", "The consumer receives a partial event"]
-  answer: 1
+  options: ["The order was rolled back when the publish timed out", "Kafka retries the publish until the event is delivered", "The order is committed, but consumers never learn of it", "Consumers receive a partial event missing the order body"]
+  answer: 2
   explanation: >-
-    The commit already succeeded; the publish is a separate system with no shared transaction. Nothing retries it unless the application does, and a crash loses even that. The transactional outbox makes the event part of the commit.
+    The commit already succeeded; the publish is a separate system with no shared transaction, so nothing rolls back. Nothing retries it unless the application does, and a crash loses even that. The transactional outbox makes the event part of the commit.
 - q: >-
     Which change to an event schema is safe for existing consumers?
-  options: ["Renaming total to amount", "Changing quantity from string to integer", "Adding an optional discount_code field with a default", "Making customer_id required"]
-  answer: 2
+  options: ["Adding an optional discount_code with a default", "Making customer_id required instead of optional", "Renaming total to amount, keeping the same type", "Changing quantity from a string to an integer"]
+  answer: 0
   explanation: >-
     Adding optional fields with defaults is backward and forward compatible. Renames are a remove plus an add, type changes break deserialisation, and making a field required breaks old producers' events.
 - q: >-
     An order flow has four steps, three of which must be undone if a later step fails. The better structure is:
-  options: ["Choreography, so services stay decoupled", "Orchestration, so one state machine owns the flow and its compensations", "A single distributed transaction across all four services", "Synchronous REST calls in sequence"]
-  answer: 1
+  options: ["Synchronous REST calls in sequence, unwinding on error", "Choreography, so each service reacts to the events on its own", "A single distributed transaction across all four services", "Orchestration, so one state machine owns the compensations"]
+  answer: 3
   explanation: >-
     Compensation logic spread across subscriptions is hard to reason about and to observe; an orchestrator records each step and runs compensations in reverse. Distributed transactions across services block and couple; synchronous chains lose availability isolation.
 - q: >-
     Why can a CDC-based outbox relay truncate the outbox table right after insert?
-  options: ["Because the event is stored in the consumer", "Because Debezium reads the write-ahead log, not the table, so the row only needs to be committed once", "Because Kafka acknowledges synchronously", "It cannot; rows must be kept until consumers ack"]
-  answer: 1
+  options: ["Because Debezium reads the WAL, not the table itself", "Because the consumer keeps its own copy of every event", "Because Kafka acknowledges each insert synchronously", "It cannot; rows must stay until every consumer has acked"]
+  answer: 0
   explanation: >-
-    The connector sees the insert in the WAL in commit order regardless of what happens to the row afterwards. A polling relay, by contrast, needs the row to exist until it is read and marked.
+    The connector sees the insert in the write-ahead log in commit order regardless of what happens to the row afterwards, so the row only needs to be committed once. A polling relay, by contrast, needs the row to exist until it is read and marked.
 - q: >-
     Service A emits an event on every update; service B updates its copy and emits an event; A subscribes to B and updates. What is the failure and its fix?
-  options: ["Deadlock; add timeouts", "An event feedback loop; carry causation IDs and do not re-emit for changes you did not originate", "Schema incompatibility; use a registry", "Head-of-line blocking; add partitions"]
+  options: ["Schema drift between A and B; enforce a schema registry", "A feedback loop; use causation IDs and skip echoed changes", "Head-of-line blocking; add partitions to spread the load", "A distributed deadlock; add timeouts to each handler"]
   answer: 1
   explanation: >-
-    Each event triggers another indefinitely with no traffic driving it. Causation IDs let a consumer recognise its own echo and stop; rate limits per aggregate are a backstop.
+    Each event triggers another indefinitely with no traffic driving it. Causation IDs let a consumer recognise its own echo and not re-emit for changes it did not originate; rate limits per aggregate are a backstop. Nothing is waiting on a lock, so it is not a deadlock: the services are busy, not stuck.
 ```

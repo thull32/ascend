@@ -242,32 +242,32 @@ hints:
 ```quiz
 - q: >-
     In the two-list merge, why compare with `a.val <= b.val` rather than `<`?
-  options: ["It is faster", "So that on ties the node from the first list is taken first, making the merge stable", "To avoid an infinite loop", "Because `<` does not work on linked lists"]
-  answer: 1
+  options: ["Ties then take from the first list, which keeps the merge stable", "Ties then take from both lists at once, which removes duplicate values", "Ties then advance a pointer, which prevents an infinite loop on equal heads", "Ties then skip a comparison, which makes the loop measurably faster"]
+  answer: 0
   explanation: >-
-    With `<`, ties take from b, reversing the relative order of equal keys across the two inputs. Stability (first input wins ties) is what merge sort and record merging rely on.
+    With `<`, ties take from b, reversing the relative order of equal keys across the two inputs. Stability (first input wins ties) is what merge sort and record merging rely on. Both versions advance exactly one pointer per iteration, so `<` would not loop forever; it would only lose stability.
 - q: >-
     Merging k sorted lists totalling n nodes by merging them one after another into an accumulator costs:
-  options: ["O(n)", "O(n log k)", "O(nk)", "O(k log n)"]
-  answer: 2
+  options: ["O(k log n), because the accumulator doubles in length each merge", "O(n log k), because each node takes part in log k of the merges", "O(n), because every node is appended to the output exactly once", "O(nk), because each merge re-walks everything merged so far"]
+  answer: 3
   explanation: >-
-    The i-th merge re-walks everything merged so far, so the total is roughly n × k / 2. Pairwise divide-and-conquer or a heap of heads reduces it to O(n log k).
+    The i-th merge re-walks everything merged so far, so the total is roughly n × k / 2. The early lists' nodes take part in almost every merge, not log k of them; it is pairwise divide-and-conquer or a heap of heads that reduces the cost to O(n log k).
 - q: >-
     Which k-way merge strategy is appropriate when the inputs are unbounded sorted streams arriving over the network?
-  options: ["Sequential merging", "Divide and conquer over full lists", "A min-heap holding only the current head of each stream", "Sorting all inputs together"]
-  answer: 2
+  options: ["Divide and conquer, pairing streams up and merging each pair recursively", "A min-heap of size k holding only the current head of each stream", "Sequential merging, folding each stream into one growing output", "Collecting all streams, then sorting them together with one stable sort"]
+  answer: 1
   explanation: >-
-    Only the heap approach needs just one element per input at a time. The others need each input to be complete before merging. This is how external sort and log aggregators work.
+    Only the heap approach needs just one element per input at a time. The others need each input to be complete before merging, which never happens for an unbounded stream; divide and conquer has the same O(n log k) cost but not the streaming property. This is how external sort and log aggregators work.
 - q: >-
     In the two-sentinel partition of a list, what happens if you forget to set the tail of the "greater or equal" sublist's `next` to null?
-  options: ["Nothing; it is already null", "The result may contain a cycle, because that node's old `next` can point into the other sublist", "The order within groups is lost", "The first sublist becomes empty"]
-  answer: 1
+  options: ["The second sublist is dropped, since the join reads a stale pointer", "Nothing, since the last node appended was already the original tail", "The result can contain a cycle through that node's stale `next` pointer", "The order within groups is lost, since that node's `next` skips ahead"]
+  answer: 2
   explanation: >-
-    Nodes keep their original `next` pointers until overwritten. The last node placed in the second sublist may still point at a node that was moved to the first sublist, forming a loop after the join.
+    Nodes keep their original `next` pointers until overwritten. The last node placed in the second sublist may be from the middle of the original list and still point at a node that was moved to the first sublist, forming a loop after the join. It is only already null when that node happened to be the original tail.
 - q: >-
     A merge sort on a linked list recurses forever on two-node input. The most likely cause is:
-  options: ["The merge function is unstable", "The split starts fast at head, so slow lands on the second node and the right half is empty", "The base case checks only for null", "The list contains duplicates"]
-  answer: 1
+  options: ["The split starts fast at head, so the right half comes out empty", "The recursion is not tail-recursive, so the stack never unwinds", "The merge is unstable, so equal nodes keep swapping between the halves", "The list contains duplicates, which the midpoint split cannot separate"]
+  answer: 0
   explanation: >-
-    For a two-node list, slow must stop at the first node so the split yields two singletons. Starting fast at head advances slow to node two, the cut produces (whole list, empty), and the left recursion never shrinks. Start fast at head.next.
+    For a two-node list, slow must stop at the first node so the split yields two singletons. Starting fast at head advances slow to node two, the cut produces (whole list, empty), and the left recursion never shrinks. Start fast at head.next. Stability and duplicate values affect only the order of the output, never the size of the halves.
 ```

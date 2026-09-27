@@ -255,32 +255,32 @@ hints:
 ```quiz
 - q: >-
     During DFS on a directed graph, the edge u → v is examined and v has already been visited and finished. What can you conclude?
-  options: ["The graph has a cycle", "u → v is a forward or cross edge, and it does not by itself indicate a cycle", "v is an ancestor of u", "The DFS is incorrect"]
+  options: ["The DFS is incorrect, since a finished vertex is never examined again", "It is a forward or cross edge, which alone does not signal a cycle", "The graph has a cycle, because v is being reached a second time", "v is an ancestor of u, so the edge is a back edge to the current path"]
   answer: 1
   explanation: >-
-    A cycle is signalled by an edge to a vertex that is discovered but not finished (on the current path). A finished vertex cannot be an ancestor of u, so the edge points forward or across.
+    A cycle is signalled by an edge to a vertex that is discovered but not finished (grey, on the current path). A finished vertex cannot be an ancestor of u, because an ancestor is still open while u is being explored, so the edge points forward or across. Treating any visited vertex as a cycle is the classic false positive.
 - q: >-
     You convert a recursive DFS to an explicit stack by pushing all neighbours and marking visited on pop. Compared with the recursive version, what changes?
-  options: ["The discovery order changes", "The maximum stack size can grow to O(E) because vertices may be pushed several times, and you lose the finish order", "It becomes O(V²)", "Nothing"]
-  answer: 1
+  options: ["Some reachable vertices are missed, since a vertex pushed twice is skipped", "Running time grows to O(V²), since each pop rescans the whole visited set", "Stack size can reach O(E) from repeated pushes, and finish order is lost", "Nothing changes, since the stack is exactly what recursion used anyway"]
+  answer: 2
   explanation: >-
-    With reverse pushing the discovery order matches recursion, but duplicates can sit on the stack and the moment a vertex 'finishes' is not observable. A stack of iterators fixes both.
+    With reverse pushing the discovery order matches recursion, and every reachable vertex is still visited (a duplicate is skipped only because it was already marked), but duplicates can sit on the stack and the moment a vertex 'finishes' is not observable. A stack of iterators fixes both, with an O(V) stack and the same pre- and postorder as recursion.
 - q: >-
     A recursive flood fill on a 2,000 × 2,000 grid of all-land cells crashes. The cause is:
-  options: ["The grid does not fit in memory", "The recursion depth reaches millions of frames, far beyond the interpreter's or thread's stack", "Flood fill is O(n²) in cells", "Grids require BFS"]
-  answer: 1
+  options: ["Recursion depth reaches millions of frames, beyond the stack limit", "The grid does not fit in memory, since 4 × 10^6 cells need gigabytes", "Recursive DFS revisits cells without a queue, so it loops forever", "The visited set grows to O(cells²) entries and exhausts the heap"]
+  answer: 0
   explanation: >-
-    DFS on a fully connected grid can snake through every cell before backing up, so depth equals cell count. Use an explicit stack or BFS.
+    DFS on a fully connected grid can snake through every cell before backing up, so depth equals cell count, far beyond CPython's 1,000 frames or a thread's native stack. The grid itself is only a few megabytes and the visited set holds one entry per cell. Use an explicit stack or BFS.
 - q: >-
     Why is a chess engine's search depth-first (with a depth limit) rather than breadth-first?
-  options: ["Depth-first finds better moves", "Memory: DFS holds one path of length d, while BFS must store an entire level of size b^d, which is infeasible for b around 35", "Breadth-first cannot handle two players", "DFS is faster per node"]
+  options: ["DFS explores the strongest line first, so it finds better moves sooner", "DFS holds one path of length d, while BFS must store a level of size b^d", "BFS cannot alternate two players, since its levels mix both sides", "DFS spends less time per node, since a stack push beats a queue push"]
   answer: 1
   explanation: >-
-    The game tree's width explodes exponentially; only DFS keeps memory linear in depth. Iterative deepening provides the level-by-level behaviour when it is needed.
+    The game tree's width explodes exponentially: with b around 35, a level of size b^d is infeasible to store, while DFS keeps memory linear in depth (O(b · d)). Move quality comes from evaluation and pruning, not traversal order. Iterative deepening provides the level-by-level behaviour when it is needed.
 - q: >-
     In a DFS-based path search where a vertex failed to reach the target, keeping it marked visited when exploring other branches is:
-  options: ["A bug that can miss valid paths", "Correct for plain reachability, because whether t is reachable from v does not depend on how v was reached", "Correct only in undirected graphs", "Necessary to avoid infinite loops but causes wrong answers"]
+  options: ["Needed to stop infinite loops, but it can make the search miss paths", "Correct, because reachability from v does not depend on how v was reached", "Correct only in undirected graphs, because directed edges are one-way", "A bug, because v might still reach t along a route through different vertices"]
   answer: 1
   explanation: >-
-    Reachability is a property of v alone. Unmarking would re-explore the same dead subtree from each entry point and could become exponential. Only path-dependent constraints (no reused cells, resource limits) require undoing visited.
+    Reachability is a property of v alone: if no route from v reached t the first time, no other entry into v will find one. Unmarking would re-explore the same dead subtree from each entry point and could become exponential. Only path-dependent constraints (no reused cells, resource limits) require undoing visited.
 ```

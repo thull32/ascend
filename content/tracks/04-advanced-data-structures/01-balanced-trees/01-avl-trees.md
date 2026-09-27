@@ -285,32 +285,32 @@ hints:
 ```quiz
 - q: >-
     An AVL tree has 1,000,000 keys. Which statement about its height h is guaranteed?
-  options: ["h is exactly 20", "h is at most about 29", "h is at most 40", "h could be up to 1,000,000 if keys arrive sorted"]
-  answer: 1
+  options: ["h is at most about 29 levels", "h is exactly 20, as in a perfect tree", "h can reach 1,000,000 on sorted input", "h is at most about 40 levels"]
+  answer: 0
   explanation: >-
     The AVL bound is h ≤ 1.44 log₂ n ≈ 1.44 × 19.93 ≈ 28.7, so at most 28 or 29. A perfect tree would be 20 but AVL does not guarantee perfection; 40 is the red-black bound; a million is the unbalanced BST worst case that AVL exists to prevent.
 - q: >-
     After inserting a key, the lowest unbalanced node z has balance −2 and z.right has balance +1. What fixes it?
-  options: ["A single left rotation at z", "A single right rotation at z", "A right rotation at z.right followed by a left rotation at z", "A left rotation at z.right followed by a right rotation at z"]
-  answer: 2
+  options: ["Right-rotate z once, since z.right leans left", "Right-rotate z.right, then left-rotate z", "Left-rotate z.right, then right-rotate z", "Left-rotate z once, since z is right-heavy"]
+  answer: 1
   explanation: >-
-    Balance −2 means right-heavy; the right child leaning left (+1) is the RL case. A single left rotation leaves the height unchanged. Straighten the child with a right rotation first, then left-rotate at z.
+    Balance −2 means right-heavy; the right child leaning left (+1) is the RL case. A single left rotation at z, the tempting fix, just moves the zig-zag to the other side and leaves the tree unbalanced. Straighten the child with a right rotation first, then left-rotate at z.
 - q: >-
     Why can an AVL delete cost O(log n) rotations while an insert needs at most one rebalancing?
-  options: ["Delete must also rebalance the successor's subtree separately", "A rotation after delete can shrink the subtree height by one, which may unbalance the next ancestor; after insert the rotation restores the original height", "Delete rotations are more expensive because they touch four nodes", "Insert never changes heights above the new leaf"]
+  options: ["Insert never changes the heights of the ancestors above the new leaf", "A post-delete rotation can shorten the subtree and unbalance its parent", "A two-child delete unbalances both subtrees, so each needs its own rotation", "Delete must also rebalance the successor's old subtree as a separate pass"]
   answer: 1
   explanation: >-
-    After an insert, the rebalanced subtree has the same height it had before the insert, so ancestors are unaffected. After a delete, fixing one node can leave its subtree one shorter, propagating the imbalance upwards.
+    After an insert, the rebalanced subtree has the same height it had before the insert, so ancestors are unaffected. After a delete, fixing one node can leave its subtree one shorter, which can unbalance the parent, and so on up to the root. Insert does change ancestor heights on the way up; it is the single rotation that restores the pre-insert height and stops the propagation.
 - q: >-
     You insert the keys 1 through 7 in order into an AVL tree. What is the root?
-  options: ["1", "4", "7", "It depends on tie-breaking in the rotations"]
-  answer: 1
+  options: ["1, which was inserted first", "It varies with rotation tie-breaking", "7, which was inserted last", "4, with 2 and 6 as its children"]
+  answer: 3
   explanation: >-
-    Sorted input triggers RR rotations at 1 (after 3), at 3 (after 5), at 2 (after 6), and at 5 (after 7), producing the perfect tree 4 → (2 → (1, 3), 6 → (5, 7)). The result is deterministic.
+    Sorted input triggers RR rotations at 1 (after 3), at 3 (after 5), at 2 (after 6), and at 5 (after 7), producing the perfect tree 4 → (2 → (1, 3), 6 → (5, 7)). The result is deterministic: each case has exactly one fix, so there is nothing to break ties on.
 - q: >-
     A service keeps 50 million timestamped events in memory and does range queries constantly, with occasional inserts. A colleague proposes an AVL tree. What is the strongest objection?
-  options: ["AVL trees cannot do range queries", "An in-memory B-tree does the same job with far fewer cache misses per lookup because each node holds many keys", "Red-black trees would be faster for reads", "AVL trees use too much memory for the height field"]
-  answer: 1
+  options: ["AVL trees cannot answer range queries without a second index", "The per-node height field makes AVL trees too memory-hungry", "A red-black tree is shorter, so its reads would be faster", "An in-memory B-tree needs far fewer cache misses per lookup"]
+  answer: 3
   explanation: >-
-    Every AVL level costs a pointer dereference and probably a cache miss, about 26 of them for 50 million keys. A B-tree with 64-key nodes needs about 5. Range queries work fine on any BST via in-order traversal; red-black trees are slightly taller, not faster, for reads.
+    Every AVL level costs a pointer dereference and probably a cache miss, about 26 of them for 50 million keys. A B-tree with 64-key nodes holds many keys per node and needs about 5. Range queries work fine on any BST via in-order traversal; red-black trees are slightly taller, not shorter, so they are not faster for reads.
 ```

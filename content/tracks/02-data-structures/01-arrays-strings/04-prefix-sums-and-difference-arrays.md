@@ -256,32 +256,32 @@ hints:
 ```quiz
 - q: >-
     With prefix array P of length n + 1 (P[0] = 0), which expression gives the sum of a[l..r] inclusive?
-  options: ["P[r] − P[l]", "P[r + 1] − P[l]", "P[r] − P[l − 1]", "P[r + 1] − P[l + 1]"]
+  options: ["P[r] − P[l − 1]", "P[r + 1] − P[l]", "P[r + 1] − P[l + 1]", "P[r] − P[l]"]
   answer: 1
   explanation: >-
-    P[i] holds the sum of the first i elements. The sum up to and including index r is P[r + 1]; subtracting the sum of the first l elements leaves a[l..r]. Option C is the length-n convention and breaks at l = 0.
+    P[i] holds the sum of the first i elements. The sum up to and including index r is P[r + 1]; subtracting the sum of the first l elements leaves a[l..r]. P[r] − P[l − 1] is the length-n convention and breaks at l = 0.
 - q: >-
     Why can a prefix array not answer range maximum queries the way it answers range sums?
-  options: ["Maximum is slower to compute than addition", "Maximum has no inverse operation, so knowing the max of a prefix tells you nothing about the max of a suffix of it", "Prefix arrays only work for integers", "Range maximum requires sorting"]
-  answer: 1
+  options: ["Max has no inverse, so a prefix max cannot be subtracted away", "Max is not associative, so prefix maxima cannot be combined", "Range max needs the values sorted first, which loses their positions", "Max needs a comparison per element, which costs more than an addition"]
+  answer: 0
   explanation: >-
-    Range sums work because subtraction undoes addition. There is no operation that removes a[0..l−1]'s contribution from max(a[0..r]). Range max needs a sparse table, segment tree or a monotonic deque for sliding windows.
+    Range sums work because subtraction undoes addition. There is no operation that removes a[0..l−1]'s contribution from max(a[0..r]), so knowing the max of a prefix tells you nothing about the max of a suffix of it. Max is associative, which is exactly why a sparse table or segment tree can answer range max; a monotonic deque handles sliding windows.
 - q: >-
     You have 10⁶ updates of the form "add v to indices l..r" followed by a single read of the whole array. The best approach is:
-  options: ["Apply each update with a loop: O(n) per update", "A segment tree with lazy propagation", "A difference array: O(1) per update, one O(n) prefix pass at the end", "A hash map from index to value"]
-  answer: 2
+  options: ["A lazy segment tree: O(log n) per update, O(n) to read at the end", "A loop per update: O(r − l) per update, then O(n) to read", "A Fenwick tree: O(log n) per update, O(n log n) to read everything", "A difference array: O(1) per update, one O(n) prefix pass to read"]
+  answer: 3
   explanation: >-
-    Because there are no reads between updates, the difference array's O(1) update plus one reconstruction is optimal. A lazy segment tree also works but costs O(log n) per update and far more code; it earns its keep only when reads and writes interleave.
+    Because there are no reads between updates, the difference array's O(1) update plus one reconstruction is optimal. A lazy segment tree also works but costs O(log n) per update and far more code; it earns its keep only when reads and writes interleave. The literal loop is O(n) per update in the worst case.
 - q: >-
     Counting subarrays whose sum equals k with a running sum s and a map of prefix counts, why must the map start as {0: 1}?
-  options: ["To avoid a KeyError", "Because the empty prefix has sum 0, and a subarray starting at index 0 with sum k corresponds to a previous prefix of 0", "Because k might be 0", "It is an optimisation and can be omitted"]
-  answer: 1
+  options: ["It prevents a KeyError the first time s − k is looked up in the map", "It is only an optimisation that saves one lookup and could be omitted", "It handles k = 0, where every element would otherwise be counted twice", "It records the empty prefix, so subarrays starting at index 0 are counted"]
+  answer: 3
   explanation: >-
-    A subarray a[0..r] with sum k needs an earlier prefix P[0] = 0 to subtract. Omitting the seed silently undercounts every subarray that starts at index 0.
+    The empty prefix has sum 0, and a subarray a[0..r] with sum k needs that earlier prefix P[0] = 0 to subtract. Omitting the seed does not crash (the lookup uses a default); it silently undercounts every subarray that starts at index 0, whatever k is.
 - q: >-
     For a 2D prefix array P where P[r][c] is the sum of the rectangle from (0,0) to (r−1,c−1), the sum of the rectangle (r1,c1)–(r2,c2) inclusive is:
-  options: ["P[r2+1][c2+1] − P[r1][c1]", "P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1] + P[r1][c1]", "P[r2][c2] − P[r1][c1]", "P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1]"]
-  answer: 1
+  options: ["P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1] − P[r1][c1]", "P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1]", "P[r2][c2] − P[r1−1][c2] − P[r2][c1−1] + P[r1−1][c1−1]", "P[r2+1][c2+1] − P[r1][c2+1] − P[r2+1][c1] + P[r1][c1]"]
+  answer: 3
   explanation: >-
-    Subtracting the strip above and the strip to the left removes the top-left corner rectangle twice, so it must be added back once. Option D forgets the add-back and undercounts.
+    Subtracting the strip above and the strip to the left removes the top-left corner rectangle twice, so it must be added back once. Leaving out the add-back, or subtracting the corner a third time, undercounts. The P[r2][c2] version uses the indexing for a prefix array without the zero row and column, so it is off by one here.
 ```

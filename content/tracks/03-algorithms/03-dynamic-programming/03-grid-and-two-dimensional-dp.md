@@ -139,7 +139,7 @@ function minPathSum(grid) {
 
 Trace the JS version on `[[1, 3, 1], [1, 5, 1], [4, 2, 1]]`. Start `row = [0, ∞, ∞]`. After row 0: `[1, 4, 5]` (the `up` for `(0, 0)` was the seeded 0, so `dp = 1 + min(0, ∞) = 1`). After row 1: `c=0`: `1 + min(1, ∞) = 2`; `c=1`: `5 + min(4, 2) = 7`; `c=2`: `1 + min(5, 7) = 6`; `row = [2, 7, 6]`. After row 2: `[6, 8, 7]`. Answer 7, matching the table.
 
-The direction of the inner sweep is not arbitrary. Left-to-right works because the transition reads `c-1`, which must already be updated, and `c`, which must not be. If a transition read `c+1` from the previous row instead (some grid problems allow diagonal moves), you would sweep right-to-left. The [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family) makes this sweep-direction rule the centrepiece of the 0/1 versus unbounded distinction.
+The direction of the inner sweep is not arbitrary. Left-to-right works because the transition reads `c-1`, which must already be updated, and `c`, which must not be. If a transition also read the previous row's `c-1` (the up-left diagonal, as in edit distance or longest common subsequence), a left-to-right sweep would already have overwritten it; you would keep that one value in a saved `diag` variable before overwriting it. A transition that reads only the previous row, such as `c` and `c-1` in the 0/1 knapsack, sweeps right-to-left instead, so the cells it reads are still untouched. The [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family) makes this sweep-direction rule the centrepiece of the 0/1 versus unbounded distinction.
 
 Two cautions:
 
@@ -262,32 +262,32 @@ hints:
 ```quiz
 - q: >-
     In unique paths, why are the paths counted by dp[r-1][c] and dp[r][c-1] guaranteed not to overlap?
-  options: ["Because the grid has no obstacles", "Because every path's final move is either down or right, never both, so each path is counted in exactly one of the two terms", "Because dp values are always distinct", "They do overlap; the recurrence overcounts and is corrected at the end"]
+  options: ["Because the grid has no obstacles, so no path is shared", "Because each path's final move is either down or right", "Because two distinct paths never pass through the same cell", "They do overlap, and the double count is divided out at the end"]
   answer: 1
   explanation: >-
-    Partitioning by the last move gives disjoint sets. This is the same 'what was the last decision' argument as in 1-D DP, and it is why the combine operator is a plain sum.
+    Partitioning by the last move gives disjoint sets: a path's final move is down or right, never both, so each path is counted in exactly one term. Paths certainly share cells along the way; what matters is only the last move. This is the same 'what was the last decision' argument as in 1-D DP, and it is why the combine operator is a plain sum.
 - q: >-
-    A grid DP's transition reads dp[r-1][c], dp[r-1][c+1] and dp[r][c-1]. You want a single rolling row. Which inner sweep direction works?
-  options: ["Left to right, as usual", "Neither; you need two rows because the transition reads both c-1 in the current row and c+1 in the previous row", "Right to left", "Either direction"]
-  answer: 1
+    A grid DP's transition reads dp[r-1][c-1], dp[r-1][c] and dp[r][c-1]. You want a single rolling row. Which inner sweep direction works?
+  options: ["Left to right, so row[c-1] already holds the current row", "Either; every cell is read before it is overwritten", "Right to left, so row[c-1] still holds the previous row", "Neither; one row cannot hold both versions of column c-1"]
+  answer: 3
   explanation: >-
-    Left to right overwrites row[c+1]'s previous-row value only after it is read, which is fine, but row[c-1] must be the current row (needs left-to-right) while row[c+1] must be the previous row (needs right-to-left). The conflicting requirements force a second row (or a temporary copy).
+    Column c-1 is needed twice: dp[r][c-1] from the current row (which needs left-to-right) and dp[r-1][c-1] from the previous row (which needs right-to-left). Left to right satisfies the first and has already destroyed the second; right to left keeps the second but has not computed the first. The conflicting requirements force a second row, or one saved 'diagonal' variable holding row[c-1] before it is overwritten.
 - q: >-
     You compute min path sum in place by overwriting grid[r][c] with the running minimum. The interviewer then asks for the actual path. What is the situation?
-  options: ["Walk backwards from the bottom-right choosing the smaller of up/left; the overwritten grid still supports this", "The original costs are gone but the dp values remain, so backtracking by comparing dp[r-1][c] and dp[r][c-1] still recovers the path", "Impossible; you must recompute", "Store parent pointers in a separate grid, doubling the memory you just saved"]
-  answer: 1
+  options: ["Only parent pointers help, since dp values cannot show the route", "It is lost, since in-place updating is a rolling row in disguise", "Backtrack by comparing dp values, which the grid still holds in full", "Recompute from scratch, since backtracking needs the original costs"]
+  answer: 2
   explanation: >-
-    Reconstruction only needs the dp table, not the original costs: from the end cell, step to whichever predecessor has the smaller dp value. In-place overwriting keeps the full dp table, so the path is recoverable; it is the rolling-row optimisation that destroys it.
+    Reconstruction only needs the dp table, not the original costs: from the end cell, step to whichever of dp[r-1][c] and dp[r][c-1] is smaller. In-place overwriting keeps the full dp table, so the path is recoverable without a separate parent grid; it is the rolling-row optimisation, which keeps only one row, that destroys it.
 - q: >-
     Longest increasing path in a matrix allows moves in four directions. Why can it still be solved as a DP without infinite loops?
-  options: ["Because the grid is finite", "Because moves must go to a strictly larger value, so the dependency graph is a DAG and memoised recursion terminates", "Because you fill row by row", "It cannot; you need BFS"]
-  answer: 1
+  options: ["It cannot; four-way moves force a BFS rather than a DP", "Because the grid is finite, so every recursion bottoms out", "Because values strictly increase, so dependencies form a DAG", "Because a row-by-row fill visits every neighbour before the cell"]
+  answer: 2
   explanation: >-
-    Strict increase means no cell can depend on itself transitively. Row-major order does not respect these dependencies, but memoisation (or sorting cells by value) does. Finiteness alone would not prevent cycles if equal values were allowed.
+    Strict increase means no cell can depend on itself transitively, so memoised recursion terminates. Row-major order does not respect these dependencies (a larger neighbour can be below or to the right), but memoisation or sorting cells by value does. Finiteness alone would not prevent cycles if equal values were allowed.
 - q: >-
     An m × n grid DP with O(1) transition, m = n = 10⁴, must fit in 100 MB. What is the right call?
-  options: ["Full table of 64-bit integers: 10⁸ cells ≈ 800 MB, too big; roll to one row of 10⁴ cells", "Full table is fine, 10⁸ is small", "Use memoisation to skip unreachable cells", "Use 32-bit integers to halve the table"]
-  answer: 0
+  options: ["Keep the full table, since 10⁸ cells is small for a grid DP", "Use memoisation, so that unreachable cells are never stored", "Too big at 8 bytes a cell (800 MB); roll to one row of 10⁴", "Switch to 32-bit integers, halving the table to fit the budget"]
+  answer: 2
   explanation: >-
-    10⁸ × 8 bytes is 800 MB. Memoisation still stores every reachable state, which is all of them here. Halving to 400 MB still exceeds the budget. The rolling row uses 80 KB.
+    10⁸ cells × 8 bytes is 800 MB. Halving to 32-bit integers still leaves 400 MB, over the budget. Memoisation still stores every reachable state, which is all of them here. A rolling row of 10⁴ cells uses about 80 KB.
 ```

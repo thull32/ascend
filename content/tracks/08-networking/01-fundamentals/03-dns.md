@@ -169,32 +169,32 @@ That procedure resolves the majority of "DNS is broken" tickets, and most of the
 ```quiz
 - q: >-
     You change an A record with a 60-second TTL to point at a new server. Fifteen minutes later a Python service using a persistent HTTP connection pool is still sending requests to the old server. Which explanation fits?
-  options: ["The recursive resolver is ignoring the TTL", "The pool holds connections that were opened before the change; DNS is only consulted when a new connection is created", "Python caches DNS answers for an hour by default", "The old server is answering on behalf of the new one"]
+  options: ["Python's socket module caches DNS answers for an hour", "Pooled connections predate the change and never re-resolve", "The old server is proxying requests on behalf of the new one", "The recursive resolver is ignoring the record's TTL"]
   answer: 1
   explanation: >-
-    Connection pools re-resolve only on connect. Warm connections to the old address stay valid until they close. TTL controls resolvers, not sockets. Fixes are a max connection lifetime, a pool drain on failover, or terminating the old server so the connections fail.
+    Connection pools re-resolve only on connect, so DNS is consulted only when a new connection is created. Warm connections opened before the change stay valid until they close. TTL controls resolvers, not sockets, and Python's socket module does not cache answers at all. Fixes are a max connection lifetime, a pool drain on failover, or terminating the old server so the connections fail.
 - q: >-
     dig returns status NXDOMAIN for a record you created two minutes ago, but dig @ns-1.provider.net returns the correct A record. What is happening?
-  options: ["The zone has a syntax error", "The record was created in the wrong zone", "The recursive resolver cached a negative answer from an earlier query, for the SOA's negative-cache TTL", "NXDOMAIN means the resolver is down"]
+  options: ["The zone file has a syntax error the resolver rejected", "NXDOMAIN means the recursive resolver itself is down", "The resolver cached NXDOMAIN from an earlier query", "The record was created in the wrong zone by mistake"]
   answer: 2
   explanation: >-
-    The authoritative server has the record, so the zone is fine. Someone queried before the record existed and the resolver cached the NXDOMAIN. It will clear when the negative TTL expires, or when the resolver's cache is flushed. SERVFAIL, not NXDOMAIN, would indicate a resolver problem.
+    The authoritative server has the record, so the zone is fine. Someone queried before the record existed and the resolver cached the NXDOMAIN for the SOA's negative-cache TTL. It will clear when the negative TTL expires, or when the resolver's cache is flushed. SERVFAIL, not NXDOMAIN, would indicate a resolver problem.
 - q: >-
     A service occasionally takes almost exactly 5 seconds longer than usual to start a request, then proceeds normally. What is the most likely cause?
-  options: ["TCP slow start", "The first nameserver in resolv.conf is unreachable and glibc waits its default 5-second timeout before trying the second", "The TLS certificate is being re-validated", "A CNAME chain with five links"]
-  answer: 1
+  options: ["A dead first nameserver and glibc's 5 s timeout", "A CNAME chain with five links, one second per link", "TCP slow start delaying the first bytes of each request", "The TLS certificate being re-validated with the CA"]
+  answer: 0
   explanation: >-
-    glibc's resolver default is timeout 5 seconds per nameserver. A dead first resolver costs a full timeout on every uncached lookup. Slow start and TLS would not produce a fixed 5-second delay; a CNAME chain adds milliseconds, not seconds.
+    glibc's resolver default is timeout 5 seconds per nameserver. If the first nameserver in resolv.conf is unreachable, every uncached lookup waits a full timeout before trying the second. Slow start and TLS would not produce a fixed 5-second delay; a CNAME chain adds milliseconds per link, not seconds.
 - q: >-
     Why is GeoDNS a good fit for steering users between regions but a poor fit for balancing requests across servers within one region?
-  options: ["GeoDNS only supports two regions", "It decides once per TTL based on the resolver's location, with no visibility into per-request load or server health, so within a region a load balancer that sees every request does a far better job", "GeoDNS requires TCP", "Load balancers cannot operate across regions"]
-  answer: 1
+  options: ["Load balancers cannot operate across regions at all", "GeoDNS can only choose between two regions at a time", "GeoDNS answers must be carried over TCP, not UDP", "It sees resolvers, not requests, and is cached per TTL"]
+  answer: 3
   explanation: >-
-    DNS answers are cached and coarse; the authoritative server sees the resolver, not the client, and knows nothing about current connections. That is fine for choosing a region and inadequate for spreading load within one. Cross-region steering also needs a mechanism that works before any connection exists, which is exactly what DNS provides.
+    DNS answers are cached and coarse: the authoritative server decides once per TTL based on the resolver's location, with no visibility into per-request load or server health. That is fine for choosing a region and inadequate for spreading load within one, where a load balancer that sees every request does far better. Cross-region steering also needs a mechanism that works before any connection exists, which is exactly what DNS provides.
 - q: >-
     Lowering a service's public A record TTL from 300 s to 10 s has which side effect on availability?
-  options: ["None; TTL only affects propagation speed", "It makes the service more dependent on the authoritative DNS provider being up, because cached answers expire ten times faster during a provider outage, and it increases query volume and cost", "It increases TCP connection time", "It disables negative caching"]
-  answer: 1
+  options: ["Tighter dependence on the DNS provider, and more queries", "Each new TCP connection takes longer to establish", "None, since the TTL only affects propagation speed", "It disables negative caching for the service's hostname"]
+  answer: 0
   explanation: >-
-    A cached answer keeps working during an authoritative outage until it expires. Short TTLs shrink that buffer and multiply queries. The trade-off is faster failover versus a tighter coupling to the DNS provider, which is why critical zones use two providers.
+    A cached answer keeps working during an authoritative outage until it expires. Short TTLs shrink that buffer, since answers expire thirty times faster, and multiply query volume and cost. The trade-off is faster failover versus a tighter coupling to the DNS provider, which is why critical zones use two providers.
 ```

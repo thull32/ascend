@@ -321,31 +321,31 @@ hints:
 ```quiz
 - q: >-
     After inserting into the two-heap median structure, why is the element moved from low to high always the correct one to move?
-  options: ["Because it is the newest element", "Because it is low's maximum, the only element that could exceed high's minimum and break the order invariant", "Because it keeps the heaps the same size", "Because the median is always in high"]
+  options: ["Because the median always lives at the top of high", "It is low's max, the only element that can exceed high's min", "Because it is the newest element, which is unplaced", "Because moving it is what keeps the two heap sizes within one"]
   answer: 1
   explanation: >-
-    Pushing onto low can only break "all of low ≤ all of high" via low's new maximum. Moving exactly that element across restores order. Balance is repaired separately by the size check.
+    Pushing onto low can only break "all of low ≤ all of high" via low's new maximum. Moving exactly that element across restores order. Balance is a separate invariant, repaired afterwards by the size check, which may move high's minimum back.
 - q: >-
     In the sliding window median with lazy deletion, which quantity must the rebalance rule use?
-  options: ["len(low) and len(high)", "The number of live elements in each heap, tracked separately", "The window size k", "The number of pending removals"]
-  answer: 1
+  options: ["The number of pending removals in the delayed map", "The window size k, compared with the larger heap's size", "len(low) and len(high), read directly off the heaps", "Live element counts for each heap, tracked separately"]
+  answer: 3
   explanation: >-
     Stale elements still sit inside the heaps and inflate len(). Balancing on physical sizes lets the median drift to the wrong element. Explicit live counts, decremented at logical removal time, are the only correct basis.
 - q: >-
     A stream median service receives 50 million values per second and only needs p50 within 1%. The senior choice is:
-  options: ["Two heaps per second of data", "A sorted list with bisect insertion", "An approximate quantile sketch such as t-digest or a histogram with fixed buckets", "A balanced BST with subtree sizes"]
+  options: ["A sorted list kept up to date with bisect insertion", "Two heaps, rebuilt for each second of incoming data", "An approximate quantile sketch such as t-digest", "A balanced BST augmented with its subtree sizes"]
   answer: 2
   explanation: >-
     Exact structures are O(n) memory and O(log n) per event; at that rate the memory alone is prohibitive and the accuracy is not needed. Sketches give bounded error in constant memory and are what monitoring systems actually use.
 - q: >-
     You decide the target heap by comparing x with low's top before pushing. What extra case must you handle that the push-then-migrate version avoids?
-  options: ["Duplicate values", "Negative values", "The first insert, when low is empty and has no top to compare against", "Even-sized totals"]
-  answer: 2
+  options: ["Even totals, where both tops are needed", "The first insert, when low is empty", "Duplicate values equal to low's top", "Negative values that flip when negated"]
+  answer: 1
   explanation: >-
     The conditional version reads low[0] on every insert, which throws on the first one. The unconditional push-then-migrate sequence never reads an empty heap.
 - q: >-
     Which problem shape is NOT a fit for two heaps?
-  options: ["Median of a sliding window", "The most profitable currently affordable project as capital grows", "The 37th and 90th percentiles of the same stream on demand", "The lower median of a stream"]
+  options: ["The lower median of an unbounded stream of values", "The median of every window as it slides one step", "The 37th and 90th percentiles of one stream on demand", "The most profitable affordable project as capital grows"]
   answer: 2
   explanation: >-
     Two heaps track a single boundary. Multiple arbitrary quantiles need an order-statistics tree or a sketch. The other three are all one moving partition point.

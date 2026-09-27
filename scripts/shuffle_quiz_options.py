@@ -65,6 +65,7 @@ def process(path: pathlib.Path, check: bool) -> bool:
             assert str(old["q"]).strip() == str(got["q"]).strip(), path
             assert str(old["options"][old["answer"]]) == got["options"][got["answer"]], path
             assert sorted(map(str, old["options"])) == sorted(got["options"]), path
+            assert str(old.get("explanation", "")).strip() == str(got.get("explanation", "")).strip(), path
         if rendered != m.group(2):
             changed = True
         return m.group(1) + rendered + m.group(3)

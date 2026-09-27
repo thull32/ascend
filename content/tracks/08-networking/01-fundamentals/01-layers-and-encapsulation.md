@@ -204,32 +204,32 @@ The same logic sets your message sizes. A service that sends 200-byte protobuf m
 ```quiz
 - q: >-
     A WireGuard tunnel has an MTU of 1420. A client behind it can complete a TLS handshake with a web server and receive small pages, but any response over about 1.4 KB hangs forever. ping works. What is the most likely cause?
-  options: ["The TLS cipher suite is incompatible with the tunnel", "Path MTU discovery is failing because ICMP fragmentation-needed messages are being dropped, so the server keeps sending 1460-byte segments that never arrive", "The tunnel is fragmenting packets and the client cannot reassemble them", "The server's TCP window is too small"]
+  options: ["The TLS cipher suite is incompatible with the tunnel's MTU", "ICMP fragmentation-needed is dropped, so PMTUD fails", "The server's TCP receive window is too small for large bodies", "The tunnel fragments packets the client cannot reassemble"]
   answer: 1
   explanation: >-
-    Small packets fit under 1420 and get through; full-size 1460-byte segments with DF set are dropped at the tunnel and the ICMP that would tell the server to shrink its MSS is being filtered. If fragmentation were happening the transfer would be slow, not dead. The fix is MSS clamping or a lower MTU on the endpoint.
+    Small packets fit under 1420 and get through; full-size 1460-byte segments with DF set are dropped at the tunnel, and the ICMP that would tell the server to shrink its MSS is being filtered, so the server keeps resending segments that never arrive. If fragmentation were happening the transfer would be slow, not dead. The fix is MSS clamping or a lower MTU on the endpoint.
 - q: >-
     Why does a router recompute the IPv4 header checksum on every hop but never touch the TCP checksum?
-  options: ["The router lacks the CPU to verify TCP", "The router changes the TTL, which is in the IP header, and never modifies the TCP segment, which it treats as opaque payload", "TCP checksums are only checked by the sender", "The TCP checksum is encrypted"]
+  options: ["The TCP checksum is encrypted, so routers cannot read it", "It changes the TTL, and treats the TCP segment as opaque data", "The router lacks the CPU budget to verify TCP checksums", "TCP checksums are only ever verified by the sender"]
   answer: 1
   explanation: >-
-    Decrementing TTL changes the IP header, so its checksum must be redone. The transport segment is an opaque payload to a layer-3 device. NAT is the exception that proves the rule; it rewrites addresses and ports and must fix the TCP checksum because of the pseudo-header.
+    Decrementing TTL changes the IP header, so its checksum must be redone. The transport segment is an opaque payload to a layer-3 device, and the receiver, not the sender, verifies the TCP checksum. NAT is the exception that proves the rule; it rewrites addresses and ports and must fix the TCP checksum because of the pseudo-header.
 - q: >-
     A service sends 120-byte messages, one per TCP segment, at 200,000 messages per second. Roughly what fraction of the bytes on the wire are headers and framing, and what is the cheapest improvement?
-  options: ["About 5%; nothing to improve", "About 40%; batch several messages per segment so each carries closer to 1448 bytes", "About 90%; switch to UDP", "It depends only on the link bandwidth"]
-  answer: 1
+  options: ["It depends only on the link's bandwidth", "About 5%; the headers are too small to matter", "About 90%; switch the service over to UDP instead", "About 40%; batch several messages per segment"]
+  answer: 3
   explanation: >-
     Each segment costs 54 bytes of Ethernet/IP/TCP headers plus about 24 bytes of FCS and framing, so about 78 bytes of overhead for 120 of payload, roughly 40%. Batching fills segments toward 1448 bytes and cuts packets per second by an order of magnitude; UDP saves only 12 bytes per packet and loses reliability.
 - q: >-
     Which statement about the OSI model is most accurate in practice?
-  options: ["TLS is precisely a layer 6 protocol and HTTP/2 multiplexing is precisely layer 5", "Routers operate at layer 3 and never examine anything above it, without exception", "The seven layers are a teaching model; real stacks have four or five, and TLS and HTTP/2 do work that spans the session and presentation layers", "IPv6 added a new layer between 3 and 4"]
-  answer: 2
-  explanation: >-
-    OSI is a vocabulary. The TCP/IP stack that runs has link, internet, transport and application layers, with TLS and HTTP/2 doing session-like work above transport. Middleboxes and NATs routinely violate the "routers only look at layer 3" rule.
-- q: >-
-    An IPv4 packet is 1500 bytes with DF clear and reaches a link with MTU 1400. What happens, and why is it undesirable?
-  options: ["It is dropped and an ICMP error is sent; undesirable because the sender must retry", "It is fragmented into two IP packets that the destination reassembles; undesirable because losing either fragment loses the whole packet and firewalls cannot inspect the second fragment", "It is compressed to fit; undesirable because compression costs CPU", "The link MTU is raised to 1500 automatically"]
+  options: ["Routers work at layer 3 and never examine anything above it", "OSI is a teaching model; real stacks have four or five", "IPv6 added a new layer between the network and transport layers", "TLS is exactly layer 6, and HTTP/2 multiplexing is exactly layer 5"]
   answer: 1
   explanation: >-
-    With DF clear the router fragments. Reassembly happens only at the destination, the second fragment carries no TCP header, and one lost fragment forces retransmission of the entire original packet. That is why modern TCP sets DF and relies on path MTU discovery instead.
+    OSI is a vocabulary. The TCP/IP stack that runs has link, internet, transport and application layers, with TLS and HTTP/2 doing session-like and presentation-like work above transport that no single OSI number captures. Middleboxes and NATs routinely violate the "routers only look at layer 3" rule.
+- q: >-
+    An IPv4 packet is 1500 bytes with DF clear and reaches a link with MTU 1400. What happens, and why is it undesirable?
+  options: ["It is fragmented, and losing either piece loses the whole packet", "It is compressed to fit, which costs CPU at every router", "It is dropped with an ICMP error, so the sender must retry", "It is truncated to 1400 bytes and TCP retransmits the rest"]
+  answer: 0
+  explanation: >-
+    With DF clear the router fragments into two IP packets; dropping with an ICMP error is what happens when DF is set. Reassembly happens only at the destination, the second fragment carries no TCP header so firewalls cannot inspect it, and one lost fragment forces retransmission of the entire original packet. That is why modern TCP sets DF and relies on path MTU discovery instead.
 ```

@@ -242,32 +242,32 @@ It connects, authenticates and sends `sync after_inbox_seq = N`. The server stre
 ```quiz
 - q: >-
     A message is acked to the sender and stored, but direct delivery fails because the registry points at a gateway that just crashed. What guarantees the recipient still gets it?
-  options: ["The message is in the store and the recipient's inbox log points to it, so the device fetches it on its next sync; a push notification only wakes the app", "The gateway replays its in-memory queue on restart", "The sender's device resends it", "Nothing; this is an accepted loss"]
-  answer: 0
-  explanation: >-
-    Durable storage plus the per-user inbox log is the correctness path, and live delivery is only an optimisation. Gateways hold no durable state, and relying on the sender to resend would break exactly-once display.
-- q: >-
-    Two members of a group send messages at nearly the same time from phones with different clock offsets. How does every device end up showing the same order?
-  options: ["Sort by the sender's device timestamp", "Sort by arrival time at each device", "The conversation's single owner assigns consecutive seq numbers, and every device renders by seq", "Use a global sequence number across all conversations"]
-  answer: 2
-  explanation: >-
-    One sequencer per conversation gives a total order within the conversation, with no cross-conversation coordination. Device clocks disagree and arrival order differs per device. A global sequence would be a needless bottleneck, since users never compare order across conversations.
-- q: >-
-    The sender's app times out and retries a send. Which mechanism prevents the recipient from seeing the message twice?
-  options: ["TCP retransmission", "The gateway drops any message identical in text to the previous one", "Read receipts", "The retry carries the same client_msg_id, the owner returns the original seq instead of storing a new message, and devices deduplicate by (conv_id, seq)"]
+  options: ["The sender's device resends it after it does not see a delivery receipt", "The push notification carries the message, so the device can display it", "The gateway replays its in-memory queue for that device as soon as it restarts", "The inbox log points to the stored copy, so the device's next sync gets it"]
   answer: 3
   explanation: >-
-    Idempotency keys turn at-least-once sends into one stored message, and dedupe by seq on the device handles redelivery. Text-based dedupe would wrongly drop a user who really did send "ok" twice.
+    Durable storage plus the per-user inbox log is the correctness path, and live delivery is only an optimisation. The push notification only has to wake the app so it syncs; APNs and FCM are best-effort. Gateways hold no durable state, and relying on the sender to resend would break exactly-once display.
+- q: >-
+    Two members of a group send messages at nearly the same time from phones with different clock offsets. How does every device end up showing the same order?
+  options: ["The conversation's owner assigns seq numbers, and devices render by seq", "Every device sorts by the time each message arrived at that device", "Every device sorts by the sender's device timestamp carried in each message", "Each gateway assigns seq numbers to the messages its own devices send"]
+  answer: 0
+  explanation: >-
+    One sequencer per conversation gives a total order within the conversation, with no cross-conversation coordination. Device clocks disagree and arrival order differs per device. Per-gateway numbering fails because two senders in one group are usually on different gateways, so their numbers conflict.
+- q: >-
+    The sender's app times out and retries a send. Which mechanism prevents the recipient from seeing the message twice?
+  options: ["Read receipts tell the sender's app the first copy already arrived", "TCP retransmission guarantees each frame reaches the gateway only once", "The gateway drops any message whose text matches the sender's last one", "The retry reuses client_msg_id, so the owner returns the original seq"]
+  answer: 3
+  explanation: >-
+    Idempotency keys turn at-least-once sends into one stored message: a duplicate client_msg_id gets the original ack back, and devices deduplicate redelivery by (conv_id, seq). TCP cannot help, because the retry is a new application-level send. Text-based dedupe would wrongly drop a user who really did send "ok" twice.
 - q: >-
     100 million online users with 200 contacts each change presence state about every 10 minutes. Why does the design subscribe to presence only for users on screen?
-  options: ["Presence data is private", "Pushing every change to every contact is about 33 million notifications per second, almost all to people not looking; subscribe-on-view makes fan-out follow attention", "WebSockets cannot carry presence frames", "Presence must be strongly consistent"]
-  answer: 1
+  options: ["Pushing every change to all contacts is about 33 million deliveries/s", "Offline must be debounced for 30 s, which only works for visible users", "Presence is private, so it may only be shown to users who open a chat", "Presence must be strongly consistent, which is only affordable for a few users"]
+  answer: 0
   explanation: >-
-    10^8 / 600 s is about 170,000 changes per second, and x 200 contacts that is about 33 million deliveries per second. Limiting subscriptions to the roughly 20 users visible on screen cuts that by an order of magnitude or more.
+    10^8 / 600 s is about 170,000 changes per second, and x 200 contacts that is about 33 million deliveries per second, almost all to people not looking. Limiting subscriptions to the roughly 20 users visible on screen makes fan-out follow attention. Presence is deliberately weakly consistent, and the offline debounce is a separate detail that applies to every user.
 - q: >-
     Why does the design use a per-user inbox log of pointers for small groups but fan-out on read for 100,000-member channels?
-  options: ["Channels do not need ordering", "Kafka cannot handle channels", "The inbox log costs one small write per member per message: cheap for 20 members, but 100,000 writes per message for a channel, so channels store once and members pull on open", "Inbox logs cannot hold group messages"]
+  options: ["Channel messages are too large for a 20-byte inbox pointer to reference", "Kafka cannot hold 100,000 consumer groups, one per channel member", "Inbox pointers cost one write per member, which is 100,000 per message", "Channels need no ordering, so a per-member log adds nothing for them"]
   answer: 2
   explanation: >-
-    It is the same push/pull arithmetic as the news feed. Per-member pointers buy single-cursor sync, which is worth it until the member count makes every message a massive fan-out. Channels keep ordering through seq exactly like groups.
+    It is the same push/pull arithmetic as the news feed. Per-member pointers buy single-cursor sync, which is cheap at 20 writes per message for a small group but becomes 100,000 writes per message for a channel, so channels store once and members pull on open. Channels keep ordering through seq exactly like groups, and a pointer's size does not depend on the message's.
 ```

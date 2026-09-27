@@ -282,32 +282,32 @@ hints:
 ```quiz
 - q: >-
     A page fans out to 50 backend calls in parallel and waits for all of them. Each backend exceeds 200 ms on 1% of calls, independently. Roughly how often does the page wait more than 200 ms?
-  options: ["1% of the time", "About 5% of the time", "About 40% of the time", "About 99% of the time"]
-  answer: 2
+  options: ["About 40% of the time", "About 1% of the time", "About 99% of the time", "About 5% of the time"]
+  answer: 0
   explanation: >-
     The page is slow if any call is slow: 1 - 0.99^50 is about 0.39. Tail latency compounds under fan-out, which is why backends that serve fan-out traffic need tight p99 or p99.9 targets, not good averages.
 - q: >-
     A batch job reports real 60 s, user 10 s, sys 2 s on a machine with 16 idle cores. A teammate proposes rewriting its hottest function, which takes 50% of the samples in a CPU profile. What is the most the rewrite can save?
-  options: ["About 30 s", "About 24 s", "Nothing can be concluded", "About 6 s"]
-  answer: 3
+  options: ["About 6 s", "About 12 s", "About 30 s", "About 24 s"]
+  answer: 0
   explanation: >-
     Only 12 s of the 60 is on-CPU, and the function is half of that, about 6 s. The other 48 s is off-CPU waiting, which a CPU profile does not show; 30 s would be right only if the profile covered wall-clock time. Look at what the job waits on first.
 - q: >-
     In a flame graph, function A is drawn wide at the bottom with a tall narrow tower above it, and function B is a wide flat box at the top of a short stack. Where is the CPU actually spending time?
-  options: ["In B, because wide top edges are self time where the CPU was sampled", "In A, because it is the widest", "In the tower, because it is the tallest", "Wherever is leftmost, because the x-axis is time"]
-  answer: 0
+  options: ["Leftmost first, because the x-axis shows time", "In A, because it is the widest box in the graph", "In B, because its wide flat top is self time", "In the tower, because it is the tallest stack"]
+  answer: 2
   explanation: >-
-    Width includes callees, so A is wide because of what it calls. Self time is the exposed top edge, and B's wide flat top is where samples landed. Height is only stack depth and the x-axis is alphabetical, not time.
+    Width includes callees, so A is wide because of what it calls. Self time is the exposed top edge, and B's wide flat top is where the CPU was sampled. Height is only stack depth and the x-axis is alphabetical, not time.
 - q: >-
     Why do sampling profilers commonly use 99 Hz rather than 100 Hz?
-  options: ["99 Hz has lower overhead", "To avoid sampling in lockstep with periodic activity such as 10 ms timers, which would bias the samples", "Kernel limits forbid 100 Hz", "99 is prime, so hashes of stacks collide less"]
+  options: ["99 is prime, so stack hashes collide less often", "To stay out of lockstep with 10 ms timers", "99 Hz costs measurably less overhead than 100 Hz", "Kernel limits forbid sampling at exactly 100 Hz"]
   answer: 1
   explanation: >-
-    If the sampling period aligns with a periodic task, samples systematically land on (or miss) that task. An odd frequency decorrelates them. 99 is not prime (9 times 11); the point is avoiding alignment, not primality.
+    If the sampling period aligns with a periodic task such as a 10 ms timer, samples systematically land on (or miss) that task, biasing the profile. An odd frequency decorrelates them. 99 is not prime (9 times 11); the point is avoiding alignment, not primality.
 - q: >-
     A service is 10% serial work and 90% perfectly parallel. Going from 8 to 32 cores changes the maximum speed-up from about what to about what?
-  options: ["8x to 32x", "7.2x to 28.8x", "4.7x to 7.8x", "4.7x to 10x"]
-  answer: 2
+  options: ["7.2x to 28.8x", "4.7x to 7.8x", "8x to 32x", "4.7x to 10x"]
+  answer: 1
   explanation: >-
     1 / (0.1 + 0.9/8) is about 4.7, and 1 / (0.1 + 0.9/32) is about 7.8. Quadrupling cores gains less than 1.7x, and the ceiling is 10x no matter how many cores you add. Real contention usually makes it worse.
 ```

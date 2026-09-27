@@ -295,32 +295,32 @@ Embeddings are good at meaning and bad at exact tokens: product codes, error mes
 ```quiz
 - q: >-
     A team wants a graph database for a feature that shows each user's direct friends and the count of mutual friends with one other user. What is the best response?
-  options: ["This is a one- or two-hop query that a composite index on (user_id, friend_id) serves in milliseconds; a graph database earns its place for deep, variable-depth traversals", "Adopt a graph database; friendships are a graph", "Use a document store and embed friends in each user", "Use a vector database to find similar users"]
-  answer: 0
+  options: ["Use a vector database to find users with similar friend lists", "Stay relational; a composite index serves one or two hops quickly", "Adopt a graph database, since friendships are a graph at any depth", "Use a document store and embed each user's friends in their record"]
+  answer: 1
   explanation: >-
-    Index-free adjacency pays off as traversals get deeper and branchier. For one or two fixed hops, a relational join over a composite index is fast, transactional and needs no second system.
+    Index-free adjacency pays off as traversals get deeper and branchier. For one or two fixed hops, a relational join over a composite index on (user_id, friend_id) runs in milliseconds, is transactional and needs no second system. A graph database earns its place for deep, variable-depth traversals.
 - q: >-
     After someone adds a customer_id label to a request-latency metric, the Prometheus server's memory triples and it starts crashing. Why?
-  options: ["Latency values are larger than before", "Each distinct label combination is a separate series with its own index entry and in-memory head chunk, so a high-cardinality label multiplies the number of series by the number of customers", "Prometheus cannot store integer labels", "The scrape interval is too short"]
-  answer: 1
-  explanation: >-
-    Series cardinality, not point volume, drives TSDB memory. Identifiers with unbounded values belong in logs or traces, or in an analytics store; metrics should use bounded labels such as region or status class.
-- q: >-
-    Why does delta-of-delta encoding compress timestamps so well for metrics?
-  options: ["Timestamps are stored as strings", "It stores only every tenth timestamp", "It uses a dictionary of common timestamps", "Samples arrive at nearly fixed intervals, so the change in delta is usually zero and can be stored in a single bit"]
+  options: ["Each sample is now scraped once per customer, so volume multiplies", "Latency values now take more bytes, since each carries a customer ID", "Prometheus stores integer label values uncompressed, unlike strings", "Each label combination is its own series, so series count multiplies"]
   answer: 3
   explanation: >-
-    Scrapers sample on a schedule, so consecutive deltas are almost always equal. Encoding the difference between deltas turns most points into a 0, which costs one bit; occasional jitter costs a few more bits.
+    Each distinct label combination is a separate series with its own index entry and in-memory head chunk, so a high-cardinality label multiplies the number of series by the number of customers. Series cardinality, not point size or scrape volume, drives TSDB memory. Identifiers with unbounded values belong in logs or traces; metrics should use bounded labels such as region or status class.
+- q: >-
+    Why does delta-of-delta encoding compress timestamps so well for metrics?
+  options: ["It stores only every tenth timestamp and interpolates the ones between", "It keeps a dictionary of common timestamps shared across series", "Consecutive timestamps XOR to zero, so each point needs one bit", "Samples arrive at near-fixed intervals, so most delta changes are 0"]
+  answer: 3
+  explanation: >-
+    Scrapers sample on a schedule, so consecutive deltas are almost always equal. Encoding the difference between deltas turns most points into a 0, which costs one bit; occasional jitter costs a few more bits. XOR is the trick Gorilla uses for values, not timestamps, and nothing is dropped or interpolated.
 - q: >-
     A pgvector query with WHERE tenant_id = 7 ORDER BY embedding <=> $1 LIMIT 10 sometimes returns only 3 rows, although the tenant has thousands of chunks. What is happening?
-  options: ["The HNSW index is corrupt", "The LIMIT is applied before the ORDER BY", "The HNSW scan produced only ef_search candidates in similarity order and the tenant filter removed most of them; raise ef_search, enable iterative scans, or partition or index per tenant", "Cosine distance cannot be combined with filters"]
-  answer: 2
+  options: ["The HNSW index is corrupt and silently skips parts of the graph", "The LIMIT is applied before ORDER BY, so rows get cut off too early", "Cosine distance ignores WHERE clauses, so matches are dropped", "HNSW yields ef_search candidates and the tenant filter drops most of them"]
+  answer: 3
   explanation: >-
-    An ANN index returns a bounded candidate set, and filtering happens afterwards. When the filter is selective relative to the candidate set, too few rows survive. This is the central practical problem of filtered vector search.
+    An ANN index returns a bounded candidate set in similarity order, and filtering happens afterwards. When the filter is selective relative to the candidate set, too few rows survive. Raise ef_search, enable iterative scans, or partition or index per tenant. This is the central practical problem of filtered vector search.
 - q: >-
     In reciprocal rank fusion with k = 60, document X is ranked 1st by vector search and absent from the keyword results; document Y is ranked 3rd in both. Which ranks higher?
-  options: ["X, because a first place always wins", "Y: X scores 1/61 ≈ 0.0164, while Y scores 2/63 ≈ 0.0317", "They tie", "It depends on the BM25 scores, which RRF uses directly"]
-  answer: 1
+  options: ["They tie, because RRF only counts the lists that include each", "It depends on the BM25 scores, which RRF uses directly", "Y, because 2/63 ≈ 0.0317 beats X's 1/61 ≈ 0.0164", "X, because a first place in any single list always wins"]
+  answer: 2
   explanation: >-
-    RRF sums 1/(k + rank) across lists and ignores raw scores. A document that both retrievers agree on accumulates two contributions, which is why hybrid search is robust to either retriever's blind spots.
+    RRF sums 1/(k + rank) across lists and ignores raw scores: X gets 1/61 ≈ 0.0164 and Y gets 1/63 + 1/63 ≈ 0.0317. A document that both retrievers agree on accumulates two contributions, which is why hybrid search is robust to either retriever's blind spots.
 ```

@@ -291,32 +291,32 @@ hints:
 ```quiz
 - q: >-
     Why does a suffix trie of a text of length n have O(n²) nodes while its suffix tree has O(n)?
-  options: ["The suffix tree stores only some suffixes", "The suffix tree compresses single-child chains into labelled edges, so every internal node branches and the tree has at most n leaves and n-1 internal nodes", "Suffix tries store the text twice", "The suffix tree drops the terminator"]
+  options: ["The tree stores only the n suffixes, while the trie also stores every substring", "Single-child chains merge into labelled edges, so every internal node branches", "Ukkonen's algorithm adds each suffix in O(1), so only O(n) nodes are ever created", "Edge labels are (start, end) pairs, so each node costs O(1) instead of O(n) space"]
   answer: 1
   explanation: >-
-    A trie has one node per distinct substring, of which there can be n(n+1)/2. Path compression removes every non-branching node; with n leaves, a tree where every internal node has at least two children has fewer than 2n nodes.
+    A trie has one node per distinct substring, of which there can be n(n+1)/2, even though only the n suffixes were inserted: every substring is a prefix of some suffix, so it appears as a node on that suffix's path. Path compression removes every non-branching node; with n leaves, a tree where every internal node has at least two children has fewer than 2n nodes. The (start, end) labels keep each edge small but do not change how many nodes there are.
 - q: >-
     Prefix doubling sorts suffixes by (rank[i], rank[i+k]) pairs. Why does that correctly order the first 2k characters?
-  options: ["Because ranks are unique after the first round", "Because the first 2k characters of suffix i are the first k of suffix i followed by the first k of suffix i+k, and the ranks encode those two blocks' relative order", "Because k is always a power of two", "It does not; a final full comparison is needed"]
-  answer: 1
+  options: ["It does not; a final pass comparing the full suffixes is needed to break the last ties", "Ranks are unique after the first round, so later pairs never need a tie-break", "rank[i+k] orders suffix i+k by its full length, so it settles every remaining tie", "Suffix i's first 2k characters are its first k followed by the first k of suffix i+k"]
+  answer: 3
   explanation: >-
-    Lexicographic order on the concatenation of two blocks equals order on the pair of the blocks' ranks, provided each rank encodes order on exactly k characters, which the previous round guarantees.
+    Lexicographic order on the concatenation of two blocks equals order on the pair of the blocks' ranks, provided each rank encodes order on exactly k characters, which the previous round guarantees. rank[i+k] reflects only the first k characters of suffix i+k, not its full length, which is why ties can survive a round and more rounds are needed until all ranks are distinct.
 - q: >-
     The LCP array of a text has maximum value 7. What does that tell you?
-  options: ["The text has 7 distinct substrings", "The longest substring that occurs at least twice has length 7", "The suffix array has 7 entries", "The text is periodic with period 7"]
-  answer: 1
+  options: ["The longest substring occurring at least twice has length 7", "The text contains 7 distinct substrings that each occur twice", "The two longest suffixes of the text share their first 7 characters", "The text is periodic, repeating one block of length 7 throughout"]
+  answer: 0
   explanation: >-
-    Any repeated substring is a common prefix of two suffixes, and the two suffixes sharing the longest prefix are adjacent in sorted order; the LCP array records exactly those adjacent overlaps.
+    Any repeated substring is a common prefix of two suffixes, and the two suffixes sharing the longest prefix are adjacent in sorted order; the LCP array records exactly those adjacent overlaps. It compares neighbours in sorted order, not the longest suffixes by length, and a single repeat of length 7 says nothing about the whole text being periodic.
 - q: >-
     Kasai's algorithm computes all n LCP values in O(n) even though a single comparison may be long. What is the key invariant?
-  options: ["Adjacent suffixes always share at least one character", "If suffix i shares h characters with its sorted predecessor, suffix i+1 shares at least h-1 with its predecessor, so the comparison can resume from h-1", "The suffix array is sorted", "LCP values are non-increasing"]
-  answer: 1
+  options: ["If suffix i shares h characters with its predecessor, suffix i+1 shares at least h-1 with its own", "Processing suffixes in sorted order lets each comparison start from the previous entry's value", "Adjacent suffixes in sorted order always share a first character, so each scan starts at 1", "LCP values are non-increasing along the suffix array, so each new scan can stop at the previous value"]
+  answer: 0
   explanation: >-
-    Dropping the first character from both suffixes of a matching pair leaves a pair that still matches for h-1 characters and is still ordered, so the true predecessor of suffix i+1 matches at least that much. h decreases by at most 1 per step, so total increases are bounded by 2n.
+    Dropping the first character from both suffixes of a matching pair leaves a pair that still matches for h-1 characters and is still ordered, so the true predecessor of suffix i+1 matches at least that much. That is why Kasai processes suffixes in text order, not sorted order: neighbouring entries in the sorted array have no such relationship. h decreases by at most 1 per step, so total increases are bounded by 2n.
 - q: >-
     A team wants substring search over a repository that receives hundreds of commits per hour. A suffix array over the whole repository is a poor fit because:
-  options: ["Suffix arrays cannot handle binary files", "Suffix arrays index a static text; any change requires rebuilding, so an incrementally updatable index such as a trigram posting list fits better", "Suffix arrays are O(n²) to query", "Suffix arrays only support patterns shorter than 32 characters"]
-  answer: 1
+  options: ["Its memory is 40-80 bytes per character, which is too much for a large repository", "Its queries cost O(n) each, because every search must scan the whole array", "It cannot index binary files, which most repositories contain in large numbers", "It indexes a static text, so every commit forces a rebuild of the whole array"]
+  answer: 3
   explanation: >-
-    Construction is O(n log n) or O(n) but must be redone per change, which cannot keep up with a busy repository. Trigram indexes update per document and shard across machines, which is why code search engines use them.
+    Construction is O(n log n) or O(n) but must be redone per change, which cannot keep up with a busy repository. Trigram indexes update per document and shard across machines, which is why code search engines use them. Queries are not the problem (binary search is O(m log n)), and 40-80 bytes per character is the suffix tree's cost; the array needs 4-8.
 ```

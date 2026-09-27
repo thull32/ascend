@@ -237,32 +237,32 @@ Per key type, from two numbers: how stale the data may be when every other inval
 ```quiz
 - q: >-
     A cluster of 130 cache nodes uses hash(key) mod N. One node is added. Roughly what fraction of keys now maps to a different node?
-  options: ["About 1/131, under 1%", "About 50%", "About 99%", "None; existing keys stay where they are"]
+  options: ["About 0%", "About 50%", "About 99%", "About 1%"]
   answer: 2
   explanation: >-
-    A key stays put only if hash mod 130 equals hash mod 131, which happens for about 1 key in 131, so about 99% move and the hit rate collapses. Moving about 1/131 of keys is what consistent hashing gives you.
+    A key stays put only if hash mod 130 equals hash mod 131, which happens for about 1 key in 131, so about 99% move and the hit rate collapses. Moving about 1/131 of keys (under 1%) is what consistent hashing gives you, not modulo hashing; existing keys do not stay put.
 - q: >-
     9 million reads per second hit a 130-node cache at a 99% hit rate. One node dies and its keys all miss. What happens to database read load?
-  options: ["It stays at about 90,000 per second", "It rises by about 1%", "It rises to about 160,000 per second, roughly 1.75 times normal", "It drops, because fewer nodes answer"]
+  options: ["It drops, because fewer nodes are answering", "It rises by about 1%, to 91,000 per second", "It rises to about 160,000 per second", "It stays at about 90,000 per second"]
   answer: 2
   explanation: >-
-    Normal misses are 90,000 per second. The dead node's share of reads, about 69,000 per second, now all misses, giving about 160,000. That is why the cache needs replicas or a gutter pool even though it stores nothing irreplaceable.
+    Normal misses are 90,000 per second. The dead node's share of reads, about 69,000 per second, now all misses, giving about 160,000: roughly 1.75 times normal. That is why the cache needs replicas or a gutter pool even though it stores nothing irreplaceable.
 - q: >-
     Why do consistent-hashing rings use many virtual nodes per physical node?
-  options: ["To reduce the number of keys that move when a node is added", "To even out arc sizes, so no node receives several times the average load, and to spread a failed node's keys across many neighbours", "To allow keys to be stored on multiple nodes for durability", "Because hash functions produce collisions without them"]
-  answer: 1
+  options: ["Because hash functions produce collisions without them", "To reduce the number of keys that move when a node is added", "To even out arc sizes and spread a dead node's keys widely", "To allow keys to be stored on multiple nodes for durability"]
+  answer: 2
   explanation: >-
-    With one point per node, arcs are very uneven; a simulation of 130 nodes gave the busiest node about 4.5 times the average. With 160 points per node the busiest carried about 1.25 times. The fraction of keys moved on a change is about 1/N either way.
+    With one point per node, arcs are very uneven; a simulation of 130 nodes gave the busiest node about 4.5 times the average. With 160 points per node the busiest carried about 1.25 times, and a failed node's keys spread across many neighbours. The fraction of keys moved on a change is about 1/N either way, so that is not the reason.
 - q: >-
     A reader misses, reads v1 from the database, and pauses. A writer commits v2 and deletes the key. The reader then sets v1. What prevents the stale value from living until its TTL?
-  options: ["A lease: the delete invalidates the reader's lease token, so its later set is rejected", "Updating the cache instead of deleting it on write", "A longer TTL", "Reading from a database replica"]
-  answer: 0
+  options: ["A shorter TTL so the stale value expires sooner", "Having the writer update the cache instead of deleting the key", "A lease: the delete voids the reader's token, so its set fails", "Having the reader fetch from a database replica"]
+  answer: 2
   explanation: >-
-    The race is between a slow set and a delete. A lease (or a guarded set with a version) makes the slow set fail. Updating instead of deleting creates a different ordering race between writers; a longer TTL makes the staleness last longer; replicas add lag and make it worse.
+    The race is between a slow set and a delete. A lease (or a guarded set with a version) makes the slow set fail. Updating instead of deleting creates a different ordering race between writers; a shorter TTL only shortens the window, the stale value still lives until it expires; replicas add lag and make it worse.
 - q: >-
     One key receives a million reads per second from 2,000 app servers. Which mitigation reduces the load on its cache node the most, and what does it cost?
-  options: ["Add more cache nodes; it costs money", "Increase the key's TTL; it costs memory", "Use consistent hashing; it costs nothing", "An in-process near cache with a 1-second TTL; about 2,000 reads per second reach the node, at the cost of up to a second of staleness"]
+  options: ["Add more cache nodes; the cost is the extra hardware", "Use consistent hashing; the cost is a ring lookup per read", "Raise the key's TTL; the cost is holding it in memory longer", "An in-process near cache; the cost is up to 1 s staleness"]
   answer: 3
   explanation: >-
-    More nodes and ring changes do not help: one key lives on one node. A near cache with a 1-second TTL means each app server fetches once per second. The trade is bounded staleness without invalidation, which is why it is opt-in per key type.
+    More nodes and ring changes do not help: one key lives on one node. A near cache with a 1-second TTL means each app server fetches once per second, so about 2,000 reads per second reach the node. The trade is bounded staleness without invalidation, which is why it is opt-in per key type.
 ```

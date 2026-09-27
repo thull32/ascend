@@ -141,7 +141,7 @@ sequenceDiagram
     A->>A: write name="Ana" ts=10:00:00.150 (true time 10:00:00.070)
     A->>B: replicate name="Ana" ts=.150
     B->>A: replicate name="Anna" ts=.100
-    Note over A,B: LWW keeps .150: "Ana" survives here by luck; reverse the skew and the correction is lost
+    Note over A,B: LWW keeps .150: "Ana" survives here by luck, reverse the skew and the correction is lost
 ```
 
 [Replication strategies](/learn/system-design/distributed-systems/replication-strategies) covers where conflicts come from; [CRDTs](/learn/system-design/distributed-systems/crdts-and-collaboration) covers merges that never lose data; [Failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases) covers the other place clocks matter, where a lease holder and a lease grantor must agree on when time is up.
@@ -196,32 +196,32 @@ For TTLs on cache entries and idempotency keys, where a few seconds of error cha
 ```quiz
 - q: >-
     Event a has Lamport timestamp 3 and event b has Lamport timestamp 5. What can you conclude?
-  options: ["a happened before b", "b did not happen before a; a and b may be causally related or concurrent", "a and b are concurrent", "b happened before a"]
-  answer: 1
-  explanation: >-
-    Lamport clocks are consistent with happens-before (causal order implies increasing timestamps) but do not characterise it: unrelated events also get distinct integers. Only the reverse direction is ruled out. Vector clocks would decide.
-- q: >-
-    Two events have vector clocks [2,1,0] and [1,3,0]. They are:
-  options: ["The first happened before the second", "The second happened before the first", "Concurrent, because each vector exceeds the other in some entry", "Identical events"]
+  options: ["a and b are concurrent, since Lamport clocks ignore causality", "a happened before b, because 3 is less than 5", "b did not happen before a; they may still be concurrent", "a and b are causally related, but the direction is unknown"]
   answer: 2
   explanation: >-
-    Neither vector is less than or equal to the other in every entry, so no causal path connects them. This is exactly the case where a conflict rule or merge is required.
+    Lamport clocks are consistent with happens-before (causal order implies increasing timestamps) but do not characterise it: unrelated events also get distinct integers. Only the reverse direction is ruled out; a and b may be causally related or concurrent. Vector clocks would decide.
+- q: >-
+    Two events have vector clocks [2,1,0] and [1,3,0]. They are:
+  options: ["Causally related, but a merge is needed to find the order", "Concurrent, since each exceeds the other in some entry", "The first happened before the second, as its sum is smaller", "The second happened before the first, as entry two is larger"]
+  answer: 1
+  explanation: >-
+    Neither vector is less than or equal to the other in every entry, so no causal path connects them. Sums and single entries do not decide order; only an entry-wise comparison does. This is exactly the case where a conflict rule or merge is required.
 - q: >-
     A service computes a request deadline as time.time() + 30 and NTP steps the clock forward by 45 seconds during the request. What happens?
-  options: ["Nothing; NTP adjustments are too small to matter", "The deadline is already in the past and the request times out immediately", "The request waits 75 seconds", "The deadline is recomputed automatically"]
-  answer: 1
+  options: ["It times out at once, since the deadline is now in the past", "The runtime recomputes the deadline against the new time", "The request waits 75 seconds, the sum of both intervals", "Nothing; NTP adjustments are too small to matter"]
+  answer: 0
   explanation: >-
     Wall time jumped past the deadline. Durations must be measured on the monotonic clock, which NTP does not adjust. A backward step would have the opposite effect: the timeout fires late or never.
 - q: >-
     Why can a multi-region store that resolves concurrent writes by comparing NTP timestamps lose data?
-  options: ["NTP timestamps are not unique", "The clocks may differ by more than the interval between the writes, so the write chosen as later may actually be earlier, and the other is discarded", "Timestamps overflow", "Regions cannot exchange timestamps"]
-  answer: 1
+  options: ["Skew can exceed the gap between writes, so the wrong one wins", "Timestamps overflow and wrap around under a heavy write load", "Each region rewrites the timestamps into its own local time zone", "Regions strip timestamps when forwarding replicated writes"]
+  answer: 0
   explanation: >-
-    With tens of milliseconds of skew, writes within that window are ordered by clock error rather than reality; the loser is dropped silently. Version vectors detect the concurrency; CRDTs merge without loss.
+    With tens of milliseconds of skew, writes within that window are ordered by clock error rather than reality: the write chosen as later may actually be earlier, and the loser is dropped silently. Version vectors detect the concurrency; CRDTs merge without loss.
 - q: >-
     Spanner waits out the TrueTime uncertainty interval after choosing a commit timestamp. The purpose is:
-  options: ["To let replicas catch up", "To guarantee that any transaction starting after this one completes receives a strictly larger timestamp, giving external consistency", "To batch writes for throughput", "To synchronise the GPS receivers"]
+  options: ["To give the GPS and atomic clocks time to resynchronise", "So any later transaction gets a strictly larger timestamp", "To batch concurrent commits into one Paxos round for throughput", "To let every replica apply the write before it is visible"]
   answer: 1
   explanation: >-
-    Commit wait ensures the assigned timestamp is in the past on every machine's clock before the transaction becomes visible, so real-time order and timestamp order agree. It works only because the uncertainty is bounded and known.
+    Commit wait ensures the assigned timestamp is in the past on every machine's clock before the transaction becomes visible, so any transaction starting after this one completes receives a larger timestamp: real-time order and timestamp order agree (external consistency). It works only because the uncertainty is bounded and known.
 ```

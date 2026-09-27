@@ -412,32 +412,32 @@ hints:
 ```quiz
 - q: >-
     You are implementing an interpreter for arithmetic expression trees. Which traversal evaluates them correctly?
-  options: ["Preorder, because the operator is at the node", "Inorder, because that is how the expression is written", "Postorder, because an operator needs both operands' values first", "Level order, because operators at the same depth are independent"]
-  answer: 2
+  options: ["Level order, since operators at one depth are independent", "Inorder, because that is how the expression is written", "Preorder, because the operator must be read before its operands", "Postorder, because an operator needs both operands' values first"]
+  answer: 3
   explanation: >-
-    Information flows up: a node's value is computed from its children's values, so children must be evaluated first. Inorder produces the human-readable form but evaluates a left operand before knowing the operator.
+    Information flows up: a node's value is computed from its children's values, so children must be evaluated first. Inorder produces the human-readable form but evaluates a left operand before knowing the operator; preorder reaches the operator before either operand has a value.
 - q: >-
     An iterative inorder traversal on a balanced tree of a million nodes uses how much stack memory at peak?
-  options: ["About a million entries", "About 500,000 entries (half the nodes)", "About 20 entries", "One entry"]
-  answer: 2
+  options: ["About 1,000 entries, the square root of n", "About 500,000 entries, the widest level", "About 1,000,000 entries, one per node", "About 20 entries, the height of the tree"]
+  answer: 3
   explanation: >-
     The stack holds the current root-to-node path, bounded by the height, which is about log2(10^6) ≈ 20 for a balanced tree. A queue-based level order would hold up to 500,000 (the widest level).
 - q: >-
     Why does pushing the right child before the left child produce a correct iterative preorder?
-  options: ["Because the right subtree is always smaller", "Because the stack is LIFO, so the left child is popped and processed first", "Because preorder visits right before left", "It does not; you must push left first"]
-  answer: 1
+  options: ["Because the parent is then visited after both of its children", "Because the right subtree must be visited before the left", "Because the stack is FIFO, so the right child is popped first", "Because the stack is LIFO, so the left child is popped first"]
+  answer: 3
   explanation: >-
-    Preorder needs the left subtree processed entirely before the right. Pushing right then left leaves the left on top, so it and its whole subtree are handled before the right child is ever popped.
+    Preorder needs the left subtree processed entirely before the right. A stack is last-in, first-out, so pushing right then left leaves the left on top, and it and its whole subtree are handled before the right child is ever popped. The parent is visited when it is popped, before its children, not after.
 - q: >-
     Which is a real drawback of Morris traversal?
-  options: ["It is O(n log n) time", "It temporarily mutates the tree, so concurrent readers or an exception mid-walk can observe a corrupted structure", "It only works on binary search trees", "It needs a parent pointer on every node"]
-  answer: 1
+  options: ["It mutates the tree mid-walk, so readers can see broken links", "It takes O(n log n) time, since each predecessor search is O(h)", "It only works on BSTs, since threads follow the sorted order", "It needs a parent pointer on every node to climb back up"]
+  answer: 0
   explanation: >-
-    Morris threads predecessor right-pointers back to ancestors and removes them on the second visit. It stays O(n) time and O(1) space, and works on any binary tree, but the tree is not in a valid state during the traversal.
+    Morris threads predecessor right-pointers back to ancestors and removes them on the second visit, so concurrent readers, or an exception mid-walk, can observe a corrupted structure. Each edge is walked at most a constant number of times, so it stays O(n) time and O(1) space, and it works on any binary tree without parent pointers.
 - q: >-
     You need the values of the deepest level of a tree. The most direct approach is:
-  options: ["Postorder, keeping the last visited node", "Level order, keeping the last level produced", "Inorder, taking the middle element", "Preorder with a depth counter, returning the first node at maximum depth"]
-  answer: 1
+  options: ["Level order, keeping the last level the queue produces", "Postorder, keeping the last node visited in the walk", "Inorder, taking the middle element of the output", "Preorder with a depth counter, keeping the first deepest node"]
+  answer: 0
   explanation: >-
-    Level order produces levels in depth order, so the deepest level is simply the last group. A preorder with a depth counter can find the maximum depth but needs a second pass to collect every node at it.
+    Level order produces levels in depth order, so the deepest level is simply the last group. A preorder with a depth counter that keeps only the first node at maximum depth returns one node, not the whole level; the last node in postorder is the root.
 ```

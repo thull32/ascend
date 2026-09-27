@@ -144,32 +144,32 @@ Two consequences. First, apply to enough companies that no single loop matters t
 ```quiz
 - q: >-
     Why do many companies have interviewers write feedback before discussing the candidate with each other?
-  options: ["To speed up the process", "Because the interviewers do not know each other", "To avoid anchoring, where the first strong opinion pulls the others towards it", "So that the candidate can read the feedback"]
-  answer: 2
+  options: ["To keep a legal record of the decision in case the candidate disputes it", "To speed up the process, since no one has to wait for a meeting to be scheduled", "So that the candidate can be sent each interviewer's feedback after the loop", "To avoid anchoring, where the first strong opinion pulls everyone else towards it"]
+  answer: 3
   explanation: >-
     Independent written feedback keeps each interviewer's judgement based on what they saw rather than on the loudest voice in the debrief. It also means the written record, not your general impression, is what decides the outcome, which is why narrating your reasoning matters.
 - q: >-
     A candidate has excellent coding rounds but small-scope behavioural stories and a shallow system design round. What is the most likely outcome for a senior role?
-  options: ["An offer at the level below, or a rejection for senior", "A senior offer, because coding is what matters most", "An automatic extra coding round", "The outcome depends only on the hiring manager's round"]
-  answer: 0
+  options: ["An automatic follow-up design round to resolve the mixed signal", "An offer at the level below, or a rejection for senior", "The outcome depends only on the hiring manager's round", "A senior offer, because coding is what matters most"]
+  answer: 1
   explanation: >-
     Level is driven mainly by design depth and the scope shown in behavioural stories. Strong coding clears the bar but does not establish senior scope, which makes this a classic down-level pattern.
 - q: >-
     What distinguishes a hiring committee from a team debrief?
-  options: ["The committee members did not interview the candidate and decide from the written packet", "The committee only reviews coding rounds", "The committee always includes the candidate", "There is no difference"]
-  answer: 0
+  options: ["It includes the hiring manager, who holds a veto over the other interviewers", "Its members did not interview the candidate and decide from the written packet", "Its members review only the coding rounds, since those are the most objective ones", "It re-interviews the candidate briefly to break ties between the interviewers"]
+  answer: 1
   explanation: >-
-    A committee reviews written feedback, the resume and other notes without having met the candidate, which aims for consistency across teams. That makes the evidence written in each round's feedback decisive.
+    A committee reviews written feedback, the resume and other notes without having met the candidate, which aims for consistency across teams. It judges the packet rather than the person, so the evidence written in each round's feedback is decisive. The hiring manager carrying the most weight describes a team debrief, not a committee.
 - q: >-
     Which preparation split best fits a senior candidate with eight to twelve weeks?
-  options: ["90% coding, 10% system design, no behavioural preparation", "Equal time on every topic in the job description", "All behavioural, since coding is only a bar check", "About 40% coding, 35% system design, 25% behavioural"]
+  options: ["Equal time on every topic in the job description", "All behavioural, since coding is only a bar check", "90% coding, 10% system design, no behavioural preparation", "About 40% coding, 35% system design, 25% behavioural"]
   answer: 3
   explanation: >-
     Coding still has to clear the bar, but level is decided mostly by design and behavioural rounds, which candidates tend to under-prepare. Skipping behavioural preparation is one of the most common and avoidable senior failures.
 - q: >-
     You are rejected after a loop where you felt most rounds went well. What is the most accurate interpretation?
-  options: ["You are not senior-level", "The process is random, so the result means nothing", "It is real but noisy information: one sample of your performance, from a process tuned to accept false negatives; ask for feedback and look for a pattern across loops", "The recruiter made an error"]
-  answer: 2
+  options: ["You are not yet senior-level, since a strong loop would always produce an offer", "The recruiter probably misread the packet, so you should ask for a re-review", "The process is random, so the result carries no information about your level", "Real but noisy information: seek feedback and look for a pattern across loops"]
+  answer: 3
   explanation: >-
-    Loops are deliberately conservative and each round is a small sample, so a single rejection carries limited information. It is not meaningless, though; feedback and patterns across several loops show you what to work on.
+    Loops are deliberately conservative, tuned to accept false negatives rather than risk false positives, and each round is a small sample, so a single rejection carries limited information. It is not meaningless, though; feedback and patterns across several loops show you what to work on.
 ```

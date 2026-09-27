@@ -340,32 +340,32 @@ That is why a path with a flaky optic shows up as a high retransmission rate and
 ```quiz
 - q: >-
     A buggy copy routine swaps two adjacent 16-bit words inside a UDP payload. Which check detects it?
-  options: ["The UDP checksum, because every byte is covered", "The Ethernet CRC on the next link, if the swap happened before the frame was built", "Neither the UDP checksum nor a CRC computed after the swap", "Parity"]
-  answer: 2
-  explanation: >-
-    One's complement addition is commutative, so swapped words give the same UDP checksum. If the swap happened in host memory before transmission, the NIC computes a perfectly valid Ethernet CRC over the already-corrupted frame. Only an end-to-end check computed before the bug (an application checksum or TLS) would notice.
-- q: >-
-    Why must every IPv4 router update the header checksum but not the TCP checksum?
-  options: ["The router decrements TTL, which is in the IP header, and the IPv4 checksum covers only that header; the TCP checksum covers fields the router does not change", "TCP checksums are optional", "Routers cannot read TCP headers", "The TCP checksum is recomputed by the NIC at each hop"]
+  options: ["Neither the UDP checksum nor a CRC computed after it", "The IPv4 header checksum, recomputed at each router", "The UDP checksum, because it covers every payload byte", "The next link's Ethernet CRC, computed over the frame"]
   answer: 0
   explanation: >-
-    TTL changes at every hop, so the header checksum must change with it (incrementally, via RFC 1624). The TCP checksum covers the pseudo-header, TCP header and data, none of which a plain router modifies. A NAT does modify addresses and ports, which is why it must patch the TCP checksum too.
+    One's complement addition is commutative, so swapped words give the same UDP checksum. If the swap happened in host memory before transmission, the NIC computes a perfectly valid Ethernet CRC over the already-corrupted frame. The IPv4 checksum covers only the header. Only an end-to-end check computed before the bug (an application checksum or TLS) would notice.
+- q: >-
+    Why must every IPv4 router update the header checksum but not the TCP checksum?
+  options: ["TTL changes, and the IPv4 checksum covers only the header", "Each hop's NIC recomputes the TCP checksum in hardware", "TCP checksums are optional, so routers may skip them", "Routers are not permitted to read the TCP header at all"]
+  answer: 0
+  explanation: >-
+    TTL is in the IP header and changes at every hop, and the IPv4 checksum covers only that header, so it must change with it (incrementally, via RFC 1624). The TCP checksum covers the pseudo-header, TCP header and data, none of which a plain router modifies. A NAT does modify addresses and ports, which is why it must patch the TCP checksum too.
 - q: >-
     A CRC with generator polynomial G of degree 32 is guaranteed to detect which of these?
-  options: ["Any error at all", "Any burst of 32 or fewer consecutive corrupted bits", "Any modification by an attacker who does not know the data", "Any error in which exactly 64 bits flip"]
-  answer: 1
+  options: ["Any error that flips exactly 64 scattered bits", "Any error at all, of any length or pattern", "Any change by an attacker who cannot see the data", "Any burst of 32 or fewer consecutive flipped bits"]
+  answer: 3
   explanation: >-
     An undetected error must be a multiple of G, and a burst of length at most 32 cannot be. Longer or scattered errors are caught with probability about 1 − 2^−32, not with certainty. CRC is linear, so an attacker can fix it up for any chosen bit flips without seeing the data.
 - q: >-
     You append SHA-256(message) to each message on a plaintext TCP connection to detect tampering. What is wrong?
-  options: ["SHA-256 is too slow", "Nothing; SHA-256 is collision-resistant", "Anyone who can modify the message can recompute the hash; you need a keyed MAC or a digest delivered over a trusted channel", "SHA-256 cannot detect single-bit errors"]
+  options: ["SHA-256 cannot detect errors of a single bit", "SHA-256 is too slow to run on every message", "Anyone can recompute the hash; use a MAC", "Nothing, because SHA-256 is collision-resistant"]
   answer: 2
   explanation: >-
-    A hash detects accidental corruption and lets you compare against a digest you already trust, but on the same channel it provides no authenticity. HMAC or an AEAD cipher binds the tag to a secret key; that is what TLS does for every record.
+    A hash detects accidental corruption and lets you compare against a digest you already trust, but on the same channel it provides no authenticity: anyone who can modify the message can recompute the hash. A keyed MAC (HMAC or an AEAD cipher) binds the tag to a secret key, or the digest must arrive over a trusted channel; that is what TLS does for every record.
 - q: >-
     A host's TLS connections to one storage node fail intermittently with bad_record_mac, while connections to other nodes are fine. What is the most likely class of cause?
-  options: ["An expired certificate", "A DNS misconfiguration", "Congestion control backing off", "Data corruption on that path or host that TCP's checksum did not catch, such as a faulty NIC, memory or middlebox"]
+  options: ["DNS resolves that node's name to the wrong host", "The storage node's certificate has expired", "Congestion control is backing off on that path", "Corruption on that path that TCP did not catch"]
   answer: 3
   explanation: >-
-    The AEAD tag fails when record bytes change after encryption. Certificate and DNS problems fail at handshake time, not mid-stream. Localised bad_record_mac errors are a classic symptom of hardware or middlebox corruption that the 16-bit TCP checksum let through.
+    The AEAD tag fails when record bytes change after encryption. Certificate and DNS problems fail at handshake time, not mid-stream, and congestion causes delay rather than bad records. Localised bad_record_mac errors are a classic symptom of hardware or middlebox corruption (a faulty NIC, memory or middlebox) that the 16-bit TCP checksum let through.
 ```

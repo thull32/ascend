@@ -268,32 +268,32 @@ hints:
 ```quiz
 - q: >-
     In JavaScript, `(1 << 31)` evaluates to -2147483648 and `(1 << 32)` evaluates to 1. Why?
-  options: ["JavaScript integers are 32-bit", "Bitwise operators convert operands to signed 32-bit integers and take the shift count modulo 32", "The << operator is arithmetic in JavaScript", "1 << 32 overflows to 1 by wrapping"]
-  answer: 1
+  options: ["JavaScript stores all numbers as 32-bit signed integers", "Shifting past bit 31 overflows and wraps back around to 1", "<< is an arithmetic shift in JavaScript, keeping the sign", "Bitwise ops use signed 32 bits and shift counts mod 32"]
+  answer: 3
   explanation: >-
-    Numbers are 64-bit floats, but every bitwise operator works on a signed 32-bit view of its operands: bit 31 is the sign bit, and shift counts are masked to 5 bits, so 32 becomes 0. Wrapping would give 0, not 1.
+    Numbers are 64-bit floats, but every bitwise operator works on a signed 32-bit view of its operands: bit 31 is the sign bit, and shift counts are masked to 5 bits, so 32 becomes 0 and 1 << 32 is 1 << 0. Overflowing past bit 31 would give 0, not 1.
 - q: >-
     Why does `x & (x - 1) == 0` in Python not correctly test whether x is a power of two, even for positive x?
-  options: ["Python has no fixed-width integers", "== binds tighter than &, so it computes x & ((x - 1) == 0)", "x - 1 underflows for x = 1", "The test only works on unsigned integers"]
-  answer: 1
+  options: ["== binds tighter than &, so it is x & ((x - 1) == 0)", "x - 1 underflows when x = 1, breaking the smallest case", "Python ints have no fixed width, so the trick fails", "The test only works on unsigned, fixed-width integers"]
+  answer: 0
   explanation: >-
-    Comparison has higher precedence than bitwise AND in Python (and C, Java, JavaScript), so the expression tests x & False, which is 0, for every x except 1. Parenthesise: (x & (x - 1)) == 0.
+    Comparison has higher precedence than bitwise AND in Python (and C, Java, JavaScript), so the expression tests x & False, which is 0, for every x except 1. Parenthesise: (x & (x - 1)) == 0. The trick itself works fine on Python's arbitrary-width positive integers.
 - q: >-
     An array holds every integer from 0 to n exactly once except one that is missing. Which approach finds it in O(n) time and O(1) space with no risk of overflow in a fixed-width language?
-  options: ["Sum 0..n with n(n+1)/2 and subtract the array sum", "XOR all indices 0..n and all array values; the result is the missing number", "Sort the array and scan for the gap", "Insert into a hash set and probe 0..n"]
-  answer: 1
+  options: ["XOR together all indices 0..n and all array values", "Sort the array in place, then scan for the gap", "Insert all values into a hash set, then probe 0..n", "Sum 0..n with n(n+1)/2 and subtract the array sum"]
+  answer: 0
   explanation: >-
     XOR-ing each value that is present twice (once as an index, once as an element) cancels it, leaving the missing value. The sum approach is also O(1) space but n(n+1)/2 can overflow a 32-bit int for large n; sorting is O(n log n) and a hash set is O(n) space.
 - q: >-
     `x & -x` for x = 40 (binary 101000) gives what, and why is it useful?
-  options: ["8; it isolates the lowest set bit, the step used by Fenwick trees and set-bit iteration", "32; it isolates the highest set bit", "40; -x has the same bits as x", "0; a number and its negation share no bits"]
-  answer: 0
+  options: ["32; it isolates the highest set bit of the number", "8; it isolates the lowest set bit, used by Fenwick trees", "0; a number and its negation never share a set bit", "40; negation leaves the magnitude bits of x unchanged"]
+  answer: 1
   explanation: >-
-    -x = ~x + 1 flips every bit then carries through the trailing zeros, so the only bit set in both x and -x is x's lowest set bit: 001000 = 8. Highest-bit isolation needs a different technique (bit_length or clz).
+    -x = ~x + 1 flips every bit then carries through the trailing zeros, so the only bit set in both x and -x is x's lowest set bit: 001000 = 8. That step drives Fenwick trees and set-bit iteration. Highest-bit isolation needs a different technique (bit_length or clz).
 - q: >-
     A subset-sum feasibility DP over n items with total weight W runs in O(nW). Representing the reachable-sums set as a bitset and updating with `reach |= reach << w` changes the cost to what?
-  options: ["The bound drops to O(n log W)", "Each item's update becomes about W/64 word operations, roughly 64 times fewer instructions, though the asymptotic class is still O(nW)", "The DP becomes O(W), independent of n", "Nothing changes; shifting a bitset costs the same as looping over the sums"]
-  answer: 1
+  options: ["Still O(nW), but each update is ~W/64 word operations", "The bound drops to O(n log W) because shifts are cheap", "It becomes O(W), since one shift handles every item", "Nothing; a bitset shift costs as much as a loop over sums"]
+  answer: 0
   explanation: >-
     Each item's update is a word-parallel shift and OR over W/64 words. Asymptotically that is still O(nW) with a 1/64 constant, but the constant is exactly the point: the machine performs 64 boolean updates per instruction, a real order-of-magnitude difference. Nothing about the trick removes the dependence on n or turns W into log W.
 ```

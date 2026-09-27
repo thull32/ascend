@@ -118,32 +118,32 @@ The build ladder follows from the same table: **prompt first, then retrieval for
 ```quiz
 - q: >-
     Using the 6ND rule, roughly how many FLOPs does it take to train a 7-billion-parameter model on 2 trillion tokens?
-  options: ["About 1.4 × 10^13", "About 8.4 × 10^22", "About 8.4 × 10^31", "About 2.8 × 10^16"]
-  answer: 1
+  options: ["About 8.4 × 10^22", "About 1.4 × 10^13", "About 8.4 × 10^31", "About 2.8 × 10^16"]
+  answer: 0
   explanation: >-
     6 × 7 × 10^9 × 2 × 10^12 = 8.4 × 10^22. The 6 is 2 FLOPs per parameter per token forward plus 4 backward. 1.4 × 10^13 is closer to one forward pass over a single token for a model of this size.
 - q: >-
     Your team wants the assistant to answer questions about 3,000 internal wiki pages that change weekly. A colleague proposes fine-tuning on the pages. What is the stronger design?
-  options: ["Fine-tune weekly; fine-tuning is the standard way to add knowledge", "Pretrain a new model on the wiki", "Retrieve relevant pages at query time and put them in the context; use fine-tuning, if at all, for format and tone", "Increase the temperature so the model explores more of its knowledge"]
-  answer: 2
-  explanation: >-
-    Facts seen a few times in fine-tuning are recalled unreliably and go stale when pages change, while retrieval supplies current text and makes answers checkable. Fine-tuning is well suited to form, not facts. Pretraining is vastly more expensive, and temperature does not add knowledge.
-- q: >-
-    A reward model scores the human-preferred answer 0.6 and the rejected answer 1.8. What is its Bradley–Terry loss on this pair, and what does training do?
-  options: ["About 1.46; gradients push the preferred score up and the rejected score down", "0.263; nothing, since the loss is small", "0; reward models are trained only on absolute scores", "1.2; the loss is the score difference"]
-  answer: 0
-  explanation: >-
-    The loss is −ln σ(0.6 − 1.8) = −ln σ(−1.2) = −ln 0.231 ≈ 1.46, large because the ranking is wrong. Its gradient raises the preferred response's score relative to the rejected one. 0.263 is the loss when the ranking is correct (1.8 versus 0.6).
-- q: >-
-    Why does RLHF include a KL penalty that keeps the policy close to the supervised model?
-  options: ["To reduce the size of the model", "To make generation deterministic", "Because KL divergence measures factual accuracy", "Because the reward model is an imperfect proxy, and unconstrained optimisation exploits its blind spots (reward hacking), drifting into text it scores highly but people do not want"]
-  answer: 3
-  explanation: >-
-    Pushing hard on a learned reward finds its flaws, such as padding or flattery that the reward model happens to like. The KL term limits how far the policy can move from sensible, fluent behaviour. It has nothing to do with model size, determinism or factual accuracy.
-- q: >-
-    Scaling-law work suggests about 20 tokens per parameter is compute-optimal, yet small open models are often trained on over 100 tokens per parameter. Why?
-  options: ["The scaling laws were wrong", "Training is paid once while inference cost scales with parameter count on every request, so overtraining a smaller model buys cheaper serving at similar quality", "Larger datasets are required for tokenization", "Overtraining prevents hallucination"]
+  options: ["Fine-tune weekly on the changed pages, since fine-tuning is how you add knowledge", "Retrieve relevant pages at query time; fine-tune, if at all, only for format", "Fine-tune once on all pages, then raise the temperature so it recalls more of them", "Continue pretraining the base model on the wiki so the facts are learned deeply"]
   answer: 1
   explanation: >-
-    Compute-optimal means best quality for a given training budget. If a model will serve billions of requests, it is cheaper overall to spend more training compute on a smaller model, since every inference is proportional to its size. Overtraining does not eliminate hallucination.
+    Facts seen a few times in fine-tuning are recalled unreliably and go stale when pages change, while retrieval supplies current text and makes answers checkable. Fine-tuning is well suited to form (format and tone), not facts. Continued pretraining is vastly more expensive and has the same staleness problem, and temperature does not add knowledge.
+- q: >-
+    A reward model scores the human-preferred answer 0.6 and the rejected answer 1.8. What is its Bradley–Terry loss on this pair, and what does training do?
+  options: ["0; nothing, because reward models are trained only on absolute scores", "1.2; training shrinks the gap, because the loss is the score difference", "About 0.26; little changes, because the loss is already small for this pair", "About 1.46; training raises the preferred score relative to the rejected score"]
+  answer: 3
+  explanation: >-
+    The loss is −ln σ(0.6 − 1.8) = −ln σ(−1.2) = −ln 0.231 ≈ 1.46, large because the ranking is wrong. Its gradient pushes the preferred response's score up and the rejected one's down. 0.263 is the loss when the ranking is correct (1.8 versus 0.6), and the loss is a function of the score difference, not the difference itself.
+- q: >-
+    Why does RLHF include a KL penalty that keeps the policy close to the supervised model?
+  options: ["Because it makes generation more deterministic, so outputs stay consistent", "Because the reward model is an imperfect proxy that the policy would exploit", "Because KL divergence from the SFT model measures loss of factual accuracy", "Because it shrinks the policy's effective size, which makes RL training cheaper"]
+  answer: 1
+  explanation: >-
+    Pushing hard on a learned reward finds its blind spots (reward hacking), such as padding or flattery that the reward model happens to like, drifting into text it scores highly but people do not want. The KL term limits how far the policy can move from sensible, fluent behaviour. It has nothing to do with model size or determinism, and KL measures distance between distributions, not factual accuracy.
+- q: >-
+    Scaling-law work suggests about 20 tokens per parameter is compute-optimal, yet small open models are often trained on over 100 tokens per parameter. Why?
+  options: ["Because training is paid once but serving cost scales with parameters per request", "Because smaller models need more tokens per parameter to learn their tokenizer well", "Because overtraining a small model sharply reduces its hallucination rate", "Because later work showed the scaling laws were wrong about the optimal ratio"]
+  answer: 0
+  explanation: >-
+    Compute-optimal means best quality for a given training budget; the scaling laws are not wrong, they optimise a different cost. If a model will serve billions of requests, it is cheaper overall to spend more training compute on a smaller model, since every inference costs in proportion to its size, and overtraining buys cheaper serving at similar quality. Overtraining does not eliminate hallucination.
 ```

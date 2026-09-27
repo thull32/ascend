@@ -233,38 +233,38 @@ Each region runs its own ring with N=3, and writes replicate asynchronously betw
 ```quiz
 - q: >-
     A 48-node cluster places keys with hash(key) mod N. You add a 49th node. Roughly what fraction of keys move, and what would consistent hashing move?
-  options: ["About 98% with mod N; about 2% with consistent hashing", "About 2% with mod N; about 2% with consistent hashing", "About 50% with either scheme", "None with mod N, because existing keys keep their node"]
-  answer: 0
+  options: ["About 50% with mod N; about 25% with consistent hashing", "About 98% with mod N; about 50% with consistent hashing", "About 98% with mod N; about 2% with consistent hashing", "About 2% with mod N; about 2% with consistent hashing"]
+  answer: 2
   explanation: >-
-    A key stays put under mod N only if hash mod 48 equals hash mod 49, which holds for about 1 key in 49. Consistent hashing moves only the arc the new node takes over, about 1/49 of the data.
+    A key stays put under mod N only if hash mod 48 equals hash mod 49, which holds for about 1 key in 49, so about 98% move. Consistent hashing moves only the arc the new node takes over from its predecessor, about 1/49 of the data, not half of anything.
 - q: >-
     N=3, W=1, R=1. A client writes v2 and receives an acknowledgement, then immediately reads the key. What can it see?
-  options: ["Always v2, because the write was acknowledged", "An error, because R + W is too small", "Possibly v1, because the read may be served by a replica that has not received v2", "Both versions as siblings"]
-  answer: 2
-  explanation: >-
-    With W + R = 2, which is not greater than N = 3, the replica that acknowledged the write and the replica that serves the read need not overlap. An acknowledgement means one replica has v2, not that every replica does.
-- q: >-
-    During a partition, a write with W=2 is acknowledged by two substitute nodes holding hints, and a read with R=2 is answered by two of the key's home replicas. What is returned?
-  options: ["The new value, because W + R > N guarantees overlap", "Possibly the old value: sloppy quorums count substitutes toward W, so the read and write sets need not overlap", "An error, because hints are not readable", "The new value, because read repair runs first"]
-  answer: 1
-  explanation: >-
-    Sloppy quorums keep the store writable by accepting writes on any healthy nodes, at the price of the overlap guarantee. The hints reach the home replicas only when the partition heals.
-- q: >-
-    A key is deleted while replica C is down. C returns after 12 days without having been repaired, and the tombstone grace period is 10 days. What is the risk?
-  options: ["None; C will receive the tombstone through hinted handoff", "C will refuse to start", "The key will be deleted twice", "A and B have already compacted away the tombstone, so repair sees C's old value as a missed write and copies the deleted data back everywhere"]
-  answer: 3
-  explanation: >-
-    Hints expire long before 12 days, and the tombstone is gone from A and B after the grace period. Repair cannot tell a deleted value from a missed write, so the value resurrects. Full repair must complete more often than the grace period.
-- q: >-
-    Each replica's latency independently exceeds 10 ms 1% of the time. A QUORUM write (W=2) is sent to all 3 replicas. Roughly how often does it take longer than 10 ms?
-  options: ["About 1% of the time", "About 3% of the time", "About 0.03% of the time", "About 2% of the time"]
-  answer: 2
-  explanation: >-
-    The write waits for the second-fastest acknowledgement, so it is slow only if at least two of the three replicas are slow: 3 x 0.01^2 x 0.99 + 0.01^3 is about 0.0003. Quorums hide a single slow replica, which is a latency benefit as well as a consistency one.
-- q: >-
-    The store uses last-writer-wins. One node's clock drifts 30 seconds fast. What goes wrong?
-  options: ["Writes coordinated by that node carry future timestamps and beat genuinely later writes from other nodes for about 30 seconds, silently discarding them", "Nothing; LWW ignores clocks", "The node is removed from the ring automatically", "Reads return siblings"]
+  options: ["Possibly v1, because the read may hit a replica without v2", "Always v2, because the write was acknowledged before the read", "Both v1 and v2 as siblings, because the replicas disagree", "An error, because R + W is not greater than N for this key"]
   answer: 0
   explanation: >-
-    LWW trusts timestamps, so a fast clock turns into lost updates. Monitor clock offset as a correctness metric, reject far-future timestamps, or use hybrid logical clocks. Siblings only appear with version vectors, not LWW.
+    With W + R = 2, which is not greater than N = 3, the replica that acknowledged the write and the replica that serves the read need not overlap. An acknowledgement means one replica has v2, not that every replica does. W + R <= N is a legal, fast configuration that simply gives no overlap guarantee; it is not an error.
+- q: >-
+    During a partition, a write with W=2 is acknowledged by two substitute nodes holding hints, and a read with R=2 is answered by two of the key's home replicas. What is returned?
+  options: ["Possibly the old value, because substitutes count toward W", "The new value, because W + R > N guarantees the sets overlap", "The new value, because read repair runs before the reply", "An error, because hinted replicas cannot be read until handoff"]
+  answer: 0
+  explanation: >-
+    Sloppy quorums keep the store writable by accepting writes on any healthy nodes, so the read set and write set need not overlap and W + R > N no longer guarantees anything. The home replicas never saw the write; the hints reach them only when the partition heals.
+- q: >-
+    A key is deleted while replica C is down. C returns after 12 days without having been repaired, and the tombstone grace period is 10 days. What is the risk?
+  options: ["None, because C will receive the tombstone through hinted handoff", "Repair treats C's old value as a missed write and resurrects it", "C will reject writes until an operator runs a full repair on it", "Repair deletes C's data because A and B have no record of the key"]
+  answer: 1
+  explanation: >-
+    Hints expire long before 12 days, and after the grace period A and B have compacted away the tombstone along with the value. Repair cannot tell a deleted value from a missed write, so it copies C's old value back to every replica. Full repair must complete more often than the grace period.
+- q: >-
+    Each replica's latency independently exceeds 10 ms 1% of the time. A QUORUM write (W=2) is sent to all 3 replicas. Roughly how often does it take longer than 10 ms?
+  options: ["About 1% of the time", "About 0.03% of the time", "About 0.01% of the time", "About 2.97% of the time"]
+  answer: 1
+  explanation: >-
+    The write waits for the second-fastest acknowledgement, so it is slow only if at least two of the three replicas are slow: 3 x 0.01^2 x 0.99 + 0.01^3 is about 0.0003. 2.97% is the chance that any one replica is slow, which would matter only if the write waited for all three; 0.01% forgets that any of three pairs can be the slow two. Quorums hide a single slow replica.
+- q: >-
+    The store uses last-writer-wins. One node's clock drifts 30 seconds fast. What goes wrong?
+  options: ["Reads return both versions as siblings for the client to merge", "Its writes get future timestamps and beat later writes for about 30 s", "Nothing, because LWW orders writes by arrival order at the coordinator", "Its writes are rejected as far-future until the clock is corrected"]
+  answer: 1
+  explanation: >-
+    LWW trusts timestamps, so writes coordinated by the fast node beat genuinely later writes from other nodes for about 30 seconds, which silently discards them. Rejecting far-future timestamps is a mitigation you have to add, alongside monitoring clock offset or using hybrid logical clocks. Siblings only appear with version vectors, not LWW.
 ```

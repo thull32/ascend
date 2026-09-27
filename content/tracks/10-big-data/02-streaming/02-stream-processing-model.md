@@ -216,32 +216,32 @@ hints:
 ```quiz
 - q: >-
     A consumer was down for 20 minutes, then caught up in 2 minutes. A processing-time one-minute count shows zero for 20 minutes and then two huge spikes. What does an event-time count show?
-  options: ["The same spikes, because the events were processed then", "The correct per-minute counts for the outage period, emitted late once the events arrive", "Zero for every minute, because the events are all late", "An error, because event time cannot handle backlogs"]
-  answer: 1
+  options: ["A gap and one spike, since windows close on the wall clock", "Zero for every minute, because the events are all late", "Correct per-minute counts for the outage, emitted late", "The same spikes, because the events were processed then"]
+  answer: 2
   explanation: >-
-    Event-time windows place each event by when it happened, so the backlog fills the right minutes. As long as the watermark was not advanced past those minutes while the consumer was down (it was not, because no events arrived), the windows fire correctly during catch-up, just later in wall-clock time.
+    Event-time windows place each event by when it happened, so the backlog fills the right minutes. As long as the watermark was not advanced past those minutes while the consumer was down (it was not, because no events arrived), the windows fire correctly during catch-up, just later in wall-clock time. Closing windows on the wall clock is exactly what event time does not do.
 - q: >-
     A Flink job reads a 32-partition topic. After a deploy, it consumes normally but emits no window results at all. Two partitions currently receive no traffic. What is the most likely cause?
-  options: ["The window size is too small", "The operator watermark is the minimum over partitions; the idle partitions never advance it, so no window ever fires", "Late events are being dropped", "The checkpoint interval is too long"]
-  answer: 1
+  options: ["The checkpoint interval is too long, so windows never commit", "The window size is too small for the traffic to fill a window", "The idle partitions hold the operator's minimum watermark back", "Late events are being dropped because the bound is too tight"]
+  answer: 2
   explanation: >-
-    Watermarks combine by minimum, so a partition with no events holds the whole operator's watermark back. An idleness timeout marks silent partitions idle so they are excluded. Dropping late data would reduce counts, not eliminate all output.
+    Watermarks combine by minimum over partitions, so a partition with no events never advances it and holds the whole operator's watermark back; no window ever fires. An idleness timeout marks silent partitions idle so they are excluded. Dropping late data would reduce counts, not eliminate all output.
 - q: >-
     Your 99.9th-percentile event delay is 45 seconds and the dashboard must be within 2 minutes of real time. Which watermark bound is most defensible?
-  options: ["0 seconds, and drop everything out of order", "About 60 seconds, counting and diverting the ~0.1% of later events", "15 minutes, to be safe", "No watermark; use processing time"]
-  answer: 1
+  options: ["0 seconds, dropping every event that arrives out of order", "About 15 minutes, so that almost no events are ever late", "About 60 seconds, and divert the ~0.1% that arrive later", "No watermark at all; window on processing time instead"]
+  answer: 2
   explanation: >-
-    A bound just above the measured tail meets the freshness requirement and loses about one event in a thousand, which you measure and handle with a side output or correction. Zero drops all out-of-order data; 15 minutes violates the freshness requirement; processing time gives wrong windows.
+    A bound just above the measured tail meets the freshness requirement and loses about one event in a thousand, which you count and handle with a side output or correction. Zero drops all out-of-order data; 15 minutes violates the freshness requirement; processing time gives wrong windows.
 - q: >-
     A device with a clock one year in the future sends an event into a bounded out-of-orderness pipeline. What happens next?
-  options: ["The event is dropped as late", "The watermark jumps a year ahead, so almost all subsequent legitimate events are treated as late", "Only that device's windows are affected", "Nothing, because watermarks ignore outliers"]
-  answer: 1
+  options: ["The watermark jumps a year and real events become late", "Nothing, because the watermark ignores outlier timestamps", "Only that device's own key and windows are affected", "The event is dropped as late and nothing else changes"]
+  answer: 0
   explanation: >-
-    The watermark is derived from the maximum event time seen, so a single future timestamp drags it forward. Every window up to the future time fires and real events become late. Validate or clamp event times against ingestion time at the source.
+    The watermark is derived from the maximum event time seen, so a single future timestamp drags it forward. Every window up to the future time fires and almost all subsequent legitimate events become late, for every key, not just that device's. Validate or clamp event times against ingestion time at the source.
 - q: >-
     You need a one-hour sliding window updated every minute for 5 million users. Why is this expensive, and what is a common mitigation?
-  options: ["Sliding windows cannot be used with event time; use session windows", "Each event belongs to 60 windows, multiplying state and output by 60; aggregate into one-minute tumbling panes and combine the last 60 panes per user", "It is not expensive because windows share state automatically", "Only the watermark is expensive; raise the bound"]
-  answer: 1
+  options: ["The watermark is the expensive part; raise its bound instead", "It is not expensive because windows share state automatically", "Sliding windows cannot be used with event time; use session windows", "Each event joins 60 windows; combine 60 one-minute panes"]
+  answer: 3
   explanation: >-
-    With size/slide = 60, every event updates 60 windows. Pre-aggregating into tumbling panes stores one partial per minute per user and computes the hour by combining 60 partials, which only works for combinable aggregates like sums and counts.
+    With size/slide = 60, every event updates 60 windows, multiplying state and output by 60. Pre-aggregating into one-minute tumbling panes stores one partial per minute per user and computes the hour by combining the last 60 partials, which only works for combinable aggregates like sums and counts.
 ```

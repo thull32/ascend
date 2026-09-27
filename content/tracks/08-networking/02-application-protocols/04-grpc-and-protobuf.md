@@ -377,32 +377,32 @@ Large organisations commonly run both: gRPC inside the perimeter, REST or GraphQ
 ```quiz
 - q: >-
     After scaling a gRPC service from 3 to 12 pods behind a Kubernetes ClusterIP service, only the original 3 pods receive traffic. What is the cause?
-  options: ["The new pods failed their readiness checks", "ClusterIP balances per TCP connection, and gRPC clients multiplex every call over long-lived HTTP/2 connections opened when only 3 pods existed", "gRPC does not support more than 3 backends", "The protobuf schema is cached per pod"]
-  answer: 1
+  options: ["The new pods are failing their readiness checks", "Each pod caches its own copy of the protobuf schema", "ClusterIP picks a pod per connection, not per call", "gRPC clients cap each service at three backends"]
+  answer: 2
   explanation: >-
-    An L4 balancer decides once per connection. HTTP/2 connections are long-lived and carry every call as a stream, so new pods get nothing until clients reconnect. Per-request balancing (an L7 proxy or client-side round robin over all pod addresses) or a server-side maximum connection age fixes it.
+    An L4 balancer such as ClusterIP decides once per TCP connection. gRPC multiplexes every call as a stream over long-lived HTTP/2 connections that were opened when only 3 pods existed, so new pods get nothing until clients reconnect. Per-request balancing (an L7 proxy or client-side round robin over all pod addresses) or a server-side maximum connection age fixes it.
 - q: >-
     How many bytes does the varint encoding of 300 occupy, and what are they?
-  options: ["2 bytes: 0x01 0x2C", "2 bytes: 0xAC 0x02", "4 bytes: 0x00 0x00 0x01 0x2C", "3 bytes: 0x82 0xAC 0x00"]
-  answer: 1
+  options: ["2 bytes: 0xAC 0x02", "4 bytes: 0x00 0x00 0x01 0x2C", "2 bytes: 0x01 0x2C", "3 bytes: 0x82 0xAC 0x00"]
+  answer: 0
   explanation: >-
-    300 is 0b100101100. The low 7 bits (0101100 = 44) come first with the continuation bit set (44 + 128 = 0xAC), then the remaining bits (2) with no continuation bit. The first option is big-endian fixed-width thinking; varints are little-endian groups of 7 bits.
+    300 is 0b100101100. The low 7 bits (0101100 = 44) come first with the continuation bit set (44 + 128 = 0xAC), then the remaining bits (2) with no continuation bit. "0x01 0x2C" is big-endian fixed-width thinking; varints are little-endian groups of 7 bits.
 - q: >-
     A team removes the deprecated field "int32 legacy_score = 7" and, a month later, adds "string region = 7". What goes wrong?
-  options: ["Nothing; field numbers can be reused once the old field is gone", "Any old client or stored message that still writes field 7 as a varint will be misread by new code expecting a string, and old readers will misinterpret new messages; the number should have been reserved", "The new field will be ignored by all clients", "protoc will refuse to compile the new schema"]
-  answer: 1
+  options: ["The new field is silently ignored by every client", "Nothing; a number is free again once its field is gone", "protoc refuses to compile a schema that reuses 7", "Old field-7 varints are misread as strings"]
+  answer: 3
   explanation: >-
-    The wire identifies fields only by number and wire type. Old writers, cached payloads and events in queues still carry field 7 as an integer. Reserving removed numbers and names makes the compiler reject reuse. protoc cannot know about the history unless you record it with reserved.
+    The wire identifies fields only by number and wire type. Old writers, cached payloads and events in queues still carry field 7 as an integer, which new code expecting a string will misread, and old readers will misinterpret new messages. Reserving removed numbers and names makes the compiler reject reuse; protoc cannot know about the history unless you record it with reserved.
 - q: >-
     A dashboard built on load-balancer HTTP status codes shows 100% success for a gRPC service while clients are receiving errors. Why?
-  options: ["The load balancer is caching responses", "gRPC returns HTTP 200 for completed calls and reports failure in the grpc-status trailer, which the dashboard does not read", "gRPC errors are sent over a separate connection", "The clients are misreporting errors"]
+  options: ["The load balancer is caching successful responses", "Failures arrive as HTTP 200 with a non-zero grpc-status", "The clients are misreporting their own errors", "gRPC sends its errors over a separate connection"]
   answer: 1
   explanation: >-
-    The call status is only known at the end of the stream, so it travels in trailers. HTTP status 200 means the HTTP exchange worked. Infrastructure and metrics must be gRPC-aware and read grpc-status to see failures.
+    The call status is only known at the end of the stream, so it travels in the grpc-status trailer. HTTP status 200 means only that the HTTP exchange worked. Infrastructure and metrics must be gRPC-aware and read grpc-status to see failures.
 - q: >-
     Service A has a 300 ms deadline from its caller and calls B, which calls C. What is the best practice?
-  options: ["Give each call a fixed 300 ms timeout", "Pass the incoming context so B and C inherit the remaining budget via grpc-timeout, and stop work when it expires or the caller cancels", "Set no deadline downstream so work always completes", "Give downstream calls a longer timeout than the caller's"]
-  answer: 1
+  options: ["Set no deadline downstream so the work always completes", "Give every hop its own fixed 300 ms timeout budget", "Give downstream calls a longer timeout than the caller's", "Propagate the context so hops inherit what remains"]
+  answer: 3
   explanation: >-
-    Deadline propagation sends the remaining time with each hop, so no service keeps working after the original caller has given up. Fixed per-hop timeouts can add up to more than the caller's budget, and no deadline at all is how threads pile up behind a hung dependency.
+    Passing the incoming context sends the remaining budget with each hop via grpc-timeout, so B and C stop work when it expires or the caller cancels, and no service keeps working after the original caller has given up. Fixed per-hop timeouts can add up to more than the caller's budget, and no deadline at all is how threads pile up behind a hung dependency.
 ```

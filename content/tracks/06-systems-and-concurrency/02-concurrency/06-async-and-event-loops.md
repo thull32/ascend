@@ -243,32 +243,32 @@ The third and fourth tests are the whole lesson in two lines. Splitting a 5-unit
 ```quiz
 - q: >-
     In a Node.js main module, what does this print? console.log("A"); setTimeout(() => console.log("T"), 0); Promise.resolve().then(() => console.log("P")); process.nextTick(() => console.log("N")); console.log("B");
-  options: ["A B T P N", "A B N P T", "A N P B T", "A B P N T"]
-  answer: 1
+  options: ["A B P N T", "A N P B T", "A B N P T", "A B T P N"]
+  answer: 2
   explanation: >-
     Synchronous code runs first (A, B). Before the loop moves to its next phase, Node drains process.nextTick callbacks (N) and then promise microtasks (P). The timer callback (T) runs in the timers phase afterwards. A setTimeout of 0 never runs before already-queued microtasks.
 - q: >-
     An asyncio service's p99 latency spikes on all endpoints whenever one report endpoint is called, but CPU usage stays under 20%. What is the most likely cause?
-  options: ["The report endpoint exhausts the database connection pool", "The report endpoint runs CPU-heavy or blocking code on the event loop thread, stalling every other task", "asyncio has a global lock per endpoint", "The GIL prevents concurrent requests"]
-  answer: 1
+  options: ["The report runs CPU-heavy or blocking code on the loop", "The report endpoint exhausts the shared database connection pool", "The GIL stops the other requests from running concurrently", "asyncio holds a global lock per endpoint during each request"]
+  answer: 0
   explanation: >-
-    One thread runs every coroutine, and it only switches at awaits. A long synchronous stretch holds it; average CPU stays low because it is one core out of many. Run with debug=True to find slow callbacks, then offload with asyncio.to_thread or a process pool.
+    One thread runs every coroutine, and it only switches at awaits. A long synchronous stretch in the report handler holds it and stalls every other task; average CPU stays low because it is one core out of many. A pool shortage would slow only the queries waiting for connections, not every endpoint. Run with debug=True to find slow callbacks, then offload with asyncio.to_thread or a process pool.
 - q: >-
     A coroutine fetches 100 URLs with `for u in urls: out.append(await fetch(u))`. Each fetch takes 200 ms. Rewriting it with asyncio.gather and a Semaphore(10) brings the total to roughly:
-  options: ["20 seconds, unchanged", "2 seconds", "200 ms", "10 seconds"]
-  answer: 1
+  options: ["About 10 seconds", "About 20 seconds", "About 2 seconds", "About 200 ms"]
+  answer: 2
   explanation: >-
     Sequential awaits take 100 × 200 ms = 20 s. With at most 10 in flight, the 100 fetches run in about 10 waves of 200 ms, so about 2 s. Unbounded gather might approach 200 ms but risks exhausting connections and tripping rate limits.
 - q: >-
     tokio::spawn(task) fails with "future cannot be sent between threads safely", pointing at a std::sync::MutexGuard. What is the compiler telling you?
-  options: ["std::sync::Mutex cannot be used with Tokio at all", "The guard is held across an .await; the task may resume on another worker thread, and the guard is not Send", "The future is too large to spawn", "Tokio requires every future to be Sync"]
-  answer: 1
+  options: ["Tokio requires every spawned future to be Sync as well", "The future is too large for Tokio to spawn onto the heap", "std::sync::Mutex cannot be used inside Tokio tasks at all", "The guard is held across an .await, and it is not Send"]
+  answer: 3
   explanation: >-
-    Tokio's work-stealing runtime can move a suspended task between threads, so spawned futures must be Send. A std MutexGuard is not Send, and holding it across .await would also block other tasks for the duration. Drop the guard before awaiting, or use tokio::sync::Mutex if you truly must hold it. std::sync::Mutex is fine when the guard never crosses an await.
+    Tokio's work-stealing runtime can move a suspended task between worker threads, so spawned futures must be Send (not Sync). A std MutexGuard is not Send, and holding it across .await would also block other tasks for the duration. Drop the guard before awaiting, or use tokio::sync::Mutex if you truly must hold it. std::sync::Mutex is fine when the guard never crosses an await.
 - q: >-
     A single-threaded asyncio program checks `if balance >= amount`, then awaits an audit write, then subtracts. Can two concurrent withdrawals overdraw the account?
-  options: ["No: one thread means no races", "Yes: another task can run at the await between the check and the update", "Only on the free-threaded build", "Only if the audit write fails"]
-  answer: 1
+  options: ["Yes: another task can run at the await before the update", "Only if the audit write fails and the task retries it", "Only on the free-threaded build, where tasks run in parallel", "No, because one thread means there can be no races"]
+  answer: 0
   explanation: >-
     There is no data race, but there is a race condition: the await hands control to the loop, another withdrawal passes the same check, and both subtract. Keep check and act together with no await in between, or hold an asyncio.Lock across both.
 ```

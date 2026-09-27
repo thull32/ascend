@@ -332,32 +332,32 @@ hints:
 ```quiz
 - q: >-
     In the reversal loop you write `curr.next = prev` and then `curr = curr.next`. What happens?
-  options: ["The list reverses correctly", "curr moves backwards to prev and the unvisited remainder is lost", "A null pointer exception on the first iteration", "The list becomes a cycle"]
+  options: ["The list still reverses, one node later than intended", "curr steps back onto prev and the remainder is lost", "The list turns into a cycle that the loop never leaves", "A null dereference is raised on the first iteration"]
   answer: 1
   explanation: >-
     After rewiring, curr.next is prev, so curr steps back onto the already reversed part and nothing references the remainder any more. Save nxt = curr.next before rewiring.
 - q: >-
     After splitting a list at its middle for Reorder List you forget `slow.next = None`. What does the interleave produce?
-  options: ["A correct result, since the merge stops when the second half ends", "A list with duplicated nodes", "A cycle, because the first half still runs into the second half which now points back into the first", "An empty list"]
-  answer: 2
+  options: ["A list in which some nodes appear twice in a row", "Only the first half, since the second one is detached", "A correct result; the merge stops once the second half ends", "A cycle, since the first half still runs into the second"]
+  answer: 3
   explanation: >-
-    Without the cut, the first half's tail still points into the second half. Once the second half is reversed and spliced back, following the list eventually loops, and any later traversal never terminates.
+    Without the cut, the first half's tail still points into the second half, which after reversal points back into the first. Once the second half is spliced back, following the list eventually loops, and any later traversal never terminates, so the merge stopping early does not save it.
 - q: >-
     Why does the k-group solution initialise `prev` to `group_next` instead of `None` before reversing a group?
-  options: ["To avoid a null check", "So the reversed group's tail already points at the rest of the list, removing a separate reconnect step", "Because groups are reversed from the back", "It is a style choice with no effect"]
-  answer: 1
+  options: ["To avoid a null check inside the reversal loop", "Because each group is reversed starting from its back end", "So the reversed group's tail already links to what follows", "It is a style choice that has no effect on the result"]
+  answer: 2
   explanation: >-
-    The reversal primitive makes the first node point at prev. Seeding prev with the node after the group means the group's old head, which becomes its tail, links to the remainder as a side effect of the loop.
+    The reversal primitive makes the first node point at prev. Seeding prev with the node after the group means the group's old head, which becomes its tail, links to the remainder as a side effect of the loop, removing a separate reconnect step.
 - q: >-
     Which statement about the dummy head is true?
-  options: ["It costs O(n) extra space", "It removes the special case where the list's head changes or is removed", "It is only useful for doubly linked lists", "It makes reversal O(1)"]
-  answer: 1
+  options: ["It is only useful when the list is doubly linked", "It costs O(n) extra space, one sentinel per node", "It makes reversal O(1) by giving a fixed anchor", "It removes the special case of changing the head"]
+  answer: 3
   explanation: >-
     A single sentinel node is O(1) space. It means operations that would otherwise need an `if node is head` branch, such as removing the first node or reversing a group that starts at the head, run through the general path.
 - q: >-
     An interviewer asks you to sort a singly linked list with no space constraint. What is the senior answer?
-  options: ["Bubble sort on the list, since swapping nodes is easy", "Copy the values into an array, sort, and write back or rebuild; note the O(n) memory and the cache advantage", "Recursive merge sort on the list, because in-place is always better", "Insert each node into a BST"]
-  answer: 1
+  options: ["Copy values to an array, sort, rebuild; note the O(n) memory", "Bubble sort on the list, since swapping nodes is easy", "Insert each node into a BST, then read it back in order", "Recursive merge sort on the list, since in-place always wins"]
+  answer: 0
   explanation: >-
-    With no space constraint the array route is simpler, faster on real hardware and easier to get right. Merge sort on the list is the answer once O(1) auxiliary space is required; saying when each applies is the point.
+    With no space constraint the array route is simpler, faster on real hardware thanks to cache locality, and easier to get right. Merge sort on the list is the answer once O(1) auxiliary space is required; saying when each applies is the point.
 ```

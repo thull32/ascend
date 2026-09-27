@@ -215,32 +215,32 @@ hints:
 ```quiz
 - q: >-
     A service writes to Postgres and then publishes to Kafka in the same request handler, retrying the publish on failure. What can still go wrong?
-  options: ["Nothing, because the retry guarantees delivery", "A crash after the database commit and before a successful publish loses the event, and concurrent requests can publish in a different order than they committed", "Kafka will reject events that arrive out of order", "The database transaction will roll back if the publish fails"]
-  answer: 1
+  options: ["Nothing, because retrying the publish guarantees delivery", "Kafka rejects events that arrive out of commit order", "The database transaction will roll back if the publish fails", "A crash between the two loses it, and order can diverge"]
+  answer: 3
   explanation: >-
-    Retries do not help if the process dies before they happen, and no mechanism orders two handlers' publishes by commit order. CDC or an outbox makes the database commit the only write, and derives the event from it.
+    A crash after the database commit and before a successful publish loses the event: retries do not help if the process dies before they happen. And no mechanism orders two handlers' publishes by commit order, so concurrent requests can publish in a different order than they committed. CDC or an outbox makes the database commit the only write, and derives the event from it.
 - q: >-
     A Debezium connector for a busy Postgres primary has been failing since Friday night. On Monday the primary's disk is nearly full. Why?
-  options: ["Debezium writes its offsets into the database", "The replication slot makes Postgres retain all WAL since the last confirmed LSN, so days of WAL have accumulated", "Kafka Connect copies tables into the database", "Snapshots create temporary tables"]
+  options: ["Repeated snapshot retries leave behind temporary tables", "The slot makes Postgres keep WAL since the last confirmed LSN", "Kafka Connect keeps staging copies of tables in the database", "Debezium stores its offsets and history in the database"]
   answer: 1
   explanation: >-
-    A slot pins WAL until the consumer confirms it. At tens of MB/s of WAL that is terabytes per day. Monitor retained WAL, cap it with max_slot_wal_keep_size, and page when a connector stops confirming.
+    A replication slot pins WAL until the consumer confirms it, so days of WAL have accumulated. At tens of MB/s of WAL that is terabytes per day. Monitor retained WAL, cap it with max_slot_wal_keep_size, and page when a connector stops confirming. Debezium keeps its offsets in Kafka Connect, not in the source database.
 - q: >-
     During an incremental snapshot, the search index sometimes shows a price that was changed minutes ago. What sink design prevents this?
-  options: ["Process events with more consumer instances", "Write documents with the event's log position as an external version so older writes are rejected", "Disable snapshots", "Use processing-time ordering"]
-  answer: 1
+  options: ["Order the writes by processing time at the search indexer", "Apply events with more consumer instances to cut lag", "Use the event's LSN as an external version on each write", "Disable snapshots and rely on streaming events alone"]
+  answer: 2
   explanation: >-
-    A snapshot chunk can emit an older version of a row after a newer streaming event. Version-conditional writes make the index keep the newest version regardless of arrival order. More consumers would make reordering worse.
+    A snapshot chunk can emit an older version of a row after a newer streaming event. Version-conditional writes (the log position as an external version) make the index reject older writes and keep the newest version regardless of arrival order. More consumers would make reordering worse.
 - q: >-
     Why is polling a table with WHERE updated_at > last_seen a weaker form of change capture than reading the log?
-  options: ["It is slower to query", "It misses deletes, misses updates that do not change updated_at, and can miss rows committed out of timestamp order", "It cannot run on replicas", "It requires a schema registry"]
+  options: ["It is slower, since every poll scans the whole table", "It misses deletes and rows whose updated_at is not bumped", "It cannot run against read replicas, so it loads the primary", "It needs a schema registry to interpret the polled rows"]
   answer: 1
   explanation: >-
-    Deleted rows are gone from the table, many code paths forget to bump updated_at, and a long transaction can commit a row with an earlier timestamp after the poller has moved past it. The log records every committed change in order.
+    Deleted rows are gone from the table, many code paths forget to bump updated_at, and a long transaction can commit a row with an earlier timestamp after the poller has moved past it. The log records every committed change in order. Polling can run on a replica and use an index; its problem is correctness, not speed.
 - q: >-
     The orders team wants other services to react when an order is placed. Why is the outbox usually better than letting consumers read CDC events from the orders tables directly?
-  options: ["The outbox is faster", "The outbox publishes deliberate, versioned business events, so internal table changes do not break consumers, while still committing atomically with the business change", "CDC cannot capture the orders table", "The outbox provides exactly-once delivery"]
+  options: ["CDC cannot capture tables that are written this often", "It publishes versioned business events, not internal rows", "The outbox has lower latency than reading table changes", "The outbox gives consumers exactly-once delivery for free"]
   answer: 1
   explanation: >-
-    Raw CDC exposes row-level mutations of internal tables as a public contract. The outbox keeps atomicity (same transaction) and decouples the event schema from the table schema. It is still at-least-once, so consumers deduplicate.
+    Raw CDC exposes row-level mutations of internal tables as a public contract, so a table change breaks consumers. The outbox keeps atomicity (the event commits in the same transaction as the business change) and decouples the event schema from the table schema. It is still at-least-once, so consumers deduplicate.
 ```

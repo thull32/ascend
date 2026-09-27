@@ -364,32 +364,32 @@ hints:
 ```quiz
 - q: >-
     After insert("apple") only, a trie's search("app") returns true. What is the bug?
-  options: ["insert created the wrong nodes", "search checks only that the walk reached a node, not that the node's end flag is set; app is a prefix of a stored word but not a stored word", "The trie is case sensitive", "search should return the node, not a boolean"]
-  answer: 1
+  options: ["insert skipped creating the node for the second p", "search walks one letter too few before checking", "The trie compares letters case-sensitively by default", "search checks that the node exists, not its end flag"]
+  answer: 3
   explanation: >-
-    Every prefix of a stored word has a node. Only the final node of each inserted word carries the end flag, and search must test it. starts_with is the operation that ignores the flag.
+    Every prefix of a stored word has a node, so app is reachable even though it is not a stored word. Only the final node of each inserted word carries the end flag, and search must test it. starts_with is the operation that ignores the flag.
 - q: >-
     In Design Add and Search Words, search(".a") after adding bad, dad and mad returns:
-  options: ["true, because three words match the first two letters", "false, because after matching any first letter and a, the pattern is exhausted at nodes whose end flag is false", "An error, because . must be the last character", "true only if the words are inserted in sorted order"]
-  answer: 1
+  options: ["An error, because . may only appear as the last character", "true, because three words match the first two letters", "true only if the words were inserted in sorted order", "false, since it ends on nodes whose end flag is unset"]
+  answer: 3
   explanation: >-
-    The wildcard branches to b, d and m; each has an a child, but the pattern ends there and those nodes are not word ends. The end-of-pattern base case must return node.end, not true.
+    The wildcard branches to b, d and m; each has an a child, but the pattern is exhausted there and those nodes are not word ends. The end-of-pattern base case must return node.end, not true.
 - q: >-
     Word Search II with 5,000 words on a 12 x 12 board. Compared with running single-word Word Search per word, what does the trie change?
-  options: ["It makes each individual search faster by a constant factor", "It lets one DFS from each cell advance through all words at once and abandon a path as soon as no word continues with that letter, removing the factor of W from the running time", "It removes the need to mark visited cells", "It reduces memory"]
-  answer: 1
+  options: ["It mainly reduces memory compared with a word list", "It speeds up each individual word search by a constant", "One DFS per cell advances through all words at once", "It removes the need to mark cells visited during DFS"]
+  answer: 2
   explanation: >-
-    Carrying a trie node through the DFS means every step is a single child lookup that either continues (some word has this prefix) or stops. The 5,000 separate searches would each re-explore the same board paths.
+    Carrying a trie node through the DFS means every step is a single child lookup that either continues (some word has this prefix) or stops, abandoning the path as soon as no word continues. That removes the factor of W: the 5,000 separate searches would each re-explore the same board paths. Visited marking is still needed.
 - q: >-
     Why does storing the whole word at its end node, and clearing it once found, matter in Word Search II?
-  options: ["It is purely stylistic", "It avoids rebuilding the string from the path and prevents reporting the same word twice when it is reachable from different start cells; deleting dead leaves afterwards also shrinks the trie so later DFS branches stop sooner", "It makes the trie a hash set", "It changes the asymptotic complexity to O(1)"]
+  options: ["It makes each lookup O(1) regardless of word length", "It skips rebuilding strings and stops duplicate reports", "It is purely stylistic and changes nothing measurable", "It turns the trie into a hash set of the found words"]
   answer: 1
   explanation: >-
-    Both are practical optimisations that turn a solution that times out on the large tests into one that passes. Duplicate reporting is also a correctness issue when the expected output is a set.
+    Storing the word avoids rebuilding it from the path, and clearing it prevents reporting the same word twice when it is reachable from different start cells; deleting dead leaves afterwards also shrinks the trie so later branches stop sooner. Together these turn a solution that times out on the large tests into one that passes, and duplicate reporting is also a correctness issue when the expected output is a set.
 - q: >-
     A candidate is asked whether a pattern occurs anywhere inside a long text and proposes a trie of the text's prefixes. What is wrong?
-  options: ["Nothing; tries index all substrings", "A trie indexes prefixes, and a substring is a prefix of some suffix, so you would need a trie of all suffixes (a suffix tree) or a different algorithm such as KMP or a rolling hash", "Tries only work on lowercase letters", "The text is too long for a hash map"]
+  options: ["Nothing, since a trie of prefixes indexes every substring", "Tries index prefixes; substrings need suffixes or KMP", "Tries only work when the text is lowercase letters", "The text is too long to fit in a trie's hash maps"]
   answer: 1
   explanation: >-
-    Prefix structures answer starts-with questions. Substring search needs either every suffix indexed (suffix tree or array) or a linear-time matcher. Recognising the boundary of the pattern is the senior skill.
+    Prefix structures answer starts-with questions. A substring is a prefix of some suffix, so substring search needs either every suffix indexed (suffix tree or array) or a linear-time matcher such as KMP or a rolling hash. Recognising the boundary of the pattern is the senior skill.
 ```

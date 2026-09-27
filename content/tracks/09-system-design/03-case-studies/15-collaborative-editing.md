@@ -248,32 +248,32 @@ Formatting is where the simple model gets hard. Represent formatting as marks ov
 ```quiz
 - q: >-
     On the text "abc", Alice inserts X at position 1 while Bob concurrently deletes position 2. What must Bob's delete become when applied at Alice's replica?
-  options: ["Delete at 2", "Delete at 3", "Delete at 1", "It must be dropped"]
-  answer: 1
+  options: ["Delete at 3", "Drop the op", "Delete at 1", "Delete at 2"]
+  answer: 0
   explanation: >-
     Alice's insert at position 1 shifts every later character right, so the c that Bob meant is now at index 3. Applying delete-at-2 literally removes b and the replicas diverge. Alice's insert, transformed against Bob's delete, is unchanged because it is before the deleted position.
 - q: >-
     Why does the design give each document a single owner process that orders all its operations?
-  options: ["Because WebSockets cannot be load-balanced", "Because CRDTs require a single owner", "To reduce storage costs", "Because a document's op rate is small enough for one process, and a single order makes transformation simple and history linear without consensus on every keystroke"]
-  answer: 3
-  explanation: >-
-    Even a busy document produces a few hundred ops per second. The aggregate load is sharded across owners by document, and within a document one owner imposes a total order, which is what makes server-ordered OT tractable.
-- q: >-
-    An owner pauses for 20 seconds, its lease expires, a new owner takes over, and then the old owner wakes and tries to append version 5001. What prevents two different ops being stored as version 5001?
-  options: ["The primary key on (doc_id, version) makes the append conditional, so whichever writer is second fails", "The lease prevents the old owner from running", "The clients reject the old owner's messages", "Nothing; the conflict is resolved later by the CRDT"]
-  answer: 0
-  explanation: >-
-    A lease cannot stop a paused process from acting on stale beliefs. A conditional write in storage can: the log accepts one op per version, and the loser steps down. The log position acts as a fencing token.
-- q: >-
-    A client's connection drops after the server durably appended its op but before the ack arrived. What prevents the op from being applied twice when the client resends it?
-  options: ["TCP retransmission", "The client waits for the ack before applying locally", "The unique constraint on (doc_id, client_id, client_seq), which lets the server recognise the resend and re-acknowledge it", "Ops are idempotent by nature"]
+  options: ["To cut storage costs by keeping one copy of each document", "Because the CRDT merge requires a single owner per document", "One process handles a doc's op rate and gives a single order", "Because WebSocket connections cannot be load-balanced"]
   answer: 2
   explanation: >-
-    Insert operations are not idempotent: applying one twice inserts the text twice. Client sequence numbers act as idempotency keys, so the server returns the original version instead of appending a duplicate.
+    Even a busy document produces a few hundred ops per second. The aggregate load is sharded across owners by document, and within a document one owner imposes a total order, which makes transformation simple and history linear without consensus on every keystroke: that is what makes server-ordered OT tractable. CRDTs are precisely the approach that does not need a single owner.
+- q: >-
+    An owner pauses for 20 seconds, its lease expires, a new owner takes over, and then the old owner wakes and tries to append version 5001. What prevents two different ops being stored as version 5001?
+  options: ["Nothing; the CRDT merge resolves the conflict afterwards", "The expired lease stops the old owner from running any more code", "A (doc_id, version) primary key makes the append conditional", "Clients reject messages from the old owner's connection"]
+  answer: 2
+  explanation: >-
+    A lease cannot stop a paused process from acting on stale beliefs. A conditional write in storage can: the log accepts one op per version, so whichever writer is second fails and steps down. The log position acts as a fencing token.
+- q: >-
+    A client's connection drops after the server durably appended its op but before the ack arrived. What prevents the op from being applied twice when the client resends it?
+  options: ["The client waits for the ack before applying locally", "TCP retransmission, which drops duplicate segments", "A unique (doc_id, client_id, client_seq) constraint", "Insert and delete ops are idempotent by nature"]
+  answer: 2
+  explanation: >-
+    Insert operations are not idempotent: applying one twice inserts the text twice. Client sequence numbers act as idempotency keys, so the server recognises the resend and re-acknowledges it with the original version instead of appending a duplicate. TCP dedupe does not span a dropped connection.
 - q: >-
     Offline editing for hours is a core requirement. Which choice does that most strongly favour, and why?
-  options: ["Paragraph locks, because they avoid conflicts", "A sequence CRDT, because merging is commutative and roughly linear in the number of ops, while OT must transform every pending op against every missed op", "Last-writer-wins, because it is simple", "Server-ordered OT, because it has less metadata"]
-  answer: 1
+  options: ["A sequence CRDT, because any two histories merge by design", "Server-ordered OT, because it carries less metadata", "Paragraph locks, because they avoid conflicts entirely", "Last-writer-wins per document, because it is simple and cheap"]
+  answer: 0
   explanation: >-
-    Long divergent histories are where OT is most expensive and its merges most surprising. CRDTs merge any two histories by design. OT's lower metadata overhead is real but is not the deciding factor when offline is a core requirement.
+    Long divergent histories are where OT is most expensive and its merges most surprising: it must transform every pending op against every missed op. A CRDT merge is commutative and roughly linear in the number of ops. OT's lower metadata overhead is real but is not the deciding factor when offline is a core requirement.
 ```

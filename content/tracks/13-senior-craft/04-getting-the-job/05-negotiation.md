@@ -194,32 +194,32 @@ Some of the most valuable terms are not in the compensation table: the level and
 ```quiz
 - q: >-
     Why is level usually a bigger lever than negotiating within an offer?
-  options: ["Because bands are set per level with midpoints far apart, so the right level is often worth far more than any in-band increase, and it compounds through refreshers and promotions", "Because base salary cannot be negotiated", "Because recruiters are not allowed to change numbers", "Because level only affects your title"]
-  answer: 0
+  options: ["Because base salary is fixed by the band, so only the level can raise your pay", "Because recruiters cannot change an offer's numbers once it has been approved", "Because level sets your title, and title is what future employers pay for", "Because pay bands are set per level, and adjacent midpoints are far apart"]
+  answer: 3
   explanation: >-
-    A 10–15% in-band improvement is small next to the gap between adjacent levels' bands, and future refreshers and promotions start from your level. Base salary is negotiable but limited by the band.
+    Bands are set per level with midpoints far apart, so a 10–15% in-band improvement is small next to the gap between adjacent levels' bands, and the difference compounds because future refreshers and promotions start from your level. Base salary is negotiable but limited by the band, and equity and sign-on bonuses are usually more flexible still.
 - q: >-
     Offer A pays $371.5k, $341.5k, $341.5k and $341.5k over four years; Offer B pays $323k, $334k, $374k and $374k. There is a good chance you will leave after two years. Which is better on these numbers?
-  options: ["B, because its four-year total is higher", "It is impossible to compare them", "They are identical", "A, because it pays about $56k more over the first two years"]
-  answer: 3
+  options: ["B, because its four-year total is higher, and that is what the offer is worth", "Neither; they cannot be compared until you know the stock's future price", "A, because it pays about $56k more over the two years you are most likely to stay", "They are equivalent, because the sign-on bonuses offset the vesting shape"]
+  answer: 2
   explanation: >-
     B's small four-year advantage is concentrated in years three and four and disappears if you leave early. Over two years A pays $713k against B's $657k. That is why you compare year by year and under a leave-early scenario.
 - q: >-
     The recruiter calls with a verbal offer. What should you do on that call?
-  options: ["Accept immediately to show enthusiasm", "Counter on the spot with a higher base salary", "Express enthusiasm, ask for the full details in writing, ask your questions, and give a date by which you will respond", "Say you need a month to think"]
-  answer: 2
+  options: ["Counter on the spot with a higher base, while the recruiter is still engaged", "Show enthusiasm, ask for the details in writing, and give a date to respond by", "Accept on the call to show enthusiasm, then negotiate the details in writing", "Ask for a month to decide, so they know you are seriously weighing other options"]
+  answer: 1
   explanation: >-
-    The call is for gathering information and buying reasonable time. Accepting ends the negotiation, countering without the written details means negotiating blind, and an unreasonably long delay damages goodwill.
+    The call is for gathering information and buying reasonable time: express enthusiasm, ask for the full details in writing, ask your questions, and say when you will respond. A verbal yes is treated as a yes, so accepting ends the negotiation; countering without the written details means negotiating blind, and an unreasonably long delay damages goodwill.
 - q: >-
     Which counter-offer is strongest?
-  options: ["\"Is there any flexibility on the numbers?\"", "\"If you can bring the equity to $N and add a $S sign-on, I'm ready to sign this week\", backed by a competing offer's numbers", "\"I need more money or I'll walk.\"", "\"Other engineers I know earn more than this.\""]
-  answer: 1
+  options: ["A firm ultimatum on base salary, making it clear you will walk away without the raise", "A comparison with what engineers you know earn, to show that the offer is below market", "A polite, open-ended question about whether there is any flexibility at all on the numbers", "Specific equity and sign-on figures, backed by a competing offer, with a promise to sign"]
+  answer: 3
   explanation: >-
-    It is specific, targets flexible components, gives a factual reason and makes a conditional commitment the recruiter can take to approvers. Vague requests invite token increases, ultimatums create conflict, and anecdotes are weak evidence.
+    For example: "If you can bring the equity to $N and add a $S sign-on, I'm ready to sign this week", backed by a competing offer's numbers. It is specific, targets flexible components, gives a factual reason and makes a conditional commitment the recruiter can take to approvers. Vague requests invite token increases, ultimatums create conflict, and anecdotes are weak evidence.
 - q: >-
     You have no competing offer, and you will forfeit $60k of unvested equity by leaving. What is a reasonable ask?
-  options: ["Invent a competing offer to create leverage", "Ask for a sign-on bonus to make you whole for what you forfeit", "Accept the offer as is, since you cannot negotiate without another offer", "Demand a higher level"]
-  answer: 1
+  options: ["Accept the offer as it stands, since without a competing offer you have no leverage", "Mention an unnamed competing offer to create leverage, since it cannot be checked", "Ask for $60k more base salary, so the loss is covered within the first year", "Ask for a sign-on bonus to make you whole for the equity you would forfeit"]
+  answer: 3
   explanation: >-
-    Asking to be made whole for forfeited compensation is standard and usually well received, even without a competing offer. Inventing an offer is dishonest and risky, and you can still negotiate without one.
+    Asking to be made whole for forfeited compensation is standard and usually well received, even without a competing offer, and a one-off loss is naturally matched by one-off cash. Base is the least flexible component and a raise recurs every year, so it is a much bigger ask. Inventing an offer is dishonest and risky, and you can still negotiate without one.
 ```

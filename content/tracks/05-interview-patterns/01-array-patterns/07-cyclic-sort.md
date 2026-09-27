@@ -246,32 +246,32 @@ hints:
 ```quiz
 - q: >-
     Why is cyclic sort O(n) even though one index can be examined many times?
-  options: ["Each index is examined at most twice by construction", "Each swap moves one value to its final home, and there are at most n homes, so there are at most n swaps plus n advances", "The inner re-examination only happens on duplicates, which are rare", "It is actually O(n log n) but the log factor is small"]
-  answer: 1
+  options: ["Re-examination only happens on duplicates, which are rare in practice", "It is really O(n log n), but the log factor is small enough to ignore", "Each swap puts a value home for good, so swaps are capped at n", "Each index is examined at most twice, by construction of the loop"]
+  answer: 2
   explanation: >-
-    The bound counts swaps, not visits. A value that reaches its home is never moved again, so swaps are capped at n; every non-swap iteration advances i, so those are capped at n. An index can be revisited many times, but only at the cost of placing a different value permanently.
+    The bound counts swaps, not visits. A value that reaches its home is never moved again, so swaps are capped at n; every non-swap iteration advances i, so those are capped at n too. An index can be revisited many times, not just twice, but only at the cost of placing a different value permanently.
 - q: >-
     The guard is written as `while nums[i] != i + 1: swap(nums, i, nums[i] - 1)`. On which input does this fail, and how?
-  options: ["[1, 2, 3]; it swaps elements that are already in place", "[2, 1]; it terminates one step early", "[1, 1]; it swaps two equal values forever", "[3, 1, 2]; it reads past the end of the array"]
-  answer: 2
+  options: ["[1, 1]; it keeps swapping two equal values forever", "[2, 1]; it stops one step early and leaves 2 misplaced", "[3, 1, 2]; it indexes past the end of the array on a swap", "[1, 2, 3]; it swaps elements that are already in place"]
+  answer: 0
   explanation: >-
     With duplicates, the value at i is not at its index but its home already holds a copy. Swapping two equal values changes nothing, so the condition never becomes false. The fix compares the value against what is at its home rather than against the current index.
 - q: >-
     Which problem statement makes cyclic sort the wrong tool even though the values are in 1..n?
-  options: ["Find all numbers that appear twice", "Find the first missing positive in an array that also contains negatives", "Find the duplicate in an array you are not allowed to modify", "Find the single missing number"]
+  options: ["Find all numbers that appear twice in the array", "Find the first missing positive when negatives are present", "Find the duplicate in an array you may not modify", "Find the single missing number in the range"]
   answer: 2
   explanation: >-
     Cyclic sort rearranges the array. A no-mutation constraint forces a non-destructive approach such as Floyd's cycle detection on the index-to-value function. Negatives are handled by the range check; the single missing number has simpler alternatives but cyclic sort still works.
 - q: >-
     The values are in 0..n and the array has length n. Where should value n go during cyclic sort?
-  options: ["Index n - 1", "Index 0", "Nowhere; it has no valid home and is skipped", "Index n, after growing the array"]
+  options: ["Index n - 1, the last slot in the array", "Index n, after growing the array by one", "Nowhere; it has no home and is skipped", "Index 0, since n wraps around modulo n"]
   answer: 2
   explanation: >-
     With homes at index equals value, the array only has indices 0..n-1, so n has no slot. Skip it. After sorting, the first index whose value does not match is the missing number; if all match, n itself is the answer.
 - q: >-
     An interviewer asks for the single missing number in 0..n and forbids extra space. You propose cyclic sort. What is the strongest objection?
-  options: ["Cyclic sort is O(n log n) here", "The XOR or Gauss-sum approach does the same job without mutating the input and in fewer lines", "Cyclic sort cannot handle the value n", "Cyclic sort requires the values to be distinct"]
-  answer: 1
+  options: ["Cyclic sort only works when every value is distinct", "Cyclic sort is O(n log n) when the range includes 0", "XOR or a Gauss sum does it without mutating input", "Cyclic sort has no home index to put the value n in"]
+  answer: 2
   explanation: >-
-    For a single missing number with no duplicates, XOR over the range and the array cancels every present value and leaves the missing one, in O(n) time, O(1) space, and no mutation. Cyclic sort is correct but heavier; reserve it for the follow-ups that break the arithmetic tricks.
+    For a single missing number with no duplicates, XOR over the range and the array cancels every present value and leaves the missing one, in O(n) time, O(1) space, no mutation and fewer lines. Cyclic sort is correct here (value n is simply skipped) but heavier; reserve it for the follow-ups that break the arithmetic tricks.
 ```

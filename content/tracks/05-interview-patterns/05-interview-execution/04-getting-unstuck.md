@@ -172,32 +172,32 @@ You cannot practise recovery on problems you already know. Use unfamiliar proble
 ```quiz
 - q: >-
     Your sliding-window code has grown three special cases for the start of the array, and each fix breaks another test. What does this most likely indicate?
-  options: ["You need one more special case", "You should switch to a different programming language", "The tests are wrong", "The approach or the invariant is wrong, so step back and restate the invariant or reconsider the approach"]
-  answer: 3
-  explanation: >-
-    A growing list of special cases is one of the clearest signs of being stuck. Correct window code rarely needs them; they appear when the invariant is not actually maintained or the technique does not fit the problem, for example when negative values break the window.
-- q: >-
-    Which is the most effective way to ask for a hint?
-  options: ["Say what you have tried and ask a specific question, such as whether a particular structure is the right direction", "Ask for one within the first minute to save time", "Wait until minute 35 so that you have tried everything", "Ask the interviewer to show you the solution so you can explain it"]
-  answer: 0
-  explanation: >-
-    A specific question shows your reasoning, usually earns a small and precise hint, and makes it easy to integrate. Asking immediately signals no effort; asking at minute 35 leaves no time to use the hint; asking for the solution gives the interviewer nothing to assess.
-- q: >-
-    For "count subarrays summing to k", you solved the all-positive case with a sliding window. What does restoring negative values break, and what replaces it?
-  options: ["Nothing breaks; the window still works", "The problem becomes NP-hard, so use backtracking", "Shrinking the window no longer reliably lowers the sum, so use prefix sums with a hash map of earlier prefix counts", "Sorting the array fixes the window"]
+  options: ["The window just needs to start at index 1 instead of 0", "The tests are probably wrong, so question the expected output", "The invariant or approach is wrong; restate it first", "You need one more special case to cover the last input"]
   answer: 2
   explanation: >-
-    The window relies on shrinking always lowering the sum, which negative values violate. A subarray sums to k exactly when two prefix sums differ by k, so counting earlier prefixes equal to prefix − k gives an O(n) solution. Sorting destroys contiguity, so it cannot help.
+    A growing list of special cases is one of the clearest signs of being stuck: step back and restate the invariant or reconsider the approach. Correct window code rarely needs them; they appear when the invariant is not actually maintained or the technique does not fit the problem, for example when negative values break the window. Another special case or a shifted start index only moves the failure.
+- q: >-
+    Which is the most effective way to ask for a hint?
+  options: ["Say what you tried; ask if a direction is right", "Ask to see the solution so you can explain it back", "Wait until minute 35, so you have tried everything", "Ask for one within the first minute, to save time"]
+  answer: 0
+  explanation: >-
+    A specific question, such as whether a particular structure is the right direction, shows your reasoning, usually earns a small and precise hint, and makes it easy to integrate. Asking immediately signals no effort; asking at minute 35 leaves no time to use the hint; asking for the solution gives the interviewer nothing to assess.
+- q: >-
+    For "count subarrays summing to k", you solved the all-positive case with a sliding window. What does restoring negative values break, and what replaces it?
+  options: ["Sorting the array first restores the window property", "Shrinking can raise the sum; use prefix-sum counts", "The problem becomes NP-hard, so switch to backtracking", "Nothing breaks; the window logic still holds as is"]
+  answer: 1
+  explanation: >-
+    The window relies on shrinking always lowering the sum, which negative values violate. A subarray sums to k exactly when two prefix sums differ by k, so a hash map counting earlier prefixes equal to prefix − k gives an O(n) solution. Sorting destroys contiguity, so it cannot help.
 - q: >-
     At minute 21 you have no optimised approach for a medium problem. What is the most sensible fallback?
-  options: ["Keep searching for the optimal approach until the end", "Code the brute force cleanly, test it, and say where the bottleneck is", "Write pseudocode for an approach you are unsure of", "End the interview early"]
-  answer: 1
+  options: ["Write pseudocode for an approach you are unsure about", "Ask to end the round early and try another problem", "Code and test the brute force; name the bottleneck", "Keep searching for the optimal approach until the end"]
+  answer: 2
   explanation: >-
     Working, tested code earns credit on code quality and testing, gives the interviewer something concrete to probe, and often makes the repeated work visible enough to find the optimisation. It is usually not enough on its own for a strong algorithm score, but it beats running out of time with nothing that works.
 - q: >-
     Halfway through coding, you find a counterexample to your greedy approach. What is the best way to switch?
-  options: ["Quietly delete the code and start again", "State the counterexample, say why the new approach handles it, switch, and reuse the parts that carry over", "Keep patching the greedy approach to avoid wasting what you wrote", "Ask the interviewer whether the counterexample really matters"]
-  answer: 1
+  options: ["State the counterexample, switch, reuse what fits", "Ask whether the counterexample really needs handling", "Quietly delete the code and start again from scratch", "Keep patching the greedy to avoid wasting the code"]
+  answer: 0
   explanation: >-
-    Narrating the switch shows that you found the flaw and are choosing deliberately. Silent deletion looks like panic, patching a provably wrong approach wastes time, and questioning a valid counterexample reads as defensive.
+    Narrating the switch (the counterexample, why the new approach handles it, and which parts carry over) shows that you found the flaw and are choosing deliberately. Silent deletion looks like panic, patching a provably wrong approach wastes time, and questioning a valid counterexample reads as defensive.
 ```

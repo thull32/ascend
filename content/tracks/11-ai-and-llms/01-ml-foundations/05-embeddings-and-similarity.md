@@ -177,32 +177,32 @@ hints:
 ```quiz
 - q: >-
     Document A is a short answer and document B is A's text repeated five times, which gives B's embedding a larger norm in the same direction. With raw dot-product scoring, what happens?
-  options: ["A and B score the same", "B scores higher than A even though it adds no information, because the dot product grows with vector length", "A scores higher because shorter documents are preferred", "The dot product is undefined for vectors of different length"]
-  answer: 1
-  explanation: >-
-    The dot product is the cosine multiplied by both lengths, so a longer vector in the same direction scores higher. Cosine similarity, or normalising vectors before a dot product, removes the length effect and scores A and B equally.
-- q: >-
-    Your team upgrades to a better embedding model and embeds new documents with it, while the 50 million existing documents keep their old vectors. What happens to search quality?
-  options: ["It improves gradually as new documents arrive", "Nothing changes as long as both models have the same dimension", "Only the similarity threshold needs adjusting", "Queries embedded with one model are compared against vectors from another, unrelated coordinate system, so results become unreliable"]
+  options: ["A and B score the same, because they point in the same direction", "The score is undefined, because the vectors have different lengths", "A scores higher, because the dot product favours shorter documents", "B scores higher, because the dot product grows with the vector's length"]
   answer: 3
   explanation: >-
-    Two models' spaces are independently learned; equal dimension does not make their axes correspond. Every vector compared must come from the same model version, so an upgrade requires re-embedding the corpus (typically backfilled into a new index before switching queries).
+    The dot product is the cosine multiplied by both lengths, so a longer vector in the same direction scores higher even though B adds no information. Equal direction would give equal scores only under cosine similarity; cosine, or normalising vectors before a dot product, removes the length effect and scores A and B equally.
 - q: >-
-    For unit-length vectors, which statement is true?
-  options: ["The dot product equals the cosine similarity, and squared Euclidean distance equals 2 − 2·cosine, so all three rank neighbours identically", "Euclidean distance and cosine similarity can rank neighbours differently", "Cosine similarity is always 1", "The dot product is always between 0 and 1"]
-  answer: 0
-  explanation: >-
-    With norms of 1, the cosine formula's denominator is 1, and expanding the squared distance gives 1 + 1 − 2·(a·b). So the three measures are monotonic transformations of each other. The dot product of unit vectors can be negative, down to −1.
-- q: >-
-    A multi-tenant app retrieves the 10 nearest vectors from a shared ANN index, then removes those that belong to other tenants. What goes wrong for a small tenant?
-  options: ["Nothing; ANN indexes are exact after filtering", "Their queries become slower than other tenants' queries", "Their results are often empty or poor, because the 10 global neighbours mostly belong to larger tenants and are filtered out afterwards", "Their vectors are overwritten by larger tenants"]
-  answer: 2
-  explanation: >-
-    Post-filtering keeps only the survivors of a global top-10, and a tenant with a tiny share of the data rarely has any vectors in it. The filter must be applied during the search (pre-filtering, filter-aware traversal, or per-tenant indexes).
-- q: >-
-    You need semantic search over 200,000 help-centre passages at 20 queries per second. What is the simplest sound design for the search step?
-  options: ["An HNSW index is mandatory at any scale", "Brute-force dot products over normalised vectors in memory; it is exact and fast enough at this size", "k-means clustering with k = 200,000", "Keyword search only, since embeddings do not scale past 100,000 documents"]
+    Your team upgrades to a better embedding model and embeds new documents with it, while the 50 million existing documents keep their old vectors. What happens to search quality?
+  options: ["It improves gradually as more documents get the better model's vectors", "Vectors from two unrelated spaces are compared, so results degrade", "Only the similarity threshold needs re-tuning for the new model", "Nothing changes, because both models output the same dimension"]
   answer: 1
   explanation: >-
-    200,000 × 768 is about 150 million multiply-adds over 600 MB of float32 vectors per query: milliseconds to tens of milliseconds on one server, comfortably fast enough at 20 queries per second, with perfect recall and no index to tune. ANN becomes worthwhile at tens of millions of vectors or high query rates. Embeddings scale far beyond this size.
+    Two models' spaces are independently learned; equal dimension does not make their axes correspond, so a query embedded with one model is being compared against vectors from an unrelated coordinate system. Every vector compared must come from the same model version, so an upgrade requires re-embedding the corpus (typically backfilled into a new index before switching queries).
+- q: >-
+    For unit-length vectors, which statement is true?
+  options: ["The dot product always lies between 0 and 1, so it acts as a probability", "Cosine similarity is always 1, because both vectors have the same length", "Dot product, cosine and Euclidean distance rank neighbours identically", "Euclidean distance and cosine can still rank neighbours differently"]
+  answer: 2
+  explanation: >-
+    With norms of 1, the cosine formula's denominator is 1, so the dot product equals the cosine, and expanding the squared distance gives 1 + 1 − 2·(a·b) = 2 − 2·cosine. The three measures are monotonic transformations of each other, so they cannot disagree on ranking. Equal lengths say nothing about direction, so cosine is not always 1, and the dot product of unit vectors can be negative, down to −1.
+- q: >-
+    A multi-tenant app retrieves the 10 nearest vectors from a shared ANN index, then removes those that belong to other tenants. What goes wrong for a small tenant?
+  options: ["Its results are often empty, since the top 10 mostly belong to others", "Its vectors are evicted from the index by larger tenants' vectors", "Its queries run slower, because the filter scans every tenant's vectors", "Nothing, because ANN results are exact once the filter is applied"]
+  answer: 0
+  explanation: >-
+    Post-filtering keeps only the survivors of a global top-10, and a tenant with a tiny share of the data rarely has any vectors in it, so its results are often empty or poor. The filter must be applied during the search (pre-filtering, filter-aware traversal, or per-tenant indexes). Latency is not the problem; the filter runs over just 10 results.
+- q: >-
+    You need semantic search over 200,000 help-centre passages at 20 queries per second. What is the simplest sound design for the search step?
+  options: ["k-means with k = 200,000, searching by the nearest centroid first", "An HNSW index, since approximate search is required at any real scale", "Brute-force dot products over normalised vectors held in memory", "Keyword search only, since embeddings stop scaling past 100,000 documents"]
+  answer: 2
+  explanation: >-
+    Brute force is exact and fast enough here: 200,000 × 768 is about 150 million multiply-adds over 600 MB of float32 vectors per query, milliseconds to tens of milliseconds on one server, comfortably fast enough at 20 queries per second, with perfect recall and no index to tune. ANN becomes worthwhile at tens of millions of vectors or high query rates. Embeddings scale far beyond this size.
 ```

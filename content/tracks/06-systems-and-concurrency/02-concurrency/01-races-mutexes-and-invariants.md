@@ -369,32 +369,32 @@ The last hidden test is worth tracing by hand. Thread 0 loads 0 and stalls. Thre
 ```quiz
 - q: >-
     Two threads each run `x += 1` 1,000 times on a free-threaded Python build, with x starting at 0 and no lock. Which range of final values is possible?
-  options: ["Exactly 2000", "Anywhere from 1000 to 2000", "Anywhere from 2 to 2000", "Anywhere from 0 to 2000"]
-  answer: 2
+  options: ["Anywhere from 2 to 2000", "Anywhere from 0 to 2000", "Exactly 2000 every time", "Anywhere from 1000 to 2000"]
+  answer: 0
   explanation: >-
     1000 is the tempting floor, but a single stale store can erase many increments. Thread A loads 0 and stalls; B completes 999 increments; A stores 1; B loads 1 and stalls; A completes its remaining 999 (x = 1000); B stores 2. The floor is 2: every store writes a loaded value plus one, and each thread's final load happens after its own earlier stores, so the last store overall writes at least 2.
 - q: >-
     A Bank class locks correctly inside transfer(). A new total() method reads all balances without the lock "because it only reads". What can go wrong?
-  options: ["Nothing: reads cannot corrupt data", "total() can observe a transfer halfway through and report a sum that was never true", "total() can deadlock with transfer()", "The balances can become negative"]
+  options: ["Balances can go negative when it races with transfer()", "It can see a transfer halfway through and report a false total", "It can deadlock with transfer() when both run at once", "Nothing, because reads alone cannot corrupt shared data"]
   answer: 1
   explanation: >-
-    Between the debit and the credit the invariant (the sum is constant) is false. A reader outside the lock can see that intermediate state. Locks exist to hide broken invariants from every observer, readers included. No deadlock is possible with a reader that takes no lock.
+    Between the debit and the credit the invariant (the sum is constant) is false. A reader outside the lock can see that intermediate state and report a sum that was never true. Nothing is corrupted, but locks exist to hide broken invariants from every observer, readers included. No deadlock is possible with a reader that takes no lock.
 - q: >-
     Which bug does safe Rust's type system rule out at compile time?
-  options: ["Deadlock between two mutexes", "A data race on a shared counter", "A check-then-act race where each step locks separately", "Holding a lock across a slow network call"]
-  answer: 1
+  options: ["Holding a lock across a slow network call", "Check-then-act where each step takes the lock", "Deadlock between two threads taking two mutexes", "A data race on a plain counter shared by two threads"]
+  answer: 3
   explanation: >-
     Send, Sync and the borrow checker forbid unsynchronised shared mutation, which is exactly a data race. Deadlock, check-then-act across two lock() calls and slow critical sections all compile happily; they are logic and performance bugs, not memory-safety bugs.
 - q: >-
     Each request holds a global lock for 5 µs. The team wants 400,000 requests per second through it on a 32-core machine. What should you tell them?
-  options: ["Fine: 32 cores give 32 × 200,000 = 6.4 million per second", "Impossible as designed: one lock caps throughput near 200,000 per second, lower under contention; shrink or shard the critical section", "Fine, as long as they use a spinlock instead of a mutex", "Add more threads so the lock is always busy"]
-  answer: 1
+  options: ["Fine, once enough threads keep the lock busy at all times", "Fine: 32 cores × 200,000 per core gives 6.4 million per second", "Impossible: one lock caps it near 200,000 per second at best", "Fine, as long as a spinlock replaces the blocking mutex"]
+  answer: 2
   explanation: >-
-    A lock serialises its holders, so throughput is at most 1 / hold time = 200,000 per second regardless of core count, and handoff costs push the real ceiling lower. Cores do not multiply a serial section. Spinning changes the waiting strategy, not the serialisation.
+    A lock serialises its holders, so throughput is at most 1 / hold time = 200,000 per second regardless of core count, and handoff costs push the real ceiling lower. Cores do not multiply a serial section. Spinning changes the waiting strategy, not the serialisation; the fix is to shrink or shard the critical section.
 - q: >-
     Your Go service's tests pass with go test -race. What have you learned?
-  options: ["The program has no data races", "No data race occurred on the code paths and interleavings those tests actually executed", "The program has no race conditions", "The program cannot deadlock"]
-  answer: 1
+  options: ["The program has no data races and cannot deadlock", "The program has no data races on any possible code path", "The program has no data races or race conditions", "No race occurred in the interleavings tested"]
+  answer: 3
   explanation: >-
-    The race detector is dynamic: it tracks happens-before for accesses that really happen during the run. Untested paths, or tests that never run things concurrently, are invisible to it. It never claims anything about race conditions without a data race, or about deadlocks.
+    The race detector is dynamic: it tracks happens-before for accesses that really happen during the run, so a clean run only says no data race occurred on the paths and interleavings those tests executed. Untested paths, or tests that never run things concurrently, are invisible to it. It never claims anything about race conditions without a data race, or about deadlocks.
 ```

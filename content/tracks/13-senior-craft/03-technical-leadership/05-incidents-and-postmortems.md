@@ -165,32 +165,32 @@ Incident response depends on an on-call rotation that people can sustain. Every 
 ```quiz
 - q: >-
     Twelve minutes into an incident, the engineer acting as incident commander starts reading application logs to find the bug. What is the problem?
-  options: ["Logs are too slow to help", "ICs are not allowed to read logs", "It should have been escalated to a manager", "Nobody is coordinating anymore: priorities, assignments and communication stall while the IC debugs"]
-  answer: 3
+  options: ["Debugging should wait until the incident is over and the logs are complete", "Nobody is coordinating any more, so work and communication stall while the IC debugs", "Logs lag too far behind to help; the IC should be reading metrics instead", "The IC should have escalated to a manager before starting any diagnosis work"]
+  answer: 1
   explanation: >-
-    The IC's job is coordination and decisions. When they switch to debugging, responders duplicate work, communication stops and nobody approves mitigations. Hand the IC role over if you need to debug.
+    The IC's job is coordination and decisions: priorities, assignments and communication. When they switch to debugging, responders duplicate work, communication stops and nobody approves mitigations. Debugging during the incident is right; the IC doing it is the problem, so hand the IC role over if you need to debug.
 - q: >-
     Latency spiked 25 minutes after a deploy, and the cause is not yet understood. What is the best first mitigation?
-  options: ["Keep investigating until the root cause is certain", "Roll back the recent deploy, announcing it and freezing other changes", "Restart every service at once", "Fail over the database as a precaution"]
-  answer: 1
+  options: ["Keep investigating until the root cause is certain, to avoid a wrong fix", "Restart every service at once to clear any bad state the deploy left", "Fail over the database as a precaution while the team keeps digging", "Roll back the recent deploy, announcing it and freezing other changes"]
+  answer: 3
   explanation: >-
     Most incidents follow a change, and rollback is the fastest known-good mitigation. Understanding can wait until users are no longer affected. Restarting everything or failing over at the same time adds risk and destroys evidence.
 - q: >-
     A 99.9% monthly latency objective allows about 43 minutes of budget. An incident degrades 20% of requests for 50 minutes. Roughly how much budget does it consume?
-  options: ["About 5 minutes", "About 10 minutes", "About 25 minutes", "About 50 minutes"]
-  answer: 1
+  options: ["About 10 minutes", "About 25 minutes", "About 5 minutes", "About 50 minutes"]
+  answer: 0
   explanation: >-
     50 minutes × 20% of requests ≈ 10 minutes of full-outage equivalent, close to a quarter of the monthly budget. Weighting by the fraction affected is what makes partial degradations comparable with full outages.
 - q: >-
     A postmortem concludes "root cause: engineer error; the engineer forgot spawn_blocking". What is the main weakness?
-  options: ["It stops at human error instead of asking why the mistake was easy to make and hard to detect, so nothing systemic changes", "It is too short", "It names the wrong engineer", "Postmortems should not mention code"]
-  answer: 0
-  explanation: >-
-    Blameless analysis treats the error as a starting point. The useful findings are the missing test or lint, the canary that did not exercise the path, and the lack of saturation alerts, which the action items can fix.
-- q: >-
-    Which action item is most likely to reduce future risk?
-  options: ["Be more careful when refactoring async code", "Add more monitoring", "Add a test that fails if password hashing runs on an async worker thread; owner Dev; P1; due in one week", "Hold a meeting about code quality"]
+  options: ["It mentions code, when postmortems should stay at the process level", "It is too short to be useful without a full timeline of the incident", "It stops at human error instead of asking why the mistake was easy to make", "It names the engineer, when it should name the reviewer who approved it"]
   answer: 2
   explanation: >-
-    Good action items are specific, verifiable, owned, prioritised and dated. Exhortations and vague monitoring goals cannot be completed or checked.
+    Blameless analysis treats the error as a starting point and asks why the mistake was easy to make and hard to detect; stopping at human error means nothing systemic changes. Shifting blame to the reviewer has the same flaw. The useful findings are the missing test or lint, the canary that did not exercise the path, and the lack of saturation alerts, which the action items can fix.
+- q: >-
+    Which action item is most likely to reduce future risk?
+  options: ["Be more careful when refactoring async code; owner whole team; P2; ongoing", "Hold a meeting about code quality; owner the tech lead; P1; next sprint", "Add a test failing if hashing runs on async workers; owner Dev; P1; 1 week", "Add more monitoring to the auth service; owner SRE; P2; this quarter"]
+  answer: 2
+  explanation: >-
+    Good action items are specific, verifiable, owned, prioritised and dated. An owner and a date do not rescue an exhortation, a vague monitoring goal or a meeting: none of them can be completed or checked. A test that fails if password hashing runs on an async worker thread prevents the exact failure.
 ```

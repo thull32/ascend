@@ -132,32 +132,32 @@ And write. At organisational scale, work that is not written down did not happen
 ```quiz
 - q: >-
     Two teams have built similar internal caching wrappers. A colleague proposes a company-wide caching platform service. What is the strongest senior response?
-  options: ["Build the platform now, before more teams diverge", "Forbid teams from writing caching code", "Start with the lightest option that solves the problem, such as a documented pattern or shared library, and generalise further once more teams need it", "Let every team keep its own wrapper indefinitely"]
-  answer: 2
-  explanation: >-
-    Two instances is thin evidence that the needs are the same, and a platform carries permanent cost. A shared library or pattern captures the common part cheaply and leaves room to learn before committing to a service.
-- q: >-
-    An org-wide migration reached 90% of services in two months and has been stuck there for five. What was most likely missing from the plan?
-  options: ["A better codemod", "An explicit plan and budget for the long tail: a migration squad, an executive sponsor, and deprecation dates", "More announcements in the engineering channel", "A second reference implementation"]
-  answer: 1
-  explanation: >-
-    The last services are the ones without active owners or with special cases, and they do not respond to announcements. Funded help, someone with authority to decide deletions, and dates with consequences are what finish migrations.
-- q: >-
-    Flaky tests cost your team about 14 engineer-hours a week. Fixing the worst ones would take about 80 engineer-hours. How should you pitch it to your product manager?
-  options: ["As an investment that pays back in about six weeks and then returns roughly a third of an engineer every week", "As a quality principle that engineers care about", "By quietly fixing them during feature work", "By asking the manager to mandate it"]
-  answer: 0
-  explanation: >-
-    Framing technical work in the same currency as features (cost, payback, capacity regained) lets the PM compare it honestly. 80 ÷ 14 ≈ 5.7 weeks to break even.
-- q: >-
-    Every new feature in your area needs coordinated changes by three different teams, and planning is slow and contentious. What might a senior engineer suspect?
-  options: ["The teams need more meetings", "The product manager is writing unclear tickets", "The teams need a shared Slack channel", "Service or team boundaries may be misaligned with how the product changes, which is an architecture problem as much as a process one"]
+  options: ["Mandate the better of the two wrappers for every team and forbid new caching code", "Leave each team's wrapper alone, since two copies cost less than any shared code", "Build the platform service now, before more teams diverge and the migration gets harder", "Start with a documented pattern or shared library; generalise once more teams need it"]
   answer: 3
   explanation: >-
-    Conway's law links communication structure and system structure. Persistent cross-team coupling for routine changes often means boundaries are in the wrong place; fixing it may mean moving ownership or redrawing APIs.
+    Two instances is thin evidence that the needs are the same, and a platform carries permanent cost: documentation, support, migrations and often on-call. A shared library or pattern captures the common part cheaply and leaves room to learn before committing to a service. Building the platform now freezes a guess from two data points into a dependency every team must work around; the rule of three says generalise after the third real instance.
 - q: >-
-    Which opening is best for a written update to a VP about an at-risk project?
-  options: ["A detailed chronology of the last month's work", "A list of every ticket completed", "TL;DR with the status colour and reason, then risks with mitigations and one explicit decision you need", "A request for a meeting to discuss status"]
+    An org-wide migration reached 90% of services in two months and has been stuck there for five. What was most likely missing from the plan?
+  options: ["A second reference implementation so teams could pick the client that suits them", "A more capable codemod that migrates the remaining services automatically", "More frequent announcements so the lagging teams know the migration deadline", "Funding for the long tail: a migration squad, a sponsor and deprecation dates"]
+  answer: 3
+  explanation: >-
+    The last services are the ones without active owners or with special cases, and they do not respond to announcements or codemods, which only speed up services that were going to move anyway. Funded help (a migration squad), an executive sponsor with authority to decide deletions, and deprecation dates with consequences are what finish migrations.
+- q: >-
+    Flaky tests cost your team about 14 engineer-hours a week. Fixing the worst ones would take about 80 engineer-hours. How should you pitch it to your product manager?
+  options: ["As an engineering-quality principle, since flaky tests erode the team's trust in CI", "By fixing them quietly inside feature estimates so the roadmap is unaffected", "As an investment that pays back in six weeks and then frees about a third of an engineer", "By asking the engineering manager to mandate the work over the roadmap"]
   answer: 2
   explanation: >-
-    Executives need the conclusion, the risk and the ask first. Chronologies and ticket lists push the decision-relevant information to the end, and a meeting request without content wastes the first half of the meeting.
+    Framing technical work in the same currency as features (cost, payback, capacity regained) lets the PM compare it honestly: 80 ÷ 14 ≈ 5.7 weeks to break even, then roughly a third of an engineer returned every week. A quality principle is true but gives the PM nothing to weigh against features, and quietly padding estimates hides the trade-off from the person who owns the priorities.
+- q: >-
+    Every new feature in your area needs coordinated changes by three different teams, and planning is slow and contentious. What might a senior engineer suspect?
+  options: ["The teams need a shared channel and a common backlog to cut hand-offs", "Service or team boundaries are misaligned with how the product changes", "The product manager is writing tickets that are too vague to split cleanly", "The teams need more planning meetings to coordinate their roadmaps earlier"]
+  answer: 1
+  explanation: >-
+    Conway's law links communication structure and system structure. Persistent cross-team coupling for routine changes often means boundaries are in the wrong place, which is an architecture problem as much as a process one; fixing it may mean moving ownership or redrawing APIs. More meetings or shared channels treat the symptom and leave the coupling in place.
+- q: >-
+    Which opening is best for a written update to a VP about an at-risk project?
+  options: ["A TL;DR with status colour and reason, the risks, and the one decision you need", "A request for a meeting, since risk is better discussed live than in writing", "A detailed chronology of the last month, so the VP can see how the risk developed", "A list of every ticket completed, showing that the team is still delivering"]
+  answer: 0
+  explanation: >-
+    Executives need the conclusion, the risk and the ask first: a TL;DR with the status colour and reason, then risks with mitigations and one explicit decision. Chronologies and ticket lists push the decision-relevant information to the end, and a meeting request without content wastes the first half of the meeting.
 ```

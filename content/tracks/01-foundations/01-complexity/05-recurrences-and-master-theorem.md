@@ -252,32 +252,32 @@ hints:
 ```quiz
 - q: >-
     An algorithm splits its input into three equal parts, recurses on all three, and combines the results in linear time. What is its complexity?
-  options: ["Θ(n log n)", "Θ(n^log₂ 3) ≈ Θ(n^1.585)", "Θ(n)", "Θ(3^n)"]
-  answer: 0
+  options: ["Θ(n)", "Θ(n²)", "Θ(n log n)", "Θ(n^1.585)"]
+  answer: 2
   explanation: >-
-    T(n) = 3T(n/3) + n; here a = 3, b = 3, so n^(log₃ 3) = n, which matches f(n) = n: master theorem case 2, Θ(n log n). The n^1.585 figure is for a = 3, b = 2 (Karatsuba), where the problem sizes halve but there are three of them.
+    T(n) = 3T(n/3) + n; here a = 3, b = 3, so n^(log₃ 3) = n, which matches f(n) = n: master theorem case 2, Θ(n log n). The n^1.585 figure is for a = 3, b = 2 (Karatsuba), where the problem sizes halve but there are three of them. Θ(n) would need the combine step to be cheaper than n, and Θ(n²) would need more subproblems than the split factor.
 - q: >-
     Which recurrence describes an exponential-time algorithm?
-  options: ["T(n) = 2T(n/2) + n", "T(n) = T(n - 1) + n", "T(n) = 2T(n - 1) + 1", "T(n) = T(n/2) + n"]
-  answer: 2
+  options: ["T(n) = T(n - 1) + n²", "T(n) = 4T(n/2) + n²", "T(n) = 2T(n/2) + n", "T(n) = 2T(n - 1) + 1"]
+  answer: 3
   explanation: >-
-    Two calls that each shrink n by only a constant produce a tree of depth n that doubles in width each level: 2^n nodes. The first is n log n, the second is quadratic (sum 1..n), and the fourth is linear (root dominates).
+    Two calls that each shrink n by only a constant produce a tree of depth n that doubles in width each level: 2^n nodes. 2T(n/2) + n is n log n and T(n - 1) + n² is cubic (1² + 2² + ... + n²). 4T(n/2) + n² has more branches, but they shrink n by a constant factor, so the depth is only log n and it is polynomial: Θ(n² log n).
 - q: >-
     Quicksort's pivot always lands at the 1% mark, splitting the array 1:99. What is the resulting complexity?
-  options: ["Θ(n²), because the split is so unbalanced", "Θ(n log n) with a large constant, because a constant-fraction split still gives logarithmic depth", "Θ(n)", "Θ(n^1.99)"]
-  answer: 1
+  options: ["Θ(n), because each level discards most of the array", "Θ(n^1.99), from the 99% side of the split", "Θ(n²), because the split is so unbalanced", "Θ(n log n), since the depth is still logarithmic"]
+  answer: 3
   explanation: >-
-    The depth is log base 100/99 of n, which is about 69 log₂ n: logarithmic, just with a bigger constant. Each level still does n total work. Only splits that remove a constant number of elements (T(n-1)) make the depth linear and the total quadratic.
+    The depth is log base 100/99 of n, which is about 69 log₂ n: logarithmic, just with a bigger constant. Each level still does n total work, since quicksort recurses on both sides. Only splits that remove a constant number of elements (T(n-1)) make the depth linear and the total quadratic.
 - q: >-
     You memoise the naive recursive Fibonacci function. How does the complexity change, and why?
-  options: ["It stays Θ(φ^n) because the recursion is the same", "It becomes Θ(n) because each of the n distinct arguments is computed once with O(1) work", "It becomes Θ(log n) because halving is involved", "It becomes Θ(n²) because the memo table is two-dimensional"]
-  answer: 1
+  options: ["It becomes Θ(n), since each of the n arguments is computed once", "It becomes Θ(log n), as with fast matrix exponentiation", "It stays Θ(φ^n), because the call tree is unchanged", "It becomes Θ(n²), since each call scans the memo table"]
+  answer: 0
   explanation: >-
-    Memoisation means the recurrence no longer describes the cost; the cost becomes the number of distinct states (n) times the work per state (constant). The recursion depth is still n, so the auxiliary space is Θ(n).
+    Memoisation means the recurrence no longer describes the cost; the cost becomes the number of distinct states (n) times the work per state (constant), and repeated calls return from the memo instead of re-expanding the tree. Θ(log n) needs a different algorithm (matrix powers), not a cache. The recursion depth is still n, so the auxiliary space is Θ(n).
 - q: >-
     For T(n) = 2T(n/2) + n log n, why does the master theorem not apply, and what is the answer?
-  options: ["It applies, case 2: Θ(n log n)", "It applies, case 3: Θ(n log n)", "n log n is larger than n^(log₂ 2) = n by only a logarithmic factor, not a polynomial one, so no case matches; the recursion tree gives Θ(n log² n)", "It applies, case 1: Θ(n)"]
+  options: ["Case 1 applies since the leaves dominate; Θ(n)", "Case 3 applies since f(n) grows faster than n; Θ(n log n)", "f exceeds n only by a log factor, not n^ε; Θ(n log² n)", "Case 2 applies since f(n) is about n; Θ(n log n)"]
   answer: 2
   explanation: >-
-    Case 3 needs f(n) = Ω(n^(1+ε)), and n log n is not that for any ε > 0; case 2 needs f(n) = Θ(n), which is also false. Summing the tree levels (n log n + n log(n/2) + ...) gives Θ(n log² n).
+    Compare f(n) = n log n with n^(log₂ 2) = n. Case 3 needs f(n) = Ω(n^(1+ε)), and n log n is not that for any ε > 0, because it is larger by only a logarithmic factor; case 2 needs f(n) = Θ(n), which is also false. Summing the tree levels (n log n + n log(n/2) + ...) gives Θ(n log² n).
 ```

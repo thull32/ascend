@@ -232,32 +232,32 @@ hints:
 ```quiz
 - q: >-
     In Floyd's algorithm, why is it guaranteed that the fast pointer does not "jump over" the slow pointer without landing on it?
-  options: ["Because the fast pointer is always behind the slow pointer", "Because the gap between them changes by exactly one node per iteration, so it must pass through zero", "Because the cycle length is always even", "Because the list is finite"]
-  answer: 1
+  options: ["The gap between them shrinks by two nodes each iteration, reaching zero", "The list is finite, so fast must eventually visit every node in the cycle", "The gap between them shrinks by exactly one node each iteration", "The cycle length is always even, so a jump of two lands on every node"]
+  answer: 2
   explanation: >-
-    With speeds 1 and 2 the relative speed is 1, so the distance from slow to fast around the cycle decreases by one each iteration and reaches zero within C steps. With relative speed 2 the gap could skip zero on cycles of even length.
+    With speeds 1 and 2 the relative speed is 1, so the distance from slow to fast around the cycle decreases by one each iteration and must pass through zero within C steps. A gap that changed by two could skip zero on cycles of even length, and cycles can have any length.
 - q: >-
     After the pointers meet, one pointer is reset to the head and both advance one step at a time. They meet at the cycle start because:
-  options: ["The meeting point is always the cycle start", "slow has taken s = kC steps, so it is kC − F into the cycle; after F more steps it is at position kC, which is the cycle start, exactly when the head pointer arrives there", "The cycle length equals the tail length", "Both pointers move at the same speed so they must meet somewhere"]
-  answer: 1
+  options: ["slow is kC − F steps into the cycle, so F more steps land it on the start", "The first meeting point is always the cycle start, so the walk just confirms it", "Both pointers move at the same speed, so they are bound to meet somewhere", "The cycle length always equals the tail length, so both walks take F steps"]
+  answer: 0
   explanation: >-
-    Because fast took 2s steps and slow took s, the difference s is a multiple of C. Slow's position in the cycle is s − F = kC − F; adding F gives a multiple of C, i.e. the start. Same speed alone does not guarantee meeting.
+    Because fast took 2s steps and slow took s, the difference s = kC is a multiple of C. Slow's position in the cycle is s − F = kC − F; adding F gives a multiple of C, i.e. the start, exactly when the head pointer arrives there. Same speed alone does not guarantee meeting: two pointers at different cycle positions moving at equal speed never meet.
 - q: >-
     Which of these lets you apply Floyd's algorithm to an array of n + 1 integers in the range 1..n?
-  options: ["Sorting the array first", "Treating index i as a node whose next is nums[i]; the pigeonhole principle guarantees a cycle and the duplicate is the cycle start", "Using the array as a hash set", "Reversing the array"]
-  answer: 1
+  options: ["Treat index i as a node whose next is nums[i]; the duplicate starts the cycle", "Sort the array first, so equal values become adjacent nodes in the chain", "Use the array as a hash set, negating nums[v] to mark each value v seen", "Link index i to nums[i]; the duplicate is where slow and fast first meet"]
+  answer: 0
   explanation: >-
-    Values in 1..n are valid indices, so i → nums[i] defines a function on a finite set with n + 1 nodes and only n targets; some target has two incoming edges, and that node is where the cycle begins.
+    Values in 1..n are valid indices, so i → nums[i] defines a function on a finite set with n + 1 nodes and only n targets; by pigeonhole some target has two incoming edges, and that node is where the cycle begins. The first meeting point of slow and fast is somewhere inside the cycle, not necessarily its start, so the second phase (reset one pointer to the start) is still needed. Sorting and negation both modify the array.
 - q: >-
     Which comparison correctly tests whether the two pointers have met in a linked list of node objects?
-  options: ["slow.val == fast.val", "slow is fast (Python) or slow === fast (JavaScript)", "slow.next == fast.next", "id(slow.val) == id(fast.val)"]
-  answer: 1
+  options: ["slow is fast, since only identity proves they are the same node", "id(slow.val) == id(fast.val), since ids are unique per node", "slow.val == fast.val, since meeting means reaching the same value", "slow.next is fast.next, since equal successors mean the same node"]
+  answer: 0
   explanation: >-
-    Two distinct nodes may hold equal values, so value comparison gives false positives. Identity comparison checks that both references point at the same node.
+    Two distinct nodes may hold equal values, so value comparison gives false positives, and small ints share one object, so their ids match too. Identity comparison (`is` in Python, `===` on objects in JavaScript) checks that both references point at the same node. Equal successors do not prove it either: the cycle's first node has two predecessors.
 - q: >-
     You need to know the period of a deterministic state machine whose step function is expensive and whose states are large. The most appropriate method is:
-  options: ["Store every state in a hash set until one repeats", "Run Floyd's or Brent's algorithm over the step function, which uses O(1) memory and, with Brent, fewer step evaluations", "Run the machine for a fixed large number of steps and look for repeats visually", "Serialise every state to disk"]
-  answer: 1
+  options: ["Serialise every state to disk and compare checksums of each new one", "Run for a fixed large number of steps, then scan the log for repeats", "Store every state in a hash set until the first repeated state appears", "Run Floyd's or Brent's cycle detection over the step function"]
+  answer: 3
   explanation: >-
-    Cycle detection over an iterated function needs no storage of states. Brent's variant minimises evaluations of the expensive step function and reports the cycle length directly. A hash set costs memory proportional to the tail plus cycle length and requires hashing large states.
+    Cycle detection over an iterated function needs no storage of states: O(1) memory. Brent's variant minimises evaluations of the expensive step function and reports the cycle length directly. A hash set costs memory proportional to the tail plus cycle length and requires hashing large states.
 ```

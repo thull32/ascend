@@ -325,32 +325,32 @@ hints:
 ```quiz
 - q: >-
     Both pointers are inside a cycle of length c, and fast is currently d steps behind slow (measured forward from fast to slow). After how many more iterations do they meet?
-  options: ["c - d", "d", "c", "It depends on where the cycle entry is"]
-  answer: 1
+  options: ["Exactly d iterations", "Exactly c - d iterations", "Exactly c iterations", "It depends on the entry"]
+  answer: 0
   explanation: >-
     Each iteration fast gains exactly one step on slow, so the forward gap from fast to slow shrinks from d to 0 in d iterations. The entry position affects when they enter the cycle, not the closing speed.
 - q: >-
     In Find the Duplicate Number the array is treated as a function i -> nums[i]. Why is the cycle entry guaranteed to be the duplicated value?
-  options: ["Because the entry is the largest value in the array", "Because the entry index has two incoming edges, meaning two indices hold that value", "Because slow and fast always meet at the duplicate", "Because index 0 is part of the cycle"]
-  answer: 1
+  options: ["Because phase one always meets exactly at the duplicate", "Because the entry holds the largest value in the array", "Because the entry has two incoming edges from two indices", "Because index 0 lies inside the cycle and points to it"]
+  answer: 2
   explanation: >-
-    Two indices pointing to the same next index means two positions store the same value. Index 0 is never a target (values are 1..n), so 0 is a head outside the cycle, and the meeting point of phase one is generally not the entry.
+    Two indices pointing to the same next index means two positions store the same value, so the node with two incoming edges is the duplicate. Index 0 is never a target (values are 1..n), so 0 is a head outside the cycle, and the meeting point of phase one is generally not the entry.
 - q: >-
     You write `slow = fast = head` and then `while slow != fast: advance both`. What happens?
-  options: ["It finds the cycle correctly", "It loops forever on acyclic lists", "The loop body never runs because they start equal", "It crashes on an empty list"]
-  answer: 2
+  options: ["It crashes with a null dereference on an empty list", "It finds the cycle correctly, just one step later", "It loops forever on lists that have no cycle", "The body never runs, because they start equal"]
+  answer: 3
   explanation: >-
     The condition is false on entry. Either advance before comparing, or begin fast one step ahead, remembering that the latter changes the meeting point used by the entry argument.
 - q: >-
     Which constraint most strongly indicates the runner technique over a seen-set?
-  options: ["The list is long", "The list values may repeat", "O(1) extra space is required", "The list is sorted"]
-  answer: 2
+  options: ["The node values may repeat", "Extra space must be O(1)", "The node values are sorted", "The list may be very long"]
+  answer: 1
   explanation: >-
     Both approaches are O(n) time; the runner's advantage is constant memory. Repeated values are irrelevant because the runner compares node identity, and sorted order plays no role.
 - q: >-
     Happy Number can be decided with the runner because the sequence of digit-square sums is:
-  options: ["Always decreasing", "Bounded, so it must eventually revisit a value", "Always reaching 1 within 20 steps", "Random"]
-  answer: 1
+  options: ["Random, so a repeat is likely but not certain", "Strictly decreasing, so it must reach 1", "Bounded, so it must eventually revisit a value", "Certain to reach 1 within about 20 steps"]
+  answer: 2
   explanation: >-
     A number with d digits maps to at most 81d, which is below the number itself for d >= 4, so the sequence stays within a finite range and must repeat, either at the fixed point 1 or in another cycle. It is not monotone; 2 -> 4 -> 16 increases.
 ```

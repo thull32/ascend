@@ -392,38 +392,38 @@ hints:
 ```quiz
 - q: >-
     In a grid BFS a candidate marks cells visited when they are dequeued rather than when they are enqueued. What is the consequence?
-  options: ["None; the traversal order is the same", "A cell can be enqueued by each of its up-to-four neighbours before it is processed, so the queue fills with duplicates, each of which fans out again; distances stay correct but time and memory balloon", "Distances become wrong because cells are visited in the wrong level", "The BFS never terminates"]
-  answer: 1
+  options: ["Distances come out wrong, since cells land in the wrong level", "None; the visit order and the cost stay exactly the same", "The BFS never terminates, since cells keep being re-added", "Cells get enqueued several times, so time and memory balloon"]
+  answer: 3
   explanation: >-
-    Marking late allows multiple enqueues of the same cell. The first dequeue still assigns the correct distance, but every duplicate is processed and re-examines its neighbours. Mark on enqueue so each cell enters the queue once.
+    Marking late allows a cell to be enqueued by each of its up-to-four neighbours before it is processed. The first dequeue still assigns the correct distance, so distances are fine, but every duplicate is processed and fans out to its neighbours again. The traversal still ends because processed cells are eventually marked. Mark on enqueue so each cell enters the queue once.
 - q: >-
     Rotting Oranges on the grid [[2, 1, 1], [1, 1, 0], [0, 1, 1]]. The level-by-level BFS runs while the queue is non-empty and increments minutes after each level. Without a fresh-orange guard it returns:
-  options: ["4, which is correct", "5, because the final level of rotten oranges that rots nothing new still increments the counter", "3, because the first level is not counted", "-1"]
-  answer: 1
+  options: ["5, because the final empty level still counts", "-1, because one fresh orange is never reached", "3, because the first level is never counted", "4, which is the correct number of minutes"]
+  answer: 0
   explanation: >-
-    The last cell (2,2) rots at minute 4 and is then dequeued in a fifth level that finds nothing fresh. Guarding the loop with fresh > 0, or subtracting one at the end, gives 4.
+    The last cell (2,2) rots at minute 4 and is then dequeued in a fifth level that rots nothing new but still increments the counter. Guarding the loop with fresh > 0, or subtracting one at the end, gives 4. Every fresh orange is reachable here, so -1 is not in play.
 - q: >-
     Pacific Atlantic Water Flow is solved by traversing from the ocean edges inward to strictly-or-equal higher cells rather than from every cell outward. Why is that valid, and what does it save?
-  options: ["It is an approximation that is usually right", "Flow from cell A to ocean exists exactly when a climb from the ocean reaches A, so two traversals seeded with entire edges replace one traversal per cell, O(RC) instead of O((RC)^2)", "It only works when heights are distinct", "It saves memory but not time"]
-  answer: 1
+  options: ["It saves memory, but the time stays O((R·C)²) as before", "It is valid only when every height in the grid is distinct", "It is an approximation that happens to be right on most grids", "Reversing edges keeps reachability; two searches replace R·C"]
+  answer: 3
   explanation: >-
-    Reversing every edge preserves reachability between the same pair of endpoints. Seeding the traversal with all edge cells at once is a multi-source search, so each cell is visited at most once per ocean.
+    Flow from cell A to an ocean exists exactly when a climb from that ocean reaches A: reversing every edge preserves reachability between the same endpoints. Two traversals seeded with entire edges replace one traversal per cell, O(RC) instead of O((RC)^2), and each cell is visited at most once per ocean. Equal heights are handled by allowing equal-or-higher climbs.
 - q: >-
     A 2000 x 2000 grid is a single snake-shaped island. Which Number of Islands implementation is safe, and why?
-  options: ["Recursive DFS; the compiler optimises tail calls", "Iterative DFS or BFS with an explicit stack or queue; the recursive version would need up to four million frames and overflow", "Either; the grid fits in memory", "Neither; use union-find instead"]
-  answer: 1
+  options: ["Recursive DFS, since the runtime optimises the tail calls", "Neither; only union-find can handle a grid of that size", "Iterative DFS or BFS, since recursion could need 4M frames", "Either one, since the whole grid fits in memory anyway"]
+  answer: 2
   explanation: >-
-    Recursion depth equals the length of the path the DFS follows, which can be the whole island. An explicit stack holds the same cells on the heap without the call-stack limit. Union-find also works but is more code for no benefit here.
+    Recursion depth equals the length of the path the DFS follows, which can be the whole island: up to four million frames. An explicit stack or queue holds the same cells on the heap without the call-stack limit. Union-find also works but is more code for no benefit here.
 - q: >-
     In Word Ladder the candidate finds neighbours by comparing the current word against every dictionary word and counting differing letters. For N words of length L, what is the per-word cost, and what is the better approach?
-  options: ["O(L); it is already optimal", "O(N * L); instead generate the 26 * L one-letter edits and test each against a hash set, O(26 * L) per word", "O(N^2); instead sort the dictionary", "O(26^L); instead use DFS"]
-  answer: 1
+  options: ["O(N·L); generate 26·L edits and look each up in a set", "O(26^L) per word; switch to DFS to prune the search", "O(N²) per word; sort the dictionary and binary search", "O(L) per word, which is already optimal for this step"]
+  answer: 0
   explanation: >-
-    Scanning the dictionary per dequeued word costs O(N * L) each and O(N^2 * L) overall. Generating edits and checking set membership makes the neighbour step independent of N.
+    Scanning the dictionary per dequeued word costs O(N * L) each and O(N^2 * L) overall. Generating the 26 * L one-letter edits and checking hash-set membership costs O(26 * L) per word, which makes the neighbour step independent of N.
 - q: >-
     Checking whether an undirected edge list forms a valid tree, a candidate runs DFS and reports a cycle whenever a neighbour is already visited. On the edge list [[0,1]] with n = 2, the result is:
-  options: ["true, correct", "false, because when the DFS at node 1 looks back at node 0 it sees a visited node; the parent must be skipped", "An infinite loop", "true, but only by luck"]
+  options: ["true, but only because the edge list is sorted", "false, because node 1 sees its parent 0 as visited", "An infinite loop, since 0 and 1 keep revisiting", "true, which is the correct answer for this tree"]
   answer: 1
   explanation: >-
-    Every undirected edge is seen from both ends. The traversal must ignore the node it arrived from (or the edge id, when parallel edges are allowed). Additionally check that the edge count is n - 1 and every node was reached.
+    Every undirected edge is seen from both ends, so when the DFS at node 1 looks back at node 0 it finds a visited node. The traversal must skip the node it arrived from (or the edge id, when parallel edges are allowed). Additionally check that the edge count is n - 1 and every node was reached.
 ```

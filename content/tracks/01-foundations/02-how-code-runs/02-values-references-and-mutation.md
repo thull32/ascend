@@ -207,32 +207,32 @@ A senior engineer picks one per codebase area and states it. What they do not do
 ```quiz
 - q: >-
     In Python, `def f(xs): xs = xs + [1]` is called with a list `a`. After the call, `a` is:
-  options: ["Unchanged, because the function rebinds its local name to a new list", "Extended by 1, because lists are passed by reference", "Extended by 1 only if the list was non-empty", "A copy of the original"]
-  answer: 0
+  options: ["Extended by 1, since + on a list appends in place", "A new list object, because Python passes by value", "Unchanged, because xs is rebound to a new list", "Extended by 1, because lists are passed by reference"]
+  answer: 2
   explanation: >-
-    `xs + [1]` builds a new list and `xs =` rebinds the local name; the caller's object is untouched. `xs += [1]` or `xs.append(1)` would mutate the shared object and the caller would see it.
+    `xs + [1]` builds a new list and `xs =` rebinds the local name; the caller's object is untouched. "Passed by reference" is the tempting half-truth: the function does receive the same object, but rebinding a name never affects the caller. `xs += [1]` or `xs.append(1)` would mutate the shared object and the caller would see it.
 - q: >-
     A Go function receives `s := make([]int, 2, 8)` and does `t := append(s, 9); t[0] = 5`. What does the caller's `s` look like afterwards?
-  options: ["[0 0]: append always copies", "[5 0]: the append fit within capacity so t shares s's backing array", "[5 0 9]: the caller's length grew", "A compile error"]
-  answer: 1
+  options: ["[5 0 9]: the caller's length grew as well", "[0 0]: s is passed by value, so it is safe", "[0 0]: append always copies to a new array", "[5 0]: the append reused the backing array of s"]
+  answer: 3
   explanation: >-
-    Capacity 8 with length 2 means the append writes into the existing array and returns a header with length 3 over the same memory. The write to t[0] is visible through s. The caller's length stays 2, so it cannot see the 9.
+    Capacity 8 with length 2 means the append writes into the existing array and returns a header with length 3 over the same memory. The write to t[0] is visible through s. Passing a slice copies only its header, not the backing array, so "passed by value" does not protect it. The caller's length stays 2, so it cannot see the 9.
 - q: >-
     Which of these is a deep copy?
-  options: ["JavaScript `[...arr]`", "Python `arr[:]`", "JavaScript `structuredClone(obj)`", "Go `b := a` where a is a slice"]
-  answer: 2
+  options: ["JavaScript `structuredClone(obj)`", "JavaScript `Object.assign({}, obj)`", "Go `b := a` where a is a slice", "Python `list(arr)` or `arr[:]`"]
+  answer: 0
   explanation: >-
-    Spread and slicing create a new outer container but share every element. Assigning a Go slice copies only the 24-byte header. structuredClone recursively copies the whole reachable graph.
+    Object.assign, list() and slicing create a new outer container but share every element. Assigning a Go slice copies only the 24-byte header. structuredClone recursively copies the whole reachable graph.
 - q: >-
     A recursive Python function processes a list by calling itself on `xs[1:]`. On a list of 10,000 elements the total copying work is on the order of:
-  options: ["10,000 operations", "100,000 operations", "50 million operations", "It depends on the element size"]
-  answer: 2
+  options: ["About 100,000 reference copies", "About 50 million reference copies", "It depends on each element's size", "About 10,000 reference copies"]
+  answer: 1
   explanation: >-
     Each level copies the remaining n - k references: 9,999 + 9,998 + ... ≈ n²/2 = 50 million reference copies. The element size does not matter because only references are copied. Pass an index instead of slicing.
 - q: >-
     Why does Rust reject `let b = &mut a; let c = &a; b.push(1);` while Go and Python happily run the equivalent?
-  options: ["Rust does not support mutable collections", "Rust forbids a mutable reference coexisting with a shared reference to the same value, which is exactly the condition under which aliasing bugs occur", "Rust requires all collections to be cloned before mutation", "Rust cannot infer the lifetime of c"]
-  answer: 1
+  options: ["Rust cannot infer how long the borrow c must live", "Rust requires a clone before mutating a collection", "A &mut and a & to one value may not coexist", "Rust cannot mutate a Vec through any reference"]
+  answer: 2
   explanation: >-
-    The borrow rule is many shared or one mutable, never both at once. Go slices and Python lists allow both, which is why the bug class exists there. Cloning is not required; the fix is to end one borrow before starting the other.
+    The borrow rule is many shared or one mutable, never both at once, because a mutable reference coexisting with a shared one is exactly the condition under which aliasing bugs occur. Go slices and Python lists allow both, which is why the bug class exists there. Cloning is not required; the fix is to end one borrow before starting the other.
 ```

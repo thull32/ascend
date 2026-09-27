@@ -252,32 +252,32 @@ hints:
 ```quiz
 - q: >-
     In an O(1) LFU cache, why can min_freq be set to 1 after every insert of a new key without checking anything?
-  options: ["Because eviction always empties the lowest bucket", "Because a new key has frequency 1, so the lowest non-empty bucket is now bucket 1", "Because frequencies are reset on insert", "It cannot; you must scan for the minimum"]
+  options: ["Eviction always empties the min_freq bucket, so the old minimum is gone", "A new key has count 1, so bucket 1 is now the lowest non-empty bucket", "Each insert resets all existing counts to 1, so every key sits at the minimum", "It cannot; the minimum must be found by scanning buckets after an insert"]
   answer: 1
   explanation: >-
-    The new key lands in bucket 1, which is therefore non-empty and is the smallest possible frequency. min_freq only needs to move up when a promotion empties the bucket it points at.
+    The new key lands in bucket 1, which is therefore non-empty and is the smallest possible frequency. min_freq only needs to move up when a promotion empties the bucket it points at. Eviction removes one key from the lowest bucket and need not empty it; the reset is safe because of the new key, not because of the eviction.
 - q: >-
     A capacity-2 LFU cache runs put(1,1), get(1), get(1), put(2,2), get(2), put(3,3). Which key is evicted?
-  options: ["1, because 2 was used more recently", "2, because its frequency (2) is lower than key 1's (3)", "3, because it is newest", "Nothing; capacity was not exceeded"]
+  options: ["Key 3, because a new key starts at the lowest count", "Key 2, because its count (2) is below key 1's (3)", "No key, because capacity 2 was not exceeded", "Key 1, because key 2 was used more recently"]
   answer: 1
   explanation: >-
     Key 1 has count 3 and key 2 has count 2. LFU evicts the lowest count regardless of recency, so 2 goes even though it was touched last. LRU would have evicted 1.
 - q: >-
     Why is pure LFU (no aging) unusable for a cache in front of a news site?
-  options: ["It is O(log n) per access", "Yesterday's top story keeps a huge count forever and new stories are evicted before they can build one", "It cannot handle duplicate keys", "It uses too much memory per entry"]
+  options: ["Each access costs O(log n), too slow for a busy site's request rate", "Old stories keep huge counts forever, so new stories are evicted first", "A per-key count costs more memory than caching the stories saves", "One-hit wonders flush popular stories, just as a scan does under pure LRU"]
   answer: 1
   explanation: >-
-    Without decay, a count reflects all history. Old hits crowd out everything new. Periodic halving (TinyLFU) or time-based decrement (Redis) makes counts reflect recent frequency.
+    Without decay, a count reflects all history. Old hits crowd out everything new. Periodic halving (TinyLFU) or time-based decrement (Redis) makes counts reflect recent frequency. One-hit wonders are what LFU evicts most readily; its failure is the opposite, counts that never fade.
 - q: >-
     What does the count-min sketch in W-TinyLFU decide?
-  options: ["Which entry inside the main cache to evict", "Whether a new key is admitted, by comparing its estimated frequency with the eviction victim's", "The TTL of each entry", "How to shard the cache across threads"]
-  answer: 1
+  options: ["Whether a newcomer is admitted, by comparing it with the eviction victim", "Which entry inside the main cache is evicted, by its lowest estimated count", "How long each entry lives, by turning estimated frequency into a TTL", "How large the window LRU is, by tracking the hit ratio over time"]
+  answer: 0
   explanation: >-
-    TinyLFU separates admission from eviction. The main cache evicts by SLRU; the sketch is only consulted to decide if the newcomer deserves the victim's slot. One-hit wonders lose the comparison and never enter.
+    TinyLFU separates admission from eviction. The main cache evicts by SLRU; the sketch is only consulted to decide if the newcomer deserves the victim's slot. One-hit wonders lose the comparison and never enter. The window size is tuned by hill-climbing on the hit ratio, not by the sketch.
 - q: >-
     Redis stores an 8-bit LFU counter per key. How does it represent a million accesses?
-  options: ["It overflows and wraps to 0", "It increments probabilistically with probability falling as the counter grows, so the counter grows logarithmically", "It stores the count in a separate 64-bit field", "It caps at 255 after 255 accesses"]
-  answer: 1
+  options: ["It overflows and wraps to 0, so a very hot key briefly looks cold", "It keeps the exact count in a separate 64-bit field per key", "It saturates at 255 after 255 accesses and stops counting", "It increments with a probability that falls as the counter grows"]
+  answer: 3
   explanation: >-
-    The increment probability is 1/(counter × lfu_log_factor + 1). With the default factor of 10 it takes on the order of a million hits to reach 255, so the counter is a logarithmic estimate, not a raw count. It also decays over time.
+    The increment probability is 1/(counter × lfu_log_factor + 1). With the default factor of 10 it takes on the order of a million hits to reach 255, so the counter is a logarithmic estimate, not a raw count, and 255 is reached only after about a million accesses, not 255. It also decays over time.
 ```

@@ -221,32 +221,32 @@ hints:
 ```quiz
 - q: >-
     A social graph has 500 million users and an average of 200 friends each. Storing it as an adjacency matrix of bits would need about:
-  options: ["About 12.5 GB", "About 30 PB (petabytes)", "About 100 GB", "About 200 GB"]
-  answer: 1
+  options: ["About 30 PB", "About 12.5 GB", "About 400 GB", "About 30 TB"]
+  answer: 0
   explanation: >-
-    V² = 2.5 × 10^17 bits ≈ 3 × 10^16 bytes, roughly 30 petabytes. The adjacency list holds 10^11 directed entries, about 400 GB at 4 bytes each; sparse graphs make the matrix absurd.
+    V² = 2.5 × 10^17 bits ≈ 3 × 10^16 bytes, roughly 30 petabytes. The matrix size depends only on V, not on the 200 friends; 400 GB is the adjacency list (10^11 directed entries at 4 bytes each). Sparse graphs make the matrix absurd.
 - q: >-
     Your BFS from vertex 3 in an undirected graph never reaches vertex 0, although the input contains the edge [0, 3]. The most likely bug is:
-  options: ["BFS cannot handle undirected graphs", "The adjacency list was built with each edge added in one direction only", "Vertex 0 has degree zero", "The queue was implemented with a stack"]
-  answer: 1
-  explanation: >-
-    Adding only adj[0].append(3) makes the edge traversable from 0 but not from 3. Undirected edges must be inserted in both endpoints' lists.
-- q: >-
-    For which algorithm is an adjacency matrix the natural representation?
-  options: ["BFS on a road network", "Floyd-Warshall all-pairs shortest paths", "Kruskal's minimum spanning tree", "Topological sort of a build graph"]
-  answer: 1
-  explanation: >-
-    Floyd-Warshall is O(V³) and updates dist[i][j] for all pairs, so the O(V²) matrix costs nothing extra and gives O(1) access. The others are O(V + E) or O(E log E) algorithms where a matrix would dominate the cost.
-- q: >-
-    In JavaScript you track visited grid cells with a Set of [r, c] arrays and the BFS never terminates. Why?
-  options: ["Sets cannot hold arrays", "Arrays are compared by reference, so every new [r, c] is a distinct element and nothing is ever found in the set", "The grid is too large", "BFS requires a Map, not a Set"]
-  answer: 1
-  explanation: >-
-    Two arrays with the same contents are different objects. Use a string key like r + ',' + c, a numeric key r * cols + c, or a 2D boolean array.
-- q: >-
-    A puzzle has about 10^12 possible states, but the solution is 20 moves from the start and each state has 4 moves. Which representation should you use?
-  options: ["An adjacency list of all states, built up front", "An adjacency matrix", "An implicit graph: generate neighbours by applying moves, with a visited set of states actually reached", "A suffix array of states"]
+  options: ["The queue was a stack, so the search ran depth-first instead", "Vertex 0 has degree zero, so BFS has no edge by which to reach it", "Each edge was added to only one endpoint's adjacency list", "BFS treats edges as one-way, so it cannot cross undirected edges"]
   answer: 2
   explanation: >-
-    Only states within 20 moves are ever touched, at most 4^20 in the worst case and far fewer with a visited set. Building the full graph is impossible; the neighbour function is the graph.
+    Adding only adj[0].append(3) makes the edge traversable from 0 but not from 3. Undirected edges must be inserted in both endpoints' lists; BFS itself just follows whatever lists it is given. Using a stack would change the visiting order, not which vertices are reachable.
+- q: >-
+    For which algorithm is an adjacency matrix the natural representation?
+  options: ["Topological sort of a large build dependency graph", "Kruskal's minimum spanning tree on sparse input", "Floyd-Warshall all-pairs shortest paths", "BFS for hop counts on a national road network"]
+  answer: 2
+  explanation: >-
+    Floyd-Warshall is O(V³) and updates dist[i][j] for all pairs, so the O(V²) matrix costs nothing extra and gives O(1) access. The others are O(V + E) or O(E log E) algorithms on sparse graphs, where a matrix would dominate the cost; Kruskal wants a sorted edge list.
+- q: >-
+    In JavaScript you track visited grid cells with a Set of [r, c] arrays and the BFS never terminates. Why?
+  options: ["Arrays compare by reference, so a new [r, c] never matches a stored one", "Sets silently drop array values, so every add leaves the set empty", "BFS needs a Map from cell to distance; a Set cannot record visits", "Arrays are hashed by their first element only, so whole rows collide"]
+  answer: 0
+  explanation: >-
+    Two arrays with the same contents are different objects, so has([r, c]) on a freshly built array is always false even though the set holds a lookalike. Use a string key like r + ',' + c, a numeric key r * cols + c, or a 2D boolean array.
+- q: >-
+    A puzzle has about 10^12 possible states, but the solution is 20 moves from the start and each state has 4 moves. Which representation should you use?
+  options: ["An adjacency matrix over all states, giving O(1) move checks", "An edge list of all legal moves, sorted and scanned per step", "An adjacency list of every state, built once up front before searching", "An implicit graph: neighbours generated by applying moves on demand"]
+  answer: 3
+  explanation: >-
+    Only states within 20 moves are ever touched, at most 4^20 in the worst case and far fewer with a visited set of states actually reached. Building the full adjacency list is impossible at 10^12 states (and a matrix far worse); the neighbour function is the graph.
 ```

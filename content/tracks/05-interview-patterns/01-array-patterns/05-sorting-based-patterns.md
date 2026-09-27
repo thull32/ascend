@@ -286,37 +286,37 @@ hints:
 ```quiz
 - q: >-
     What does `[10, 9, 1].sort()` return in JavaScript?
-  options: ["[1, 9, 10]", "[1, 10, 9]", "[10, 9, 1]", "A TypeError because numbers need a comparator"]
-  answer: 1
+  options: ["[1, 9, 10]", "A TypeError", "[1, 10, 9]", "[10, 9, 1]"]
+  answer: 2
   explanation: >-
     The default comparator converts elements to strings and compares lexicographically, so "10" sorts before "9". Pass `(a, b) => a - b` for numeric order. No error is thrown, which is why this bug survives into production.
 - q: >-
     You need the 100th largest value from a stream of a billion readings that does not fit in memory. Which approach?
-  options: ["Sort all readings and index from the end", "Quickselect on the readings", "A min-heap of size 100 that evicts its minimum when a larger reading arrives", "Counting sort on the readings"]
-  answer: 2
+  options: ["A size-100 min-heap that evicts its minimum", "Counting sort on the readings, then scan down", "Quickselect over the readings for rank 100", "Sort all readings, then index 100 from the end"]
+  answer: 0
   explanation: >-
     A size-k min-heap uses O(k) memory and O(log k) per reading, and works without seeing the whole input. Sorting and quickselect both need all readings in memory; counting sort needs a small bounded key range, which sensor readings rarely have.
 - q: >-
     In Hand of Straights, why is it correct to always start a group at the smallest remaining card?
-  options: ["Because groups must be sorted internally", "Because no smaller card exists to precede it, so every valid grouping starts one group at it; the choice is forced", "Because decrementing counts is cheaper in sorted order", "It is a heuristic that usually works but can fail on some inputs"]
+  options: ["It is a heuristic that usually works but can fail on some inputs", "Because no smaller card can precede it, so it must start a group", "Because each group must be in sorted order internally", "Because decrementing counts is cheapest when done in sorted order"]
   answer: 1
   explanation: >-
     The smallest remaining card cannot be the second or later element of any run (that would need a smaller card), so in every valid grouping it starts a run. Consuming that run now therefore never eliminates a solution. Cost is not the argument, and the greedy is exact, not heuristic.
 - q: >-
     After sorting meetings by start time, why is it enough to compare each meeting only with its immediate predecessor?
-  options: ["Because adjacent intervals are the only ones that can overlap", "Because if a meeting overlaps a later non-adjacent one, it also overlaps the one immediately after it, since that one starts no later than the later meeting and before the first one ends", "Because the sort removes overlapping intervals", "Because overlaps are transitive"]
-  answer: 1
-  explanation: >-
-    Non-adjacent overlaps exist, but each implies an adjacent overlap: start[i+1] <= start[j] < end[i]. So a scan of adjacent pairs cannot miss a conflict. The sort does not remove anything, and overlap is not transitive in general.
-- q: >-
-    For Group Anagrams, compare the sorted-string key with a 26-letter count key.
-  options: ["Both group correctly; the sorted key costs O(L log L) per word and the count key O(L)", "The count key is wrong for words with repeated letters", "The sorted key is O(L) because the alphabet is fixed", "The count key needs the words to be sorted first"]
+  options: ["Because any overlap with a later meeting implies one with the next", "Because sorting by start removes the intervals that would overlap", "Because after sorting, only adjacent intervals are able to overlap", "Because overlap is transitive, so conflicts chain through neighbours"]
   answer: 0
   explanation: >-
-    Two words are anagrams exactly when their letter counts match, so a count tuple is a correct key and it is linear in the word length. Sorting characters is also correct but pays a log factor. Repeated letters are handled naturally by counts; no pre-sorting is needed.
+    Non-adjacent overlaps exist, but each implies an adjacent overlap: start[i+1] <= start[j] < end[i], because the next meeting starts no later than the later one and before the first one ends. So a scan of adjacent pairs cannot miss a conflict. The sort does not remove anything, and overlap is not transitive in general.
+- q: >-
+    For Group Anagrams, compare the sorted-string key with a 26-letter count key.
+  options: ["Both cost O(L) per word, because the alphabet has a fixed size", "The count key breaks on words that contain repeated letters", "Both group correctly; the count key drops the sort's log factor", "The count key only works if the word list is sorted first"]
+  answer: 2
+  explanation: >-
+    Two words are anagrams exactly when their letter counts match, so a count tuple is a correct key and it is linear in the word length. Sorting characters is also correct but costs O(L log L) per word; a fixed alphabet does not remove that log factor. Repeated letters are handled naturally by counts, and no pre-sorting is needed.
 - q: >-
     You want records ordered by department, and within each department by salary descending, using two separate calls to a stable sort. In which order do you make the calls?
-  options: ["Sort by department first, then by salary descending", "Sort by salary descending first, then by department", "Either order gives the same result", "Two stable sorts cannot produce a composite order"]
+  options: ["Two stable sorts cannot produce a composite order", "Sort by salary descending first, then by department", "Either order gives the same final result here", "Sort by department first, then by salary descending"]
   answer: 1
   explanation: >-
     A stable sort preserves the existing relative order among equal keys. Sorting by the secondary key (salary) first and then by the primary key (department) keeps the salary order within each department. The reverse order would scramble salaries within departments. Both keys in one comparator is the other correct option.

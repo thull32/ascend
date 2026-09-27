@@ -336,38 +336,38 @@ Implementations have bugs, so I verify: the server periodically publishes a hash
 ```quiz
 - q: >-
     Gossip in your system delivers each state message at least once and sometimes twice. Which merge property makes the duplicates harmless?
-  options: ["Commutativity", "Associativity", "Idempotence", "Monotonic reads"]
-  answer: 2
+  options: ["Idempotence", "Monotonic reads", "Associativity", "Commutativity"]
+  answer: 0
   explanation: >-
     Idempotence means merge(a, a) = a, so applying the same state twice changes nothing. Commutativity handles reordering and associativity handles relaying and batching; neither says anything about applying the same input twice. Monotonic reads is a session guarantee, not a merge property.
 - q: >-
     A G-Counter keeps one slot per replica instead of a single integer merged with max. Why?
-  options: ["To save space", "Because max over a single integer loses concurrent increments: two replicas each counting 2 would merge to 2", "Because addition is not commutative", "To support decrements"]
-  answer: 1
+  options: ["Because addition is not commutative across replicas", "To save space compared with storing every increment", "Because max on a single integer loses concurrent adds", "To let the counter support decrements as well"]
+  answer: 2
   explanation: >-
-    With one integer, concurrent increments collide under max. Per-replica slots mean no two replicas ever write the same slot, so per-slot max plus a sum adds the increments correctly. It costs more space, not less; decrements need a PN-Counter.
+    With one integer, concurrent increments collide under max: two replicas each counting 2 would merge to 2. Per-replica slots mean no two replicas ever write the same slot, so per-slot max plus a sum adds the increments correctly. It costs more space, not less; decrements need a PN-Counter.
 - q: >-
     In an OR-Set, replica A removes "milk" while replica B concurrently adds "milk" again. After both replicas merge, what does the set contain?
-  options: ["No milk, because remove wins", "Milk, because A's remove only deleted the tags it had observed and B's add created a new tag", "Milk twice", "It depends on the wall-clock timestamps"]
-  answer: 1
-  explanation: >-
-    The remove applies to the add tags A had seen. B's concurrent add has a fresh tag A never observed, so it survives: add wins. A 2P-Set would make milk impossible to re-add; an LWW-Element-Set would let clock skew decide.
-- q: >-
-    Why do practical OT systems such as Google Docs route every operation through a central server?
-  options: ["Because OT operations are too large to send peer-to-peer", "Because the server stores the CRDT metadata", "Because clients cannot compute transformations", "Because with a single authority imposing a total order only the TP1 property is needed, while peer-to-peer OT also needs TP2, which is very hard to get right"]
+  options: ["Milk twice, one copy from each replica's add", "No milk, because a remove always beats a concurrent add", "Whichever operation had the later wall-clock timestamp", "Milk, because B's add has a fresh tag that A never saw"]
   answer: 3
   explanation: >-
-    A central order means each operation is transformed along one path. Without it, transformations along different paths must agree (TP2), and several published algorithms were later shown to violate it. Operations are tiny and clients do transform; there is no CRDT metadata in OT.
+    The remove applies only to the add tags A had observed. B's concurrent add has a fresh tag A never observed, so it survives: add wins. A 2P-Set would make milk impossible to re-add; an LWW-Element-Set would let clock skew decide.
+- q: >-
+    Why do practical OT systems such as Google Docs route every operation through a central server?
+  options: ["Because one global order needs only TP1, not the harder TP2", "Because the server must store each document's CRDT metadata", "Because OT operations are too large to send peer-to-peer", "Because clients are too slow to compute transformations"]
+  answer: 0
+  explanation: >-
+    A single authority imposing a total order means each operation is transformed along one path, so only TP1 is needed. Without it, transformations along different paths must agree (TP2), and several published algorithms were later shown to violate it. Operations are tiny and clients do transform; there is no CRDT metadata in OT.
 - q: >-
     A retailer replicates inventory across three regions with a PN-Counter so every region can sell without coordination. What goes wrong?
-  options: ["Nothing; the counter converges", "Increments are lost during partitions", "Concurrent sales of the last unit in two regions both succeed and the merged stock goes negative", "The counter cannot represent decrements"]
-  answer: 2
+  options: ["Two regions sell the last unit; stock goes negative", "A PN-Counter cannot represent the decrements of sales", "Increments made during a partition are lost on merge", "Nothing; the counter converges to the correct total"]
+  answer: 0
   explanation: >-
     Convergence is not an invariant. Each region's decrement is valid locally and the merge faithfully sums both, giving -1. Preventing oversell needs coordination: a home region per SKU, or escrow of stock between regions.
 - q: >-
     Why does a sequence CRDT keep a tombstone for a deleted character instead of removing it?
-  options: ["Because a concurrent or delayed insert may reference the deleted character as its left neighbour and still needs a position", "To support undo", "Because deletes are not idempotent", "To preserve the document's length"]
-  answer: 0
+  options: ["So a user can later undo the delete from history", "To keep the visible document length stable for cursors", "A delayed insert may still use it as its left neighbour", "Because a delete applied twice would remove two characters"]
+  answer: 2
   explanation: >-
-    Inserts are positioned relative to element ids. If the anchor vanished, an insert that arrives later would have nowhere to attach and replicas could place it differently. Tombstones can be collected only once every replica has seen the delete.
+    Inserts are positioned relative to element ids. If the anchor vanished, a concurrent or delayed insert that arrives later would have nowhere to attach and replicas could place it differently. Deletes by id are already idempotent. Tombstones can be collected only once every replica has seen the delete.
 ```

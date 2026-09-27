@@ -209,32 +209,32 @@ hints:
 ```quiz
 - q: >-
     An analyst joins fct_invoice_line (one row per invoice line) to fct_invoice (one row per invoice) and sums fct_invoice.tax_usd. Tax comes out about 2.3 times too high. Why?
-  options: ["Tax is non-additive", "The join repeats each invoice's tax once per line, a grain mismatch; aggregate lines to invoice grain first or allocate tax to lines", "The tables need a snowflake schema", "Surrogate keys are missing"]
+  options: ["Tax is non-additive, so it can never be summed", "The join repeats each invoice's tax once per line", "The tables need a snowflake schema to join correctly", "Surrogate keys are missing, so invoices join twice"]
   answer: 1
   explanation: >-
-    Joining a coarser-grain table to a finer one repeats the coarse row for every fine row. With about 2.3 lines per invoice, invoice-level tax is summed 2.3 times. Tax is additive; the problem is grain.
+    Joining a coarser-grain table to a finer one repeats the coarse row for every fine row. With about 2.3 lines per invoice, invoice-level tax is summed 2.3 times. Tax is additive; the problem is a grain mismatch. Aggregate lines to invoice grain first, or allocate tax to lines.
 - q: >-
     A customer moves from France to Germany. Which slowly changing dimension type keeps last year's revenue reported under France?
-  options: ["Type 1", "Type 2", "Type 0 for all attributes", "Any type, as long as the fact table is partitioned"]
-  answer: 1
+  options: ["Any type, if facts are partitioned", "Type 3, keeping a previous value", "Type 2, adding a new version", "Type 1, overwriting the row"]
+  answer: 2
   explanation: >-
-    Type 2 closes the France version and adds a Germany version; facts keep pointing at the version valid when they occurred. Type 1 overwrites country and moves all history to Germany. Type 0 would never record the move.
+    Type 2 closes the France version and adds a Germany version; facts keep pointing at the version valid when they occurred. Type 1 overwrites country and moves all history to Germany. Type 3 adds a previous-country column, but every fact still joins the one row whose country is now Germany. Partitioning the fact table has nothing to do with which dimension version it joins.
 - q: >-
     A daily snapshot table stores active_subscribers per country per day. What does SUM(active_subscribers) over March for France return?
-  options: ["The number of active subscribers in France in March", "About 31 times the typical daily count, because the measure is semi-additive and must not be summed across time", "The number of new subscribers in March", "An error"]
+  options: ["An error, since snapshot measures cannot be aggregated", "About 31 times a typical day's count, which means nothing", "The number of new subscribers France gained in March", "The number of active subscribers in France in March"]
   answer: 1
   explanation: >-
-    Snapshot counts can be summed across countries on the same day but not across days. For a month, take the value on the last day, an average, or distinct subscribers from a lower-grain table.
+    The measure is semi-additive: snapshot counts can be summed across countries on the same day but not across days, so the query silently adds each subscriber once per day. For a month, take the value on the last day, an average, or distinct subscribers from a lower-grain table.
 - q: >-
     Why do columnar warehouses usually favour star schemas over snowflake schemas?
-  options: ["Snowflake schemas cannot be queried with SQL", "Repeated attribute values in denormalised dimensions compress well, and fewer joins make queries simpler and less error-prone", "Star schemas use less storage in row-oriented databases", "Snowflake schemas prevent slowly changing dimensions"]
-  answer: 1
+  options: ["Repeated values compress well and fewer joins mean fewer bugs", "Snowflake schemas cannot be queried efficiently with SQL", "Snowflake schemas cannot represent slowly changing dimensions", "Star schemas use less storage, even in row-oriented databases"]
+  answer: 0
   explanation: >-
-    Dictionary encoding makes repeated values in a wide dimension nearly free, so normalising them saves little while adding joins. The argument is about columnar storage and usability, not SQL capability.
+    Dictionary encoding makes repeated values in a wide denormalised dimension nearly free, so normalising them saves little while adding joins that make queries harder and more error-prone. The argument is about columnar storage and usability, not SQL capability.
 - q: >-
     A Type 2 customer dimension tracks every column, including last_login_at. It now has more rows than the payments fact table. What is the right fix?
-  options: ["Switch the whole dimension to Type 1", "Stop tracking volatile attributes in Type 2: keep last_login_at as Type 1 in a separate dimension or as a fact, and version only attributes that reports group by", "Partition the dimension by login date", "Add more surrogate keys"]
-  answer: 1
+  options: ["Add a surrogate key per login so versions stay distinct", "Switch the whole dimension to Type 1 to stop new versions", "Partition the dimension by login date to keep scans small", "Track only grouped-by attributes; move last_login_at out"]
+  answer: 3
   explanation: >-
-    Each tracked change creates a version, so a frequently changing attribute creates a version per login. Choosing tracked attributes deliberately keeps the dimension small while preserving the history that matters. Switching everything to Type 1 would lose country and plan history.
+    Each tracked change creates a version, so a frequently changing attribute creates a version per login. Version only the attributes reports group by, and keep last_login_at as Type 1 in a separate dimension or as a fact. Switching everything to Type 1 would lose country and plan history.
 ```

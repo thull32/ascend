@@ -175,7 +175,7 @@ When the read feeds a decision that writes: read the current cart before applyin
 ```quiz
 - q: >-
     A write to x = 1 is acknowledged at t = 20 ms. A different client starts a read of x at t = 50 ms and receives 0. Which models permit this?
-  options: ["Only eventual consistency", "Sequential, causal and eventual, but not linearizable", "All of them, because reads overlapping writes may return either value", "None; an acknowledged write must be visible"]
+  options: ["All of them, because reads overlapping writes may return either value", "Sequential, causal and eventual, but not linearizable", "None, because an acknowledged write must be visible to all", "Only eventual consistency, since the others forbid stale reads"]
   answer: 1
   explanation: >-
     Linearizability alone requires real-time ordering: a read that starts after the write completes must return it. Sequential and causal consistency allow a lagging replica to return the old value as long as the client never later sees a contradiction. The read does not overlap the write, so the "either value" option does not apply.
@@ -187,20 +187,20 @@ When the read feeds a decision that writes: read the current cart before applyin
     The user's own read did not reflect their own write: that is read-your-writes. Full linearizability would fix it but is far more than needed; isolation is about concurrent transactions on one node and is unrelated.
 - q: >-
     The cheapest correct way to give read-your-writes with Postgres replicas is:
-  options: ["Route every read to the primary", "Use synchronous replication to all replicas", "Return the write's WAL position to the client and only serve its next reads from a replica that has replayed at least that position", "Add a 2-second sleep after each write"]
-  answer: 2
+  options: ["Wait two seconds after each write so replicas can catch up", "Return the write's LSN; serve reads only from replicas past it", "Route every read to the primary, where the write landed", "Use synchronous replication so every replica has each write first"]
+  answer: 1
   explanation: >-
-    The LSN token costs one header and keeps replicas in use. Routing all reads to the primary throws away read scaling; synchronous replication to all replicas makes every write wait for the slowest replica; a sleep is a probabilistic guess that fails under lag spikes.
+    Returning the write's WAL position (LSN) to the client and serving its next reads only from a replica that has replayed at least that position costs one header and keeps replicas in use. Routing all reads to the primary throws away read scaling; synchronous replication to all replicas makes every write wait for the slowest replica; a sleep is a probabilistic guess that fails under lag spikes.
 - q: >-
     A service reads an inventory count from a replica, subtracts one, and writes the result to the primary. The likely bug is:
-  options: ["Phantom read", "Lost update from a read-modify-write on stale data", "Deadlock", "Write amplification"]
-  answer: 1
+  options: ["A lost update, from computing on a stale replica value", "A deadlock, from reading and writing on two different nodes", "Write amplification, from updating the primary and replicas", "A phantom read, from rows inserted during the transaction"]
+  answer: 0
   explanation: >-
-    The replica value may be behind the primary; writing a computed result overwrites updates the replica had not seen. A conditional write (WHERE version = expected) or a single atomic UPDATE on the primary prevents it.
+    This is a read-modify-write on stale data. The replica value may be behind the primary; writing a computed result overwrites updates the replica had not seen. A conditional write (WHERE version = expected) or a single atomic UPDATE on the primary prevents it. No locks are held across the two nodes, so there is nothing to deadlock.
 - q: >-
     Why is linearizability more expensive in a three-region deployment than in a single region?
-  options: ["It requires more disk space", "Every operation must coordinate with a majority, which pays a cross-region round trip of tens of milliseconds", "It disables caching", "It requires synchronous disk writes"]
-  answer: 1
+  options: ["Each operation needs a majority, so it waits on a cross-region RTT", "Each replica needs synchronous fsyncs, which are slower in far regions", "Caches must be disabled because they would serve stale data", "Each region must store a full copy, tripling disk space"]
+  answer: 0
   explanation: >-
-    The single-copy illusion needs coordination on each operation; when the majority spans regions, each commit waits on cross-region RTTs (60 to 150 ms). Disk usage is unchanged, caching is unaffected in principle, and fsync costs the same in one region.
+    The single-copy illusion needs coordination on each operation; when the majority spans regions, each commit waits on cross-region RTTs (60 to 150 ms). Disk usage is unchanged, caching is unaffected in principle, and fsync costs the same in one region as in three.
 ```

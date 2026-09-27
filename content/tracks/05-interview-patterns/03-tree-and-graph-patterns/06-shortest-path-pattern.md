@@ -310,38 +310,38 @@ hints:
 ```quiz
 - q: >-
     Dijkstra pops (d, u) from the heap and finds d greater than dist[u]. What should happen and why?
-  options: ["Update dist[u] = d", "Skip the entry: a cheaper path to u was found after this entry was pushed, so its distance is stale and relaxing from it would only redo work with worse values", "Terminate; the heap is corrupted", "Push it back with distance dist[u]"]
-  answer: 1
+  options: ["Stop the search, since the heap has become corrupted", "Update dist[u] to d, since the heap holds the latest value", "Push it back with dist[u] so the heap order is repaired", "Skip it; a cheaper path to u was found after it was pushed"]
+  answer: 3
   explanation: >-
-    Without decrease-key, a node is pushed again each time its distance improves. Older, larger entries remain in the heap and must be ignored when they surface. Correctness does not depend on the skip; performance does.
+    Without decrease-key, a node is pushed again each time its distance improves. Older, larger entries remain in the heap and must be ignored when they surface; relaxing from them would only redo work with worse values. Correctness does not depend on the skip; performance does.
 - q: >-
     Cheapest Flights Within K Stops with k = 1 on flights 0->1 (100), 1->2 (100), 1->3 (600), 2->3 (200), src 0, dst 3. Bellman-Ford relaxing in place (no per-round copy) returns:
-  options: ["700, correct", "400, wrong: within round 2 the freshly updated dist[2] = 200 is used to relax 2->3, admitting a path with 2 stops", "-1", "300"]
+  options: ["-1, since no route to 3 fits within one stop", "400, since a same-round update to dist[2] is reused", "700, which is the correct cheapest fare", "600, since only the direct 1->3 fare is counted"]
   answer: 1
   explanation: >-
-    The round invariant (at most i edges after round i) requires relaxing from the previous round's values. In-place updates let a path grow by more than one edge per round. Copying the array at the start of each round restores the bound and gives 700.
+    The round invariant (at most i edges after round i) requires relaxing from the previous round's values. In place, dist[2] = 200, set earlier in the same pass, feeds 2->3 immediately and admits the two-stop path 0 -> 1 -> 2 -> 3. Copying the array at the start of each round restores the bound and gives the correct 700.
 - q: >-
     Swim in Rising Water replaces d + w with max(d, w) in Dijkstra. Why does the settle-on-pop invariant still hold?
-  options: ["It does not; the algorithm is a heuristic", "Because max is monotone: extending a path never lowers its maximum, so the smallest tentative value in the heap cannot be beaten by any path through a larger one, exactly as with non-negative sums", "Because the grid values are distinct", "Because the goal is always the largest cell"]
-  answer: 1
+  options: ["It holds only because every elevation in the grid is distinct", "It does not hold; the minimax version is only a heuristic", "It holds because the goal cell always has the largest value", "max is monotone, so extending a path never lowers its cost"]
+  answer: 3
   explanation: >-
-    Dijkstra needs only that path cost never decreases as the path extends. Sums with non-negative weights have that property; so does the running maximum. Minimum with a max-heap gives the maximin variant for the same reason.
+    Dijkstra needs only that path cost never decreases as the path extends, so the smallest tentative value in the heap cannot be beaten by a path through a larger one. Sums with non-negative weights have that property; so does the running maximum. Distinct heights are not required. Minimum with a max-heap gives the maximin variant for the same reason.
 - q: >-
     The graph has 500 nodes, every edge weight is 1, and you need the shortest path from one node to another. A candidate writes Dijkstra. What is the senior objection?
-  options: ["Dijkstra does not work with unit weights", "BFS gives the same answer in O(V + E) without a heap; Dijkstra's O((V + E) log V) and extra code buy nothing here", "Floyd-Warshall would be faster", "Dijkstra needs the graph to be undirected"]
-  answer: 1
+  options: ["Dijkstra requires the graph to be undirected first", "Dijkstra gives wrong answers when every weight is 1", "BFS gives the same answer in O(V + E) with no heap", "Floyd-Warshall would be faster on only 500 nodes"]
+  answer: 2
   explanation: >-
-    Uniform weights mean edge count equals cost, which BFS optimises directly. Choosing the cheapest sufficient algorithm is part of what is being assessed.
+    Uniform weights mean edge count equals cost, which BFS optimises directly. Dijkstra is still correct, but its O((V + E) log V) and extra code buy nothing. Choosing the cheapest sufficient algorithm is part of what is being assessed.
 - q: >-
     Reconstruct Itinerary gives you flight tickets and asks for a route using every ticket once. Which is it?
-  options: ["Dijkstra with unit weights", "An Eulerian path, solved with Hierholzer's DFS that appends an airport when its tickets are exhausted and reverses at the end; it is not a shortest-path problem", "Bellman-Ford with negative cycle detection", "Minimum spanning tree"]
-  answer: 1
+  options: ["A shortest path, found with Dijkstra on unit weights", "A spanning tree, found with Prim's over the airports", "An Eulerian path, found with Hierholzer's DFS", "A negative-cycle check, found with Bellman-Ford"]
+  answer: 2
   explanation: >-
-    Using every edge exactly once is the Eulerian path condition. Nothing is minimised except the lexical order of choices. Recognising a non-shortest-path graph problem inside a routing-shaped statement is the point of the question.
+    Using every edge exactly once is the Eulerian path condition: Hierholzer's DFS appends an airport when its tickets are exhausted and reverses at the end. Nothing is minimised except the lexical order of choices. Recognising a non-shortest-path graph problem inside a routing-shaped statement is the point of the question.
 - q: >-
     Min Cost to Connect Points on 2000 points with Manhattan distances. Which approach and why?
-  options: ["Dijkstra from point 0; the sum of distances is the answer", "Prim's algorithm on the implicit complete graph, O(n^2) with an array or O(n^2 log n) with a heap; Kruskal would need to sort about 2 million edges", "BFS", "Floyd-Warshall"]
-  answer: 1
+  options: ["Prim's on the implicit complete graph in O(n²)", "Dijkstra from point 0, summing the final distances", "BFS from point 0, since every point is reachable", "Floyd-Warshall, then sum the shortest pairwise paths"]
+  answer: 0
   explanation: >-
-    All points must be connected, which is a spanning tree, not a shortest path. On a complete graph, Prim's O(n^2) array version avoids materialising every edge. Kruskal works but sorts n(n-1)/2 edges first.
+    All points must be connected, which is a spanning tree, not a shortest path. On a complete graph, Prim's O(n^2) array version avoids materialising every edge (a heap version is O(n^2 log n)). Kruskal works but must sort about 2 million edges first.
 ```

@@ -225,32 +225,32 @@ The hard constraint is capacity, not routing. If one of N regions fails, the res
 ```quiz
 - q: >-
     One of 20 identical-looking backends slows from 20 ms to 100 ms per request because of a noisy neighbour. With round robin, what happens to overall latency, and which algorithm limits the damage?
-  options: ["Nothing changes; averages hide one slow backend", "About 5% of all requests become slow, dragging the p95 up; least-outstanding-requests (ideally with power of two choices) sends the slow backend less work because its in-flight count grows", "All requests slow down equally; only adding servers helps", "Round robin automatically detects slow backends"]
-  answer: 1
+  options: ["Round robin automatically skips slow backends in time", "Nothing changes, since averages hide one slow backend", "~5% of requests turn slow; least-requests with P2C helps", "All requests slow down equally; only more servers help"]
+  answer: 2
   explanation: >-
-    Round robin gives the slow backend its full 1/20 share, so one request in twenty is slow. A load-aware algorithm sees in-flight requests piling up on the slow backend and routes around it, cutting its share roughly in proportion to its speed.
+    Round robin gives the slow backend its full 1/20 share, so about one request in twenty is slow and the p95 is set by one sick machine. Least-outstanding-requests (ideally with power of two choices) sees in-flight requests piling up on the slow backend and routes around it, cutting its share roughly in proportion to its speed. Round robin never looks at backend state.
 - q: >-
     All 40 instances fail their health checks when a shared database has a 30-second blip, and the load balancer serves errors for every request. Which two changes most directly prevent this?
-  options: ["Shorter health-check intervals and more instances", "Keep the shared database out of the readiness check, and configure a fail-open or panic threshold so that when most hosts look unhealthy the balancer uses all of them", "Switch from L7 to L4 balancing", "Enable sticky sessions"]
-  answer: 1
+  options: ["Enable sticky sessions, and raise the healthy threshold", "Shorter check intervals, and more instances in the pool", "Switch from L7 to L4 balancing, and lower the timeouts", "Keep the DB out of readiness checks, and add a panic threshold"]
+  answer: 3
   explanation: >-
-    The check made every instance share the database's fate, and the balancer had no rule for the case where everything looks down at once. Readiness should reflect the instance's own ability to serve; a panic threshold treats simultaneous failure of most hosts as a probable checking problem.
+    The check made every instance share the database's fate, and the balancer had no rule for the case where everything looks down at once. Readiness should reflect the instance's own ability to serve, not a shared dependency; a fail-open or panic threshold treats simultaneous failure of most hosts as a probable checking problem and uses all of them. Faster checks or more instances would all fail the same check together.
 - q: >-
     Why does P2C (pick two random backends, send to the less loaded) outperform both pure random choice and "always pick the global least loaded" when many independent balancers share a fleet?
-  options: ["It needs no load information at all", "One extra sample reduces the worst-case load imbalance exponentially compared with random choice, and the randomness stops balancers with stale counts from all herding onto the same idle backend", "It guarantees perfectly even load", "It avoids the need for health checks"]
-  answer: 1
+  options: ["It needs no load information about the backends at all", "It guarantees perfectly even load across every backend", "It removes the need for health checks on the backends", "Sampling two cuts imbalance; randomness stops herds"]
+  answer: 3
   explanation: >-
-    Balls-into-bins analysis shows two choices cut the maximum load from about ln n / ln ln n to about ln ln n / ln 2. Global least-loaded with stale information makes every balancer pick the same target at the same moment. P2C keeps most of the benefit of load awareness without the herd.
+    Balls-into-bins analysis shows two choices cut the maximum load from about ln n / ln ln n to about ln ln n / ln 2, an exponential improvement over random choice. Global least-loaded with stale information makes every balancer herd onto the same idle backend at the same moment. P2C keeps most of the benefit of load awareness without the herd, though it still needs in-flight counts and does not promise perfect balance.
 - q: >-
     For weights [5, 1, 1], smooth weighted round robin produces a, a, b, a, c, a, a. What does the naive approach (send weight-many in a row) produce, and why is the smooth version preferred?
-  options: ["The same sequence; they are equivalent", "a, a, a, a, a, b, c; the burst of five consecutive requests to one backend creates uneven short-term load, which the smooth version interleaves away", "a, b, c, a, b, c, a; the naive version ignores weights", "c, b, a, a, a, a, a; the naive version reverses the order"]
-  answer: 1
+  options: ["a, a, a, a, a, b, c: a burst that loads a unevenly", "The same sequence, since the two are equivalent", "c, b, a, a, a, a, a: the naive version reverses order", "a, b, c, a, b, c, a: the naive version ignores weights"]
+  answer: 0
   explanation: >-
-    Both give a five of seven share over a full cycle, but the naive version delivers it in a burst. Short-term bursts matter for queueing and for canaries, where you want the new version's share spread evenly in time.
+    Both give a five of seven share over a full cycle, but the naive version delivers it as a burst of five consecutive requests to one backend, which the smooth version interleaves away. Short-term bursts matter for queueing and for canaries, where you want the new version's share spread evenly in time.
 - q: >-
     A service runs active-active in three regions. What is the highest peak utilisation each region can run at if the service must survive the loss of any one region without shedding load?
-  options: ["100%", "About 67%", "50%", "33%"]
-  answer: 1
+  options: ["About 67%", "About 50%", "About 33%", "About 100%"]
+  answer: 0
   explanation: >-
     If one of three regions fails, two must carry the whole load, so each must have capacity for 1.5 times its normal share: normal utilisation of at most 2/3. With two regions the figure is 50%. Global failover is a capacity plan before it is a routing change.
 ```

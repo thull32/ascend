@@ -235,32 +235,32 @@ hints:
 ```quiz
 - q: >-
     During a session, an agent read .env and a production API key appeared in the transcript. Your vendor contract promises short retention. What should happen?
-  options: ["Nothing; retention is short", "Delete the conversation and move on", "Rotate the key the same day, check local session logs, then add controls (deny rules, sandboxing, no long-lived secrets on disk) so it cannot recur", "Ask the agent to forget the key"]
+  options: ["Delete the conversation, which removes the transcript from the vendor too", "Nothing, since the contract's short retention means the key will be purged", "Rotate the key the same day, then add controls so the leak cannot recur", "Tell the agent to forget the key and confirm it no longer appears in context"]
   answer: 2
   explanation: >-
-    Once sent, a secret must be treated as compromised: retention is a promise about the future, and copies may exist in local logs, screenshots or monitoring. Rotation removes the risk; the controls fix the cause. A model cannot forget a request that already happened.
+    Once sent, a secret must be treated as compromised: retention is a promise about the future, deleting the conversation does not un-send the request, and copies may exist in local logs, screenshots or monitoring. Rotation removes the risk; controls such as deny rules, sandboxing and no long-lived secrets on disk fix the cause. A model cannot forget a request that already happened.
 - q: >-
     Your repository's .gitignore lists .env. Does that stop a coding agent from reading the file?
-  options: ["Yes, agents respect .gitignore", "No; .gitignore only tells git not to track the file, and any process running as you can read it", "Only for terminal agents", "Only if the file is empty"]
-  answer: 1
+  options: ["Yes, because agents apply .gitignore to their file reads by default", "Only when the file is also listed in the agent's memory file as ignored", "Only for terminal agents, which honour it; IDE agents index everything", "No; .gitignore only affects git, and any process running as you can read it"]
+  answer: 3
   explanation: >-
     .gitignore is not an access control. Some tools skip ignored files in search results, but a read or a shell cat still works. Deny rules, sandboxes and keeping secrets off disk are the controls.
 - q: >-
     You want an agent to evaluate an unfamiliar open-source repository. What setup best limits the risk of instructions hidden in that repository?
-  options: ["Tell the agent to ignore instructions found in files", "Run it in a sandbox with no credentials and restricted network access, and do not auto-approve shell commands", "Use the most capable model available", "Only let it read Markdown files"]
+  options: ["Tell the agent to ignore any instructions it finds inside the repository", "A sandbox with no credentials, restricted network and no auto-approved shell", "Use the most capable model available, since it is best at spotting injection", "Only let it read Markdown and source files, never scripts or configuration"]
   answer: 1
   explanation: >-
-    Hidden instructions cannot be reliably filtered by the model. A sandbox without credentials means a successful injection finds nothing to steal and no way to send it. Instructions and model choice lower the odds; they do not bound the damage.
+    Hidden instructions cannot be reliably filtered by the model, and they can sit in any file, Markdown included. A sandbox without credentials and with restricted network access means a successful injection finds nothing to steal and no way to send it, and not auto-approving shell commands keeps you in the loop. Instructions and model choice lower the odds; they do not bound the damage.
 - q: >-
     An AI suggestion contains a 60-line function with distinctive comments and something resembling a licence header. What is the right response?
-  options: ["Accept it; AI output cannot be copyrighted", "Treat it as a possible verbatim copy: search for its origin, then either comply with the licence or write your own implementation, and enable a public-code filter if your tool offers one", "Delete the comments and keep the code", "Ask the model whether it copied the code"]
-  answer: 1
+  options: ["Delete the comments and licence header, then keep the code as your own", "Ask the model whether it copied the code, and accept it if it says no", "Search for its origin, then comply with the licence or write your own version", "Accept it, since AI output cannot be copyrighted and so carries no obligations"]
+  answer: 2
   explanation: >-
-    Verbatim reproduction of licensed code can carry obligations regardless of how it arrived. Stripping comments hides provenance without changing it, and the model cannot reliably tell you where its output came from.
+    Treat it as a possible verbatim copy. Reproduction of licensed code can carry obligations regardless of how it arrived, and the copyright status of AI output does not change that. Stripping comments hides provenance without changing it, and the model cannot reliably tell you where its output came from. Enable a public-code filter if your tool offers one.
 - q: >-
     Which of these may be pasted into an approved enterprise AI tool under a typical policy?
-  options: ["A stack trace that includes the production database connection string", "A sample of real customer emails to test a parser", "The source of an internal utility module that contains no secrets", "Details of an unpatched vulnerability in your login flow, into any tool"]
-  answer: 2
+  options: ["Details of an unpatched vulnerability in your login flow, into any tool", "The source of an internal utility module that contains no secrets", "A sample of real customer emails to test a new parser against", "A stack trace that includes the production database connection string"]
+  answer: 1
   explanation: >-
     Internal code without secrets is the use case approved tools exist for. Connection strings are credentials, customer emails are personal data, and unpatched vulnerability details follow the security team's process rather than general-purpose tools.
 ```

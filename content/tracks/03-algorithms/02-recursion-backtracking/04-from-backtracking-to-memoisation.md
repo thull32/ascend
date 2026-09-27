@@ -308,32 +308,32 @@ hints:
 ```quiz
 - q: >-
     A backtracking function count(i, path) counts valid completions from position i, where path is the list of choices so far and does not affect the count. The right memo key is:
-  options: ["(i, tuple(path))", "i", "tuple(path)", "len(path)"]
-  answer: 1
+  options: ["(i, tuple(path))", "len(path)", "tuple(path)", "i"]
+  answer: 3
   explanation: >-
     Only arguments that affect the result belong in the key. Including path makes every call unique and the cache never hits; keying on i alone gives n states. len(path) is usually just i again, but only if it is truly determined by i.
 - q: >-
     You add lru_cache to the naive Fibonacci and call fib(50000). What happens in CPython?
-  options: ["Returns instantly", "RecursionError: memoisation removes repeated work but not stack depth", "Returns the wrong answer because of integer overflow", "Hangs because the cache is unbounded"]
-  answer: 1
+  options: ["RecursionError, as the first call nests 50,000 frames deep", "It returns instantly, since each value is computed once", "It hangs, since the unbounded cache fills memory", "A wrong answer, since the integers overflow 64 bits"]
+  answer: 0
   explanation: >-
-    The first call still recurses 50,000 frames deep before any value is cached. Python's default limit is about 1,000. Bottom-up tabulation, or a loop, is the fix; overflow is not an issue for Python integers.
+    Memoisation removes repeated work but not stack depth: the first call still recurses 50,000 frames deep before any value is cached, and Python's default limit is about 1,000. Bottom-up tabulation, or a loop, is the fix; overflow is not an issue for Python integers, and 50,000 cached values are a trivial amount of memory.
 - q: >-
     Which problem does NOT benefit from memoisation?
-  options: ["Number of ways to segment a string into dictionary words", "The list of all permutations of 9 distinct items", "Whether a subset of the numbers sums to a target", "Minimum edits to turn one string into another"]
-  answer: 1
+  options: ["The list of all permutations of 9 distinct items", "Minimum edits to turn one string into another", "Number of ways to segment a string into dictionary words", "Whether a subset of the numbers sums to a target"]
+  answer: 0
   explanation: >-
     The output has 9! entries and no caching can produce them faster than writing them out. The other three are count, decide and minimise questions with polynomial state spaces (index; index and sum; two indices).
 - q: >-
     A memoised recursive function reads a global list that another part of the program mutates between calls. The symptom you should expect is:
-  options: ["A RecursionError", "Correct results but slower", "Stale answers that depend on call order", "A KeyError from the cache"]
-  answer: 2
+  options: ["A KeyError when the cache sees the new list", "A RecursionError once the list grows long", "Correct results, but more cache misses", "Stale answers that depend on call order"]
+  answer: 3
   explanation: >-
-    The cache key does not include the global, so once an answer is cached it is returned even after the global changes. Bugs like this are intermittent and hard to reproduce, which is why memoised functions must be pure in their arguments.
+    The cache key does not include the global, so the cache never notices the change: no miss, no error. Once an answer is cached it is returned even after the global changes. Bugs like this are intermittent and hard to reproduce, which is why memoised functions must be pure in their arguments.
 - q: >-
     Target Sum asks how many ways to assign + or - to n numbers to hit a target. Two sign patterns that both reach index i with running sum 7 are the same subproblem because:
-  options: ["They used the same signs", "The remaining choices and the remaining target are identical regardless of how 7 was reached", "The numbers are sorted", "The target is positive"]
-  answer: 1
+  options: ["Their remaining choices and remaining target match", "Both must have used the same sign pattern so far", "Their sign patterns share a common prefix up to index i", "They used equally many + and - signs so far"]
+  answer: 0
   explanation: >-
-    The future depends only on (i, running sum). That collapses 2^n paths into at most n × (sum range) states, which is the whole point of choosing the state to be the history's effect rather than the history itself.
+    The remaining choices and the remaining target are identical regardless of how 7 was reached, so the future depends only on (i, running sum); the signs themselves may differ entirely. That collapses 2^n paths into at most n × (sum range) states, which is the whole point of choosing the state to be the history's effect rather than the history itself.
 ```

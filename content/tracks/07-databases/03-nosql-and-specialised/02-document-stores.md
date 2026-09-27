@@ -172,32 +172,32 @@ Where MongoDB genuinely wins: the whole dataset is documents (no relational core
 ```quiz
 - q: >-
     A product document embeds an array of reviews. It worked for a year; now product pages are slow and one insert failed with a size error. The root cause is:
-  options: ["The reviews should have been a multikey index", "An unbounded one-to-many was embedded; each append rewrites a growing document and it has hit the 16 MB limit", "Reviews should have used w:majority", "The product collection needs sharding"]
-  answer: 1
+  options: ["An unbounded one-to-many was embedded, and it hit the 16 MB limit", "The product collection has outgrown one shard and needs sharding", "The reviews array needed a multikey index to keep appends fast", "Review writes should have used w:majority to avoid failed inserts"]
+  answer: 0
   explanation: >-
-    Reviews per product have no upper bound, which is the rule for referencing from the many side. Embedding means every append rewrites the whole document and multikey index entries grow with it, until the document limit ends the party. Sharding and write concern do not address document size.
+    Reviews per product have no upper bound, which is the rule for referencing from the many side. Embedding means every append rewrites the whole growing document and multikey index entries grow with it, until the 16 MB document limit ends the party. A multikey index would add cost, not remove it, and sharding and write concern do not address document size.
 - q: >-
     find({status: "open", created: {$gt: t}}).sort({priority: -1}) is slow and explain shows a SORT stage. Which index fixes it?
-  options: ["{created: 1, status: 1, priority: 1}", "{status: 1, priority: -1, created: 1}", "{priority: -1}", "{status: 1, created: 1}"]
-  answer: 1
+  options: ["{status: 1, priority: -1, created: 1}", "{created: 1, status: 1, priority: -1}", "{priority: -1, status: 1, created: 1}", "{status: 1, created: 1, priority: -1}"]
+  answer: 0
   explanation: >-
-    ESR: equality field first (status), then the sort field (priority) so results come out of the index in order, then the range field (created). Range before sort forces an in-memory sort; a lone priority index scans every document to filter.
+    ESR: equality field first (status), then the sort field (priority) so results come out of the index in order, then the range field (created). Putting the range field before the sort field, as in {status, created, priority}, still forces an in-memory sort. Leading with created or priority means scanning index entries for every status and filtering.
 - q: >-
     Under contention, a transaction in MongoDB that updates a document another transaction has just modified will:
-  options: ["Block until the other transaction commits, then proceed", "Fail immediately with a write conflict and need the whole transaction retried", "Silently overwrite the other write", "Escalate to a collection lock"]
-  answer: 1
+  options: ["Escalate to a collection lock so the two transactions run in turn", "Overwrite the other write silently, since the last committer wins", "Block until the other transaction commits, and then apply its own write", "Fail at once with a write conflict, and the whole transaction then retries"]
+  answer: 3
   explanation: >-
     WiredTiger uses optimistic concurrency: conflicting writes abort rather than queue, and the callback API retries the transaction from the start. Postgres, by contrast, makes the second writer wait. This is why contended multi-document transactions are expensive in MongoDB.
 - q: >-
     A team sets writeConcern w:1 to reduce latency. During a primary failover some acknowledged orders vanish. Why?
-  options: ["The oplog was truncated", "w:1 acknowledges once the primary applies the write; if it dies before replicating, the new primary never had the write and the old one rolls it back on rejoin", "Secondaries reject unacknowledged writes", "TTL indexes deleted them"]
+  options: ["The failover restarted TTL monitors, which deleted recent documents", "w:1 acks before replication, so a new primary may never have had it", "The oplog was truncated during the election, discarding recent entries", "Secondaries reject writes that were acknowledged by only one member"]
   answer: 1
   explanation: >-
-    Acknowledgement with w:1 precedes replication. A newly elected primary is chosen from members that may lack the last writes; when the old primary rejoins, its divergent oplog entries are rolled back. w:majority costs one replication round-trip and prevents this.
+    Acknowledgement with w:1 happens once the primary applies the write, before replication. A newly elected primary is chosen from members that may lack the last writes; when the old primary rejoins, its divergent oplog entries are rolled back. w:majority costs one replication round-trip and prevents this.
 - q: >-
     You have a relational schema and one products table whose attributes vary by category. The lowest-risk way to support indexed queries on arbitrary attributes is:
-  options: ["Move the whole system to MongoDB", "Add an EAV table with one row per attribute", "A jsonb column with a GIN index and containment queries, keeping the rest relational", "Store attributes as a text column and use LIKE"]
+  options: ["Add an entity-attribute-value table holding one row per attribute", "Move the whole system to MongoDB so that every table can be schemaless", "A jsonb column with a GIN index, keeping everything else relational", "Store the attributes in one text column and query them using LIKE"]
   answer: 2
   explanation: >-
-    JSONB with GIN gives indexed lookups on any key while keeping transactions, foreign keys and one database to run. EAV works but makes every query a self-join; migrating the whole system trades a column problem for a platform migration; LIKE cannot use a B-tree.
+    JSONB with GIN gives indexed containment lookups on any key while keeping transactions, foreign keys and one database to run. EAV works but makes every query a self-join; migrating the whole system trades a column problem for a platform migration; LIKE cannot use a B-tree.
 ```

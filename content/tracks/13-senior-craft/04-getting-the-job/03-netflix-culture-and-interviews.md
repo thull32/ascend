@@ -153,32 +153,32 @@ Because the published philosophy is to pay at the top of each person's market, t
 ```quiz
 - q: >-
     According to Netflix's published culture, what is the "keeper test"?
-  options: ["An annual exam that engineers must pass", "A probation period for new hires", "Managers asking whether they would fight hard to keep a team member who was leaving for a similar role elsewhere, and giving a generous severance if not", "A test of whether a system should be kept or rewritten"]
-  answer: 2
-  explanation: >-
-    The memo describes the keeper test as a question managers ask about each person, with generous severance for those who do not pass. It is not an exam or a probation period, and it concerns people, not systems.
-- q: >-
-    What does "context, not control" mean for how Netflix expects managers and engineers to work?
-  options: ["Managers provide strategy, metrics, assumptions and stakes, and people make their own decisions; a poor decision prompts the question of what context was missing", "Managers approve every significant decision", "Engineers are not given information about strategy", "Teams must reach consensus before acting"]
-  answer: 0
-  explanation: >-
-    Context replaces approvals: people are trusted to decide once they understand the goals and constraints. That is why interviewers look for evidence of good independent judgement rather than good rule-following.
-- q: >-
-    How should you prepare for Netflix's culture-focused conversations?
-  options: ["Memorise a list of questions that Netflix interviewers are known to ask", "Read the current culture memo and map specific real stories to its ideas, such as context over control, candour, farming for dissent and ownership of failures", "Prepare to agree enthusiastically with every part of the culture", "Focus only on technical preparation, since culture cannot be prepared for"]
-  answer: 1
-  explanation: >-
-    The culture is published, so the best preparation is to test your own stories against it. There is no reliable public question list, and uncritical enthusiasm reads poorly in a culture that values candour.
-- q: >-
-    An interviewer asks what you think of the keeper test. Which answer fits the culture best?
-  options: ["\"It's perfect and I have no concerns.\"", "\"I'd rather not comment.\"", "\"It's unfair and I would try to change it.\"", "An honest view with trade-offs, such as valuing the clarity while noting the reduced security, plus a question about how it works on the team"]
+  options: ["An annual performance review in which engineers are stack-ranked against peers", "A probation period in which new hires must prove themselves before they are confirmed", "A regular review of whether each system is worth keeping or should be rewritten", "Managers asking whether they would fight to keep each person, with severance if not"]
   answer: 3
   explanation: >-
-    A candid, reasoned view that acknowledges both sides shows the judgement and candour the culture asks for. Cheerleading and refusing to engage both avoid the question, and an outright attack with no nuance suggests poor fit rather than candour.
+    The memo describes the keeper test as a question managers ask about each person: if they were leaving for a similar role elsewhere, would I fight hard to keep them? Those who do not pass get a generous severance. It is not a ranking exercise or a probation period, and it concerns people, not systems.
+- q: >-
+    What does "context, not control" mean for how Netflix expects managers and engineers to work?
+  options: ["Teams build consensus across the org before acting, so everyone stays aligned", "Engineers get only the information their tasks need, so they can stay focused", "Managers give strategy, metrics and stakes, and people make their own decisions", "Managers give detailed direction and approve significant decisions before they ship"]
+  answer: 2
+  explanation: >-
+    Context replaces approvals: people are trusted to decide once they understand the strategy, metrics, assumptions and stakes, and a poor decision prompts the question of what context was missing. Teams align on goals but act independently on tactics rather than seeking consensus. That is why interviewers look for evidence of good independent judgement rather than good rule-following.
+- q: >-
+    How should you prepare for Netflix's culture-focused conversations?
+  options: ["Focus on technical preparation, since culture fit cannot be prepared for", "Prepare to show enthusiastic agreement with every part of the culture", "Read the current culture memo and map specific real stories to its ideas", "Memorise a list of the questions Netflix interviewers are known to ask"]
+  answer: 2
+  explanation: >-
+    The culture is published, so the best preparation is to test your own stories against its ideas, such as context over control, candour, farming for dissent and ownership of failures. There is no reliable public question list, and uncritical enthusiasm reads poorly in a culture that values candour.
+- q: >-
+    An interviewer asks what you think of the keeper test. Which answer fits the culture best?
+  options: ["Say it is unfair and that you would push to change it once you joined", "Say it is perfect and that you have no concerns, to show strong culture fit", "Give an honest view with its trade-offs, then ask how it works on the team", "Decline to comment, since opinions on policy are risky in an interview"]
+  answer: 2
+  explanation: >-
+    A candid, reasoned view that acknowledges both sides (for example, valuing the clarity while noting the reduced security) shows the judgement and candour the culture asks for. Cheerleading and declining to engage both avoid the question, and an outright attack with no nuance suggests poor fit rather than candour.
 - q: >-
     Which statement about Netflix's published compensation philosophy is most accurate?
-  options: ["It pays large performance bonuses tied to annual metrics", "It aims to pay at the top of each person's personal market, and has described favouring salary over performance bonuses and letting employees choose a stock-option portion", "It pays at the median of the market and relies on equity upside", "Compensation is fixed by level with no individual variation"]
+  options: ["It pays at the market median and relies on equity upside for top performers", "It aims for the top of each person's market, favouring salary over bonuses", "It fixes pay by level with no individual variation, to keep things transparent", "It pays large performance bonuses tied to metrics agreed at the start of each year"]
   answer: 1
   explanation: >-
-    The memo and No Rules Rules describe top-of-personal-market pay, a preference for salary over bonuses, and employee choice over the stock-option portion. Programme details change, so confirm the current structure with the recruiter.
+    The memo and No Rules Rules describe top-of-personal-market pay, a preference for salary over performance bonuses (which encourage optimising for metrics set in advance), and employee choice over the stock-option portion. Programme details change, so confirm the current structure with the recruiter.
 ```

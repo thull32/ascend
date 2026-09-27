@@ -248,38 +248,38 @@ hints:
 ```quiz
 - q: >-
     In one attention head, the scores for a query against three keys are (2.0, 2.0, 2.0) after scaling. What is the output?
-  options: ["The value of the first key", "The average of the three value vectors", "A zero vector", "The sum of the three value vectors"]
-  answer: 1
-  explanation: >-
-    Equal scores give equal softmax weights of 1/3 each, so the output is the plain average of the values. Softmax weights always sum to 1, so a sum of the values or a zero vector is impossible.
-- q: >-
-    Why are query-key dot products divided by the square root of the head dimension?
-  options: ["To make the attention matrix symmetric", "To normalise the value vectors to unit length", "To reduce the memory used by the attention matrix", "Dot products of d-dimensional vectors grow like the square root of d, and large scores saturate the softmax into near one-hot weights with vanishing gradients"]
-  answer: 3
-  explanation: >-
-    With unit-variance components, a dot product over d terms has standard deviation of about the square root of d. Scaling keeps scores near unit size so the softmax stays soft and trainable. It changes neither symmetry nor memory, and values are not normalised by it.
-- q: >-
-    What does the causal mask make possible during training?
-  options: ["Computing next-token predictions for every position of a document in a single parallel forward pass without any position seeing its own answer", "Using a larger vocabulary", "Skipping the MLP for masked positions", "Training without positional information"]
+  options: ["The average of the three value vectors", "The sum of the three value vectors", "A zero vector, since no key stands out", "The value vector of the first key"]
   answer: 0
   explanation: >-
-    Setting future scores to minus infinity means position i can only use tokens up to i, so all n next-token predictions are valid simultaneously and one pass yields n training examples. The MLP still runs everywhere, and position information is still required.
+    Equal scores give equal softmax weights of 1/3 each, so the output is the plain average of the values. Softmax weights are positive and always sum to 1, so a sum of the values or a zero vector is impossible, even when no key stands out.
+- q: >-
+    Why are query-key dot products divided by the square root of the head dimension?
+  options: ["To normalise the value vectors to unit length before mixing them", "To stop scores growing with d and saturating the softmax", "To reduce the memory the attention matrix needs for long inputs", "To keep the attention matrix symmetric between queries and keys"]
+  answer: 1
+  explanation: >-
+    With unit-variance components, a dot product over d terms has standard deviation of about the square root of d, and large scores saturate the softmax into near one-hot weights with vanishing gradients. Scaling keeps scores near unit size so the softmax stays soft and trainable. It changes neither symmetry nor memory, and values are not normalised by it.
+- q: >-
+    What does the causal mask make possible during training?
+  options: ["Skipping the MLP computation for the masked future positions", "Training on every position's next token in one parallel pass", "Letting each position attend to the tokens that follow it", "Using a much larger vocabulary without slowing the softmax"]
+  answer: 1
+  explanation: >-
+    Setting future scores to minus infinity means position i can only use tokens up to i, so no position sees its own answer, all n next-token predictions are valid simultaneously, and one pass yields n training examples. The mask blocks attention to later tokens rather than granting it, and the MLP still runs at every position.
 - q: >-
     A model has d = 4,096 and 32 blocks. Roughly how many parameters are in the blocks, excluding embeddings?
-  options: ["About 0.5 billion", "About 1.6 billion", "About 6.4 billion", "About 50 billion"]
-  answer: 2
+  options: ["About 0.5 billion", "About 50 billion", "About 1.6 billion", "About 6.4 billion"]
+  answer: 3
   explanation: >-
     Each block has about 12d² parameters: 4d² for the attention projections and 8d² for the 4×-wide MLP. 12 × 4,096² is about 201 million, times 32 blocks is about 6.4 billion. Add roughly 0.26 billion for embeddings and you get a 7B-class model.
 - q: >-
     Without any positional encoding, what would a transformer compute for "dog bites man" versus "man bites dog"?
-  options: ["Different outputs, because attention is order-sensitive", "The same set of output vectors, just in a different order, because attention treats its inputs as an unordered set", "An error, because the sequence lengths differ", "Identical logits at every position"]
+  options: ["Different outputs, because the attention weights are order-sensitive", "The same outputs, just permuted, because attention sees an unordered set", "Identical logits at every position, because the words are the same", "An error, because the two sequences tokenize to different lengths"]
   answer: 1
   explanation: >-
-    Attention scores and weighted sums depend only on the vectors, not their positions, so permuting the inputs permutes the outputs. Positional encodings (learned, sinusoidal or rotary) are what make order matter. The lengths are equal, and the logits at each position would be permuted, not identical.
+    Attention scores and weighted sums depend only on the vectors, not their positions, so permuting the inputs permutes the outputs: the same set of output vectors in a different order. Positional encodings (learned, sinusoidal or rotary) are what make order matter. The lengths are equal, and the logits at each position would be permuted, not identical.
 - q: >-
     Which sub-layer of a transformer block moves information between different token positions?
-  options: ["The MLP", "The normalisation layer", "Self-attention", "The residual connection"]
-  answer: 2
+  options: ["The normalisation layer", "The residual connection", "The feed-forward MLP layer", "The self-attention layer"]
+  answer: 3
   explanation: >-
     Only attention mixes positions: each output is a weighted sum over other positions' values. The MLP and normalisation act on each position independently, and the residual adds a sub-layer's output to the same position's input.
 ```

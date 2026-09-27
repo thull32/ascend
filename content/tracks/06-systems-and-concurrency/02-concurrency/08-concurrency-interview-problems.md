@@ -465,32 +465,32 @@ Other problems you may meet, and the move that solves each:
 ```quiz
 - q: >-
     In the print-in-order problem, why is a threading.Event (or a semaphore starting at 0) a better fit than a mutex?
-  options: ["Events are faster than mutexes", "The signal is set by one thread and waited on by another, and it is remembered even if the waiter arrives later", "Mutexes cannot be used with more than two threads", "Events provide mutual exclusion as well as signalling"]
+  options: ["An event gives mutual exclusion as well as a signal to the waiter", "The signal crosses threads and is latched if set before the wait", "Events are faster, because waiting on one never enters the kernel", "A mutex cannot coordinate more than two threads at the same time"]
   answer: 1
   explanation: >-
-    The problem is ordering across threads, not exclusion. An event is latched: set() before wait() still lets the waiter through, and the setter and waiter are different threads. A mutex is meant to be released by the thread that acquired it and provides no ordering by itself.
+    The problem is ordering across threads, not exclusion. An event is latched: set() before wait() still lets the waiter through, and the setter and waiter are different threads. A mutex is meant to be released by the thread that acquired it and provides no ordering by itself; an event provides no exclusion at all.
 - q: >-
     A bounded blocking queue's close() sets closed = True and calls notify() once on each condition variable. Three consumers are blocked in take(). What happens?
-  options: ["All three wake and raise Closed", "One consumer wakes and raises Closed; the other two stay blocked forever", "None wake, because notify requires a state change", "All three return None"]
-  answer: 1
+  options: ["One wakes and raises Closed; the other two stay blocked forever", "All three wake and return None, since the queue is empty", "All three wake up, see closed, and raise Closed", "None wake, because notify() needs a state change first"]
+  answer: 0
   explanation: >-
-    notify() wakes at most one waiter. Closing changes the predicate for every waiter, so it must use notify_all(). This is the standard follow-up that separates a memorised solution from an understood one.
+    notify() wakes at most one waiter, so one consumer raises Closed and the other two sleep forever. Closing changes the predicate for every waiter, so it must use notify_all(). This is the standard follow-up that separates a memorised solution from an understood one.
 - q: >-
     A readers-writers lock lets readers in whenever no writer is inside. Reads are frequent and overlap. What goes wrong?
-  options: ["Readers see partial writes", "Writers can starve, because the reader count may never reach zero", "Readers deadlock with each other", "Nothing; this is the standard solution"]
-  answer: 1
+  options: ["Overlapping readers can deadlock with each other", "Readers can see a write that is only partly done", "Writers can starve, because the reader count never hits zero", "Nothing; this is the standard, fair readers-writers lock"]
+  answer: 2
   explanation: >-
     With overlapping readers there is always at least one inside, so a writer waits forever. Making a waiting writer block new readers fixes it; admitting queued readers when a writer finishes (as Go does) keeps readers from starving in turn.
 - q: >-
     In dining philosophers with five philosophers, a Semaphore(4) "waiter" is acquired before picking up forks. Why can this not deadlock?
-  options: ["The semaphore makes fork acquisition atomic", "With at most four philosophers holding at most one fork each and five forks on the table, at least one competitor can always get a second fork", "It forces philosophers to eat in order", "It breaks the mutual exclusion condition"]
-  answer: 1
+  options: ["Four diners, five forks: someone can always get two", "It breaks the mutual exclusion condition on the forks", "It forces the philosophers to eat in a fixed rotation", "The semaphore makes picking up both forks one atomic step"]
+  answer: 0
   explanation: >-
-    Deadlock needs every competitor holding one fork and waiting for another held by a neighbour, which requires all five forks to be held by five philosophers. With four competitors, a free fork always exists next to someone, so the cycle cannot close. Forks are still exclusive; it is circular wait that is broken.
+    Deadlock needs every competitor holding one fork and waiting for another held by a neighbour, which requires all five forks to be held by five philosophers. With at most four competitors holding at most one fork each, a free fork always exists next to someone, so the cycle cannot close. Each fork is still picked up separately and is still exclusive; it is circular wait that is broken.
 - q: >-
     A token bucket uses time.time() (wall clock) to compute refills. What can go wrong in production?
-  options: ["Nothing; time.time() is accurate to microseconds", "An NTP correction that moves the clock backwards produces a negative elapsed time and removes tokens; a forward jump grants an unearned burst", "time.time() is not thread-safe", "It makes the lock hold time too long"]
-  answer: 1
+  options: ["Clock jumps remove tokens or grant an unearned burst", "The wall-clock call makes the lock hold time too long", "Nothing, since time.time() is accurate to microseconds", "time.time() is not thread-safe, so refills can race"]
+  answer: 0
   explanation: >-
-    Wall-clock time can jump in either direction. Durations should always come from a monotonic clock (time.monotonic, Instant in Rust, Go's monotonic reading inside time.Now), which only moves forward.
+    Wall-clock time can jump in either direction: an NTP correction backwards produces a negative elapsed time and removes tokens, and a forward jump grants a burst nobody earned. Precision is not the issue. Durations should always come from a monotonic clock (time.monotonic, Instant in Rust, Go's monotonic reading inside time.Now), which only moves forward.
 ```

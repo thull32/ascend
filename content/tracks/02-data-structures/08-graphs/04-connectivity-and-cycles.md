@@ -295,32 +295,32 @@ hints:
 ```quiz
 - q: >-
     In an undirected graph, a DFS-based cycle check that flags any edge to an already-visited vertex reports a cycle on the graph with the single edge 0-1. Why?
-  options: ["Because 0-1 is a cycle of length 1", "Because the edge is stored in both adjacency lists, so from 1 the edge back to 0 reaches a visited vertex; the check must skip the parent", "Because the graph is disconnected", "Because DFS cannot handle undirected graphs"]
-  answer: 1
+  options: ["The graph is disconnected, so DFS restarts from 1 and then sees 0 as visited", "A single undirected edge is a cycle of length 2, going 0 to 1 and back", "The edge sits in both lists, so from 1 it leads back to the visited parent 0", "DFS marks both endpoints at once, so the edge finds 1 already visited"]
+  answer: 2
   explanation: >-
-    Every undirected edge is seen from both ends. The edge back to the vertex you arrived from is the same edge, not a cycle. Carry the parent (or parent edge id) and ignore it.
+    Every undirected edge is seen from both ends. The edge back to the vertex you arrived from is the same edge, not a cycle. Carry the parent (or parent edge id) and ignore it. Only two distinct edges between the same pair (a multi-edge) form a cycle of length 2; a single edge traversed back is not one.
 - q: >-
     A directed graph has edges 0→1, 0→2, 1→2. A cycle check that treats any edge to a visited vertex as a cycle returns:
-  options: ["false, correctly", "true, incorrectly, because 1→2 (or 0→2) reaches a vertex that was visited but is finished, not on the path", "true, correctly", "An error"]
-  answer: 1
+  options: ["true, incorrectly, because 2 was visited but is already finished", "true, correctly, because 0→2 reaches a vertex on the current path", "true, correctly, because paths 0→1→2 and 0→2 together form a loop", "false, correctly, because both 0→2 and 1→2 lead into a sink"]
+  answer: 0
   explanation: >-
-    This is a DAG. Only an edge to a vertex still on the current DFS path (grey) indicates a cycle. Distinguishing grey from black is the whole algorithm.
+    This is a DAG. Whichever edge into 2 is examined second finds 2 visited, so the naive check returns true, but 2 is black (finished), not grey. Only an edge to a vertex still on the current DFS path (grey) indicates a cycle; two paths converging on the same vertex are a diamond, not a loop. Distinguishing grey from black is the whole algorithm.
 - q: >-
     An undirected graph has 10 vertices and 9 edges. It is a tree if and only if:
-  options: ["It has no vertex of degree greater than 2", "It is connected (equivalently, acyclic)", "It has exactly one leaf", "Its edges form a path"]
-  answer: 1
+  options: ["No vertex has a degree greater than 2", "It has exactly two degree-one vertices", "Every vertex has degree at least 1", "It is connected, or equivalently acyclic"]
+  answer: 3
   explanation: >-
-    With n-1 edges, connected implies acyclic and acyclic implies connected; either check suffices. A forest with 9 edges on 10 vertices that is not connected would have to have a cycle, which is a contradiction, so the two conditions coincide.
+    With n-1 edges, connected implies acyclic and acyclic implies connected; either check suffices. An acyclic graph with 10 vertices and 9 edges has 10 - 9 = 1 component, so it is connected; a connected one with n-1 edges has no room for a cycle. Degree conditions are not enough: a 4-cycle plus a separate 6-vertex path has 10 vertices, 9 edges and no isolated vertex, yet is not a tree.
 - q: >-
     A BFS 2-colouring finds an edge whose endpoints have the same colour. What does that prove?
-  options: ["The graph is disconnected", "The graph contains an odd-length cycle and is not bipartite", "The BFS started at the wrong vertex", "The graph has a self-loop"]
-  answer: 1
+  options: ["BFS started at the wrong vertex and should be retried elsewhere", "The graph has a self-loop, the only same-colour edge possible", "It contains an odd-length cycle, so it is not bipartite", "It contains an even-length cycle, so it is not bipartite"]
+  answer: 2
   explanation: >-
-    Colours alternate along BFS tree paths; two vertices with the same colour joined by an edge close a cycle of odd length through their common ancestor. Bipartiteness does not depend on the start vertex.
+    Colours alternate along BFS tree paths; two vertices with the same colour joined by an edge close a cycle of odd length through their common ancestor. Even cycles colour consistently (a 4-cycle is bipartite), and bipartiteness does not depend on the start vertex.
 - q: >-
     Edges of an undirected graph are added one at a time and after each addition you must answer whether two given vertices are connected. The efficient structure is:
-  options: ["Recompute components with BFS after each edge", "Union-find with path compression and union by rank", "An adjacency matrix", "A topological sort"]
-  answer: 1
+  options: ["Union-find with path compression and union by rank", "A topological sort maintained incrementally per edge", "BFS recomputing all component labels after each edge", "An adjacency matrix with its transitive closure kept updated"]
+  answer: 0
   explanation: >-
-    Each union and find is near-constant amortised time, versus O(V + E) to re-traverse after every insertion. Union-find handles only additions; deletions need different techniques.
+    Each union and find is near-constant amortised time, versus O(V + E) to re-traverse after every insertion. Union-find handles only additions; deletions need different techniques. Topological order is defined only for directed acyclic graphs and says nothing about undirected connectivity.
 ```

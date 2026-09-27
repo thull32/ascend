@@ -316,38 +316,38 @@ hints:
 ```quiz
 - q: >-
     In the single-pass diameter solution, why does the recursive function return 1 + max(l, r) rather than l + r?
-  options: ["Because l + r is always smaller", "Because the parent can extend a path down through only one arm of this node; a two-arm path cannot continue upward, so it is recorded as a candidate answer instead", "Because returning l + r would cause infinite recursion", "The two are interchangeable; either works"]
-  answer: 1
+  options: ["Either works; the two values are interchangeable here", "Because returning l + r would make the recursion never terminate", "Because l + r is never larger than the height anyway", "A parent can extend a path through only one arm of this node"]
+  answer: 3
   explanation: >-
-    A path that descends into both children of a node is complete at that node. Returning it would let the parent build an impossible path. The height (one arm) is what the parent needs; the two-arm sum is the answer, kept on the side.
+    A path that descends into both children of a node is complete at that node; it cannot continue upward. Returning it would let the parent build an impossible path. The height (one arm) is what the parent needs; the two-arm sum is a candidate answer, kept on the side.
 - q: >-
     Validate BST on [5, 1, 7, null, null, 3, 8] with a solution that only checks left.val < node.val < right.val returns true. Which node exposes the bug and what bound does it violate?
-  options: ["Node 1 violates the lower bound", "Node 3 violates the lower bound of 5 inherited from the root, even though its parent 7 is fine with it", "Node 8 violates the upper bound", "Nothing is wrong; the tree is a valid BST"]
-  answer: 1
+  options: ["Node 3, which violates the lower bound 5 set by the root", "None; the tree is a valid BST and true is correct", "Node 8, which violates the upper bound set by its parent", "Node 1, which violates the lower bound set by the root"]
+  answer: 0
   explanation: >-
-    3 sits in the right subtree of 5, so it must be greater than 5. The immediate-children check only compares 3 with 7. Passing (lo, hi) down encodes every ancestor constraint in two numbers.
+    3 sits in the right subtree of 5, so it must be greater than 5, even though its parent 7 is fine with it. The immediate-children check only compares 3 with 7. Passing (lo, hi) down encodes every ancestor constraint in two numbers.
 - q: >-
     Max path sum on a tree where every value is negative. A solution initialises best = 0 and clamps child contributions with max(0, gain). What does it return, and why is that wrong?
-  options: ["The largest single value, which is correct", "0, representing an empty path, but the problem requires at least one node; best must start at negative infinity", "Negative infinity", "The sum of all values"]
+  options: ["Negative infinity, since best is never updated at all", "0, an empty path, though the path needs at least one node", "The sum of all values, since every arm is clamped at 0", "The largest single value, which is the correct answer"]
   answer: 1
   explanation: >-
-    Clamping arms at 0 is correct (an arm that hurts is dropped), but best itself must be able to hold a negative single-node path. Starting at 0 silently returns an empty path.
+    Clamping arms at 0 is correct (an arm that hurts is dropped), but best itself must be able to hold a negative single-node path, so it must start at negative infinity. Starting at 0 silently returns an empty path instead of the largest single value.
 - q: >-
     Which problem is best solved with a top-down parameter rather than a bottom-up return value?
-  options: ["Height of the tree", "Count of nodes whose value is at least every ancestor's value", "Diameter", "Is the tree balanced"]
+  options: ["Whether the tree is height-balanced at every node", "Count of nodes whose value is at least every ancestor's", "Height of the tree, from the root to its deepest leaf", "Diameter, the longest path between any two nodes"]
   answer: 1
   explanation: >-
     Whether a node is good depends only on its ancestors, which is information that flows down. Height, diameter and balance are properties of the subtree below a node, which flow up.
 - q: >-
     Kth smallest in a BST using the iterative in-order traversal. What is the time complexity, and what augmentation makes repeated queries faster on a frequently modified tree?
-  options: ["O(n); store the sorted values in an array", "O(h + k); store the size of the left subtree in each node so a query walks one root-to-node path", "O(k log n); use a heap", "O(log n) always; no augmentation needed"]
-  answer: 1
+  options: ["O(k log n); keep a heap of the k smallest keys", "O(log n) always; no augmentation is needed", "O(n); keep the sorted values in an array alongside", "O(h + k); store each node's left-subtree size"]
+  answer: 3
   explanation: >-
-    The iterative in-order stops after k pops and its stack holds at most h nodes. A sorted array breaks on updates. Subtree sizes let you decide at each node whether the kth is left, here or right, in O(h) per query and per update.
+    The iterative in-order stops after k pops and its stack holds at most h nodes. A sorted array breaks on updates. Left-subtree sizes let you decide at each node whether the kth is left, here or right, so a query walks one root-to-node path: O(h) per query and per update.
 - q: >-
     In Path Sum II, a candidate appends the live path list to the results whenever a leaf matches. Every result comes out identical. Why?
-  options: ["The recursion visits leaves in the wrong order", "All recorded results reference the same list object, which keeps being mutated by later pops and appends; a copy must be stored", "The base case is wrong", "Python lists cannot be nested"]
+  options: ["The base case fires on internal nodes as well as leaves", "Every result is the same list object, which keeps changing", "The recursion visits the leaves in the wrong order each time", "Python lists cannot be nested inside another list"]
   answer: 1
   explanation: >-
-    The path list is shared across the whole recursion. Recording it stores a reference, not a snapshot. Append path[:] or [...path] at the moment of the match.
+    The path list is shared across the whole recursion and keeps being mutated by later pops and appends. Recording it stores a reference, not a snapshot. Append path[:] or [...path] at the moment of the match.
 ```

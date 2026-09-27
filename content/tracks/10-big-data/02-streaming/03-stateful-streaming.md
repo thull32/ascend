@@ -195,32 +195,32 @@ hints:
 ```quiz
 - q: >-
     A Flink job restores from checkpoint 42 after a crash and reprocesses 50 seconds of Kafka records. Why are per-user counters not double-counted?
-  options: ["Flink deduplicates records by offset", "The counters are restored to their values at checkpoint 42, which did not include those records, and the sources rewind to the offsets recorded in the same checkpoint", "Kafka transactions prevent re-delivery", "RocksDB ignores duplicate writes"]
-  answer: 1
+  options: ["Kafka transactions stop the source from re-delivering them", "Flink deduplicates replayed records using their Kafka offsets", "Counters are restored to checkpoint 42, before those records", "RocksDB ignores writes that repeat an earlier key and value"]
+  answer: 2
   explanation: >-
-    State and source positions are snapshotted consistently by the barrier. After restore, the replayed records are applied to state that has never seen them, so each record affects state exactly once. Records are delivered twice; their effect is not.
+    State and source positions are snapshotted consistently by the barrier: the counters go back to their values at checkpoint 42, and the sources rewind to the offsets recorded in the same checkpoint. The replayed records are applied to state that has never seen them, so each record affects state exactly once. Records are delivered twice (nothing deduplicates them); their effect is not.
 - q: >-
     A job uses Flink's exactly-once Kafka sink with a 2-minute checkpoint interval. Downstream read_committed consumers complain that data arrives in bursts every two minutes. Why?
-  options: ["Kafka batches records for two minutes", "Output transactions commit only when a checkpoint completes, so read_committed readers see each period's records at once", "The watermark is two minutes behind", "Unaligned checkpoints delay output"]
-  answer: 1
+  options: ["Transactions commit only when each checkpoint completes", "The Kafka producer lingers for two minutes to fill batches", "Unaligned checkpoints hold output until barriers catch up", "The watermark lags two minutes, so windows fire in batches"]
+  answer: 0
   explanation: >-
-    The two-phase-commit sink pre-commits at the barrier and commits on checkpoint completion. Until then, read_committed consumers cannot see the records. Shorter intervals or an idempotent upsert sink reduce latency.
+    The two-phase-commit sink pre-commits at the barrier and commits on checkpoint completion. Until then, read_committed consumers cannot see the records, so each period's output appears at once. Shorter intervals or an idempotent upsert sink reduce latency. Producer linger is milliseconds, not minutes.
 - q: >-
     Checkpoints start timing out whenever a downstream Elasticsearch sink slows down. What is the most likely mechanism and a reasonable mitigation?
-  options: ["RocksDB compaction is blocked; switch to the heap backend", "Backpressure fills network buffers, barriers queue behind them and alignment stalls; enable unaligned checkpoints and fix the slow sink", "The JobManager is overloaded; add TaskManagers", "Kafka offsets cannot be committed; increase retention"]
+  options: ["The JobManager is overloaded; add more TaskManagers to share it", "Barriers queue behind full buffers; use unaligned checkpoints", "Source offsets cannot be committed; increase Kafka retention", "RocksDB compaction is blocked; switch to the heap backend"]
   answer: 1
   explanation: >-
-    Barriers travel with the data, so full buffers delay them and aligned checkpoints wait. Unaligned checkpoints let barriers overtake in-flight records, storing them in the snapshot. The slow sink remains the root cause to fix.
+    Backpressure fills network buffers, and barriers travel with the data, so they queue behind them and aligned checkpoints stall. Unaligned checkpoints let barriers overtake in-flight records, storing them in the snapshot. The slow sink remains the root cause to fix; adding TaskManagers does not unblock the barriers.
 - q: >-
     A Kafka Streams instance with a 60 GB state store dies. Recovery takes 10 minutes during which its partitions make no progress. What reduces this most directly?
-  options: ["Larger commit intervals", "Standby replicas that continuously consume the changelog on another instance", "Switching the store to in-memory", "More input partitions"]
-  answer: 1
+  options: ["Raising the commit interval so less of the log is replayed", "Adding more input partitions to the source topic", "Standby replicas that keep a warm copy of the store", "Switching the state store to an in-memory store instead"]
+  answer: 2
   explanation: >-
-    Without a standby, the new owner rebuilds the store by replaying the changelog, which scales with store size. A warm standby is already caught up and can take over in seconds. An in-memory store would still need the full replay.
+    Without a standby, the new owner rebuilds the store by replaying the changelog, which scales with store size, not with the commit interval. A standby replica continuously consumes the changelog on another instance, is already caught up, and can take over in seconds. An in-memory store would still need the full replay.
 - q: >-
     A Flink job was started with max parallelism 128 and now needs 200 parallel instances. What is the problem?
-  options: ["None; parallelism can always exceed max parallelism", "State is partitioned into 128 key groups, so at most 128 instances can own state; raising max parallelism requires discarding or rewriting the state", "Flink will automatically split key groups", "Only the source parallelism is limited"]
-  answer: 1
+  options: ["None; parallelism may exceed max parallelism at any time", "Only the sources are limited; keyed operators can go to 200", "Flink splits key groups automatically when it rescales", "Only 128 key groups exist, so at most 128 instances own state"]
+  answer: 3
   explanation: >-
-    Key groups are the atomic unit of keyed state. With 128 of them, more than 128 instances would leave some with nothing, and the key-to-key-group mapping is fixed for the life of the state. Choose max parallelism with headroom from the start.
+    Key groups are the atomic unit of keyed state and are never split. With 128 of them, more than 128 instances would leave some with nothing, and the key-to-key-group mapping is fixed for the life of the state, so raising max parallelism means discarding or rewriting the state. Choose max parallelism with headroom from the start.
 ```

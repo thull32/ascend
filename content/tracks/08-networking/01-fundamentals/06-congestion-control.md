@@ -266,32 +266,32 @@ Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is h
 ```quiz
 - q: >-
     During a large upload, ping from the same laptop rises from 20 ms to 600 ms, and falls back to 20 ms when the upload finishes. There is almost no packet loss. What is the best explanation and fix?
-  options: ["The ISP is throttling ICMP; ignore it", "A loss-based sender is filling an oversized buffer in the router or modem, creating a standing queue; enable active queue management with flow queueing (fq_codel or SQM) on the bottleneck device", "The upload uses UDP and is starving TCP", "The Wi-Fi signal is weak; move closer to the router"]
-  answer: 1
+  options: ["The Wi-Fi signal is weak; move closer to the router", "The upload uses UDP, which is starving the TCP flows", "Bufferbloat in the home router; enable fq_codel or SQM there", "The ISP is throttling ICMP during the upload; ignore it"]
+  answer: 2
   explanation: >-
-    Delay that tracks load without loss is queueing. Loss-based congestion control keeps the bottleneck buffer full, so every packet waits behind it. AQM drops or marks early and flow queueing isolates the ping and the call from the bulk flow. A weak signal would cause loss and variable delay whether or not the upload is running.
+    Delay that tracks load without loss is queueing. A loss-based sender keeps an oversized buffer in the router or modem full, creating a standing queue that every packet waits behind. Active queue management with flow queueing (fq_codel or SQM) on the bottleneck device drops or marks early and isolates the ping and the call from the bulk flow. A weak signal would cause loss and variable delay whether or not the upload is running.
 - q: >-
     A Reno-style flow over a 100 ms path with 0.1% loss achieves about 4.5 Mbit/s. Which single change roughly doubles its throughput?
-  options: ["Halving the loss rate to 0.05%", "Halving the RTT to 50 ms by serving from a closer location", "Doubling the link bandwidth", "Doubling the receive buffer"]
-  answer: 1
+  options: ["Halving the RTT to 50 ms from a closer edge", "Doubling the receiver's socket buffer size", "Doubling the bandwidth of the bottleneck link", "Halving the loss rate from 0.1% to 0.05%"]
+  answer: 0
   explanation: >-
     Throughput is proportional to MSS/RTT times 1/sqrt(p). Halving RTT doubles it; halving loss multiplies it by only sqrt(2), about 1.41. The link and receive buffer are not the binding limit here, the loss-driven window is.
 - q: >-
     Why does AIMD halve the window on loss rather than subtracting a fixed number of segments?
-  options: ["Halving is cheaper to compute", "Multiplicative decrease shrinks the gap between competing flows at each loss while additive increase preserves it, so flows converge to fair shares; additive decrease would leave the gap unchanged forever", "Subtracting segments could make the window negative", "The RFC requires powers of two"]
-  answer: 1
+  options: ["It shrinks the gap between competing flows each time", "The RFC requires window sizes to be powers of two", "Halving takes fewer CPU cycles than subtracting", "Subtracting segments could make the window negative"]
+  answer: 0
   explanation: >-
-    If both flows lose together and both halve, the difference between them halves. Adding the same amount to both keeps the difference. Repeat and they converge. With additive decrease both lose the same amount and the unfair split persists.
+    If both flows lose together and both halve, the difference between them halves, while adding the same amount to both keeps the difference. Repeat and they converge to fair shares. With additive decrease both lose the same amount and the unfair split persists forever. Computation cost and powers of two have nothing to do with it.
 - q: >-
     You switch your origin servers from Cubic to BBR. Which effect should you expect?
-  options: ["Faster uploads from users' browsers to your servers", "Faster and lower-latency downloads to users on lossy or bloated paths, since the server is the sender; client uploads are unchanged", "No change, because both ends must agree on the algorithm", "Lower CPU usage on clients"]
-  answer: 1
+  options: ["No change unless clients also switch to BBR", "Lower CPU usage on clients receiving the data", "Faster uploads from users' browsers to your servers", "Better downloads to users on lossy or bloated paths"]
+  answer: 3
   explanation: >-
-    Congestion control is chosen and run by the sender alone; there is no negotiation. Server-to-client traffic uses the server's algorithm. Client uploads still use the client OS's algorithm.
+    Congestion control is chosen and run by the sender alone; there is no negotiation. Server-to-client traffic uses the server's algorithm, so downloads on lossy or bloated paths get faster and see less queueing. Client uploads still use the client OS's algorithm.
 - q: >-
     A fresh connection with initcwnd 10 and a 1,460-byte MSS fetches a 40 KB response over an 80 ms RTT path with no loss. Ignoring the handshake, how many round trips does the response take to arrive?
-  options: ["1", "2", "3", "It depends only on the link bandwidth"]
-  answer: 1
+  options: ["3", "1", "2", "4"]
+  answer: 2
   explanation: >-
     The first RTT carries 10 segments (14.6 KB); the window doubles to 20 segments (29.2 KB) for the second, for 43.8 KB in total, which covers 40 KB. The link bandwidth does not enter into it; the window does. That is why responses that fit in the initial window are so much faster on new connections.
 ```

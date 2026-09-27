@@ -191,32 +191,32 @@ Put it together on a cloud network, because that is where you will use it:
 ```quiz
 - q: >-
     What are the network address, broadcast address and usable host count for 192.168.37.200/26?
-  options: ["192.168.37.0, 192.168.37.255, 254", "192.168.37.192, 192.168.37.255, 62", "192.168.37.128, 192.168.37.191, 62", "192.168.37.200, 192.168.37.255, 55"]
-  answer: 1
+  options: ["192.168.37.192, 192.168.37.255, 62", "192.168.37.200, 192.168.37.255, 55", "192.168.37.0, 192.168.37.255, 254", "192.168.37.128, 192.168.37.191, 62"]
+  answer: 0
   explanation: >-
     A /26 leaves 6 host bits, so blocks of 64 aligned to multiples of 64 in the last byte. 200 falls in the block 192–255, giving network .192, broadcast .255 and 64 − 2 = 62 usable hosts.
 - q: >-
     A host's routing table contains 10.0.0.0/8 via R1 and 10.20.0.0/16 via R2, plus a default via R3. Where does a packet to 10.20.5.5 go, and why?
-  options: ["R1, because /8 was configured first", "R3, because the default route is always consulted first", "R2, because 10.20.0.0/16 is the longest matching prefix", "It is load-balanced between R1 and R2"]
-  answer: 2
+  options: ["R3, because the default route is consulted first", "R2: its /16 is the longest matching prefix", "R1 and R2 alternately, as both prefixes match", "R1, because the /8 route was configured first"]
+  answer: 1
   explanation: >-
     Forwarding uses longest prefix match. Both 10.0.0.0/8 and 10.20.0.0/16 contain the destination; the /16 is more specific and wins. Order of configuration and the default route are irrelevant when a more specific match exists.
 - q: >-
     Thousands of pods in a private subnet make short-lived HTTPS calls to one external API through a single NAT gateway. New connections start failing with timeouts while existing ones keep working. What is the most likely cause?
-  options: ["The API is rate limiting the pods", "The NAT gateway has exhausted its source ports for that destination, since one public address offers roughly 64k ports per destination", "The subnet ran out of private IP addresses", "TLS certificates expired"]
-  answer: 1
+  options: ["The private subnet ran out of IP addresses for pods", "The API is rate limiting the pods by source IP", "The API's TLS certificate expired mid-deployment", "The NAT gateway ran out of ports for that destination"]
+  answer: 3
   explanation: >-
-    Each outbound connection to the same destination needs a unique outside port on the NAT address. With enough concurrent short-lived connections (and TIME_WAIT holding ports), the gateway cannot allocate more; existing mappings are unaffected. Fixes are connection pooling or more NAT addresses. Rate limiting would return errors, not silent timeouts.
+    Each outbound connection to the same destination needs a unique outside port on the NAT address, and one public address offers roughly 64k ports per destination. With enough concurrent short-lived connections (and TIME_WAIT holding ports), the gateway cannot allocate more; existing mappings are unaffected. Fixes are connection pooling or more NAT addresses. Rate limiting or an expired certificate would return errors, not silent timeouts.
 - q: >-
     Two ISPs both announce a path to 203.0.113.0/24. Path A is 2 AS hops via a transit provider the router's operator pays; path B is 5 AS hops via a customer who pays the operator. Which does a typical BGP configuration choose?
-  options: ["Path A, because BGP minimises AS path length", "Path B, because local preference (favouring revenue-generating customer routes) is evaluated before path length", "Whichever was announced first", "Both, split evenly"]
-  answer: 1
+  options: ["Path B, because local preference beats path length", "Path A, because BGP minimises the AS path length", "Both paths, with the traffic split evenly between them", "Whichever path was announced to the router first"]
+  answer: 0
   explanation: >-
-    BGP's decision process checks local preference before AS path length, and operators set local preference to prefer customers over peers over transit. Shortest path is only a tie-breaker among equally preferred routes. This is why inter-domain routing is policy, not distance.
+    BGP's decision process checks local preference before AS path length, and operators set local preference to prefer revenue-generating customer routes over peers over transit. Shortest path is only a tie-breaker among equally preferred routes. This is why inter-domain routing is policy, not distance.
 - q: >-
     Why is anycast a comfortable fit for DNS resolvers but needs extra care for long-lived TCP services?
-  options: ["DNS uses TCP and anycast requires TCP", "DNS is typically a single request-response datagram with no connection state, whereas a BGP route change can move a TCP client's packets to a site that has no state for the connection", "TCP packets are larger than the anycast MTU", "Anycast only works with UDP port 53"]
-  answer: 1
+  options: ["TCP packets are larger than the anycast path's MTU allows", "Anycast works only for UDP traffic on port 53", "DNS keeps no state, but a route change can strand a TCP flow", "DNS runs over TCP, and anycast requires TCP to work"]
+  answer: 2
   explanation: >-
-    Anycast delivers each packet to the BGP-nearest site, which can change. A stateless UDP exchange does not care. A TCP connection whose later packets arrive at a different site is reset. CDNs mitigate this and QUIC's connection IDs are designed to survive such moves.
+    Anycast delivers each packet to the BGP-nearest site, which can change. A DNS query is typically a single request-response datagram with no connection state, so it does not care. A TCP connection whose later packets arrive at a different site, with no state for it, is reset. CDNs mitigate this and QUIC's connection IDs are designed to survive such moves.
 ```

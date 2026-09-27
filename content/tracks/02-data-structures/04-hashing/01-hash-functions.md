@@ -244,32 +244,32 @@ hints:
 ```quiz
 - q: >-
     A hash function returns the sum of a string's character codes. Which property does it fail most badly?
-  options: ["Determinism", "Speed", "Avalanche and uniformity: anagrams collide and all same-length strings land in a narrow range", "It cannot handle Unicode"]
-  answer: 2
+  options: ["Equality, because equal strings can get different sums", "Avalanche and uniformity, because anagrams all collide", "Speed, because it must touch every character of the key", "Determinism, because codes differ between encodings"]
+  answer: 1
   explanation: >-
-    The sum ignores order (every permutation collides) and compresses the output into a small range determined by length. Multiplying by a base before adding each character, as the polynomial hash does, fixes both.
+    The sum ignores order (every permutation collides) and compresses the output into a small range determined by length. It is deterministic and as fast as any string hash, since every good one also reads every character. Multiplying by a base before adding each character, as the polynomial hash does, fixes both.
 - q: >-
     Why does Java's HashMap compute `h ^ (h >>> 16)` before using the hash as an index?
-  options: ["To make the hash cryptographically secure", "Because the table capacity is a power of two and only the low bits select the bucket, so the high bits must be folded in to avoid clustering on structured keys", "To handle negative hash codes", "To speed up equals()"]
+  options: ["To turn negative hash codes into valid non-negative indices", "Only the low bits pick the bucket, so high bits are folded in", "To speed up equals() by rejecting mismatches on high bits", "To make hashes unpredictable to attackers who choose keys"]
   answer: 1
   explanation: >-
-    Integer.hashCode is the identity, and keys that differ only in high bits (multiples of large powers of two) would otherwise share a bucket. Folding the top half into the bottom half spreads them. It is not a security measure.
+    The table capacity is a power of two, so only the low bits select the bucket. Integer.hashCode is the identity, and keys that differ only in high bits (multiples of large powers of two) would otherwise share a bucket. Folding the top half into the bottom half spreads them. It is not a security measure: the mix is fixed and public, so attackers can still predict it.
 - q: >-
     You hash graph edges (u, v) as hash(u) XOR hash(v). What goes wrong?
-  options: ["Nothing; XOR is a standard combiner", "(u, v) and (v, u) collide, and every self-loop (u, u) hashes to zero", "The hash is too slow", "It only works for integers"]
-  answer: 1
+  options: ["Most edges collide, because XOR discards the high bits", "Nothing, because XOR is the standard way to combine hashes", "It only works for integer vertices, since XOR needs numbers", "(u, v) and (v, u) collide, and every (u, u) hashes to 0"]
+  answer: 3
   explanation: >-
-    XOR is commutative and self-cancelling. For undirected edges the symmetry might even be desired, but for directed edges or any ordered pair use an order-sensitive combiner such as h * 31 + field.
+    XOR is commutative and self-cancelling, so every self-loop hashes to zero and each edge collides with its reverse. It keeps all bits, so it is not a general collision factory, but for directed edges or any ordered pair use an order-sensitive combiner such as h * 31 + field. For undirected edges the symmetry might even be desired.
 - q: >-
     A web service hashes JSON field names with FNV-1a into a hash map. What is the risk?
-  options: ["FNV is too slow for web traffic", "An attacker who knows the function can send thousands of colliding field names, turning each request into an O(n²) parse (HashDoS)", "FNV cannot hash Unicode", "The map will run out of memory"]
-  answer: 1
+  options: ["Crafted colliding field names can make parsing O(n²)", "Colliding field names overwrite each other's values", "FNV is too slow for hashing every field of every request", "Memory use grows quadratically with the number of fields"]
+  answer: 0
   explanation: >-
-    FNV is unkeyed and its collisions are cheap to construct. Untrusted keys need a keyed hash (SipHash) or a table that bounds chain length (Java's treeification). FNV is fine for keys the service generates itself.
+    FNV is unkeyed and its collisions are cheap to construct, so an attacker who knows the function can send thousands of colliding names and turn each request into a quadratic parse (HashDoS). The table still compares keys, so collisions cost time, not correctness. Untrusted keys need a keyed hash (SipHash) or a table that bounds chain length (Java's treeification). FNV is fine for keys the service generates itself.
 - q: >-
     Python sets of strings iterate in a different order each time a script runs. The cause is:
-  options: ["Sets are unordered so Python shuffles them deliberately", "String hashing is seeded with a random per-process key to defeat HashDoS, so bucket positions differ between runs", "A bug in CPython", "Garbage collection reorders the buckets"]
+  options: ["Sets are unordered, so Python shuffles them on each iteration", "String hashes use a random per-process seed to defeat HashDoS", "Identity hashing uses memory addresses, which differ per run", "Garbage collection moves objects, which reorders the buckets"]
   answer: 1
   explanation: >-
-    Since Python 3.3, str hashes use SipHash with a random seed (PYTHONHASHSEED). Iteration order follows bucket order, so it changes per process. Code that depends on set order is relying on an implementation detail that was deliberately removed.
+    Since Python 3.3, str hashes use SipHash with a random seed (PYTHONHASHSEED). Iteration order follows bucket order, so it changes per process. Strings are hashed by content, not by address, and nothing shuffles deliberately. Code that depends on set order is relying on an implementation detail that was deliberately removed.
 ```

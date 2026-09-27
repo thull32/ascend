@@ -227,32 +227,32 @@ hints:
 ```quiz
 - q: >-
     A chaining hash table has 1,000 slots and 2,500 entries. What is the expected number of key comparisons for an unsuccessful lookup, assuming a uniform hash?
-  options: ["About 1", "About 2.5", "About 3.5", "About 1,000"]
-  answer: 2
+  options: ["About 2.5", "About 1", "About 1,000", "About 3.5"]
+  answer: 3
   explanation: >-
     Load factor α = 2.5, so the average chain has 2.5 entries; an unsuccessful search walks the whole chain (2.5) plus the slot check, ≈ 1 + α = 3.5. "About 1" is the answer only when α is small.
 - q: >-
     In an open-addressing table you delete a key by setting its slot back to empty. What goes wrong?
-  options: ["Nothing; this is how deletion works", "Later inserts fail because the slot is reserved", "Lookups for keys that probed past that slot now stop early and report the key as missing", "The load factor becomes negative"]
-  answer: 2
+  options: ["Lookups for keys that probed past it now stop early", "Nothing, because probing skips over empty slots anyway", "Later inserts fail, because the slot stays reserved", "Lookups of the deleted key still find its old value"]
+  answer: 0
   explanation: >-
-    Probing stops at the first empty slot. Keys inserted after the deleted one may have probed past it; an empty slot now terminates their search prematurely. Tombstones exist to say "keep probing".
+    Probing stops at the first empty slot. Keys inserted after the deleted one may have probed past it; an empty slot now terminates their search prematurely and reports them missing. Probing does not skip empty slots, which is exactly why tombstones exist to say "keep probing".
 - q: >-
     Why does Rust's default HashMap use SipHash, which is slower than FxHash?
-  options: ["It produces fewer collisions on random keys", "It is keyed with a random seed, so attackers cannot precompute colliding keys", "It supports non-string keys", "It is required for iteration order stability"]
-  answer: 1
-  explanation: >-
-    SipHash is a keyed hash chosen for HashDoS resistance, not raw speed. FxHash is faster and fine when you control the keys; on attacker-chosen keys it allows O(n²) collision attacks.
-- q: >-
-    Your service builds a HashMap of 5 million entries on startup and shows a saw-tooth of allocation pauses. The cheapest fix is:
-  options: ["Switch to a chaining table", "Construct the map with capacity for 5 million entries", "Use a smaller load factor", "Sort the keys first"]
-  answer: 1
-  explanation: >-
-    Pre-sizing removes the ~22 doublings and rehashes. A smaller load factor would cause more resizes, not fewer; chaining changes memory layout but still rehashes.
-- q: >-
-    You need to look up counts for keys that are integers in the range 0–255, with millions of lookups per second. The best structure is:
-  options: ["A hash map keyed by the integer", "A balanced BST", "A plain array of 256 counters indexed by the integer", "A bloom filter"]
+  options: ["It produces fewer collisions on random keys than FxHash", "It keeps iteration order stable across runs of a program", "Its random key stops attackers precomputing colliding keys", "It is the only one of the two that hashes non-string keys"]
   answer: 2
   explanation: >-
-    Small dense integer keys make the array a perfect hash table: one memory access, no hashing, no probing, and 1 KiB fits in L1 cache. A hash map does strictly more work for the same result.
+    SipHash is a keyed hash chosen for HashDoS resistance, not raw speed or distribution quality. FxHash is faster and fine when you control the keys; on attacker-chosen keys it allows O(n²) collision attacks. The random key makes iteration order vary between runs, not stay stable.
+- q: >-
+    Your service builds a HashMap of 5 million entries on startup and shows a saw-tooth of allocation pauses. The cheapest fix is:
+  options: ["Construct the map with capacity for 5 million entries", "Switch to a chaining table so entries never need to move", "Insert the keys in sorted order to avoid rehash work", "Lower the load factor so the table resizes less often"]
+  answer: 0
+  explanation: >-
+    Pre-sizing removes the ~22 doublings and rehashes. A smaller load factor would cause more resizes, not fewer; chaining changes memory layout but still rehashes when the slot array grows.
+- q: >-
+    You need to look up counts for keys that are integers in the range 0–255, with millions of lookups per second. The best structure is:
+  options: ["A balanced BST keyed by the integer, for ordered access", "A hash map keyed by the integer, for O(1) lookups", "A plain array of 256 counters indexed by the integer", "A Bloom filter over the integers, for compact counts"]
+  answer: 2
+  explanation: >-
+    Small dense integer keys make the array a perfect hash table: one memory access, no hashing, no probing, and 1 KiB fits in L1 cache. A hash map is also O(1) but does strictly more work for the same result, and a Bloom filter cannot count at all.
 ```

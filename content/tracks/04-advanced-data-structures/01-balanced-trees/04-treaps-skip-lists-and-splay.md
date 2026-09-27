@@ -277,32 +277,32 @@ hints:
 ```quiz
 - q: >-
     Two replicas insert the same set of (key, priority) pairs into treaps in different orders. What is true of the resulting trees?
-  options: ["They differ unless the orders are the same", "They are identical, because a treap's shape is determined by its (key, priority) pairs alone", "They are identical only if priorities were assigned in sorted order", "They have the same height but possibly different shapes"]
-  answer: 1
+  options: ["They match only if priorities were assigned in sorted order", "They differ, because insertion order changes the rotations", "They are identical, since the pairs alone fix the shape", "They share the same height but can differ in shape"]
+  answer: 2
   explanation: >-
-    With distinct keys and priorities there is exactly one tree that is a BST on keys and a heap on priorities. Insertion order affects the rotations performed, not the final shape.
+    With distinct keys and priorities there is exactly one tree that is a BST on keys and a heap on priorities. Insertion order does change which rotations are performed along the way, but not the final shape.
 - q: >-
     Redis implements sorted sets with a skip list rather than a red-black tree. Which reason did NOT motivate that choice?
-  options: ["Range operations are simple because the bottom level is a linked list", "Rank queries are O(log n) using per-pointer spans", "Skip lists guarantee O(log n) worst-case for every operation", "The implementation is far shorter than a balanced tree with equivalent features"]
+  options: ["The code is far shorter than an equivalent balanced tree", "Rank queries are O(log n) using the span stored on each pointer", "Skip lists guarantee O(log n) worst-case for every operation", "Range operations are simple since the bottom level is a linked list"]
   answer: 2
   explanation: >-
     Skip lists are O(log n) in expectation, not in the worst case. Simplicity, easy ranges and rank support via spans were the actual reasons; the missing worst-case guarantee is a cost that was accepted.
 - q: >-
     Why is a skip list a better fit than a red-black tree for a storage engine's in-memory memtable with concurrent readers?
-  options: ["It uses less memory", "Inserting never moves an existing node, so a node can be published with a single pointer write per level and readers need no locks", "It supports range scans, which trees cannot", "It has better worst-case bounds"]
-  answer: 1
+  options: ["It uses less memory per key than a red-black tree", "It has a better worst-case bound than a red-black tree", "Inserts never move existing nodes, so readers need no locks", "It supports range scans, which balanced trees cannot do"]
+  answer: 2
   explanation: >-
-    Rotations relocate nodes and modify several pointers at once, which readers must not see half-done. Skip list inserts splice a new node in with one pointer write per level; a reader either sees it or does not. Memory is actually higher, and trees support range scans fine.
+    Rotations relocate nodes and modify several pointers at once, which readers must not see half-done. Skip list inserts splice a new node in with one pointer write per level; a reader either sees it or does not. Memory is actually higher (a pointer per level per node), trees support range scans fine, and the skip list's bound is only expected.
 - q: >-
     A single splay tree lookup takes O(n) time. What does the amortised O(log n) bound tell you?
-  options: ["That lookup was a bug", "Any sequence of m operations costs O(m log n) in total, so expensive operations are paid for by cheap ones", "The next lookup is guaranteed to be O(1)", "The tree has degenerated and must be rebuilt"]
-  answer: 1
+  options: ["The next lookup is guaranteed to be O(1) to compensate", "The tree has degenerated and must now be rebuilt", "Any sequence of m operations costs O(m log n) in total", "That lookup was a bug in the splay implementation"]
+  answer: 2
   explanation: >-
-    Amortised bounds constrain totals, not individual operations. The O(n) lookup restructured the tree so that following operations are cheaper, and the potential-function argument shows the sum stays O(m log n).
+    Amortised bounds constrain totals, not individual operations. The O(n) lookup restructured the tree so that following operations are cheaper, and the potential-function argument shows the sum stays O(m log n). It promises nothing about any particular next operation.
 - q: >-
     You need an in-memory ordered index for a service with a p99 latency SLO, moderate write rate and a single-threaded access path. Which is the weakest choice?
-  options: ["Red-black tree", "B-tree", "Treap", "Splay tree"]
-  answer: 3
+  options: ["A splay tree", "A red-black tree", "A randomised treap", "An in-memory B-tree"]
+  answer: 0
   explanation: >-
     A splay tree can spend O(n) on one operation, which is exactly what a tail-latency SLO forbids. Red-black and B-trees have worst-case bounds; a treap's bounds are expected but its bad cases are astronomically unlikely and not workload-triggerable.
 ```

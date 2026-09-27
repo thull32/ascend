@@ -219,32 +219,32 @@ hints:
 ```quiz
 - q: >-
     In Python you push (priority, task) tuples where task is a dict. Everything works until two tasks share a priority, then you get TypeError. Why, and what is the fix?
-  options: ["Dicts cannot be stored in lists; use a class", "On a priority tie, tuple comparison falls through to comparing the dicts, which is unsupported; insert a unique sequence number between them", "heapq only supports integers", "Priorities must be unique in a heap"]
+  options: ["heapq accepts only numbers; push id(task) instead of the dict", "Ties fall through to comparing dicts; put a counter before them", "Heap priorities must be unique; add a small random jitter to each", "Dicts are unhashable, which heapq forbids; wrap each in a class"]
   answer: 1
   explanation: >-
-    Tuple comparison is lexicographic and only stops at the first differing element. A monotonically increasing counter in position two guarantees a difference before the payload is reached and gives FIFO order among ties as a bonus.
+    Tuple comparison is lexicographic and only stops at the first differing element, so on a priority tie Python compares the dicts, which is unsupported. A monotonically increasing counter in position two guarantees a difference before the payload is reached and gives FIFO order among ties as a bonus. heapq never hashes anything, and priorities may repeat freely.
 - q: >-
     A max-heap job queue uses (priority, seq) tuples with seq increasing. Among equal priorities, which job pops first?
-  options: ["The earliest pushed", "The latest pushed", "Random", "It alternates"]
-  answer: 1
+  options: ["The latest pushed, since its larger seq wins", "Any of them, since heaps are not stable", "The earliest pushed, since seq keeps FIFO order", "The one nearest the root, whatever its seq"]
+  answer: 0
   explanation: >-
-    A max-heap pops the largest tuple; with equal priorities the larger seq, the most recent push, wins. For FIFO in a max-heap, negate the sequence number.
+    A max-heap pops the largest tuple; with equal priorities the larger seq, the most recent push, wins. The seq makes every tuple unique, so the order is deterministic, but it is LIFO, not FIFO. For FIFO in a max-heap, negate the sequence number.
 - q: >-
     Why does Linux's CFS scheduler keep runnable tasks in a red-black tree rather than a binary heap?
-  options: ["Heaps cannot store structs", "Tasks are removed from the middle when they block, and a heap cannot delete an arbitrary element efficiently without an index", "Red-black trees are faster at finding the minimum", "Heaps require a fixed maximum size"]
-  answer: 1
+  options: ["Red-black trees find the minimum faster than a heap's root", "Heaps need a fixed maximum size, set when they are created", "Heaps cannot hold structs, only plain integer priorities", "Blocked tasks leave mid-queue, which heaps delete poorly"]
+  answer: 3
   explanation: >-
-    Both give O(log n) insert and extract-min, but the tree also gives O(log n) delete-by-node and ordered iteration. A heap needs an auxiliary index map to delete by identity.
+    Tasks are removed from the middle when they block. Both structures give O(log n) insert and extract-min (and a heap's minimum is O(1) at the root), but the tree also gives O(log n) delete-by-node and ordered iteration. A heap needs an auxiliary index map to delete by identity.
 - q: >-
     A discrete-event simulation occasionally pushes an event whose timestamp is earlier than the current clock. What happens?
-  options: ["The heap rejects it", "It is popped next and handled, which silently violates causality and can produce impossible states", "It is placed at the end and handled last", "The simulation deadlocks"]
-  answer: 1
+  options: ["The loop deadlocks, waiting for the clock to reach it", "It sinks to the end of the array and is handled last", "The heap rejects it as older than the last popped key", "It pops next and runs, silently violating causality"]
+  answer: 3
   explanation: >-
-    The heap has no notion of the current time; it orders purely by key. A past-dated event becomes the minimum and runs immediately. Assert that new events are not earlier than the clock.
+    The heap has no notion of the current time; it orders purely by key and accepts anything. A past-dated event becomes the minimum and runs immediately, which can produce impossible states. Assert that new events are not earlier than the clock.
 - q: >-
     You receive a batch of 100,000 records and must output all of them sorted by score. The best choice is:
-  options: ["Push each into a heap and pop 100,000 times", "Sort the batch once", "Insert into a balanced BST and traverse inorder", "Heapify, then pop 100,000 times"]
-  answer: 1
+  options: ["Insert into a balanced BST and traverse inorder", "Push each into a heap and pop 100,000 times", "Sort the batch once with the built-in sort", "Heapify in O(n), then pop 100,000 times"]
+  answer: 2
   explanation: >-
-    When everything is available up front and everything is needed in order, sort() is O(n log n) with better constants, stability and cache behaviour. Heaps earn their keep when insertions interleave with extractions or when only the first k are needed.
+    When everything is available up front and everything is needed in order, sort() is O(n log n) with better constants, stability and cache behaviour. Heapify is O(n) but the 100,000 pops are still O(n log n) with worse constants. Heaps earn their keep when insertions interleave with extractions or when only the first k are needed.
 ```

@@ -275,32 +275,32 @@ hints:
 ```quiz
 - q: >-
     You want the maximum number of non-overlapping intervals. Which sort key is correct, and what does the alternative get wrong?
-  options: ["Sort by start; sorting by end ignores short intervals", "Sort by end; sorting by start can keep a long early interval that blocks many short ones", "Sort by length; short intervals always fit", "Either works if you also break ties correctly"]
-  answer: 1
+  options: ["Sort by end; by start, one long early interval blocks short ones", "Sort by length; sorting by end can drop a short interval", "Either key works; only the tie-break on touching ends matters", "Sort by start; sorting by end skips intervals that begin early"]
+  answer: 0
   explanation: >-
     The earliest-ending interval leaves the most room, which is the activity-selection exchange argument. Sorting by start keeps [1,100] in [[1,100],[2,3],[4,5]] and loses two intervals. Sorting by length fails too: a short interval in the middle can block two others.
 - q: >-
     You merge the closed intervals [[1,10],[2,3],[4,5]] but write `current.end = next.end` instead of `max(current.end, next.end)`. What does the function return?
-  options: ["[[1,10]]", "[[1,5]]", "[[1,3],[4,5]]", "[[1,10],[2,3],[4,5]]"]
-  answer: 2
+  options: ["[[1,10],[2,3],[4,5]]", "[[1,5]]", "[[1,10]]", "[[1,3],[4,5]]"]
+  answer: 3
   explanation: >-
     [2,3] is inside [1,10]; without the max, the block shrinks to [1,3]. Then [4,5] starts after 3, so it is emitted separately. The correct answer is [[1,10]]; the shrink bug loses the interval 3..10 entirely, which is why contained intervals are the standard hidden test.
 - q: >-
     In Meeting Rooms II with a min-heap of end times, why is it sufficient to pop at most one room per incoming meeting?
-  options: ["Because the heap can only hold one free room at a time", "Because the incoming meeting needs exactly one room; extra free rooms stay in the heap and are popped by later meetings without changing the peak size", "Because popping more than one would double-count rooms", "It is not sufficient; you must pop every room whose end is less than or equal to the start"]
-  answer: 1
+  options: ["One room per meeting; spare free rooms don't raise the peak", "The heap can only ever hold one free room at a time", "Popping more than one room would double-count the freed rooms", "It isn't; every room with end ≤ start must be popped first"]
+  answer: 0
   explanation: >-
-    Each meeting consumes one room; leaving other free rooms in the heap does not increase its size beyond what the meetings actually require, since the size only grows when no room is free. Popping all free rooms is also correct but not necessary.
+    Each meeting consumes one room; leaving other free rooms in the heap does not increase its size beyond what the meetings actually require, since the size only grows when no room is free. Extra free rooms stay in the heap and are popped by later meetings. Popping all free rooms is also correct, but not required: the peak size comes out the same.
 - q: >-
     A sweep line over half-open intervals has a start event and an end event at the same time t. In which order must they be processed?
-  options: ["Start first, so the room count peaks correctly", "End first, so a room freed at t is available to the meeting starting at t", "Order does not matter for the maximum", "Ends first only if the intervals are closed"]
-  answer: 1
+  options: ["Either order, since the maximum is the same after both events", "Start first, so the peak count includes both meetings", "Start first, unless the intervals are closed, then end first", "End first, so the room freed at t can host the new meeting"]
+  answer: 3
   explanation: >-
     For [start, end), a meeting ending at t and one starting at t do not overlap, so the count must go down before it goes up. Processing the start first would report a phantom overlap and over-count rooms. Closed intervals require the opposite tie-break.
 - q: >-
-    You must answer 100,000 queries of the form \"smallest interval containing point q\" over 100,000 intervals. What is the key idea?
-  options: ["Binary search each query against intervals sorted by start", "Sort the queries too, sweep them in order, and keep a min-heap by size of intervals that have started, discarding those that have ended", "Build a hash map from point to intervals", "Sort intervals by end and answer each query with a linear scan"]
+    You must answer 100,000 queries of the form "smallest interval containing point q" over 100,000 intervals. What is the key idea?
+  options: ["Sort intervals by start and binary search each query", "Sort the queries and sweep with a min-heap keyed by size", "Map each integer point to its smallest interval in a hash map", "Sort intervals by end and scan until one contains each query"]
   answer: 1
   explanation: >-
-    Sorting queries makes the problem offline: every interval enters the candidate heap once (when its start is passed) and leaves once (when its end is passed), giving O((n + m) log n). Binary search alone cannot handle nested intervals; linear scans are quadratic.
+    Sorting queries makes the problem offline: sweep queries in increasing order with a min-heap of (size, end); every interval enters the candidate heap once (when its start is passed) and leaves once (when its end is passed), giving O((n + m) log n). Binary search alone cannot handle nested intervals; per-query scans are quadratic, and a point-to-interval map is unbounded when coordinates are large.
 ```

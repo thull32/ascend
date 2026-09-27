@@ -317,32 +317,32 @@ It shares the key property: state is derived from an append-only log of immutabl
 ```quiz
 - q: >-
     A PSP call times out during a charge. Which response is correct?
-  options: ["Mark the payment failed so the customer can retry", "Retry immediately on a second PSP", "Keep the payment in processing, retry with the same PSP idempotency key, and resolve via webhook or status query", "Mark the payment succeeded, since most charges succeed"]
-  answer: 2
+  options: ["Keep it processing; retry with the same key and reconcile", "Retry immediately on a second PSP to get a definite answer", "Mark the payment succeeded, since most charges succeed", "Mark the payment failed so the customer can retry"]
+  answer: 0
   explanation: >-
-    The outcome is unknown. Marking it failed invites a retry with a new intent, and trying a second PSP can charge twice if the first succeeded. A same-key retry is deduplicated by the PSP, and the webhook, resolver and reconciliation settle the truth. Guessing success gives away the product when the charge actually failed.
+    The outcome is unknown, so the payment stays in processing and is retried with the same PSP idempotency key, then resolved via webhook or status query. Marking it failed invites a retry with a new intent, and trying a second PSP can charge twice if the first succeeded. A same-key retry is deduplicated by the PSP, and the webhook, resolver and reconciliation settle the truth. Guessing success gives away the product when the charge actually failed.
 - q: >-
     Idempotency keys are kept for 24 hours. What protects against a duplicate charge from a retry four days later?
-  options: ["Nothing; this is an accepted risk", "A unique constraint allowing only one live payment per invoice", "The PSP's fraud checks", "Making the idempotency key longer"]
-  answer: 1
+  options: ["Nothing; beyond 24 hours a duplicate is an accepted risk", "A longer idempotency key, so collisions cannot occur", "A unique constraint: one live payment per invoice", "The PSP's fraud checks flagging the repeated charge"]
+  answer: 2
   explanation: >-
     A natural business key enforced by the database outlives any key TTL. The idempotency key gives replayable responses for recent retries; the constraint gives a permanent guarantee for the business intent. Fraud checks are not designed to catch duplicates, and key length is irrelevant.
 - q: >-
     A $15.99 charge incurs a 76-cent PSP fee and settles $15.23 to the bank. What is the PSP receivable balance after the capture, fee and settlement entries?
-  options: ["+1599", "+1523", "0", "-76"]
-  answer: 2
+  options: ["0", "+1523", "+1599", "-76"]
+  answer: 0
   explanation: >-
     The capture debits the receivable 1599; the fee credits it 76; the settlement credits it 1523. 1599 - 76 - 1523 = 0. A zero receivable after settlement is exactly the fact reconciliation checks for each charge.
 - q: >-
     Which statement about exactly-once payment processing is accurate?
-  options: ["Kafka transactions make PSP calls exactly-once", "Two-phase commit with the PSP gives exactly-once", "Exactly-once is achieved by setting retries to zero", "Exactly-once delivery is impossible over a network; you get an exactly-once effect from at-least-once delivery plus idempotent processing, within the dedupe window"]
-  answer: 3
+  options: ["It is at-least-once delivery plus idempotent processing", "Kafka transactions make the PSP calls themselves exactly-once", "Two-phase commit with the PSP gives true exactly-once", "Setting retries to zero achieves exactly-once delivery"]
+  answer: 0
   explanation: >-
-    Messages and calls can always be lost or duplicated, so systems deliver at least once and deduplicate. Kafka transactions cover reads and writes inside Kafka, not calls to an external PSP, which also does not participate in 2PC. Zero retries gives at-most-once, trading duplicates for lost payments.
+    Exactly-once delivery is impossible over a network: messages and calls can always be lost or duplicated, so systems deliver at least once and deduplicate, giving an exactly-once effect within the dedupe window. Kafka transactions cover reads and writes inside Kafka, not calls to an external PSP, which also does not participate in 2PC. Zero retries gives at-most-once, trading duplicates for lost payments.
 - q: >-
     Daily reconciliation finds a PSP charge with no successful payment in your database, and the invoice was already paid by another attempt. What is it and what should happen?
-  options: ["A timing difference; wait for tomorrow's file", "A double charge, probably from an unresolved unknown outcome; refund it automatically and alert", "A fee mismatch; raise a claim with the PSP", "Fraud; block the customer"]
-  answer: 1
+  options: ["A timing difference; it will match in tomorrow's file", "A fee mismatch; raise a claim against the PSP's fee", "A double charge; refund it automatically and alert", "Card fraud; block the customer's account and card"]
+  answer: 2
   explanation: >-
-    A charge the PSP holds that you never recorded, on an invoice already paid, means the customer paid twice. The playbook refunds it and alerts so the resolver bug can be fixed. Timing windows explain charges that appear a day late, not a second charge on a paid invoice.
+    A charge the PSP holds that you never recorded, on an invoice already paid, means the customer paid twice, probably from an unresolved unknown outcome. The playbook refunds it and alerts so the resolver bug can be fixed. Timing windows explain charges that appear a day late, not a second charge on a paid invoice.
 ```

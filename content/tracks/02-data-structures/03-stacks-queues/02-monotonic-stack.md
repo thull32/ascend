@@ -248,32 +248,32 @@ hints:
 ```quiz
 - q: >-
     A monotonic stack algorithm has a while loop nested inside a for loop. Why is it O(n) rather than O(n²)?
-  options: ["The while loop runs at most once per iteration", "Each index is pushed once and popped at most once, so total while-loop iterations across the whole run are at most n", "The stack has constant size", "The inner loop only compares, it does not move data"]
-  answer: 1
+  options: ["Each index is pushed once and popped at most once overall", "The stack never holds more than a constant number of indices", "The while loop pops at most one index per outer iteration", "The inner loop only compares values, so its cost is not counted"]
+  answer: 0
   explanation: >-
-    The inner loop's iterations are pops. An index can only be popped after being pushed and can never be pushed again, so total pops are bounded by n. This is amortised analysis: uneven per-iteration cost, linear total.
+    The inner loop's iterations are pops. An index can only be popped after being pushed and can never be pushed again, so total while-loop iterations across the whole run are bounded by n. A single iteration can pop many indices, which is why "at most one pop per iteration" is wrong. This is amortised analysis: uneven per-iteration cost, linear total.
 - q: >-
     For "next greater element" the stack must hold values that are (bottom to top):
-  options: ["Increasing", "Decreasing", "Sorted by index only", "Arbitrary"]
-  answer: 1
+  options: ["Increasing, so each pop yields the next greater element", "Increasing, so the top is the largest value still waiting", "Decreasing, so the top is the smallest value still waiting", "Unordered, since each index is only compared with the top"]
+  answer: 2
   explanation: >-
-    Every stacked index is still waiting for a greater element. If a larger value were below a smaller one, the smaller one would have popped the larger when it arrived, contradiction; so the stack is decreasing. Next-smaller uses an increasing stack.
+    Every stacked index is still waiting for a greater element. If a larger value were below a smaller one, the smaller one would have popped the larger when it arrived, contradiction; so the stack is decreasing. An increasing stack answers the next-smaller question instead.
 - q: >-
     In stock span, the span counts consecutive earlier days with price less than OR EQUAL to today's. Which pop condition is correct while scanning for the previous greater price?
-  options: ["Pop while price[top] < price[i]", "Pop while price[top] <= price[i]", "Pop while price[top] > price[i]", "Never pop"]
-  answer: 1
+  options: ["Pop while price[top] > price[i], so the stack stays increasing", "Pop while price[top] >= price[i], so ties end the span", "Pop while price[top] < price[i], so ties stay as boundaries", "Pop while price[top] <= price[i], so ties join the span"]
+  answer: 3
   explanation: >-
     Equal prices count toward the span, so they must be popped (they are not a boundary). Using strict `<` would stop at an equal price and undercount the span. Tie handling is a deliberate choice, not a default.
 - q: >-
     In the histogram algorithm, bar j is popped when bar i arrives with a smaller height. The width of j's rectangle is:
-  options: ["i − j", "i − left − 1, where left is the stack top after popping j (or −1)", "j − left", "i − j + 1"]
+  options: ["i − left, where left is the new stack top after popping j", "i − left − 1, where left is the stack top after popping j", "j − left, where left is the new stack top after popping j", "i − j, where j is the bar just popped from the stack"]
   answer: 1
   explanation: >-
-    The rectangle of height h[j] extends from just after the previous smaller bar (left) to just before the next smaller bar (i). Both boundaries are exclusive, giving i − left − 1 bars.
+    The rectangle of height h[j] extends from just after the previous smaller bar (left, or −1 if the stack is empty) to just before the next smaller bar (i). Both boundaries are exclusive, giving i − left − 1 bars; i − left counts one boundary bar too many, and i − j ignores the taller bars to j's left that were popped earlier.
 - q: >-
     Which problem is NOT naturally a monotonic stack problem?
-  options: ["Daily temperatures", "Largest rectangle in a histogram", "Sliding window maximum", "Sum of subarray minimums"]
-  answer: 2
+  options: ["Sliding window maximum of size k", "Sum of minimums over all subarrays", "Daily temperatures (wait for warmer)", "Largest rectangle in a histogram"]
+  answer: 0
   explanation: >-
     Sliding window maximum needs to discard elements that leave the window from the front while maintaining order at the back, which requires a deque; the monotonic deque lesson covers it. The other three ask about nearest greater/smaller boundaries.
 ```

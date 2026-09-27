@@ -203,32 +203,32 @@ hints:
 ```quiz
 - q: >-
     On a 100-case eval, a new prompt scores 83% and the old one 80%. What is the right conclusion?
-  options: ["The difference is within the noise for 100 cases; inspect the discordant cases and add cases before deciding", "Ship it; 3 points is a clear improvement", "The old prompt is better because it is proven", "Evals cannot compare prompts"]
-  answer: 0
-  explanation: >-
-    With 100 cases near 80%, the standard error is about 4 points, so a 3-point gap is well within chance. The cases where exactly one version passes carry the real signal; read them and grow the set where they cluster.
-- q: >-
-    An LLM judge agrees with human labels on 88% of cases. Why might that still be unacceptable?
-  options: ["88% agreement is always acceptable", "Judges must agree 100% to be used", "Agreement can be dominated by the majority class; the judge may still miss a large share of real failures, which the confusion matrix and kappa reveal", "Agreement only matters for pairwise judging"]
-  answer: 2
-  explanation: >-
-    If most answers pass, a lenient judge agrees often while waving through many failures. Breaking agreement down by class shows how many true failures it misses, and kappa corrects for agreement expected by chance.
-- q: >-
-    In pairwise judging, the judge prefers answer A when A is shown first and answer B when B is shown first. What should you do?
-  options: ["Always show the new version first", "Run both orders and count inconsistent verdicts as ties, because the judge has position bias", "Switch to a 1 to 10 scale", "Ignore it; the effects cancel out over many cases"]
-  answer: 1
-  explanation: >-
-    Position bias is a known judge failure. Evaluating both orders and treating disagreement as a tie removes it from the result instead of letting it masquerade as a preference.
-- q: >-
-    Which production signal most directly separates retrieval failures from generation failures in a RAG feature?
-  options: ["Total request latency", "The model's temperature", "The number of daily active users", "The retrieved chunk ids and scores recorded on the retrieval span, compared with the answer and its citations"]
+  options: ["Keep the old prompt, since it has been proven in production and the gap is small", "Run the same 100 cases again and ship if the new prompt wins a second time", "Ship it, since a 3-point gain on 100 cases is a statistically clear improvement", "It is within the noise for 100 cases; read the discordant cases and add more"]
   answer: 3
   explanation: >-
-    With retrieved ids on the trace you can see whether the right passage reached the model. If it did and the answer is wrong, generation failed; if it did not, retrieval did.
+    With 100 cases near 80%, the standard error is about 4 points (a 95% interval of roughly ±8), so a 3-point gap is well within chance. The cases where exactly one version passes carry the real signal; read them and grow the set where they cluster before deciding. Re-running the same cases does not shrink the uncertainty that comes from having only 100 of them.
+- q: >-
+    An LLM judge agrees with human labels on 88% of cases. Why might that still be unacceptable?
+  options: ["Judges are only usable at near-100% agreement, since every miss is a bug", "It is fine, since 88% agreement is well above the 80% bar most teams use", "Agreement only measures pairwise judging, not pass/fail grading like this", "Agreement can be dominated by the majority class, hiding missed failures"]
+  answer: 3
+  explanation: >-
+    If most answers pass, a lenient judge agrees often while waving through many failures. Breaking agreement down by class with a confusion matrix shows how many true failures it misses, and kappa corrects for agreement expected by chance. No fixed agreement threshold is safe on its own, and perfect agreement is not required.
+- q: >-
+    In pairwise judging, the judge prefers answer A when A is shown first and answer B when B is shown first. What should you do?
+  options: ["Run both orders and count inconsistent verdicts as ties, not preferences", "Ignore it, because position effects cancel out over a large number of cases", "Always show the new version first, so any bias favours it consistently", "Switch to a 1 to 10 scale, which removes the effect of ordering entirely"]
+  answer: 0
+  explanation: >-
+    Position bias is a known judge failure. Evaluating both orders and treating disagreement as a tie removes it from the result instead of letting it masquerade as a preference. It does not reliably cancel out: if the new version is shown first more often, or the bias interacts with answer length, it skews the comparison.
+- q: >-
+    Which production signal most directly separates retrieval failures from generation failures in a RAG feature?
+  options: ["Total request latency, broken down by percentile across all requests", "Daily active users and thumbs-down rates for the feature over time", "The model's temperature and stop reason recorded on each model-call span", "Retrieved chunk ids and scores on the retrieval span, checked against the answer"]
+  answer: 3
+  explanation: >-
+    With retrieved ids on the trace, compared with the answer and its citations, you can see whether the right passage reached the model. If it did and the answer is wrong, generation failed; if it did not, retrieval did. Latency, sampling settings and usage metrics say nothing about which half failed.
 - q: >-
     How could you grade whether a coding tutor handed a learner a complete solution, without using an LLM judge?
-  options: ["Count the words in the reply", "Check whether the reply contains the word solution", "Extract any code from the reply and run it against the problem's test cases; passing means a full solution was given", "Ask the learner"]
-  answer: 2
+  options: ["Run any code from the reply against the problem's own test cases", "Count the words in the reply and flag long replies as likely solutions", "Check whether the reply contains words such as \"solution\" or \"answer\"", "Ask the learner after each session whether they were given the answer"]
+  answer: 0
   explanation: >-
-    Execution is the strongest code-based grader: the problem's own tests define what a complete solution is. Word counts and keyword checks are brittle proxies.
+    Execution is the strongest code-based grader: extract any code from the reply and run it against the problem's tests, which define what a complete solution is, so passing means a full solution was given. Word counts and keyword checks are brittle proxies.
 ```

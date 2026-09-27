@@ -154,32 +154,32 @@ Influence behaves like a ledger. Deposits: delivering what you said you would, g
 ```quiz
 - q: >-
     Three teams agree your migration matters but none has scheduled it. What is the most effective next step?
-  options: ["Ask a VP to mandate it", "Send a firmer email with a deadline", "Wait until an incident proves the risk", "Reduce their cost: provide a codemod, open the PRs yourself, make the new client the default, and track progress visibly"]
-  answer: 3
+  options: ["Lower their cost: supply a codemod, open the PRs yourself and track progress", "Send a firmer email to the leads with a hard deadline and the risks restated", "Ask a VP to mandate it, so the migration gets onto every team's roadmap", "Wait until an incident proves the risk, since that will create the urgency"]
+  answer: 0
   explanation: >-
-    The obstacle is cost, not disagreement. Lowering the cost of yes gets commitment; a mandate gets grudging compliance and spends goodwill, and waiting for an incident accepts the risk you are trying to remove.
+    The obstacle is cost, not disagreement. Lowering the cost of yes (a codemod, PRs you open yourself, the new client as the default, visible progress) gets commitment; a mandate gets grudging compliance and spends goodwill, and waiting for an incident accepts the risk you are trying to remove.
 - q: >-
     What is the main purpose of pre-wiring before a decision meeting?
-  options: ["To surface objections one to one while they are cheap to address, so nobody is surprised in the room", "To get the decision made without a meeting", "To lobby for votes", "To avoid writing a design doc"]
-  answer: 0
-  explanation: >-
-    People raise concerns more candidly in private and argue less defensively without an audience. Pre-wiring improves the proposal and the meeting; it is not a substitute for the written brief or the decision itself.
-- q: >-
-    Two engineers argue about whether a design "will scale". Which kind of disagreement is this, and how should it be resolved?
-  options: ["A values disagreement; escalate to the manager", "A factual disagreement; look it up in the docs", "A prediction; resolve it with a load test, prototype or comparable system", "A personality clash; move on"]
-  answer: 2
-  explanation: >-
-    Claims about future behaviour are predictions, and evidence settles them. Escalating a prediction wastes the decider's time; values and priorities are what go to the decider.
-- q: >-
-    After a decision goes against your recommendation, you learn nothing new. What does "disagree and commit" require?
-  options: ["Keep raising the concern in each planning meeting", "Execute the decision fully as if it were your own, and reopen it only with new evidence, stated as such", "Implement it minimally to show it will not work", "Escalate to the approver's manager"]
+  options: ["To replace the design doc with quick conversations for faster alignment", "To surface objections one to one while they are still cheap to address", "To reach the decision privately so the meeting only has to ratify it", "To line up enough votes in advance that objections can be outvoted"]
   answer: 1
   explanation: >-
-    Relitigating without new information erodes trust and slows everyone. The right to reopen is tied to new evidence, not persistence.
+    People raise concerns more candidly in private and argue less defensively without an audience, so objections surface while they are cheap and nobody is surprised in the room. Pre-wiring improves the proposal and the meeting; it is not a substitute for the written brief or the decision itself, and it is not vote-gathering.
+- q: >-
+    Two engineers argue about whether a design "will scale". Which kind of disagreement is this, and how should it be resolved?
+  options: ["A priorities clash; agree which goal matters most, then move on", "A factual disagreement; look up the answer in the documentation", "A prediction; settle it with a load test, prototype or similar system", "A values disagreement; escalate it to the manager to decide"]
+  answer: 2
+  explanation: >-
+    Claims about future behaviour are predictions, and evidence settles them: a load test, a prototype or a comparable system. No document can say how this particular design will behave, and escalating a prediction wastes the decider's time; values and priorities are what go to the decider.
+- q: >-
+    After a decision goes against your recommendation, you learn nothing new. What does "disagree and commit" require?
+  options: ["Keep raising the concern at each planning meeting until it is heard", "Execute it fully as your own, and reopen it only with new evidence", "Implement it minimally, so the results show whether it was right", "Escalate once to the approver's manager, then execute if overruled"]
+  answer: 1
+  explanation: >-
+    Relitigating without new information, whether in meetings or by escalating over the approver, erodes trust and slows everyone. Commit means executing the decision fully as if it were your own; the right to reopen is tied to new evidence, stated as such, not persistence. A minimal implementation is sabotage by another name.
 - q: >-
     You and another tech lead are deadlocked on a decision that blocks both teams. What is the best escalation?
-  options: ["A joint write-up both of you agree is fair, stating the options, reasons, costs, what you agree on and the decision date needed", "Each of you messages your own manager with your side", "Post the disagreement in a public channel to gather votes", "Avoid escalating; escalation looks like failure"]
-  answer: 0
+  options: ["Post the disagreement in a public channel so the wider team can vote", "A joint write-up both agree is fair, with the options, costs and date needed", "Keep negotiating without escalating, since escalation signals failure", "Each of you briefs your own manager on your side and lets the two of them settle it"]
+  answer: 1
   explanation: >-
-    A joint write-up lets the decider decide quickly and preserves the relationship. Separate one-sided escalations force the manager to re-run the argument and cost both of you trust.
+    A joint write-up stating the options, reasons, costs, what you agree on and the decision date lets the decider decide quickly and preserves the relationship. Separate one-sided escalations force the managers to re-run the argument and cost both of you trust, and avoiding escalation leaves both teams blocked.
 ```

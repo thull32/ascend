@@ -232,32 +232,32 @@ hints:
 ```quiz
 - q: >-
     A service writes its state to state.json.tmp, calls fsync on it, renames it over state.json and returns success. After a power failure, state.json holds the old contents. Which step was missing?
-  options: ["An fsync of state.json after the rename", "Opening the file with O_APPEND", "Calling close before rename", "An fsync of the containing directory after the rename"]
-  answer: 3
+  options: ["Fsyncing the parent directory after the rename", "An fsync of state.json itself once the rename completes", "Opening state.json.tmp with O_APPEND instead of O_TRUNC", "Calling close on state.json.tmp before the rename"]
+  answer: 0
   explanation: >-
     The rename changes the directory, which is a separate file with its own dirty pages. Without fsyncing the directory, the new name mapping may never reach disk, so after the crash the old entry is still there. fsyncing state.json again would only flush the inode's data, which was already durable.
 - q: >-
     df reports a volume 100% full, but du over the whole filesystem accounts for only 40% of it. What is the most likely cause?
-  options: ["Filesystem journal overhead", "A large file was deleted while a process still holds it open, so its blocks cannot be freed", "Inode exhaustion", "The page cache is holding dirty pages"]
+  options: ["Dirty pages in the page cache that have space reserved on disk", "A deleted but still-open file keeps its blocks", "Journal overhead, which du does not count but df does", "Inode exhaustion, which df reports as used block space"]
   answer: 1
   explanation: >-
-    du walks directory entries; an unlinked file has none, but its inode and blocks live until the last descriptor closes. lsof +L1 finds it. Inode exhaustion shows in df -i, not as used blocks, and dirty pages do not consume disk space.
+    du walks directory entries; an unlinked file has none, but its inode and blocks live until the last descriptor closes, so df still counts them. lsof +L1 finds it. The journal is a fixed, modest region, inode exhaustion shows in df -i rather than as used blocks, and dirty pages do not consume disk space.
 - q: >-
     Postgres developers discovered that retrying a failed fsync on Linux could return success even though data was lost. What is the correct application response to an fsync error?
-  options: ["Treat it as possible data loss: crash or fail the operation and recover from a durable log", "Retry fsync until it succeeds", "Switch to fdatasync", "Call sync() for the whole system instead"]
-  answer: 0
+  options: ["Retry fsync until it succeeds, since the error is transient", "Treat it as possible data loss: fail, then recover from a durable log", "Call sync() so the whole system's dirty pages are flushed", "Switch to fdatasync, which reports write-back errors reliably"]
+  answer: 1
   explanation: >-
-    After a write-back failure the kernel may mark the affected pages clean, so a later fsync has nothing to flush and succeeds. The only safe assumption is that the unflushed data is gone, which is why PostgreSQL now panics and replays its WAL.
+    After a write-back failure the kernel may mark the affected pages clean, so a later fsync, fdatasync or sync has nothing to flush and succeeds. The only safe assumption is that the unflushed data is gone: crash or fail the operation and recover from a durable log, which is why PostgreSQL now panics and replays its WAL.
 - q: >-
     A single-threaded tool reads random 4 KiB blocks synchronously from an NVMe drive rated at 800,000 random-read IOPS and measures about 12,000 IOPS at roughly 80 µs per read. What limits it?
-  options: ["The drive is faulty", "The page cache is too small", "Only one request is in flight at a time; by Little's law throughput is 1 / 80 µs, and reaching the rated IOPS needs dozens of concurrent requests", "4 KiB is below the drive's minimum block size"]
+  options: ["4 KiB reads are below the drive's minimum block size", "The drive is faulty or is throttling under its thermal limits", "One request in flight: 1 / 80 µs caps it near 12,500 IOPS", "The page cache is too small to hold the working set"]
   answer: 2
   explanation: >-
-    IOPS equals requests in flight divided by latency. With one outstanding request at 80 µs the ceiling is 12,500 per second. NVMe drives reach their ratings with deep queues, via many threads or asynchronous submission such as io_uring.
+    IOPS equals requests in flight divided by latency. With one outstanding request at 80 µs the ceiling is 12,500 per second, which matches the measurement, so nothing is faulty. NVMe drives reach their ratings with deep queues, via many threads or asynchronous submission such as io_uring.
 - q: >-
     An 8-disk array of 150-IOPS drives serves a random small-write workload. Roughly how many write IOPS can RAID 5 sustain compared with RAID 10?
-  options: ["RAID 5 about 1,200, RAID 10 about 600", "RAID 5 about 300, RAID 10 about 600", "Both about 1,200", "RAID 5 about 600, RAID 10 about 300"]
-  answer: 1
+  options: ["RAID 5 and RAID 10 both about 1,200", "RAID 5 about 1,200, RAID 10 about 600", "RAID 5 about 600, RAID 10 about 300", "RAID 5 about 300, RAID 10 about 600"]
+  answer: 3
   explanation: >-
     The array has 1,200 raw IOPS. Each small RAID 5 write costs 4 I/Os (read data, read parity, write both), giving about 300. Each RAID 10 write costs 2 I/Os (both mirrors), giving about 600. RAID 5's capacity advantage comes with a large write penalty.
 ```

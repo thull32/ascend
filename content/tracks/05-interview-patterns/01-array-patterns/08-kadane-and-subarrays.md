@@ -252,32 +252,32 @@ hints:
 ```quiz
 - q: >-
     In Kadane's algorithm, what does `cur` represent after processing index i?
-  options: ["The maximum sum of any subarray in nums[0..i]", "The maximum sum of any subarray that ends exactly at index i", "The sum of nums[0..i]", "The maximum element in nums[0..i]"]
-  answer: 1
+  options: ["The running total of every element in nums[0..i]", "The maximum sum of any subarray within nums[0..i]", "The maximum sum of any subarray starting at index i", "The maximum sum of any subarray ending exactly at i"]
+  answer: 3
   explanation: >-
-    cur is the best subarray that ends at i, which is what the recurrence needs: the best ending at i+1 is either nums[i+1] alone or cur plus nums[i+1]. The global maximum is tracked separately in best.
+    cur is the best subarray that ends at i, which is what the recurrence needs: the best ending at i+1 is either nums[i+1] alone or cur plus nums[i+1]. The global maximum over nums[0..i] is tracked separately in best.
 - q: >-
     Why can a sliding window not solve maximum subarray sum when the array contains negative numbers?
-  options: ["Windows only work on strings", "A window requires the array to be sorted", "Growing the window does not change the sum monotonically, so there is no rule for when shrinking from the left is safe", "The window would need O(n) extra space"]
-  answer: 2
+  options: ["The window would need O(n) extra space to track the negatives", "A window needs sorted input to decide which end to move", "Windows only apply to strings and their character counts", "The sum is not monotone in length, so no shrink rule is safe"]
+  answer: 3
   explanation: >-
     Sliding window relies on a monotone condition: adding elements only ever makes it worse in one direction. With negatives, adding an element can raise or lower the sum, so no left-shrink rule is always correct. Kadane replaces shrinking with restarting, which is only valid because the objective is additive.
 - q: >-
     For maximum product subarray, why must you track the minimum product ending at each index as well as the maximum?
-  options: ["To handle zeros", "Because a negative number turns the smallest product so far into the largest", "To detect overflow", "Because the product can be fractional"]
-  answer: 1
+  options: ["Because a negative x turns the smallest product into the largest", "Because a zero resets the running maximum product to zero", "Because the answer may be negative and must be reported as such", "Because the running product can overflow in the negative direction"]
+  answer: 0
   explanation: >-
-    Multiplying a very negative running product by a negative x yields a large positive value. Without lo, the algorithm would have discarded that negative run and missed the answer. Zeros are handled by the ordinary three-way max without special tracking.
+    Multiplying a very negative running product by a negative x yields a large positive value. Without lo, the algorithm would have discarded that negative run and missed the answer. Zeros are handled by the ordinary three-way max without special tracking, and a negative answer is still found through hi and best.
 - q: >-
     You run Kadane with best initialised to 0 on [-4, -1, -7]. What is returned, and is it correct?
-  options: ["-1, correct", "0, correct because the empty subarray has sum 0", "0, incorrect because the problem requires a non-empty subarray", "-12, incorrect"]
-  answer: 2
+  options: ["0, wrong because the subarray must be non-empty", "-1, correct because the largest element wins", "-12, wrong because it sums the whole array", "0, correct because the empty subarray has sum 0"]
+  answer: 0
   explanation: >-
-    Every cur is negative so best never rises above its initial 0. The problem asks for a non-empty subarray, whose true maximum is -1. Initialise best with nums[0].
+    Every cur is negative so best never rises above its initial 0. The problem asks for a non-empty subarray, whose true maximum is -1, so returning the empty subarray's 0 is wrong. Initialise best with nums[0].
 - q: >-
     Which of these problems is NOT solved by a Kadane-style single pass?
-  options: ["Maximum sum of a contiguous subarray", "Best single buy-then-sell profit", "Number of contiguous subarrays whose sum equals k, with negatives present", "Maximum product of a contiguous subarray"]
-  answer: 2
+  options: ["Maximum product of a contiguous subarray with zeros", "Number of contiguous subarrays whose sum equals k", "Maximum sum of a contiguous subarray, with negatives", "Best single buy-then-sell profit over daily prices"]
+  answer: 1
   explanation: >-
-    An exact target has no best-ending-here structure; you need prefix sums and a hash map of prefix counts. The other three all decompose at the right edge and admit the running-value recurrence.
+    An exact target has no best-ending-here structure, especially with negatives present; you need prefix sums and a hash map of prefix counts. The other three all decompose at the right edge and admit the running-value recurrence.
 ```

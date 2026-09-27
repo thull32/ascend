@@ -193,31 +193,31 @@ Two lessons in this track make the point concrete: [space complexity and the mem
 ```quiz
 - q: >-
     A recursive function has one local array of 8 KiB and no other significant locals. On a Linux main thread with the default 8 MiB stack, roughly how deep can it recurse before overflowing?
-  options: ["About 100 calls", "About 1,000 calls", "About 100,000 calls", "It cannot overflow; arrays are on the heap"]
+  options: ["No limit; the array goes on the heap", "Around 1,000 frames deep", "Around 100,000 frames deep", "Around 100 frames deep"]
   answer: 1
   explanation: >-
     Each frame is a little over 8 KiB, so 8 MiB holds about 1,000 frames. A fixed-size local array in C, C++ or Rust lives in the frame; only Python and JavaScript would put it on the heap.
 - q: >-
     In CPython, `sys.setrecursionlimit(1_000_000)` followed by a recursion 500,000 deep is most likely to:
-  options: ["Work, because the limit is now high enough", "Raise RecursionError anyway", "Succeed for pure-Python calls on 3.11+ but may crash the process if the recursion passes through C code", "Be automatically converted to a loop"]
-  answer: 2
+  options: ["Be turned into a loop by CPython's tail-call optimisation", "Raise RecursionError anyway, since CPython caps the limit", "Work in every version, since the limit is now high enough", "Work on 3.11+, but crash if the recursion goes through C code"]
+  answer: 3
   explanation: >-
-    The limit is a counter. Since 3.11, Python-to-Python calls do not consume C stack, so deep pure recursion can work; but any path through C (dunder methods, C-implemented libraries) still uses the real stack and can segfault. Before 3.11 the crash was likely regardless.
+    The limit is a counter, and raising it is honoured. Since 3.11, Python-to-Python calls do not consume C stack, so deep pure recursion can work; but any path through C (dunder methods, C-implemented libraries) still uses the real stack and can crash the process. Before 3.11 the crash was likely regardless, which is why "every version" is wrong. CPython deliberately does no tail-call optimisation.
 - q: >-
     Why can a Go program recurse a million levels deep while a Rust program with the same recursion aborts?
-  options: ["Go performs tail-call elimination", "Go goroutine stacks grow by copying to a larger block; Rust threads have a fixed stack with a guard page", "Rust allocates frames on the heap, which is slower", "Go frames are smaller than Rust frames"]
-  answer: 1
+  options: ["Go's compiler emits much smaller frames, so more fit", "Go performs tail-call elimination on recursive calls", "Go stacks grow by copying; Rust stacks are fixed in size", "Rust allocates frames on the heap, which fills up sooner"]
+  answer: 2
   explanation: >-
-    Go's runtime detects an about-to-overflow stack, allocates a bigger one and copies the frames. Rust (like C) reserves a fixed region and hits a guard page. Neither language guarantees tail-call elimination.
+    Go's runtime detects an about-to-overflow goroutine stack, allocates a bigger one and copies the frames. Rust (like C) reserves a fixed region per thread and hits a guard page. Neither language guarantees tail-call elimination.
 - q: >-
     You are converting a recursive post-order tree traversal to an iterative one. What must the explicit stack store that a pre-order conversion does not need?
-  options: ["The parent pointer of each node", "A marker saying whether the node's children have already been processed", "The depth of each node", "Nothing; post-order is just pre-order reversed"]
-  answer: 1
+  options: ["A flag saying whether its children are already done", "Nothing extra; post-order is pre-order reversed", "The depth of each node, to know when to unwind", "The parent pointer of every node along the current path"]
+  answer: 0
   explanation: >-
     Post-order does work after the recursive calls return, so each stack entry needs to record whether it is being visited for the first time or resumed. That marker plays the role of the return address. Reversing pre-order gives a right-to-left post-order only for the specific case of a binary tree with no side effects during the visit, which is a trick, not the general transformation.
 - q: >-
     A JSON API accepts arbitrary documents and parses them with a recursive-descent parser. Which input is the cheapest denial-of-service attack against it?
-  options: ["A 1 GB document of flat key-value pairs", "A document with a single 100 MB string", "A few hundred kilobytes of nested arrays opened 100,000 levels deep", "A document with 10,000 duplicate keys"]
+  options: ["A document holding one single string of 100 MB", "A 1 GB document of flat key-value pairs", "A few hundred KB of arrays nested 100,000 deep", "A document repeating one key 10,000 times"]
   answer: 2
   explanation: >-
     Nesting depth maps directly to stack depth in a recursive parser; a few hundred kilobytes of `[` characters overflow the stack and crash the process. The large documents cost bandwidth and memory but do not crash anything by themselves. Production parsers cap nesting depth for this reason.

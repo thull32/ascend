@@ -176,32 +176,32 @@ The DNS exchange completed in 1 ms with two packets. The TCP connection has used
 ```quiz
 - q: >-
     A voice-over-IP application is built on TCP. During a burst of 1% packet loss, users report audio freezing for half a second at a time even though almost all packets arrived. Which TCP property is responsible?
-  options: ["The three-way handshake repeats after each loss", "In-order delivery holds every later packet in the kernel buffer until the lost one is retransmitted, so on-time audio frames are hidden behind a stale one", "TCP's checksum rejects audio frames", "The receive window is too small for audio"]
-  answer: 1
+  options: ["In-order delivery hides arrived frames behind the lost one", "The receive window is too small for continuous audio", "TCP's checksum rejects audio frames with minor bit errors", "The three-way handshake is repeated after every loss"]
+  answer: 0
   explanation: >-
-    The stream contract means bytes after a gap cannot be delivered until the gap is filled, and filling it costs at least an RTT and often a retransmission timeout. The frames were there; the transport refused to hand them over. UDP with a jitter buffer delivers what arrived and conceals what did not.
+    The stream contract means bytes after a gap cannot be delivered until the gap is filled, and filling it costs at least an RTT and often a retransmission timeout, so on-time frames sit in the kernel buffer behind a stale one. The frames were there; the transport refused to hand them over. UDP with a jitter buffer delivers what arrived and conceals what did not.
 - q: >-
     The client-server RTT is 100 ms. Roughly how long until the client receives the reply to a single small request over a fresh TCP connection with TLS 1.3, versus over UDP?
-  options: ["100 ms versus 100 ms; the handshakes overlap with data", "200 ms versus 100 ms", "300 ms versus 100 ms", "300 ms versus 200 ms"]
-  answer: 2
+  options: ["300 ms versus 200 ms", "300 ms versus 100 ms", "200 ms versus 100 ms", "100 ms versus 100 ms"]
+  answer: 1
   explanation: >-
-    TCP handshake costs one RTT, TLS 1.3 costs one more, then the request and reply take a third: 300 ms. UDP has no setup, so the request and reply take one RTT: 100 ms. This is why connection reuse and 0-RTT resumption exist.
+    TCP handshake costs one RTT, TLS 1.3 costs one more, then the request and reply take a third: 300 ms. The handshakes do not overlap with the request on a fresh connection. UDP has no setup, so the request and reply take one RTT: 100 ms. This is why connection reuse and 0-RTT resumption exist.
 - q: >-
     You design a UDP protocol for streaming sensor readings and add sequence numbers, per-packet acknowledgements and retransmission of every lost reading. What should a reviewer point out?
-  options: ["UDP cannot carry sequence numbers", "You have re-implemented TCP's policy without its congestion control; either use TCP, or keep UDP and change the policy (for example, only the newest reading matters, so do not retransmit old ones)", "Acknowledgements are not allowed over UDP", "Sensor data must always use TCP"]
-  answer: 1
+  options: ["UDP headers have no room to carry sequence numbers at all", "Sensor data must always be sent over TCP, never UDP", "Acknowledgements are not permitted over UDP at all", "It rebuilds TCP's policy; drop stale readings instead"]
+  answer: 3
   explanation: >-
-    Reliable in-order delivery of every message is exactly what TCP provides, with decades of tuning. The reason to use UDP is to apply a different policy, such as dropping stale readings or tolerating gaps. Rebuilding TCP's policy on UDP gives you TCP's costs plus your own bugs, and usually without rate control.
+    Reliable in-order delivery of every message is exactly what TCP provides, with decades of tuning and congestion control. The reason to use UDP is to apply a different policy, such as not retransmitting old readings because only the newest matters. Rebuilding TCP's policy on UDP gives you TCP's costs plus your own bugs, and usually without rate control. Sequence numbers and ACKs in a UDP payload are perfectly legal.
 - q: >-
     A UDP-based application works on the office network but its connections silently die after about 30 seconds of inactivity when users are at home. What is the most likely cause?
-  options: ["Home routers do not support UDP", "The home NAT expired its mapping for the idle UDP flow; the protocol needs periodic keepalives", "UDP datagrams expire after 30 seconds", "The application is exceeding the MTU"]
-  answer: 1
+  options: ["The home NAT expired the idle mapping", "UDP datagrams expire after 30 seconds in flight", "Home routers do not support UDP traffic at all", "The application exceeds the home link's MTU"]
+  answer: 0
   explanation: >-
-    NAT devices keep UDP mappings for a short idle period, commonly around 30 seconds, versus hours for established TCP. Once the mapping expires, inbound datagrams have nowhere to go. Every production UDP protocol (WebRTC, QUIC, VPNs) sends keepalives for this reason.
+    NAT devices keep UDP mappings for a short idle period, commonly around 30 seconds, versus hours for established TCP. Once the mapping expires, inbound datagrams have nowhere to go. Every production UDP protocol (WebRTC, QUIC, VPNs) sends periodic keepalives for this reason.
 - q: >-
     Why did QUIC's designers build on UDP rather than defining a new IP protocol number alongside TCP (6) and UDP (17)?
-  options: ["UDP is faster than a new protocol would be", "A new protocol number would be dropped by most NATs and firewalls, whereas UDP passes through them; UDP's empty header lets QUIC define everything else itself", "IP has no free protocol numbers", "UDP provides the congestion control QUIC needs"]
-  answer: 1
+  options: ["NATs and firewalls pass UDP but drop unknown IP protocols", "UDP is faster than any new transport protocol could be", "UDP already provides the congestion control QUIC needs", "IP has no free protocol numbers left to assign"]
+  answer: 0
   explanation: >-
-    Middleboxes only understand TCP and UDP; SCTP, which took the new-protocol route, is nearly undeployable on the public internet for that reason. UDP is deployable and contributes nothing beyond ports and a checksum, so QUIC implements streams, reliability, congestion control and encryption itself.
+    Middleboxes only understand TCP and UDP; SCTP, which took the new-protocol route, is nearly undeployable on the public internet for that reason. UDP is deployable and contributes nothing beyond ports and a checksum, so its empty header lets QUIC implement streams, reliability, congestion control and encryption itself.
 ```

@@ -255,32 +255,32 @@ hints:
 ```quiz
 - q: >-
     Which query can a hash map NOT answer efficiently?
-  options: ["Does key k exist?", "What is the value for key k?", "What is the largest key less than or equal to k?", "Remove key k"]
-  answer: 2
+  options: ["What value is currently stored for key k?", "What is the largest stored key ≤ k?", "Remove key k and its value, if present", "Is key k present among the stored keys?"]
+  answer: 1
   explanation: >-
-    Hash maps place keys by hash, destroying order. Floor, ceiling, range and sorted iteration need an ordered structure (tree, B-tree, skip list or sorted array).
+    Hash maps place keys by hash, destroying order, so the largest key ≤ k (floor) needs a full scan. Membership, lookup and removal are exact-key operations and stay O(1) expected. Floor, ceiling, range and sorted iteration need an ordered structure (tree, B-tree, skip list or sorted array).
 - q: >-
     Rust's standard ordered map is a B-tree rather than a red-black tree mainly because:
-  options: ["B-trees have better worst-case height", "Nodes hold many keys contiguously, so lookups touch far fewer cache lines", "Red-black trees cannot be implemented safely in Rust", "B-trees use less memory per key"]
-  answer: 1
+  options: ["Red-black trees cannot be written in safe Rust at all", "It uses much less memory per key, which decided the choice", "Wide nodes keep keys contiguous, so lookups miss cache less", "Its worst-case height is lower than a red-black tree's"]
+  answer: 2
   explanation: >-
     Both have logarithmic height; the B-tree's advantage in memory is cache behaviour: a few wide nodes instead of ~20 separately allocated ones. Memory per key is comparable or better, but locality is the decisive reason.
 - q: >-
     In Python, to find the largest key ≤ x in a sorted list `keys`, which expression is correct?
-  options: ["keys[bisect.bisect_left(keys, x)]", "keys[bisect.bisect_right(keys, x) - 1] if bisect.bisect_right(keys, x) > 0 else None", "keys[bisect.bisect_left(keys, x) - 1]", "max(k for k in keys if k <= x)"]
-  answer: 1
+  options: ["keys[i - 1] where i = bisect_right(keys, x), if i > 0", "keys[i] where i = bisect_right(keys, x), if i < len(keys)", "keys[i - 1] where i = bisect_left(keys, x), if i > 0", "keys[i] where i = bisect_left(keys, x), if i < len(keys)"]
+  answer: 0
   explanation: >-
-    bisect_right returns the first index with a key > x, so the element before it is the floor; guard the index-0 case. Option C fails when x is present (it returns the previous key). Option D is correct but O(n).
+    bisect_right returns the first index with a key > x, so the element before it is the floor; guard the index-0 case. Using bisect_left − 1 fails when x is present (it returns the previous key), and keys[bisect_left] is the ceiling, not the floor.
 - q: >-
     Redis sorted sets use a skip list alongside a hash table. Why not a red-black tree?
-  options: ["Skip lists are faster for exact lookups", "Skip lists support range queries by rank and are simpler to implement and to update concurrently, with no rotations", "Red-black trees cannot store scores", "Skip lists use less memory than any tree"]
+  options: ["Skip lists are faster than trees for exact score lookups", "Rank ranges are easy and updates are local, no rotations", "Red-black trees cannot keep a score alongside each member", "Skip lists use less memory than any balanced tree design"]
   answer: 1
   explanation: >-
-    Skip lists give O(log n) expected ordered operations with simple local pointer updates, making range-by-rank and concurrent modification easy. Exact lookups in Redis go through the companion hash table.
+    Skip lists give O(log n) expected ordered operations with simple local pointer updates, making range-by-rank and concurrent modification easy and the code simpler. Exact lookups in Redis go through the companion hash table, not the skip list.
 - q: >-
     A calendar service checks new bookings against existing ones with a linear scan over a hash map and is slow. The appropriate fix is:
-  options: ["Use a bigger hash map", "Keep bookings ordered by start time and check only floor(start) and ceiling(start): two O(log n) queries", "Sort the bookings on every request", "Cache the last result"]
-  answer: 1
+  options: ["Order bookings by start and check only floor and ceiling", "Cache the last overlap result, keyed by the request range", "Use a bigger hash map so each lookup has fewer collisions", "Sort the bookings on each request, then binary search them"]
+  answer: 0
   explanation: >-
-    Only the nearest booking on each side can overlap a new interval. An ordered map (or a sorted array with binary search, or a B-tree index in the database) answers both neighbours in logarithmic time.
+    Only the nearest booking on each side can overlap a new interval, so floor(start) and ceiling(start) are two O(log n) queries. An ordered map (or a sorted array with binary search, or a B-tree index in the database) answers both. Sorting per request costs O(n log n) every time.
 ```

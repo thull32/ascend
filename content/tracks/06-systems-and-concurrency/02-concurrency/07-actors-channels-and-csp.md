@@ -303,32 +303,32 @@ The third test is the point of the exercise. A buffer of 2 lets the producer fin
 ```quiz
 - q: >-
     A function starts a goroutine that sends its result on an unbuffered channel, then selects on that channel and a one-second timer. Under load, memory grows steadily. Why?
-  options: ["Unbuffered channels allocate on every send", "After a timeout nobody receives, so each late goroutine blocks forever on its send and keeps its data alive", "time.After leaks a timer per call forever", "The select statement starves the channel case"]
+  options: ["Unbuffered channels allocate a fresh buffer on every send", "Late goroutines block forever on a send that nobody will receive", "time.After leaks one timer per call that is never collected", "The select statement starves its channel case under load"]
   answer: 1
   explanation: >-
-    An unbuffered send needs a receiver. Once the caller has returned on the timeout, the goroutine can never complete its send, never exits, and pins everything it references. A buffer of 1 lets the send complete and the goroutine finish; a context lets the work stop early.
+    An unbuffered send needs a receiver. Once the caller has returned on the timeout, the goroutine can never complete its send, never exits, and pins everything it references. A buffer of 1 lets the send complete and the goroutine finish; a context lets the work stop early. The growth tracks timeouts, not calls, which rules out a per-call allocation.
 - q: >-
     Which statement about Go channels is true?
-  options: ["Receiving from a closed channel panics", "Sending on a closed channel panics, and only the sender should close", "A nil channel returns the zero value immediately", "select always picks the first ready case in source order"]
-  answer: 1
+  options: ["Sending on a closed channel panics, so only the sender closes", "A nil channel returns the zero value immediately on receive", "Receiving from a closed channel panics, so receivers must check", "select always picks the first ready case in source order"]
+  answer: 0
   explanation: >-
     Sends on a closed channel panic, which is why closing is the sender's job. Receives on a closed channel return the zero value with ok == false. A nil channel blocks forever, which is useful to disable a select case. select chooses pseudo-randomly among ready cases.
 - q: >-
     What does Rust's type system add to channel-based designs compared with Go?
-  options: ["Channels in Rust are lock-free", "Sending moves the value, so the compiler rejects any later use by the sender, and the value must be Send", "Rust channels cannot deadlock", "Rust channels are unbounded, so senders never block"]
-  answer: 1
+  options: ["Rust channels are unbounded, so a sender never blocks", "Rust channels cannot deadlock, as the compiler checks cycles", "Sending moves the value, so the sender cannot reuse it", "Rust channels are lock-free, so they cannot contend"]
+  answer: 2
   explanation: >-
-    Ownership transfer is checked at compile time, turning "share memory by communicating" from a convention into a guarantee. Rust channels can still deadlock (two threads each waiting to receive from the other), and bounded variants such as sync_channel block senders by design.
+    Ownership transfer is checked at compile time (and the value must be Send), turning "share memory by communicating" from a convention into a guarantee. Rust channels can still deadlock (two threads each waiting to receive from the other), and bounded variants such as sync_channel block senders by design.
 - q: >-
     An Erlang system gives every chat room its own process. One room with a celebrity guest becomes slow and its node's memory climbs. What is happening?
-  options: ["The garbage collector is stopping the world", "The room's process handles messages one at a time, so it is a serial bottleneck, and its unbounded mailbox is filling", "The supervisor keeps restarting the process", "Messages are being delivered out of order"]
-  answer: 1
+  options: ["Messages from different senders arrive out of order", "Stop-the-world garbage collection is pausing the node", "The supervisor keeps restarting the crashed room process", "One process serialises the room; its mailbox grows"]
+  answer: 3
   explanation: >-
-    An actor is a serialisation point by design. A hot entity pushes more messages than one process can handle, and because sends are asynchronous with unbounded mailboxes, the backlog accumulates in memory. Shard the hot entity or add flow control. BEAM garbage collection is per process, not stop-the-world.
+    An actor is a serialisation point by design: the room's process handles messages one at a time. A hot entity pushes more messages than one process can handle, and because sends are asynchronous with unbounded mailboxes, the backlog accumulates in memory. Shard the hot entity or add flow control. BEAM garbage collection is per process, not stop-the-world.
 - q: >-
     A consumer processes items at 100 per second on average. A producer emits 150 per second on average. A teammate proposes raising the channel buffer from 100 to 100,000. What will that do?
-  options: ["Fix the problem, because the producer no longer blocks", "Delay the moment the producer blocks, while adding up to 100,000 items of memory and latency; the rate mismatch remains", "Make the consumer faster by batching", "Nothing, because Go ignores large buffer sizes"]
-  answer: 1
+  options: ["Nothing, because Go caps channel buffers at a small size", "It speeds up the consumer by letting it batch its reads", "It fixes it, because the producer no longer needs to block", "It only delays blocking, adding memory and latency"]
+  answer: 3
   explanation: >-
-    A buffer absorbs bursts, not a sustained rate difference. The buffer fills at 50 items per second, and then the producer is throttled exactly as before, except that each item now waits behind up to 100,000 others. Add consumers, slow or shed the producer, or accept the backpressure.
+    A buffer absorbs bursts, not a sustained rate difference. The buffer fills at 50 items per second, and then the producer is throttled exactly as before, except that each item now waits behind up to 100,000 others. The rate mismatch remains: add consumers, slow or shed the producer, or accept the backpressure.
 ```

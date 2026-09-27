@@ -195,32 +195,32 @@ hints:
 ```quiz
 - q: >-
     Why does Manacher insert a separator between every pair of characters?
-  options: ["To make the string longer so the algorithm has more work to amortise", "So every palindrome, odd or even length, is centred on a single index and the same expansion loop handles both", "To mark word boundaries", "To avoid comparing equal adjacent characters"]
+  options: ["To double the length, so the mirror step has more work to amortise", "So both odd and even palindromes are centred on a single index of T", "So the expansion loop can never run past either end of the string", "To mark character boundaries, so radii count characters, not bytes"]
   answer: 1
   explanation: >-
-    Even-length palindromes are centred between characters. With separators, that gap becomes a real index (a '#'), so one radius array covers both kinds and the radius in the transformed string equals the palindrome's length in the original.
+    Even-length palindromes are centred between characters. With separators, that gap becomes a real index (a '#'), so one radius array and one expansion loop cover both kinds, and the radius in the transformed string equals the palindrome's length in the original. Guarding the ends is what the optional ^ and $ sentinels do, not the separators.
 - q: >-
     At position i inside the current rightmost palindrome (centre C, right edge R), the mirror i' has radius 5 and R - i = 3. What is the starting radius for i, and why not 5?
-  options: ["5, because mirrors are exact", "3, because the reflection is only guaranteed inside the known palindrome; beyond R nothing is known and you must expand", "0, because i is inside another palindrome", "8, the sum"]
+  options: ["8, the mirror's radius plus the distance to R", "3, because the reflection is only known up to R", "5, because the mirror's radius carries over exactly", "0, because nothing is known about i until it expands"]
   answer: 1
   explanation: >-
-    The palindrome at i' pokes outside the big palindrome on the left, so its reflection is only guaranteed up to the boundary at distance R - i. The expansion loop then tests whether it extends further.
+    The palindrome at i' pokes outside the big palindrome on the left, so its reflection is only guaranteed up to the boundary at distance R - i. Copying 5 would assume characters beyond R match, which nothing has checked; the expansion loop then tests whether it extends further.
 - q: >-
     Which input makes expand-around-centre quadratic but leaves Manacher linear?
-  options: ["A random string of letters", "A string of one repeated character such as 'aaaaaaaa'", "A string with no palindromes longer than 1", "The empty string"]
-  answer: 1
+  options: ["A string with no palindromes longer than 1, such as 'abcdefgh'", "A random string of lowercase letters, such as 'qhzbtkwa'", "One long palindrome of distinct letters, such as 'abcdcba'", "A long run of one repeated character, such as 'aaaaaaaa'"]
+  answer: 3
   explanation: >-
-    Every centre in a run of identical characters expands to the nearest edge, so the radii sum to about n²/4. Manacher's mirror step supplies most of each radius for free and the total expansion work stays bounded by n.
+    Every centre in a run of identical characters expands to the nearest edge, so the radii sum to about n²/4. Manacher's mirror step supplies most of each radius for free and the total expansion work stays bounded by n. A single long palindrome costs expansion only at its one centre, so it stays linear.
 - q: >-
     You need to answer 10⁵ queries "is s[l..r] a palindrome" on a fixed string of length 10⁵. What do you precompute?
-  options: ["Nothing; check each query directly", "Manacher's radius array: s[l..r] is a palindrome iff the radius at its centre is at least its length", "A hash set of all palindromic substrings", "The O(n²) DP table"]
-  answer: 1
+  options: ["A hash set of every palindromic substring, looked up per query", "Nothing; checking each query with two pointers is fast enough", "The O(n²) DP table dp[l][r], filled once and read per query", "Manacher's radius array, then one check at each query's centre"]
+  answer: 3
   explanation: >-
-    One O(n) pass gives the maximal radius at every centre; a range is a palindrome exactly when it fits inside that maximal one, an O(1) check. Direct checking is O(n) per query and the DP table needs 10¹⁰ cells.
+    One O(n) pass gives the maximal radius at every centre; s[l..r] is a palindrome exactly when the radius at its centre is at least its length, an O(1) check. Direct checking is O(n) per query, up to 10¹⁰ steps in total, and the DP table needs 10¹⁰ cells.
 - q: >-
     In a 45-minute interview you are asked for the longest palindromic substring. The strongest opening is:
-  options: ["Write Manacher immediately to show mastery", "Write expand-around-centre, state its O(n²) worst case, and mention that Manacher gives O(n) if needed", "Write the O(n²) DP table because it is the textbook answer", "Ask whether the string is a palindrome"]
-  answer: 1
+  options: ["Brute force over all substrings, then optimise once it passes tests", "Manacher straight away, since linear time is what earns the credit", "Expand-around-centre, stating its O(n²) bound and Manacher's O(n)", "The O(n²) DP table, since it is the textbook answer and easy to verify"]
+  answer: 2
   explanation: >-
     The simple correct solution with an honest bound, plus knowledge of the linear alternative, shows judgement. Leading with Manacher risks a bug under time pressure for no credit; the DP table uses n² memory for the same time bound as expansion.
 ```

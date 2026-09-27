@@ -297,32 +297,32 @@ hints:
 ```quiz
 - q: >-
     For LIS you define dp[i] as the LIS length among the first i elements. Why does the transition fail?
-  options: ["Because the array may contain duplicates", "Because knowing the length of the best subsequence in a prefix does not tell you its last element, which decides whether nums[i] can extend it", "Because the answer must be dp[n-1]", "It does not fail; this is the standard definition"]
+  options: ["Because the answer must then be max(dp) rather than dp[n]", "Because the prefix LIS length does not reveal its last element", "It does not fail; this prefix state is the usual definition", "Because duplicate values make the prefix LIS length ambiguous"]
   answer: 1
   explanation: >-
-    Two subsequences of equal length can end in very different values; extending depends on the ending value. The 'ends at i' state carries that information implicitly, at the cost of taking a max over all cells for the answer.
+    Two subsequences of equal length can end in very different values, and whether nums[i] extends one depends on that ending value, which the length alone does not carry. The 'ends at i' state carries that information implicitly, at the cost of taking a max over all cells for the answer; a prefix state would have its answer at dp[n], so the answer location is not the problem.
 - q: >-
     After processing [3, 4, 1], the tails array is [1, 4]. Which statement is true?
-  options: ["[1, 4] is the LIS of the input", "The LIS length is 2, but [1, 4] is not a subsequence of the input; tails only records the smallest possible end of some subsequence of each length", "The LIS length is 1 because 1 replaced 3", "tails must be re-sorted after each replacement"]
-  answer: 1
+  options: ["[1, 4] is an LIS of the input, with length 2", "tails must be re-sorted after every replacement", "The LIS length is 1, because the new 1 replaced the 3", "The LIS length is 2, but [1, 4] is not a subsequence"]
+  answer: 3
   explanation: >-
-    The 1 replaced the 3 in slot 0. Slot k only guarantees that some increasing subsequence of length k+1 ends in that value; the slots together need not form a subsequence. The LIS is [3, 4], length 2, which is the length of tails. tails stays sorted by construction.
+    The 1 replaced the 3 in slot 0. Slot k only guarantees that some increasing subsequence of length k+1 ends in that value; the slots together need not form a subsequence, and here the 1 comes after the 4. The LIS is [3, 4], length 2, which is the length of tails. tails stays sorted by construction.
 - q: >-
     Kadane's algorithm initialised with best = 0 is run on [-3, -1, -2]. What happens?
-  options: ["Returns -1, correct", "Returns 0, which is wrong because the subarray must be non-empty", "Returns -3", "Throws on negative input"]
+  options: ["Returns -6, since every element joins the run", "Returns 0, wrong since subarrays must be non-empty", "Returns -3, since the first element seeds the best sum", "Returns -1, the correct answer for this input"]
   answer: 1
   explanation: >-
-    With best = 0 the algorithm effectively allows an empty subarray. The DP value dp[i] is correct (-3, -1, -2) but the initial 0 wins the max. Initialise best to nums[0] or -infinity.
+    With best = 0 the algorithm effectively allows an empty subarray. The DP values dp[i] are correct (-3, -1, -2), but the initial 0 wins the max, so it returns 0 instead of -1. Initialise best to nums[0] or -infinity.
 - q: >-
     In the unlimited-transactions stock DP, why is the answer free[n-1] rather than max(free[n-1], hold[n-1])?
-  options: ["Because hold[n-1] is always -infinity", "Because ending with an unsold share means you paid for something you never sold; free[n-1] >= hold[n-1] + price[n-1] > hold[n-1] whenever prices are positive", "Because the problem forbids buying on the last day", "It should be the max; free[n-1] alone is wrong"]
-  answer: 1
+  options: ["Because selling on the last day beats still holding", "Because the problem forbids buying on the final day", "It should be the max; free[n-1] can miss the optimum", "Because hold[n-1] is always −∞ by the final day"]
+  answer: 0
   explanation: >-
-    Cash while holding is cash-after-purchase; selling on the last day at any positive price strictly increases it, and free[n-1] already includes that option. Taking the max is harmless but shows you have not reasoned about the states.
+    Cash while holding is cash-after-purchase; selling on the last day at any positive price strictly increases it, and free[n-1] already includes that option: free[n-1] >= hold[n-1] + price[n-1] > hold[n-1]. hold[n-1] is finite once any purchase is possible. Taking the max is harmless but shows you have not reasoned about the states.
 - q: >-
     You implement the cooldown DP in JavaScript as hold = Math.max(hold, free - p); sold = hold + p; free = Math.max(free, sold); in that order. What is wrong?
-  options: ["Nothing; JavaScript evaluates left to right", "sold uses the already-updated hold (you could buy and sell on the same day), and free uses the already-updated sold (skipping the cooldown)", "The variables must be arrays", "Math.max does not accept negative numbers"]
+  options: ["Nothing, since JavaScript runs the three statements in order", "Later lines read today's new values, allowing illegal moves", "Math.max mishandles -Infinity, so hold is never set", "The three states must be arrays indexed by day to be correct"]
   answer: 1
   explanation: >-
-    Each new state must be computed from the previous day's values. Sequential assignment leaks today's values into today's other transitions, which silently permits illegal same-day moves. Use temporaries or destructuring assignment.
+    Each new state must be computed from the previous day's values. Here sold uses the already-updated hold (buying and selling on the same day), and free uses the already-updated sold (skipping the cooldown). Running in order is exactly the problem. Use temporaries or destructuring assignment; arrays are not required, and Math.max handles -Infinity correctly.
 ```

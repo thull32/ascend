@@ -273,32 +273,32 @@ hints:
 ```quiz
 - q: >-
     A Postgres transaction has updated 30 million rows and is then rolled back. Why does the rollback finish almost instantly?
-  options: ["Postgres never wrote the changes anywhere until commit", "The WAL is truncated back to the transaction's start", "Postgres rolls back in the background after returning", "Rollback marks the transaction as aborted in the commit log; the new row versions stay on their pages but are invisible to everyone and are reclaimed later by vacuum"]
-  answer: 3
-  explanation: >-
-    Every version carries its creating transaction id, and visibility checks consult that transaction's status. Flipping the status to aborted makes all 30 million versions invisible at once. The cost is deferred to vacuum. An undo-log engine such as InnoDB would instead have to reverse each change.
-- q: >-
-    Two concurrent requests each run SELECT balance, subtract 40 in application code, then UPDATE accounts SET balance = <computed value>, both inside a transaction at Postgres's default isolation level. What can happen?
-  options: ["One withdrawal is lost: both read the same balance and the second write overwrites the first", "Nothing; the transaction makes it safe", "One transaction always fails with a serialisation error", "Both block forever"]
-  answer: 0
-  explanation: >-
-    Under read committed nothing stops two transactions from reading the same value and writing conflicting results; the second UPDATE waits for the first's row lock, then overwrites it. Compute in SQL (balance = balance - 40), lock the row with SELECT ... FOR UPDATE, or use a stricter isolation level with retries.
-- q: >-
-    Which statement about the C in ACID is accurate?
-  options: ["The database guarantees your business invariants hold after every transaction", "The database guarantees declared constraints (CHECK, UNIQUE, foreign keys) hold after every committed transaction; other invariants are the application's responsibility", "Consistency means replicas agree with the primary", "Consistency is provided by the WAL"]
+  options: ["It returns at once and applies the undo log to the pages in the background", "It marks the transaction aborted; its new row versions just become invisible", "Postgres buffers all the changes in memory and writes nothing until commit", "It truncates the WAL back to the transaction's start, discarding the changes"]
   answer: 1
   explanation: >-
-    The database cannot know invariants you have not declared. It enforces constraints atomically; everything else depends on your transaction logic and the isolation level. Replica agreement is a different use of the word consistency, from distributed systems.
+    Every version carries its creating transaction id, and visibility checks consult that transaction's status in the commit log. Flipping the status to aborted makes all 30 million versions invisible at once; they stay on their pages until vacuum reclaims them. The cost is deferred to vacuum. An undo-log engine such as InnoDB would instead have to reverse each change, and Postgres has no undo log to apply.
 - q: >-
-    Your client sends COMMIT and the TCP connection resets before any reply. What is the safe way to handle this for a money transfer?
-  options: ["Assume it failed and retry the transfer", "Assume it succeeded", "Reconnect and check pg_stat_activity", "Design the transfer to be idempotent, for example with a client-generated key under a unique constraint, so a retry either commits once or detects it already committed"]
-  answer: 3
+    Two concurrent requests each run SELECT balance, subtract 40 in application code, then UPDATE accounts SET balance = <computed value>, both inside a transaction at Postgres's default isolation level. What can happen?
+  options: ["A lost update: both read the same balance and the second write wins", "One of them always fails with a serialisation error and must be retried", "They deadlock, because each holds the row lock the other one needs", "Nothing bad; the transaction serialises the two read-modify-write cycles"]
+  answer: 0
   explanation: >-
-    The outcome is genuinely unknown to the client: the commit may or may not have been flushed. Blind retries risk double application; assuming success risks loss. An idempotency key turns the retry into a safe no-op if the first attempt committed.
+    Under read committed nothing stops two transactions from reading the same value and writing conflicting results; the second UPDATE waits for the first's row lock, then overwrites it. There is no serialisation error at this level and no deadlock, since only one row lock is involved. Compute in SQL (balance = balance - 40), lock the row with SELECT ... FOR UPDATE, or use a stricter isolation level with retries.
 - q: >-
-    A service sets synchronous_commit = off for its page_views inserts. What is the actual risk?
-  options: ["Page views may be written in the wrong order", "The database may become corrupted after a crash", "If the server crashes, the last fraction of a second of acknowledged inserts may be lost, but the database remains consistent", "Other transactions can read uncommitted page views"]
+    Which statement about the C in ACID is accurate?
+  options: ["It guarantees every replica agrees with the primary once a commit returns", "It guarantees that all of your business invariants hold after every transaction", "It guarantees declared constraints hold; any other invariants are yours to enforce", "It guarantees the WAL and data files agree once crash recovery completes"]
   answer: 2
   explanation: >-
-    With synchronous_commit off, COMMIT returns before the WAL flush, so a crash can lose recently acknowledged transactions. It cannot corrupt data or break atomicity, because the WAL ordering rules still hold. For analytics-style inserts this is often a good trade.
+    The database cannot know invariants you have not declared. It enforces constraints (CHECK, UNIQUE, NOT NULL, foreign keys) atomically; everything else depends on your transaction logic and the isolation level. Replica agreement is a different use of the word consistency, from distributed systems.
+- q: >-
+    Your client sends COMMIT and the TCP connection resets before any reply. What is the safe way to handle this for a money transfer?
+  options: ["Treat it as committed, since COMMIT is sent only after every write succeeded", "Treat it as failed and retry, since an unacknowledged commit rolls back", "Reconnect and check pg_stat_activity to see whether the session committed", "Make the transfer idempotent with a client key under a unique constraint"]
+  answer: 3
+  explanation: >-
+    The outcome is genuinely unknown to the client: the commit may or may not have been flushed. Blind retries risk double application; assuming success risks loss; the old session is gone from pg_stat_activity either way. An idempotency key turns the retry into a safe no-op if the first attempt committed, and into the real transfer if it did not.
+- q: >-
+    A service sets synchronous_commit = off for its page_views inserts. What is the actual risk?
+  options: ["Inserts can become durable in a different order than they committed", "A server crash can lose the last fraction of a second of acknowledged inserts", "Other sessions can read page views before their transactions commit", "A crash can leave data pages corrupted, because the WAL was not flushed"]
+  answer: 1
+  explanation: >-
+    With synchronous_commit off, COMMIT returns before the WAL flush, so a crash can lose recently acknowledged transactions. It cannot corrupt data or break atomicity, because the WAL ordering rules still hold and the database remains consistent. Visibility rules are unchanged too. For analytics-style inserts this is often a good trade.
 ```

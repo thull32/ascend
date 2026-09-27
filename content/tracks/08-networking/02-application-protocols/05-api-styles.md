@@ -301,32 +301,32 @@ Mixing is normal and healthy. The mistake is choosing a style by fashion and the
 ```quiz
 - q: >-
     A team replaces a REST API with GraphQL for its mobile app. Round trips per screen drop from 20 to 1, but the title service now receives 20 separate lookups per home screen. What is the standard fix?
-  options: ["Go back to REST", "Batch resolver calls per request with a DataLoader, so all title IDs requested in the same tick become one batched lookup", "Cache every GraphQL response at the CDN by URL", "Increase the title service's thread pool"]
-  answer: 1
+  options: ["Cache every GraphQL response at the CDN by URL", "Enlarge the title service's thread pool to cope", "Batch resolver calls per request with a DataLoader", "Revert to REST, where each screen made its own calls"]
+  answer: 2
   explanation: >-
-    GraphQL moved the N+1 from the network to the resolvers. A per-request loader collects keys and issues one batched call, and also deduplicates repeated IDs. CDN caching by URL does not work because every query is a POST to the same URL; more threads just makes the N+1 faster.
+    GraphQL moved the N+1 from the network to the resolvers. A per-request loader collects every title ID requested in the same tick and issues one batched lookup, and also deduplicates repeated IDs. Reverting brings back the 20 round trips; CDN caching by URL does not work because every query is a POST to the same URL; more threads just makes the N+1 faster.
 - q: >-
     A client retries POST /orders with the same Idempotency-Key but a different amount in the body. What should the server do?
-  options: ["Process it as a new order", "Return the original stored response", "Reject it (for example 422) because the key was reused with a different request, and create nothing", "Update the original order to the new amount"]
-  answer: 2
+  options: ["Process it as a new order with the new amount", "Return the stored response from the first request", "Update the original order to use the new amount", "Reject it, for example with 422, creating nothing"]
+  answer: 3
   explanation: >-
     Reusing a key with a different body is a client bug; replaying the old response would hide it, and processing it would defeat the key. The IETF draft for the header specifies an error for this case. A concurrent retry with the same body, by contrast, gets 409 or waits, and a completed one gets the stored response.
 - q: >-
     A feed API uses ?offset=20&limit=20, sorted newest first. Between fetching page 1 and page 2, three new items are posted. What does the client see?
-  options: ["Page 2 is correct because offsets are stable", "The last three items of page 1 appear again at the top of page 2, because every item shifted down three positions", "Page 2 skips three items", "The request fails"]
-  answer: 1
+  options: ["The request fails because the offset is stale", "Page 2 is correct, because offsets are stable", "Page 1's last three items reappear on page 2", "Page 2 silently skips three of the older items"]
+  answer: 2
   explanation: >-
-    Offsets are positions, and insertions at the top shift every position. Items 18 to 20 of the old ordering become 21 to 23, so they are served again. Deletions cause the opposite (skips). A cursor based on the last item's sort key is unaffected by inserts above it.
+    Offsets are positions, and insertions at the top shift every item down three positions. Items 18 to 20 of the old ordering become 21 to 23, so they are served again at the top of page 2. Deletions cause the opposite (skips). A cursor based on the last item's sort key is unaffected by inserts above it.
 - q: >-
     An operations dashboard counts HTTP 5xx responses at the load balancer and shows zero errors, but users of the GraphQL and gRPC APIs report failures. Why?
-  options: ["The load balancer is dropping error responses", "Both styles report most failures inside a successful HTTP 200 response (the GraphQL errors array, the gRPC grpc-status trailer), so HTTP-level metrics miss them", "The errors are all client-side JavaScript errors", "5xx responses are cached by the CDN"]
-  answer: 1
+  options: ["The load balancer drops error responses before logging", "The CDN is caching 5xx responses and hiding them", "Both styles report failures inside an HTTP 200 response", "The failures are all client-side JavaScript errors"]
+  answer: 2
   explanation: >-
-    GraphQL allows partial success with errors listed alongside data, and gRPC puts the call status in trailers after an HTTP 200. Monitoring must be protocol-aware. That is one of the operational costs of leaving plain REST semantics.
+    GraphQL allows partial success with errors listed in the errors array alongside data, and gRPC puts the call status in the grpc-status trailer after an HTTP 200, so HTTP-level metrics miss them. Monitoring must be protocol-aware. That is one of the operational costs of leaving plain REST semantics.
 - q: >-
     Which situation most favours REST over GraphQL or gRPC?
-  options: ["Internal service calls with strict latency budgets", "A mobile app with many screens assembled from several teams' services", "A public catalogue API whose GET responses should be cached by a CDN and called by third parties in any language", "Bidirectional streaming between two services"]
-  answer: 2
+  options: ["A public, CDN-cacheable API called by third parties", "A mobile app assembled from several teams' services", "Internal service calls with strict latency budgets", "Bidirectional streaming between two services"]
+  answer: 0
   explanation: >-
     REST GETs are cached by browsers and CDNs with no extra machinery, and any HTTP client can call them. The other options play to gRPC (internal calls, streaming) or GraphQL (many screens, many teams).
 ```

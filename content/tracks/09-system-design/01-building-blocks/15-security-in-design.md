@@ -179,32 +179,32 @@ SSRF: a user pastes an internal address or the cloud metadata endpoint, and my f
 ```quiz
 - q: >-
     A web app uses JWT access tokens valid for 24 hours with no server-side state. A user reports their laptop stolen. What can the system do?
-  options: ["Revoke the token immediately", "Nothing until the token expires, unless a denylist lookup is added to every request", "Rotate the signing key, which invalidates only that user's token", "Force the token to expire by logging the user out"]
+  options: ["Force the token to expire by logging the user out everywhere", "Nothing before expiry, unless each request checks a denylist", "Rotate the signing key, which invalidates only that user's token", "Revoke the token immediately at the identity provider"]
   answer: 1
   explanation: >-
-    Stateless verification means no per-request check against revocation. A denylist reintroduces the lookup; rotating the signing key logs out every user. Short-lived access tokens with revocable refresh tokens bound the exposure to minutes.
+    Stateless verification means no per-request check against revocation, so there is nothing to revoke or log out server-side. A denylist reintroduces the lookup; rotating the signing key logs out every user, not just this one. Short-lived access tokens with revocable refresh tokens bound the exposure to minutes.
 - q: >-
     Why is a service-to-service call authenticated with mTLS still insufficient on its own?
-  options: ["mTLS does not encrypt traffic", "It proves which service is calling but says nothing about whether this user may access this resource; authorization with user context is still needed", "Certificates expire too quickly", "It only works at the gateway"]
-  answer: 1
+  options: ["It only works at the edge gateway, not between services", "mTLS authenticates the caller but leaves traffic unencrypted", "Its certificates expire too quickly to be relied on alone", "It proves which service calls, not what the user may access"]
+  answer: 3
   explanation: >-
-    Authentication answers who; authorization answers what they may do. A legitimate service can still be asked for another user's data unless the user context is checked per resource.
+    Authentication answers who; authorization answers what they may do. A legitimate service can still be asked for another user's data unless the user context is checked per resource. mTLS does encrypt the traffic; that is not the gap.
 - q: >-
     What is the purpose of envelope encryption (per-object data keys wrapped by a KMS key)?
-  options: ["It makes encryption faster than AES", "It lets you rotate the master key by re-wrapping small data keys instead of re-encrypting all data, and delete data by destroying its key", "It removes the need for TLS", "It allows encrypted fields to be indexed"]
-  answer: 1
+  options: ["It makes bulk encryption faster than calling AES directly", "It removes the need for TLS between services and storage", "It lets encrypted fields be indexed and queried directly", "Key rotation re-wraps small data keys, not all the data"]
+  answer: 3
   explanation: >-
-    Data stays encrypted under its own key; only the small wrapped keys touch the KMS or need rewriting on rotation. Destroying a user's data key renders every copy, including backups, unreadable (crypto-shredding).
+    Data stays encrypted under its own key; only the small wrapped keys touch the KMS or need rewriting on rotation. It also lets you delete data by destroying its key: that renders every copy, including backups, unreadable (crypto-shredding). The data keys are still AES keys, so it is not a faster cipher.
 - q: >-
     A feature fetches user-supplied URLs to render previews. The most important cloud-specific control is:
-  options: ["Caching previews", "Blocking link-local and private ranges (including the instance metadata endpoint) after DNS resolution and after redirects, via an isolated fetcher and egress proxy", "Using HTTP/2", "Rate limiting previews per user"]
-  answer: 1
+  options: ["Rate limiting preview fetches per user and per domain", "Fetching over HTTPS only, rejecting plain HTTP URLs", "Blocking private and metadata IPs after resolving DNS", "Caching previews so each URL is fetched only once"]
+  answer: 2
   explanation: >-
-    SSRF against the metadata endpoint yields instance credentials. Validation must happen on resolved addresses and on every redirect, from a network position with no internal reach. Rate limiting helps abuse but not this attack.
+    SSRF against the instance metadata endpoint yields instance credentials. Validation must block link-local and private ranges on resolved addresses and on every redirect, from an isolated fetcher and egress proxy with no internal reach. Rate limiting helps abuse but not this attack.
 - q: >-
     Why should login attempts be rate limited per account rather than only per IP?
-  options: ["Per-IP limits are illegal", "Many legitimate users share IPs behind NAT, while attackers spread across thousands of IPs, so IP alone both over-blocks and under-blocks", "Per-account limits are cheaper to store", "IP addresses cannot be read at the gateway"]
-  answer: 1
+  options: ["Per-account counters are cheaper to store than per-IP ones", "Client IPs are hidden from the gateway by TLS termination", "Per-IP limits breach privacy rules on storing addresses", "Users share NAT IPs; attackers spread across many IPs"]
+  answer: 3
   explanation: >-
-    Credential stuffing is distributed by design. Per-account buckets stop brute force on one account; device and ASN signals catch distributed campaigns; IP is one input to a risk score, not the key.
+    Many legitimate users share IPs behind NAT, while credential stuffing is distributed across thousands of IPs by design, so IP alone both over-blocks and under-blocks. Per-account buckets stop brute force on one account; device and ASN signals catch distributed campaigns; IP is one input to a risk score, not the key.
 ```

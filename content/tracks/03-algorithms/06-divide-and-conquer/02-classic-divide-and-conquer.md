@@ -261,32 +261,32 @@ hints:
 ```quiz
 - q: >-
     Computing a^n by repeated squaring on arbitrary-precision integers without a modulus is NOT O(log n) time. Why?
-  options: ["Because squaring is O(1) only for small n", "Because the intermediate numbers grow to n·log a bits, so each multiplication gets more expensive and the last ones dominate", "Because the recursion depth is n", "It is O(log n); the statement is false"]
-  answer: 1
+  options: ["Odd exponents need an extra multiplication, so the multiplication count becomes O(n)", "The recursion depth becomes O(n) once the exponent no longer fits in a machine word", "The operands grow to about n·log a bits, so later multiplications are nowhere near O(1)", "It is O(log n); arbitrary-precision ints make each multiplication one O(1) step"]
+  answer: 2
   explanation: >-
-    The count of multiplications is O(log n), but a multiplication of k-bit numbers is not constant time. The final squaring handles numbers with roughly n·log₂ a bits. With a modulus every operand stays bounded, which is why modular exponentiation is genuinely fast.
+    The count of multiplications is O(log n) (at most two per halving, odd exponents included), but a multiplication of k-bit numbers is not constant time, arbitrary precision or not. The final squaring handles numbers with roughly n·log₂ a bits, so the last few multiplications dominate. With a modulus every operand stays bounded, which is why modular exponentiation is genuinely fast.
 - q: >-
     Karatsuba's algorithm replaces four half-size multiplications with three. What is the resulting complexity exponent, and where does it come from?
-  options: ["1.5, from 3/2", "log₂ 3 ≈ 1.585, the number of leaves in a recursion tree with 3 children per node and log₂ n depth", "2, unchanged; the additions cost as much as the saved multiplication", "log₃ 2 ≈ 0.63"]
-  answer: 1
+  options: ["log₂ 3 ≈ 1.585, from the 3^(log₂ n) leaves of the recursion tree", "1.5, from the ratio of 3 subproblems to a split factor of 2", "log₃ 2 ≈ 0.63, from a recursion tree that is log₃ n levels deep", "2, unchanged, because the extra linear additions cancel the saving"]
+  answer: 0
   explanation: >-
-    T(n) = 3T(n/2) + O(n) falls in master-theorem case 1: the leaves dominate and there are 3^(log₂ n) = n^(log₂ 3) of them. The extra additions are linear and absorbed.
+    T(n) = 3T(n/2) + O(n) falls in master-theorem case 1: the tree is log₂ n levels deep with 3 children per node, so the leaves dominate and there are 3^(log₂ n) = n^(log₂ 3) of them. The exponent is log_b a, not the ratio a/b. The extra additions are linear and absorbed.
 - q: >-
     In the closest-pair combine step, why can each point in the strip be compared with only a constant number of others?
-  options: ["Because the strip contains at most 8 points", "Because points in the strip are at least d apart within each half, so a d × 2d rectangle holds at most 8 of them, and anything further down in y than d cannot be closer", "Because the strip is sorted by x", "It cannot; the combine step is O(n²) in the worst case"]
-  answer: 1
+  options: ["The strip is sorted by x, so only the next 7 points in x order can lie within d", "The strip is only 2d wide, so it can never contain more than 8 points in total", "Points on each side are ≥ d apart, so a d × 2d box holds at most 8 of them", "It cannot; with every point inside the strip, the combine step becomes O(n²)"]
+  answer: 2
   explanation: >-
-    Within one side, all points are ≥ d apart (d is the best distance found in that half), so a bounded region holds boundedly many. Sorting the strip by y and breaking when the y gap reaches d limits comparisons to a constant per point.
+    Within one side, all points are ≥ d apart (d is the best distance found in that half), so a bounded region holds boundedly many. The strip itself can contain all n points; what is bounded is how many fit in one d × 2d window. Sorting the strip by y and breaking when the y gap reaches d limits comparisons to a constant (at most 7) per point.
 - q: >-
     Boyer–Moore's single pass returns candidate 7 on an array. What must you do before returning 7 as the majority element?
-  options: ["Nothing; the candidate is always the majority", "Count 7's occurrences in a second pass and check the count exceeds n/2", "Run the pass again in reverse", "Sort the array"]
-  answer: 1
+  options: ["Count 7's occurrences in a second pass and check the count exceeds n/2", "Run the pass again in reverse and check it also returns 7 as the candidate", "Nothing, since the cancellation argument guarantees the survivor is the majority", "Check that the pass ended with a positive counter, which proves 7 exceeds n/2"]
+  answer: 0
   explanation: >-
-    The cancellation argument guarantees the majority survives if one exists. If no element has more than n/2 occurrences, the surviving candidate is arbitrary. The verification pass makes the algorithm correct on all inputs.
+    The cancellation argument guarantees the majority survives if one exists. If no element has more than n/2 occurrences, the surviving candidate is arbitrary, and a positive final counter proves nothing: [1, 2, 3] ends with candidate 3 and counter 1 but has no majority. The verification pass makes the algorithm correct on all inputs.
 - q: >-
     Production linear-algebra libraries multiply 500 × 500 matrices with the O(n³) algorithm rather than Strassen. Why?
-  options: ["Strassen is incorrect for non-power-of-two sizes", "Strassen's constant factor, extra memory and numerical instability outweigh the asymptotic gain until n is in the thousands", "The O(n³) algorithm is also O(n^2.807) with good blocking", "Strassen requires the matrices to be symmetric"]
+  options: ["It only works on power-of-two sizes, and padding 500 up to 512 costs too much", "Its constants and numerical instability outweigh the gain below a few thousand rows", "Its seven products are valid only for symmetric matrices, which BLAS cannot assume", "Cache blocking lowers the triple loop's exponent to 2.807, matching Strassen anyway"]
   answer: 1
   explanation: >-
-    Strassen's seven products come with eighteen block additions, temporaries, and worse rounding behaviour; the cache-blocked, SIMD-vectorised triple loop wins until the n^0.19 gap becomes large. Asymptotics describe the limit, not your matrix.
+    Strassen's seven products come with eighteen block additions, temporaries, and worse rounding behaviour; the cache-blocked, SIMD-vectorised triple loop wins until the n^0.19 gap becomes large. Blocking improves the constant factor, not the exponent, and Strassen works on any matrices (odd sizes can be padded or peeled). Asymptotics describe the limit, not your matrix.
 ```

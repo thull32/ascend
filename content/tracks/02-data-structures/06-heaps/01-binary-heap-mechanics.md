@@ -301,32 +301,32 @@ hints:
 ```quiz
 - q: >-
     Which of these arrays is a valid min-heap?
-  options: ["[1, 4, 3, 5, 2]", "[1, 3, 4, 5, 7, 2]", "[2, 5, 3, 9, 6, 4, 8]", "[1, 2, 3, 0]"]
-  answer: 2
+  options: ["[1, 4, 3, 5, 2, 6, 7]", "[2, 5, 3, 9, 6, 4, 8]", "[1, 3, 4, 5, 7, 2, 8]", "[1, 2, 3, 0, 4, 5, 6]"]
+  answer: 1
   explanation: >-
-    Check each index against its parent at (i-1)//2. In [2,5,3,9,6,4,8]: 5≥2, 3≥2, 9≥5, 6≥5, 4≥3, 8≥3. The first has 2 at index 4 with parent 4 at index 1; the second has 2 at index 5 with parent 4 at index 2; the last has 0 under 2.
+    Check each index against its parent at (i-1)//2. In [2,5,3,9,6,4,8]: 5≥2, 3≥2, 9≥5, 6≥5, 4≥3, 8≥3; 5 sitting before 3 is fine because siblings are unordered. [1,4,3,5,2,6,7] has 2 at index 4 under 4 at index 1; [1,3,4,5,7,2,8] has 2 at index 5 under 4 at index 2; [1,2,3,0,4,5,6] has 0 at index 3 under 2.
 - q: >-
     During sift-down you swap the node with its left child whenever the left child is smaller, without checking the right. What can go wrong?
-  options: ["Nothing; the right child is checked on the next iteration", "The right child may be smaller than the left, so after the swap the new parent is larger than its right child and the heap property is broken", "The heap becomes a max-heap", "The array gains a gap"]
-  answer: 1
+  options: ["It only slows down, costing an extra level of swaps per pop", "The shape breaks, because the array gains a gap at the end", "Nothing, because the right child is checked on the next pass", "A smaller right child ends up below a larger new parent"]
+  answer: 3
   explanation: >-
-    The child moved up becomes the parent of the other child, so it must be the smaller of the two. Swapping with the larger child puts a bigger value above a smaller one, and the next iteration moves away from the broken pair.
+    The child moved up becomes the parent of the other child, so it must be the smaller of the two. Swapping with the larger child puts a bigger value above a smaller one, and the next iteration moves down away from the broken pair, so it is never revisited. Swaps never create gaps, so the shape is unaffected.
 - q: >-
     Building a heap from 1,000,000 elements by calling push for each takes about how many element moves compared with bottom-up heapify?
-  options: ["About the same", "Roughly 20 times more (log2 of a million) in the worst case", "Roughly a million times more", "Fewer, because push is O(1) on average"]
-  answer: 1
+  options: ["About the same, since both run n sift operations in total", "Fewer, since push is O(1) on average for any input", "A million times more, since each push rescans the array", "Up to 20 times more, as each push climbs log₂ n levels"]
+  answer: 3
   explanation: >-
-    Heapify is O(n): under about n swaps. Repeated push is O(n log n) worst case, with log2(10^6) ≈ 20. The average-case O(1) push applies to random input; sorted-descending input makes every push climb to the root.
+    Heapify is O(n): under about n swaps, because most sift-downs start near the leaves. Repeated push is O(n log n) worst case, with log2(10^6) ≈ 20. The average-case O(1) push applies to random input only; sorted-descending input makes every push climb to the root.
 - q: >-
     Why is heap sort typically slower than quicksort on real hardware despite the better worst-case bound?
-  options: ["Heap sort is not in place", "Heap sort's memory access pattern jumps between distant indices, defeating caches, while quicksort scans sequentially", "Heap sort does more comparisons asymptotically", "Heap sort needs recursion"]
-  answer: 1
+  options: ["It needs deep recursion, so call overhead dominates", "It is not in place, so it copies the array into a heap", "It makes asymptotically more comparisons than quicksort", "Its sift-downs jump across the array, defeating the cache"]
+  answer: 3
   explanation: >-
-    Both are O(n log n) expected; heap sort's sift-down touches indices i, 2i+1, 2i+2 that spread across the array, so each level of each sift is a likely cache miss. Quicksort's partition streams through memory. Heap sort is in place and iterative.
+    Both are O(n log n) expected; heap sort's sift-down touches indices i, 2i+1, 2i+2 that spread across the array, so each level of each sift is a likely cache miss. Quicksort's partition streams through memory. Heap sort is in place and iterative, so neither copying nor recursion is the cost.
 - q: >-
     You need a structure supporting push, pop-min, and "remove the element with key k" for arbitrary k, all in O(log n). A plain binary heap:
-  options: ["Supports all three", "Supports push and pop-min in O(log n) but removal by key is O(n) because it must search the array first", "Supports removal by key but not pop-min", "Cannot support push in O(log n)"]
-  answer: 1
+  options: ["Makes push and pop-min O(log n), but removal by key O(n)", "Makes removal O(log n) via binary search on the array", "Makes all three O(log n), since removal is a sift like pop", "Makes push O(n), since each append shifts elements up"]
+  answer: 0
   explanation: >-
-    The heap order is only parent-child, so locating an arbitrary key is a linear scan. Removal becomes O(log n) only with an auxiliary key-to-index map (an indexed heap) or with lazy deletion.
+    The heap order is only parent-child, so the array is not sorted and locating an arbitrary key is a linear scan before the O(log n) sift. Removal becomes O(log n) only with an auxiliary key-to-index map (an indexed heap) or with lazy deletion.
 ```

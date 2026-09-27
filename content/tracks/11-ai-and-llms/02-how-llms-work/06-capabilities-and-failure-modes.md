@@ -128,32 +128,32 @@ Back to Monday. Timelines from Slack exports: yes, with the incident commander r
 ```quiz
 - q: >-
     An assistant invents a plausible but non-existent configuration flag for an internal tool. A colleague proposes setting temperature to 0. What will that achieve?
-  options: ["It eliminates the problem, because hallucinations come from randomness", "It makes the model say \"I don't know\" instead", "Little: if the model's most likely continuation is the invented flag, greedy decoding produces it every time; grounding the answer in the tool's documentation is the fix", "It makes the problem worse by increasing randomness"]
-  answer: 2
+  options: ["Little: if the invented flag is the top choice, greedy decoding always emits it", "It makes the output more cautious, so the model hedges instead of inventing a flag", "It makes the model answer \"I don't know\" whenever it is unsure of the flag's name", "It fixes the problem, because hallucinations come from randomness in the sampling"]
+  answer: 0
   explanation: >-
-    Temperature only controls how often non-top tokens are sampled. For long-tail facts the top choice itself can be fabricated, so temperature 0 makes the error consistent rather than rare. Supplying the documentation in context, and verifying flags against it, addresses the cause.
+    Temperature only controls how often non-top tokens are sampled. For long-tail facts the top choice itself can be fabricated, so temperature 0 makes the error consistent rather than rare; it adds no caution and no "I don't know" path. Grounding the answer in the tool's documentation, and verifying flags against it, addresses the cause.
 - q: >-
     Why does asking a model to show its working improve accuracy on multi-step arithmetic?
-  options: ["It switches the model to a more accurate internal calculator", "Each token gets one fixed forward pass of computation, and intermediate tokens act as working memory, so each step becomes an easy prediction", "It lowers the temperature automatically", "It retrieves the answer from training data"]
-  answer: 1
+  options: ["It lowers the effective temperature, so the model samples fewer wrong digits", "It prompts the model to retrieve the fully worked answer from its training data", "It switches the model to a more accurate internal arithmetic routine", "Intermediate tokens act as working memory, so each step is an easy prediction"]
+  answer: 3
   explanation: >-
-    The model cannot do unlimited serial computation inside one token. Writing intermediate results lets later tokens build on earlier ones. There is no hidden calculator, and temperature is unchanged; for long exact arithmetic, a code tool is still more reliable.
+    Each token gets one fixed forward pass of computation, so the model cannot do unlimited serial computation inside one token. Writing intermediate results lets later tokens build on earlier ones. There is no hidden calculator, and temperature is unchanged; for long exact arithmetic, a code tool is still more reliable.
 - q: >-
     A RAG assistant answers with quotes from policy documents. Which check most directly catches fabricated quotes?
-  options: ["Ask the model whether it is sure", "Lower the temperature", "Use a larger model", "Verify in code that each quoted span appears verbatim in the cited source document"]
+  options: ["Ask the model to confirm that each quote is accurate before it replies", "Lower the temperature so that quotes are copied more faithfully", "Use a larger model, since larger models fabricate quotes far less often", "Check in code that each quoted span appears verbatim in the cited source"]
   answer: 3
   explanation: >-
     A string match against the source is a check that does not share the model's failure modes. Asking the model invites sycophantic or confident confirmation; temperature and model size reduce the rate but do not detect individual fabrications.
 - q: >-
     You compare two prompts using an LLM judge that sees answer A then answer B. A wins 64% of the time. What should you do before trusting that result?
-  options: ["Re-run with the order swapped and check agreement with human labels on a sample, since judges show position and verbosity biases", "Nothing; 64% is a clear win", "Switch to a public benchmark", "Increase the judge's temperature"]
-  answer: 0
+  options: ["Nothing more; a 64% win rate across many comparisons is already a clear result", "Raise the judge's temperature and average several runs to smooth out noise", "Re-run with the order swapped and check agreement with human labels on a sample", "Replace the judge with a public benchmark, which is far less biased than a judge"]
+  answer: 2
   explanation: >-
-    LLM judges tend to favour the first option and longer answers, so a modest win can be an artefact. Swapping positions and calibrating against human judgements tells you whether the preference is real. Public benchmarks do not measure your task.
+    LLM judges show position bias (favouring the first option) and verbosity bias (favouring longer answers), so a modest win can be an artefact. Swapping positions and calibrating against human judgements tells you whether the preference is real. Public benchmarks do not measure your task, and averaging noisy runs does not remove a systematic bias.
 - q: >-
     Which use of an LLM needs the strongest controls outside the model?
-  options: ["Summarising a meeting for the people who attended it", "Drafting SQL that an analyst reviews before running it read-only", "Issuing customer refunds automatically based on its reading of a dispute", "Suggesting titles for internal documents"]
-  answer: 2
+  options: ["Suggesting titles for internal documents that authors can edit", "Summarising a long meeting transcript for the people who attended it", "Drafting SQL that an analyst reviews before running it read-only on the warehouse", "Issuing customer refunds automatically based on its reading of a dispute"]
+  answer: 3
   explanation: >-
     Refunds are an action with direct financial side effects, hard to verify before they happen and costly to reverse. It needs narrow permissions, limits and human approval. The others are low-cost errors that a reader or reviewer naturally catches.
 ```

@@ -243,32 +243,32 @@ hints:
 ```quiz
 - q: >-
     A Java method computes `int mid = (lo + hi) / 2` in a binary search over an array of 1.5 billion elements. What goes wrong and when?
-  options: ["Nothing; ints are 32-bit and 1.5 billion fits", "lo + hi exceeds 2^31 - 1 once the search range is in the upper part of the array, wraps negative, and mid becomes a negative index", "The division truncates and the search misses the last element", "The array cannot exceed 1 billion elements in Java"]
-  answer: 1
-  explanation: >-
-    1.5 billion fits in an int, but lo + hi can reach 3 billion, which wraps to a negative value. Use lo + (hi - lo) / 2. The truncation is normal and harmless.
-- q: >-
-    A JSON API returns `{"id": 9007199254740993}`. A JavaScript client parses it with JSON.parse. What does the client hold?
-  options: ["9007199254740993, exactly", "9007199254740992, because the value exceeds 2^53 and rounds to the nearest representable double", "A BigInt, because JSON.parse detects large integers", "A string"]
-  answer: 1
-  explanation: >-
-    JSON.parse produces a double; 2^53 + 1 is not representable and rounds to 2^53. Neither BigInt nor a string is produced automatically. This is why large IDs are sent as strings.
-- q: >-
-    You need to check whether two doubles a and b, both around 10^12, are "equal". Which test is appropriate?
-  options: ["a == b", "abs(a - b) < 1e-9", "abs(a - b) <= 1e-9 * max(abs(a), abs(b))", "round(a) == round(b)"]
+  options: ["Nothing; ints are 32-bit and 1.5 billion fits", "It fails at once, since Java arrays cap at 1 billion elements", "lo + hi overflows in the upper half, so mid goes negative", "The division truncates, so the search skips the last element"]
   answer: 2
   explanation: >-
-    Near 10^12 the spacing between adjacent doubles is about 10^-4, so an absolute tolerance of 10^-9 is smaller than a single rounding step and will spuriously fail. A relative tolerance scales with the magnitude. Rounding to integers discards real differences.
+    1.5 billion fits in an int, but lo + hi can reach 3 billion once the search range is in the upper part of the array, which exceeds 2^31 - 1 and wraps to a negative index. Use lo + (hi - lo) / 2. The truncation is normal and harmless.
+- q: >-
+    A JSON API returns `{"id": 9007199254740993}`. A JavaScript client parses it with JSON.parse. What does the client hold?
+  options: ["9007199254740992, rounded to the nearest double", "9007199254740993 exactly, since doubles hold integers", "A BigInt, because JSON.parse detects large integers", "A string, since the value is too big for a number"]
+  answer: 0
+  explanation: >-
+    JSON.parse produces a double; 2^53 + 1 exceeds the range where doubles hold every integer, so it rounds to 2^53. Neither BigInt nor a string is produced automatically. This is why large IDs are sent as strings.
+- q: >-
+    You need to check whether two doubles a and b, both around 10^12, are "equal". Which test is appropriate?
+  options: ["abs(a - b) <= 1e-9 * max(abs(a), abs(b))", "int(a * 1e9) == int(b * 1e9)", "math.isclose(a, b, rel_tol=0, abs_tol=1e-9)", "round(a, 9) == round(b, 9)"]
+  answer: 0
+  explanation: >-
+    Near 10^12 the spacing between adjacent doubles is about 10^-4, so an absolute tolerance of 10^-9 (which is all isclose does when rel_tol is 0) is smaller than a single rounding step and will spuriously fail. A relative tolerance scales with the magnitude. Rounding or truncating to nine decimals changes nothing at that scale, so two values one rounding step apart still compare unequal.
 - q: >-
     In JavaScript, `"👍🏽".length` is 4 and `[..."👍🏽"].length` is 2. Why?
-  options: ["The first counts bytes; the second counts characters", "The first counts UTF-16 code units (two surrogate pairs); the second iterates by code point (thumbs up plus skin-tone modifier)", "The first is a bug in V8", "The second counts grapheme clusters"]
-  answer: 1
+  options: ["The first counts UTF-16 code units; the second counts code points", "The first double-counts the emoji because of a V8 length bug", "The first counts code points; the second, grapheme clusters", "The first counts UTF-8 bytes; the second counts characters"]
+  answer: 0
   explanation: >-
-    .length is UTF-16 units and each of the two supplementary code points needs a surrogate pair. Spreading iterates by code point, giving 2. A human sees one grapheme cluster; nothing built into JavaScript counts that without Intl.Segmenter.
+    .length is UTF-16 units and each of the two supplementary code points (thumbs up plus skin-tone modifier) needs a surrogate pair. Spreading iterates by code point, giving 2. The UTF-8 encoding would be 8 bytes, not 4. A human sees one grapheme cluster; nothing built into JavaScript counts that without Intl.Segmenter.
 - q: >-
     A Go service reads a 50 MB response body into a string and stores a 12-byte substring of it in a long-lived map. What is the memory consequence?
-  options: ["12 bytes per entry, as expected", "The whole 50 MB stays alive as long as the substring does, because Go substrings share the original's bytes", "The substring is copied, so the 50 MB is freed but the copy costs O(n)", "Go strings are reference counted, so the body is freed when the reader closes"]
+  options: ["12 bytes per entry, since the substring is its own string", "The whole 50 MB stays alive while the substring does", "The body is freed on close, since Go strings are refcounted", "The substring is copied out, so the 50 MB body is freed"]
   answer: 1
   explanation: >-
-    Go slicing shares the backing bytes and the garbage collector keeps the entire original alive while any slice of it is reachable. Clone the small part (strings.Clone) to release the body.
+    Go substrings share the original's backing bytes, and the garbage collector keeps the entire original alive while any slice of it is reachable. Nothing is copied automatically. Clone the small part (strings.Clone) to release the body.
 ```

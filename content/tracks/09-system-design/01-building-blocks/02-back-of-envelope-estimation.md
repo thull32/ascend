@@ -195,32 +195,32 @@ Take the dominant cost and divide. For the photo service, storage is roughly 22 
 ```quiz
 - q: >-
     A service handles 500 million requests per day. What is a reasonable design target in requests per second?
-  options: ["About 500/s", "About 5,000/s average, so design for roughly 15,000/s peak", "About 50,000/s", "About 5,000/s, and design for exactly that"]
-  answer: 1
+  options: ["About 5,000/s average, so design for roughly 15,000/s peak", "About 500/s average, so design for roughly 1,500/s peak", "About 5,000/s, so design for exactly 5,000/s to avoid waste", "About 50,000/s average, so design for roughly 150,000/s peak"]
+  answer: 0
   explanation: >-
-    500 million / 10^5 seconds ≈ 5,000/s average. Consumer traffic peaks at 2–5× average, so you design for the peak, not the mean; designing for exactly the average fails at lunchtime.
+    500 million / 10^5 seconds ≈ 5,000/s average. Consumer traffic peaks at 2–5× average, so you design for the peak, not the mean; designing for exactly the average fails at lunchtime. The 500/s and 50,000/s options are off by a factor of ten in the seconds-per-day conversion.
 - q: >-
     A table has 2 billion rows of 200 bytes each. Which storage figure should you compare against a disk size?
-  options: ["400 GB", "About 1.2 TB, allowing for 3x replication", "About 1.5–2 TB, allowing for replication and indexes", "About 4 TB"]
+  options: ["About 1.2 TB, allowing for 3x replication", "About 4 TB, since indexes are usually 10x the table size", "About 1.5–2 TB, with replication and indexes", "About 400 GB of raw rows, since indexes are negligible"]
   answer: 2
   explanation: >-
-    Raw data is 400 GB; three replicas make it 1.2 TB; indexes commonly add 30–100% of the table size. Forgetting replication and indexes is the most common storage-estimation error.
+    Raw data is 400 GB; three replicas make it 1.2 TB; indexes commonly add 30–100% of the table size, not 10x. Forgetting replication and indexes is the most common storage-estimation error, and the 1.2 TB figure is the tempting half-way answer that still leaves out indexes.
 - q: >-
     A request makes five sequential calls to services in the same availability zone, each with a p50 of 2 ms and a p99 of 20 ms. What is the best statement about the request's latency?
-  options: ["p99 is about 10 ms, because 5 x 2 ms", "p99 is at least 20 ms and likely more, because the chance that at least one call hits its tail is about 5%", "p99 is exactly 100 ms", "Latency is dominated by the service work, not the network"]
-  answer: 1
+  options: ["p99 is exactly 100 ms, because five calls at 20 ms each add up", "p99 is about 10 ms, because five calls at 2 ms each add up", "p99 is 20 ms or more; about 5% of requests hit a slow call", "p99 is under 20 ms, since the tails average out over five calls"]
+  answer: 2
   explanation: >-
-    Tails compound: with five independent calls, the probability that at least one is in its worst 1% is roughly 5%, so the request's tail is worse than any single call's. Budget with p99s, not means; the naive 5 x 2 ms answer is the mistake.
+    Tails compound: with five independent calls, the probability that at least one is in its worst 1% is roughly 5%, so the request's tail is at least one slow call and worse than any single call's. Budget with p99s, not means; the naive 5 x 2 ms answer is the mistake, and summing five p99s assumes every call is slow at once.
 - q: >-
     An estimate for a feed system shows 2,000 posts per second and 200 average followers. Which conclusion follows?
-  options: ["Postgres handles 2,000 writes/s, so a single database is enough", "Fan-out on write produces about 400,000 inserts/s, which requires an in-memory feed store and a special path for high-follower accounts", "The system is read-dominated, so a CDN is the main component", "Storage is the bottleneck"]
-  answer: 1
+  options: ["The system is read-dominated, so a CDN is the main component to size", "Storage is the bottleneck, so the posts table must be sharded first", "Fan-out makes it ~400,000 inserts/s, so feeds need an in-memory store", "Postgres handles 2,000 writes/s, so a single database is enough"]
+  answer: 2
   explanation: >-
-    Counting every copy of a write reveals the real load: 2,000 x 200 = 400,000/s, an in-memory number. Users with millions of followers would produce millions of inserts per post, which is why real systems use fan-out on read for them. The 2,000 writes/s figure alone is misleading.
+    Counting every copy of a write reveals the real load: 2,000 x 200 = 400,000/s, an in-memory number. Users with millions of followers would produce millions of inserts per post, which is why real systems add a fan-out-on-read path for them. The 2,000 writes/s figure alone is misleading, and post storage (tens of GB a day) is not the constraint.
 - q: >-
     Which is the most useful sentence to end an estimate with?
-  options: ["\"So the total is 4,217 requests per second.\"", "\"So this fits on one replicated Postgres with a cache; I would not shard.\"", "\"So we need to scale horizontally.\"", "\"So the numbers are large.\""]
-  answer: 1
+  options: ["\"So the numbers are large enough to need careful design.\"", "\"So we need to scale horizontally across several regions.\"", "\"So the total is exactly 4,217 requests per second at peak.\"", "\"So one replicated Postgres with a cache fits; no sharding.\""]
+  answer: 3
   explanation: >-
     An estimate exists to change a decision. Naming the decision (and the thing you will not do) is the senior move; a precise number with no consequence, or a vague "scale horizontally", shows the arithmetic was ritual.
 ```

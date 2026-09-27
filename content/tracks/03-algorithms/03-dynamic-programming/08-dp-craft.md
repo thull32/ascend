@@ -237,32 +237,32 @@ hints:
 ```quiz
 - q: >-
     You optimised LCS to two rolling rows and the interviewer asks for the actual subsequence. What are your options?
-  options: ["Impossible; rolling rows cannot be reconstructed", "Keep the full table (O(mn) memory), store parent pointers, or use Hirschberg's divide-and-conquer to get the subsequence in O(m + n) memory with the same O(mn) time", "Rerun the DP once per output character", "Use a greedy scan instead"]
-  answer: 1
+  options: ["Keep the full table, store parents, or use Hirschberg's trick", "Switch to a greedy scan that matches characters left to right", "Read the subsequence directly off the two rows still in memory", "None; rolling rows discard the table, so the path is gone"]
+  answer: 0
   explanation: >-
-    Rolling rows lose the walk-back path, but the full table, explicit choices, or Hirschberg's split-and-recurse each recover it. Rerunning per character costs O(mn · L). Greedy does not solve LCS.
+    Rolling rows lose the walk-back path, but the full table (O(mn) memory), explicit parent pointers, or Hirschberg's divide-and-conquer each recover it; Hirschberg gets the subsequence in O(m + n) memory with the same O(mn) time. So the path is not gone for good. The two remaining rows hold only the last values, not the route, and greedy does not solve LCS.
 - q: >-
     Which of these is NOT a reason to reject DP for a problem?
-  options: ["A greedy choice is provably safe and gives a better complexity", "The state would have to include the set of visited items and n = 200", "The subproblems overlap heavily", "Subproblems are disjoint, as in merge sort"]
+  options: ["A greedy choice is provably safe and gives a better complexity", "The state must include the set of visited items and n = 200", "The subproblems overlap heavily across the naive recursion", "The subproblems are disjoint, as in merge sort and quicksort"]
   answer: 2
   explanation: >-
-    Overlap is the property that makes DP pay off. Safe greedy choices, exponential state spaces, and disjoint subproblems are each a reason to use something else.
+    Overlap is the property that makes DP pay off. Safe greedy choices, exponential state spaces (2²⁰⁰ subsets), and disjoint subproblems are each a reason to use something else.
 - q: >-
     Word break has no minimum or count in its statement. What makes it a DP problem anyway?
-  options: ["It is not; use a trie", "The yes/no answer for a prefix depends only on yes/no answers for shorter prefixes, and prefixes are revisited many times by a naive search", "Because the dictionary is a set", "Because the string can be long"]
+  options: ["Every split point must be tried, which is what DP means", "A prefix's yes/no depends on shorter prefixes, which recur", "The dictionary is a set, so repeated lookups are cached", "Nothing; a trie over the dictionary solves it without DP"]
   answer: 1
   explanation: >-
-    A boolean over a prefix state with a transition to smaller prefixes is exactly optimal substructure plus overlap. A trie speeds up the word-lookup part but does not remove the exponential search without memoisation.
+    The yes/no answer for a prefix depends only on yes/no answers for shorter prefixes, and a naive search revisits those prefixes many times: a boolean prefix state with a transition to smaller prefixes is exactly optimal substructure plus overlap. Trying every split is just brute force; the reuse is what makes it DP. A trie speeds up the word-lookup part but does not remove the exponential search without memoisation.
 - q: >-
     Your coin-change table gives the right count but the walk-back loops forever. The most likely bug is:
-  options: ["The coins are not sorted", "The walk-back looks for a coin with dp[a - c] == dp[a] (equal) instead of dp[a] - 1, so it never makes progress", "The table should be filled backwards", "Infinity was represented as amount + 1"]
+  options: ["The table should have been filled backwards, from amount down", "The walk-back tests dp[a - c] == dp[a] instead of dp[a] - 1", "Infinity was stored as amount + 1, which the walk-back follows", "The coins are not sorted, so the walk-back picks the wrong one"]
   answer: 1
   explanation: >-
-    Recomputation must step to a state whose value is exactly one less. Matching equal values can pick c where dp[a - c] == dp[a], which happens for unreachable amounts or when coins overlap, and the loop may spin. Sorting and the sentinel are unrelated.
+    Recomputation must step to a state whose value is exactly one less. With an equality test the walk soon reaches an amount where no coin qualifies (with coins [1, 3, 4] it goes 6 → 5 → 2 and then finds nothing), so a never changes and the loop spins. Sorting, fill direction and the amount + 1 sentinel are unrelated.
 - q: >-
     A DP is correct and O(nm) with n = m = 20,000 in pure Python and must finish in under a second. The first thing to try is:
-  options: ["Switch from bottom-up to top-down", "Reduce the state space (band, prune unreachable cells) or vectorise the inner loop; 4 × 10⁸ pure-Python iterations is minutes, not a second", "Increase the recursion limit", "Add a cache"]
-  answer: 1
+  options: ["Switch to top-down so that only needed cells get computed", "Raise the recursion limit so the deep calls can finish", "Add a cache so that repeated cells are not recomputed", "Shrink the state space or vectorise the inner loop"]
+  answer: 3
   explanation: >-
-    The state count is the problem. Top-down adds overhead; the recursion limit is irrelevant to bottom-up; a cache is what the DP already is. Banding, pruning, NumPy vectorisation or a compiled inner loop are the real levers.
+    4 × 10⁸ pure-Python iterations is minutes, not a second, so the state count is the problem. Banding, pruning unreachable cells, NumPy vectorisation or a compiled inner loop are the real levers. Top-down adds call and hash overhead and here needs nearly every cell anyway; the recursion limit is irrelevant to bottom-up; a cache is what the DP already is.
 ```

@@ -274,32 +274,32 @@ hints:
 ```quiz
 - q: >-
     In the half-open template (lo = 0, hi = n, while lo < hi), the branch for nums[mid] > target sets hi = mid. A colleague changes it to hi = mid - 1. What happens?
-  options: ["Nothing; both are correct", "The element at mid - 1 is skipped and can be missed", "It loops forever", "It goes out of bounds"]
+  options: ["Nothing, since mid itself was already ruled out", "Index mid - 1 is never examined and can be missed", "It can loop forever when the range has two elements", "It can compute a negative mid and go out of bounds"]
   answer: 1
   explanation: >-
-    hi is exclusive, so hi = mid already excludes mid. hi = mid - 1 additionally excludes index mid - 1, which has not been examined; a target sitting there is missed. Mixing the closed and half-open conventions is the classic off-by-one.
+    hi is exclusive, so hi = mid already excludes mid. hi = mid - 1 additionally excludes index mid - 1, which has not been examined; a target sitting there is missed. The range still strictly shrinks, so it terminates, and the loop exits before mid could go negative. Mixing the closed and half-open conventions is the classic off-by-one.
 - q: >-
     Which loop can run forever on some inputs?
-  options: ["lo = mid + 1 / hi = mid with while lo < hi", "lo = mid / hi = mid - 1 with while lo <= hi, mid rounded down", "A fixed 100-iteration loop over doubles", "None of these"]
-  answer: 1
+  options: ["A fixed 100-iteration loop over doubles, lo = mid / hi = mid", "lo = mid + 1 / hi = mid, while lo < hi, mid rounded down", "lo = mid + 1 / hi = mid - 1, while lo <= hi, mid rounded down", "lo = mid / hi = mid - 1, while lo <= hi, mid rounded down"]
+  answer: 3
   explanation: >-
-    With mid rounded down and a range of two elements, mid == lo, so lo = mid does not shrink the range and the loop spins. The template avoids assigning mid back to the side it was computed from without adjusting by one.
+    With mid rounded down and a range of two elements, mid == lo, so lo = mid does not shrink the range and the loop spins. The half-open and closed templates always move lo past mid, so they strictly shrink; the fixed-iteration loop ends after 100 steps whatever it assigns. The rule: never assign mid back to the side it was computed from without adjusting by one.
 - q: >-
     You need the number of times value 7 appears in a sorted array of 10 million integers. The cleanest O(log n) approach is:
-  options: ["Binary search for 7, then scan left and right", "Compute first_true(nums[i] > 7) minus first_true(nums[i] >= 7)", "A hash map of counts", "Linear scan, since the array is sorted"]
-  answer: 1
+  options: ["A hash map of value counts, then one lookup", "Binary search for any 7, then scan outward from it", "first_true(nums[i] > 7) - first_true(nums[i] >= 7)", "Linear scan, stopping at the first value above 7"]
+  answer: 2
   explanation: >-
-    Two boundary searches give the half-open range of 7s in O(log n). Scanning outward from one hit is O(count), which is O(n) when the array is mostly 7s. A hash map costs O(n) to build.
+    Two boundary searches give the half-open range of 7s in O(log n): the first index above 7 minus the first index at or above 7. Scanning outward from one hit is O(count), which is O(n) when the array is mostly 7s. A hash map costs O(n) to build, and a linear scan is O(n) even with an early exit.
 - q: >-
     Why is a fixed number of iterations preferred over while (hi - lo) > 1e-9 when binary searching over doubles?
-  options: ["It is faster", "Adjacent doubles can differ by more than the epsilon, so the interval may never shrink below it and the loop never ends", "Epsilon comparisons are not allowed in interviews", "Fixed loops use less memory"]
-  answer: 1
+  options: ["Doubles near large values are spaced wider than 1e-9", "Subtracting lo from hi can overflow for large doubles", "Epsilon tests lose accuracy as the interval shrinks", "It is faster, because it skips a comparison per step"]
+  answer: 0
   explanation: >-
-    For large magnitudes the spacing between representable doubles exceeds tiny epsilons; (lo + hi) / 2 then equals lo or hi and the range stops shrinking. 100 halvings always terminate and exceed double precision anyway.
+    For large magnitudes the spacing between representable doubles exceeds tiny epsilons; (lo + hi) / 2 then equals lo or hi, the range stops shrinking, and the epsilon loop never ends. 100 halvings always terminate and exceed double precision anyway. Speed is not the reason, and hi - lo on doubles does not overflow the way integer lo + hi can.
 - q: >-
     Searching a rotated sorted array with duplicates allowed, such as [1, 1, 1, 0, 1], the guaranteed complexity becomes:
-  options: ["Still O(log n)", "O(n) in the worst case, because nums[lo] == nums[mid] does not reveal which half is sorted", "O(n log n)", "Undefined; the algorithm fails"]
-  answer: 1
+  options: ["O(log² n), from a nested search per probe", "O(log n), since one half is always sorted", "Unbounded, since the loop may never terminate", "O(n), as equal endpoints hide which half is sorted"]
+  answer: 3
   explanation: >-
-    When the endpoints equal the middle you cannot tell which half is sorted, and the safe move is to shrink the range by one. An adversarial all-equal array with one odd element forces n such steps.
+    One half is still sorted, but when nums[lo] == nums[mid] you cannot tell which, so the safe move is to shrink the range by one. That always makes progress, so it terminates, but an adversarial all-equal array with one odd element forces n such steps: O(n) worst case.
 ```

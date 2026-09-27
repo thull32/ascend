@@ -79,7 +79,7 @@ sequenceDiagram
     Z-->>B: watch fired
     B->>Z: list children
     Z-->>B: 0000000043 is lowest: held
-    Note over A,B: A may still believe it holds the lock; fencing token 43 > 42 at the resource
+    Note over A,B: A may still believe it holds the lock, fencing token 43 > 42 at the resource
 ```
 
 ## etcd locks
@@ -192,32 +192,32 @@ The lease service reassigns leadership to a candidate and issues a higher token.
 ```quiz
 - q: >-
     A lock is held via SET NX PX on a single Redis primary with an asynchronous replica. The primary crashes and the replica is promoted. What can happen?
-  options: ["The lock survives on the replica", "The lock key may be missing on the replica, so a second client acquires it while the first still holds it", "All clients lose their connections and the lock is released safely", "Redis refuses promotions while locks are held"]
-  answer: 1
-  explanation: >-
-    Asynchronous replication means the SET may not have reached the replica before the crash. Two holders result. This makes a single-node Redis lock suitable for efficiency, not correctness.
-- q: >-
-    The most fundamental criticism of Redlock for correctness-critical locking is:
-  options: ["It is too slow", "It requires five servers", "It does not produce a fencing token, so a paused holder's late operations cannot be rejected by the resource", "It uses Lua scripts"]
+  options: ["Redis refuses to promote a replica while locks are held", "All clients lose their connections and the lock is released safely", "The replica may lack the key, so a second client acquires it", "The lock survives, since the replica copies every key"]
   answer: 2
   explanation: >-
-    Even a perfect lock service cannot stop a holder that pauses past expiry from acting afterwards; only the resource can, and it needs a monotonic token to compare. Redlock's timing assumptions are the secondary concern.
+    Asynchronous replication means the SET may not have reached the replica before the crash, so a second client acquires the lock while the first still holds it. Two holders result. This makes a single-node Redis lock suitable for efficiency, not correctness.
+- q: >-
+    The most fundamental criticism of Redlock for correctness-critical locking is:
+  options: ["It issues no fencing token for the resource to check", "Its Lua release script is not atomic across the nodes", "It needs five servers, which is costly to operate", "It is too slow, needing a round trip to five servers"]
+  answer: 0
+  explanation: >-
+    Even a perfect lock service cannot stop a holder that pauses past expiry from acting afterwards; only the resource can reject its late operations, and it needs a monotonic token to compare. Redlock's timing assumptions are the secondary concern; cost and speed are not correctness issues.
 - q: >-
     In the ZooKeeper lock recipe, a waiter should set a watch on:
-  options: ["The lock directory, to see any change", "The znode with the next-lower sequence number", "Its own znode", "The current holder's znode regardless of order"]
-  answer: 1
+  options: ["The whole lock directory, so it sees every change", "The current holder's znode regardless of order", "The znode with the next-lower sequence number", "Its own znode, so it learns when it is deleted"]
+  answer: 2
   explanation: >-
-    Watching the immediate predecessor means each release wakes one client in FIFO order, avoiding the herd effect where every waiter wakes and re-lists on each release.
+    Watching the immediate predecessor means each release wakes one client in FIFO order, avoiding the herd effect where every waiter wakes and re-lists on each release (which watching the directory or the holder causes).
 - q: >-
     Twenty replicas must run a nightly job once. The most robust design is:
-  options: ["A ZooKeeper lock with a long session timeout", "Make each unit of work idempotent with a uniquely keyed completion record, then add a best-effort lock only to avoid wasted effort", "Redlock across five Redis nodes", "Run the job on only one replica by configuration"]
-  answer: 1
+  options: ["Redlock across five independent Redis nodes for safety", "A ZooKeeper lock with a long session timeout on the holder", "Idempotent work, with the lock merely an optimisation", "Pin the job to a single replica through configuration"]
+  answer: 2
   explanation: >-
-    Idempotent work is correct even if the lock fails and two replicas run; the lock becomes an optimisation. Configuration pinning creates a single point of failure; stronger locks still have expiry windows.
+    Make each unit of work idempotent with a uniquely keyed completion record: it is correct even if the lock fails and two replicas run, so a best-effort lock only avoids wasted effort. Configuration pinning creates a single point of failure; stronger locks still have expiry windows.
 - q: >-
     Which operation replaces a distributed lock around a read-modify-write on a database row without a timing assumption?
-  options: ["A longer transaction", "A conditional update: UPDATE ... WHERE version = expected, retrying on zero rows", "A Redis lock with a shorter TTL", "A queue in front of the database"]
-  answer: 1
+  options: ["A Redis lock with a shorter TTL around the read and write", "A queue in front of the database to batch the writes", "A longer transaction timeout on the database connection", "UPDATE ... WHERE version = expected, retrying on zero rows"]
+  answer: 3
   explanation: >-
-    Optimistic concurrency serialises conflicting writes at the database; the version acts as the fence and there is no lease to expire. Locks and queues add coordination; longer transactions hold locks longer.
+    Optimistic concurrency serialises conflicting writes at the database; the version acts as the fence and there is no lease to expire. A Redis lock still has an expiry window however short its TTL; batching and longer timeouts do nothing to prevent the lost update.
 ```

@@ -298,32 +298,32 @@ hints:
 ```quiz
 - q: >-
     In LCS, when a[i-1] == b[j-1], why is dp[i][j] = 1 + dp[i-1][j-1] safe without also considering dp[i-1][j] and dp[i][j-1]?
-  options: ["Because those two values are always smaller", "Because any common subsequence of the two prefixes can be rearranged to end with this matching pair without becoming shorter, so matching is never worse", "Because the strings are sorted", "It is not safe; the full recurrence needs all three"]
+  options: ["Because dp[i-1][j] and dp[i][j-1] are always strictly smaller", "Because any LCS can be rewritten to end with this matching pair", "It is not safe; the recurrence must take the max of all three terms", "Because this matched pair must appear in every LCS of the prefixes"]
   answer: 1
   explanation: >-
-    The exchange argument: take any LCS of the prefixes; if it does not use this final pair, swap its last match for this pair (or append) and it is at least as long. The other two terms are at most dp[i-1][j-1] + 1 anyway, so including them changes nothing, but the justification is the exchange, not the inequality.
+    The exchange argument: take any LCS of the prefixes; if it does not use this final pair, swap its last match for this pair (or append) and it is at least as long, so matching is never worse. The pair need not be in every LCS, only in some optimal one. The other two terms are at most dp[i-1][j-1] + 1 (they can equal it, so they are not strictly smaller), so including them changes nothing, but the justification is the exchange, not the inequality.
 - q: >-
     You compute edit distance and initialise the whole border to 0 as in LCS. What happens?
-  options: ["Only the first row and column are wrong", "Every cell is wrong because the border encodes the cost of deleting or inserting a whole prefix; dp[i][j] then underestimates", "Nothing; the interior recurrence corrects it", "The result is m + n − 2·LCS"]
-  answer: 1
+  options: ["Nothing; the interior recurrence corrects the bad border", "Only the first row and column are wrong; the interior is right", "The interior underestimates, as deleting a prefix now looks free", "It returns m + n − 2·LCS, the insert/delete-only edit distance"]
+  answer: 2
   explanation: >-
-    With a zero border, dp['abc', ''] claims 0 edits instead of 3, and every cell that routes through the border inherits the error. The border is the base case, and a wrong base case poisons the table.
+    The border encodes the cost of deleting or inserting a whole prefix: dp[i][0] = i and dp[0][j] = j. With a zero border, dp['abc', ''] claims 0 edits instead of 3, and every interior cell that routes through the border inherits the error, so the answer underestimates. The border is the base case, and a wrong base case poisons the table rather than being corrected by it.
 - q: >-
     Why is the star transition dp[i-1][j] (same j) rather than dp[i-1][j-2]?
-  options: ["Because j-2 could be negative", "Because after the star consumes s[i-1], the same 'x*' pattern element may consume more characters, so the pattern position must not advance", "Because dp[i-1][j-2] is the zero-copies case", "They are equivalent"]
-  answer: 1
+  options: ["Because j-2 could be negative when the star is the second character", "They are equivalent; both let the star consume one or more characters", "Because the same x* element may go on to consume more characters", "Because dp[i-1][j-2] is already covered by the zero-copies case"]
+  answer: 2
   explanation: >-
-    'a*' matching 'aaa' consumes one character at a time while staying on the same pattern element; advancing to j-2 after one character would allow exactly one copy. The zero-copies case is dp[i][j-2], with i unchanged.
+    After the star consumes s[i-1], the same 'x*' pattern element may consume more characters, so the pattern position must not advance. 'a*' matching 'aaa' consumes one character at a time while staying on the same element; advancing to j-2 after one character would allow exactly one copy. The zero-copies case is dp[i][j-2], with i unchanged, not dp[i-1][j-2].
 - q: >-
     For the longest palindromic substring, which statement is accurate?
-  options: ["The O(n²) DP is strictly better than expand-around-centre", "Expand-around-centre matches the DP's O(n²) time with O(1) space and is usually faster; the DP table becomes worthwhile when many overlapping palindrome checks are needed", "Expand-around-centre is O(n)", "The DP is O(n log n)"]
+  options: ["The O(n²) DP beats expand-around-centre, since it reuses subresults", "Expand-around-centre is also O(n²) time but needs only O(1) space", "Expand-around-centre is O(n), since each centre is expanded only once", "The DP is O(n log n), since each length reads only one shorter length"]
   answer: 1
   explanation: >-
-    Both are O(n²) time in the worst case (e.g. 'aaaa…'). Expand-around-centre avoids the n² table. Palindrome partitioning and similar problems reuse pal[i][j] many times, which is when precomputing the table pays. Manacher's algorithm is the O(n) option, rarely expected.
+    Both are O(n²) time in the worst case (e.g. 'aaaa…'), since a single centre can expand O(n) times. Expand-around-centre avoids the n² table and is usually faster in practice. The DP table becomes worthwhile when many overlapping palindrome checks are needed, as in palindrome partitioning, which reuses pal[i][j] many times. Manacher's algorithm is the O(n) option, rarely expected.
 - q: >-
     An interviewer asks how you would fuzzy-match a query against a million dictionary words with edit distance at most 2. The strongest first answer is:
-  options: ["Run the full O(mn) DP against every word; a million is small", "Bound the distance and compute only a band of width 2k+1 around the diagonal (O(k·n) per word), then discuss indexing structures such as BK-trees or Levenshtein automata to avoid scanning every word", "Sort the dictionary and binary search", "Use LCS instead"]
-  answer: 1
+  options: ["Sort the dictionary, then binary search for the closest word", "Run the full O(mn) DP against every word, since a million is small", "Use LCS instead, since it is cheaper to compute than edit distance", "Compute only a band of width 2k+1 around the diagonal per word"]
+  answer: 3
   explanation: >-
-    Cells far from the diagonal cannot have distance ≤ k, so the band suffices and is a direct optimisation of the DP you just wrote. The next level is avoiding the linear scan altogether. Binary search does not apply to edit distance; a million full DPs is wasteful but the interviewer wants the band idea first.
+    Cells far from the diagonal cannot have distance ≤ k, so the band suffices, costs O(k·n) per word, and is a direct optimisation of the DP you just wrote. The next level is avoiding the linear scan altogether with indexing structures such as BK-trees or Levenshtein automata. Binary search does not apply to edit distance; LCS costs the same O(mn); and a million full DPs is wasteful when the interviewer wants the band idea first.
 ```

@@ -321,32 +321,32 @@ The [time-based key-value store](/practice/time-based-kv) problem is the same id
 ```quiz
 - q: >-
     A 30 MB queue table has grown to 9 GB. VACUUM VERBOSE reports millions of tuples that are dead but not yet removable. What should you check first?
-  options: ["Whether the table needs a new index", "What is holding back the xmin horizon: long-running or idle-in-transaction sessions in pg_stat_activity, inactive replication slots, and prepared transactions", "Whether autovacuum is disabled", "Whether the disk is full"]
-  answer: 1
-  explanation: >-
-    Dead but not yet removable means vacuum ran and found the tuples, but some snapshot might still need them. Autovacuum is clearly running. The fix is to end whatever holds the oldest snapshot; after that the space is reused, and a VACUUM FULL or pg_repack reclaims the file size if needed.
-- q: >-
-    Why does Postgres not need memory proportional to the number of rows a transaction has locked?
-  options: ["It escalates row locks to table locks after a threshold", "It only locks index pages", "Row locks are recorded in each tuple's xmax field on the data page, and waiters wait on the holding transaction's id rather than on per-row lock entries", "Row locks are not held until commit"]
-  answer: 2
-  explanation: >-
-    A row lock is marked in the tuple header, so it costs no shared memory. A waiter blocks on the lock of the transaction that set xmax, which is why lock waits appear as ShareLock on transaction N. SQL Server-style lock escalation does not exist in Postgres.
-- q: >-
-    Twenty workers run SELECT id FROM jobs WHERE run_at <= now() ORDER BY run_at LIMIT 1 FOR UPDATE, process the job, and delete it. Throughput is the same as with one worker. Why, and what is the fix?
-  options: ["The index on run_at is missing", "FOR UPDATE takes a table lock", "Postgres limits concurrent transactions per table", "All workers select the same oldest row and all but one block on its lock; add SKIP LOCKED so each worker takes the next unlocked row"]
+  options: ["Whether the disk is full, since vacuum needs free space to compact files", "Whether autovacuum is disabled, or throttled too hard to keep pace", "Whether the queue table is missing an index on its run_at column", "What pins the xmin horizon, such as an idle-in-transaction session"]
   answer: 3
   explanation: >-
-    Every worker's query finds the same row first, so they serialise on its row lock. SKIP LOCKED makes each worker skip rows other workers hold, which spreads the work. A lease column protects against workers that crash mid-job.
+    Dead but not yet removable means vacuum ran and found the tuples, but some snapshot might still need them, so autovacuum is clearly running. Check pg_stat_activity for long-running or idle-in-transaction sessions, then inactive replication slots and orphaned prepared transactions. The fix is to end whatever holds the oldest snapshot; after that the space is reused, and a VACUUM FULL or pg_repack reclaims the file size if needed.
 - q: >-
-    Two services each update rows in accounts for transfers, sometimes locking account 1 then 2 and sometimes 2 then 1. They see occasional deadlocks. What is the durable fix?
-  options: ["Acquire the row locks in a consistent order, for example SELECT ... WHERE id = ANY($1) ORDER BY id FOR UPDATE before updating", "Increase deadlock_timeout", "Switch to SERIALIZABLE", "Use NOWAIT on every update"]
+    Why does Postgres not need memory proportional to the number of rows a transaction has locked?
+  options: ["Row locks live in each tuple's xmax field on the data page itself", "It releases each row lock as soon as the statement that took it ends", "It escalates row locks to a single table lock past a set threshold", "It only locks the index pages that point at the rows being changed"]
   answer: 0
   explanation: >-
-    A deadlock needs a cycle in the wait-for graph. If every transaction locks rows in the same global order, no cycle can form. Raising deadlock_timeout only delays detection, SERIALIZABLE does not remove row-lock waits, and NOWAIT turns waits into errors.
+    A row lock is marked in the tuple header, so it costs no shared memory. A waiter blocks on the lock of the transaction that set xmax, rather than on a per-row lock entry, which is why lock waits appear as ShareLock on transaction N. SQL Server-style lock escalation does not exist in Postgres, and row locks are held until commit.
 - q: >-
-    A cron job uses pg_try_advisory_lock(key) and pg_advisory_unlock(key) to ensure one instance runs, through PgBouncer in transaction pooling mode. Sometimes two instances run at once, and sometimes the lock appears stuck. Why?
-  options: ["Advisory locks are not supported through PgBouncer", "Session-scoped advisory locks attach to the server connection; in transaction mode consecutive statements can run on different server connections, so the unlock misses and the lock stays on a connection other clients reuse", "hashtext collisions", "The lock is released at the end of each statement"]
+    Twenty workers run SELECT id FROM jobs WHERE run_at <= now() ORDER BY run_at LIMIT 1 FOR UPDATE, process the job, and delete it. Throughput is the same as with one worker. Why, and what is the fix?
+  options: ["Postgres caps concurrent writers per table; partition the jobs table", "All workers pick the same oldest row and queue on its lock; add SKIP LOCKED", "FOR UPDATE takes a table lock, so the workers run one at a time; use FOR SHARE", "Without an index on run_at every worker scans the table; add one"]
   answer: 1
   explanation: >-
-    In transaction mode, a client only owns a server connection for the duration of a transaction. A session lock taken in one transaction stays with that server connection after the client moves on. Use pg_advisory_xact_lock inside a single transaction, or a session-mode pool for the job.
+    Every worker's query finds the same row first, so they serialise on its row lock. SKIP LOCKED makes each worker skip rows other workers hold and take the next unlocked one, which spreads the work. FOR UPDATE locks rows, not the table. A lease column protects against workers that crash mid-job.
+- q: >-
+    Two services each update rows in accounts for transfers, sometimes locking account 1 then 2 and sometimes 2 then 1. They see occasional deadlocks. What is the durable fix?
+  options: ["Add NOWAIT to every update so transfers proceed without waiting", "Lock the rows in a consistent order, e.g. ORDER BY id FOR UPDATE first", "Raise deadlock_timeout so that each lock wait has time to resolve itself", "Run the transfers at SERIALIZABLE so that lock cycles cannot form"]
+  answer: 1
+  explanation: >-
+    A deadlock needs a cycle in the wait-for graph. If every transaction locks rows in the same global order (SELECT ... WHERE id = ANY($1) ORDER BY id FOR UPDATE before updating), no cycle can form. Raising deadlock_timeout only delays detection, SERIALIZABLE does not remove row-lock waits, and NOWAIT turns waits into errors rather than letting transfers proceed.
+- q: >-
+    A cron job uses pg_try_advisory_lock(key) and pg_advisory_unlock(key) to ensure one instance runs, through PgBouncer in transaction pooling mode. Sometimes two instances run at once, and sometimes the lock appears stuck. Why?
+  options: ["Advisory locks are released at the end of each statement that takes them", "PgBouncer intercepts advisory lock calls and never forwards them to the server", "hashtext collisions map unrelated job names onto the same advisory lock key", "Session locks stay on one server connection, but each transaction may get another"]
+  answer: 3
+  explanation: >-
+    In transaction mode, a client only owns a server connection for the duration of a transaction. A session lock taken in one transaction stays with that server connection after the client moves on, so the unlock can go to a connection that does not hold it while other clients reuse the one that does. A hash collision could make a lock look stuck but cannot let two instances run. Use pg_advisory_xact_lock inside a single transaction, or a session-mode pool for the job.
 ```

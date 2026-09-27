@@ -172,32 +172,32 @@ Agent evals judge outcomes, not transcripts. Did the tests pass, is the database
 ```quiz
 - q: >-
     An agent task takes 15 steps, and each step is correct 97% of the time independently. Roughly how often does the whole task succeed?
-  options: ["97%", "About 85%", "About 63%", "About 45%"]
-  answer: 2
+  options: ["About 63%", "About 97%", "About 85%", "About 45%"]
+  answer: 0
   explanation: >-
     0.97 to the 15th power is about 0.63. Per-step reliability that looks excellent in isolation compounds into a task that fails more than a third of the time, which is why long runs need checkpoints such as tests or validators.
 - q: >-
     Why does an agent's input-token cost grow roughly quadratically with the number of steps?
-  options: ["Tool results are compressed less as the run progresses", "Models charge more per token for later calls", "The system prompt is duplicated on every step", "Each call resends the whole transcript, and the transcript grows linearly, so the total is a sum of a linear series"]
+  options: ["The system prompt and tool list are duplicated again on every step", "Providers charge more per token for the later calls in a long conversation", "Attention cost is quadratic in length, and providers bill for that compute", "Each call resends the whole transcript, which itself grows with every step"]
   answer: 3
   explanation: >-
-    Step i sends everything from steps 1 to i-1, so total input is proportional to 1 + 2 + ... + n. Caching lowers the price of the repeated prefix but the tokens are still processed on every call.
+    Step i sends everything from steps 1 to i-1, so total input is proportional to 1 + 2 + ... + n, the sum of a linear series. Billing is per token at a flat rate; the quadratic comes from resending, not from attention compute. Caching lowers the price of the repeated prefix but the tokens are still processed on every call.
 - q: >-
     A task is to extract five fields from each of 200,000 scanned invoices. Which design fits best?
-  options: ["A batch workflow: one structured-output call per invoice, validated in code", "An autonomous agent with OCR, database and email tools", "A multi-agent system with a planner and workers", "A chat interface where staff paste invoices"]
-  answer: 0
+  options: ["An autonomous agent with OCR, database and email tools that works the queue", "A multi-agent system in which a planner assigns batches of invoices to workers", "A batch workflow: one structured-output call per invoice, validated in code", "A chat interface where staff paste each invoice and copy out the five fields"]
+  answer: 2
   explanation: >-
     The path is known and identical for every item, so a workflow is cheaper, faster and testable. An agent adds non-determinism and cost without adding any capability the task needs.
 - q: >-
     An agent retried a payment tool call after a timeout and the customer was credited twice. Which guardrail addresses the root cause?
-  options: ["A lower temperature", "An idempotency key on the side-effecting tool, tied to the operation (the dispute being credited) rather than the attempt", "A step cap", "A longer tool timeout"]
+  options: ["A step cap, so the agent cannot keep calling the payment tool in a loop", "An idempotency key on the payment tool, tied to the operation, not the attempt", "A longer tool timeout, so slow payment calls are not mistaken for failures", "A lower temperature, so the model is less likely to repeat the tool call"]
   answer: 1
   explanation: >-
-    Retries are unavoidable in distributed systems; side effects must be safe to repeat. An idempotency key tied to the operation makes the second call a no-op, whether the harness retried it or the model issued it again. A step cap limits loops but does not stop one duplicated call.
+    Retries are unavoidable in distributed systems; side effects must be safe to repeat. An idempotency key tied to the operation (the dispute being credited) makes the second call a no-op, whether the harness retried it or the model issued it again. A step cap limits loops but does not stop one duplicated call, and a longer timeout only makes the retry rarer.
 - q: >-
     What is the main security concern when connecting a third-party MCP server to your agent?
-  options: ["MCP messages are not encrypted", "MCP only works with one model provider", "MCP servers cannot be rate limited", "Its tool descriptions and results enter the model's context and its tools act with whatever credentials you gave it, so a malicious server can inject instructions or exfiltrate data"]
-  answer: 3
+  options: ["MCP locks the agent to one model provider, which makes switching models hard", "Its tool text enters the model's context and its tools hold your credentials", "MCP messages travel unencrypted, so tool results can be read on the network", "MCP servers cannot be rate limited, so a busy server can exhaust your quota"]
+  answer: 1
   explanation: >-
-    An MCP server is both code you run and text your model reads. Vet it like a dependency and scope its credentials, because its descriptions and outputs are untrusted input to the model.
+    An MCP server is both code you run and text your model reads: its tool descriptions and results enter the context, and its tools act with whatever credentials you gave it, so a malicious server can inject instructions or exfiltrate data. Vet it like a dependency and scope its credentials. MCP is an open protocol used across providers.
 ```

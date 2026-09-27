@@ -160,32 +160,32 @@ Same organisation, same level of skill, and similar ideas. The difference was se
 ```quiz
 - q: >-
     In your second week you notice the team's deployment tooling is clumsy and could be replaced by a tool you used at your last job. What is the best move?
-  options: ["Write a proposal to replace it this week, while your perspective is fresh", "Replace it quietly on your own branch and present the finished result", "Record it in your fresh-eyes document, learn why it looks the way it does, and revisit it around day 60 with context", "Ignore it, since new hires should not suggest changes"]
+  options: ["Replace it quietly on your own branch and present the finished result to the team", "Let it go, since new hires should not suggest changes until they have shipped", "Note it, learn why it looks the way it does, and revisit it with context around day 60", "Write a proposal to replace it this week, while your outside perspective is still fresh"]
   answer: 2
   explanation: >-
-    Early observations are valuable but often lack context, since many oddities are the result of past incidents or deliberate trade-offs. Recording them and returning with context turns them into credible proposals. Proposing immediately or rebuilding in secret risks the classic new-senior trap, and ignoring them wastes a newcomer's main advantage.
+    Early observations are valuable but often lack context, since many oddities are the result of past incidents or deliberate trade-offs. Recording them in a fresh-eyes document and returning with context turns them into credible proposals. Proposing immediately or rebuilding in secret risks the classic new-senior trap, and ignoring them wastes a newcomer's main advantage.
 - q: >-
     Which early win is most likely to build trust with a new team?
-  options: ["Fixing a flaky test that wastes everyone's time", "Introducing a new language for a greenfield service", "Reopening a design decision the team made last quarter", "Building a dashboard nobody asked for"]
-  answer: 0
+  options: ["Reopening a design decision the team made last quarter", "Introducing a new language for a greenfield service", "Fixing a flaky test that wastes everyone's time", "Building a dashboard of team metrics nobody asked for"]
+  answer: 2
   explanation: >-
     Good early wins remove pain the team already feels, finish quickly, and leave other people's work intact. The other options create work or friction for others before you have earned the trust to justify it.
 - q: >-
     Of the three components of trust (reliability, competence and intent), which do new senior hires most often over-invest in first, and what works better?
-  options: ["Reliability; they should show competence first", "Competence; leading with reliability and intent makes their competence welcome when they show it", "Intent; they should focus only on technical work", "None; trust comes automatically with a senior title"]
-  answer: 1
-  explanation: >-
-    New seniors often try to demonstrate expertise immediately, which can read as arrogance without a track record. Keeping small promises and visibly working for the team first makes later demonstrations of competence land as help rather than criticism.
-- q: >-
-    What is the main purpose of asking your manager in week one what would make the hire a great decision at 90 days?
-  options: ["To negotiate a raise", "To find out who else is being hired", "To show that you are confident", "To surface their expectations early, so your plan targets them and misunderstandings appear in week one rather than at the review"]
+  options: ["Reliability; they should demonstrate their competence first and then keep promises", "Intent; they spend too long building relationships and should show their expertise sooner", "None; the three components build at the same rate whatever a new hire focuses on", "Competence; leading with reliability and intent makes their competence welcome later"]
   answer: 3
   explanation: >-
-    Most first-quarter problems come from mismatched expectations. Asking directly and building your 30/60/90 plan around the answer aligns your effort with what your manager will actually judge.
+    New seniors often try to demonstrate expertise immediately, which can read as arrogance without a track record. Keeping small promises (reliability) and visibly working for the team (intent) first makes later demonstrations of competence land as help rather than criticism. Showing expertise sooner is exactly the over-investment the lesson warns against.
+- q: >-
+    What is the main purpose of asking your manager in week one what would make the hire a great decision at 90 days?
+  options: ["To open an early conversation about compensation at the first review", "To show confidence, since new seniors are expected to set their own goals", "To learn who else is being hired, so you can plan how to position yourself", "To surface expectations early, so your plan targets them from week one"]
+  answer: 3
+  explanation: >-
+    Most first-quarter problems come from mismatched expectations. Asking directly and building your 30/60/90 plan around the answer aligns your effort with what your manager will actually judge, and any misunderstanding appears in week one rather than at the review.
 - q: >-
     You want to use experience from your previous company in a design discussion. Which phrasing works best?
-  options: ["\"At my last company we did it properly, like this.\"", "\"One thing that worked at my last company was X. Would that fit here, or is there a reason it wouldn't?\"", "Stay silent, because past experience is not relevant", "\"This is wrong; it will fail under load.\""]
-  answer: 1
+  options: ["\"This approach is wrong; I've seen it fail under load before, so we should change it.\"", "Say nothing about it, since the team's context differs too much to be relevant", "\"X worked well at my last company. Would it fit here, or is there a reason not to?\"", "\"At my last company we did this properly, so let me show you how it should work.\""]
+  answer: 2
   explanation: >-
     Framing experience as a question invites the team's context and avoids implying that their choices are uninformed. Past experience is valuable, but delivered as a verdict it is one of the fastest ways for a new senior to lose goodwill.
 ```

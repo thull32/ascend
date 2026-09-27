@@ -243,32 +243,32 @@ hints:
 ```quiz
 - q: >-
     An interviewer gives you coins {1, 5, 8} and asks for the fewest coins for 10. What do you say?
-  options: ["Greedy: 8 + 1 + 1 = 3 coins", "Greedy fails here (5 + 5 = 2 coins), so I'll use the coin-change DP", "The problem has no solution", "Sort the coins ascending and greedy works"]
-  answer: 1
+  options: ["Greedy: 8 + 1 + 1 = 3 coins, as largest-first is optimal", "Greedy is safe since the set includes a 1-coin: 3 coins", "Greedy fails; sort ascending and take smallest coins first", "Greedy fails since 5 + 5 = 2 coins; use coin-change DP"]
+  answer: 3
   explanation: >-
-    Largest-first gives 8 + 1 + 1, but 5 + 5 uses two coins, so no optimal solution contains the greedy choice; the greedy-choice property fails. That is the signal to define dp[amount] instead. Sorting ascending does not rescue greedy either.
+    Largest-first gives 8 + 1 + 1, but 5 + 5 uses two coins, so no optimal solution contains the greedy choice; the greedy-choice property fails. That is the signal to define dp[amount] instead. Having a 1-coin only guarantees that some answer exists, not that largest-first is optimal, and sorting ascending does not rescue greedy either.
 - q: >-
     Which statement correctly describes the greedy-choice property?
-  options: ["The greedy choice is the best choice at every step", "There exists an optimal solution that contains the greedy choice", "Every optimal solution contains the greedy choice", "The greedy choice minimises the remaining problem size"]
-  answer: 1
+  options: ["Every optimal solution contains the greedy choice", "The greedy choice is the best choice at every step", "Some optimal solution contains the greedy choice", "The greedy choice minimises the remaining problem size"]
+  answer: 2
   explanation: >-
-    The property only needs one optimal solution to agree with the greedy choice; the exchange argument constructs it by rewriting an arbitrary optimal solution. Requiring every optimal solution to agree is too strong (ties exist), and \"best right now\" is the definition of greedy, not of correctness.
+    The property only needs one optimal solution to agree with the greedy choice; the exchange argument constructs it by rewriting an arbitrary optimal solution. Requiring every optimal solution to agree is too strong (ties exist), and "best right now" is the definition of greedy, not of correctness.
 - q: >-
     With capacity 50 and items (10 kg, $60), (20 kg, $100), (30 kg, $120), greedy by value density returns $160 for the 0/1 knapsack. Why is that wrong, and what is the optimum?
-  options: ["It is correct; $160 is optimal", "Greedy should sort by value instead; the optimum is $220", "Partial items cannot be exchanged, so the density argument breaks; the optimum is $220 from items 2 and 3", "The optimum is $240 by taking a fraction of item 3"]
+  options: ["The rule is fine but stops early; a fraction of item 3 gives $240", "It is correct: density order is optimal for 0/1 as well, so $160", "Items can't be split, so the exchange fails; the optimum is $220", "The key is wrong: sorting by raw value is always optimal, giving $220"]
   answer: 2
   explanation: >-
-    Items 2 and 3 fill the bag exactly for $220. The fractional exchange argument moves weight between items, which 0/1 forbids, so greedy has no proof and indeed fails. $240 is the fractional answer, not allowed here; sorting by value alone also fails in general.
+    Items 2 and 3 fill the bag exactly for $220. The fractional exchange argument moves weight between items, which 0/1 forbids, so greedy has no proof and indeed fails. $240 is the fractional answer, not allowed here; sorting by raw value happens to reach $220 on this data but also fails in general.
 - q: >-
     You have proved that after k steps your greedy solution's k-th finish time is never later than any other solution's k-th finish time. Which proof technique is that, and what does it let you conclude?
-  options: ["Exchange argument; greedy's solution equals some optimal solution", "Greedy stays ahead; greedy's solution has at least as many elements as any other", "Optimal substructure; the subproblem is smaller", "Matroid exchange; the independent sets form a matroid"]
-  answer: 1
-  explanation: >-
-    Tracking a running measure and showing greedy is never behind is the stays-ahead technique. If another solution had more elements, its extra element would fit after greedy's last finish too, so greedy has at least as many. Exchange rewrites a specific optimal solution rather than comparing running measures.
-- q: >-
-    Which problem feature most strongly suggests DP rather than greedy?
-  options: ["The input can be sorted by one key", "The answer is a count of non-overlapping items", "Values must combine to hit an exact target and a small counterexample breaks the obvious rule", "n can be as large as 100,000"]
+  options: ["Matroid exchange; the chosen activities form a matroid basis", "Exchange argument; greedy's first pick is in some optimal solution", "Greedy stays ahead; no other solution has more elements", "Optimal substructure; the remaining subproblem is solved optimally"]
   answer: 2
   explanation: >-
-    Exact-target combination (sum to k, fill capacity exactly) is where local choices commit you to something that cannot be undone, and a broken five-element example is the definitive signal. A single sort key and non-overlap counts are greedy signals; large n argues against quadratic DP, not for it.
+    Tracking a running measure and showing greedy is never behind is the stays-ahead technique. If another solution had more elements, its extra element would fit after greedy's last finish too, so greedy has at least as many. Exchange rewrites a specific optimal solution rather than comparing running measures, and activity selection is not a matroid at all.
+- q: >-
+    Which problem feature most strongly suggests DP rather than greedy?
+  options: ["Values must combine to hit an exact target", "The answer is a count of non-overlapping items", "Constraints let n reach 100,000 or more", "The input has a natural order you can sort by"]
+  answer: 0
+  explanation: >-
+    Exact-target combination (sum to k, fill capacity exactly) is where local choices commit you to something that cannot be undone; confirm it by breaking the obvious rule with a five-element counterexample. A single sort key and non-overlap counts are greedy signals; large n argues against quadratic DP, not for it.
 ```

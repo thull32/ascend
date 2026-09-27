@@ -204,32 +204,32 @@ hints:
 ```quiz
 - q: >-
     A request's context grows from 4k to 128k tokens. By roughly what factor does the number of attention scores per layer grow?
-  options: ["32×", "about 180×", "1,024×", "It stays constant thanks to FlashAttention"]
-  answer: 2
+  options: ["1×, since FlashAttention keeps it flat", "About 180×, since it grows as n^1.5", "32×, since it is linear in length", "1,024×, since it grows as n squared"]
+  answer: 3
   explanation: >-
-    Scores scale with n², and (128k / 4k)² = 32² = 1,024. The weight matmuls grow only 32×. FlashAttention avoids storing the n × n matrix but still computes every score.
+    Scores scale with n², and (128k / 4k)² = 32² = 1,024. The weight matmuls grow only 32×, which is the tempting linear answer. FlashAttention avoids storing the n × n matrix but still computes every score, so the compute stays quadratic.
 - q: >-
     Users complain that responses take 6 seconds before the first word appears, then stream quickly. Which phase is the bottleneck and what helps most?
-  options: ["Prefill of a long prompt; shorten or cache the prompt prefix", "Decode; reduce max_tokens", "Decode; lower the temperature", "Tokenization; switch tokenizer"]
-  answer: 0
+  options: ["Decode of each token; lower the temperature to speed sampling", "Tokenization of the prompt; switch to a faster tokenizer", "Prefill of a long prompt; shorten or cache the prompt prefix", "Decode of the output; lower max_tokens to cut generation"]
+  answer: 2
   explanation: >-
     Time to first token is dominated by prefill, which processes the whole prompt and grows with its length. Shrinking the prompt or reusing a cached prefix cuts it. max_tokens and temperature affect decode, which is already fast here.
 - q: >-
     A 7B-class model has 32 layers and 32 key/value heads of dimension 128, stored in fp16. How much KV cache does one 4,096-token sequence need?
-  options: ["64 MiB", "512 MiB", "2 GiB", "16 GiB"]
-  answer: 2
+  options: ["64 MiB", "2 GiB", "512 MiB", "16 GiB"]
+  answer: 1
   explanation: >-
     Per token: 2 × 32 × 32 × 128 × 2 bytes = 524,288 bytes = 0.5 MiB. Times 4,096 tokens gives 2 GiB. 512 MiB is the figure with 8 KV heads (GQA), and 16 GiB is the figure at 32k tokens.
 - q: >-
     Your system prompt starts with "Current time: 2026-09-26T14:03:11Z" followed by 5,000 tokens of fixed instructions and tools. Prompt caching shows almost no hits. Why?
-  options: ["Prompt caching only works for prompts under 1,000 tokens", "Timestamps are special tokens", "Caching requires temperature 0", "The cache matches exact prefixes from the first token, and the timestamp changes every request, so nothing after it can be reused"]
-  answer: 3
+  options: ["Prompt caching only applies to prompts under 1,000 tokens", "Cache hits require temperature 0, which the request does not set", "Caches match exact prefixes, and the timestamp changes every call", "Timestamps become special tokens that the cache always skips"]
+  answer: 2
   explanation: >-
-    Prefix caching reuses KV entries only for an identical token prefix. A changing value at the very start invalidates the entire prompt after it. Move volatile content to the end, after the static instructions and tools.
+    Prefix caching reuses KV entries only for an identical token prefix from the first token. A value that changes on every request at the very start invalidates the entire prompt after it, so nothing can be reused. Move volatile content to the end, after the static instructions and tools. Providers set a minimum prefix length, not a maximum, and sampling settings do not affect prefill.
 - q: >-
     Switching a model from 32 key/value heads to 8 (grouped-query attention) while keeping 32 query heads mainly improves which serving metric?
-  options: ["Prefill FLOPs per token, by 4×", "KV-cache memory per token, by 4×, and so the number of concurrent sequences per GPU", "Vocabulary size", "The maximum context the model was trained on"]
-  answer: 1
+  options: ["Vocabulary size, by 4×, so each word needs fewer tokens", "The maximum context the model was trained on, by 4×", "Prefill FLOPs per token, by 4×, and so time to first token", "KV-cache memory per token, by 4×, and so sequences per GPU"]
+  answer: 3
   explanation: >-
-    GQA shares each key/value head across several query heads, so the cache stores a quarter as many key and value vectors. That multiplies how many sequences fit alongside the weights, which drives throughput. Query-side compute is largely unchanged, and training context length is a separate property.
+    GQA shares each key/value head across several query heads, so the cache stores a quarter as many key and value vectors. That multiplies how many concurrent sequences fit alongside the weights, which drives throughput. Query-side compute, and so prefill FLOPs, is largely unchanged, and vocabulary and training context length are separate properties.
 ```

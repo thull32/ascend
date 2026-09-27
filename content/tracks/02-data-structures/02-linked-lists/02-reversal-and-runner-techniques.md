@@ -258,32 +258,32 @@ hints:
 ```quiz
 - q: >-
     In iterative reversal, what happens if `curr.next = prev` is executed before saving `curr.next`?
-  options: ["The list is reversed correctly but slowly", "The loop terminates after the first node and the rest of the list is unreachable", "An infinite loop", "The list is reversed in the wrong direction"]
+  options: ["The loop never ends, since the first node now points back at itself", "The loop ends after one node, and the rest of the list is unreachable", "Only the last node is lost, since nxt is read one iteration late", "The list is reversed correctly, since prev still holds the old successor"]
   answer: 1
   explanation: >-
-    Overwriting `curr.next` discards the only reference to the remainder. `nxt` would then be read from the already-rewired pointer (prev), so `curr` becomes `None` after one iteration and the tail is lost.
+    Overwriting `curr.next` discards the only reference to the remainder. `nxt` would then be read from the already-rewired pointer (prev, which is None on the first iteration), so `curr` becomes `None` after one iteration and the loop exits with the tail lost. No self-loop is created, because the node is pointed at prev, not at itself.
 - q: >-
     With `slow = fast = head` and `while fast and fast.next`, what does `slow` point to for the list 1 → 2 → 3 → 4?
-  options: ["2, the first middle", "3, the second middle", "4, the tail", "1, the head"]
-  answer: 1
+  options: ["4, the tail node", "2, the first middle node", "3, the second middle", "1, the head node"]
+  answer: 2
   explanation: >-
     Steps: (1,1) → (2,3) → (3,None). The loop exits with slow at 3. Starting fast at head.next, or using `while fast.next and fast.next.next`, yields the first middle (2), which is what list-splitting for merge sort usually wants.
 - q: >-
     Why is recursive list reversal a poor choice for a list of 100,000 nodes in Python?
-  options: ["It is O(n²)", "Each node adds a stack frame, and Python's default recursion limit (about 1,000) is exceeded", "Recursion cannot modify pointers", "Python lacks tail-call optimisation, which makes it O(n log n)"]
-  answer: 1
+  options: ["It is O(n²), since each call walks the remaining sublist to find its end", "Python lacks tail-call optimisation, which makes it O(n log n) time", "Recursion cannot reassign `next`, so it must copy every node it visits", "Each node adds a stack frame, exceeding the ~1,000-frame recursion limit"]
+  answer: 3
   explanation: >-
-    The recursion depth equals the list length. The algorithm is O(n) time, but O(n) stack space, and Python raises RecursionError long before 100,000 frames. Iteration uses O(1) space.
+    The recursion depth equals the list length. The algorithm is O(n) time, but O(n) stack space, and Python raises RecursionError long before 100,000 frames. The missing tail-call optimisation is why the depth is a problem, but it does not change the time complexity. Iteration uses O(1) space.
 - q: >-
     To delete the nth node from the end with two pointers in one pass, why start `trail` at a sentinel rather than at the head?
-  options: ["To make the loop faster", "So that `trail` ends at the predecessor of the target, and deleting the head (n equal to the length) needs no special case", "Because the head might be null", "To avoid needing `lead`"]
-  answer: 1
+  options: ["So `trail` lands on the target itself, which can then be unlinked directly", "So `lead` is not needed, since the sentinel marks where counting starts", "Because the head might be null, and the sentinel avoids a null check on it", "So `trail` ends just before the target, even when the target is the head"]
+  answer: 3
   explanation: >-
-    Deletion in a singly linked list needs the predecessor. With `trail` one node behind the target and starting at the sentinel, the head's predecessor is the sentinel and `sentinel.next` is rewired uniformly.
+    Deletion in a singly linked list needs the predecessor, not the target itself. With `trail` starting at the sentinel it ends one node behind the target; when n equals the length, the head's predecessor is the sentinel and `sentinel.next` is rewired with no special case.
 - q: >-
     Which of these problems combines the runner technique and reversal?
-  options: ["Delete every node with a given value", "Reorder a list as first, last, second, second-last, ...", "Insert into a sorted list", "Find the length of a list"]
-  answer: 1
+  options: ["Remove the nth node from the end in a single pass", "Reverse the sublist between positions m and n in place", "Reorder a list as first, last, second, second-last, ...", "Sort a list by splitting it at the middle and merging"]
+  answer: 2
   explanation: >-
-    Reorder List finds the middle with fast/slow pointers, reverses the second half in place, and interleaves the two halves, exercising both techniques and the sentinel-free reconnection logic.
+    Reorder List finds the middle with fast/slow pointers, reverses the second half in place, and interleaves the two halves, exercising both techniques. Removing the nth from the end uses offset pointers but no reversal, reversing a sublist uses reversal but no runner, and merge sort uses the runner to split but never reverses.
 ```

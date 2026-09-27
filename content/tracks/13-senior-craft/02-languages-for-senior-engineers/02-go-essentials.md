@@ -265,37 +265,37 @@ In a coding interview Go works but costs keystrokes. There is no built-in set (u
 ```quiz
 - q: >-
     `find` declares `var err *NotFoundError` and returns it on the success path. The caller writes `if err := find("ana"); err != nil`. What happens?
-  options: ["The condition is false; a nil pointer is nil", "The condition is true, because the returned interface carries the type *NotFoundError even though the pointer inside is nil", "It fails to compile", "The return statement panics"]
+  options: ["The condition is false, because a nil pointer converted to error is still nil", "The condition is true, because the interface's type word is set to *NotFoundError", "The return statement panics, because it dereferences a nil pointer to build the error", "It fails to compile, because a *NotFoundError cannot be returned as an error"]
   answer: 1
   explanation: >-
-    An interface is nil only when both its type and data words are nil. Converting a typed nil pointer to `error` fills in the type word. Return the literal nil on success.
+    An interface is nil only when both its type and data words are nil. Converting a typed nil pointer to `error` fills in the type word, so the returned interface is non-nil even though the pointer inside is nil. Nothing is dereferenced and it compiles fine; return the literal nil on success.
 - q: >-
     You change fetchAll's results channel to unbuffered and keep the early return on timeout. In production, what happens to requests that time out?
-  options: ["The stragglers are cancelled automatically when fetchAll returns", "The runtime panics with all goroutines are asleep", "Late results are dropped and the goroutines exit normally", "Each straggler blocks forever on its send, leaking its goroutine and everything it references"]
-  answer: 3
-  explanation: >-
-    Nobody will ever receive from the channel, so every late send blocks permanently. The deadlock detector only fires when every goroutine is blocked, which never happens in a busy server, so memory just grows.
-- q: >-
-    Two goroutines write to the same Go map without a lock. What is the realistic outcome?
-  options: ["Last write wins", "Undefined values, but the process keeps running", "The runtime may abort the whole process with 'concurrent map writes', which recover cannot catch", "Nothing; maps are internally synchronised"]
-  answer: 2
-  explanation: >-
-    The runtime checks for concurrent map writes and throws a fatal error, which is not a panic and cannot be recovered. Protect the map with a mutex or use a structure designed for concurrent access.
-- q: >-
-    A Go service with about 600 MiB of live heap runs in a 1 GiB container with default settings and is periodically OOM-killed. Which explanation and fix fit?
-  options: ["GOGC=100 lets the heap reach about twice the live heap before collecting; set GOMEMLIMIT near the container limit so the collector works harder as memory approaches it", "The old generation overflows; raise the young generation size", "Goroutine stacks are never freed; restart the service nightly", "Go ignores memory limits, so nothing can help"]
+  options: ["Each straggler blocks forever on its send, leaking its goroutine", "The runtime panics with 'all goroutines are asleep', crashing the server", "Late results are dropped and the goroutines exit once their sends fail", "The stragglers are cancelled automatically when fetchAll returns early"]
   answer: 0
   explanation: >-
-    Go's collector is not generational. The pacer targets live × (1 + GOGC/100), about 1.2 GiB here. GOMEMLIMIT adds a soft ceiling that makes collection more aggressive near the limit.
+    Nobody will ever receive from the channel, so every late send blocks permanently, leaking the goroutine and everything it references. The deadlock detector only fires when every goroutine is blocked, which never happens in a busy server, so memory just grows. Returning does not cancel anything unless the goroutines watch a context.
+- q: >-
+    Two goroutines write to the same Go map without a lock. What is the realistic outcome?
+  options: ["Last write wins, because each map assignment is a single atomic store", "Some values are corrupted, but the process keeps running normally", "The runtime may abort the whole process with a fatal 'concurrent map writes' error", "Nothing goes wrong, because Go maps are internally synchronised by the runtime"]
+  answer: 2
+  explanation: >-
+    The runtime checks for concurrent map writes and throws a fatal error, which is not a panic and cannot be caught by recover, so the whole process dies. Maps are not synchronised; protect the map with a mutex or use a structure designed for concurrent access.
+- q: >-
+    A Go service with about 600 MiB of live heap runs in a 1 GiB container with default settings and is periodically OOM-killed. Which explanation and fix fit?
+  options: ["Go ignores cgroup memory limits, so only a bigger container limit will help here", "The heap may grow to twice the live size before GC; set GOMEMLIMIT near the limit", "The old generation overflows before promotion; raise the young generation size instead", "Goroutine stacks are never returned to the OS; restart the service on a nightly schedule"]
+  answer: 1
+  explanation: >-
+    Go's collector is not generational. With the default GOGC=100 the pacer targets live × (1 + GOGC/100), about 1.2 GiB here, above the 1 GiB container limit. GOMEMLIMIT adds a soft ceiling that makes the collector work harder as memory approaches the limit.
 - q: >-
     `a := make([]int, 3, 4); b := append(a, 1); c := append(a, 2)`. What is `b[3]`?
-  options: ["1", "2", "0", "It panics with index out of range"]
-  answer: 1
+  options: ["2", "1", "0", "It panics with index out of range"]
+  answer: 0
   explanation: >-
     Both appends fit in a's spare capacity, so b and c share one backing array and the second append overwrites the slot the first wrote. Aliasing depends on capacity, which is why you copy slices you did not allocate before appending.
 - q: >-
     For which of these would a senior engineer be most cautious about choosing Go?
-  options: ["A CLI distributed as a single binary", "A proxy holding 50,000 concurrent connections", "A pricing engine with dozens of product and discount states where missing a case is costly", "A Kubernetes operator"]
+  options: ["A Kubernetes operator that reconciles custom resources across clusters", "A proxy that holds 50,000 concurrent connections with tight latency needs", "A pricing engine with dozens of states where a missed case is costly", "A CLI tool that must be distributed to users as a single static binary"]
   answer: 2
   explanation: >-
     Go lacks sum types and exhaustive matching, so adding a new state does not force every switch to handle it. Rust, Kotlin sealed classes or TypeScript discriminated unions give that guarantee. CLIs, high-connection proxies and Kubernetes operators are Go's home ground.

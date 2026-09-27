@@ -284,32 +284,32 @@ hints:
 ```quiz
 - q: >-
     You sort a list of 1,000,000 records by department, then by salary, and expect records with equal salary to remain grouped by department. Which sort makes that work without a composite key?
-  options: ["Any O(n log n) sort", "A stable sort, such as merge sort or Timsort", "Quicksort with a random pivot", "Heap sort, because it is in place"]
-  answer: 1
+  options: ["A stable sort, such as merge sort or Timsort", "Quicksort with a random pivot to avoid bias", "Any comparison sort that runs in O(n log n)", "An in-place sort, such as heap sort or introsort"]
+  answer: 0
   explanation: >-
-    Only a stable sort preserves the department grouping among equal salaries. Quicksort and heap sort move equal elements past each other, so the earlier ordering is destroyed.
+    Only a stable sort preserves the department grouping among equal salaries. Running time says nothing about stability, a random pivot does not help, and in-place is a different property: quicksort and heap sort both work in place yet move equal elements past each other, so the earlier ordering is destroyed.
 - q: >-
     A quicksort using the first element as pivot is run on an already-sorted array of n elements. What happens?
-  options: ["It finishes in O(n) because nothing needs moving", "It runs in O(n log n) as usual", "Every partition splits off one element and it takes O(n²)", "It fails to terminate"]
-  answer: 2
+  options: ["O(n²), since each partition peels off one element", "O(n log n), as the recursion depth stays log n", "It never terminates, since the left side stays empty", "O(n), because no element ever needs to move"]
+  answer: 0
   explanation: >-
-    The first element is the minimum, so the partition puts zero elements on the left and n-1 on the right. Recursion depth becomes n and total work is n + (n-1) + ... = O(n²). Random or median-of-three pivots avoid this.
+    The first element is the minimum, so the partition puts zero elements on the left and n-1 on the right. Recursion depth becomes n and total work is n + (n-1) + ... = O(n²). It does terminate, because the right side still shrinks by one each call, and "nothing moves" does not save the comparisons. Random or median-of-three pivots avoid this.
 - q: >-
     Heap sort has an O(n log n) worst case and O(1) extra space, yet library sorts are built on quicksort or merge sort. The main reason is:
-  options: ["Heap sort is not stable", "Sift-down jumps across memory and misses the cache, so its constant factor is much larger", "Building the heap is O(n log n)", "Heap sort cannot handle duplicate keys"]
+  options: ["Its instability rules it out for library use", "Sift-down's scattered accesses miss the cache", "Duplicate keys degrade it to quadratic time", "Building the initial heap costs O(n log n)"]
   answer: 1
   explanation: >-
-    Heap sort's access pattern (i, 2i+1, 4i+3, ...) defeats the cache and the prefetcher; partition and merge scan sequentially. Instability is true but merge sort's rival, quicksort, is unstable too. Heapify is O(n).
+    Heap sort's access pattern (i, 2i+1, 4i+3, ...) defeats the cache and the prefetcher; partition and merge scan sequentially, so heap sort's constant factor is much larger. Instability is true but merge sort's rival, quicksort, is unstable too. Heapify is O(n), and duplicates do not hurt heap sort's bound.
 - q: >-
     Lomuto partition is run on an array where every element equals the pivot. The split it produces is:
-  options: ["Perfectly balanced", "One side has n-1 elements, the other has 0", "Undefined; Lomuto requires distinct keys", "Three regions: less, equal, greater"]
-  answer: 1
+  options: ["Undefined, since Lomuto requires distinct keys", "Balanced, with about n/2 elements on each side", "Three-way, with all n in the equal region", "Lopsided, with n-1 elements on one side and 0"]
+  answer: 3
   explanation: >-
-    Every element satisfies a[j] <= pivot, so i advances to the end and the pivot lands at the last index. Hoare partition swaps equal elements across the middle and stays balanced; a three-way partition handles it in linear time.
+    Every element satisfies a[j] <= pivot, so i advances to the end and the pivot lands at the last index, leaving n-1 on one side and 0 on the other. The balanced split is what Hoare partition gives, since it swaps equal elements across the middle; the three-region split is what a separate three-way partition gives, handling this case in linear time.
 - q: >-
     Which statement about merge sort's memory is correct?
-  options: ["It sorts in place with O(1) extra space", "A straightforward implementation needs O(n) auxiliary space for merging", "It needs O(n log n) space, one buffer per level", "It only needs O(log n) space for the recursion stack"]
-  answer: 1
+  options: ["It sorts in place with O(1) extra space", "It needs only O(log n) space for the stack", "It needs O(n log n) space, one buffer per level", "It needs O(n) auxiliary space for merging"]
+  answer: 3
   explanation: >-
-    Merging two sorted halves needs an output area; a single reusable buffer of size n (or n/2 with care) suffices. In-place merging exists but is impractically slow. The recursion stack is O(log n) on top of that.
+    A straightforward merge needs an output area; a single reusable buffer of size n (or n/2 with care) suffices, so O(n), not one buffer per level. In-place merging exists but is impractically slow. The recursion stack is O(log n) on top of that buffer, not instead of it.
 ```

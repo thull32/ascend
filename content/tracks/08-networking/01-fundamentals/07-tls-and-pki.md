@@ -288,32 +288,32 @@ What remains expensive is a cold connection to a distant server. That is a laten
 ```quiz
 - q: >-
     After a certificate renewal, the website loads in Chrome but a Go service calling the same API fails with "x509: certificate signed by unknown authority". openssl s_client shows one certificate in the chain. What is wrong?
-  options: ["The Go service needs a newer TLS version", "The server is sending only the leaf; browsers fetch or cache the missing intermediate, but most non-browser clients require the server to send it", "The certificate has expired", "The Go service's clock is wrong"]
-  answer: 1
+  options: ["The server omits the intermediate certificate", "The renewed certificate expired before it was deployed", "The Go service's clock is wrong, so the cert looks invalid", "The Go service needs a newer TLS version to connect"]
+  answer: 0
   explanation: >-
-    A single certificate in the chain means the intermediate is missing. Chrome uses the AIA URL to fetch it and Firefox preloads intermediates, which masks the problem. Go, Java, curl, Python and mobile clients cannot build a path to a trusted root. Serve the full chain.
+    A single certificate in the chain means the intermediate is missing. Chrome uses the AIA URL to fetch it and Firefox preloads intermediates, which masks the problem. Go, Java, curl, Python and mobile clients require the server to send it, so they cannot build a path to a trusted root. An expired or not-yet-valid certificate would produce a date error, not "unknown authority". Serve the full chain.
 - q: >-
     Why does a TLS 1.3 full handshake need one round trip where TLS 1.2 needed two?
-  options: ["TLS 1.3 skips certificate validation", "The client sends its ephemeral key share in the ClientHello, guessing the group, so the server can derive keys and send its certificate, signature and Finished in its first reply", "TLS 1.3 uses UDP", "TLS 1.3 reuses the TCP handshake packets"]
-  answer: 1
+  options: ["The client sends its key share in the ClientHello", "TLS 1.3 piggybacks on the TCP handshake packets", "TLS 1.3 skips certificate validation to save a round trip", "TLS 1.3 runs over UDP, so it has no TCP handshake"]
+  answer: 0
   explanation: >-
-    TLS 1.2 spent a round trip negotiating parameters before key exchange. TLS 1.3 sends a key share speculatively, and a wrong guess costs a HelloRetryRequest. Certificates are still validated, and TLS 1.3 still runs over TCP (QUIC is what merges it with the transport).
+    TLS 1.2 spent a round trip negotiating parameters before key exchange. TLS 1.3 has the client guess the group and send its ephemeral key share up front, so the server can derive keys and send its certificate, signature and Finished in its first reply; a wrong guess costs a HelloRetryRequest. Certificates are still validated, and TLS 1.3 still runs over TCP (QUIC is what merges it with the transport).
 - q: >-
     A team wants to enable TLS 1.3 0-RTT on the API edge to save a round trip for returning clients. Which constraint must they add?
-  options: ["None; 0-RTT data is protected like any other application data", "Only accept early data for requests that are safe to replay, such as idempotent GETs, because an attacker can resend captured early data; forward it with Early-Data and let the origin answer 425 Too Early when it cannot risk a replay", "Require client certificates for 0-RTT", "Disable session tickets"]
+  options: ["Require client certificates on all 0-RTT connections", "Accept early data only for requests that are safe to replay", "Disable session tickets so resumed sessions stay fresh", "None; early data is protected like any other application data"]
   answer: 1
   explanation: >-
-    Early data is sent before the server has any fresh handshake state, so it can be replayed. It is encrypted, but a replay of a POST that charges a card is still a second charge. 0-RTT depends on session tickets, so disabling them would disable 0-RTT entirely.
+    Early data is sent before the server has any fresh handshake state, so an attacker can resend captured early data. It is encrypted, but a replay of a POST that charges a card is still a second charge, so only idempotent requests such as GETs qualify; the edge forwards it with Early-Data and the origin answers 425 Too Early when it cannot risk a replay. 0-RTT depends on session tickets, so disabling them would disable 0-RTT entirely.
 - q: >-
     A wildcard certificate for *.example.com is deployed. Which hostname will fail validation?
-  options: ["api.example.com", "WWW.EXAMPLE.COM", "v2.api.example.com", "cdn.example.com"]
-  answer: 2
+  options: ["status.example.com", "v2.api.example.com", "WWW.EXAMPLE.COM", "payments.example.com"]
+  answer: 1
   explanation: >-
     A wildcard matches exactly one label in the leftmost position. v2.api.example.com has two labels in front of example.com. Matching is case-insensitive, so the uppercase name is fine.
 - q: >-
     In a service mesh with mTLS, the orders service calls the payments service through an L7 proxy that terminates TLS. What must be true for payments to authorise the call based on the caller's identity?
-  options: ["Nothing; mTLS identity passes through any proxy automatically", "The proxy must verify the client certificate and forward the verified identity (for example in an x-forwarded-client-cert header) that payments trusts only from the proxy, or the proxy must pass TLS through untouched", "Payments must check the source IP address of the connection", "The proxy must downgrade to TLS 1.2"]
-  answer: 1
+  options: ["Payments must check the connection's source IP address", "The proxy must downgrade the inner hop to plain TLS 1.2", "The proxy must forward the verified client identity", "Nothing; mTLS identity passes through any proxy intact"]
+  answer: 2
   explanation: >-
-    TLS authenticates the two ends of one TCP connection. A terminating proxy is the peer that payments sees, so the original client's identity has to be carried forward explicitly, or TLS must be passed through end to end. Source IPs are not identities in a cluster.
+    TLS authenticates the two ends of one TCP connection. A terminating proxy is the peer that payments sees, so the proxy must verify the client certificate and forward the verified identity (for example in an x-forwarded-client-cert header) that payments trusts only from the proxy, or pass TLS through untouched. Source IPs are not identities in a cluster.
 ```

@@ -247,32 +247,32 @@ hints:
 ```quiz
 - q: >-
     Quickselect with random pivots is expected O(n) while quicksort is expected O(n log n). What accounts for the difference?
-  options: ["Quickselect uses a better partition", "Quickselect recurses into only one side, so the work forms a geometric series n + 3n/4 + ... instead of n per level times log n levels", "Quickselect does not need to compare elements", "Quicksort has to be stable"]
-  answer: 1
+  options: ["One-sided recursion makes the work a geometric series", "Its partition does fewer comparisons per element scanned", "Quicksort must also keep equal keys in their input order", "Its random pivot guarantees an even split every time"]
+  answer: 0
   explanation: >-
-    Both use the same partition. Sorting must process every element at every recursion level; selection discards the side that cannot contain index k, and the surviving sizes shrink geometrically.
+    Both use the same partition. Sorting must process every element at every recursion level, n per level times log n levels; selection discards the side that cannot contain index k, and the surviving sizes shrink geometrically: n + 3n/4 + ... A random pivot guarantees nothing about any single split; it only makes good splits likely, which is why the bound is expected.
 - q: >-
     Median of medians uses groups of 5. Why not groups of 3?
-  options: ["Groups of 3 cannot have a median", "With groups of 3 the recursion sizes are n/3 and 2n/3, which sum to n, so the bound degrades to O(n log n)", "Sorting groups of 3 is slower than groups of 5", "Groups of 3 give a pivot in the outer 30%"]
-  answer: 1
+  options: ["Sorting groups of 3 costs more comparisons per element", "The pivot is no longer guaranteed to avoid the outer 30%", "Fractions 1/3 + 2/3 sum to 1, so it becomes O(n log n)", "The recursion on n/3 medians makes it O(n²) worst case"]
+  answer: 2
   explanation: >-
-    The linear bound needs the two recursive fractions to sum to less than 1. With groups of 5 they are 1/5 + 7/10 = 9/10; with groups of 3 they are 1/3 + 2/3 = 1, and the recurrence solves to n log n.
+    The linear bound needs the two recursive fractions to sum to less than 1. With groups of 5 they are 1/5 + 7/10 = 9/10; with groups of 3 they are 1/3 + 2/3 = 1, and the recurrence solves to n log n, not n². The pivot is still central (at least n/3 on each side); the problem is that the recursive call on the n/3 medians is too large.
 - q: >-
     You need the 20 largest scores from a stream of 500 million events that does not fit in memory. The right approach is:
-  options: ["Quickselect on the stream", "A min-heap of size 20: O(n log 20) time, O(20) space", "Sort the stream", "Median of medians"]
-  answer: 1
+  options: ["A max-heap of all events: O(n) build, then pop 20", "Quickselect for rank 20: O(n) expected, O(1) extra space", "Median of medians: O(n) worst case, no bad pivots", "A min-heap of size 20: O(n log 20) time, O(20) space"]
+  answer: 3
   explanation: >-
-    Quickselect and sorting need the whole array in memory. A bounded min-heap does one pass with constant memory and rejects most elements with a single comparison against the root.
+    Quickselect, median of medians and a heap of all events need the whole data set in memory, which is exactly what you do not have. A bounded min-heap does one pass with constant memory and rejects most elements with a single comparison against the root.
 - q: >-
     A colleague uses quickselect with the first element as pivot on data received from external clients. What is the risk?
-  options: ["Incorrect results", "A crafted input makes every partition remove one element, giving O(n²) time: a CPU-exhaustion attack", "The pivot must be the last element", "Quickselect requires distinct values"]
-  answer: 1
+  options: ["Crafted input can force O(n²) time and exhaust the CPU", "Duplicate values in the input can make it never finish", "Its expected O(n) becomes O(n log n) on any input", "Crafted input can make it return the wrong element"]
+  answer: 0
   explanation: >-
-    Deterministic pivots have inputs that force the worst case, and an adversary who controls the data can supply one. Random pivots or introselect remove the attack; correctness is not affected either way.
+    Deterministic pivots have inputs that force the worst case, where every partition removes one element, and an adversary who controls the data can supply one: a CPU-exhaustion attack. Correctness is not affected either way, and it always terminates. Random pivots or introselect remove the attack.
 - q: >-
     Which statement about std::nth_element (or NumPy's np.partition) is accurate?
-  options: ["It fully sorts the array", "It places the k-th element in its sorted position with smaller elements before and larger after, in linear average time, without sorting either side", "It returns the k largest elements in sorted order", "It is O(n log n) because it is implemented with heapsort"]
+  options: ["It is O(n log n), since it is built on a heap sort", "It places the k-th element and leaves both sides unsorted", "It sorts the prefix up to k and leaves the rest alone", "It moves the k largest elements to the front, sorted"]
   answer: 1
   explanation: >-
-    nth_element is a partition-based selection (introselect). The two sides are partitioned relative to the k-th element but are otherwise unordered; that is what makes it linear.
+    nth_element is a partition-based selection (introselect), linear on average. The k-th element lands in its sorted position with smaller elements before and larger after, but the two sides are otherwise unordered; that is what makes it linear. Sorting any part of it, prefix or top k, would cost more.
 ```

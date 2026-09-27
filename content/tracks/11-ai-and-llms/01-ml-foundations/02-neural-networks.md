@@ -281,32 +281,32 @@ hints:
 ```quiz
 - q: >-
     A colleague proposes a 12-layer network with no activation functions between layers to "capture complex interactions". What is the problem?
-  options: ["It will overfit because it has too many parameters", "Composed linear layers are equivalent to one linear layer, so the extra depth adds no expressive power", "It will train too slowly because of vanishing gradients", "Nothing, as long as it is trained with Adam"]
-  answer: 1
-  explanation: >-
-    W2(W1 x + b1) + b2 simplifies to a single W'x + b', and the same holds for any number of layers. Without non-linearities the network can only represent linear functions, however deep it is. Overfitting and optimiser choice are separate concerns.
-- q: >-
-    In the two-neuron example, why is the gradient for w1 (−0.1619) exactly twice the gradient for b1 (−0.0809)?
-  options: ["Because z1 = w1·x + b1, so dz1/dw1 = x = 2 while dz1/db1 = 1", "Because the learning rate is 0.5", "Because the loss has a factor of 1/2", "It is a coincidence of the chosen numbers"]
-  answer: 0
-  explanation: >-
-    Both gradients share the upstream factor dL/dz1 = −0.0809. The local derivative of z1 with respect to w1 is the input x = 2.0 and with respect to b1 is 1, so the w1 gradient is twice as large. The learning rate is applied after the gradient is computed.
-- q: >-
-    A hidden ReLU unit has a negative pre-activation for every training example. What happens to its incoming weights during training?
-  options: ["They grow until the unit activates", "They are reset to random values by the optimiser", "They receive zero gradient and never change, so the unit stays dead", "They shrink toward zero because of weight decay only"]
+  options: ["It will overfit, because twelve layers give it far too many parameters", "It will train slowly, because gradients vanish through twelve layers", "Stacked linear layers collapse into one linear map; depth adds nothing", "Nothing, provided it is trained with Adam and a learning-rate schedule"]
   answer: 2
   explanation: >-
-    ReLU's derivative is 0 for negative inputs, so the gradient reaching its weights is multiplied by 0 on every example and the unit never recovers. This is the dead ReLU problem; leaky ReLU and GELU keep a small slope for negative inputs to avoid it. (Weight decay could shrink them, but it cannot bring the unit back to life.)
+    W2(W1 x + b1) + b2 simplifies to a single W'x + b', and the same holds for any number of layers. Without non-linearities the network can only represent linear functions, however deep it is. Vanishing gradients come from small activation derivatives multiplied together, and this network has no activations at all; overfitting and optimiser choice are separate concerns.
+- q: >-
+    In the two-neuron example, why is the gradient for w1 (−0.1619) exactly twice the gradient for b1 (−0.0809)?
+  options: ["Because the loss carries a factor of 1/2 that only b1 sees", "Because the learning rate of 0.5 halves the bias gradient", "Because z1 = w1·x + b1, so dz1/dw1 = x = 2 while dz1/db1 = 1", "Because backprop reaches w1 through two paths and b1 through one"]
+  answer: 2
+  explanation: >-
+    Both gradients share the upstream factor dL/dz1 = −0.0809. The local derivative of z1 with respect to w1 is the input x = 2.0 and with respect to b1 is 1, so the w1 gradient is twice as large. There is only one path from the loss to each of them, and the learning rate is applied after the gradient is computed.
+- q: >-
+    A hidden ReLU unit has a negative pre-activation for every training example. What happens to its incoming weights during training?
+  options: ["They grow until the unit activates, since the loss pushes them upward", "They shrink toward zero, because ReLU's gradient is negative there", "They receive zero gradient and never change, so the unit stays dead", "They are reset to small random values by the optimiser"]
+  answer: 2
+  explanation: >-
+    ReLU's derivative is 0 (not negative) for negative inputs, so the gradient reaching its weights is multiplied by 0 on every example and the unit never recovers. This is the dead ReLU problem; leaky ReLU and GELU keep a small slope for negative inputs to avoid it. (Weight decay could shrink them, but it cannot bring the unit back to life.)
 - q: >-
     Why did very deep networks with sigmoid activations fail to train, and what fixed it?
-  options: ["Sigmoid is too slow to compute; ReLU is faster", "Sigmoid outputs are not differentiable at zero", "The networks had too few parameters", "Each sigmoid layer multiplies the gradient by at most 0.25, so early layers receive vanishingly small gradients; ReLU-family activations, residual connections and normalisation fixed it"]
-  answer: 3
+  options: ["The networks were too narrow to learn; far wider layers with more parameters fixed it", "Sigmoid is not differentiable at zero; smooth activations such as GELU fixed it", "Each layer scaled gradients by at most 0.25; ReLU, residuals and normalisation fixed it", "Sigmoid was too slow to compute at that depth; cheaper ReLU-family activations fixed it"]
+  answer: 2
   explanation: >-
-    Backprop multiplies local derivatives; ten factors of at most 0.25 shrink the gradient by about a million. ReLU has derivative 1 when active, residual connections give gradients a path around each block, and normalisation keeps activations in the useful range. Compute speed is not the issue, and sigmoid is smooth everywhere.
+    Backprop multiplies local derivatives; ten sigmoid factors of at most 0.25 shrink the gradient reaching the early layers by about a million, so they barely learn. ReLU has derivative 1 when active, residual connections give gradients a path around each block, and normalisation keeps activations in the useful range. Compute speed and width are not the issue, and sigmoid is smooth everywhere.
 - q: >-
     Serving a 7B-parameter model in 16-bit needs about 14 GB for weights. Why does training it with Adam need far more memory than that?
-  options: ["Training uses higher-resolution input data", "Training must also hold gradients, Adam's two running averages per parameter (often in 32-bit) and the forward activations needed by the backward pass", "The model has more parameters during training than at inference", "Backpropagation duplicates the whole network for each layer"]
-  answer: 1
+  options: ["Training loads the whole dataset into GPU memory alongside the weights", "The model has extra parameters during training that are pruned for serving", "Backpropagation keeps a separate copy of the full network for every layer", "It must also hold gradients, Adam's two moments and stored activations"]
+  answer: 3
   explanation: >-
-    Training memory is weights plus a gradient per parameter plus Adam's two moment estimates (typically fp32, plus an fp32 master copy of the weights) plus stored activations. That is commonly about 16 bytes per parameter before activations, versus 2 for serving. The parameter count does not change between training and inference.
+    Training memory is weights plus a gradient per parameter plus Adam's two moment estimates (typically fp32, plus an fp32 master copy of the weights) plus the forward activations the backward pass needs. That is commonly about 16 bytes per parameter before activations, versus 2 for serving. The parameter count does not change between training and inference, and data is streamed in batches rather than loaded whole.
 ```

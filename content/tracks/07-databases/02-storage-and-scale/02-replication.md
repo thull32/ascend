@@ -194,32 +194,32 @@ Every replica applies every write, so adding replicas adds read capacity and zer
 ```quiz
 - q: >-
     A user updates their display name, is redirected, and sees the old name; a refresh shows the new one. Which change fixes the bug with the least write-latency cost?
-  options: ["Set synchronous_commit = remote_apply globally", "Pin the user's reads to the primary for a few seconds after a write, or route reads by the LSN of their last write", "Add more replicas so lag is shared", "Use logical replication instead of streaming"]
-  answer: 1
+  options: ["Switch to logical replication, which applies row changes more quickly", "Set synchronous_commit = remote_apply globally so replicas see each commit", "Add more replicas so the read load, and therefore the lag, is spread out", "Pin the user's reads to the primary briefly, or route them by write LSN"]
+  answer: 3
   explanation: >-
-    remote_apply fixes it but makes every commit wait for replay on the replica. Session pinning or LSN routing is applied only to the user who just wrote, costing nothing on the write path. More replicas do not reduce lag; logical replication is slower to apply, not faster.
+    remote_apply fixes it but makes every commit wait for replay on the replica. Pinning the user's reads to the primary for a few seconds after a write, or routing reads by the LSN of their last write, is applied only to the user who just wrote, costing nothing on the write path. More replicas do not reduce lag; logical replication is slower to apply, not faster.
 - q: >-
     pg_stat_replication shows a replica with flush_lag of 8 kB and replay_lag of 112 MB. What is happening?
-  options: ["The network between primary and replica is saturated", "The replica has received the WAL but cannot apply it fast enough, typically because a long query is blocking replay or the replica is undersized", "The primary's disk is slow", "The replication slot has been invalidated"]
-  answer: 1
+  options: ["The replication slot was invalidated, so the replica stopped receiving", "The primary's disk is slow, so its WAL reaches the replica too late", "The network link to the replica is saturated, so WAL arrives in bursts", "WAL has arrived but replay is falling behind, e.g. blocked by a query"]
+  answer: 3
   explanation: >-
-    Flush lag is tiny, so the bytes arrived and were fsynced. Replay lag is the gap between having the WAL and applying it, which is a replica-side problem: conflicting queries, single-threaded replay under load, or a burst of WAL. Network or primary disk problems would show as send or flush lag.
+    Flush lag is tiny, so the bytes arrived and were fsynced. Replay lag is the gap between having the WAL and applying it, which is a replica-side problem: a long query conflicting with replay, single-threaded replay on an undersized replica, or a burst of WAL. Network or primary disk problems would show as send or flush lag.
 - q: >-
     You configure synchronous_standby_names = 'replica_a' with synchronous_commit = on, and replica_a crashes. What happens to writes on the primary?
-  options: ["They continue with asynchronous durability until the replica returns", "They hang until replica_a returns or the setting is changed", "They fail immediately with an error", "They are queued in the replication slot"]
-  answer: 1
+  options: ["They continue asynchronously until replica_a comes back online", "They commit locally and queue in the slot for replica_a to replay", "They fail at once with an error saying no standby is available", "They hang until replica_a returns or the setting is changed"]
+  answer: 3
   explanation: >-
-    Postgres will not silently downgrade the durability you asked for; commits wait for a confirmation that cannot arrive. This is why a single synchronous standby reduces write availability, and why production lists several candidates with ANY n so any one can confirm.
+    Postgres will not silently downgrade the durability you asked for; commits wait for a confirmation that cannot arrive, rather than failing or proceeding. This is why a single synchronous standby reduces write availability, and why production lists several candidates with ANY n so any one can confirm.
 - q: >-
     During an unplanned failover, the monitor promotes a replica while the old primary is still running but partitioned from the monitor. What must happen before the promotion is safe?
-  options: ["The old primary must finish its checkpoint", "The old primary must be fenced so it cannot accept writes, for example by losing a lease it must hold to stay primary", "All replicas must be at the same LSN", "The replication slots must be dropped"]
-  answer: 1
+  options: ["The old primary must first finish its checkpoint and flush all pages", "All replication slots on the old primary must be dropped beforehand", "Every replica must first reach the same LSN as the one being promoted", "The old primary must be fenced, e.g. by losing the lease it holds"]
+  answer: 3
   explanation: >-
-    Two writable primaries produce divergent histories that cannot be merged, which is split brain. Fencing (kill, revoke the VIP, or self-demote on lease expiry via etcd) guarantees at most one writer. Equal LSNs and checkpoints are irrelevant to the safety condition.
+    Two writable primaries produce divergent histories that cannot be merged, which is split brain. Fencing (kill it, revoke the VIP, or have it self-demote when it cannot renew its lease in etcd) guarantees at most one writer. Equal LSNs, checkpoints and slots are irrelevant to that safety condition.
 - q: >-
     A replication slot for a decommissioned analytics consumer was never dropped. What is the failure you should expect, and when?
-  options: ["Replicas fall behind immediately", "Nothing; unused slots are garbage-collected", "The primary retains all WAL since the slot's LSN until its disk fills, which may take days or weeks", "Commits become slower as the slot ages"]
-  answer: 2
+  options: ["Nothing much; Postgres drops slots that stay inactive for too long", "Replicas fall behind at once, since the stale slot blocks WAL streaming", "Commits slow steadily, since each one must be checked against the slot", "The primary keeps all WAL since the slot's LSN until its disk fills"]
+  answer: 3
   explanation: >-
-    A slot is a promise to retain WAL until the consumer confirms it, and an absent consumer never confirms. WAL accumulates silently until the disk fills and the primary stops. max_slot_wal_keep_size bounds the damage by invalidating the slot instead.
+    A slot is a promise to retain WAL until the consumer confirms it, and an absent consumer never confirms. WAL accumulates silently, possibly for days or weeks, until the disk fills and the primary stops. Postgres does not garbage-collect idle slots; max_slot_wal_keep_size bounds the damage by invalidating the slot instead.
 ```

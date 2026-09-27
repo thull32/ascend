@@ -238,32 +238,32 @@ hints:
 ```quiz
 - q: >-
     In the sliding window maximum deque, why can the front index be removed with a single `if` rather than a `while`?
-  options: ["Because the deque holds at most one element", "Because indices enter one per step and the window advances one per step, so at most one index can expire per step", "Because expired indices are removed from the back instead", "It cannot; a while loop is required"]
-  answer: 1
+  options: ["One index enters and the window slides by one each step", "Expired indices are removed from the back, not the front", "Back pops have already removed every index older than the window", "The front is the newest index, so it is the last to expire"]
+  answer: 0
   explanation: >-
-    The window's left edge moves by exactly one each iteration, and the deque's indices are increasing, so only the front can have just crossed the edge. A while loop is harmless but unnecessary.
+    Indices enter one per step and the window's left edge moves by exactly one each iteration, and the deque's indices are increasing, so at most one index (the front) can have just crossed the edge. Back pops remove dominated indices, not old ones, so an old maximum can still sit at the front until it expires. A while loop is harmless but unnecessary.
 - q: >-
     An element a[j] is popped from the back of the deque when a[i] >= a[j] arrives with i > j. Why is it safe to forget a[j] entirely?
-  options: ["Because a[j] has already been reported", "Because any future window containing j also contains i, and a[i] is at least as large, so a[j] can never be the window maximum", "Because a[j] will expire soon anyway", "Because the deque has limited capacity"]
-  answer: 1
+  options: ["The deque must stay within k entries, so something must go", "It can be recovered from the prefix maxima if needed again", "Every future window containing j also contains the larger a[i]", "It has already been reported as the maximum of its window"]
+  answer: 2
   explanation: >-
-    Windows are contiguous, so a window that includes the older index j and extends to the present includes i. The maximum of that window is at least a[i] >= a[j]. This domination argument is the whole invariant.
+    Windows are contiguous, so a window that includes the older index j and extends to the present includes i. The maximum of that window is at least a[i] >= a[j]. This domination argument is the whole invariant; a[j] may never have been reported at all, and nothing about capacity forces the pop.
 - q: >-
     Compared with a max-heap using lazy deletion, the monotonic deque's advantage for sliding window maximum is:
-  options: ["It handles removals in arbitrary order", "O(n) time and O(k) space instead of O(n log n) and O(n), because expiry happens in arrival order", "It can report the k-th largest as well", "It works with unsorted windows"]
-  answer: 1
+  options: ["O(n) time and O(k) space, because expiry is in arrival order", "It also reports the k-th largest, because the deque is sorted", "It handles removals in any order, since each index is stored once", "O(n) time and O(1) space, because only the front is ever read"]
+  answer: 0
   explanation: >-
-    The deque exploits that elements leave in the order they arrived, so only the front ever expires. A heap is needed when elements can be removed out of order or when more than the extremum is required.
+    The deque exploits that elements leave in the order they arrived, so only the front ever expires, giving O(n) time with at most k indices stored. It cannot handle out-of-order removals or the k-th largest; a heap (or two heaps, or a balanced BST) is needed for those.
 - q: >-
     For "shortest subarray with sum at least k" with negative numbers, why does a two-pointer sliding window fail?
-  options: ["Two pointers cannot handle sums", "Extending the window no longer guarantees the sum grows, so the shrink/extend decision is not monotone", "The array must be sorted first", "Two pointers only find the longest subarray"]
-  answer: 1
+  options: ["Extending the window no longer guarantees the sum grows", "Two pointers need the array sorted before the window slides", "The window sum must be recomputed from scratch after each move", "Two pointers find the longest valid subarray, not the shortest"]
+  answer: 0
   explanation: >-
-    The window technique relies on the sum increasing as the right edge moves and decreasing as the left edge moves. Negatives break both directions. Prefix sums with a monotonic deque of increasing prefix values restore a usable monotone structure.
+    The window technique relies on the sum increasing as the right edge moves and decreasing as the left edge moves, so the shrink/extend decision is monotone. Negatives break both directions. A running sum still updates in O(1); the problem is the decision rule, not the arithmetic. Prefix sums with a monotonic deque of increasing prefix values restore a usable monotone structure.
 - q: >-
     A DP has the transition dp[i] = a[i] + max(dp[i−k], …, dp[i−1]). The best way to compute it for large n and k is:
-  options: ["Recompute the max over the last k values each step: O(nk)", "A monotonic deque over dp maintaining the window max: O(n)", "Sort the dp array each step", "Memoised recursion"]
-  answer: 1
+  options: ["A monotonic deque over dp maintaining the window max: O(n)", "Sort the last k dp values each step, take the top: O(nk log k)", "Recompute the max over the last k values each step: O(nk)", "Memoised recursion that caches every dp[i] once: O(n)"]
+  answer: 0
   explanation: >-
-    The transition is exactly a sliding window maximum over the dp values as they are produced. The deque gives O(1) amortised per step. A heap with lazy deletion would also work at O(n log k).
+    The transition is exactly a sliding window maximum over the dp values as they are produced. The deque gives O(1) amortised per step. Memoisation only avoids recomputing dp[i]; each state still scans k predecessors, so it is O(nk). A heap with lazy deletion would also work at O(n log k).
 ```

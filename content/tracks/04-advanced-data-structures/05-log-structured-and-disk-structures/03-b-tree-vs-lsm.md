@@ -187,32 +187,32 @@ hints:
 ```quiz
 - q: >-
     An engine writes 100-byte rows into 16 KB pages and flushes each dirty page once per update. Its WAL is negligible. Which statement about write amplification is correct?
-  options: ["About 160x, all of it random I/O", "About 160x, all of it sequential", "About 16x, because 16 KB pages hold 16 rows", "About 1x, because the WAL absorbs the write"]
-  answer: 0
+  options: ["About 16x, because 16 KB pages hold 16 rows", "About 160x, all of it sequential", "About 1x, because the WAL absorbs the write", "About 160x, all of it random I/O"]
+  answer: 3
   explanation: >-
     16,384 / 100 is about 164 bytes written per byte changed, and each page lands wherever the key hashes in the tree, so the I/O pattern is random. The WAL adds to this figure; it does not replace the page write.
 - q: >-
     Leveled compaction with fanout 10 and six levels. A row that eventually settles in L6 has been rewritten roughly how many times, in the simple model?
-  options: ["About 6", "About 60", "About 51", "About 10"]
+  options: ["About 10", "About 60", "About 51", "About 6"]
   answer: 2
   explanation: >-
     One write for the flush plus ten rewrites per move through five level boundaries: 1 + 10 x 5 = 51. Real numbers are lower because overwritten versions never descend, but the shape (linear in levels, times fanout) is right.
 - q: >-
     Which workload is the strongest fit for a size-tiered LSM store rather than a B-tree?
-  options: ["A product catalogue read a thousand times per write, with frequent range queries by price", "An event ingestion pipeline writing 300,000 immutable rows per second, read back by key for the last hour", "A bank ledger with strict transactions and secondary indexes on account and date", "A configuration table of 10,000 rows updated a few times a day"]
+  options: ["A config table of 10,000 rows, updated a few times a day by operators", "Event ingestion of 300,000 immutable rows/s, read by key within the hour", "A product catalogue read 1,000 times per write, with range queries by price", "A bank ledger with strict transactions and indexes on account and date"]
   answer: 1
   explanation: >-
     Write-dominated, append-only, point-read-by-key data is exactly what the LSM write path is built for, and size-tiered compaction keeps write amplification lowest. The catalogue and ledger want a B-tree for range scans, transactions and indexes; the tiny table does not care.
 - q: >-
     Your RocksDB service has 1.2 TB of live data on 1.4 TB of disk and uses leveled compaction. A colleague proposes switching to size-tiered compaction to cut write amplification. What is the main risk?
-  options: ["Read amplification will drop and cache hit rate will fall", "Space amplification can approach 2x, exceeding the disk", "Bloom filters stop working under size-tiered compaction", "The WAL will need to be doubled"]
-  answer: 1
+  options: ["Space amplification can approach 2x, exceeding the disk", "Bloom filters stop working under size-tiered compaction", "The WAL must double in size to cover the larger merges", "Write amplification rises, since tiers are rewritten more often"]
+  answer: 0
   explanation: >-
-    Size-tiered compaction keeps stale copies across tiers and needs room for both inputs and output during a merge, so peak usage can approach twice the live data. 1.4 TB cannot absorb that; leveled compaction stays near 1.1x, which is why it fits.
+    Size-tiered compaction keeps stale copies across tiers and needs room for both inputs and output during a merge, so peak usage can approach twice the live data. 1.4 TB cannot absorb that; leveled compaction stays near 1.1x, which is why it fits. The switch would lower write amplification, as the colleague says; disk space is the cost.
 - q: >-
     A point lookup for a key that does not exist is served by a leveled LSM store with per-file bloom filters at 1% false positives and six candidate files. Roughly how many disk reads does it cost on average?
-  options: ["Six", "About 0.06", "One", "Zero, because absent keys are never read"]
-  answer: 1
+  options: ["One, to confirm the key is absent", "Zero, as filters never err on absent keys", "Six, one read per candidate file", "About 0.06, from false positives"]
+  answer: 3
   explanation: >-
-    Each filter answers 'definitely absent' with no I/O except on a false positive, which happens 1% of the time per file. Six files at 1% each gives about 0.06 expected block reads. This is why LSM stores are fast on negative lookups and why bloom filters are non-negotiable in them.
+    Each filter answers 'definitely absent' with no I/O except on a false positive, which happens 1% of the time per file. Six files at 1% each gives about 0.06 expected block reads. Zero is wrong because false positives happen precisely on absent keys; what a bloom filter never gives is a false negative. This is why LSM stores are fast on negative lookups and why bloom filters are non-negotiable in them.
 ```

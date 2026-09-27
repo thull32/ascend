@@ -178,32 +178,32 @@ To practise, start a coding interview on `/interviews` and treat the first five 
 ```quiz
 - q: >-
     For "find the longest subarray with sum at most k", which clarifying question most changes the algorithm?
-  options: ["Can values be negative?", "Can the array be empty?", "Should I return the length or the subarray itself?", "Which language should I use?"]
+  options: ["Can the values in the array be negative?", "Can the array be empty or hold one element?", "Should I return the length or the subarray?", "Which programming language should I use?"]
   answer: 0
   explanation: >-
     With non-negative values, extending the window never decreases the sum and shrinking never increases it, so a sliding window is correct. Negative values break that monotonicity and force a different technique. Empty input is a one-line guard, and returning the subarray instead of its length changes only the bookkeeping.
 - q: >-
     n is at most 2,000 and the brute force is O(n²). What is the best plan?
-  options: ["Always find an O(n log n) solution before writing any code", "Use a hash map regardless of the constraints", "Ask the interviewer to increase n so the problem is harder", "Note that about 4 million operations is fine, write the simple version cleanly, and describe the optimisation you would use if n grew"]
+  options: ["Find an O(n log n) solution before writing any code", "Ask the interviewer to raise n so the problem is harder", "Use a hash map, since it is faster at any input size", "Write the O(n²) version cleanly; name the faster idea"]
   answer: 3
   explanation: >-
-    Converting n into an operation count is the point of asking for it. 4 × 10⁶ operations is fast even in Python, so the simpler code is the better engineering choice, and naming the optimisation shows you are choosing simplicity rather than missing the alternative.
+    Converting n into an operation count is the point of asking for it. About 4 × 10⁶ operations is fast even in Python, so the simpler code is the better engineering choice, and describing the optimisation you would use if n grew shows you are choosing simplicity rather than missing the alternative.
 - q: >-
     You ask how ties should be broken and the interviewer says "your call". What is the strongest response?
-  options: ["Rephrase the question and ask again", "Pick a rule, give a reason such as deterministic output for testing, record it in your assumptions, and say how the code would change for a different rule", "Ignore ties because they are rare", "Return every tied item so that any rule is satisfied"]
-  answer: 1
+  options: ["Ignore ties, since they rarely occur in real inputs", "Rephrase the question slightly and ask it once more", "Choose a rule, justify it, and note what would change", "Return every tied item so that any rule is satisfied"]
+  answer: 2
   explanation: >-
-    "Your call" tests whether you can make and own a reasonable decision. Asking again signals you need to be told. Ignoring ties makes the output nondeterministic, and returning extra items changes the contract of the function.
+    "Your call" tests whether you can make and own a reasonable decision: pick a rule, give a reason such as deterministic output for testing, record it in your assumptions, and say how the code would change for a different rule. Asking again signals you need to be told. Ignoring ties makes the output nondeterministic, and returning extra items changes the contract of the function.
 - q: >-
     In a practical "build a rate limiter" round, which opening move carries the most signal?
-  options: ["Implementing thread safety before anything else", "Asking which language the company uses in production", "Fixing the interface, injecting the clock, and naming what is out of scope before writing any logic", "Designing the distributed version immediately"]
-  answer: 2
+  options: ["Fixing the interface and naming what is out of scope", "Implementing thread safety first, before any logic", "Designing the distributed version from the start", "Asking which language the company uses in production"]
+  answer: 0
   explanation: >-
-    Scoping an open problem means choosing a concrete interface, making it testable, and being explicit about what you are deferring. Starting with thread safety or distribution builds the hardest parts first without a working core, which is how practical rounds run out of time.
+    Scoping an open problem means choosing a concrete interface, making it testable (for example by injecting the clock), and being explicit about what you are deferring. Starting with thread safety or distribution builds the hardest parts first without a working core, which is how practical rounds run out of time.
 - q: >-
     Which of these questions is most likely to read as stalling rather than clarifying?
-  options: ["How large is n?", "Is the input sorted?", "Should I handle a null input?", "How are ties broken?"]
-  answer: 2
+  options: ["Is the input already sorted?", "How should ties be broken?", "How large is n, roughly?", "Should I handle a null input?"]
+  answer: 3
   explanation: >-
     Null handling is a one-line guard whatever the answer, so state your assumption instead of asking. Size, sortedness and tie-breaking each change which algorithm or key you write.
 ```

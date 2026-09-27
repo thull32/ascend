@@ -290,32 +290,32 @@ hints:
 ```quiz
 - q: >-
     Using union by rank without path compression, what is the worst-case cost of a single find on n elements?
-  options: ["O(1)", "O(α(n))", "O(log n)", "O(n)"]
-  answer: 2
+  options: ["O(log² n)", "O(α(n))", "O(n)", "O(log n)"]
+  answer: 3
   explanation: >-
     A root of rank r has at least 2^r nodes, so rank (an upper bound on height) is at most log₂ n. Path compression is needed to get down to amortised α(n); rank alone is logarithmic.
 - q: >-
     After path compression, the rank stored at a root no longer equals its tree's height. Why is the union rule still correct?
-  options: ["It is not; you must recompute heights after every compression", "Rank remains an upper bound on height, and the 2^rank size argument only needs an upper bound", "Compression never changes heights", "Because the rank is reset to 0 after each find"]
-  answer: 1
+  options: ["It isn't; heights must be recomputed after each compression", "Each find resets the root's rank to its new, exact height", "Rank stays an upper bound on height, and that is all it needs", "Compression only moves leaves, so heights never actually change"]
+  answer: 2
   explanation: >-
-    Compression only shortens trees, so height ≤ rank still holds, and the counting argument (a rank-r root has ≥ 2^r nodes) never relied on rank being exact. Recomputing heights would cost more than the operation it protects.
+    Compression only shortens trees, so height ≤ rank still holds, and the counting argument (a rank-r root has ≥ 2^r nodes) never relied on rank being exact. Compression does change heights, and recomputing them would cost more than the operation it protects.
 - q: >-
     You are asked: for each of Q queries (t, u, v), were u and v connected at time t, given a log of link-up events? Links are never removed. What is the right approach?
-  options: ["Run BFS per query on the graph filtered by time, O(Q(V+E))", "Sort events and queries by time, advance a union-find through events, answer each query when reached", "Use Floyd-Warshall once", "Union-find cannot answer time-based questions"]
-  answer: 1
+  options: ["Sort events and queries by time; sweep one union-find", "Build the full union-find, then undo links after time t", "BFS per query on the graph filtered to links before t", "Floyd-Warshall once, then look up each (u, v) pair"]
+  answer: 0
   explanation: >-
-    Because there are no deletions, connectivity at time t depends only on events up to t. Sorting both lists and sweeping once is O((E+Q) log(E+Q)) plus near-constant per operation; per-query BFS is the O(Q·E) approach it replaces.
+    Because there are no deletions, connectivity at time t depends only on events up to t. Sorting both lists and advancing the union-find through events, answering each query when its time is reached, is O((E+Q) log(E+Q)) plus near-constant per operation; per-query BFS is the O(Q·E) approach it replaces. Undoing links is not something union-find supports.
 - q: >-
     A stream removes edges from a graph one by one and after each removal asks for the number of connected components. All removals are known in advance. How do you use union-find?
-  options: ["Support deletion by resetting parent pointers", "Process the removals in reverse as insertions, starting from the graph with all removed edges absent, and record component counts backwards", "Rebuild the union-find after each removal", "You cannot; use BFS after each removal"]
-  answer: 1
+  options: ["Replay the removals in reverse order, as insertions", "Rebuild the union-find from scratch after each removal", "Union the removed edges first, then split them off in order", "Delete each edge by resetting its endpoints' parent pointers"]
+  answer: 0
   explanation: >-
-    Reversing time turns each deletion into an insertion, which union-find handles. Resetting parent pointers is not a valid deletion because compression has rewired other nodes through them. Rebuilding is O(E) per step; reversal is near-linear overall.
+    Reversing time turns each deletion into an insertion, which union-find handles: start from the graph with all removed edges absent and record component counts backwards. Resetting parent pointers is not a valid deletion because compression has rewired other nodes through them. Rebuilding is O(E) per step; reversal is near-linear overall.
 - q: >-
     Two implementations of union differ only in that one hangs the smaller set under the larger and the other always hangs the second root under the first. Both use full path compression. Which statement is true?
-  options: ["They have identical worst-case guarantees because compression dominates", "Only the size-aware one achieves amortised O(α(n)); the other is amortised O(log n)", "The size-aware one is O(log n) and the other is O(α(n))", "Neither achieves better than O(log n)"]
-  answer: 1
+  options: ["Both are amortised O(log n); α(n) needs recursive find", "Size-aware is amortised O(log n); the other is O(α(n))", "Both are amortised O(α(n)), because compression dominates", "Size-aware is amortised O(α(n)); the other is O(log n)"]
+  answer: 3
   explanation: >-
-    Path compression alone gives amortised O(log n); combining it with union by rank or size is what yields the inverse-Ackermann bound. In practice both are fast, but the guarantee differs, and interviewers ask precisely this.
+    Path compression alone gives amortised O(log n); combining it with union by rank or size is what yields the inverse-Ackermann bound. Whether find is recursive or iterative does not matter. In practice both are fast, but the guarantee differs, and interviewers ask precisely this.
 ```

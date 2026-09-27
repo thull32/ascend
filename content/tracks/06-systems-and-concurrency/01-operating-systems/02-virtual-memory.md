@@ -341,38 +341,38 @@ hints:
 ```quiz
 - q: >-
     On a Linux host with 4 GiB of RAM, no swap and default overcommit settings, a program calls malloc for 8 GiB and the call succeeds. What happens next?
-  options: ["Nothing can go wrong; the kernel has promised 8 GiB", "malloc has already zeroed 8 GiB, so the machine is swapping", "Physical frames are assigned as pages are first touched, and once touched memory exceeds what the kernel can reclaim, the OOM killer kills a process", "The next malloc call returns NULL"]
-  answer: 2
+  options: ["malloc zeroed all 8 GiB up front, so the page cache is already being evicted", "Pages get frames on first touch; the OOM killer acts if they run out", "Nothing more; the kernel has already reserved 8 GiB of frames", "The next malloc returns NULL because the host is overcommitted"]
+  answer: 1
   explanation: >-
-    With overcommit, a successful malloc only reserves address space. Frames are assigned on first touch by minor faults. When a fault cannot be satisfied there is no error path for a memory store, so the kernel's OOM killer sends SIGKILL to the highest-scoring process, which may not even be this one.
+    With overcommit, a successful malloc only reserves address space; no frames are reserved or zeroed yet. Frames are assigned on first touch by minor faults. When touched memory exceeds what the kernel can reclaim, a fault cannot be satisfied and there is no error path for a memory store, so the OOM killer sends SIGKILL to the highest-scoring process, which may not even be this one.
 - q: >-
     A service does random lookups over a 16 GiB in-memory index. Switching the index to 2 MiB huge pages makes it noticeably faster. What mostly improved?
-  options: ["TLB reach rose from a few MiB to a few GiB, so far fewer accesses need a page-table walk", "The L1 data cache hit rate", "The index now fits in RAM", "Huge pages are prefetched by the hardware"]
-  answer: 0
-  explanation: >-
-    Huge pages do not change which cache lines are fetched, so data-cache behaviour is similar. They change how many translations the TLB can hold coverage for: around 1,500 entries cover about 6 MiB with 4 KiB pages and about 3 GiB with 2 MiB pages, removing most page walks on random access.
-- q: >-
-    A JVM in a 2 GiB container runs with -Xmx1536m, reports 900 MiB of heap used, and is repeatedly OOMKilled with exit code 137. Which is the most accurate diagnosis?
-  options: ["The heap is leaking and will throw OutOfMemoryError soon", "Kubernetes counts virtual size, which is larger than 2 GiB", "Exit code 137 means the JVM crashed with a segfault", "The cgroup charges all resident anonymous memory (committed heap, metaspace, stacks, direct buffers, GC structures, malloc arenas) and that total exceeds 2 GiB"]
+  options: ["The L1 data cache hit rate rises because each page is contiguous", "The 16 GiB index now fits in RAM because its page tables shrank", "The hardware prefetches each 2 MiB page into cache on first access", "TLB reach grows from MiB to GiB, so most page walks disappear"]
   answer: 3
   explanation: >-
-    Used heap is a GC statistic. The kernel sees resident pages, and a JVM's non-heap memory easily adds hundreds of MiB to a heap whose committed pages stay resident. 137 is 128 plus SIGKILL, the OOM killer's signal, not a segfault (which would be 139). Virtual size is not charged.
+    Huge pages do not change which cache lines are fetched, so data-cache behaviour is similar, and there is no whole-page prefetch. They change how much memory the TLB covers: around 1,500 entries cover about 6 MiB with 4 KiB pages and about 3 GiB with 2 MiB pages, removing most page walks on random access.
+- q: >-
+    A JVM in a 2 GiB container runs with -Xmx1536m, reports 900 MiB of heap used, and is repeatedly OOMKilled with exit code 137. Which is the most accurate diagnosis?
+  options: ["Exit code 137 means the JVM itself crashed with a segfault", "Kubernetes counts the virtual size, which is well above 2 GiB", "Heap plus all non-heap resident memory exceeds the cgroup's 2 GiB", "The heap is leaking and will throw OutOfMemoryError before long"]
+  answer: 2
+  explanation: >-
+    Used heap is a GC statistic. The cgroup charges resident anonymous memory: committed heap pages (which stay resident), metaspace, thread stacks, direct buffers, GC structures and malloc arenas, which together easily pass 2 GiB. 137 is 128 plus SIGKILL, the OOM killer's signal, not a segfault (which would be 139). Virtual size is not charged.
 - q: >-
     With the same reference string, giving a FIFO page-replacement policy one extra frame increased the number of faults. Which statement is true?
-  options: ["That is impossible; it indicates a simulation bug", "This is Belady's anomaly; LRU is a stack algorithm and cannot exhibit it", "LRU suffers from the same anomaly more often than FIFO", "More frames always cause more faults under any policy"]
-  answer: 1
+  options: ["It is impossible, so the simulation must contain a bug", "Past some threshold, more frames mean more faults under any policy", "This is Belady's anomaly; LRU is a stack algorithm and avoids it", "This is Belady's anomaly, and LRU shows it more often than FIFO"]
+  answer: 2
   explanation: >-
     FIFO can hold a different, not larger, set of pages with more frames, so faults can rise. Under LRU the pages resident with k frames are always a subset of those resident with k plus one, so faults never increase with memory.
 - q: >-
     A service on a swapless Kubernetes node shows a steady 300 major page faults per second. Where are those faults coming from?
-  options: ["Anonymous heap pages being read back from swap", "First touches of newly allocated heap memory", "File-backed pages (the binary's code, shared libraries or mmapped files) that the kernel evicted under memory pressure and must re-read", "Copy-on-write breaks after fork"]
-  answer: 2
+  options: ["Anonymous heap pages being read back in from the swap device", "Evicted file-backed pages, such as code, being read back in", "Copy-on-write breaks in child processes forked by the service", "First touches of heap memory that the service has just allocated"]
+  answer: 1
   explanation: >-
-    Without swap, anonymous pages cannot be evicted, and first touches and copy-on-write breaks are minor faults. Major faults therefore mean file pages are being dropped and re-read, a sign the container or node is close to its memory limit.
+    Without swap, anonymous pages cannot be evicted, so nothing is read back from swap; first touches and copy-on-write breaks are minor faults. Major faults therefore mean file pages (the binary's code, shared libraries or mmapped files) are being dropped and re-read, a sign the container or node is close to its memory limit.
 - q: >-
     Why do most databases avoid mmap for their main, mutable data files?
-  options: ["The kernel controls when pages are evicted and written back, faults block threads invisibly, and I/O errors arrive as SIGBUS, so the database loses control of write ordering and latency", "mmap cannot map files larger than RAM", "mmap requires huge pages", "Reads through mmap always copy data twice"]
-  answer: 0
+  options: ["mmap needs huge pages, which most database hosts leave disabled", "Reads through mmap copy each page twice, via the page cache", "The kernel, not the database, controls eviction, write-back and stalls", "mmap cannot map a data file that is larger than physical RAM"]
+  answer: 2
   explanation: >-
-    mmap maps files larger than RAM fine and avoids copies. The problem is control: write-ahead logging needs pages to reach disk only after their log records, and a database wants to schedule I/O and handle errors, none of which it can do when the kernel services faults and write-back on its own schedule.
+    mmap maps files larger than RAM fine, needs no huge pages and avoids copies. The problem is control: write-ahead logging needs pages to reach disk only after their log records, faults block threads invisibly, and I/O errors arrive as SIGBUS, none of which the database can manage when the kernel services faults and write-back on its own schedule.
 ```

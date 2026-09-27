@@ -277,32 +277,32 @@ hints:
 ```quiz
 - q: >-
     An array of 1,000,000 elements receives 50,000 point updates and 50,000 range-sum queries, interleaved. Which structure minimises total work?
-  options: ["Prefix-sum array, rebuilt after each update", "Plain array, scanning each query", "A segment tree or Fenwick tree", "A hash map from range to sum"]
+  options: ["A hash map from each range to its sum", "Prefix sums, rebuilt after every update", "A segment tree or a Fenwick tree", "A plain array, scanned for every query"]
   answer: 2
   explanation: >-
     Rebuilding prefix sums costs 50,000 × 10⁶ operations; scanning costs the same order for queries. A log-time structure does 100,000 × 20 ≈ 2 million operations. A hash map keyed by range cannot be kept consistent under updates.
 - q: >-
     Why can a range query on a segment tree never touch more than about 2 log n nodes?
-  options: ["Because the tree has only 2n nodes in total", "Because at each level only the nodes containing the two boundaries of the range can be partially covered; everything else is taken whole or skipped", "Because the query is memoised", "Because each node stores the answer for every sub-range"]
-  answer: 1
-  explanation: >-
-    At any level the query range partially overlaps at most two nodes (the ones containing l and r). Fully covered nodes are taken in O(1) and fully outside nodes are pruned, so recursion continues into at most two nodes per level.
-- q: >-
-    You need range minimum with point updates. Which of these is NOT a valid reason to prefer a segment tree over a Fenwick tree here?
-  options: ["Min has no inverse, so prefix-min differences cannot recover a range min", "A Fenwick tree only answers prefix queries directly", "A segment tree uses less memory than a Fenwick tree", "The segment tree's node interval is available during the walk, which helps with 'first index where…' queries"]
-  answer: 2
-  explanation: >-
-    A Fenwick tree uses n+1 integers; a segment tree uses 2n or 4n. The other three are exactly why min/max queries need the segment tree.
-- q: >-
-    In the iterative query loop, l and r are converted to leaf indices and the range is made half-open. At some level l is odd. What does that mean and what happens?
-  options: ["l is a right child, so its parent covers elements left of the query; take tree[l] and move l one step right before going up", "l is a leaf, so the loop terminates", "l is a left child, so its parent is fully inside the query", "The range is empty"]
+  options: ["Per level, only the two nodes at the endpoints can be partial", "Earlier query results are memoised in the internal nodes", "Each level halves the remaining range, as in a binary search", "Each node stores the answer for every sub-range of its interval"]
   answer: 0
   explanation: >-
-    Odd indices are right children. Their parent also covers the left sibling, which lies outside [l, r), so the node itself must be taken now. Incrementing l then makes l // 2 point at the next parent that is still a candidate.
+    At any level the query range partially overlaps at most two nodes (the ones containing l and r). Fully covered nodes are taken in O(1) and fully outside nodes are pruned, so recursion continues into at most two nodes per level. The range itself is not halved at each level; it is cut into whole nodes plus two boundary nodes.
 - q: >-
-    A colleague implements the tree with a Node class holding left/right pointers and reports queries are 8× slower than your array version at n = 10⁷. The most likely cause is:
-  options: ["Python recursion is slower than iteration", "Each step follows a pointer to a separate heap allocation, so a query is log n cache misses rather than a few cache lines", "The pointer version has O(n log n) build time", "Garbage collection runs during every query"]
+    You need range minimum with point updates. Which of these is NOT a valid reason to prefer a segment tree over a Fenwick tree here?
+  options: ["Its walk exposes node intervals, which 'first index where…' queries need", "A segment tree needs less memory than a Fenwick tree of the same n", "A Fenwick tree answers prefix queries, not arbitrary ranges, directly", "Min has no inverse, so prefix-min differences cannot give a range min"]
   answer: 1
   explanation: >-
-    Both versions do O(log n) steps; the difference is memory locality. Siblings in an array share cache lines; separately allocated nodes scatter across the heap and each hop is a dependent load that the CPU cannot prefetch.
+    A Fenwick tree uses n+1 integers; a segment tree uses 2n or 4n, so memory favours the Fenwick tree. The other three are exactly why min/max queries need the segment tree.
+- q: >-
+    In the iterative query loop, l and r are converted to leaf indices and the range is made half-open. At some level l is odd. What does that mean and what happens?
+  options: ["l is a left child, so its parent lies fully inside the query", "l is a right child: take tree[l] and move l right, then go up", "l is a right child: skip it and let its parent cover it later", "l is a leaf node, so the loop terminates on this iteration"]
+  answer: 1
+  explanation: >-
+    Odd indices are right children. Their parent also covers the left sibling, which lies outside [l, r), so the parent cannot be used and the node itself must be taken now. Incrementing l then makes l // 2 point at the next parent that is still a candidate.
+- q: >-
+    A colleague implements the tree with a Node class holding left/right pointers and reports queries are 8× slower than your array version at n = 10⁷. The most likely cause is:
+  options: ["Garbage collection pauses run during every single query", "Building pointer nodes takes O(n log n), which slows queries", "Every step chases a pointer to a new heap node: a cache miss", "Python recursion is slower than an iterative loop"]
+  answer: 2
+  explanation: >-
+    Both versions do O(log n) steps; the difference is memory locality. Siblings in an array share cache lines, so a query touches a few cache lines; separately allocated nodes scatter across the heap and each hop is a dependent load that the CPU cannot prefetch. Recursion versus iteration changes a constant factor, not the number of cache misses per query.
 ```

@@ -114,7 +114,7 @@ sequenceDiagram
     S->>D: drain remaining entries
     M->>M: map v8: partition 12 -> D
     M-->>R: watch fires, load v8
-    S->>S: unpause; forward stragglers to D
+    S->>S: unpause, forward stragglers to D
     R->>D: requests for partition 12
 ```
 
@@ -189,32 +189,32 @@ Global, partitioned by customer ID, so a customer's orders query hits one index 
 ```quiz
 - q: >-
     A cluster places keys with hash(key) mod N. Growing N from 20 to 21 causes approximately what fraction of keys to change node?
-  options: ["About 5%", "About 50%", "About 95%", "None; only new keys go to the new node"]
-  answer: 2
+  options: ["About 5%", "About 50%", "About 0%", "About 95%"]
+  answer: 3
   explanation: >-
-    A key stays only if hash mod 20 equals hash mod 21, which happens for roughly 1 in 21 keys. Consistent hashing or fixed partitions reduce movement to about 1/21.
+    A key stays only if hash mod 20 equals hash mod 21, which happens for roughly 1 in 21 keys, so about 95% move; it is not only new keys that land on the new node. Consistent hashing or fixed partitions reduce movement to about 1/21.
 - q: >-
     Why do consistent-hashing systems give each physical node many virtual positions on the ring?
-  options: ["To increase the hash space", "To even out arc sizes so data spreads within a few per cent, and so a failed node's load is spread across many successors rather than one", "To reduce memory in the routing table", "To make range scans efficient"]
+  options: ["To keep adjacent keys together so range scans are cheap", "To even out arc sizes and spread a failed node's load", "To enlarge the hash space so collisions become rarer", "To shrink the routing table each client has to hold"]
   answer: 1
   explanation: >-
-    Random single positions produce arcs of very different sizes and a failure doubles one neighbour's load. Many small arcs average out and distribute failure load. The routing table grows, not shrinks, and range scans are unaffected.
+    Random single positions produce arcs of very different sizes and a failure doubles one neighbour's load. Many small arcs average out so data spreads within a few per cent, and a failed node's load goes to many successors rather than one. The routing table grows, not shrinks, and range scans are unaffected.
 - q: >-
     Sensor readings keyed by timestamp in a range-partitioned store are overloading one node. Which fix works?
-  options: ["Split the hot range in half", "Add more nodes", "Prefix the key with a small hash bucket or lead with sensor_id so new writes spread across ranges", "Switch to synchronous replication"]
-  answer: 2
+  options: ["Add more nodes so the ranges are spread more thinly", "Split the hot range in half and move one half away", "Switch to synchronous replication to share the writes", "Lead the key with a small hash bucket or the sensor_id"]
+  answer: 3
   explanation: >-
-    New timestamps are always larger than existing keys, so they go to the last range regardless of splits or node count. Breaking the sort order with a salt or a natural leading dimension is the only fix.
+    New timestamps are always larger than existing keys, so they go to the last range regardless of splits or node count. Breaking the sort order with a salt or a natural leading dimension spreads new writes across ranges and is the only fix.
 - q: >-
     During a rebalance, a router with a stale map sends a write to the old owner of a partition. The safe behaviour is:
-  options: ["The old owner accepts it and forwards later", "The old owner rejects or redirects, because ownership is fenced by the map version", "The old owner accepts it silently", "The router retries on a random node"]
-  answer: 1
+  options: ["The old owner accepts it, since it still holds the data", "The old owner accepts it and forwards it to the new owner later", "The router retries the write on a randomly chosen node", "The old owner rejects or redirects it, based on the map version"]
+  answer: 3
   explanation: >-
-    Accepting writes at a non-owner creates divergence. Versioned ownership lets the old owner recognise it is stale and redirect; the router then refreshes its map.
+    Accepting writes at a non-owner creates divergence, even with a later forward. Versioned ownership fences the old owner so it recognises it is stale and redirects; the router then refreshes its map.
 - q: >-
     Moving 23 TB during a rebalance while serving traffic, the most important control is:
-  options: ["Using the fastest possible copy so it finishes quickly", "Throttling copy bandwidth and bounding concurrent moves so serving p99 stays within SLO, with a kill switch", "Copying all partitions simultaneously", "Disabling replication during the move"]
-  answer: 1
+  options: ["Throttling the copy so serving p99 stays within SLO", "Pausing replication during the move to free up disk I/O", "Using the fastest possible copy so it finishes quickly", "Copying all partitions at once to shorten the window"]
+  answer: 0
   explanation: >-
-    An unthrottled copy saturates disks and NICs and the serving path pays. A slower, bounded, pausable move keeps the system within SLO; a few hours of background copy is the intended cost.
+    An unthrottled copy saturates disks and NICs and the serving path pays. A slower move with throttled bandwidth, bounded concurrent moves and a kill switch keeps the system within SLO; a few hours of background copy is the intended cost.
 ```

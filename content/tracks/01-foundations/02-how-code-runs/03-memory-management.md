@@ -154,32 +154,32 @@ Diagnosing them is a skill with a standard toolkit: heap snapshots diffed across
 ```quiz
 - q: >-
     Two CPython objects reference each other and nothing else references them. What happens?
-  options: ["They are freed immediately when the last external reference is dropped", "They are never freed; CPython leaks cycles", "Their reference counts stay at 1 until the cyclic garbage collector runs and finds them unreachable", "Python raises an error when a cycle is created"]
-  answer: 2
+  options: ["Kept at count 1 until the cyclic collector finds them", "Never freed, because reference counting cannot see cycles", "Freed at once, when the last outside reference is dropped", "Rejected, because CPython raises an error on cycles"]
+  answer: 0
   explanation: >-
-    Reference counting alone cannot see that the cycle is unreachable, because each object still has a count of 1. The gc module's generational collector periodically scans container objects and reclaims such cycles.
+    Reference counting alone cannot see that the cycle is unreachable, because each object still has a count of 1, so nothing is freed immediately. That is why CPython has a backup: the gc module's generational collector periodically scans container objects and reclaims such cycles, so they are not leaked forever.
 - q: >-
     A Go service's memory graph rises to about 2 GB, drops to 1 GB, and repeats every few seconds under steady load. Latency is fine. What is the most likely explanation?
-  options: ["A memory leak that the garbage collector is failing to fix", "Normal behaviour: GOGC=100 triggers a collection when the heap doubles over the live set of about 1 GB", "Goroutine stacks growing and shrinking", "The kernel reclaiming page cache"]
-  answer: 1
+  options: ["Normal GOGC=100 cycles around a live heap of about 1 GB", "The kernel reclaiming page cache every few seconds", "Goroutine stacks growing and shrinking under steady load", "A leak that the garbage collector is only partly fixing"]
+  answer: 0
   explanation: >-
     Go starts a cycle when the heap grows 100% beyond the live heap after the previous cycle, producing exactly this saw-tooth around a 1 GB live set. A leak would show the troughs rising over time. Setting GOMEMLIMIT caps the peaks if the container is tight.
 - q: >-
     Why do generational collectors need a write barrier on pointer stores?
-  options: ["To count references for objects in the old generation", "To record pointers from old objects to young objects so a young collection can find them without scanning the whole old generation", "To prevent data races between threads", "To compact the young generation"]
+  options: ["To trigger compaction of the young generation on write", "To remember old-to-young pointers for young collections", "To prevent data races between threads that store pointers", "To count references held by old-generation objects"]
   answer: 1
   explanation: >-
-    A young collection traces only the young generation plus roots; an old object pointing at a young one would otherwise be missed and the young object wrongly freed. The barrier records those old-to-young pointers in a remembered set.
+    A young collection traces only the young generation plus roots; an old object pointing at a young one would otherwise be missed and the young object wrongly freed. The barrier records those old-to-young pointers in a remembered set, so the young collection finds them without scanning the whole old generation. It is bookkeeping for reachability, not reference counting.
 - q: >-
     A Node process's heap grows steadily for days until it is OOM-killed. Which is the least likely cause?
-  options: ["A module-level Map keyed by request ID that is never cleared", "An event listener registered per request and never removed", "Objects forming reference cycles", "A setInterval that captures a large object and is never cleared"]
-  answer: 2
+  options: ["Short-lived request objects that reference each other in cycles", "A module-level Map keyed by request ID, never cleared", "An event listener added per request and never removed", "A setInterval capturing a large object, never cleared"]
+  answer: 0
   explanation: >-
     V8 is a tracing collector; unreachable cycles are collected without special handling. The other three keep objects reachable from a root, which is what a leak in a garbage-collected language looks like.
 - q: >-
     Which statement about Rust's memory management is accurate?
-  options: ["Rust uses a lightweight garbage collector that runs at scope exit", "Rust frees each value exactly once at a point the compiler determines, so there are no collection pauses but shared-ownership graphs need explicit Rc or Arc", "Rust reference-counts every value, which is why it has no data races", "Rust compacts its heap to avoid fragmentation"]
+  options: ["Rust reference-counts every value, preventing data races", "Rust frees each value once, at a point fixed at compile time", "Rust runs a lightweight garbage collector at each scope exit", "Rust compacts its heap periodically to avoid fragmentation"]
   answer: 1
   explanation: >-
-    Drops are inserted at compile time based on ownership. Reference counting is opt-in via Rc/Arc, and Rust's allocator does not compact, so fragmentation is possible in long-running processes.
+    Drops are inserted at compile time based on ownership, so there are no collection pauses; nothing runs at scope exit except the inserted drop. Reference counting is opt-in via Rc/Arc for shared-ownership graphs, and Rust's allocator does not compact, so fragmentation is possible in long-running processes.
 ```

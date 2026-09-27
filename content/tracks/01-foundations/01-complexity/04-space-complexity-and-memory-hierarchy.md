@@ -256,32 +256,32 @@ hints:
 ```quiz
 - q: >-
     A recursive function computes the depth of a binary tree with n nodes by recursing into both children. What is its auxiliary space complexity?
-  options: ["O(1); it allocates nothing", "O(n) always, because there are n calls in total", "O(h) where h is the tree height: O(log n) if balanced, O(n) if degenerate", "O(n log n)"]
-  answer: 2
+  options: ["O(1), because it allocates no data structures", "O(h): O(log n) if balanced, O(n) if degenerate", "O(n), because there are n calls in total", "O(log n) always, since each call halves the tree"]
+  answer: 1
   explanation: >-
-    Only the frames on the current root-to-leaf path are live at once, so the stack holds at most h frames. The total number of calls is n, but they do not coexist. "O(1)" ignores the stack; "O(n) always" ignores that balanced trees are shallow.
+    Only the frames on the current root-to-leaf path are live at once, so the stack holds at most h frames. The total number of calls is n, but they do not coexist. "O(1)" ignores the stack; "O(log n) always" assumes the tree is balanced, and a degenerate tree has height n.
 - q: >-
     Two functions each sum 10⁷ integers: one from a contiguous array, one from a singly linked list whose nodes were allocated over the lifetime of a busy process. Both are O(n). Which is the most accurate prediction?
-  options: ["Roughly equal, since both are O(n)", "The list is faster because it avoids bounds checks", "The array is faster by a large constant factor because sequential reads are prefetched while each list hop is a dependent, likely-missing load", "The array is faster only if it fits in L1 cache"]
+  options: ["Roughly equal, since both do n reads in O(n) time", "The list is faster because it avoids bounds checks", "The array by a large factor: list hops are dependent loads", "The array is faster, but only if it fits in L1 cache"]
   answer: 2
   explanation: >-
     The array benefits from spatial locality and hardware prefetching; the list requires reading each node's pointer before the next address is known, defeating prefetching, and fragmented nodes turn most hops into ~100 ns DRAM misses. The array wins even when it exceeds L1, because streaming access is what caches are optimised for.
 - q: >-
     Which situation is a genuine reason to prefer a linked list over a dynamic array?
-  options: ["You need to insert at index n/2 frequently", "A hash map gives you a direct reference to a node and you need to move it to the front in O(1), as in an LRU cache", "You need fast iteration over all elements", "You want to minimise memory usage"]
-  answer: 1
+  options: ["You want to minimise the memory used per element", "You need fast iteration over all elements in order", "You frequently insert at index n/2 of a long sequence", "You already hold the node and need O(1) move-to-front"]
+  answer: 3
   explanation: >-
-    With a node reference in hand, unlink and relink are constant-time pointer operations, and no array can do that without shifting. Insertion at an index still needs a traversal; iteration and memory both favour arrays.
+    With a node reference in hand (as in an LRU cache, where a hash map hands you the node), unlink and relink are constant-time pointer operations, and no array can do that without shifting. Insertion at an index still needs a traversal first, which usually loses to the array's memmove; iteration and memory both favour arrays.
 - q: >-
     A Python service stores 5 million small records as dicts and uses about 3 GB. The record data itself would be about 200 MB as raw bytes. What best explains the gap?
-  options: ["Python leaks memory", "Per-object overhead: each dict, key, value and int is a separate heap object with headers, plus hash table slack", "The garbage collector holds onto freed memory", "5 million records need a 64-bit machine"]
-  answer: 1
+  options: ["The Python runtime leaks memory in long-running services", "64-bit pointers double the size of every stored field", "Per-object overhead: headers, boxing, hash table slack", "The garbage collector holds on to memory it has freed"]
+  answer: 2
   explanation: >-
-    Every value is a boxed object (a small int alone is 28 bytes), every dict carries its own hash table with unused slots, and every allocation has allocator overhead. Typed arrays, __slots__ classes or a columnar layout recover most of the gap. This is a layout cost, not a leak.
+    Every value is a boxed object (a small int alone is 28 bytes), every dict carries its own hash table with unused slots, and every allocation has allocator overhead. Pointer width alone would at most double a field, not inflate data 15×. Typed arrays, __slots__ classes or a columnar layout recover most of the gap. This is a layout cost, not a leak.
 - q: >-
     A colleague speeds up a matrix routine 8× by swapping the order of two nested loops. The complexity is unchanged. What happened?
-  options: ["The compiler removed a loop", "The new order iterates along rows, so consecutive accesses share cache lines and the prefetcher keeps up; the old order jumped a full row per access and missed cache each time", "Fewer floating-point operations are performed", "The inner loop now runs in parallel"]
-  answer: 1
+  options: ["Accesses now walk along rows, reusing each cache line", "The compiler removed one of the loops as dead code", "The inner loop can now run in parallel across cores", "The new order performs fewer floating-point operations"]
+  answer: 0
   explanation: >-
-    Row-major storage means neighbouring columns are adjacent in memory. Walking down a column touches a new cache line every step; walking along a row uses each fetched line fully. Same operations, radically different memory traffic.
+    Row-major storage means neighbouring columns are adjacent in memory. Walking down a column touches a new cache line every step; walking along a row uses each fetched line fully and lets the prefetcher keep up. Same operations, radically different memory traffic.
 ```

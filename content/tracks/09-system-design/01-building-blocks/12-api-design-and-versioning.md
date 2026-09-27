@@ -195,32 +195,32 @@ An HTTP status for the class, a stable machine-readable `code`, a human `message
 ```quiz
 - q: >-
     A client walks an entire collection of 1,000,000 rows using offset pagination with pages of 100. Roughly how many rows does the database scan in total?
-  options: ["1,000,000", "10,000,000", "5,000,000,000", "100,000"]
-  answer: 2
+  options: ["10,000,000", "5,000,000,000", "10,000,000,000", "1,000,000"]
+  answer: 1
   explanation: >-
-    Page k scans about k x 100 rows; summing over 10,000 pages gives roughly 100 x 10,000^2 / 2 = 5 x 10^9 rows. Keyset pagination scans about 1,000,000 plus index lookups.
+    Page k scans about k x 100 rows; summing over 10,000 pages gives roughly 100 x 10,000^2 / 2 = 5 x 10^9 rows (forgetting the / 2 gives the 10^10 option). Keyset pagination scans about 1,000,000 plus index lookups.
 - q: >-
     Why must a keyset cursor include a unique tiebreaker such as id alongside created_at?
-  options: ["To make the cursor shorter", "Because rows with equal created_at at a page boundary would otherwise be skipped or repeated", "Because databases cannot sort by timestamp alone", "To allow jumping to an arbitrary page"]
-  answer: 1
+  options: ["To keep the encoded cursor short and opaque to clients", "Because an index on a timestamp alone cannot be range-scanned", "So rows sharing a created_at are not skipped or repeated", "So that clients can jump straight to an arbitrary page number"]
+  answer: 2
   explanation: >-
-    The cursor is a position in a total order; timestamps are not unique, so the order must be made total with a unique column. Keyset pagination still cannot jump to page N.
+    The cursor is a position in a total order; timestamps are not unique, so rows with equal created_at at a page boundary would otherwise be skipped or repeated. The order must be made total with a unique column. Keyset pagination still cannot jump to page N.
 - q: >-
     Which change can be shipped without a version bump under the compatibility rules?
-  options: ["Renaming total to amount", "Adding an optional shipping_notes field to the response", "Changing order_id from a string to an integer", "Making the currency parameter required"]
-  answer: 1
+  options: ["Changing order_id from a string to an integer", "Making the currency request parameter required", "Adding an optional shipping_notes response field", "Renaming total to amount in the response body"]
+  answer: 2
   explanation: >-
     Additions with defaults are backward compatible when clients are tolerant readers. Renames, type changes and tightening requirements all break existing clients.
 - q: >-
     A client receives a 429 with Retry-After: 30. The correct client behaviour is:
-  options: ["Retry immediately with exponential backoff", "Wait at least 30 seconds, then retry", "Treat it as a permanent failure", "Switch to a different API key"]
-  answer: 1
+  options: ["Switch to a different API key and retry", "Treat it as a permanent failure and stop", "Retry immediately with exponential backoff", "Wait at least 30 seconds, then retry"]
+  answer: 3
   explanation: >-
     429 with Retry-After is the server telling the client exactly when its quota refills; honouring it avoids further rejections. Backoff with jitter is for 503 load shedding, where no exact time is known. Rotating keys to evade limits is abuse.
 - q: >-
     Why should error responses carry a machine-readable code separate from the human message?
-  options: ["To reduce payload size", "So clients can branch on a stable value while the message can be improved freely", "Because HTTP status codes are deprecated", "To support localisation of status codes"]
-  answer: 1
+  options: ["So clients can branch on a stable value, not on wording", "So that status codes can be localised for each client", "So the payload stays small when messages are long", "Because HTTP status codes are deprecated for API errors"]
+  answer: 0
   explanation: >-
-    Clients that parse messages break when wording changes. A documented enum of codes is the stable surface; the message is explicitly unstable. Status codes still carry the class but are too coarse for client logic.
+    Clients that parse messages break when wording changes. A documented enum of codes is the stable surface; the message is explicitly unstable and can be improved freely. Status codes still carry the class but are too coarse for client logic.
 ```

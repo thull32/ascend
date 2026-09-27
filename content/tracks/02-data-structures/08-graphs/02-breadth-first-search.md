@@ -253,32 +253,32 @@ hints:
 ```quiz
 - q: >-
     BFS marks vertices visited when they are dequeued instead of when they are enqueued. On a complete graph with V vertices, what happens?
-  options: ["Nothing changes", "Each vertex may be enqueued up to V-1 times, so the queue and running time grow to O(V²) instead of O(V + E) with no duplicates", "The distances are wrong", "BFS does not terminate"]
-  answer: 1
+  options: ["BFS never terminates, because vertices keep re-entering the queue forever", "Nothing changes, because each vertex is still processed only once", "Each vertex can be enqueued up to V-1 times, so the queue fills with duplicates", "Distances come out wrong, because a later duplicate overwrites the vertex's first label"]
+  answer: 2
   explanation: >-
-    Every vertex at level 1 is enqueued by the source; each then enqueues every other level-1 vertex again because none is marked yet. Distances remain correct (the first dequeue wins) but the work multiplies. Mark on enqueue.
+    Every vertex at level 1 is enqueued by the source; each then enqueues every other level-1 vertex again because none is marked yet, so the queue holds O(V²) entries instead of V. Distances remain correct (the first dequeue wins and later duplicates are skipped), and the search still terminates because each vertex is marked once it is dequeued; only the work multiplies. Mark on enqueue.
 - q: >-
     A grid problem gives each move a cost of 1, except moving through mud, which costs 3. Which algorithm finds the cheapest route?
-  options: ["BFS, because it is a grid", "Dijkstra (or a priority-queue BFS), because edge costs are unequal", "0-1 BFS", "DFS with pruning"]
-  answer: 1
+  options: ["DFS with pruning, because it can abandon any branch that is already costlier", "BFS, because every move on a grid is still a single step", "Dijkstra with a priority queue, because edge costs are unequal", "0-1 BFS, because a deque handles two distinct edge costs"]
+  answer: 2
   explanation: >-
-    BFS's first-discovery-is-shortest invariant relies on uniform costs. With costs 1 and 3, a longer path in hops can be cheaper. 0-1 BFS only handles costs of exactly 0 and 1.
+    BFS's first-discovery-is-shortest invariant relies on uniform costs. With costs 1 and 3, a longer path in hops can be cheaper. 0-1 BFS handles two costs only when they are exactly 0 and 1; costs of 1 and 3 break its deque ordering.
 - q: >-
     You need the distance from every cell of a 2,000 × 2,000 grid to the nearest of 5,000 hospitals. Running one BFS per hospital costs about 5,000 × 4 × 10^6 cell visits. Multi-source BFS costs:
-  options: ["The same", "About 4 × 10^6 cell visits, one pass with all hospitals seeded at distance 0", "About 5,000 × log(4 × 10^6)", "It cannot be done with BFS"]
-  answer: 1
+  options: ["About 4 × 10^6 × log 5,000, for a heap to pick the nearest source", "About the same, since each hospital still needs its own wavefront", "About 5,000 × log(4 × 10^6), one heap operation per hospital", "About 4 × 10^6 cell visits, as one pass seeded with every hospital"]
+  answer: 3
   explanation: >-
-    Seeding every hospital at distance 0 is equivalent to BFS from a virtual super-source; each cell is discovered once by its nearest hospital. One pass over the grid.
+    Seeding every hospital at distance 0 is equivalent to BFS from a virtual super-source; each cell is discovered once by its nearest hospital. One pass over the grid, and a plain FIFO queue suffices because all edges still cost 1, so no heap and no log factor is needed.
 - q: >-
     Word ladder from "hit" to "cog" with a dictionary of 50,000 five-letter words. Why does bidirectional BFS help so much?
-  options: ["It avoids building the adjacency list", "Each side explores only to about half the distance, so the total touched is roughly 2·b^(d/2) instead of b^d, exponentially fewer for a large branching factor", "It uses less memory per vertex", "It finds longer paths"]
+  options: ["It expands both endpoints' neighbourhoods in parallel, which halves the wall time", "Each side searches only half the distance, so ~2·b^(d/2) vertices replace b^d", "It skips building the adjacency list, so neighbours cost O(1) to generate", "It stores half as many vertices per side, so total memory is cut in half"]
   answer: 1
   explanation: >-
-    With branching factor b around 100 and distance d around 6, one-directional BFS may touch b^6 = 10^12 candidates while two half-searches touch about 2 × 10^6. The meeting point gives the shortest path when both sides expand level by level.
+    With branching factor b around 100 and distance d around 6, one-directional BFS may touch b^6 = 10^12 candidates while two half-searches touch about 2 × 10^6. The saving is exponential, not a factor of two, because halving the depth takes the square root of the frontier size. The meeting point gives the shortest path when both sides expand level by level.
 - q: >-
     To reconstruct the actual shortest path after BFS, the cheapest addition is:
-  options: ["Store the full path in each queue entry", "Record parent[v] = u when v is first discovered, then walk back from the target", "Run BFS again from the target", "Store the queue history"]
-  answer: 1
+  options: ["Record parent[v] = u when v is first discovered, then walk back from the target", "Run a second BFS from the target, then follow decreasing distance labels", "Store the full path so far in each queue entry, then return the copy held at the target", "Log the order vertices leave the queue, then read that order back as the path"]
+  answer: 0
   explanation: >-
-    One extra pointer per vertex, set at discovery, gives a shortest-path tree from the source. Storing whole paths per entry is O(V × path length) memory; a second BFS is unnecessary.
+    One extra pointer per vertex, set at discovery, gives a shortest-path tree from the source. Storing whole paths per entry is O(V × path length) memory; a second BFS works but doubles the traversal for no gain; and dequeue order interleaves every branch of the search, so it is not a path at all.
 ```

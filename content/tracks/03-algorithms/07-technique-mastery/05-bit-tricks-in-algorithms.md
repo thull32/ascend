@@ -328,32 +328,32 @@ hints:
 ```quiz
 - q: >-
     A DP iterates, for every mask of n = 18 elements, over every submask of that mask. Roughly how many (mask, submask) pairs is that?
-  options: ["2^18, about 262 thousand", "3^18, about 387 million", "4^18, about 69 billion", "18 * 2^18, about 4.7 million"]
-  answer: 1
+  options: ["4^18, about 69 billion", "18 * 2^18, about 4.7 million", "2^18, about 262 thousand", "3^18, about 387 million"]
+  answer: 3
   explanation: >-
     Each element is in neither set, in the mask only, or in both, so the number of pairs is 3^n. 4^n would count all ordered pairs of masks, including pairs where the second is not a submask. At 387 million simple steps it is feasible in a compiled language and slow in Python.
 - q: >-
     Why is iterating masks in increasing numeric order valid for dp[mask | (1 << u)] transitions?
-  options: ["Because adding a bit always produces a larger integer, so every mask is processed after all of its subsets", "Because masks are sorted by popcount", "Because the DP is commutative", "It is not valid; you must sort masks by popcount first"]
+  options: ["Adding a bit always gives a larger integer, so all subsets come before supersets", "Numeric order is also popcount order, so smaller sets are always done first", "The transitions commute, so the masks can be processed in any order at all", "It is not valid; masks must be sorted by popcount first, or states are missed"]
   answer: 0
   explanation: >-
-    A transition that adds an element moves from mask to a strictly larger number. So numeric order finishes every predecessor before its successors. Sorting by popcount also works, but it is unnecessary.
+    A transition that adds an element moves from mask to a strictly larger number. So numeric order finishes every predecessor before its successors, which makes it a topological order of the DP. It is not popcount order (3 = 011 comes before 4 = 100), and it does not need to be: sorting by popcount also works, but it is unnecessary.
 - q: >-
     Consecutive Gray codes g(i - 1) and g(i) differ in which bit?
-  options: ["Always bit 0", "The highest set bit of i", "The lowest set bit of i, that is, bit number trailing_zeros(i)", "A random bit"]
-  answer: 2
-  explanation: >-
-    i ^ (i - 1) is a block of t + 1 ones, where t is the number of trailing zeros of i. XORing that block with itself shifted right by one leaves only bit t. That is why a Gray-code walk over subsets adds or removes element t at step i.
-- q: >-
-    Replacing a boolean subset-sum DP with reach |= reach << x in C++ std::bitset changes the complexity from O(n * S) to:
-  options: ["O(n log S)", "O(n * S / w), where w is the machine word size", "O(n + S)", "O(S)"]
-  answer: 1
-  explanation: >-
-    Each shift and OR processes w bits per instruction, so the work is divided by the word size. It is a constant-factor gain, not an asymptotic one, but a factor of 64 is often the difference between timing out and passing.
-- q: >-
-    In JavaScript, you build a mask for 40 items with mask |= 1 << i. What happens for i = 35?
-  options: ["It works; JavaScript numbers are 64-bit", "It throws a RangeError", "It produces Infinity", "1 << 35 is 1 << 3, because the shift count is taken mod 32 and operands are 32-bit, so item 35 silently aliases item 3"]
+  options: ["Always bit 0, the least significant bit of the code", "The lowest set bit of g(i), that is, bit trailing_zeros(g(i))", "The highest set bit of i, that is, bit floor(log₂ i)", "The lowest set bit of i, that is, bit trailing_zeros(i)"]
   answer: 3
   explanation: >-
-    Bitwise operators convert to 32-bit integers and use only the low five bits of the shift count. Use BigInt (1n << 35n) or split the mask into two numbers when you need more than about 30 bits.
+    i ^ (i - 1) is a block of t + 1 ones, where t is the number of trailing zeros of i. XORing that block with itself shifted right by one leaves only bit t. That is why a Gray-code walk over subsets adds or removes element t at step i. The bit is determined by i, not by the code: from g(1) = 01 to g(2) = 11 bit 1 flips, although the lowest set bit of g(2) is bit 0.
+- q: >-
+    Replacing a boolean subset-sum DP with reach |= reach << x in C++ std::bitset changes the complexity from O(n * S) to (w is the machine word size):
+  options: ["O(S / w)", "O(n · S / w)", "O(n log S)", "O(n + S / w)"]
+  answer: 1
+  explanation: >-
+    Each shift and OR processes w bits per instruction, so the work is divided by the word size, but each of the n items still needs a shift over all S / w words, so the n stays a factor. It is a constant-factor gain, not an asymptotic one, but a factor of 64 is often the difference between timing out and passing.
+- q: >-
+    In JavaScript, you build a mask for 40 items with mask |= 1 << i. What happens for i = 35?
+  options: ["It throws a RangeError, because the shift count is larger than 31", "It silently sets bit 3, because the shift count is taken mod 32", "It works, because JavaScript numbers are 64-bit floating-point values", "It produces Infinity, because 2^35 overflows a 32-bit integer"]
+  answer: 1
+  explanation: >-
+    Bitwise operators convert to 32-bit integers and use only the low five bits of the shift count, so 1 << 35 is 1 << 3 and item 35 silently aliases item 3; nothing throws. Numbers are 64-bit floats, but that does not help once a bitwise operator has converted them. Use BigInt (1n << 35n) or split the mask into two numbers when you need more than about 30 bits.
 ```

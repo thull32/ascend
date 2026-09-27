@@ -239,32 +239,32 @@ hints:
 ```quiz
 - q: >-
     A BFS for "shortest path through a grid where you may pass through at most one wall" marks cells visited as (row, col) and returns no path even though one exists. The bug is:
-  options: ["BFS cannot handle walls", "The state omits how many walls have been used, so a cell reached without using the wall blocks a later, different arrival that still has the wall available", "The grid should be explored with DFS", "Walls must be removed before searching"]
-  answer: 1
+  options: ["The state omits walls used, so one arrival at a cell blocks a different, later one", "BFS finds only shortest paths, so the route through a wall needs DFS to be found", "The wall cell must be deleted from the grid before searching, not crossed", "BFS cannot cross walls at all, so the path that breaks through one is never explored"]
+  answer: 0
   explanation: >-
-    Two arrivals at the same cell with different remaining budgets are different states. The vertex must be (row, col, walls_used) so that each is visited independently.
+    Two arrivals at the same cell with different remaining budgets are different states: a cell reached first after spending the wall marks it visited and blocks a later arrival that still has the wall available. The vertex must be (row, col, walls_used) so that each is visited independently. BFS itself is right for this unweighted problem; the state is what is too small.
 - q: >-
     You have 200,000 accounts, each with a few email addresses, and must group accounts belonging to the same person (shared address). The efficient model is:
-  options: ["Compare every pair of accounts for a shared email: O(n²)", "A bipartite account-email graph (or a map from email to first account seen) and connected components or union-find: O(total emails)", "A trie of email addresses", "Sort accounts by their first email"]
-  answer: 1
+  options: ["An account-email graph with components or union-find: O(total emails)", "Sort accounts by first email, merging neighbours that match: O(n log n)", "Hash each account's full email set and group equal hashes: O(total emails)", "Compare every pair of accounts for a shared address: O(n²) comparisons"]
+  answer: 0
   explanation: >-
-    Shared attributes link accounts through the attribute vertex. Iterating each account's emails and unioning with the first account that owns each email touches every email once; pairwise comparison is 2 × 10^10 operations.
+    Shared attributes link accounts through the attribute vertex (or a map from email to the first account seen). Iterating each account's emails and unioning with the first account that owns each email touches every email once, and components capture transitive merges; pairwise comparison is 2 × 10^10 operations. Sorting by first email or hashing whole sets only groups accounts whose first address or entire set coincide, missing accounts that share just one address.
 - q: >-
     A package manifest for P lists dependencies [A, B]. For a topological install order, which edges should you add?
-  options: ["P → A and P → B", "A → P and B → P", "A → B and B → P", "Undirected edges P–A and P–B"]
+  options: ["A → B and B → P", "A → P and B → P", "P–A and P–B (undirected)", "P → A and P → B"]
   answer: 1
   explanation: >-
     The install-order edge means 'must come before'. A and B must be installed before P, so the edges point from the dependency to the dependant. Adding them the other way produces the reverse order, which uninstalls correctly but installs backwards.
 - q: >-
     A workflow's state machine has a state with no outgoing transitions that is not documented as terminal. In graph terms this is:
-  options: ["A cycle", "A sink vertex, which means the workflow can get stuck there; find such states by checking out-degree", "An unreachable vertex", "A bipartite violation"]
-  answer: 1
+  options: ["An unreachable vertex, because nothing can proceed past it", "A source vertex, because no transition leaves from it at all", "A cycle, because the workflow can never leave that state again", "A sink vertex, which means the workflow can get stuck there"]
+  answer: 3
   explanation: >-
-    Out-degree zero means no way forward. Checking every non-terminal state has at least one outgoing edge, and that every state is reachable from the start, are two one-pass graph checks worth having as tests.
+    Out-degree zero means no way forward: a sink, found by checking out-degree. A source is the opposite (in-degree zero), a cycle needs outgoing edges, and the state may well be reachable, which is exactly why it is dangerous. Checking every non-terminal state has at least one outgoing edge, and that every state is reachable from the start, are two one-pass graph checks worth having as tests.
 - q: >-
     For word ladder over a fixed dictionary of 100,000 words that will be queried millions of times with different start and end words, the best preprocessing is:
-  options: ["Nothing; generate neighbours by substitution on every query", "Build the full adjacency list by comparing all pairs: O(n²) once", "Bucket words by wildcard patterns (h*t, *ot, ho*) so neighbours of any word are the union of its pattern buckets, O(n × length) to build", "Sort the dictionary"]
-  answer: 2
+  options: ["Sort the dictionary so each word's neighbours can be found by binary search", "Build the full adjacency list once by comparing all word pairs: O(n²) time", "Nothing; generate neighbours by substitution fresh on every single query", "Bucket words by wildcard pattern (h*t, *ot, ho*) and read neighbours from them"]
+  answer: 3
   explanation: >-
-    Pattern buckets give exact neighbour lists in linear preprocessing and constant lookups per position; per-query substitution is fine for one search but wastes work across millions; pairwise comparison is 10^10 operations.
+    Pattern buckets give exact neighbour lists in O(n × length) preprocessing and constant lookups per position; per-query substitution is fine for one search but wastes work across millions; pairwise comparison is 10^10 operations. Sorting helps only with shared prefixes, and a one-letter change can occur at any position.
 ```

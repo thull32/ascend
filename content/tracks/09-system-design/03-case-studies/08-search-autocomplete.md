@@ -242,32 +242,32 @@ The prefix is not what the user is typing. With an input method, the user types 
 ```quiz
 - q: >-
     Why does precomputing a top-k list at every trie node matter so much for autocomplete?
-  options: ["It reduces the memory used by the trie", "Without it, a short prefix requires enumerating a subtree that can contain millions of queries on every keystroke", "It makes insertions O(1)", "It is required for the trie to support deletion"]
-  answer: 1
+  options: ["It lets the trie support deletions without rebuilding the snapshot", "It shrinks the trie, because every node stores IDs instead of full strings", "It avoids enumerating a short prefix's huge subtree on every keystroke", "It makes each insertion O(1), so the index can update in real time"]
+  answer: 2
   explanation: >-
-    Walking to the prefix node is O(L), but finding the best completions by enumerating its subtree costs time proportional to the subtree size, which for a one-letter prefix is a large fraction of the index. Precomputing moves that cost to the offline build. It increases memory, which is the trade-off.
+    Walking to the prefix node is O(L), but finding the best completions by enumerating its subtree costs time proportional to the subtree size, which for a one-letter prefix is millions of queries. Precomputing moves that cost to the offline build. It increases memory rather than shrinking it, which is the trade-off.
 - q: >-
     The estimated index is about 15 GB and peak origin traffic is 60,000 requests per second. What is the best serving topology?
-  options: ["Shard the trie by first letter across 26 nodes", "Store every prefix in a Redis cluster and query it per keystroke", "Load the full snapshot on every serving node and scale by adding replicas behind a plain load balancer", "Query the search engine's primary index directly"]
-  answer: 2
-  explanation: >-
-    Sharding what fits on one machine adds routing and hot-shard problems (s is far larger than x) for no benefit. Full replicas make every node interchangeable. A Redis prefix map works but costs several times the memory plus a network hop per keystroke.
-- q: >-
-    With a 7-day half-life, a query searched 50,000 times once competes with one searched 1,000 times every day. Roughly how long does the spike outrank the steady query?
-  options: ["About 1 day", "About 7 days", "About 2 to 3 weeks", "Forever, because 50,000 is larger than 1,000"]
-  answer: 2
-  explanation: >-
-    The steady query converges to about 1,000 x 9.6 = 9,600. The spike decays from 50,000 by half every 7 days and crosses 9,600 after about 17 days. Choosing the half-life is choosing this trade-off between feeling current and being stable.
-- q: >-
-    A product manager asks to include the user ID in the suggest request so every list can be personalised. What is the main cost?
-  options: ["It breaks the trie data structure", "It violates the latency budget because user IDs are large", "It makes trending detection impossible", "Requests become uncacheable at the CDN, so origin load rises by several times"]
+  options: ["Query the search engine's primary index directly on each keystroke", "Shard the trie by first letter across 26 nodes behind a router", "Store every prefix in a Redis cluster and query it per keystroke", "Load the full snapshot on every node and scale out with replicas"]
   answer: 3
   explanation: >-
-    Shared caches only work on requests that are identical across users. Personalising the whole response drops the edge hit rate toward zero. The usual pattern is an anonymous, cacheable base list plus a small personal list merged on the client.
+    Full replicas behind a plain load balancer make every node interchangeable. Sharding what fits on one machine adds routing and hot-shard problems (s is far larger than x) for no benefit. A Redis prefix map works but costs several times the memory plus a network hop per keystroke.
+- q: >-
+    With a 7-day half-life, a query searched 50,000 times once competes with one searched 1,000 times every day. Roughly how long does the spike outrank the steady query?
+  options: ["About 50 days", "About 7 days", "About 1 day", "About 17 days"]
+  answer: 3
+  explanation: >-
+    The steady query converges to about 1,000 x 9.6 = 9,600. The spike decays from 50,000 by half every 7 days and crosses 9,600 after about 17 days. The raw 50:1 ratio ignores that the steady query's score accumulates. Choosing the half-life is choosing this trade-off between feeling current and being stable.
+- q: >-
+    A product manager asks to include the user ID in the suggest request so every list can be personalised. What is the main cost?
+  options: ["It blows the 10 ms latency budget, because each ID must be looked up", "It makes trending detection impossible for personalised users", "Requests become uncacheable at the CDN, so origin load multiplies", "It breaks the trie, which cannot store per-user top-k lists"]
+  answer: 2
+  explanation: >-
+    Shared caches only work on requests that are identical across users. Personalising the whole response drops the edge hit rate toward zero, so origin load rises by several times. The usual pattern is an anonymous, cacheable base list plus a small personal list merged on the client; the trie and the trending overlay are untouched.
 - q: >-
     Which rule most directly prevents autocomplete from exposing one person's private search to others?
-  options: ["Encrypting the search logs", "Only suggesting queries that at least N distinct users have searched", "Using a short half-life", "Rate limiting the suggest endpoint"]
-  answer: 1
+  options: ["Encrypting the search logs at rest and in the ranking pipeline", "Using a short half-life so rare queries decay out of the index", "Rate limiting the suggest endpoint per user and per IP address", "Suggesting only queries searched by at least N distinct users"]
+  answer: 3
   explanation: >-
-    A distinct-user threshold ensures a query entered by one person never becomes a suggestion, however often they repeat it. Encryption protects logs at rest but does not stop the ranking pipeline from promoting a unique query; half-life and rate limits are unrelated.
+    A distinct-user threshold ensures a query entered by one person never becomes a suggestion, however often they repeat it. Encryption protects logs but does not stop the ranking pipeline from promoting a unique query. A short half-life does not help, because a private query searched today still scores high today. Rate limits are unrelated.
 ```

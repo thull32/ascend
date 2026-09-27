@@ -263,32 +263,32 @@ hints:
 ```quiz
 - q: >-
     In matrix chain multiplication, why must the table be filled by increasing interval length rather than row by row?
-  options: ["Row-by-row is fine; length order is just conventional", "dp[i][j] depends on dp[i][k] and dp[k+1][j], which are shorter intervals that can lie in later rows or columns; length order guarantees they are filled first", "Because the matrices must be multiplied left to right", "Because the diagonal is zero"]
-  answer: 1
-  explanation: >-
-    dp[k+1][j] is in a later row than dp[i][j]. Row-major order would read it unfilled. Increasing length (equivalently, i descending with j ascending) is a topological order of the dependencies.
-- q: >-
-    For burst balloons, defining dp[i][j] as the best coins when balloon k is burst FIRST in (i, j) fails because:
-  options: ["The recursion does not terminate", "After bursting k first, balloons i..k-1 and k+1..j become adjacent, so the two halves are no longer independent subproblems", "The array must be padded with ones", "The answer would be dp[1][n] instead of dp[0][n+1]"]
-  answer: 1
-  explanation: >-
-    Interval DP needs the two sides of a split to be solvable separately. Bursting last keeps i and j as the neighbours of k throughout, so the sides never interact. Padding is needed in both formulations and is not the issue.
-- q: >-
-    House robber on a tree returns (rob, skip) per node. Why does rob[v] add skip[c] for each child rather than max(rob[c], skip[c])?
-  options: ["Because children of a robbed node cannot be robbed, so only their skip value is legal", "Because skip is always larger", "Because rob[c] is undefined for leaves", "It should use the max; the tuple is a memory optimisation only"]
+  options: ["dp[k+1][j] is in a later row, so row order reads it unfilled", "The matrices must be multiplied left to right, one by one", "Only length order fills the zero diagonal before it is read", "Row-by-row works too; length order is purely a convention"]
   answer: 0
   explanation: >-
-    The constraint is on directly connected nodes. If v is robbed, its children must be skipped; skip[c] already includes the best choice for the grandchildren. skip[v] is where the max is taken.
+    dp[i][j] depends on dp[i][k] and dp[k+1][j], shorter intervals, and dp[k+1][j] is in a later row than dp[i][j], so row-major order would read it unfilled. Increasing length (equivalently, i descending with j ascending) is a topological order of the dependencies. The zero diagonal is the base case and can be written up front in any order.
+- q: >-
+    For burst balloons, defining dp[i][j] as the best coins when balloon k is burst FIRST in (i, j) fails because:
+  options: ["The array can then no longer be padded with ones at both ends", "The recursion never terminates, since k can be picked again later", "The answer moves to dp[1][n], which the fill never reaches", "The two sides become adjacent, so they stop being independent"]
+  answer: 3
+  explanation: >-
+    After bursting k first, balloons i..k-1 and k+1..j become adjacent and interact. Interval DP needs the two sides of a split to be solvable separately. Bursting last keeps i and j as the neighbours of k throughout, so the sides never interact. Padding is needed in both formulations and is not the issue.
+- q: >-
+    House robber on a tree returns (rob, skip) per node. Why does rob[v] add skip[c] for each child rather than max(rob[c], skip[c])?
+  options: ["Because rob[c] is undefined for leaves, so skip is safer", "Because a robbed node's children cannot be robbed at all", "It should be the max; the tuple is only a memory saving", "Because skip[c] is always at least as large as rob[c]"]
+  answer: 1
+  explanation: >-
+    The constraint is on directly connected nodes. If v is robbed, its children must be skipped, so only their skip value is legal; skip[c] already includes the best choice for the grandchildren. skip[c] is not always larger (a leaf's rob value is its cash, its skip value 0). skip[v] is where the max is taken.
 - q: >-
     A bitmask DP has state dp[mask][last] for a travelling-salesman style problem with n = 25 cities. Is it feasible in a typical interview time limit?
-  options: ["Yes: 25² states", "No: 2²⁵ × 25 ≈ 8 × 10⁸ states, each with an O(n) transition, and the dp array alone is several gigabytes", "Yes, with memoisation", "Only if the graph is complete"]
-  answer: 1
+  options: ["No: about 8 × 10⁸ states, each with an O(n) transition", "Yes: only 25² states, one for each pair of cities", "Only if the graph is complete, so that every mask is valid", "Yes: memoisation visits only the reachable masks"]
+  answer: 0
   explanation: >-
-    2²⁵ ≈ 3.4 × 10⁷ masks times 25 ends is 8.4 × 10⁸ cells; the transition multiplies by another 25. Bitmask DP is an n ≤ ~20 tool. Memoisation does not reduce the reachable state count here.
+    2²⁵ ≈ 3.4 × 10⁷ masks times 25 ends is 8.4 × 10⁸ cells, several gigabytes for the dp array alone; the transition multiplies the work by another 25. Bitmask DP is an n ≤ ~20 tool. Memoisation does not reduce the reachable state count here, since nearly every mask is reachable.
 - q: >-
     Rerooting computes a per-node answer in O(n) with two passes. What property must the combine operation have?
-  options: ["It must be commutative only", "It must allow removing one child's contribution from the parent's total (subtractable sums, or a max that keeps a runner-up)", "It must be idempotent", "It must be linear in the node values"]
-  answer: 1
+  options: ["It must let one child's contribution be removed again", "It must be idempotent, so a child counted twice is harmless", "It must be linear, so the answer scales with node values", "It must be commutative, so children combine in any order"]
+  answer: 0
   explanation: >-
-    The up pass derives the value 'excluding v's subtree' from the parent's full value. For sums you subtract; for max you keep the best and second-best child so that excluding the best still leaves an answer. Without this, rerooting degrades to recomputing.
+    The up pass derives the value 'excluding v's subtree' from the parent's full value, so one child's contribution must be removable. For sums you subtract; for max you keep the best and second-best child so that excluding the best still leaves an answer. Commutativity alone does not give you that. Without it, rerooting degrades to recomputing.
 ```

@@ -165,32 +165,32 @@ That is about ninety seconds of talking, and every sentence carries information.
 ```quiz
 - q: >-
     An interviewer asks "why a hash map rather than sorting?" Which answer best demonstrates senior-level reasoning?
-  options: ["Hash maps are faster", "Because I need O(1) membership checks and the order of elements does not matter to the answer; if I were required to use O(1) extra space, sorting plus two pointers would be the right choice instead", "Because that is the standard solution to this problem", "Because sorting is O(n log n)"]
+  options: ["It is the standard solution to this problem, so it is the safe choice", "I need O(1) lookups, not order; if space were capped I'd sort instead", "Hash maps are faster than sorting, and speed is what the problem needs", "Sorting is O(n log n) while one hash-map pass is O(n), so it is faster"]
   answer: 1
   explanation: >-
-    The strong answer names the property of the problem that justifies the choice (membership queries, order irrelevant) and the condition under which the alternative wins. "Standard solution" and "faster" are assertions without reasons; the last option is true but does not explain why sorting is unnecessary here.
+    The strong answer names the property of the problem that justifies the choice (membership queries, order irrelevant) and the condition under which the alternative wins: with O(1) extra space required, sorting plus two pointers is right. "Standard solution" and "faster" are assertions without reasons; the O(n log n) comparison is true but does not explain why sorting is unnecessary here or when it would win.
 - q: >-
     You have been silent for two minutes and are not making progress on the optimisation. What is the best next move?
-  options: ["Keep thinking silently until the idea comes", "Start coding the brute force to show activity", "Say precisely what you are stuck on, restate the brute force and its repeated work aloud, and ask for a hint if that does not unblock you", "Ask the interviewer to give you a different problem"]
-  answer: 2
+  options: ["Keep thinking silently, since talking would break your focus", "Ask the interviewer for a different problem that suits you better", "Start coding the brute force so the interviewer sees progress", "Say exactly what you are stuck on, then ask for a hint if needed"]
+  answer: 3
   explanation: >-
-    Naming the sub-problem gives the interviewer something to steer and often unblocks you; returning to the previous step of the loop is the protocol's built-in recovery. Silence and unrequested brute-force coding both waste time without producing information the interviewer can grade.
+    Naming the sub-problem gives the interviewer something to steer and often unblocks you; restating the brute force and its repeated work, returning to the previous step of the loop, is the protocol's built-in recovery. Silence and unrequested brute-force coding both waste time without producing information the interviewer can grade.
 - q: >-
     Which complexity statement is the most complete?
-  options: ["It's about O(n log n)", "O(n log n) time because of the sort, then a linear scan; O(n) space because Python's sorted allocates a new list", "O(n log n) or O(n^2) depending", "It's efficient"]
+  options: ["It's about O(n log n), which is efficient for this input size", "O(n log n) time, dominated by the sort; O(n) space for sorted()", "It's efficient: roughly linear time and constant extra space", "O(n log n) or O(n^2), depending on how the input happens to look"]
   answer: 1
   explanation: >-
-    A complete statement gives the bound, what dominates it, and the assumption or implementation detail behind the space figure. Hedging between two bounds or offering "efficient" tells the interviewer nothing they can check.
+    A complete statement gives the bound, what dominates it (the sort, then a linear scan), and the implementation detail behind the space figure (Python's sorted allocates a new list). Hedging between two bounds or offering "efficient" tells the interviewer nothing they can check.
 - q: >-
     The interviewer gives a hint that steers toward an approach you think is slightly worse than your own idea. What should you do?
-  options: ["Ignore it and continue with your idea", "Restate the hint in your own words, say briefly why you were considering something else, then follow the hint unless the interviewer withdraws it", "Abandon your idea without comment and start over", "Argue for your approach until the interviewer agrees"]
-  answer: 1
+  options: ["Restate it, say once why you differed, then follow the hint", "Explain why your approach is better until the interviewer agrees", "Drop your idea without comment and follow the hint from scratch", "Thank them, then carry on with your own idea since it is better"]
+  answer: 0
   explanation: >-
-    Acknowledging the hint shows it landed; one sentence of disagreement with a reason shows judgement; following it respects that the interviewer may be steering toward a planned follow-up. Ignoring or arguing at length is graded as poor collaboration.
+    Acknowledging the hint in your own words shows it landed; one sentence of disagreement with a reason shows judgement; following it unless the interviewer withdraws it respects that they may be steering toward a planned follow-up. Ignoring or arguing at length is graded as poor collaboration, and silently restarting hides your reasoning.
 - q: >-
     What is the difference between narrating keystrokes and narrating decisions?
-  options: ["There is none; both count as thinking aloud", "Keystroke narration describes what is visible on the screen; decision narration states what you are choosing, why, and what would change your mind, which is the part the interviewer cannot see", "Decision narration is for design interviews only", "Keystroke narration is preferred because it is more detailed"]
-  answer: 1
+  options: ["Decision narration is only expected in system design interviews", "Keystroke narration is better because it gives more detail", "There is none; both count as thinking aloud to an interviewer", "Keystrokes are visible on screen; decisions and reasons are not"]
+  answer: 3
   explanation: >-
-    The interviewer can read the code; they cannot read the reasons. Narrating decisions makes the reasoning gradable. Narrating keystrokes adds noise and slows you down.
+    The interviewer can read the code; they cannot read the reasons. Decision narration states what you are choosing, why, and what would change your mind, which makes the reasoning gradable. Narrating keystrokes adds noise and slows you down.
 ```

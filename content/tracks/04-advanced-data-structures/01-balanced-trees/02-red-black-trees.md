@@ -240,32 +240,32 @@ hints:
 ```quiz
 - q: >-
     Which single change to a valid red-black tree is guaranteed to keep it valid?
-  options: ["Colouring a red leaf black", "Colouring the root red", "Deleting a red node with no children", "Inserting a new key as a black leaf"]
+  options: ["Colouring a red leaf node black", "Colouring a black root node red", "Deleting a childless red node", "Inserting a key as a black leaf"]
   answer: 2
   explanation: >-
-    Removing a red node with no children changes no path's black count and cannot create two adjacent reds. Colouring a leaf black adds a black to some paths but not others (rule 5); a red root breaks rule 2; a black leaf adds a black to one path only.
+    Removing a red node with no children changes no path's black count and cannot create two adjacent reds. Colouring a red leaf black adds a black to some paths but not others (rule 5); a red root breaks rule 2; a new black leaf adds a black to one path only.
 - q: >-
     During insertion, z is red, its parent is red and its uncle is red. What happens?
-  options: ["Rotate at the grandparent", "Recolour parent and uncle black and grandparent red, then continue the fix-up from the grandparent", "Recolour z black and stop", "Rotate at the parent and then at the grandparent"]
+  options: ["Rotate at the grandparent, then swap the colours of g and p", "Recolour p and u black and g red, then continue from g", "Rotate at the parent, then rotate at the grandparent", "Recolour z black and stop, since the red-red pair is gone"]
   answer: 1
   explanation: >-
-    A red uncle means the grandparent's 2-3-4 node is a full 4-node being split: the middle key (grandparent) moves up as a red, which may in turn violate rule 4 with its own parent, so the loop continues. Rotations are for the black-uncle cases.
+    A red uncle means the grandparent's 2-3-4 node is a full 4-node being split: the middle key (grandparent) moves up as a red, which may in turn violate rule 4 with its own parent, so the loop continues. Rotations are for the black-uncle cases. Recolouring z black would add a black to one path and break rule 5.
 - q: >-
     A red-black tree holds 2^20 − 1 keys. What is the largest height it can have?
-  options: ["20", "About 29", "40", "2^20 − 1"]
-  answer: 2
+  options: ["40, which is 2 log₂(n + 1)", "2^20 − 1, on sorted input", "20, as in a perfect tree", "About 29, which is 1.44 log₂ n"]
+  answer: 0
   explanation: >-
     The bound is 2 log₂(n + 1) = 2 × 20 = 40. The AVL bound would be about 29 and a perfect tree is 20. The million-node chain is impossible because two reds in a row are forbidden.
 - q: >-
     Why does C++ implement std::map as a red-black tree rather than a B-tree, which is faster on large data?
-  options: ["B-trees cannot support ordered iteration", "The standard guarantees that inserting or erasing other elements does not invalidate iterators or references, which requires node-per-element storage", "Red-black trees use less memory", "B-trees were not known when the standard was written"]
+  options: ["B-trees cannot iterate keys in sorted order across nodes", "The standard requires iterators to survive other inserts", "B-trees were not yet known when the standard was written", "Red-black trees use less memory per key than B-trees do"]
   answer: 1
   explanation: >-
-    B-tree nodes move keys around within pages on insert and split, which would invalidate pointers to elements. Rust's BTreeMap makes no such guarantee and so could choose the faster structure.
+    The standard guarantees that inserting or erasing other elements does not invalidate iterators or references, which requires one node per element. B-tree nodes move keys around within pages on insert and split, which would invalidate pointers to elements. B-trees iterate in order perfectly well; Rust's BTreeMap makes no stability guarantee and so could choose the faster structure.
 - q: >-
     You need a container that returns the task with the smallest deadline and lets you cancel arbitrary tasks by handle, with hard latency bounds. Which is the best fit?
-  options: ["A binary heap", "A red-black tree keyed by deadline", "A sorted array", "A hash map keyed by deadline"]
-  answer: 1
+  options: ["A binary heap keyed by deadline", "A sorted array of tasks by deadline", "A hash map from deadline to task", "A red-black tree keyed by deadline"]
+  answer: 3
   explanation: >-
     A heap gives the minimum but arbitrary cancellation is O(n) unless you add an index. A red-black tree gives O(log n) worst-case for minimum, insert and arbitrary delete, which is why nginx and the Linux hrtimer subsystem use one. A sorted array has O(n) inserts; a hash map has no order.
 ```

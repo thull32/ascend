@@ -187,32 +187,32 @@ hints:
 ```quiz
 - q: >-
     A daily task computes WHERE order_date = CURRENT_DATE - 1 and writes with INSERT INTO. What goes wrong when it is retried after midnight?
-  options: ["Nothing, retries are safe by default", "The retry processes a different day and appends, so one day is missing its rerun and another is duplicated or partial", "The retry fails because the table is locked", "The orchestrator skips retries after midnight"]
+  options: ["The orchestrator skips retries once the logical day has passed", "The retry targets a different day and appends to it", "Nothing, because a retry repeats exactly the same query", "The retry fails because the target table is still locked"]
   answer: 1
   explanation: >-
-    CURRENT_DATE moves with the clock, so the retry targets a different interval, and INSERT INTO appends to whatever is there. Using the run's logical date and overwriting its partition makes the retry repeat exactly the same work.
+    CURRENT_DATE moves with the clock, so the retry targets a different interval, and INSERT INTO appends to whatever is there: one day is missing its rerun and another is duplicated or partial. The query text is the same but its meaning is not. Using the run's logical date and overwriting its partition makes the retry repeat exactly the same work.
 - q: >-
     Why does ELT make recovering from a transformation bug easier than classic ETL?
-  options: ["ELT tools have better error messages", "The raw data is retained in the lake or warehouse, so you fix the SQL and recompute instead of re-extracting from sources that may no longer have the data", "ELT never has bugs because SQL is declarative", "ELT runs transforms before loading"]
+  options: ["ELT tools catch errors earlier, before any data is loaded", "The raw data is kept, so you fix the SQL and recompute", "ELT transforms data before it loads, so bad rows never land", "SQL transforms are declarative, so they rarely have bugs to fix"]
   answer: 1
   explanation: >-
-    Keeping the raw layer makes every transform reproducible. Sources often retain only recent data or current state, so ETL pipelines that discarded raw inputs may be unable to rebuild history.
+    Keeping the raw layer in the lake or warehouse makes every transform reproducible: fix the SQL and recompute. Sources often retain only recent data or current state, so ETL pipelines that discarded raw inputs may be unable to rebuild history. Transforming before loading is ETL, not ELT.
 - q: >-
     You must backfill 400 daily partitions of a job that takes 30 minutes per partition, without delaying the 06:00 production refresh. What plan is best?
-  options: ["Launch all 400 runs at once to finish quickly", "Run in a separate resource pool with bounded concurrency, newest partitions first, then backfill downstream assets and validate before publishing", "Run the backfill inside the production DAG so it shares retries", "Backfill oldest partitions first so history is complete"]
-  answer: 1
+  options: ["Run the backfill inside the production DAG so it shares retries", "Bounded concurrency, oldest partitions first so history fills in order", "A separate pool, bounded concurrency, newest partitions first", "Launch all 400 runs at once so it finishes as quickly as possible"]
+  answer: 2
   explanation: >-
-    400 × 30 minutes is 200 hours serially, so concurrency is needed, but unbounded concurrency starves production. Newest-first delivers the most-used data early. Downstream tables are stale until they are backfilled too, and validation before publishing catches a bad fix.
+    400 × 30 minutes is 200 hours serially, so concurrency is needed, but unbounded concurrency starves production; a separate pool isolates it. Newest-first delivers the most-used data early, and a halted backfill leaves only old, rarely read data missing. Then backfill downstream assets, which are stale until they are recomputed, and validate before publishing to catch a bad fix.
 - q: >-
     A backfill of March revenue by country joins orders with the current customers table. What is wrong?
-  options: ["Joins are not allowed in backfills", "Customers who moved country since March have their orders attributed to their current country, so the backfill rewrites history with today's attributes", "The current table is too large", "Nothing, as long as the job is idempotent"]
+  options: ["The current customers table is too large to join efficiently", "Customers who moved get March orders under today's country", "Nothing, as long as the job overwrites its partitions", "Joins in a backfill make it non-idempotent across reruns"]
   answer: 1
   explanation: >-
-    Idempotent is not the same as correct. Reading dimension data as it is today, rather than as of the interval, silently changes historical results. Use snapshots as of the interval or a slowly changing dimension.
+    Idempotent is not the same as correct. Reading dimension data as it is today, rather than as of the interval, attributes orders to customers' current country and silently rewrites history with today's attributes. Use snapshots as of the interval or a slowly changing dimension.
 - q: >-
     What is the main practical advantage of an asset-centric orchestrator for backfills?
-  options: ["It runs SQL faster", "It knows which table partitions depend on which, so it can show stale downstream partitions and backfill them in dependency order", "It does not need retries", "It replaces the warehouse"]
+  options: ["It pushes SQL down to the warehouse, so each run is faster", "It knows partition dependencies, so it can find stale ones", "It stores the assets itself, so no separate warehouse is needed", "Its tasks are idempotent by construction, so reruns are safe"]
   answer: 1
   explanation: >-
-    Declaring assets and partitions gives the orchestrator the data dependency graph, not just the task graph. After a fix, it can compute exactly which downstream partitions are stale, which task-centric DAGs leave to the engineer.
+    Declaring assets and partitions gives the orchestrator the data dependency graph, not just the task graph. After a fix, it can compute exactly which downstream partitions are stale and backfill them in dependency order, which task-centric DAGs leave to the engineer. Idempotency is still the task author's job in either model.
 ```

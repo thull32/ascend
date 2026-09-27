@@ -180,32 +180,32 @@ Only if the dedupe window is longer than the maximum replay delay, so I either s
 ```quiz
 - q: >-
     A client sends POST /orders with idempotency key K, times out after 2 s, and retries at 2.1 s while the first attempt is still executing. The server should:
-  options: ["Execute the second request too, since the first has not completed", "Return the stored response for K", "Detect K as in-progress via the atomic insert and return 409 or wait for the first attempt", "Reject the retry with 400 because the key was reused"]
-  answer: 2
+  options: ["See K marked in progress; return 409 or wait for the first", "Reject the retry with 400, because a key may be used only once", "Return the stored response for K from the first attempt", "Execute the second request too, since the first has not completed"]
+  answer: 0
   explanation: >-
-    The atomic insert of the key makes the second attempt see an in-progress record. Executing it would create two orders; there is no stored response yet to return; and reusing a key on retry is exactly what keys are for, not an error.
+    The atomic insert of the key makes the second attempt see an in-progress record, so it returns 409 (with Retry-After) or waits for the first attempt. Executing it would create two orders; there is no stored response yet to return; and reusing a key on retry is exactly what keys are for, not an error.
 - q: >-
     Which change makes a stock-decrement operation idempotent without an idempotency key?
-  options: ["Retrying it only once", "Rewriting it as a conditional write: set stock to 41 where stock is currently 42", "Wrapping it in a transaction", "Sending it over a FIFO queue"]
-  answer: 1
+  options: ["Wrapping the decrement in a serializable transaction", "Sending it through a FIFO queue so it is applied in order", "Retrying it at most once, with backoff between attempts", "Making it a conditional write: set stock to 41 if it is 42"]
+  answer: 3
   explanation: >-
     Expressing the update as absolute state with a precondition makes a repeat a no-op (the precondition fails) and also catches concurrent updates. A transaction gives atomicity, not idempotency; FIFO gives order, not dedupe; retry counts do not change semantics.
 - q: >-
     Three layers each retry three times on failure. During a dependency outage, one user action can generate how many calls to the dependency?
-  options: ["3", "9", "27", "6"]
-  answer: 2
+  options: ["3", "27", "9", "12"]
+  answer: 1
   explanation: >-
-    Retries multiply across layers: 3 x 3 x 3 = 27. This is why retries should live in one layer per hop and be capped by a budget.
+    Retries multiply across layers, they do not add: 3 x 3 x 3 = 27. This is why retries should live in one layer per hop and be capped by a budget.
 - q: >-
     Why add jitter to exponential backoff?
-  options: ["To make retries faster on average", "To prevent clients that failed together from retrying at the same instant and recreating the spike", "To satisfy the HTTP specification", "To reduce the number of retries"]
+  options: ["To satisfy the HTTP spec's Retry-After semantics for 503s", "To stop clients that failed together retrying in lockstep", "To reduce the total number of retries each client makes", "To make retries complete faster on average for each client"]
   answer: 1
   explanation: >-
     Without jitter, a synchronised failure produces synchronised retries at exactly base x 2^n, a second wave on a recovering dependency. Jitter spreads them. It does not reduce retry count or average delay meaningfully.
 - q: >-
     A consumer's dedupe store keeps event IDs for 24 hours. The dead-letter queue can replay a message after 3 days. What is the risk?
-  options: ["None; the DLQ has its own dedupe", "A replayed message is treated as new and its effect is applied twice", "The dedupe store fills up", "The consumer will reject the replay as expired"]
-  answer: 1
+  options: ["None; the dead-letter queue deduplicates replays on its own", "The dedupe store fills up because replays extend the window", "The replay looks new and its effect is applied twice", "The consumer rejects the replay as expired and drops it"]
+  answer: 2
   explanation: >-
-    Once the ID expires from the window, the consumer has no memory of it. The window must exceed the longest possible redelivery delay, or the effect must be idempotent by construction (upsert on event ID).
+    Once the ID expires from the window, the consumer has no memory of it and treats the replay as new. The window must exceed the longest possible redelivery delay, or the effect must be idempotent by construction (upsert on event ID). Nothing in the consumer knows the message is old, so it cannot reject it as expired.
 ```

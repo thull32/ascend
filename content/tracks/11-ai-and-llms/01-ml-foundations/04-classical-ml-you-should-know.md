@@ -131,32 +131,32 @@ Two habits separate engineers who ship ML from engineers who demo it. First, **a
 ```quiz
 - q: >-
     A node has 10 examples, 6 positive and 4 negative. Split A gives children (5 positive, 0 negative) and (1 positive, 4 negative). What is the weighted Gini impurity after split A?
-  options: ["0.48", "0.32", "0.16", "0"]
+  options: ["0.00", "0.32", "0.16", "0.48"]
   answer: 2
   explanation: >-
     The left child is pure (Gini 0); the right child has Gini 1 − 0.2² − 0.8² = 0.32. Weighting each by its share of examples gives 0.5 × 0 + 0.5 × 0.32 = 0.16. 0.48 is the parent's impurity and 0.32 is only the right child's.
 - q: >-
     In gradient boosting with squared-error loss, what does each new tree learn to predict?
-  options: ["The residuals of the current ensemble, which are the negative gradient of the loss with respect to its predictions", "The original target y", "The errors of the previous tree only, ignoring earlier trees", "A random subset of the features"]
-  answer: 0
+  options: ["The errors of the previous tree only, ignoring earlier trees", "The original target y, independently of the other trees", "The target y, using a random subset of the features", "The residuals of the whole current ensemble's predictions"]
+  answer: 3
   explanation: >-
-    Each tree fits y minus the whole ensemble's current prediction, the negative gradient of squared error. Its shrunken output is added to the ensemble. Fitting the original target is what a random forest's trees do; random feature subsets are also a forest technique.
+    Each tree fits y minus the whole ensemble's current prediction, which is the negative gradient of squared error with respect to those predictions. Its shrunken output is added to the ensemble. Fitting only the previous tree's errors would forget what earlier trees already corrected; fitting the original target independently, on random feature subsets, is what a random forest's trees do.
 - q: >-
     A k-NN model uses income (range 20,000 to 200,000) and age (18 to 90) without scaling. What happens?
-  options: ["Age dominates because it has fewer distinct values", "Both contribute equally because Euclidean distance is symmetric", "k-NN automatically normalises features", "Income dominates the distance, so age is effectively ignored"]
-  answer: 3
+  options: ["Both contribute equally because Euclidean distance is symmetric", "Income dominates the distance, so age is effectively ignored entirely", "Neither dominates, since k-NN normalises features internally", "Age dominates because it has fewer distinct values"]
+  answer: 1
   explanation: >-
     Distances are computed in raw units, so a 1,000-dollar income difference outweighs a 35-year age difference. Standardising each feature puts them on a comparable scale. k-NN does no normalisation itself.
 - q: >-
     Your product team wants a model to predict subscription cancellation from 30 account-level columns and 400,000 labelled rows. Which is the best first serious model?
-  options: ["A fine-tuned large language model reading the columns as text", "A gradient-boosted tree ensemble, compared against a logistic regression baseline", "k-means with k = 2", "A deep convolutional network"]
-  answer: 1
+  options: ["A fine-tuned large language model reading each account row as text", "A deep convolutional network treating the 30 columns as a 1-D signal", "Boosted trees, benchmarked against a logistic regression baseline", "k-means with k = 2, one cluster each for churners and stayers"]
+  answer: 2
   explanation: >-
-    Tabular, mixed-type data at this size is where boosted trees excel; logistic regression gives the baseline and an interpretable reference. An LLM would be slower, costlier and rarely more accurate here; k-means is unsupervised and ignores the labels; convolutions assume spatial structure the data does not have.
+    Tabular, mixed-type data at this size is where gradient-boosted trees excel; logistic regression gives the baseline and an interpretable reference. An LLM would be slower, costlier and rarely more accurate here; k-means is unsupervised and ignores the labels; convolutions assume spatial structure the columns do not have.
 - q: >-
     Why do random forests restrict each split to a random subset of the features?
-  options: ["To make each tree train faster, with no effect on accuracy", "To decorrelate the trees, so averaging them removes more variance", "To prevent any tree from reaching full depth", "To make the forest interpretable"]
-  answer: 1
+  options: ["To stop any tree from reaching full depth, which limits overfitting", "To make each tree train faster, with no effect on accuracy", "To make each tree's splits easier for a human to interpret", "To decorrelate the trees, so averaging removes more variance"]
+  answer: 3
   explanation: >-
     Averaging reduces variance only to the extent that the trees' errors are uncorrelated; without feature subsampling, every tree would pick the same strong features and make similar mistakes. The speed-up is a side effect, and depth is controlled separately.
 ```

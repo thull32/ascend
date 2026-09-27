@@ -134,32 +134,32 @@ Warning signs are equally concrete: you cannot start a task without opening the 
 ```quiz
 - q: >-
     Why can unrestricted answer-mode AI help reduce learning even while it improves performance on practice tasks?
-  options: ["AI answers are usually wrong", "It removes the generation and retrieval steps where memory and understanding form, and its fluent explanations create an illusion of competence", "It is too slow to keep learners engaged", "It only helps with easy problems"]
-  answer: 1
+  options: ["It skips generation and retrieval, and its fluent answers feel like understanding", "It only helps with easy problems, so hard material never gets practised", "It answers too quickly, so learners never form the habit of spacing their sessions", "Its answers are often subtly wrong, so learners memorise incorrect material"]
+  answer: 0
   explanation: >-
-    Producing and recalling are what build durable understanding. Reading a correct, fluent answer feels like understanding but does not build the ability to produce it. The answers being correct is part of why the illusion is convincing.
+    Producing and recalling are what build durable understanding, and answer-mode AI removes exactly those steps. Reading a correct, fluent answer feels like understanding but does not build the ability to produce it: an illusion of competence. The answers being correct is part of why the illusion is convincing.
 - q: >-
     Which prompt puts the model in tutor mode for learning how Raft elects a leader?
-  options: ["Explain Raft leader election in detail with an example", "Write a Raft implementation I can read", "Ask me one question at a time that leads me towards the mechanism, and tell me when I am wrong without giving the answer", "Summarise the Raft paper in five bullet points"]
-  answer: 2
+  options: ["Summarise the Raft paper's election section in five bullet points I can review", "Explain Raft leader election in detail, with a worked example of a split vote", "Write a small Raft implementation I can read through and step into with a debugger", "Ask me one question at a time towards the mechanism, and tell me when I am wrong"]
+  answer: 3
   explanation: >-
-    Questions force you to generate and retrieve. The other three produce text for you to read, which is useful for reference but builds much less understanding.
+    Questions force you to generate and retrieve, and being told you are wrong without being given the answer keeps the work with you. The other three produce text or code for you to read, which is useful for reference but builds much less understanding.
 - q: >-
     Why write down a prediction before running code or stepping through a visualisation?
-  options: ["It makes the program run faster", "It forces retrieval and makes the gap between your model and reality visible, which is exactly what you need to learn", "Predictions are graded by the platform", "It avoids the need for tests"]
-  answer: 1
+  options: ["It forces retrieval and exposes the gap between your model and reality", "It makes you slow down, so you catch syntax errors before running the code", "It gives the platform a record of your answers to grade your progress", "It saves time, because you can skip running code you predicted correctly"]
+  answer: 0
   explanation: >-
     Without a written prediction, hindsight makes every result feel expected. The prediction turns observation into practice and pinpoints the misunderstanding.
 - q: >-
     What is the best protocol for a practice coding problem when you have an AI assistant available?
-  options: ["Ask for the solution, read it carefully, move on", "A time-boxed solo attempt, then the smallest useful hint, then the answer only after the struggle, then re-solving from scratch a few days later", "Never use AI for practice", "Ask the AI to solve it three different ways and memorise them"]
-  answer: 1
+  options: ["Ask for the solution, read it carefully line by line, then move on", "Ask for three different solutions and memorise the trade-offs of each", "Solo attempt, smallest useful hint, answer after the struggle, re-solve later", "Avoid AI during practice entirely, and check answers against the editorial"]
+  answer: 2
   explanation: >-
-    The solo attempt and the later re-solve are where learning happens; hints keep you at the edge of your ability instead of past it. Refusing AI entirely throws away fast feedback, and memorising solutions builds recognition, not skill.
+    A time-boxed solo attempt and a re-solve from scratch a few days later are where learning happens; the smallest useful hint keeps you at the edge of your ability instead of past it. Refusing AI entirely throws away fast feedback, and memorising solutions builds recognition, not skill.
 - q: >-
     Which is the strongest evidence that you learned a technique you first used with AI help?
-  options: ["You merged three PRs using it", "You can solve an unfamiliar variant without assistance a week later and explain why it works", "The AI said your code was correct", "You have read about it several times"]
-  answer: 1
+  options: ["You can solve an unfamiliar variant unassisted a week later, and explain why", "You merged three PRs using it, and none of them needed a follow-up fix", "You have read several explanations of it, and every one of them now feels obvious", "The AI reviewed your latest code using it and confirmed it was correct"]
+  answer: 0
   explanation: >-
     Unassisted performance on a variant after a delay tests durable, transferable understanding. Throughput with the tool, the tool's approval and repeated reading all fit the fluency illusion.
 ```

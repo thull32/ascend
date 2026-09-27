@@ -319,32 +319,32 @@ hints:
 ```quiz
 - q: >-
     How many loop iterations does iterative repeated squaring take for n = 1,000,000,000?
-  options: ["About 1,000,000,000", "About 30, one per bit of n", "About 500,000,000", "About 1,000, the square root of n"]
+  options: ["About 1,000,000,000, one per unit of n", "About 30, one per binary digit of n", "About 500,000,000, one per pair of factors", "About 31,623, the square root of n"]
   answer: 1
   explanation: >-
     Each iteration halves n, so the loop runs floor(log2 n) + 1 times, which is 30 for a billion. The multiplications into the result happen once per set bit, so there are at most 30 of those too.
 - q: >-
     In Multiply Strings, why is a result array of length m + n always enough?
-  options: ["Because an m-digit number is below 10^m and an n-digit number is below 10^n, so their product is below 10^(m+n) and has at most m + n digits", "Because each digit product is at most 81", "Because carries never exceed 1", "It is not always enough; you need m + n + 1"]
-  answer: 0
-  explanation: >-
-    The bound on the product's magnitude bounds its digit count. Individual pos slots can temporarily exceed 9, but the final value fits in m + n digits, so pos[0] never overflows.
-- q: >-
-    Checking whether four integer points form a square by comparing floating-point side lengths from sqrt fails on some inputs. What is the robust fix?
-  options: ["Round to 6 decimal places", "Use a larger epsilon", "Compare squared distances, which are exact integers for integer coordinates", "Sort the points by angle first"]
+  options: ["Because each single digit product is at most 81", "It is not always enough; you need m + n + 1 slots", "Because the product of the two is below 10^(m+n)", "Because every carry between slots is at most 1"]
   answer: 2
   explanation: >-
-    sqrt introduces rounding, so equal lengths can compare unequal. Squared distances of integer points are integers, so equality is exact. The only remaining concern is overflow for very large coordinates.
+    An m-digit number is below 10^m and an n-digit number is below 10^n, so their product is below 10^(m+n) and has at most m + n digits. Individual pos slots can temporarily exceed 9, and carries can exceed 1, but the final value fits in m + n digits, so pos[0] never overflows.
 - q: >-
-    In JavaScript, a Detect Squares implementation stores counts in a Map keyed by [x, y] arrays. What goes wrong?
-  options: ["Maps cannot store arrays", "Every lookup with a freshly built [x, y] misses, because arrays are compared by reference, so count always returns 0", "It works but is slow", "Duplicate points overwrite each other"]
+    Checking whether four integer points form a square by comparing floating-point side lengths from sqrt fails on some inputs. What is the robust fix?
+  options: ["Compare the lengths with a larger epsilon tolerance", "Compare squared distances, which are exact integers", "Round every side length to 6 decimal places first", "Sort the four points by polar angle before comparing"]
   answer: 1
   explanation: >-
-    Two different array objects with the same contents are different keys. Use a string key such as x + ',' + y, or a numeric encoding when the coordinate bounds allow it.
+    sqrt introduces rounding, so equal lengths can compare unequal, and rounding or a wider epsilon only moves the failure elsewhere. Squared distances of integer points are integers, so equality is exact. The only remaining concern is overflow for very large coordinates.
 - q: >-
-    Your Java pow(x, n) uses n = -n for negative exponents and passes every test except n = -2147483648. Why?
-  options: ["x is zero", "Floating-point underflow", "The loop runs too many times", "Negating the minimum 32-bit integer overflows back to itself, so n stays negative and the loop misbehaves"]
+    In JavaScript, a Detect Squares implementation stores counts in a Map keyed by [x, y] arrays. What goes wrong?
+  options: ["It works correctly, but each lookup scans the whole map", "Duplicate points overwrite each other's stored counts", "Map objects cannot store arrays as their keys at all", "Fresh [x, y] lookups miss, as arrays compare by reference"]
   answer: 3
   explanation: >-
-    The int range is asymmetric: +2^31 is not representable, so -(-2^31) wraps to -2^31. Copy n into a long before negating. Negation cannot overflow in Python or JavaScript, although JavaScript has its own 32-bit trap if you halve n with >>.
+    Two different array objects with the same contents are different keys, so every lookup with a freshly built [x, y] misses and count always returns 0. Use a string key such as x + ',' + y, or a numeric encoding when the coordinate bounds allow it.
+- q: >-
+    Your Java pow(x, n) uses n = -n for negative exponents and passes every test except n = -2147483648. Why?
+  options: ["Negating -2^31 overflows back to -2^31 in an int", "Floating-point underflow drives the result to zero", "x is zero, so the inversion divides by zero", "The loop runs 2^31 times and exceeds the time limit"]
+  answer: 0
+  explanation: >-
+    The int range is asymmetric: +2^31 is not representable, so -(-2^31) wraps to -2^31, n stays negative, and the loop misbehaves. Copy n into a long before negating. Negation cannot overflow in Python or JavaScript, although JavaScript has its own 32-bit trap if you halve n with >>.
 ```

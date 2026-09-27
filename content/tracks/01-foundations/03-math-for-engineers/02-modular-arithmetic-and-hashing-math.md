@@ -271,32 +271,32 @@ hints:
 ```quiz
 - q: >-
     In Java, `key.hashCode() % table.length` throws ArrayIndexOutOfBoundsException in production once a week. What is happening?
-  options: ["hashCode() can exceed table.length", "hashCode() can be negative, and Java's % keeps the sign of the dividend", "table.length is not prime", "Integer overflow in the multiplication inside hashCode()"]
-  answer: 1
+  options: ["hashCode() can be negative, and Java's % keeps its sign", "hashCode() can exceed table.length and % fails to wrap it", "Overflow in hashCode() yields values % cannot reduce", "table.length is not prime, so some buckets overflow"]
+  answer: 0
   explanation: >-
-    Java's hashCode() returns a signed int and Java's % truncates toward zero, so a negative hash gives a negative index. Exceeding table.length is exactly what % fixes; primality and overflow inside hashCode are irrelevant to the sign. Use Math.floorMod or mask with a power-of-two size.
+    Java's hashCode() returns a signed int and Java's % truncates toward zero, so the remainder keeps the sign of the dividend and a negative hash gives a negative index. Exceeding table.length is exactly what % fixes, and no int value is too large for % to reduce; only the sign escapes it. Primality is irrelevant. Use Math.floorMod or mask with a power-of-two size.
 - q: >-
     You port a solution that computes products modulo 10^9 + 7 from Python to JavaScript and it returns wrong answers on large inputs. Why?
-  options: ["JavaScript's % operator is not modulo", "The product of two values below 10^9 + 7 can exceed 2^53, so a JavaScript Number loses precision before the % is applied", "JavaScript integers are 32-bit", "10^9 + 7 is not prime in JavaScript"]
-  answer: 1
+  options: ["The product can pass 2^53 and is rounded before the %", "JavaScript's % is float division and rounds the remainder", "JavaScript integers are 32-bit, so the product wraps", "JavaScript's % gives negative results for these inputs"]
+  answer: 0
   explanation: >-
-    Two reduced operands can multiply to about 10^18, above the 2^53 exact-integer limit of a float64. The digits are rounded before the reduction, so the remainder is wrong. Bitwise operators are 32-bit but ordinary arithmetic is not; use BigInt or split the multiplication.
+    Two reduced operands can multiply to about 10^18, above the 2^53 exact-integer limit of a float64. The digits are rounded before the reduction, so the remainder is wrong. Bitwise operators are 32-bit but ordinary arithmetic is not, and with non-negative operands the sign of % never comes into play; use BigInt or split the multiplication.
 - q: >-
     A rolling hash uses base B = 256 and modulus M = 2^32 (via unsigned overflow). What is wrong with it?
-  options: ["Nothing; powers of two are fast", "B^4 is 0 mod M, so only the last four characters of each window affect the hash", "The hash cannot be updated in O(1)", "256 is too small a base for ASCII"]
-  answer: 1
+  options: ["256 is too small a base to separate all ASCII strings", "The hash can no longer be rolled forward in O(1) time", "256^4 is 0 mod 2^32, so only the last 4 chars count", "Nothing; a power-of-two modulus is just faster to reduce"]
+  answer: 2
   explanation: >-
-    256^4 = 2^32 is congruent to 0, so every character more than four positions from the end contributes nothing. A prime modulus shares no factor with B, keeping every position live. Speed is real but irrelevant when the hash is broken.
+    256^4 = 2^32 is congruent to 0, so every character more than four positions from the end contributes nothing. A prime modulus shares no factor with B, keeping every position live. Speed is real but irrelevant when the hash is broken, and 256 already exceeds the ASCII alphabet.
 - q: >-
     Why do Python's dict and Rust's HashMap use power-of-two bucket counts even though prime sizes spread structured keys better?
-  options: ["They do not; both use primes", "Masking with (size - 1) is a single cycle while modulo by a prime is a division, and they compensate by mixing the hash bits first", "Power-of-two sizes never collide", "Primes cannot be doubled on resize"]
+  options: ["They do not; both pick prime bucket counts for spread", "Masking beats dividing, and a mixing step fixes spread", "Prime sizes cannot be grown by doubling when resizing", "Power-of-two sizes eliminate collisions for integer keys"]
   answer: 1
   explanation: >-
-    The mask is far cheaper than a division and doubling is trivial. The weakness (only low bits pick the bucket) is fixed by a mixing step or a hash whose bits are already well spread. Primes can of course be roughly doubled, and no size prevents collisions.
+    Masking with (size - 1) is a single cycle while modulo by a prime is a division, and doubling is trivial. The weakness (only low bits pick the bucket) is fixed by a mixing step or a hash whose bits are already well spread. Primes can of course be roughly doubled, and no size prevents collisions.
 - q: >-
     Rabin-Karp reports that a window's hash equals the pattern's hash. What must the algorithm do next to be correct?
-  options: ["Report a match immediately", "Compare the window and the pattern character by character", "Recompute the hash with a different base", "Nothing; equal hashes imply equal strings when M is prime"]
+  options: ["Report a match immediately; the hashes agree", "Compare the window and pattern character by character", "Recompute both hashes with a second base to confirm", "Nothing; equal hashes imply equal strings when M is prime"]
   answer: 1
   explanation: >-
-    Different strings can share a hash with probability about 1/M per window. Verification keeps the algorithm exact; skipping it makes it Monte Carlo with an error rate near n/M. A prime modulus reduces collisions but cannot eliminate them.
+    Different strings can share a hash with probability about 1/M per window. Verification keeps the algorithm exact; skipping it makes it Monte Carlo with an error rate near n/M. A prime modulus, or a second hash, reduces collisions but cannot eliminate them.
 ```

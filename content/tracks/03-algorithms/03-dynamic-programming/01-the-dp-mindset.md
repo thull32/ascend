@@ -278,32 +278,32 @@ hints:
 ```quiz
 - q: >-
     A recursive solution has optimal substructure but its subproblems never overlap. What should you do?
-  options: ["Add memoisation; it never hurts", "Use divide and conquer; a cache would store every result once and never hit", "Convert to a greedy algorithm", "Switch to bottom-up tabulation"]
-  answer: 1
+  options: ["Use divide and conquer, since no subproblem is ever requested twice", "Add memoisation, since a cache can only ever reduce the call count", "Go greedy, since optimal substructure implies a safe local choice", "Tabulate bottom-up, since that removes repeated recursive calls"]
+  answer: 0
   explanation: >-
-    A cache only pays when the same state is requested more than once. With disjoint subproblems (merge sort, quicksort) the memo costs memory and hashing for zero hits. Greedy needs a separate safe-choice property, which is not implied here.
+    A cache only pays when the same state is requested more than once. With disjoint subproblems (merge sort, quicksort) a memo would store every result once and never hit, costing memory and hashing for nothing. Greedy needs a separate safe-choice property, which optimal substructure does not imply.
 - q: >-
     You define dp[i] as "something about the first i elements" and cannot write a transition. What is the most likely fix?
-  options: ["Switch from top-down to bottom-up", "Sharpen the state definition, often by adding a dimension that captures what the transition needs to know", "Increase the recursion limit", "Precompute prefix sums"]
-  answer: 1
-  explanation: >-
-    A transition can only be derived from a precise state. If the last decision depends on information the state does not carry (are you holding a share? what was the previous element?), that information must become part of the state.
-- q: >-
-    A DP has O(n²) states and each transition scans O(n) earlier states. n = 5000. Is it fast enough for a typical 1–2 second limit?
-  options: ["Yes, O(n²) is fine for 5000", "No, the total is O(n³) ≈ 1.25 × 10¹¹ operations", "Yes, memoisation reduces it to O(n²)", "It depends on whether you use top-down or bottom-up"]
-  answer: 1
-  explanation: >-
-    Running time is states × transition cost = n² × n = n³. Memoisation only guarantees each state is computed once; it does not shrink the per-state work. Top-down vs bottom-up changes constants, not the exponent.
-- q: >-
-    Which is a genuine advantage of top-down memoisation over bottom-up tabulation?
-  options: ["It uses less memory because it can roll rows", "It never overflows the stack", "It computes only the states that are actually reachable from the initial call", "It is always faster in wall-clock time"]
+  options: ["Add more base cases so the recurrence always has somewhere to start", "Switch from top-down to bottom-up so the fill order is explicit", "Sharpen the state, often adding a dimension the transition needs", "Precompute prefix sums so each transition reads ranges in O(1)"]
   answer: 2
   explanation: >-
-    Tabulation fills the whole table including states the answer never depends on; memoisation touches only what the recursion requests. Memory rolling and stack safety are advantages of bottom-up, and per-state overhead usually makes memo slower.
+    A transition can only be derived from a precise state. If the last decision depends on information the state does not carry (are you holding a share? what was the previous element?), that information must become part of the state, usually as an extra dimension. Changing the evaluation direction does not help: top-down and bottom-up evaluate the same recurrence.
+- q: >-
+    A DP has O(n²) states and each transition scans O(n) earlier states. n = 5000. Is it fast enough for a typical 1–2 second limit?
+  options: ["Yes; 2.5 × 10⁷ states is comfortably within the limit", "Yes; memoisation computes each state once, so O(n²)", "Only bottom-up; top-down call overhead makes it n³", "No; states × transition cost is n³ ≈ 1.25 × 10¹¹"]
+  answer: 3
+  explanation: >-
+    Running time is states × transition cost = n² × n = n³ ≈ 1.25 × 10¹¹ operations, far too many. Memoisation only guarantees each state is computed once; it does not shrink the O(n) work inside each state. Top-down vs bottom-up changes constants, not the exponent.
+- q: >-
+    Which is a genuine advantage of top-down memoisation over bottom-up tabulation?
+  options: ["It computes only states reachable from the initial call", "It uses less memory, since finished rows can be rolled away", "It runs faster, since it skips allocating a full table", "It cannot overflow the stack, since results are cached"]
+  answer: 0
+  explanation: >-
+    Tabulation fills the whole table including states the answer never depends on; memoisation touches only what the recursion requests. Rolling rows and stack safety are advantages of bottom-up (the memo still recurses as deep as the longest dependency chain), and per-state call and hash overhead usually makes memoisation slower.
 - q: >-
     For min-cost climbing stairs with cost = [10, 15, 20], why is the answer 15 and not 10?
-  options: ["Because you must start on stair 1", "Because the top is one past the last stair, so from stair 0 you must still step on stair 1 or 2, while from stair 1 a single 2-step reaches the top", "Because the DP takes the minimum of the whole array", "Because stair 0 is free"]
-  answer: 1
+  options: ["Because the top is the last stair, so every route must pay its 20", "Because you must start on stair 1; stair 0 is only the ground", "Because the table keeps the shortest path, which starts on stair 1", "Because from stair 0 you still pay for stair 1 or 2 before the top"]
+  answer: 3
   explanation: >-
-    Starting on stair 0 costs 10 and then you must pay 15 or 20 to make progress (total 25 or 30). Starting on stair 1 costs 15 and a 2-step lands on the top, which is free. The answer is min(dp[n-1], dp[n-2]) = min(15, 30) = 15.
+    The top is one past the last stair and is free. Starting on stair 0 costs 10, but you must then land on stair 1 or 2 (total 25 or 30). Starting on stair 1 costs 15 and a single 2-step reaches the top. The answer is min(dp[n-1], dp[n-2]) = min(30, 15) = 15. You may start on either stair 0 or stair 1, so nothing forces stair 1.
 ```

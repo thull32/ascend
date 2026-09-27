@@ -341,32 +341,32 @@ hints:
 ```quiz
 - q: >-
     In Longest Consecutive Sequence, why is the algorithm O(n) even though it contains a while loop nested inside a for loop?
-  options: ["The while loop runs at most log n times", "Each element is the start of a walk only if it is a sequence head, so every element is walked over exactly once across all iterations", "The set lookups are O(1) so the nesting does not matter", "Python's set iteration is sorted, so the walk never repeats"]
-  answer: 1
+  options: ["The while loop runs at most log n times per element", "Set lookups are O(1), so the nesting adds no asymptotic cost", "Set iteration is in sorted order, so no walk ever repeats", "Walks start only at sequence heads, so each element is walked once"]
+  answer: 3
   explanation: >-
     Walks begin only at elements whose predecessor is absent. Each run of consecutive values has one head, so its elements are visited by exactly one walk. O(1) lookups alone would still allow O(n²) total work if walks restarted from every element, and set iteration order is not sorted.
 - q: >-
     You are grouping records by a compound key of three integers in JavaScript. Which key works correctly with a Map?
-  options: ["The array [a, b, c] directly", "A template string like `${a}:${b}:${c}`", "The number a + b + c", "An object {a, b, c}"]
-  answer: 1
+  options: ["The array [a, b, c] used directly as the key", "An object {a, b, c} built fresh for each record", "A template string like `${a}:${b}:${c}`", "The number a + b + c, which is cheap to hash"]
+  answer: 2
   explanation: >-
     Map compares arrays and objects by reference, so two equal-looking arrays are different keys. A string with a separator is unambiguous. a + b + c collides for different triples.
 - q: >-
     An interviewer asks you to solve Top K Frequent Elements in O(n) time. Which idea does that constraint point to?
-  options: ["Sort the values by count", "Use a max-heap of all distinct values", "Bucket the values by their count, since counts are bounded by n", "Use a balanced BST keyed by count"]
-  answer: 2
+  options: ["Sort the distinct values by their counts", "Bucket the values by count, as counts are ≤ n", "Keep a balanced BST keyed by each value's count", "Build a max-heap of all distinct values"]
+  answer: 1
   explanation: >-
     Counts lie in 1..n, so an array of n + 1 buckets indexed by count is a counting sort on frequencies and reads the top k in O(n). Sorting and heaps are O(m log m) or O(m log k); a heap of size k is the right answer when k is small but is not O(n) in general.
 - q: >-
     First Missing Positive can be solved with a set in three lines. Why do interviewers usually reject that answer?
-  options: ["Sets are slower than lists", "The problem asks for O(1) extra space, and the value range 1..n means the array itself can serve as the map", "The set solution is O(n log n)", "Sets cannot store integers larger than n"]
-  answer: 1
-  explanation: >-
-    The set solution is O(n) time and O(n) space and is a fine first answer. The constraint that rules it out is space; the dense range 1..n is the signal for cyclic sort, which places each value at index value - 1 in place.
-- q: >-
-    You write `seen[x] = i` and then check `if target - x in seen`. What input breaks this?
-  options: ["Any input with negative numbers", "An input where the answer uses the last element", "An input where target is exactly twice some element, which then pairs with itself", "An input with more than one valid pair"]
+  options: ["The set version is O(n log n) once hashing costs are counted", "Sets cannot hold integers larger than n without resizing", "It needs O(1) extra space; the array itself can be the map", "Sets are slower in practice than a sorted list here"]
   answer: 2
   explanation: >-
-    Inserting before querying means x can find itself when target - x == x. Query first, then insert, and the stored index is always earlier than the current one.
+    The set solution is O(n) time and O(n) space and is a fine first answer. The constraint that rules it out is space; the dense range 1..n is the signal for cyclic sort, which places each value at index value - 1 so the array serves as the map.
+- q: >-
+    You write `seen[x] = i` and then check `if target - x in seen`. What input breaks this?
+  options: ["An input where the answer uses the last element", "An input that has more than one valid pair", "Any input that contains negative numbers", "An input where target is twice some element"]
+  answer: 3
+  explanation: >-
+    Inserting before querying means x can find itself when target - x == x, so it pairs with itself. Query first, then insert, and the stored index is always earlier than the current one.
 ```

@@ -186,32 +186,32 @@ hints:
 ```quiz
 - q: >-
     A churn model's training set joins labels for 1 May to a features table on user_id only, taking each user's latest row. Offline accuracy is excellent and production accuracy is poor. What is the most likely cause?
-  options: ["The model is overfitting to noise", "Label leakage: the latest feature rows were computed after the prediction time and encode the outcome", "The online store is too slow", "The labels are imbalanced"]
+  options: ["The online store is too slow, so serving drops features", "Label leakage from feature rows computed after 1 May", "The labels are imbalanced, since few users churn in May", "The model is overfitting to noise in the training month"]
   answer: 1
   explanation: >-
-    Without a point-in-time condition, features computed after 1 May (for example, zero plays after a user churned) leak the label into the inputs. The model learns the leak, which does not exist at prediction time.
+    Without a point-in-time condition, the latest feature rows were computed after the prediction time (for example, zero plays after a user churned) and leak the label into the inputs. The model learns the leak, which does not exist at prediction time. Overfitting to noise would hurt held-out offline accuracy too, not only production.
 - q: >-
     Training uses a nightly batch feature computed as of midnight; serving reads a streaming version updated every minute. Both implement the same definition correctly. Why can this still hurt the model?
-  options: ["Streaming features are always wrong", "The model learned the relationship between labels and values that are up to a day old, and in serving it receives fresher values with a different distribution", "Nightly jobs cannot compute aggregates", "It cannot hurt if the code is identical"]
-  answer: 1
+  options: ["It cannot hurt, because the definitions are identical", "Streaming features are approximate, so values drift apart", "Nightly jobs cannot compute the same windowed aggregates", "The model learned day-old values and now gets fresh ones"]
+  answer: 3
   explanation: >-
-    Freshness is part of the feature's meaning. A value 12 hours stale on average and a value 1 minute stale are different inputs. Training on logged serving values, or computing training features at the same freshness, removes the skew.
+    Freshness is part of the feature's meaning. The model learned the relationship between labels and values that are up to a day old; in serving it receives fresher values with a different distribution. Identical code does not make a 12-hour-stale input and a 1-minute-stale input the same. Training on logged serving values, or computing training features at the same freshness, removes the skew.
 - q: >-
     Why is training on features logged at serving time an effective defence against skew, and what is its main cost?
-  options: ["It is faster to compute; it costs more storage only", "Training sees exactly the values serving used, including staleness and defaults; a new feature has no logged history until it has been served for a while", "It removes the need for labels; it costs accuracy", "It avoids point-in-time joins entirely; it has no cost"]
+  options: ["It removes the need for labels; it costs some accuracy", "Training sees what serving saw; new features lack history", "It is faster to compute; its only cost is extra storage", "It avoids point-in-time joins entirely, so it has no real cost"]
   answer: 1
   explanation: >-
-    Logged features are by construction what the model saw in production. New features must either wait to accumulate logged history or be backfilled point-in-time from the offline path. Labels are still joined to the logged features by time.
+    Logged features are by construction what the model saw in production, including staleness and defaults. A new feature has no logged history until it has been served for a while, so it must either wait or be backfilled point-in-time from the offline path. Labels are still joined to the logged features by time, so neither labels nor time-based joins go away.
 - q: >-
     A range-based point-in-time join over two years of daily feature snapshots for 50 million labels runs for hours and spills terabytes. What is the most effective fix?
-  options: ["Add more executors", "Bound the join with a time-to-live predicate (or use a native as-of join) so each label matches only recent feature rows, and bucket both sides by entity", "Sort the labels table", "Switch to a random train/test split"]
-  answer: 1
+  options: ["Sort the labels table by timestamp before the join", "Switch to a random split so fewer labels need features", "Add more executors so the spill spreads over more disks", "Bound the range with a TTL and bucket both sides by entity"]
+  answer: 3
   explanation: >-
-    Without a lower bound each label joins about 730 earlier rows, a 36-billion-row intermediate. A TTL predicate or an as-of join keeps the intermediate close to one row per label; bucketing avoids a large shuffle.
+    Without a lower bound each label joins about 730 earlier rows, a 36-billion-row intermediate. A time-to-live predicate (or a native as-of join) keeps the intermediate close to one row per label; bucketing both sides by entity avoids a large shuffle. More executors only spread the same oversized intermediate.
 - q: >-
     Which record best makes a trained model's dataset reproducible six months later?
-  options: ["The model's hyperparameters", "Feature definitions and versions, the label definition and time range, and the snapshot ids of every input table", "The number of rows in the training set", "The Git commit of the serving service"]
-  answer: 1
+  options: ["Feature versions, label definition and input snapshot ids", "The Git commit of the service that serves the model", "The row count and schema of the final training set", "The model's hyperparameters, random seed and framework version"]
+  answer: 0
   explanation: >-
-    Reproducing data requires knowing exactly what was computed and from which versions of the inputs. Table-format snapshot ids pin the input files; definitions pin the logic. Hyperparameters and row counts describe the model, not the data.
+    Reproducing data requires knowing exactly what was computed and from which versions of the inputs: feature definitions and versions, the label definition and time range, and the snapshot ids of every input table. Table-format snapshot ids pin the input files; definitions pin the logic. Hyperparameters and row counts describe the model, not the data.
 ```

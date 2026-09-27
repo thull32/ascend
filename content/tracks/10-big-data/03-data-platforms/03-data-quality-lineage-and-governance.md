@@ -205,32 +205,32 @@ hints:
 ```quiz
 - q: >-
     A producer changes an amount field from dollars to cents without changing its type. Which control is most likely to catch it before any consumer sees the data?
-  options: ["A schema registry compatibility check", "A not_null test on the amount column", "A producer-owned contract that specifies units, enforced by a CI test, plus a pre-publish reconciliation against the ledger", "Column-level lineage"]
-  answer: 2
+  options: ["A unit-aware producer contract plus a ledger reconciliation", "Column-level lineage from payments to the revenue mart", "A not_null test on the amount column in staging", "A schema registry check for backward compatibility"]
+  answer: 0
   explanation: >-
-    The schema is unchanged, so schema checks and null tests pass. Contracts that carry semantics, enforced where the change is made, and a reconciliation against an independent total catch a unit change. Lineage helps measure the blast radius afterwards but does not detect it.
+    The schema is unchanged, so schema checks and null tests pass. A producer-owned contract that specifies units, enforced by a CI test where the change is made, plus a pre-publish reconciliation against the ledger's independent total, catches a unit change. Lineage helps measure the blast radius afterwards but does not detect it.
 - q: >-
     Why is a median-and-MAD check preferred over mean and standard deviation for daily row-count anomalies?
-  options: ["It is faster to compute", "Outliers in the history inflate the standard deviation and mask later anomalies, while median and MAD are barely affected by a few outliers", "It works only for normally distributed data", "It avoids the need for a threshold"]
-  answer: 1
+  options: ["It needs no threshold, so it adapts to growth by itself", "It fits normally distributed counts better than the mean does", "It is faster to compute over long windows of history", "Past outliers barely move it, so they cannot mask new ones"]
+  answer: 3
   explanation: >-
-    A single bad day (for example 0 rows) in the history window can inflate the standard deviation enough that the next bad day looks normal. Robust statistics resist that. Both approaches still need a threshold.
+    A single bad day (for example 0 rows) in the history window can inflate the standard deviation enough that the next bad day looks normal. The median and MAD are barely affected by a few outliers, so they keep flagging. Both approaches still need a threshold (k).
 - q: >-
     In a write-audit-publish flow on Iceberg, the audit of today's partition fails. What do readers of the main branch see?
-  options: ["The new, unaudited data", "An empty table", "The last published, audited data; the new data stays on the audit branch", "An error until the audit passes"]
-  answer: 2
+  options: ["The new data, flagged as unaudited until the audit passes", "An empty partition for today until the audit passes", "A read error on today's partition until it is fixed", "The last audited data; the new data stays on the branch"]
+  answer: 3
   explanation: >-
-    The write went to a branch that readers of main do not see, and the fast-forward that publishes it never ran. Readers keep the previous correct snapshot; the incident becomes lateness rather than wrong numbers.
+    The write went to an audit branch that readers of main do not see, and the fast-forward that publishes it never ran. Readers keep the last published, audited snapshot; the incident becomes lateness rather than wrong numbers, and nothing on main is emptied or broken.
 - q: >-
     A team pseudonymises emails with SHA-256 before loading them into the warehouse and declares the column non-personal. What is the problem?
-  options: ["SHA-256 is too slow for large tables", "Emails are guessable, so anyone can hash candidate addresses and match them; use a keyed hash or tokenisation and still treat the column as personal data", "Hashes cannot be joined across tables", "SHA-256 collisions will merge different users"]
-  answer: 1
+  options: ["SHA-256 collisions will merge different users' rows", "Hashed values can no longer be joined to other tables by email", "SHA-256 is too slow to run over warehouse tables of this size", "Guessable emails can be hashed and matched to reverse it"]
+  answer: 3
   explanation: >-
-    An unkeyed hash of a low-entropy, structured identifier is reversible by dictionary attack. A keyed hash with a secret held elsewhere prevents that, but the output is still pseudonymous personal data, not anonymous data.
+    An unkeyed hash of a low-entropy, structured identifier is reversible by dictionary attack: hash candidate addresses and match them. A keyed hash or tokenisation with a secret held elsewhere prevents that, but the output is still pseudonymous personal data, not anonymous data. Collisions in SHA-256 are not a practical concern.
 - q: >-
     A user's deletion request is applied to an Iceberg table with DELETE, but the user's rows can still be read a month later. What was missed?
-  options: ["The DELETE needed a WHERE clause", "Older snapshots still reference the original data files; compaction and snapshot expiry are needed to remove them physically", "Iceberg does not support deletes", "The table must be converted to Delta Lake"]
+  options: ["The DELETE needed a WHERE clause on the user's partition", "Old snapshots still reference the files until they expire", "Iceberg ignores row-level deletes on partitioned tables", "The table must be converted to Delta Lake to honour deletes"]
   answer: 1
   explanation: >-
-    Row-level deletes create a new snapshot, but time travel to older snapshots still reads the old files. Deletion is only real once files without the rows are written and snapshots referencing the old files are expired and cleaned up.
+    Row-level deletes create a new snapshot, but time travel to older snapshots still reads the old files. Deletion is only real once compaction writes files without the rows and the snapshots referencing the old files are expired and cleaned up. Iceberg supports deletes fine; the current snapshot no longer shows the rows.
 ```

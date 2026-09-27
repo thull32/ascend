@@ -200,32 +200,32 @@ A common middle path is an **API gateway** at the edge for north-south traffic (
 ```quiz
 - q: >-
     The orders application retries a failed call up to 3 attempts in total, and its sidecar is configured with num_retries 2 for every attempt. During a payments outage, how many requests can one logical call send to payments?
-  options: ["3", "5", "6", "9"]
-  answer: 3
+  options: ["5", "9", "6", "3"]
+  answer: 1
   explanation: >-
     Each of the application's 3 attempts becomes up to 1 + 2 = 3 tries in the sidecar, so 9 requests. Across several tiers this multiplies again. Retry in one place per hop, preferably the mesh with a retry budget.
 - q: >-
     An Envoy access log shows "503 UO" with a duration of 0 ms for calls from orders to payments. What does it tell you?
-  options: ["The orders sidecar rejected the request locally because a concurrency limit such as max_pending_requests was exceeded; payments never saw it", "Payments returned 503 because it is overloaded", "No route was configured for payments", "The TLS handshake failed"]
+  options: ["The orders sidecar rejected it at a concurrency cap", "No route is configured in the mesh for payments", "Payments itself returned 503 because it is overloaded", "The mTLS handshake between the sidecars failed"]
   answer: 0
   explanation: >-
-    UO is upstream overflow: the local proxy's circuit-breaker thresholds (concurrency caps) were full, so it failed fast. The cause is often a slow upstream holding requests open or limits sized too small, but the 503 itself came from the caller's side.
+    UO is upstream overflow: the local proxy's circuit-breaker thresholds (concurrency caps such as max_pending_requests) were full, so it failed fast in 0 ms and payments never saw the request. The cause is often a slow upstream holding requests open or limits sized too small, but the 503 itself came from the caller's side. A missing route would be NR.
 - q: >-
     After adopting a mesh, the tracing UI shows only single-hop traces: orders to payments, and separately payments to ledger, never linked. What is missing?
-  options: ["The sidecars are not emitting spans", "mTLS strips tracing headers", "The applications are not copying trace context headers (such as traceparent) from inbound requests to the outbound requests they make", "The control plane is down"]
-  answer: 2
+  options: ["Apps do not copy traceparent to outbound calls", "The sidecars are not emitting any spans for the calls", "The control plane is down, so spans are not joined", "mTLS strips the tracing headers between sidecars"]
+  answer: 0
   explanation: >-
-    Sidecars see each hop but cannot know which inbound request caused which outbound call inside the process. The application must propagate the trace context; the mesh then stitches the spans together.
+    Sidecars see each hop and do emit spans, but they cannot know which inbound request caused which outbound call inside the process. The application must copy trace context headers (such as traceparent) from inbound requests to the outbound requests it makes; the mesh then stitches the spans together.
 - q: >-
     Your mesh enforces strict mTLS between all services. Which risk does that NOT address?
-  options: ["Eavesdropping on traffic between nodes", "A service impersonating another service's identity without its key", "A user using the orders service to trigger a charge on someone else's account", "Plaintext traffic from pods outside the mesh being accepted"]
-  answer: 2
+  options: ["A user abusing orders to charge another's account", "Eavesdropping on traffic passing between nodes", "A service impersonating another without its key", "Plaintext traffic from pods outside the mesh"]
+  answer: 0
   explanation: >-
     Mesh mTLS authenticates workloads, not end users. Orders is a legitimate caller of payments, so payments must still authorise the action for the user on whose behalf orders is calling. Strict mode does address eavesdropping, workload impersonation and plaintext callers.
 - q: >-
     The mesh's control plane goes down for 20 minutes. What is the most accurate description of the impact?
-  options: ["All service-to-service traffic stops immediately", "Existing sidecars keep routing with their last configuration, but new pods cannot get configuration or certificates and endpoint changes stop propagating", "Nothing changes; the control plane is not involved in traffic", "Only telemetry is lost"]
-  answer: 1
+  options: ["Traffic flows on old config; new pods cannot join", "Nothing changes, since the control plane is not in the path", "All service-to-service traffic stops immediately", "Only telemetry is lost until it comes back up"]
+  answer: 0
   explanation: >-
-    The data plane is designed to survive with last-known configuration, so steady-state traffic continues. But scale-ups and deploys produce pods that cannot join, endpoint lists go stale as pods move, and certificate rotation stops, which becomes an outage if it lasts long enough.
+    The data plane is designed to survive with last-known configuration, so steady-state traffic continues. But new pods cannot get configuration or certificates, endpoint changes stop propagating as pods move, and certificate rotation stops, which becomes an outage if it lasts long enough.
 ```

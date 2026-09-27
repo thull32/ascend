@@ -265,32 +265,32 @@ hints:
 ```quiz
 - q: >-
     A request counter is changed from a mutex to an atomic fetch_add. On 64 cores throughput improves only slightly. What is the most likely reason?
-  options: ["fetch_add is implemented with a hidden mutex", "Every increment still needs exclusive ownership of the same cache line, so increments are serialised by cache-line transfers", "The atomic uses SeqCst ordering, which disables the cache", "The compiler turns fetch_add into a CAS loop"]
-  answer: 1
+  options: ["The compiler rewrites fetch_add into a retrying CAS loop", "SeqCst ordering on the atomic disables the CPU cache", "The 64 cores pass one cache line around in turn", "fetch_add is implemented with a hidden mutex on x86"]
+  answer: 2
   explanation: >-
-    Atomic RMW works by holding the line exclusively, so 64 cores take turns with one line; each handoff costs tens to hundreds of nanoseconds. Per-core or per-thread counters summed on read remove the sharing. fetch_add is a single instruction, not a mutex or a loop.
+    Atomic RMW works by holding the cache line exclusively, so every increment needs ownership of the same line and 64 cores take turns with it; each handoff costs tens to hundreds of nanoseconds. Per-core or per-thread counters summed on read remove the sharing. fetch_add is a single instruction, not a mutex or a loop, and no ordering disables the cache.
 - q: >-
     A producer writes DATA = 42 then stores READY = true, both with Relaxed ordering. A consumer loads READY with Relaxed and, if true, reads DATA. What can the consumer see?
-  options: ["Always 42", "42 or 0, on weakly ordered hardware such as ARM or under compiler reordering", "42 or a torn value", "It deadlocks"]
+  options: ["Always 42, because each store is itself atomic", "42 or 0, on ARM or after compiler reordering", "42 or a torn mix of the old and new bytes", "42 or 0 on x86, but always 42 on ARM"]
   answer: 1
   explanation: >-
-    Relaxed provides atomicity but no ordering between the two variables, so READY can become visible before DATA. A Release store paired with an Acquire load creates the happens-before edge that guarantees 42. It often works on x86 by accident, which is how the bug survives testing.
+    Relaxed provides atomicity (so no torn values) but no ordering between the two variables, so READY can become visible before DATA on weakly ordered hardware such as ARM, or when the compiler reorders. A Release store paired with an Acquire load creates the happens-before edge that guarantees 42. It often works on x86 by accident, which is how the bug survives testing.
 - q: >-
     Thread 1 runs `x = 1; r1 = y`. Thread 2 runs `y = 1; r2 = x`. Both variables start at 0 and use plain stores and loads on x86. Is r1 == 0 and r2 == 0 possible?
-  options: ["No, x86 is sequentially consistent", "Yes: each store can wait in its core's store buffer while the following load reads the old value", "Only if the threads run on the same core", "Only with a compiler bug"]
-  answer: 1
+  options: ["Only if both threads are scheduled on the same physical core", "No, because x86 stores and loads are sequentially consistent", "Yes: stores wait in store buffers while the loads run", "Only if the compiler reorders the code, never in hardware"]
+  answer: 2
   explanation: >-
-    x86's total store order still lets a later load pass an earlier store to a different address. Both loads can read 0. A full fence or SeqCst on all four operations forbids it. This is why Dekker's and Peterson's algorithms need fences on real hardware.
+    x86's total store order still lets a later load pass an earlier store to a different address: each store waits in its core's store buffer while the following load reads the old value from cache, so both loads can read 0. A full fence or SeqCst on all four operations forbids it. This is why Dekker's and Peterson's algorithms need fences on real hardware.
 - q: >-
     In a Treiber stack, thread 1 reads head = A and next = B, then stalls. Meanwhile A and B are popped, B is freed, and A is pushed back. Thread 1's CAS(head, A, B) succeeds. What went wrong, and what fixes it?
-  options: ["A data race; add a mutex around the CAS", "ABA: CAS compared only the address, which matched despite the change; fix with a version tag or safe reclamation such as hazard pointers or epochs", "Starvation; use a fair lock", "False sharing; pad the head pointer"]
-  answer: 1
+  options: ["A data race; wrap the CAS in a mutex to serialise it", "False sharing; pad head onto its own cache line", "ABA; add a version tag, or defer freeing the nodes", "Starvation; replace the stack's CAS with a fair lock"]
+  answer: 2
   explanation: >-
-    CAS proves the value is equal, not that nothing happened. A version counter changes on every update so a recycled address no longer matches, and deferred reclamation prevents A from being reused while thread 1 holds it. A mutex would also work, but then the structure is no longer lock-free.
+    CAS compared only the address, which matched even though the structure had changed: the ABA problem. A version counter changes on every update so a recycled address no longer matches, and deferred reclamation (hazard pointers, epochs) prevents A from being reused while thread 1 holds it. A mutex would also work, but then the structure is no longer lock-free, and the bug is not a data race: every access is atomic.
 - q: >-
     Which statement about a lock-free CAS-loop counter is true?
-  options: ["Every thread finishes each increment within a bounded number of steps", "Some thread always makes progress, but a particular thread can keep failing and retrying", "It is always faster than a mutex", "It is correct on x86 but can lose updates on ARM"]
-  answer: 1
+  options: ["It is correct on x86 but can lose updates on ARM hardware", "Every thread finishes each increment in a bounded number of steps", "It is always faster than a mutex, whatever the contention", "Some thread always progresses, but one may retry indefinitely"]
+  answer: 3
   explanation: >-
     A failed CAS means another thread's CAS succeeded, so the system progresses (lock-free), but an unlucky thread can lose repeatedly (not wait-free). Speed depends on contention: a mutex can win when many threads fight over one line. Correctness does not depend on the architecture.
 ```

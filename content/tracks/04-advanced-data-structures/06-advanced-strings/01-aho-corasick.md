@@ -236,32 +236,32 @@ hints:
 ```quiz
 - q: >-
     What does the failure link of a trie node u point to?
-  options: ["The parent of u", "The root, always", "The node whose string is the longest proper suffix of u's string that also appears in the trie", "The node for the lexicographically next pattern"]
+  options: ["The parent of u, so a mismatch backs off by exactly one character", "The node for the longest pattern that is a proper prefix of u's string", "The node for u's longest proper suffix that is also in the trie", "The root, so every mismatch restarts matching from the empty string"]
   answer: 2
   explanation: >-
-    Exactly KMP's failure function applied across all patterns. It tells the automaton the deepest state consistent with the text read so far after a mismatch, so no text character is reread.
+    Exactly KMP's failure function applied across all patterns: the longest proper suffix of u's string that also appears in the trie. It tells the automaton the deepest state consistent with the text read so far after a mismatch, so no text character is reread. Always failing to the root would throw away a suffix that may still be part of a match.
 - q: >-
     Why is the search loop O(n + z) despite the nested while loop over failure links?
-  options: ["Failure links are cached", "Each character increases the current depth by at most 1 and each failure step decreases it by at least 1, so total failure steps ≤ n", "The trie has bounded depth", "The while loop runs at most once per character"]
+  options: ["Failure targets are cached, so each node's chain is walked only once", "Depth rises at most 1 per character and each failure step lowers it", "The while loop runs at most once for each character of the text read", "The trie's depth is bounded, so each failure chain has constant length"]
   answer: 1
   explanation: >-
     The depth potential argument: depth starts at 0, rises by at most one per character, and every failure step strictly lowers it, so failure steps are bounded by the total rise, n. The while loop can run many times for one character, but not many times overall.
 - q: >-
     With patterns {abcd, bc, c} and text "abcd", an implementation without merged output lists reports only "abcd". What is missing?
-  options: ["A longer text", "Output links: at the node for 'abc', the failure chain passes through the pattern nodes 'bc' and 'c', which end at the same text position", "A second pass with the patterns reversed", "Case folding"]
+  options: ["Failure links from leaf nodes such as 'abcd', which the BFS skips", "Output links: the failure chain from 'abc' reaches patterns 'bc' and 'c'", "Overlap support: after a match the search jumps past the matched text", "A second pass with the patterns reversed, to catch suffix matches"]
   answer: 1
   explanation: >-
-    The node for 'abc' is not itself a pattern end, but its failure link is the node 'bc' (a pattern) whose failure link is 'c' (a pattern). Merging output lists along failure links at build time reports both in O(1) per match.
+    The node for 'abc' is not itself a pattern end, but its failure link is the node 'bc' (a pattern) whose failure link is 'c' (a pattern), and both end at the same text position. Merging output lists along failure links at build time reports both in O(1) per match. The automaton never skips text, so overlap is not the issue.
 - q: >-
     You have one 10 GB log file and 50,000 fixed strings to look for. Which tool?
-  options: ["50,000 KMP passes", "A suffix array over the log file", "Aho-Corasick over the 50,000 strings, one pass over the file", "A regex alternation compiled to a backtracking engine"]
-  answer: 2
+  options: ["A regex alternation of all 50,000 strings, backtracking engine", "KMP once per string, 50,000 linear passes over the file", "A suffix array over the file, then one lookup per string", "Aho-Corasick over the 50,000 strings, one pass over the file"]
+  answer: 3
   explanation: >-
     Many patterns, one text is the Aho-Corasick shape: O(file + patterns + matches). A suffix array indexes the text for repeated queries but costs O(file log file) to build and is the wrong direction here; backtracking regex alternation is exponential-prone.
 - q: >-
     Snort compiles its Aho-Corasick automaton into a full DFA with a 256-entry row per state. What does this buy and what does it cost?
-  options: ["It buys exact matching; it costs correctness on binary data", "It buys one table lookup per byte with no failure loop; it costs memory proportional to 256 × states, which needs table compression", "It buys O(1) build time; it costs O(n²) search", "Nothing; it is equivalent"]
-  answer: 1
+  options: ["A smaller automaton, since rows are shared; it costs a slower build", "Linear search instead of quadratic; it costs a slower build for each rule", "Case-insensitive matching for free; it costs 256 × states memory", "One lookup per byte with no failure loop; it costs 256 × states memory"]
+  answer: 3
   explanation: >-
-    Folding failure transitions into a dense goto table removes the inner loop entirely, which matters at line rate. The price is a large sparse table, which is why banded and sparse-row compression schemes exist.
+    Folding failure transitions into a dense goto table removes the inner loop entirely, which matters at line rate. The price is a large sparse table, which is why banded and sparse-row compression schemes exist. The NFA search was already linear, so the gain is a constant factor, not a complexity class; case folding is a separate trick.
 ```

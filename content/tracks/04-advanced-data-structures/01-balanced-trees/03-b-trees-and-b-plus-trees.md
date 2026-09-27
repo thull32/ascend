@@ -226,32 +226,32 @@ hints:
 ```quiz
 - q: >-
     An index on a 4-billion-row table uses 8 KB pages with about 400 entries each. About how many levels does the B+ tree have, and how many of those are typically served from cache on a point lookup?
-  options: ["About 32 levels, about half cached", "4 or 5 levels, all but the leaf cached", "2 levels, both cached", "12 levels, only the root cached"]
+  options: ["About 32 levels, roughly half of them cached", "4 or 5 levels, all but the leaf cached", "About 12 levels, only the root cached", "2 or 3 levels, all of them cached"]
   answer: 1
   explanation: >-
-    400³ = 64 million and 400⁴ = 25.6 billion, so 4 to 5 levels. The levels above the leaves hold at most a few hundred thousand pages in total, which a normal buffer pool keeps resident; the leaf level is the one that may need disk.
+    400³ = 64 million and 400⁴ = 25.6 billion, so 4 to 5 levels. The levels above the leaves hold at most a few hundred thousand pages in total, which a normal buffer pool keeps resident; the leaf level is the one that may need disk. 32 levels is what a binary tree would need, not a tree with a fan-out of 400.
 - q: >-
     Why do B+ trees keep records only in the leaves and link the leaves together?
-  options: ["It makes the tree balanced", "Internal nodes become denser (higher fan-out, shorter tree) and range scans become a linear walk of adjacent pages", "It reduces the number of page splits", "It allows duplicate keys"]
-  answer: 1
+  options: ["Leaf-only records keep every leaf at one depth, which balances the tree", "Records in leaves mean inserts split pages far less often than B-trees", "Internal pages fit more separators, and range scans walk sibling leaves", "Linked leaves let the tree hold duplicate keys in overflow chains"]
+  answer: 2
   explanation: >-
-    Balance comes from the split-at-root rule, not from where data lives. Moving data out of internal nodes lets each internal page hold more separators, and the leaf chain lets a range query read sequential pages without revisiting internal nodes.
+    Balance comes from the split-at-root rule, not from where data lives. Moving data out of internal nodes lets each internal page hold more separators (higher fan-out, shorter tree), and the leaf chain lets a range query read sequential pages without revisiting internal nodes.
 - q: >-
     A table uses random UUIDv4 primary keys in InnoDB. Compared with an auto-increment key, what is the main storage-engine cost?
-  options: ["Lookups become O(n)", "Every insert lands in a random leaf, causing splits throughout the tree, roughly 70% page fill and more dirty pages per insert, in the table itself because it is clustered", "The index cannot be used for equality lookups", "UUIDs cannot be stored in a B+ tree"]
+  options: ["Equality lookups on UUID keys need a hash index instead of the tree", "Inserts land in random leaves, splitting pages across the whole table", "Each insert triggers rotations that rebalance the tree up to the root", "Lookups degrade toward O(n) since random keys unbalance the tree"]
   answer: 1
   explanation: >-
-    Random keys defeat the rightmost-insert optimisation and spread splits everywhere, so pages stay partly empty and each insert dirties an unpredictable page. InnoDB's clustered layout means the table data pays this cost too, and every secondary index carries the 16-byte key.
+    Random keys defeat the rightmost-insert optimisation and spread splits everywhere, so pages stay about 70% full and each insert dirties an unpredictable page. InnoDB's clustered layout means the table data pays this cost too, and every secondary index carries the 16-byte key. The tree itself stays perfectly balanced whatever the key order, so lookups remain O(log n); B+ trees split pages rather than rotate.
 - q: >-
     After deleting 80% of the rows in a large Postgres table, queries on its index are still slow and the index file is the same size. Why?
-  options: ["Postgres does not support deletes from B-trees", "Postgres does not merge underfull pages; it only reclaims completely empty pages after VACUUM, so the index is bloated and needs REINDEX", "The deleted rows are still in the WAL", "The index height cannot decrease"]
+  options: ["Postgres B-tree indexes cannot remove entries once written", "Postgres leaves underfull pages in place until a REINDEX", "The tree height cannot shrink, so lookups keep the original depth", "The deleted rows remain in the WAL, which index scans still read"]
   answer: 1
   explanation: >-
-    Eager merging on delete is expensive and rarely worth it, so Postgres leaves pages in place. Scans still walk the bloated leaf chain until the index is rebuilt.
+    Eager merging on delete is expensive and rarely worth it, so Postgres does not merge underfull pages; it only reclaims completely empty pages after VACUUM. Scans still walk the bloated leaf chain until the index is rebuilt with REINDEX. Height is not the problem: the internal levels are few and cached, and the cost is the mostly-empty leaves.
 - q: >-
     Which query can a B+ tree index on (tenant_id, created_at) serve without a separate sort step?
-  options: ["WHERE created_at > ? ORDER BY tenant_id", "WHERE tenant_id = ? ORDER BY created_at", "WHERE created_at BETWEEN ? AND ? ORDER BY created_at", "ORDER BY created_at LIMIT 10"]
-  answer: 1
+  options: ["WHERE created_at > ? ORDER BY created_at", "ORDER BY created_at DESC LIMIT 10", "WHERE tenant_id = ? ORDER BY created_at", "WHERE tenant_id > ? ORDER BY created_at"]
+  answer: 2
   explanation: >-
-    The index is sorted by the concatenated key, so for a fixed tenant_id the leaves are contiguous and in created_at order. Queries that filter or order by created_at without fixing tenant_id cannot walk a prefix of the key and need a different index or a sort.
+    The index is sorted by the concatenated key, so for a fixed tenant_id the leaves are contiguous and in created_at order. A range on tenant_id spans many tenants, each sorted by created_at separately, so the combined result still needs a sort. Queries that filter or order by created_at without fixing tenant_id cannot walk a prefix of the key and need a different index or a sort.
 ```

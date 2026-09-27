@@ -241,32 +241,32 @@ Ranking and next-episode logic would not change the storage design; they consume
 ```quiz
 - q: >-
     It is minute 25 of a 45-minute design interview and you are still refining the high-level diagram. What is the best move?
-  options: ["Finish the diagram properly; a complete diagram is what gets scored", "Announce that you are moving on and pick the deep dive the estimates point to", "Ask the interviewer to extend the interview", "Start the wrap-up early"]
-  answer: 1
-  explanation: >-
-    The deep dive is where senior is decided, and running out of time before it is the most common failure. An announced cut shows prioritisation. A polished diagram with no depth scores as mid-level.
-- q: >-
-    The interviewer raises data deletion for privacy while you are drawing the high-level design. You do not want to derail. What should you do?
-  options: ["Ignore it and continue", "Switch immediately to designing deletion", "Write it in the parking lot, say you will return to it, and cover it in the wrap-up", "Tell the interviewer it is out of scope"]
-  answer: 2
-  explanation: >-
-    Parking shows you heard it and are prioritising; returning to it shows follow-through. Ignoring it or dismissing it loses the signal; switching immediately hands the agenda to whatever is raised next.
-- q: >-
-    The interviewer challenges your choice of store with a constraint you had not considered, and it is a good point. What response scores best?
-  options: ["Defend the original choice firmly to show conviction", "Agree immediately without discussion", "Offer three alternative stores and let the interviewer choose", "Engage with the reasoning, acknowledge the constraint, and update the design, saying what changes and why"]
+  options: ["Ask the interviewer for ten more minutes to cover depth", "Start the wrap-up early so that you finish on time", "Finish the diagram; a complete diagram is what gets scored", "Announce the move and go deep where the estimates point"]
   answer: 3
   explanation: >-
-    Updating on evidence, with the reasoning visible, is a senior signal. Digging in without a new argument looks rigid; folding without discussion looks like you had no reasons; handing the choice back abdicates the decision.
+    The deep dive is where senior is decided, and running out of time before it is the most common failure. An announced cut to the deep dive the estimates point to shows prioritisation. A polished diagram with no depth scores as mid-level.
 - q: >-
-    In the transcript, why did the candidate write only pause and stop events synchronously to the database, while heartbeats went through Kafka?
-  options: ["Pause and stop are the moments a user switches devices, so they need to be visible within seconds; heartbeats are the bulk of the load and tolerate asynchronous delay", "Kafka cannot handle pause events", "Synchronous writes are cheaper", "Heartbeats are not stored at all"]
+    The interviewer raises data deletion for privacy while you are drawing the high-level design. You do not want to derail. What should you do?
+  options: ["Park it on the board and come back to it in the wrap-up", "Ignore it and continue so the flow is not broken", "Switch at once to designing the deletion path", "Tell the interviewer that privacy is out of scope here"]
   answer: 0
   explanation: >-
-    The device-switch requirement applies at the moments a person stops watching. Paying the synchronous cost only for those rare events meets the requirement without putting 350,000 writes a second on the synchronous path.
+    Writing it in the parking lot and saying you will return shows you heard it and are prioritising; covering it in the wrap-up shows follow-through. Ignoring it or dismissing it loses the signal; switching immediately hands the agenda to whatever is raised next.
 - q: >-
-    Which wrap-up best meets the senior bar?
-  options: ["A recap of every component drawn", "A statement that the design meets all requirements", "A short summary, the parked items and whether they would change the design, and the weakest part with the change that would fix it", "A list of technologies you would like to learn"]
+    The interviewer challenges your choice of store with a constraint you had not considered, and it is a good point. What response scores best?
+  options: ["Weigh the point, update the design, and say what changes", "Defend the original choice firmly to show conviction", "Offer three alternative stores and let the interviewer choose", "Agree at once and swap the store without discussion"]
+  answer: 0
+  explanation: >-
+    Updating on evidence, with the reasoning visible (acknowledge the constraint, say what changes and why), is a senior signal. Digging in without a new argument looks rigid; folding without discussion looks like you had no reasons; handing the choice back abdicates the decision.
+- q: >-
+    In the transcript, why did the candidate write only pause and stop events synchronously to the database, while heartbeats went through Kafka?
+  options: ["Kafka cannot guarantee ordering for pause and stop events", "Heartbeats are never stored, so they need no database write", "Device switches happen then, so they must be visible fast", "Synchronous writes are cheaper per event than Kafka writes"]
   answer: 2
   explanation: >-
-    The wrap-up is where honesty and prioritisation are scored. Claiming the design meets everything invites the interviewer to find the gap; a component recap repeats what they already saw.
+    The device-switch requirement applies at the moments a person stops watching, so those events must be visible within seconds. Heartbeats are the bulk of the load and tolerate asynchronous delay. Paying the synchronous cost only for the rare events meets the requirement without putting 350,000 writes a second on the synchronous path; heartbeats are still stored, just asynchronously.
+- q: >-
+    Which wrap-up best meets the senior bar?
+  options: ["A careful recap of every component on the board", "A statement that the design meets all requirements", "A list of technologies you would like to explore next", "The parked items, and the weakest part with its fix"]
+  answer: 3
+  explanation: >-
+    The wrap-up is where honesty and prioritisation are scored: a short summary, the parked items and whether they would change the design, and the weakest part with the change that would fix it. Claiming the design meets everything invites the interviewer to find the gap; a component recap repeats what they already saw.
 ```

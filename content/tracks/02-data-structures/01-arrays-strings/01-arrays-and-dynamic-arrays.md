@@ -247,32 +247,32 @@ hints:
 ```quiz
 - q: >-
     A dynamic array grows by adding a fixed 100 slots whenever it is full. What is the total cost of appending n elements, for large n?
-  options: ["O(n), because each append is O(1) amortised", "O(n log n), because the number of resizes is logarithmic", "O(n²), because there are n/100 resizes and each copies up to n elements", "O(100 n), because each resize copies at most 100 elements"]
+  options: ["O(n), because each append is still O(1) amortised", "O(n log n), because the number of resizes grows logarithmically", "O(n²), because n/100 resizes each copy up to n elements", "O(100n), because each resize copies at most 100 elements"]
   answer: 2
   explanation: >-
-    With additive growth there are about n/100 resizes and the k-th copies about 100k elements, so the total is roughly n²/200. Geometric growth is what makes the number of resizes logarithmic and the total copying linear.
+    With additive growth there are about n/100 resizes and the k-th copies about 100k elements, so the total is roughly n²/200. Geometric growth is what makes the number of resizes logarithmic and the total copying linear; a resize copies every existing element, not just the 100 new slots.
 - q: >-
     Which of these is the strongest practical reason arrays outperform linked lists for sequential scans, given both are O(n)?
-  options: ["Arrays have fewer elements", "Contiguous memory means one cache line serves many elements and the prefetcher works; each list node is a separate cache miss", "Linked lists require recursion to traverse", "Array elements are smaller"]
-  answer: 1
+  options: ["Contiguous elements share cache lines and get prefetched; list nodes are scattered", "Arrays live on the stack, which is faster to read than the heap holding nodes", "Lists must be traversed recursively, which adds a stack frame per node", "Array indexing is O(1), while finding each next list node costs O(n)"]
+  answer: 0
   explanation: >-
-    The asymptotic cost is identical; the constant factor is dominated by memory access. A 64-byte cache line holds 16 ints and sequential access is prefetched, whereas each node dereference in a list is typically a cache miss (~100 ns).
+    The asymptotic cost is identical; the constant factor is dominated by memory access. A 64-byte cache line holds 16 ints and sequential access is prefetched, whereas each node dereference in a list is typically a cache miss (~100 ns). Stepping to the next node is O(1), not O(n), and a dynamic array lives on the heap just like list nodes.
 - q: >-
     In Python, why is iterating a list of a million ints much slower than iterating a numpy int32 array of the same values?
-  options: ["Python lists are linked lists internally", "The list holds pointers to separately allocated int objects, so each element costs a pointer dereference and a cache miss; numpy stores the raw values contiguously", "numpy uses a different sort algorithm", "Python lists are bounds-checked and numpy arrays are not"]
+  options: ["Python lists are linked lists internally, so each step follows a next pointer", "The list stores pointers to boxed int objects; numpy stores raw values contiguously", "Lists grow by about 1.125×, so their elements end up spread across several memory blocks", "The list bounds-checks every access; numpy validates the whole range once up front"]
   answer: 1
   explanation: >-
-    A CPython list is a contiguous array of PyObject pointers; the integers live elsewhere on the heap. numpy stores unboxed values, so the scan is cache-friendly and can be vectorised.
+    A CPython list is a contiguous array of PyObject pointers; the integers live elsewhere on the heap, so each element costs a dereference and likely a cache miss. numpy stores unboxed values, so the scan is cache-friendly and can be vectorised. The list's pointer array itself is one block: a resize copies everything into the new block rather than fragmenting it.
 - q: >-
     You write `const a = []; a[10] = 1;` in JavaScript. What has V8 most likely done?
-  options: ["Allocated exactly 11 slots of packed integers", "Thrown a RangeError", "Transitioned the array to a holey elements kind, so every access now checks for missing slots", "Converted the array to a string-keyed object"]
-  answer: 2
+  options: ["Thrown a RangeError, since index 10 is past the array's length", "Allocated 11 packed integer slots, filling indices 0–9 with zeros", "Switched it to dictionary mode, turning indexing into a hash lookup", "Made it a holey array whose accesses check for missing slots"]
+  answer: 3
   explanation: >-
-    Writing past the end creates holes (indices 0–9 are missing), which moves the array to a HOLEY kind permanently. Dictionary mode happens only for very sparse arrays. Building with push keeps arrays packed.
+    Writing past the end creates holes (indices 0–9 are missing), which moves the array to a HOLEY elements kind permanently, so every access checks whether the slot exists. Dictionary mode happens only for very sparse arrays, such as writing index 1,000,000 into an empty one. Building with push keeps arrays packed.
 - q: >-
-    A Go function receives a slice, appends to it and returns nothing. The caller later sees its own slice's elements changed. Why?
-  options: ["Go passes slices by value so this cannot happen", "The append had spare capacity and wrote into the shared backing array", "Go slices are linked lists", "The garbage collector moved the array"]
+    A Go caller has s with len 4 and passes s[:2] to a function, which appends one element and returns nothing. Afterwards the caller finds s[2] changed. Why?
+  options: ["Slices are passed by reference, so append always mutates the caller's slice", "The append had spare capacity, so it wrote into the shared backing array", "The append exceeded capacity, so the new array replaced the caller's one too", "The garbage collector moved the backing array while both slices pointed at it"]
   answer: 1
   explanation: >-
-    A slice header is (ptr, len, cap). If cap exceeds len, append writes into the existing backing array, which the caller's slice also points at. When cap is exhausted, append allocates a new array and the caller does not see the write, which is why the bug is intermittent.
+    A slice header is (ptr, len, cap) and is passed by value. If cap exceeds len, append writes into the existing backing array, which the caller's slice also points at. When cap is exhausted, append allocates a new array that only the callee's copy of the header sees, which is why the bug is intermittent.
 ```

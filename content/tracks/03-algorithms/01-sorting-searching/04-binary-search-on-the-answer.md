@@ -261,32 +261,32 @@ hints:
 ```quiz
 - q: >-
     Which of these questions is NOT a valid target for binary search on the answer?
-  options: ["Smallest ship capacity to deliver packages in d days", "Minimum number of coins to make amount x, searched over x", "Smallest eating speed that finishes piles in h hours", "Largest minimum distance when placing k cows in n stalls"]
-  answer: 1
+  options: ["Minimum coins needed to make amount x, searched over x", "Largest minimum distance when placing k cows in n stalls", "Smallest eating speed that finishes piles in h hours", "Smallest ship capacity to deliver packages in d days"]
+  answer: 0
   explanation: >-
-    Coins needed is not monotone in the amount (amount 6 may need one coin, amount 7 three), so the predicate has no F...F T...T shape. The other three each have a threshold that, once satisfied, stays satisfied as it grows.
+    Coins needed is not monotone in the amount (amount 6 may need one coin, amount 7 three), so the predicate has no F...F T...T shape. The other three each have a threshold that, once satisfied, stays satisfied as it grows (or, for the cows, as it shrinks).
 - q: >-
     You set hi = 10⁹ for the Koko problem when the largest pile is 11. The search still returns 4. Why is the tighter hi = max(piles) still preferred?
-  options: ["Because hi = 10⁹ is incorrect", "It saves about 26 predicate evaluations, each O(n), and shows you understand the answer's bounds", "Because binary search cannot handle ranges above 2³¹", "It makes the predicate monotone"]
-  answer: 1
+  options: ["Monotonicity only holds for speeds up to max(piles)", "Each probe costs more when the speed is huge", "A loose hi can return a speed that is too large", "It saves about 26 predicate calls, each O(n)"]
+  answer: 3
   explanation: >-
-    log₂(10⁹) ≈ 30 probes versus log₂(11) ≈ 4. Both are correct; the tighter bound is cheaper and demonstrates reasoning. Monotonicity is a property of the predicate, not the range.
+    log₂(10⁹) ≈ 30 probes versus log₂(11) ≈ 4, and each probe is an O(n) pass whatever the speed. Both bounds are correct, since the search returns the first feasible speed; the tighter bound is cheaper and shows you understand the answer's range. Monotonicity is a property of the predicate, not the range, and holds for every speed.
 - q: >-
     For the split-array predicate, why does greedy (extend the current piece as far as possible) compute the minimum number of pieces for a given cap?
-  options: ["Because the array is sorted", "Any solution that cuts earlier can have its cut moved right without exceeding cap, so cutting as late as possible never costs an extra piece", "Because k is small", "It does not; you need DP for the predicate"]
-  answer: 1
+  options: ["Moving any earlier cut right never adds an extra piece", "It works because the input array is sorted", "With small k, greedy happens to match the DP", "It is only a heuristic; DP gives the exact count"]
+  answer: 0
   explanation: >-
-    This exchange argument is what makes the predicate exact. Sortedness is irrelevant (the pieces are contiguous); the greedy is linear and correct for any positive array.
+    Any solution that cuts earlier can have its cut moved right without exceeding cap, so cutting as late as possible never costs an extra piece. This exchange argument is what makes the predicate exact, for any k, so no DP is needed. Sortedness is irrelevant (the pieces are contiguous); the greedy is linear and correct for any positive array.
 - q: >-
     In a maximise-the-minimum search you write lo = mid when feasible and hi = mid - 1 otherwise, with mid = lo + (hi - lo) // 2. What is wrong?
-  options: ["Nothing", "When hi == lo + 1, mid == lo, so lo = mid does not shrink the range and the loop may never end", "hi = mid - 1 skips an element", "The predicate must be inverted"]
-  answer: 1
+  options: ["With hi == lo + 1, lo = mid never shrinks the range", "hi = mid - 1 skips a value that could be the answer", "The predicate must be inverted to read F...F T...T", "Nothing; this is the standard closed-range form"]
+  answer: 0
   explanation: >-
-    With mid rounded down and a two-element range, a feasible mid leaves lo unchanged forever. Round up (lo + (hi - lo + 1) // 2) so lo = mid always makes progress.
+    With mid rounded down and a two-element range, mid == lo, so a feasible mid leaves lo unchanged and the loop may never end. Round up (lo + (hi - lo + 1) // 2) so lo = mid always makes progress. hi = mid - 1 is fine here, because an infeasible mid cannot be the answer.
 - q: >-
     The k-th smallest value in an n×n matrix with sorted rows and columns is found by binary searching the value range with count(x) = number of entries <= x. mid is usually not an entry of the matrix. Why is the final answer still an actual entry?
-  options: ["The search rounds to the nearest entry at the end", "count(x) only changes at matrix entries, so the smallest x with count(x) >= k is an entry", "Because the matrix is square", "It is not; you must scan afterwards"]
-  answer: 1
+  options: ["count(x) only increases when x reaches an entry", "It is not; a final scan must snap it to an entry", "Each probe rounds mid to the nearest entry", "The staircase walk only ever visits matrix entries"]
+  answer: 0
   explanation: >-
-    count is a step function that increases only when x passes an entry. The first x at which it reaches k is therefore exactly the value of some entry, so no post-processing is needed.
+    count is a step function that increases only when x passes an entry. The first x at which it reaches k is therefore exactly the value of some entry, so no rounding or post-processing is needed. The staircase walk visiting entries is how count is computed, not why the result lands on one.
 ```

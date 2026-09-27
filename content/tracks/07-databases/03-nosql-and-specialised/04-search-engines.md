@@ -337,32 +337,32 @@ hints:
 ```quiz
 - q: >-
     Users report that searching for "Running" finds nothing, although many documents contain "running". The field uses the english analyzer and the application sends a term query. What is wrong?
-  options: ["A term query skips analysis, so it looks for the literal token Running, but the index only contains the analysed token run; use a match query so the query text is analysed the same way", "The index is stale and needs a refresh", "Stop words removed the term", "BM25 scored the documents at zero"]
-  answer: 0
-  explanation: >-
-    Only terms the analyzer emitted exist in the index. Lowercasing and stemming turned running into run at index time. A term query does no analysis, so it can only match keyword fields or pre-analysed input.
-- q: >-
-    In BM25 with k1 = 1.2, a term appears 1 time in document A and 10 times in document B, both of average length. Roughly how do their contributions for that term compare?
-  options: ["B scores 10 times higher", "They score the same", "A scores higher because it is less repetitive", "B scores about twice as high, because term frequency saturates towards k1 + 1"]
-  answer: 3
-  explanation: >-
-    At average length the tf factor is tf × 2.2 / (tf + 1.2): 1.0 for one occurrence and about 1.96 for ten. Saturation stops keyword stuffing from dominating the ranking.
-- q: >-
-    A team updates Postgres and then calls Elasticsearch in the same request handler. Occasionally search shows an outdated title forever, even though the database is correct. What is the likely mechanism?
-  options: ["Elasticsearch loses writes under load", "Two concurrent updates reached the index in the opposite order from the database, so the older version was applied last; feeding the index from the database's WAL via CDC applies changes in commit order", "The refresh interval is too long", "The analyzer changed"]
+  options: ["The index has not refreshed yet, so those documents are invisible", "A term query skips analysis, but the index holds only the stemmed run", "BM25 gave those documents a score of zero, so they were filtered out", "The english stop-word filter removed running from the whole index entirely"]
   answer: 1
   explanation: >-
-    Dual writes have no ordering guarantee between the two systems and no atomicity. CDC reads committed changes in commit order and retries idempotently, so the index converges on the database's state.
+    Only terms the analyzer emitted exist in the index. Lowercasing and stemming turned running into run at index time. A term query does no analysis, so it looks for the literal token Running and can only match keyword fields or pre-analysed input; a match query analyses the query text the same way. Stop words are words like the and of, not running, and refresh lag lasts about a second, not indefinitely.
 - q: >-
-    A Postgres full-text query with a GIN index takes 2 seconds for common terms but 5 ms for rare ones, even with LIMIT 20. Why?
-  options: ["GIN indexes cannot handle common terms", "The statistics are stale", "The index finds matches quickly, but ts_rank must be computed for every matching row before the top 20 can be chosen, so cost grows with the number of matches", "websearch_to_tsquery is slow"]
-  answer: 2
-  explanation: >-
-    Postgres fetches and ranks every match, then sorts. Lucene prunes documents that cannot enter the top k, so its cost tracks the result size much more closely. This is the main technical reason to move heavy ranked search out of Postgres.
-- q: >-
-    You need to change the analyzer on a 200-million-document Elasticsearch index without downtime. What is the standard approach?
-  options: ["Update the mapping in place; Elasticsearch reanalyses existing documents", "Close the index, change the analyzer, reopen it", "Add more replicas", "Create a new index with the new mapping, backfill it from the source of truth while CDC keeps it current, then atomically move the alias the application queries"]
+    In BM25 with k1 = 1.2, a term appears 1 time in document A and 10 times in document B, both of average length. Roughly how do their contributions for that term compare?
+  options: ["B scores ten times higher, since tf is multiplied straight in", "A scores higher, since BM25 penalises repeated terms as stuffing", "They score the same, since BM25 counts only presence per document", "B scores about twice as high, since term frequency saturates"]
   answer: 3
   explanation: >-
-    Existing segments contain the terms the old analyzer produced, and segments are immutable. Building a new index behind an alias lets you verify it before switching and switch back if needed.
+    At average length the tf factor is tf × 2.2 / (tf + 1.2): 1.0 for one occurrence and about 1.96 for ten, approaching k1 + 1 = 2.2. More occurrences still help, so presence-only and penalty models are wrong, but saturation stops keyword stuffing from dominating the ranking.
+- q: >-
+    A team updates Postgres and then calls Elasticsearch in the same request handler. Occasionally search shows an outdated title forever, even though the database is correct. What is the likely mechanism?
+  options: ["An analyzer change left the old title's terms in the older segments", "Two updates reached the index out of order, so the older one won", "The refresh interval is too long, so the new title never surfaces", "Elasticsearch drops some writes under load without reporting them"]
+  answer: 1
+  explanation: >-
+    Dual writes have no ordering guarantee between the two systems and no atomicity, so two concurrent updates can reach the index in the opposite order from the database. Refresh delays visibility by about a second, not forever. Feeding the index from the database's WAL via CDC applies committed changes in commit order and retries idempotently, so the index converges on the database's state.
+- q: >-
+    A Postgres full-text query with a GIN index takes 2 seconds for common terms but 5 ms for rare ones, even with LIMIT 20. Why?
+  options: ["GIN indexes degrade to a sequential scan when a term is common", "Every match must be fetched and ranked before the top 20 are known", "The planner's statistics are stale for the common search terms", "websearch_to_tsquery reparses the query once for every row it sees"]
+  answer: 1
+  explanation: >-
+    The GIN index finds matches quickly, but Postgres fetches and computes ts_rank for every match, then sorts, so cost grows with the number of matches. Lucene prunes documents that cannot enter the top k, so its cost tracks the result size much more closely. This is the main technical reason to move heavy ranked search out of Postgres.
+- q: >-
+    You need to change the analyzer on a 200-million-document Elasticsearch index without downtime. What is the standard approach?
+  options: ["Close the index, change the analyzer on it, and then reopen it", "Add a replica with the new analyzer, then promote it to primary", "Build a new index, backfill and sync it, then swap the alias over to it", "Update the mapping in place; Elasticsearch reanalyses old documents"]
+  answer: 2
+  explanation: >-
+    Existing segments contain the terms the old analyzer produced, and segments are immutable, so neither an in-place change nor a reopened index reanalyses them. Create a new index with the new mapping, backfill it from the source of truth while CDC keeps it current, then atomically move the alias the application queries. That lets you verify it before switching and switch back if needed.
 ```

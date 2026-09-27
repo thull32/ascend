@@ -168,32 +168,32 @@ At five services in one language, no: a shared client library with timeouts, ret
 ```quiz
 - q: >-
     A user request calls five services in sequence, each with 99.9% availability. The request's availability is approximately:
-  options: ["99.9%", "99.5%", "95%", "99.98%"]
-  answer: 1
+  options: ["95%", "99.98%", "99.9%", "99.5%"]
+  answer: 3
   explanation: >-
     Availabilities in series multiply: 0.999^5 ≈ 0.995. That is about 3.6 hours of downtime per month versus 43 minutes for one service. This is the core cost of synchronous chains.
 - q: >-
     Which of these is the strongest signal that a system is a distributed monolith?
-  options: ["It uses gRPC instead of REST", "Several services read and write the same database tables", "It has more than ten services", "It runs on Kubernetes"]
-  answer: 1
+  options: ["Several services read and write the same tables", "Its services call each other over gRPC instead of REST", "It runs every service on one shared Kubernetes cluster", "It has grown to more than ten separately deployed services"]
+  answer: 0
   explanation: >-
-    A shared database means schema changes require coordinating every service, which removes independent deployability, the one benefit that justified the split. Protocol, count and platform are neutral.
+    A shared database means schema changes require coordinating every service, which removes independent deployability, the one benefit that justified the split. Protocol, count and platform are neutral; ten services that deploy independently are not a monolith.
 - q: >-
     A page fans out to 20 services in parallel, each with p99 of 50 ms and p50 of 5 ms. Roughly what fraction of page loads wait at least 50 ms?
-  options: ["1%", "5%", "18%", "50%"]
-  answer: 2
+  options: ["5%", "18%", "50%", "1%"]
+  answer: 1
   explanation: >-
     The probability that none of 20 independent calls hits its p99 is 0.99^20 ≈ 0.82, so about 18% of pages see at least one tail. This is tail latency amplification, the reason for hedged requests and partial results in fan-out systems.
 - q: >-
     The safest way to move the notifications module out of a monolith is:
-  options: ["Rewrite it as a service and switch all traffic on release day", "Put a facade in front, route a growing share of traffic to the new service, migrate data ownership with CDC and checksums, then retire the module", "Copy the monolith and delete everything except notifications", "Have the new service read the monolith's tables permanently"]
+  options: ["Have the new service keep reading the monolith's tables for good", "Move traffic over gradually behind a facade, then retire the module", "Fork the monolith and delete everything except notifications", "Rewrite it as a service and switch all traffic over on release day"]
   answer: 1
   explanation: >-
-    The strangler fig makes each step reversible and observable. A big-bang switch has no rollback granularity; forking the monolith duplicates everything; permanently sharing tables recreates the distributed monolith.
+    The strangler fig puts a facade in front, routes a growing share of traffic to the new service, migrates data ownership with CDC and checksums, and only then retires the module, so each step is reversible and observable. A big-bang switch has no rollback granularity; forking the monolith duplicates everything; permanently sharing tables recreates the distributed monolith.
 - q: >-
     An in-process module call costs about 1 microsecond; a same-AZ RPC about 1 ms. A code path making 50 such calls per request moves from monolith to services. The added latency per request is roughly:
-  options: ["50 microseconds", "5 ms", "50 ms", "500 ms"]
-  answer: 2
+  options: ["0.05 ms", "5 ms", "500 ms", "50 ms"]
+  answer: 3
   explanation: >-
     50 calls x (1 ms - 1 microsecond) ≈ 50 ms of pure overhead, before serialisation of larger payloads. This is why chatty interfaces must become batch calls or replicated data when a boundary becomes a network.
 ```

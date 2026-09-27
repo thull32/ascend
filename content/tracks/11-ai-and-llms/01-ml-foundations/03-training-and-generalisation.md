@@ -202,32 +202,32 @@ hints:
 ```quiz
 - q: >-
     You tune 300 hyperparameter configurations and report the best validation accuracy, 91.4%, as the expected production accuracy. What is wrong?
-  options: ["Nothing; validation data was never used for training", "You should have reported the average over all 300 configurations", "The maximum over 300 noisy validation estimates is biased upward; you need an untouched test set for an honest estimate", "Validation accuracy is always lower than production accuracy"]
+  options: ["It should be the average over all 300 configurations, not the best", "It understates production, since validation is always harder than live traffic", "The best of 300 noisy validation scores is biased upward; use a test set", "Nothing, because the validation data was never used to fit the weights"]
   answer: 2
   explanation: >-
-    Selecting the best of many configurations by validation score fits your choices to that particular validation set, so its best score overstates real performance. The test set, touched once after all choices are made, gives the honest number. Averaging all configurations answers a different question.
+    Selecting the best of many configurations by validation score fits your choices to that particular validation set, so its best score overstates real performance even though the weights never saw it. An untouched test set, used once after all choices are made, gives the honest number. Averaging all configurations answers a different question.
 - q: >-
     A model predicting next week's demand is validated with a random 80/20 split of three years of daily rows and looks excellent. In production it is much worse. What is the most likely cause?
-  options: ["The model is too small", "The random split let the model learn from rows later in time than the ones it was validated on, which production never allows", "The learning rate was too high", "20% is too small for a validation set"]
-  answer: 1
-  explanation: >-
-    With a random split, validation days are surrounded by training days on both sides, so the model effectively interpolates between known neighbours, including future ones. Production only ever extrapolates forward. Split by time to get an honest estimate.
-- q: >-
-    A fraud dataset has 1% positives. Model A has 99.2% accuracy; a model that never flags anything has 99.0%. Which statement is right?
-  options: ["Accuracy says almost nothing here; look at precision and recall at the operating threshold, weighted by the costs of each error", "Model A is clearly excellent", "Model A is worse than the trivial model", "You should rebalance the test set to 50/50 and re-measure accuracy"]
+  options: ["The random split let it train on days after the ones it was validated on", "The learning rate was too high, so it overfit the training days", "20% of the rows is too few days for a reliable validation estimate", "The model is too small to capture three years of weekly and seasonal patterns"]
   answer: 0
   explanation: >-
-    With 1% positives, accuracy is dominated by the easy negatives. The decision depends on how many frauds are caught (recall) and how many good customers are blocked (precision) at the chosen threshold, and on what each error costs. Rebalancing the test set changes the base rate and makes precision meaningless for production.
+    With a random split, validation days are surrounded by training days on both sides, so the model effectively interpolates between known neighbours, including future ones. Production only ever extrapolates forward, which the random split never tested. A 20% slice of three years is hundreds of days, plenty for an estimate; the problem is that the estimate is of the wrong task. Split by time to get an honest number.
+- q: >-
+    A fraud dataset has 1% positives. Model A has 99.2% accuracy; a model that never flags anything has 99.0%. Which statement is right?
+  options: ["Accuracy says little here; compare precision and recall at the chosen threshold", "Model A is clearly excellent, because 99.2% accuracy is nearly perfect", "Rebalance the test set to 50/50 so accuracy becomes meaningful again", "Model A is worse than the trivial model, because it raises false alarms too"]
+  answer: 0
+  explanation: >-
+    With 1% positives, accuracy is dominated by the easy negatives. The decision depends on how many frauds are caught (recall) and how many good customers are blocked (precision) at the chosen operating threshold, weighted by what each error costs. Rebalancing the test set changes the base rate and makes precision meaningless for production.
 - q: >-
     With learning rate 0.1 and L2 coefficient 0.01, what does weight decay do to each weight on every step, before the ordinary gradient update?
-  options: ["Adds 0.01 to it", "Sets it to zero if it is below 0.01", "Divides it by its norm", "Multiplies it by 0.998"]
+  options: ["Zeroes it if it is below 0.01", "Subtracts 0.002 from it", "Multiplies it by 0.99", "Multiplies it by 0.998"]
   answer: 3
   explanation: >-
-    The penalty λΣw² contributes 2λw to the gradient, so the update is w(1 − 2ηλ) − η∇L = w × 0.998 − η∇L. Weights the data does not keep pushing up decay geometrically. Setting small weights to zero is closer to what L1 encourages.
+    The penalty λΣw² contributes 2λw to the gradient, so the update is w(1 − 2ηλ) − η∇L = w × 0.998 − η∇L. Multiplying by 0.99 forgets that the decay is scaled by the learning rate (and the 2 from the square). L2 shrinks each weight in proportion to its size, so weights the data does not keep pushing up decay geometrically; subtracting a fixed amount or pushing small weights to exactly zero is closer to what L1 does.
 - q: >-
     During fine-tuning on 2,000 examples, training loss keeps falling but validation loss started rising after epoch 3. What do you do?
-  options: ["Keep training; validation loss will come back down", "Use the epoch-3 checkpoint (early stopping) and consider more data or stronger regularisation", "Increase the learning rate to escape the plateau", "Evaluate on the training set instead, since it is larger"]
+  options: ["Evaluate on the training set instead, because it is larger and less noisy", "Stop at the epoch-3 checkpoint and add data or stronger regularisation", "Raise the learning rate so the model escapes the validation plateau", "Keep training, because validation loss usually recovers after a plateau"]
   answer: 1
   explanation: >-
-    Diverging train and validation curves are the signature of memorisation. The checkpoint at the validation minimum is your best model; more data, augmentation or regularisation push that minimum lower. A higher learning rate does not address memorisation, and training-set evaluation hides it.
+    Diverging train and validation curves are the signature of memorisation. The checkpoint at the validation minimum (early stopping) is your best model; more data, augmentation or regularisation push that minimum lower. A higher learning rate does not address memorisation, and training-set evaluation hides it.
 ```

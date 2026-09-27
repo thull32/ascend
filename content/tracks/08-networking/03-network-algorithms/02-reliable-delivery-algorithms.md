@@ -255,32 +255,32 @@ hints:
 ```quiz
 - q: >-
     A stop-and-wait protocol runs over a 1 Gbit/s link with a 100 ms round trip and 1,500-byte frames. Roughly what throughput does it achieve, and what is the fix?
-  options: ["About 1 Gbit/s; no fix needed", "About 120 kbit/s; allow roughly the bandwidth-delay product (12.5 MB, about 8,300 frames) in flight", "About 500 Mbit/s; use larger frames", "About 12 Mbit/s; use a faster link"]
-  answer: 1
+  options: ["About 500 Mbit/s; send jumbo frames to halve the waits", "About 1 Gbit/s, since the link is never the limit", "About 120 kbit/s; keep a BDP of frames in flight", "About 12 Mbit/s; upgrade to a faster 10 Gbit/s link"]
+  answer: 2
   explanation: >-
-    One 12,000-bit frame per 100 ms round trip is 120 kbit/s. Only a window covering the bandwidth-delay product (10^9 bit/s × 0.1 s = 100 Mbit = 12.5 MB) keeps the pipe full. A faster link does nothing, because the protocol is waiting, not transmitting.
+    One 12,000-bit frame per 100 ms round trip is 120 kbit/s. Only a window covering the bandwidth-delay product (10^9 bit/s × 0.1 s = 100 Mbit = 12.5 MB, about 8,300 frames) keeps the pipe full. Larger frames or a faster link do almost nothing, because the protocol is waiting, not transmitting.
 - q: >-
     A protocol uses 4-bit sequence numbers. What are the largest safe windows for Go-Back-N and for Selective Repeat?
-  options: ["16 and 16", "8 and 15", "15 and 15", "15 and 8"]
-  answer: 3
+  options: ["15 and 15", "16 and 16", "15 and 8", "8 and 15"]
+  answer: 2
   explanation: >-
     Go-Back-N allows 2^k − 1 = 15, because its receiver only ever accepts one sequence number. Selective Repeat's receiver accepts a whole window, so sender and receiver windows together must fit in the sequence space: 2^(k−1) = 8. With W = 9, a retransmitted old frame could fall inside the receiver's advanced window and be accepted as new.
 - q: >-
     A satellite link has a large window and a 2% loss rate. Moving from Go-Back-N to Selective Repeat mainly improves throughput because:
-  options: ["Selective Repeat needs fewer sequence number bits", "Selective Repeat never needs retransmission timers", "Each loss costs one retransmission instead of up to a full window, at the price of receiver buffering and per-frame timers", "Cumulative ACKs are larger than individual ACKs"]
+  options: ["Selective Repeat never needs retransmission timers", "Selective Repeat needs fewer sequence-number bits", "Each loss costs one resend instead of up to a window", "Individual ACKs are smaller than cumulative ACKs"]
   answer: 2
   explanation: >-
-    With W frames in flight, Go-Back-N resends up to W frames per loss, so useful throughput is roughly 1/(1 + pW). Selective Repeat resends only the missing frame. It needs more sequence space, a W-frame receiver buffer and per-frame timers, which is the cost.
+    With W frames in flight, Go-Back-N resends up to W frames per loss, so useful throughput is roughly 1/(1 + pW). Selective Repeat resends only the missing frame. The price is the opposite of the claims about timers and sequence bits: it needs more sequence space, a W-frame receiver buffer and per-frame timers.
 - q: >-
     Your service writes an order to a TCP socket, the write returns, and the peer's TCP stack ACKs every byte. The peer process then crashes. What do you know?
-  options: ["The order was processed, because TCP is reliable", "The order will be redelivered by TCP after the peer restarts", "The ACK would not have been sent if the process was about to crash", "Only that the bytes reached the peer's kernel receive buffer; the application may never have read them"]
+  options: ["The ACK proves the process read the bytes before crashing", "The order was processed, because TCP is reliable", "TCP will redeliver the order once the peer restarts", "Only that the bytes reached the peer's kernel buffer"]
   answer: 3
   explanation: >-
-    TCP's reliability ends at the receiving kernel. Application-level delivery needs its own acknowledgement (a response, a committed offset, a queue ack) and its own deduplication. That is the end-to-end argument, and it is why message queues rebuild ACKs and timers above TCP.
+    TCP's reliability ends at the receiving kernel: the ACK says the bytes are in the receive buffer, not that the application ever read them. Application-level delivery needs its own acknowledgement (a response, a committed offset, a queue ack) and its own deduplication. That is the end-to-end argument, and it is why message queues rebuild ACKs and timers above TCP.
 - q: >-
     Why does QUIC not need Karn's algorithm to get clean RTT samples?
-  options: ["QUIC never reuses a packet number, so every ACK identifies exactly one transmission", "QUIC does not measure RTT", "QUIC uses a fixed retransmission timeout", "QUIC sends every packet twice"]
-  answer: 0
+  options: ["It sends every packet twice, so one copy always lands", "It never reuses a packet number, even for resends", "It does not measure RTT at all, so needs no samples", "It uses a fixed retransmission timeout, not an RTT one"]
+  answer: 1
   explanation: >-
-    In TCP a retransmitted segment carries the same sequence numbers as the original, so an ACK is ambiguous and Karn's rule discards those samples. QUIC puts retransmitted data in a new packet with a new, higher packet number and locates the data by stream offset, so each ACK maps to one send time.
+    In TCP a retransmitted segment carries the same sequence numbers as the original, so an ACK is ambiguous and Karn's rule discards those samples. QUIC puts retransmitted data in a new packet with a new, higher packet number and locates the data by stream offset, so every ACK identifies exactly one transmission and one send time.
 ```

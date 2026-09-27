@@ -328,32 +328,32 @@ hints:
 ```quiz
 - q: >-
     In N-queens, queens at (2, 5) and (4, 3) attack each other because:
-  options: ["They share a column", "They share r - c", "They share r + c", "They do not attack each other"]
+  options: ["They do not attack each other at all", "They share the same column index c", "They share r + c, a down-left diagonal", "They share r - c, a down-right diagonal"]
   answer: 2
   explanation: >-
     2 + 5 = 7 and 4 + 3 = 7: same anti-diagonal. r - c gives -3 and 1, different down-right diagonals; columns 5 and 3 differ.
 - q: >-
     A sudoku solver that fills cells in reading order takes minutes on a hard puzzle. The change most likely to make it fast is:
-  options: ["Switching from sets to lists for the used-digit checks", "Choosing the empty cell with the fewest candidates at each step", "Trying digits 9 to 1 instead of 1 to 9", "Converting recursion to an explicit stack"]
-  answer: 1
+  options: ["Replacing the used-digit sets with bitmasks per unit", "Trying the digits 9 to 1 instead of 1 to 9 in each cell", "Always filling the empty cell with the fewest candidates first", "Converting the recursion to a loop with an explicit stack"]
+  answer: 2
   explanation: >-
-    MRV finds dead ends before branching and takes forced moves with no branching, cutting the tree from hundreds of thousands of nodes to typically under a hundred. Digit order rarely matters much; the other options change constants only.
+    MRV (choosing the most constrained cell at each step) finds dead ends before branching and takes forced moves with no branching, cutting the tree from hundreds of thousands of nodes to typically under a hundred. Bitmasks and an explicit stack only change the cost per node, and digit order rarely matters much.
 - q: >-
     In the word search DFS, why does overwriting board[r][c] with '#' work as a visited set?
-  options: ["The runner ignores '#' characters", "No letter of the word equals '#', so a revisited cell fails the letter check", "It makes the recursion tail-recursive", "It reduces the branching factor to two"]
-  answer: 1
+  options: ["No word letter equals '#', so revisits fail the check", "An explicit '#' test at the top rejects used cells", "It removes the cell from the implicit graph permanently", "It is faster to compare than a visited-set lookup"]
+  answer: 0
   explanation: >-
-    Marking makes the cell fail the same comparison used for wrong letters, so revisits are pruned by the existing check, with zero extra memory. Restoring the letter on the way out keeps other paths correct.
+    Marking makes the cell fail the same comparison used for wrong letters, so revisits are pruned by the existing check, with no separate '#' test and zero extra memory. The removal is not permanent: restoring the letter on the way out keeps other paths correct.
 - q: >-
     Word search on a 6x6 board filled with 'A' for the word 'AAAAAAAAAAAB' (11 As then a B) is slow. Which pre-check avoids the search entirely?
-  options: ["Sort the board rows", "Check the board contains at least as many of each letter as the word needs", "Start the search from the centre cell", "Limit recursion depth to 6"]
-  answer: 1
+  options: ["Compare the letter counts of the board and the word", "Start the DFS from the centre cell of the board", "Cap the recursion depth at 6, the width of the board", "Check that the word fits in the 36 board cells"]
+  answer: 0
   explanation: >-
-    The board has no B, so a frequency count rejects the instance in O(R·C + L). Without it the DFS explores an exponential number of A-paths before discovering there is never a B to finish on.
+    The board has no B, so a frequency count rejects the instance in O(R·C + L). Checking the length passes (12 cells fit in 36), and a start cell or depth cap does not remove the exponential number of A-paths the DFS explores before discovering there is never a B to finish on.
 - q: >-
     The bitmask N-queens passes (d1 | bit) << 1 to the next row. What does d1 represent at the moment the next row reads it?
-  options: ["The set of columns already holding queens", "The columns attacked in the next row by down-right diagonals of queens above", "The number of queens placed so far", "The mirror image of cols"]
-  answer: 1
+  options: ["Columns hit in the next row by down-right diagonals", "Columns hit in the next row along down-left diagonals", "Attacks from both diagonal directions, merged", "Columns already holding a queen in any row above"]
+  answer: 0
   explanation: >-
-    A queen at column c attacks column c + 1 one row down along one diagonal; shifting the accumulated mask left by one moves every such attack to the next row. cols tracks columns; the two diagonal masks track the two diagonal directions.
+    A queen at column c attacks column c + 1 one row down along the down-right diagonal; shifting the accumulated mask left by one moves every such attack to the next row. cols tracks columns; d2, shifted right, tracks the down-left direction, so the two diagonals stay in separate masks.
 ```

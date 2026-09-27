@@ -261,32 +261,32 @@ hints:
 ```quiz
 - q: >-
     Logits for three tokens are (2.0, 1.0, 0.1). What happens to the probability of the top token when temperature goes from 1.0 to 0.5?
-  options: ["It falls from 0.66 to 0.50", "It rises from 0.66 to about 0.86", "It stays at 0.66; temperature only affects the tail", "It becomes exactly 1.0"]
-  answer: 1
+  options: ["It rises from 0.66 to about 0.86", "It stays at 0.66; only the tail changes", "It becomes exactly 1.0, as in greedy", "It falls from 0.66 to about 0.50"]
+  answer: 0
   explanation: >-
     Dividing by 0.5 doubles every logit gap, so the softmax sharpens: (4.0, 2.0, 0.2) gives about (0.864, 0.117, 0.019). Only temperature 0 (greedy) makes it exactly 1, and a higher temperature, not a lower one, lowers it toward 0.5.
 - q: >-
     Why does top-p adapt better than top-k across different contexts?
-  options: ["It is faster to compute", "It never drops any token", "It removes the need for a softmax", "It keeps however many tokens are needed to reach probability mass p, so a peaked distribution keeps few tokens and a flat one keeps many"]
-  answer: 3
-  explanation: >-
-    A fixed k is too permissive when one answer dominates and too restrictive when many continuations are fine. The nucleus grows and shrinks with the distribution's shape. Top-p still needs the softmax probabilities and does drop the tail.
-- q: >-
-    A service asks for JSON with max_tokens = 500. For long inputs, parsing sometimes fails with an unexpected end of input. What is the right fix?
-  options: ["Check the finish reason; treat a stop on the token limit as truncated output, and raise the limit or reduce the output size", "Retry with a higher temperature", "Add \"Please close your JSON\" to the prompt", "Switch to beam search"]
-  answer: 0
-  explanation: >-
-    The model was cut off by the cap mid-object. The API reports that the stop was due to max tokens, and the code must handle it explicitly (raise the cap, paginate, shrink the schema). Temperature, prompt pleading and beam search do not stop the cap from truncating.
-- q: >-
-    A regression test sends the same prompt at temperature 0 and asserts the exact output string. It passes locally but fails intermittently in CI against the hosted API. The most likely cause is:
-  options: ["The API ignores temperature 0", "Temperature 0 samples randomly by design", "Batched GPU inference changes the order of floating-point reductions, so near-tied tokens can flip and the output diverges from there", "The tokenizer is non-deterministic"]
+  options: ["It never drops tokens, so rare but valid words stay reachable", "It is cheaper to compute, since it skips sorting the vocabulary", "It keeps as many tokens as it takes to reach probability mass p", "It works on raw logits, so no softmax is needed at each step"]
   answer: 2
   explanation: >-
-    Floating-point addition is not associative, and batch composition changes kernel and reduction order, so logits differ in their last bits. When two candidates are nearly tied, the argmax flips and every later token can differ. Tests should assert structure or meaning, not exact strings.
+    Keeping however many tokens are needed to reach mass p means a peaked distribution keeps one or two tokens and a flat one keeps hundreds. A fixed k is too permissive when one answer dominates and too restrictive when many continuations are fine. Top-p still needs sorted softmax probabilities and does drop the tail.
+- q: >-
+    A service asks for JSON with max_tokens = 500. For long inputs, parsing sometimes fails with an unexpected end of input. What is the right fix?
+  options: ["Switch to beam search so the model finds a complete object", "Add \"Always close your JSON\" to the prompt as a hard instruction", "Check the finish reason and handle truncation at the token limit", "Retry with a higher temperature so the model picks shorter keys"]
+  answer: 2
+  explanation: >-
+    The model was cut off by the cap mid-object. The API reports that the stop was due to max tokens, and the code must treat that as truncated output and handle it explicitly (raise the cap, paginate, shrink the schema). Temperature, prompt pleading and beam search do not stop the cap from truncating.
+- q: >-
+    A regression test sends the same prompt at temperature 0 and asserts the exact output string. It passes locally but fails intermittently in CI against the hosted API. The most likely cause is:
+  options: ["The hosted API silently ignores a temperature of exactly 0", "The tokenizer splits the prompt differently on each call", "Batched GPU maths can flip near-tied tokens between runs", "Temperature 0 still samples randomly, just from fewer tokens"]
+  answer: 2
+  explanation: >-
+    Floating-point addition is not associative, and batch composition changes kernel and reduction order, so logits differ in their last bits. When two candidates are nearly tied, the argmax flips and every later token can differ. Temperature 0 is greedy, not random, and tokenization is deterministic. Tests should assert structure or meaning, not exact strings.
 - q: >-
     In the two-step example, greedy decoding yields a sequence with probability 0.20 while another sequence has probability 0.36. Why did greedy miss it?
-  options: ["Greedy decoding is random", "Greedy commits to the single best token at each step, and the better sequence starts with a token that was only second best at step 1", "The better sequence contained an end-of-sequence token", "Greedy decoding only considers top-p tokens"]
-  answer: 1
+  options: ["The better sequence contained an end-of-sequence token greedy skips", "Greedy decoding samples randomly, so it missed it by chance", "Greedy only considers top-p tokens, and the better one fell outside", "The better sequence began with the token that ranked second at step 1"]
+  answer: 3
   explanation: >-
-    Choosing A (0.5) over B (0.4) at step 1 was locally best, but B's continuation was far more certain (0.9 versus 0.4). Beam search with width 2 keeps B alive and finds the 0.36 sequence. Greedy is deterministic, not random.
+    Greedy commits to the single best token at each step: choosing A (0.5) over B (0.4) at step 1 was locally best, but B's continuation was far more certain (0.9 versus 0.4). Beam search with width 2 keeps B alive and finds the 0.36 sequence. Greedy is deterministic, not random.
 ```

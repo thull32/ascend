@@ -249,32 +249,32 @@ Measure it per team and per log line pattern first; logging cost is always conce
 ```quiz
 - q: >-
     A metric has labels service (300 values), endpoint (20), status (5) and pod (30). An engineer proposes adding a customer_id label with 50,000 values. What is the most accurate objection?
-  options: ["It adds 50,000 series, which is fine", "It multiplies that metric's potential series count by up to 50,000, and memory and index cost scale with series count", "It slows down queries but does not affect ingestion", "Labels with numeric values cannot be indexed"]
-  answer: 1
+  options: ["It slows down queries but does not affect ingestion", "It adds 50,000 series, which the platform can absorb", "Labels with numeric values cannot be indexed by the TSDB", "It multiplies the metric's series count by up to 50,000"]
+  answer: 3
   explanation: >-
     Series count is the product of label cardinalities, so a new label multiplies rather than adds. Ingester memory, index size and query cost all scale with distinct series. The tempting "adds 50,000" answer is the mistake that causes cardinality outages.
 - q: >-
     Thirty pods each report their own p99 latency. Which approach gives a correct fleet-wide p99?
-  options: ["Average the 30 p99 values", "Take the maximum of the 30 p99 values", "Sum the histogram bucket counts across pods, then compute the quantile from the merged histogram", "Take the median of the 30 p99 values"]
-  answer: 2
+  options: ["Average the 30 per-pod p99 values, weighted by traffic", "Sum the pods' histogram buckets, then take the quantile", "Take the median of the 30 p99 values to damp outliers", "Take the maximum of the 30 p99 values as the fleet p99"]
+  answer: 1
   explanation: >-
-    Quantiles are not additive; the mean or median of per-pod p99s is not a p99 of anything. Histograms (or mergeable sketches) can be summed across pods and the quantile computed from the merged distribution. The maximum is an upper-bound heuristic, not the fleet p99.
+    Quantiles are not additive; the mean (weighted or not) or median of per-pod p99s is not a p99 of anything. Histograms (or mergeable sketches) can be summed across pods and the quantile computed from the merged distribution. The maximum is an upper-bound heuristic, not the fleet p99.
 - q: >-
     Why does the design make alert evaluation read only from the in-memory ingesters rather than from object storage?
-  options: ["Alerts need only recent windows, and this keeps alerting working when the historical tier is slow or down", "Object storage cannot store time-series data", "Ingesters have more complete data than object storage", "It is cheaper per query"]
+  options: ["Alerts use recent windows, so paging survives a history outage", "Ingesters hold more complete data than the object store does", "Reading from memory is cheaper per query than object storage", "Object storage cannot hold time-series data in a queryable form"]
   answer: 0
   explanation: >-
-    Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. Designing the most critical path to have the fewest dependencies is the point.
+    Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. Designing the most critical path to have the fewest dependencies is the point; per-query cost is a side effect, not the reason.
 - q: >-
     Logs are stored as compressed chunks indexed only by labels. Which query becomes cheap once each chunk carries a Bloom filter of trace IDs?
-  options: ["Count all error lines across every service for a month", "Full-text search for any word in any line", "Compute p99 latency from log lines", "Find every line for one specific trace_id across all services in the last day"]
-  answer: 3
+  options: ["Count all error lines across every service for a month", "Full-text search for any word in any log line this week", "Find all lines for one trace_id across services in a day", "Compute p99 latency from the duration field in log lines"]
+  answer: 2
   explanation: >-
     A Bloom filter answers "definitely not here" for most chunks, so the querier fetches only chunks that might contain that trace ID, plus about 1% false positives. It does nothing for aggregate scans or arbitrary words that were not put in the filter.
 - q: >-
     The 1-minute rollup tier for 13 months is about 110 TB while raw 15-day data is about 2.6 TB. What is the design consequence?
-  options: ["Drop rollups and keep raw data for 13 months instead", "Store historical blocks once in object storage and downsample further for old ranges, because replicated SSD for that tier would cost roughly ten times more", "Shard the rollups across more SSD nodes", "Compress rollups with gzip"]
-  answer: 1
+  options: ["Drop rollups and keep raw data for 13 months instead", "Shard the rollups across a larger fleet of replicated SSD nodes", "Move old blocks to object storage and downsample further", "Compress the rollups with gzip before writing to SSD"]
+  answer: 2
   explanation: >-
-    The long-term tier dominates storage, so its cost per GB decides the design. Object storage provides durability without triple replication at a fraction of the SSD price, and 5-minute rollups for older ranges shrink it further. Keeping raw data for 13 months would be larger still.
+    The long-term tier dominates storage, so its cost per GB decides the design: replicated SSD for that tier would cost roughly ten times more. Object storage provides durability without triple replication at a fraction of the SSD price, and 5-minute rollups for older ranges shrink it further. Keeping raw data for 13 months would be larger still.
 ```

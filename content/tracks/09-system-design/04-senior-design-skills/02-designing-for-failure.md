@@ -210,32 +210,32 @@ By showing that no single failure needs a human. That means automated detection 
 ```quiz
 - q: >-
     Two regions are each 99.9% available. A shared global configuration service can take both down together for 0.01% of the time. What is the realistic combined availability?
-  options: ["About 99.99%, because the common-mode failure dominates", "99.9999%, because the regions are redundant", "99.8%, because availabilities multiply", "99.9%, because you can never beat a single region"]
-  answer: 0
+  options: ["About 99.9%, because you cannot beat a single region", "About 99.8%, because the availabilities multiply", "About 99.99%, because the shared dependency dominates", "About 99.9999%, because the two regions are redundant"]
+  answer: 2
   explanation: >-
-    Independent failures of both regions are negligible (about 0.00008%), but the shared dependency takes both down 0.01% of the time, so unavailability is about 0.01%. Multiplying availabilities applies to serial dependencies, not redundant ones.
+    Independent failures of both regions are negligible (about 0.00008%), but the shared dependency is a common-mode failure that takes both down 0.01% of the time, so unavailability is about 0.01%. Multiplying availabilities applies to serial dependencies, not redundant ones.
 - q: >-
     Why does a 99.99% availability target effectively require automated recovery?
-  options: ["Because humans make mistakes", "Because the monthly budget is about 4.3 minutes, less than the time to page, acknowledge and decide", "Because regulations require it", "Because automated systems never fail"]
+  options: ["Because automated recovery systems never fail themselves", "Because 4.3 minutes a month cannot fit a human response", "Because regulators require automation above 99.9%", "Because humans make mistakes under pressure at 3 a.m."]
   answer: 1
   explanation: >-
-    4.3 minutes a month is consumed by a single human response cycle. Human error is real but not the reason; automation fails too, which is why it must be tested.
+    4.3 minutes a month is consumed by a single human response cycle: page, acknowledge, decide. Human error is real but not the reason; automation fails too, which is why it must be tested.
 - q: >-
     Each of three service layers retries a failed call up to three attempts. The database at the bottom is failing. How many database requests can one user request generate?
-  options: ["3", "9", "27", "81"]
-  answer: 2
+  options: ["27", "3", "81", "9"]
+  answer: 0
   explanation: >-
     Attempts multiply per layer, 3 × 3 × 3 = 27, arriving exactly when the database is least able to cope. The fix is retrying at one layer, retry budgets, and backoff with jitter.
 - q: >-
     A bug writes corrupted values into a table replicated synchronously to three regions. Which defence recovers the data?
-  options: ["Failing over to another region", "Adding a fourth replica", "Increasing the replication factor", "Point-in-time recovery or a delayed replica"]
-  answer: 3
+  options: ["Adding a fourth replica in a new region", "Raising the replication factor in each region", "Point-in-time recovery or a delayed replica", "Failing over to one of the other two regions"]
+  answer: 2
   explanation: >-
     Replication copies the corruption everywhere within milliseconds, so failover and extra replicas hold the same bad data. Only a copy from before the corruption (PITR, a delayed replica, an immutable log) gets you back.
 - q: >-
     You run active-active in three regions. What is the highest steady-state utilisation each region can safely run at, if it must absorb a lost region?
-  options: ["About 33%", "About 50%", "About 67%", "About 90%"]
-  answer: 2
+  options: ["About 33%", "About 67%", "About 90%", "About 50%"]
+  answer: 1
   explanation: >-
     Each region normally carries one third of traffic and must carry one half after a loss, so its normal load can be at most (1/3)/(1/2) = two thirds of its capacity. Two regions would each be limited to 50%.
 ```

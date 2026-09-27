@@ -304,32 +304,32 @@ hints:
 ```quiz
 - q: >-
     A function computes the length of a linked list recursively: return 0 for None, else 1 + length(node.next). In CPython, on a list of 5,000 nodes it will:
-  options: ["Return 5000", "Raise RecursionError because depth exceeds the default limit", "Return a wrong answer due to integer overflow", "Run in O(n log n) because of stack management"]
-  answer: 1
+  options: ["Return a wrong answer due to integer overflow", "Return 5000, since 8 MB of stack holds 5,000 frames", "Segfault, since CPython cannot catch stack overflow", "Raise RecursionError at about 1,000 frames deep"]
+  answer: 3
   explanation: >-
-    Depth equals list length, and CPython's default limit is about 1,000 frames. The algorithm is correct but the depth is proportional to input size, which is exactly the shape that needs a loop or explicit stack.
+    Depth equals list length, and CPython's default recursion limit is about 1,000 frames, so it raises a catchable RecursionError long before the C stack would run out. The algorithm is correct but the depth is proportional to input size, which is exactly the shape that needs a loop or explicit stack.
 - q: >-
     Which change turns power(x, n) = power(x, n//2) * power(x, n//2) * (x if n odd) from O(n) to O(log n)?
-  options: ["Adding a base case for n == 1", "Calling the function once and squaring the stored result", "Using an explicit stack instead of recursion", "Making the function tail-recursive"]
-  answer: 1
+  options: ["Calling it once and squaring the stored result", "Adding a second base case to stop at n == 1", "Replacing the recursion with an explicit stack", "Rewriting it in tail form with an accumulator"]
+  answer: 0
   explanation: >-
-    Two calls per frame on n/2 gives T(n) = 2T(n/2) + O(1) = O(n). One stored call gives T(n) = T(n/2) + O(1) = O(log n). The other options do not change the number of calls.
+    Two calls per frame on n/2 gives T(n) = 2T(n/2) + O(1) = O(n). One stored call gives T(n) = T(n/2) + O(1) = O(log n). An explicit stack or tail form changes where frames live, not how many calls are made, and an extra base case trims one level at most.
 - q: >-
     Why does writing a function in tail-recursive accumulator form NOT reduce its stack usage in Python or Node?
-  options: ["Accumulators use more memory than return values", "Neither runtime performs tail-call elimination, so every call still gets a frame", "Tail recursion only works for functions with one argument", "It does reduce stack usage; the question is wrong"]
-  answer: 1
+  options: ["Tail form only helps functions with one argument", "The accumulator argument makes each frame bigger", "They eliminate tail calls only once the JIT warms up", "Neither runtime reuses the frame for a tail call"]
+  answer: 3
   explanation: >-
-    Tail-call elimination is a runtime optimisation that reuses the frame. CPython and V8 deliberately do not do it. The value of tail form is that it converts mechanically to a loop, which you then write yourself.
+    Tail-call elimination is a runtime optimisation that reuses the frame, so every call no longer needs its own. CPython and V8 deliberately do not do it at all, JIT or not. The value of tail form is that it converts mechanically to a loop, which you then write yourself.
 - q: >-
     Towers of Hanoi with n = 20 discs makes about a million moves via two recursive calls per frame. The maximum stack depth is:
-  options: ["About a million frames", "About 20 frames", "About 400 frames", "About 2^20 frames"]
-  answer: 1
+  options: ["About a million, one per move", "About 40, two per disc", "About 20, one per disc", "About 400, n² for n discs"]
+  answer: 2
   explanation: >-
-    Depth is the longest chain of nested calls, which is n. The million moves are the total number of calls in the tree; the tree is wide, not deep. Time is exponential, stack is linear in n.
+    Depth is the longest chain of nested calls, which is n. The two calls per frame run one after the other, so they widen the tree rather than deepen it, and the million moves are the total number of calls in that tree. Time is exponential, stack is linear in n.
 - q: >-
     A recursive-descent JSON parser in a web service crashes on some requests with a stack overflow. The root cause is most likely:
-  options: ["Malformed UTF-8 in the request body", "Deeply nested arrays or objects in attacker-controlled input", "A missing base case for the empty document", "Integer overflow in the length field"]
-  answer: 1
+  options: ["A missing base case for the empty document", "Malformed UTF-8 bytes inside long string values", "Very long flat arrays with millions of elements", "Deeply nested arrays or objects in untrusted input"]
+  answer: 3
   explanation: >-
-    Mutual recursion between parse functions has depth equal to nesting depth of the input. Untrusted input can nest arbitrarily; the fix is a nesting limit or an explicit stack. A missing base case would fail on every input, not some.
+    Mutual recursion between parse functions has depth equal to nesting depth of the input, and attacker-controlled input can nest arbitrarily; the fix is a nesting limit or an explicit stack. A long flat array is parsed by a loop, so its length does not add depth. A missing base case would fail on every input, not some.
 ```

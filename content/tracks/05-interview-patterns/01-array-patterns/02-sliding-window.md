@@ -335,31 +335,31 @@ hints:
 ```quiz
 - q: >-
     Why is a sliding window O(n) even though it contains a nested while loop?
-  options: ["The inner loop runs at most a constant number of times per iteration", "The left index only ever increases and is bounded by n, so the inner loop executes at most n times in total across the whole run", "Hash-map operations are O(1), which cancels the extra loop", "It is not O(n); it is O(n²) in the worst case"]
-  answer: 1
+  options: ["Each hash-map update is O(1), which absorbs the cost of the inner loop", "It is O(n²) in the worst case; O(n) is only the average on random input", "left only moves forward and stops at n, so the shrink loop runs n times in total", "The shrink loop runs a constant number of times for each value of right"]
+  answer: 2
   explanation: >-
-    This is an amortised argument: each element is removed at most once, so all shrink iterations together cost O(n). The per-iteration count can be large (the first trace shrinks twice in one step), so option 0 is wrong; it is the total that is bounded.
+    This is an amortised argument: each element is removed at most once, so all shrink iterations together cost O(n). The per-iteration count can be large (the first trace shrinks twice in one step), so a constant bound per step is wrong; it is the total that is bounded.
 - q: >-
-    A candidate solves "longest substring with at most k distinct characters" and is then asked for exactly k. What is the cleanest change?
-  options: ["Replace <= k with == k in the shrink condition", "Compute atMost(k) minus atMost(k - 1)", "Add a second window that tracks the k-th character", "Switch to dynamic programming"]
-  answer: 1
+    A candidate counts the substrings with at most k distinct characters and is then asked to count those with exactly k. What is the cleanest change?
+  options: ["Keep a second window tracking the k-th distinct character", "Switch to dynamic programming over the substring end index", "Subtract the atMost(k - 1) count from the atMost(k) count", "Replace <= k with == k in the window's shrink condition"]
+  answer: 2
   explanation: >-
     Exactly-k is not monotone (extending a window can move it into and back out of validity), so the shrink loop breaks. At-most-k is monotone, and the difference of two at-most counts isolates the exact count. Changing the comparison alone produces wrong shrink behaviour.
 - q: >-
     In the shortest-window form, where must you record the candidate answer?
-  options: ["After the shrink loop finishes", "Inside the shrink loop, before removing s[left]", "Inside the shrink loop, after removing s[left]", "Only when the loop over right finishes"]
+  options: ["After the shrink loop finishes, when the window is smallest", "Inside the shrink loop, before removing s[left]", "Inside the shrink loop, after removing s[left]", "Once, after the loop over right has finished"]
   answer: 1
   explanation: >-
     The window is valid at the top of each shrink iteration and may become invalid the moment s[left] leaves. Recording after removal misses the last valid state; recording after the loop records an invalid window.
 - q: >-
     "Find the longest subarray whose sum equals k" where the array contains negative numbers. A sliding window fails because:
-  options: ["Windows only work on strings", "Removing an element from the left can increase the sum, so shrinking is no longer monotone", "The sum can overflow", "k might be negative"]
-  answer: 1
+  options: ["The running sum can overflow once negative values are subtracted", "A negative k flips the direction of the shrink condition's comparison", "Windows need a fixed width, and the target length here is unknown", "Dropping a left element can raise the sum, so shrinking is not monotone"]
+  answer: 3
   explanation: >-
     The shrink rule assumes that removing elements moves the state in one direction. With negatives it does not, so the window can skip valid segments. Prefix sums with a hash map from prefix value to first index solve it in O(n).
 - q: >-
     In Longest Repeating Character Replacement, max_freq is never decreased when characters leave the window. Why does the answer remain correct?
-  options: ["max_freq is always recomputed at the end", "A too-large max_freq can only keep the window at a size that was already recorded as best, never let it record a larger invalid window", "Character counts never decrease either", "It is not correct in general; it only works when k is 0"]
+  options: ["It is only correct when k is 0; otherwise the answer can be too large", "A stale max_freq can only hold the window at a size best already has", "max_freq is recomputed from the counts before best is updated", "Character counts never decrease either, so max_freq stays exact"]
   answer: 1
   explanation: >-
     best only grows when a longer window is valid, and a longer valid window requires a genuinely larger max_freq, which the code would have observed. The stale value can make the current window technically invalid, but its length never exceeds the recorded best.

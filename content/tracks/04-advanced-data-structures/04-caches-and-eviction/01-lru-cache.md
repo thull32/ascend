@@ -258,32 +258,32 @@ Then do the full problem, with its follow-ups, at [LRU Cache](/practice/lru-cach
 ```quiz
 - q: >-
     Why does the LRU cache need a doubly linked list rather than a singly linked one?
-  options: ["Singly linked lists cannot be traversed from the head", "Removing a node found via the hash map requires updating its predecessor, which a singly linked node cannot reach in O(1)", "Doubly linked lists use less memory", "Singly linked lists cannot store the key"]
-  answer: 1
+  options: ["Unlinking a node needs its predecessor, which a singly linked node cannot reach in O(1)", "Pushing to the front needs the old head's address, which a singly linked list does not keep", "Doubly linked nodes use less memory, because sentinels remove the need for null checks", "Eviction must delete the key from the map, and only a doubly linked node can store it"]
+  answer: 0
   explanation: >-
-    The hash map hands you a pointer to the node, not to its predecessor. Unlinking needs predecessor.next = node.next; only a prev pointer gives you that without an O(n) walk.
+    The hash map hands you a pointer to the node, not to its predecessor. Unlinking needs predecessor.next = node.next; only a prev pointer gives you that without an O(n) walk. The head is always known, any node can store its key, and a prev pointer costs memory rather than saving it.
 - q: >-
     A capacity-2 LRU cache runs put(1,1), put(2,2), get(1), put(3,3). Which key was evicted?
-  options: ["1", "2", "3", "Nothing; capacity was not exceeded"]
+  options: ["Key 3", "Key 2", "No eviction", "Key 1"]
   answer: 1
   explanation: >-
-    get(1) moved key 1 to the front, leaving key 2 as least recently used. put(3,3) needed space and evicted 2.
+    get(1) moved key 1 to the front, leaving key 2 as least recently used. put(3,3) needed space and evicted 2. Key 1 was inserted first, but insertion order is FIFO's rule, not LRU's.
 - q: >-
     A nightly job scans every row of a large table through a pure-LRU cache in front of the database. What happens to the daytime working set?
-  options: ["It is unaffected because the scan only reads", "It is evicted, because each scanned row is promoted to most-recent once and pushes older entries out", "It is promoted because it was used more often", "The cache refuses the scan"]
-  answer: 1
+  options: ["It is evicted, because every scanned row becomes most recent", "It survives, because its keys have far higher access counts", "It survives, because read-only access does not change LRU order", "Part of it survives, because scanned rows enter at the list midpoint"]
+  answer: 0
   explanation: >-
-    LRU has no notion of frequency; a single touch makes a scanned row the most recent entry. A scan larger than the cache flushes everything. This scan pollution is why Linux, InnoDB and Postgres all deviate from pure LRU.
+    LRU has no notion of frequency; a single touch makes a scanned row the most recent entry. A scan larger than the cache flushes everything. Midpoint insertion is InnoDB's defence against exactly this, not something pure LRU does. This scan pollution is why Linux, InnoDB and Postgres all deviate from pure LRU.
 - q: >-
     Why does Redis approximate LRU by sampling a few keys instead of keeping a linked list?
-  options: ["Linked lists are not thread-safe", "A list would cost two pointers per key and the approximation is almost as accurate", "Sampling gives a higher hit ratio than exact LRU", "Redis keys cannot be ordered"]
-  answer: 1
+  options: ["A list costs 16 bytes per key, and sampling comes close to exact LRU", "Sampling gives a higher hit ratio than exact LRU for the same memory", "Expired keys would clog a list, and sampling purges them for free", "A list needs a lock around every access, and Redis must avoid locks"]
+  answer: 0
   explanation: >-
-    Sixteen bytes of pointers per key is significant when keys are small and numerous; a 24-bit clock plus sampling of 5 to 10 keys gets close to exact LRU's hit ratio at a fraction of the memory. It is not more accurate than exact LRU.
+    Sixteen bytes of pointers per key is significant when keys are small and numerous; a 24-bit clock plus sampling of 5 to 10 keys gets close to exact LRU's hit ratio at a fraction of the memory. It is not more accurate than exact LRU, only nearly as accurate and much cheaper.
 - q: >-
     You add thread safety with a single mutex around get and put. What is the main cost?
-  options: ["Incorrect results under contention", "Every read serialises on the lock, removing much of the cache's speed advantage under load", "Memory doubles", "Eviction order becomes random"]
+  options: ["Gets can interleave with puts, so results become incorrect", "Every read queues on the one lock, so reads lose parallelism", "Recency order becomes approximate, because reads are buffered", "Memory roughly doubles, because every entry needs its own lock"]
   answer: 1
   explanation: >-
-    A global lock is correct but turns a structure meant to serve reads in parallel into a serial bottleneck. Segmented locks or lock-free read buffers (Caffeine) keep reads concurrent at the cost of only approximate recency order.
+    A global lock is correct but turns a structure meant to serve reads in parallel into a serial bottleneck. Segmented locks or lock-free read buffers (Caffeine) keep reads concurrent; approximate recency order is the price of those read buffers, not of a global lock.
 ```

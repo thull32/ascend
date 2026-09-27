@@ -352,32 +352,32 @@ hints:
 ```quiz
 - q: >-
     A binary tree has 1,023 nodes. What are the minimum and maximum possible heights, counting edges?
-  options: ["9 and 1,022", "10 and 1,023", "9 and 511", "10 and 1,022"]
-  answer: 0
+  options: ["10 and 1,022", "9 and 511", "10 and 1,023", "9 and 1,022"]
+  answer: 3
   explanation: >-
     A perfect binary tree with 1,023 = 2^10 - 1 nodes has 10 levels, so its height is 9 edges. The maximum is a chain, where every node has one child: 1,022 edges. "10 and 1,023" counts nodes, not edges.
 - q: >-
     Your height() function returns 0 for an empty tree and 1 + max(left, right) otherwise. What does it compute?
-  options: ["Height in edges", "Height in nodes (number of nodes on the longest root-to-leaf path)", "Depth of the deepest leaf minus one", "The size of the tree"]
+  options: ["Height in edges on the longest root-to-leaf path", "Height in nodes on the longest root-to-leaf path", "Size of the tree, counting the root as 1", "Depth of the shallowest leaf, counted in nodes"]
   answer: 1
   explanation: >-
-    With base case 0, a single node returns 1, so the function counts nodes on the longest path. To count edges the base case must be -1. Both are valid conventions; mixing them is the bug.
+    With base case 0, a single node returns 1, so the function counts nodes on the longest path. To count edges the base case must be -1, so a leaf returns 1 + max(-1, -1) = 0. Both are valid conventions; mixing them is the bug.
 - q: >-
     Why is the level-order array (children of i at 2i+1 and 2i+2) a poor choice for a general binary tree?
-  options: ["Index arithmetic is slower than following a pointer", "A sparse or skewed tree wastes exponentially many empty slots", "It cannot represent trees with duplicate values", "It only works for trees with an odd number of nodes"]
-  answer: 1
+  options: ["Sparse or skewed trees waste exponentially many slots", "Index arithmetic is slower than following a child pointer", "Finding a node's parent requires an O(n) scan of the array", "Inserting a node shifts every later index, costing O(n)"]
+  answer: 0
   explanation: >-
-    The slot for a node at depth d is around 2^d, regardless of how many nodes actually exist at that depth. A 20-node chain needs about a million slots. It is ideal for complete trees, which is why heaps use it.
+    The slot for a node at depth d is around 2^d, regardless of how many nodes actually exist at that depth. A 20-node chain needs about a million slots. Nothing shifts on insert (a new child just fills slot 2i+1 or 2i+2) and the parent is at (i-1)//2, so the layout is ideal for complete trees, which is why heaps use it.
 - q: >-
     A recursive size() on a tree of 500,000 nodes throws RecursionError in Python but works on a different 500,000-node tree. The most likely explanation is:
-  options: ["The first tree contains duplicate values", "The first tree is much taller, probably degenerate, so the recursion depth exceeds the interpreter limit", "Python cannot recurse over more than 100,000 nodes", "The first tree was built from a level-order array"]
-  answer: 1
+  options: ["The first tree has more leaves, so more frames are live at once", "The first tree's nodes are larger, so each frame costs more", "The first tree is far taller, so recursion depth passes the limit", "The first tree is wider, so the stack must hold a whole level"]
+  answer: 2
   explanation: >-
-    Recursion depth equals tree height, not size. A balanced tree of 500,000 nodes is about 19 deep; a chain is 499,999 deep. The fix is an explicit stack or guaranteeing balance.
+    Recursion depth equals tree height, not size, leaf count or width. A balanced tree of 500,000 nodes is about 19 deep; a degenerate chain is 499,999 deep, far past CPython's limit of 1,000. Width matters for a BFS queue, not for the recursion stack. The fix is an explicit stack or guaranteeing balance.
 - q: >-
     You have a table of 2 million rows with a parent_id column and need to compute each node's subtree size. The efficient approach is:
-  options: ["For each node, query its descendants recursively in SQL", "Load all rows, build a children list in one pass, then run one bottom-up recursion or reverse-topological pass", "Sort the rows by parent_id and use binary search for each child", "Store the tree as a level-order array"]
-  answer: 1
+  options: ["Build a children list in one pass, then one bottom-up pass", "Sort rows by parent_id, then binary-search each node's children", "Query each node's descendants with a recursive SQL CTE", "Load rows into a level-order array and sum each index's subtree"]
+  answer: 0
   explanation: >-
-    One O(n) pass turns the parent array into adjacency lists; one O(n) bottom-up pass computes sizes. Per-node queries are O(n) round trips each; sorting plus searching is O(n log n) and still needs the traversal.
+    One O(n) pass turns the parent array into adjacency lists; one O(n) bottom-up (or reverse-topological) pass computes sizes. Per-node queries are O(n) round trips each; sorting plus searching is O(n log n) and still needs the traversal; a level-order array wastes exponential space on a sparse hierarchy.
 ```

@@ -170,32 +170,32 @@ I inject the failure. Add 500 ms of latency to recommendations for 5% of traffic
 ```quiz
 - q: >-
     A service with 200 shared threads calls a dependency at 50 requests per second. The dependency's latency rises to 8 seconds. Roughly how long until every thread is blocked on it?
-  options: ["About 4 seconds", "About 8 seconds", "About 40 seconds", "It never fully blocks because requests time out"]
+  options: ["About 4 seconds", "Never; calls time out", "About 8 seconds", "About 40 seconds"]
   answer: 0
   explanation: >-
-    Little's law: concurrency = 50/s x 8 s = 400 needed; the pool has 200, which fills at 50 new blocked calls per second, so in about 4 seconds. A 30-second timeout does not help. A bulkhead of 20 threads would cap the damage at 20.
+    Little's law: concurrency = 50/s x 8 s = 400 needed; the pool has 200, which fills at 50 new blocked calls per second, so in about 4 seconds. A 30-second timeout does not help, because the calls are blocked long before it fires. A bulkhead of 20 threads would cap the damage at 20.
 - q: >-
     A circuit breaker trips after a single failed call. What is most likely misconfigured?
-  options: ["The cool-down period", "The minimum call volume before the error rate is evaluated", "The fallback", "The half-open trial count"]
-  answer: 1
+  options: ["The number of half-open trial calls", "The fallback that runs when a call fails", "The minimum number of calls per window", "The cool-down period before it tries again"]
+  answer: 2
   explanation: >-
-    Error rate over a window needs a minimum number of samples (say 20) or one failure out of one call is a 100% error rate. Cool-down and half-open settings affect recovery, not the initial trip.
+    Error rate over a window needs a minimum number of samples (say 20) before it is evaluated, or one failure out of one call is a 100% error rate. Cool-down and half-open settings affect recovery, not the initial trip, and the fallback runs after the trip.
 - q: >-
     The gateway's timeout is 2 s and the service it calls has a 5 s timeout on its database call. During database slowness:
-  options: ["Requests fail cleanly at the gateway with no wasted work", "The gateway gives up and retries while the service is still working, multiplying load for no benefit", "The database timeout never fires", "The service returns partial results"]
-  answer: 1
+  options: ["The service returns partial results within the 2 s budget", "Requests fail cleanly at the gateway with no wasted work", "The database timeout fires first and protects the gateway", "The gateway retries while the service is still working"]
+  answer: 3
   explanation: >-
-    Timeouts must shrink down the chain. A longer inner timeout means the caller abandons and retries while the original attempt still consumes capacity; deadline propagation prevents starting work that cannot finish in time.
+    Timeouts must shrink down the chain. A longer inner timeout means the caller abandons and retries while the original attempt still consumes capacity, multiplying load for no benefit; deadline propagation prevents starting work that cannot finish in time. The work is not clean: the service keeps going after the gateway has given up.
 - q: >-
     A readiness check returns 200 only if the shared database responds within 100 ms. When the database slows, the consequence is:
-  options: ["Only the slowest instances are removed", "All instances fail the check together and the load balancer removes the entire fleet", "The load balancer routes around the database", "Nothing; readiness checks do not affect routing"]
-  answer: 1
+  options: ["All instances fail together and the fleet is removed", "The load balancer routes traffic around the slow database", "Nothing; readiness checks do not affect routing", "Only the instances with the slowest queries are removed"]
+  answer: 0
   explanation: >-
-    Every instance shares the same dependency, so they fail together, converting degraded into down. Readiness should check instance-local state; dependency failures are handled by breakers and fallbacks.
+    Every instance shares the same dependency, so they fail together and the load balancer removes the entire fleet, converting degraded into down. Readiness should check instance-local state; dependency failures are handled by breakers and fallbacks.
 - q: >-
     Traffic exceeds capacity by 30%. Which shedding policy best protects the business?
-  options: ["Reject a random 30% of all requests", "Reject requests that have exceeded their deadline first, then lowest-priority tiers (analytics, prefetch) before browsing, never checkout or auth while lower tiers remain", "Reject all requests from the busiest client", "Queue everything and process in order"]
+  options: ["Queue the excess and process everything in arrival order", "Drop expired requests first, then the lowest-priority tiers", "Reject a random 30% of requests, spread evenly across tiers", "Reject every request from the single busiest client"]
   answer: 1
   explanation: >-
-    Deadline-expired work is worthless; priority tiers preserve revenue-bearing requests. Random shedding drops payments; blocking one client may be unfair and insufficient; unbounded queues add latency until everything times out.
+    Deadline-expired work is worthless; priority tiers (analytics and prefetch before browsing, never checkout or auth while lower tiers remain) preserve revenue-bearing requests. Random shedding drops payments; blocking one client may be unfair and insufficient; unbounded queues add latency until everything times out.
 ```

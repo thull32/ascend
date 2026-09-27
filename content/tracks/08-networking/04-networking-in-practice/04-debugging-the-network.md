@@ -285,32 +285,32 @@ In the Sydney investigation, every phase was a multiple of one RTT: physics. In 
 ```quiz
 - q: >-
     curl reports time_connect = 0.090, time_appconnect = 0.180, time_pretransfer = 0.181 and time_starttransfer = 0.950. Roughly how long did the server take to start responding once the request was sent?
-  options: ["950 ms", "About 770 ms, which includes one round trip of about 90 ms, so about 680 ms of server time", "About 90 ms", "About 180 ms"]
-  answer: 1
+  options: ["About 680 ms: 770 ms minus one round trip", "About 180 ms, the time until TLS finished", "About 950 ms, the whole time_starttransfer", "About 90 ms, the same as the TCP handshake"]
+  answer: 0
   explanation: >-
     The timings are cumulative. Request ready to first byte is 0.950 − 0.181 ≈ 0.77 s. The TCP handshake shows one RTT is about 90 ms, and the request-response exchange needs one RTT, so roughly 680 ms is server-side time: queueing, the handler or its dependencies. Reading 950 ms as server time counts the handshakes twice.
 - q: >-
     mtr shows 45% loss at hop 6 of 11, and 0% loss at hops 7 to 11 including the destination. What do you conclude?
-  options: ["Hop 6 is dropping almost half of all traffic", "The destination is down", "Hop 6 is rate-limiting or deprioritising its replies to probes; traffic through it is fine", "The path is asymmetric so the numbers are meaningless"]
-  answer: 2
+  options: ["Hop 6 is dropping almost half of the traffic through it", "Hop 6 is just rate-limiting its replies to probes", "The path is asymmetric, so the numbers mean nothing", "The destination host is down or intermittently up"]
+  answer: 1
   explanation: >-
-    If hop 6 really dropped forwarded traffic, every later hop and the destination would show at least that much loss. Loss that does not persist downstream is the router's control plane declining to answer probes. Only loss that continues to the destination counts.
+    If hop 6 really dropped forwarded traffic, every later hop and the destination would show at least that much loss. Loss that does not persist downstream is the router's control plane rate-limiting or deprioritising its replies to probes; traffic through it is fine. Only loss that continues to the destination counts.
 - q: >-
     A service's connection latency histogram has spikes at 1 s and 3 s. Which is the best first check?
-  options: ["Whether SYNs are being dropped, for example accept-queue overflows (TcpExtListenOverflows) on the server or a firewall dropping packets", "The DNS TTL", "Nagle's algorithm", "The TLS certificate chain"]
-  answer: 0
+  options: ["Nagle's algorithm meeting delayed ACKs on writes", "The TLS certificate chain sent by the server", "The DNS record's TTL and the resolver timeout", "Whether SYNs are dropped (listen overflows)"]
+  answer: 3
   explanation: >-
-    1 s and 3 s are the initial SYN retransmission timeout and its first doubling, so the first SYN (or the handshake's final ACK) was dropped. A full accept queue or connection-tracking table, or a filtering firewall, is the usual cause. Nagle gives about 40 ms; DNS timeouts give about 5 s.
+    1 s and 3 s are the initial SYN retransmission timeout and its first doubling, so the first SYN (or the handshake's final ACK) was dropped. Accept-queue overflows (TcpExtListenOverflows on the server), a full connection-tracking table or a filtering firewall are the usual causes. Nagle gives about 40 ms; DNS timeouts give about 5 s.
 - q: >-
     dig returns the correct new address for payments.internal, but the service keeps connecting to the old one. Which is NOT a plausible explanation?
-  options: ["An entry in /etc/hosts overrides DNS for getaddrinfo", "A runtime or stub resolver cache is still holding the old answer", "Pooled connections opened before the change are still in use", "The authoritative DNS server is returning the old address"]
-  answer: 3
+  options: ["Pooled connections opened before the change are still in use", "An entry in /etc/hosts overrides DNS for getaddrinfo", "The authoritative DNS server is returning the old address", "A runtime or stub resolver cache is still holding the old answer"]
+  answer: 2
   explanation: >-
     dig just showed that DNS returns the new address, so the authoritative answer is not the problem. /etc/hosts, local and runtime caches, and long-lived pooled connections all sit between DNS and the process, which is why getent ahosts is the right comparison.
 - q: >-
     A tcpdump on a web server shows "cksum 0x1c46 (incorrect -> 0x9a7e)" on every packet the server sends, while clients report no errors. What is happening?
-  options: ["The server's NIC is corrupting packets", "Checksum offload: the capture sees packets before the NIC computes the checksum", "An attacker is modifying packets", "The MTU is too large"]
-  answer: 1
+  options: ["Checksum offload: capture happens before the NIC", "An attacker on the path is modifying the packets", "The interface MTU is too large for the path", "The server's NIC is corrupting outgoing packets"]
+  answer: 0
   explanation: >-
-    With transmit checksum offload, the kernel hands packets to the NIC with a placeholder checksum and the hardware fills in the real one. tcpdump captures in between. Real corruption would appear as checksum failures and retransmissions on the receiving side.
+    With transmit checksum offload, the kernel hands packets to the NIC with a placeholder checksum and the hardware fills in the real one; tcpdump captures in between. Real corruption or tampering would appear as checksum failures and retransmissions on the receiving side, and clients see none.
 ```

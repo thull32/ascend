@@ -350,32 +350,32 @@ hints:
 ```quiz
 - q: >-
     Which property makes the longest-window template (grow right, shrink left while invalid) correct?
-  options: ["The array is sorted", "Validity is closed under shrinking: every sub-window of a valid window is valid", "The window size is fixed", "All values are distinct"]
-  answer: 1
+  options: ["The array is sorted, so the window's sum changes monotonically as it moves", "Validity survives growing: every window containing a valid one is valid", "Each element is admitted and evicted at most once, so the loop runs in O(n)", "Validity survives shrinking: every sub-window of a valid window is valid"]
+  answer: 3
   explanation: >-
-    Heredity gives two facts: the valid starts for a right end form a suffix, and the smallest valid start never decreases as the right end advances. Together they mean the left pointer never has to move back. Sortedness is what two pointers need, not windows.
+    Heredity gives two facts: the valid starts for a right end form a suffix, and the smallest valid start never decreases as the right end advances. Together they mean the left pointer never has to move back. Closure under growing is the mirror property, which justifies the shortest-window template instead; the admit-once argument proves the running time, not correctness; and sortedness is what two pointers need, not windows.
 - q: >-
     You need the number of subarrays with sum exactly S in an array that contains negative numbers. What is the right tool?
-  options: ["atMost(S) - atMost(S - 1) with a sliding window", "A sliding window that shrinks while the sum exceeds S", "Prefix sums with a hash map of prefix counts", "Sort the array and use two pointers"]
+  options: ["Sort the array and move two pointers toward sum S", "A sliding window that shrinks while the sum exceeds S", "Prefix sums with a hash map of prefix counts", "atMost(S) - atMost(S - 1) with a sliding window"]
   answer: 2
   explanation: >-
     The at-most trick needs the at-most version to be hereditary. With negatives, "sum at most S" is not: dropping a negative element can push the sum over S. Prefix sums turn "range sum equals S" into "two prefixes differ by S", which a hash map counts in O(n). Sorting destroys contiguity.
 - q: >-
     A window loop admits each element once and evicts each at most once, but checks validity with sum(1 for c in counts.values() if c > 0) <= k over a map of arbitrary integer keys. What is the running time in the worst case?
-  options: ["O(n)", "O(n log n)", "O(n * d), where d is the number of distinct values in the window, which can be O(n^2) overall", "O(k)"]
-  answer: 2
+  options: ["O(n²)", "O(n log n)", "O(n·k)", "O(n)"]
+  answer: 0
   explanation: >-
-    The pointer argument only bounds the number of iterations. Each iteration pays for a scan of the map, which can hold up to n keys. Maintain the distinct count incrementally (or delete zero-count keys and use len) to keep each step O(1).
+    The pointer argument only bounds the number of iterations. Each iteration pays for a scan of the map, and because zero-count keys are kept (the check filters c > 0), the map holds every value seen so far, up to n keys, so the total is O(n · d) = O(n²). It is not O(n·k): the window has at most k + 1 distinct values, but the map is not the window. Maintain the distinct count incrementally (or delete zero-count keys and use len) to keep each step O(1).
 - q: >-
     In Longest Repeating Character Replacement, the accepted solution never decreases best_freq even after that letter leaves the window. Why is the final answer still correct?
-  options: ["Because letters never leave the window", "Because the window only grows when some valid window of the new length exists: best_freq was reached in a window no longer than the new length, and any window of that length containing it is valid", "Because best_freq is recomputed at the end", "It is not correct; it only passes the tests by luck"]
-  answer: 1
+  options: ["It grows only when a valid window of the new length exists, even if not this one", "A stale best_freq only makes the check stricter, so it can never over-count", "The window never shrinks, so no letter ever actually leaves it once admitted", "best_freq is recomputed from the counts once the loop ends, fixing any stale value"]
+  answer: 0
   explanation: >-
-    The window length tracks the best answer so far and grows by at most one per step. A stale best_freq can only make the check pass when a valid window of length w + 1 exists somewhere in the prefix, and a failed check means the current window, the only new candidate, is truly invalid.
+    The window length tracks the best answer so far and grows by at most one per step. A stale best_freq can only make the check pass when a valid window of length w + 1 exists somewhere in the prefix: best_freq was reached in a window no longer than w + 1, and stretching it to that length keeps it valid. A failed check means the current window, the only new candidate, is truly invalid. Note that a stale, too-high best_freq makes the check more lenient, not stricter; the argument above is what shows the leniency is safe.
 - q: >-
     You need the longest subarray whose gcd is greater than 1. The property is closed under shrinking. What is the obstacle, and what fixes it in amortised O(1) per step?
-  options: ["gcd is not associative; use a segment tree", "gcd cannot be undone when an element leaves; a two-stack queue storing running gcds handles push, pop and query", "gcd needs sorting; sort first", "There is no obstacle; subtract the evicted element's gcd"]
-  answer: 1
+  options: ["There is no obstacle; divide the window's gcd by the evicted element's value", "gcd is not associative, so a segment tree is needed to combine window ranges", "gcd cannot be undone on eviction; a monotonic deque of values keeps it in O(1)", "gcd has no inverse when an element leaves; a two-stack queue of running gcds fixes it"]
+  answer: 3
   explanation: >-
-    gcd is associative but has no inverse, so the window's gcd cannot be updated on eviction. The two-stack queue stores prefix aggregates in each stack and rebuilds the front stack only when it empties, so each element is moved once. A segment tree would work at O(log n) per query, but it is heavier than needed.
+    gcd is associative but has no inverse, so the window's gcd cannot be updated on eviction. The two-stack queue stores prefix aggregates in each stack and rebuilds the front stack only when it empties, so each element is moved once, and it handles push, pop and query. A monotonic deque works for max and min because a dominated value can be discarded forever; gcd has no such dominance. A segment tree would work at O(log n) per query, but it is heavier than needed.
 ```

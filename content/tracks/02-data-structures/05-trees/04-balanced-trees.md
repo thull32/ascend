@@ -354,32 +354,32 @@ hints:
 ```quiz
 - q: >-
     After a right rotation at node y with left child x, which statement is true?
-  options: ["The inorder sequence changes because x is now above y", "x's former right subtree becomes y's left subtree, and inorder is unchanged", "y's right subtree becomes x's left subtree", "The tree's height always decreases by one"]
+  options: ["x is now above y, so the inorder sequence changes", "x's right subtree becomes y's left; inorder is unchanged", "The tree's height always drops by one; inorder is unchanged", "y's right subtree becomes x's left; inorder is unchanged"]
   answer: 1
   explanation: >-
-    The subtree between x and y in inorder (x's right) stays between them by becoming y's left. Rotations never change inorder; they only change which of two adjacent nodes is on top, and the height decreases only when the rotation was fixing an imbalance.
+    The subtree between x and y in inorder (x's right) stays between them by becoming y's left; y's right subtree stays where it is. Rotations never change inorder; they only change which of two adjacent nodes is on top, and the height decreases only when the rotation was fixing an imbalance.
 - q: >-
     A node has balance factor +2 and its left child has balance factor -1. Which fix is needed?
-  options: ["A single right rotation at the node", "A single left rotation at the node", "Rotate left at the left child, then right at the node (LR)", "Rotate right at the left child, then left at the node (RL)"]
-  answer: 2
+  options: ["A single right rotation at the node, as for Left-Left", "Rotate right at the left child, then left at the node (RL)", "A single left rotation at the node, as for Right-Right", "Rotate left at the left child, then right at the node (LR)"]
+  answer: 3
   explanation: >-
     Left-heavy node whose left child is right-heavy is the zig-zag Left-Right case. A single right rotation would move the heavy subtree to the other side and leave it unbalanced; the first rotation straightens the shape into Left-Left.
 - q: >-
     Why do most standard libraries use red-black trees instead of AVL trees for their ordered maps?
-  options: ["Red-black trees have strictly smaller height", "Red-black trees rebalance with fewer rotations, especially on deletion, at the cost of slightly taller trees", "AVL trees cannot support deletion", "Red-black trees do not need to store any extra data per node"]
-  answer: 1
-  explanation: >-
-    AVL keeps a tighter height (about 1.44 log n versus 2 log n) but may rotate at every level during deletion. Red-black fix-ups are bounded by a constant number of rotations and are mostly recolouring. Both store one extra field per node.
-- q: >-
-    A database stores a billion rows with a B+-tree index over 16 KiB pages holding about 1,000 keys each. A point lookup reads roughly how many pages?
-  options: ["About 30", "About 3 or 4", "About 1,000", "About 20"]
-  answer: 1
-  explanation: >-
-    Each level divides the remaining keys by about 1,000: 10^9 → 10^6 → 10^3 → 1, so three internal levels plus the leaf. A binary tree would need 30 levels, each a separate page read.
-- q: >-
-    You need to repeatedly extract the smallest element from a changing set of a million integers, and nothing else. The best structure is:
-  options: ["An AVL tree", "A red-black tree", "A binary heap", "A B-tree"]
+  options: ["AVL trees cannot delete without rebuilding the whole tree", "They have smaller height, so lookups need fewer comparisons", "They rebalance in fewer rotations but allow taller trees", "They store no extra per-node data, so they use less memory"]
   answer: 2
   explanation: >-
-    A heap gives O(log n) insert and extract-min with an array layout, no pointers, and less memory and better cache behaviour than any balanced tree. Balanced trees earn their cost only when you need general ordered queries.
+    AVL keeps a tighter height (about 1.44 log n versus 2 log n) but may rotate at every level during deletion. Red-black fix-ups are bounded by a constant number of rotations and are mostly recolouring. Both store one extra field per node (a height or a colour), and AVL, not red-black, has the smaller height.
+- q: >-
+    A database stores a billion rows with a B+-tree index over 16 KiB pages holding about 1,000 keys each. A point lookup reads roughly how many pages?
+  options: ["About 9, if each level cuts rows by 10", "About 30, one per level of a binary tree", "About 1,000, one per key in the leaf page", "About 3 or 4, one per level of the B+-tree"]
+  answer: 3
+  explanation: >-
+    Each level divides the remaining keys by about 1,000: 10^9 → 10^6 → 10^3 → 1, so three internal levels plus the leaf. A binary tree would need 30 levels, each a separate page read; the keys inside one page are searched in memory, not read one page each.
+- q: >-
+    You need to repeatedly extract the smallest element from a changing set of a million integers, and nothing else. The best structure is:
+  options: ["A red-black tree, since updates need few rotations", "A B-tree, since wide nodes are cache-friendly", "An AVL tree, since its height is the shortest", "A binary heap, since only the minimum is needed"]
+  answer: 3
+  explanation: >-
+    A heap gives O(log n) insert and extract-min with an array layout, no pointers, and less memory and better cache behaviour than any balanced tree. Balanced trees, including the cache-friendly B-tree, earn their cost only when you need general ordered queries.
 ```

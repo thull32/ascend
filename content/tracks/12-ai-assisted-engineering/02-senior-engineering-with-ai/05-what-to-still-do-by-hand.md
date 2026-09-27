@@ -150,32 +150,32 @@ The heuristic that sorts tasks: **if the AI got this wrong, would I be able to t
 ```quiz
 - q: >-
     What does the verification paradox imply for an engineer who delegates most coding to agents?
-  options: ["Verification can be fully delegated to a second agent", "You can reliably verify only work you could have produced or deeply understand, so the production skills must be maintained even if you rarely use them to produce", "Reviewing is always easier than writing", "Tests make human understanding unnecessary"]
+  options: ["Tests make understanding unnecessary, so invest in test coverage instead", "You can only reliably verify work you could have produced, so keep those skills", "Reviewing is always easier than writing, so review skill is the one to keep", "Verification can be delegated to a second agent, which catches the first one's errors"]
   answer: 1
   explanation: >-
-    Plausible-but-wrong code only looks wrong to someone who knows what right looks like. A second agent shares the same blind spots in many cases, reviewing subtle code is often harder than writing it, and tests only check what someone thought to test.
+    Plausible-but-wrong code only looks wrong to someone who knows what right looks like, so the production skills must be maintained even if you rarely use them to produce. A second agent shares the same blind spots in many cases, reviewing subtle code is often harder than writing it, and tests only check what someone thought to test.
 - q: >-
     The agent's Quota tests pass reliably, yet production allows 11 exports for a limit of 10. Why did the tests not catch it?
-  options: ["The limit was misconfigured in production", "The tests run on a single thread, so nothing can run between the read and the write; the race only exists under concurrent requests", "Python dictionaries are not thread-safe for reads", "The test should have used a limit of 11"]
-  answer: 1
+  options: ["The limit was misconfigured in production, so the tests checked a different value", "Python dictionaries are not thread-safe for reads, so the count was read wrongly", "The tests used a limit of 10, and the off-by-one only shows at a limit of 11", "The tests are single-threaded, so nothing interleaves between the read and the write"]
+  answer: 3
   explanation: >-
     Check-then-act on shared state is only wrong when another request interleaves between the read and the write. A single-threaded test never interleaves, so it passes forever. Reasoning about interleavings, or a targeted concurrency test, is required.
 - q: >-
     The quota count lives in Redis and the code does GET, compares, then SET. What is the correct fix?
-  options: ["Retry the SET if it fails", "Add a short sleep between GET and SET", "Make the operation atomic, for example an atomic increment and compare, or a conditional update performed by the store itself", "Cache the count locally in each process"]
-  answer: 2
+  options: ["Make read, check and write one atomic operation in the store", "Add a short sleep between GET and SET, so concurrent requests settle", "Retry the SET when it fails, so a lost write is always reapplied", "Cache the count locally in each process, so fewer round trips can race"]
+  answer: 0
   explanation: >-
-    The bug is that read, check and write are separate steps. Only an atomic operation (or a lock spanning all three) removes the window. Retries and sleeps change timing, and local caches add more copies of the state to disagree.
+    The bug is that read, check and write are separate steps. Only an atomic operation (an atomic increment and compare, or a conditional update performed by the store itself) or a lock spanning all three removes the window. The SET does not fail, so retries do nothing; sleeps change timing, and local caches add more copies of the state to disagree.
 - q: >-
     Which task is the best candidate to delegate fully to an agent, with only normal verification?
-  options: ["Designing the schema for a multi-tenant billing table", "Writing a script to convert 40 JSON test fixtures to YAML, which you review and run", "Deciding whether to build a new service or extend an existing one", "The threat model for a new public endpoint"]
-  answer: 1
+  options: ["A script to convert 40 JSON test fixtures to YAML, which you run", "Deciding whether to build a new service or extend an existing one", "Designing the schema for a new multi-tenant billing table", "Writing the threat model for a new public payments endpoint"]
+  answer: 0
   explanation: >-
-    The conversion is mechanical and easy to check: if it is wrong, you can tell. Schema design, build-versus-extend decisions and threat modelling are judgement calls that are hard to reverse and hard to verify without having done the thinking.
+    The conversion is mechanical and easy to check: you review and run the script, and if it is wrong, you can tell. Schema design, build-versus-extend decisions and threat modelling are judgement calls that are hard to reverse and hard to verify without having done the thinking.
 - q: >-
     Which heuristic best decides whether to delegate a task or do it yourself?
-  options: ["Delegate anything that takes more than ten minutes", "Never delegate production code", "If the AI got this wrong, would I be able to tell? If not, do it yourself or learn enough first", "Delegate whatever the AI claims it can do"]
+  options: ["Never delegate production code; use agents only for tests and scripts", "Delegate whatever the AI reports it can complete with high confidence", "If the AI got this wrong, would I be able to tell? If not, do it myself", "Delegate anything that would take you more than ten minutes to write by hand"]
   answer: 2
   explanation: >-
-    Safe delegation depends on your ability to verify. Time-based rules ignore risk, blanket bans throw away real gains, and the tool's confidence is not a measure of its correctness.
+    Safe delegation depends on your ability to verify; if you could not tell, do it yourself or learn enough first that you could. Time-based rules ignore risk, blanket bans throw away real gains, and the tool's confidence is not a measure of its correctness.
 ```

@@ -250,32 +250,32 @@ hints:
 ```quiz
 - q: >-
     To find the 100 largest values in a stream of a billion numbers with minimal memory, you keep:
-  options: ["A max-heap of all values seen", "A min-heap of size 100, evicting the root when a larger value arrives", "A max-heap of size 100, evicting the root when a smaller value arrives", "A sorted list of size 100 with binary insertion"]
-  answer: 1
+  options: ["A min-heap of size 100, evicting its root for larger values", "A max-heap of all values seen, popping 100 times at the end", "A max-heap of size 100, evicting its root for smaller values", "A sorted list of size 100, inserting each value by bisection"]
+  answer: 0
   explanation: >-
-    The root of a min-heap of the current best 100 is the weakest candidate, which is exactly the one to evict. A max-heap's root is the strongest, useless for eviction. The sorted list works but insertion is O(k) versus O(log k).
+    The root of a min-heap of the current best 100 is the weakest candidate, which is exactly the one to evict. A max-heap's root is the strongest, useless for eviction, and a heap of all values needs a billion slots. The sorted list works but insertion is O(k) versus O(log k).
 - q: >-
     Merging k sorted lists with N total elements pairwise (merge 1 and 2, then with 3, and so on) costs O(N k). The heap-based merge costs O(N log k). For k = 1,000 lists of 1,000 elements each, roughly how many element operations does each perform?
-  options: ["Both about 10^6", "Pairwise about 10^9, heap about 10^7", "Pairwise about 10^7, heap about 10^9", "Both about 10^9"]
+  options: ["Pairwise about 10^6, heap about 10^6", "Pairwise about 10^9, heap about 10^7", "Pairwise about 10^7, heap about 10^9", "Pairwise about 10^9, heap about 10^9"]
   answer: 1
   explanation: >-
     N = 10^6. Pairwise: N × k = 10^9, because early elements are recopied in every merge. Heap: N × log2(1000) ≈ 10^6 × 10 = 10^7.
 - q: >-
     In the two-heap running median, why does every new value go into the max-heap first and then get rebalanced, rather than being routed to the correct heap by comparison?
-  options: ["It is faster", "It guarantees the ordering invariant (max of low <= min of high) without case analysis, because whatever was pushed, the largest of low is then moved across", "The max-heap is always smaller", "Comparison routing is incorrect"]
+  options: ["Routing by comparison is incorrect when x equals a root", "It makes the ordering invariant hold without case analysis", "It is faster, since it skips a comparison on every insert", "The max-heap is always smaller, so it must receive new values"]
   answer: 1
   explanation: >-
-    Routing by comparison is also correct but needs cases for which heap is larger and which side x belongs to. Push-then-move-max makes invariant 1 hold unconditionally; one size check then restores invariant 2.
+    Whatever was pushed, the largest of low is then moved across, so max of low <= min of high holds unconditionally; one size check then restores the balance invariant. Routing by comparison is also correct (ties included) but needs cases for which heap is larger and which side x belongs to. Push-then-move does more heap operations, not fewer.
 - q: >-
     A sliding-window median needs to remove the element leaving the window. With two plain heaps this is hard because:
-  options: ["Heaps cannot store duplicates", "A heap cannot find and remove an arbitrary element in O(log n) without an index; the standard fix is lazy deletion with a count of pending removals", "Two heaps cannot both shrink", "The median changes only when the window grows"]
+  options: ["Both heaps would shrink at once, breaking the size invariant", "A heap cannot remove an arbitrary element without an index", "Heaps cannot store duplicates, and windows often repeat values", "Removal would change the median, which heaps cannot recompute"]
   answer: 1
   explanation: >-
-    Removal by value is O(n) in a plain heap. Lazy deletion records the value to remove and discards it when it reaches a root, adjusting the logical sizes so the balance invariant is computed on live elements only.
+    Removal by value is O(n) in a plain heap because it must search first. The standard fix is lazy deletion: record the value to remove with a count of pending removals and discard it when it reaches a root, adjusting the logical sizes so the balance invariant is computed on live elements only.
 - q: >-
     A metrics service reports p50 and p99 latency across 500 machines. The engineer proposes each machine keep an exact two-heap median and the coordinator average them. The problem is:
-  options: ["Two-heap medians are O(n) per insert", "Medians do not combine: the average of per-machine medians is not the global median, and exact structures cannot be merged; use a mergeable sketch like t-digest or HdrHistogram", "Averaging 500 numbers is too slow", "Heaps cannot store floating-point latencies"]
-  answer: 1
+  options: ["The mean of medians is not the global median; use a sketch", "Two-heap medians cost O(n) per insert, too slow at scale", "Averaging 500 numbers per query is too slow for a dashboard", "Heaps cannot hold floating-point latencies, only integers"]
+  answer: 0
   explanation: >-
-    Quantiles are not additive, and exact two-heap structures cannot be merged without shipping all samples. Sketches trade a small error for bounded memory and mergeability, which is what a distributed dashboard needs.
+    Quantiles are not additive, and exact two-heap structures cannot be merged without shipping all samples. Mergeable sketches such as t-digest or HdrHistogram trade a small error for bounded memory and mergeability, which is what a distributed dashboard needs. Each two-heap insert is O(log n), so speed is not the issue.
 ```

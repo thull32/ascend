@@ -190,32 +190,32 @@ A sound default: start with a capable model and a well-specified prompt, add ret
 ```quiz
 - q: >-
     A classification prompt returns different labels for the same ticket across runs at temperature 0.7. A colleague proposes setting temperature to 0. What is the most important caveat?
-  options: ["Temperature 0 makes the model slower", "Temperature 0 disables the system prompt", "Output becomes repeatable, but if the prompt is ambiguous the model will repeatably pick one reading, which may be the wrong one", "Temperature has no effect on classification tasks"]
-  answer: 2
+  options: ["Runs become repeatable, but an ambiguous prompt still yields a possibly wrong label", "Accuracy drops, because the model can no longer weigh alternative labels", "Temperature has no effect on classification, since labels are single tokens", "Runs become repeatable, and repeatable labels show that the ambiguity has been fixed"]
+  answer: 0
   explanation: >-
-    Temperature reshapes the distribution the prompt produced. Variance across runs signals two plausible readings; greedy decoding picks the more likely one every time, right or wrong. Fix the ambiguity with a decision rule, then lower the temperature for repeatability. It changes neither speed nor how the system prompt is read.
+    Temperature reshapes the distribution the prompt produced. Variance across runs signals two plausible readings; greedy decoding picks the more likely one every time, right or wrong, so repeatability is not correctness. Fix the ambiguity with a decision rule, then lower the temperature for repeatability. The model still ranks every label; it just stops sampling the less likely ones.
 - q: >-
     Your few-shot examples for a four-category classifier are all short tickets, and the last example is labelled "billing". What should you expect on ambiguous inputs?
-  options: ["A skew toward billing and toward short outputs, because the model imitates surface features and recent examples", "No effect, because models ignore example order", "The model refuses ambiguous inputs", "Strictly better accuracy, because examples always help"]
-  answer: 0
+  options: ["Strictly better accuracy, because every added example gives the model more signal", "A skew toward billing and short outputs, since the model copies surface features", "More refusals, because short examples teach the model to decline unclear inputs", "No skew, because models weigh all examples equally regardless of their order"]
+  answer: 1
   explanation: >-
     Models copy demonstrated behaviour, including unintended features such as length and label frequency, and recency can pull ambiguous cases toward the final label. Examples usually help overall, which is exactly why the skew goes unnoticed without an eval that slices by label.
 - q: >-
     Which change most directly reduces hallucinated order numbers in an extraction prompt?
-  options: ["Add \"BE ACCURATE\" in capital letters", "Raise the temperature so the model considers alternatives", "Move the ticket above the system prompt", "Tell the model to return null when no order number appears and never to construct one"]
-  answer: 3
-  explanation: >-
-    Invented fields often appear because the model has no sanctioned way to say "absent". An explicit null path gives it one. Capitalised emphasis tends to cause over-application rather than accuracy, and a higher temperature adds variance.
-- q: >-
-    You wrap retrieved documents in <document> tags and instruct the model to treat their contents as data. What does this achieve?
-  options: ["A complete defence against prompt injection", "Less confusion between data and instructions and resistance to casual injection, but an attacker can still write text the model follows", "Encryption of the document contents", "It prevents the documents from being cached"]
-  answer: 1
-  explanation: >-
-    Tags are formatting, not escaping: the model reads everything as one token stream, and an attacker can even close the tag. They help, and so does training, but security has to come from limiting what a successful injection can do.
-- q: >-
-    A support bot answers questions about a return policy that changes monthly, and it gets the details wrong. Which lever fits?
-  options: ["Fine-tune the model on the new policy each month", "Rewrite the prompt with stronger wording", "Retrieve the current policy text into the context at query time", "Increase max_tokens"]
+  options: ["Move the ticket above the system prompt so the model reads it first", "Raise the temperature so the model weighs alternative order numbers", "Tell the model to return null when no order number appears in the ticket", "Add \"BE ACCURATE\" in capital letters next to the order number field"]
   answer: 2
   explanation: >-
-    The model lacks current knowledge, which is a retrieval problem. Fine-tuning is slow to update, cannot cite its source and still invents details; stronger wording cannot supply information the model does not have.
+    Invented fields often appear because the model has no sanctioned way to say "absent". An explicit null path, with an instruction never to construct a number, gives it one. Capitalised emphasis tends to cause over-application rather than accuracy, and a higher temperature adds variance.
+- q: >-
+    You wrap retrieved documents in <document> tags and instruct the model to treat their contents as data. What does this achieve?
+  options: ["Clearer separation of data and instructions, but injection is still possible", "Retrieved text is excluded from caching, so injected text cannot persist", "A complete defence against prompt injection, since tagged text is never obeyed", "The contents are escaped, so instructions inside them become inert strings"]
+  answer: 0
+  explanation: >-
+    Tags reduce confusion between data and instructions and resist casual injection, but they are formatting, not escaping: the model reads everything as one token stream, and an attacker can even close the tag. They help, and so does training, but security has to come from limiting what a successful injection can do.
+- q: >-
+    A support bot answers questions about a return policy that changes monthly, and it gets the details wrong. Which lever fits?
+  options: ["Fine-tune the model on the new policy each month when it changes", "Rewrite the prompt with firmer wording about getting details right", "Retrieve the current policy text into the context at query time", "Raise max_tokens so the model has room to reason about the policy"]
+  answer: 2
+  explanation: >-
+    The model lacks current knowledge, which is a retrieval problem. Fine-tuning is slow to update, cannot cite its source and still invents details; firmer wording or more output room cannot supply information the model does not have.
 ```

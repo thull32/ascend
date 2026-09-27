@@ -245,32 +245,32 @@ hints:
 ```quiz
 - q: >-
     You have coded a solution and it returns the wrong answer for an example you had not written down before. According to the loop, where do you go first?
-  options: ["Step 5, to fix the code", "Step 4, to redesign the optimisation", "Step 1, to check whether you misunderstood the problem", "Step 3, to compare against the brute force"]
-  answer: 2
+  options: ["Step 1, to check you read the problem right", "Step 5, to find and fix the bug in the code", "Step 3, to compare against the brute force", "Step 4, to rethink the optimisation you chose"]
+  answer: 0
   explanation: >-
-    A failure on a case you never considered usually means the problem is different from the one you solved (a missed constraint or misread term). Re-examine the statement first; fixing code for the wrong problem wastes time. A failure on an example you did work by hand points at the optimisation or the code instead.
+    A failure on a case you never considered usually means the problem is different from the one you solved (a missed constraint or misread term). Re-examine the statement first; fixing code for the wrong problem wastes time. A failure on an example you did work by hand points at the optimisation (step 4) or the code instead.
 - q: >-
     Why does the protocol insist on stating the brute force even when it is obviously too slow?
-  options: ["Interviewers award points for it", "It establishes a correct baseline and exposes the repeated work that the optimisation must remove", "It is usually fast enough in practice", "It is easier to code than the optimal solution"]
+  options: ["It lets you skip working through examples by hand later", "It is a correct baseline and exposes the repeated work", "Interviewers require it before they let you optimise", "It is usually fast enough once the constants are tuned"]
   answer: 1
   explanation: >-
-    The brute force is a correctness oracle for your examples and a diagnosis tool: the optimisation comes from asking what work it repeats. Points are a side effect; interviewers care because the brute force shows you understand the problem.
+    The brute force is a correctness oracle for your examples and a diagnosis tool: the optimisation comes from asking what work it repeats. Interviewer confidence is a side effect, not a rule; interviewers care because the brute force shows you understand the problem. Examples come before the brute force, which is how you check it.
 - q: >-
     In the sliding-window solution, what goes wrong if you drop the check `last_seen[ch] >= left` and always set `left = last_seen[ch] + 1`?
-  options: ["It becomes O(n^2)", "The window can move backwards and include a repeated character, over-counting", "It fails on the empty string", "Nothing; the check is redundant"]
-  answer: 1
+  options: ["Nothing; the check is redundant since left only grows", "It fails on the empty string with a missing-key error", "It becomes O(n^2), because left re-scans characters", "left can move backwards, re-admitting a repeated char"]
+  answer: 3
   explanation: >-
-    On "abba", the final `a` was last seen at index 0, outside the current window [2,3]. Without the check `left` jumps back to 1, the window "bba" contains two b's, and the function returns 3 instead of 2. Complexity is unaffected.
+    On "abba", the final `a` was last seen at index 0, outside the current window [2,3]. Without the check `left` jumps back to 1, the window "bba" contains two b's, and the function returns 3 instead of 2. Complexity is unaffected; the check is exactly what stops left from moving backwards.
 - q: >-
     A problem states n ≤ 10^5. Your brute force is O(n^2). Roughly how many operations is that, and is it acceptable?
-  options: ["About 10^5, fine", "About 10^10, too slow for a typical time limit", "About 10^7, fine", "It depends entirely on the language"]
-  answer: 1
+  options: ["It depends on the language, not the count", "About 10^5, well within any time limit", "About 10^7, fine at 10^8 ops per second", "About 10^10, too slow for a typical limit"]
+  answer: 3
   explanation: >-
     (10^5)^2 = 10^10. At roughly 10^8 simple operations per second that is on the order of a minute or more; time limits are seconds. Language changes the constant by maybe 10–100x, not enough to rescue four orders of magnitude.
 - q: >-
     Which example in the worked problem exists specifically to catch a misreading of the statement rather than a coding bug?
-  options: ["\"abba\"", "\"pwwkew\"", "\"bbbbb\"", "\"\""]
-  answer: 1
+  options: ["\"abcabcbb\"", "\"abba\"", "\"bbbbb\"", "\"pwwkew\""]
+  answer: 3
   explanation: >-
-    "pwwkew" has a longer subsequence ("pwke", length 4) than any substring (length 3); it catches solving the subsequence problem. "abba" catches the backwards-moving-left-pointer bug, a coding error.
+    "pwwkew" has a longer subsequence ("pwke", length 4) than any substring (length 3); it catches solving the subsequence problem. "abcabcbb" gives 3 under either reading, so it cannot tell them apart. "abba" catches the backwards-moving-left-pointer bug, a coding error.
 ```
