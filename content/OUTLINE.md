@@ -144,6 +144,7 @@ Module `07-technique-mastery` "Technique mastery" (prereq: algorithms/sorting-se
 3. prefix-sums-and-hashing-tricks — Subarray sum equals k, modulo tricks, XOR prefix
 4. meet-in-the-middle-and-randomisation — Splitting search spaces, randomised algorithms, reservoir sampling, hashing with random seeds
 5. bit-tricks-in-algorithms — Bitmask enumeration, Gray codes, lowbit, bitset optimisations
+6. sweep-line-and-geometry — Event sweeps (skyline, interval union, meeting rooms), orientation tests, convex hull (monotone chain), closest pair by sweep, floating-point precision
 
 ### Track `04-advanced-data-structures` → slug `advanced-data-structures` "Advanced Data Structures" (icon: box)
 
@@ -179,6 +180,10 @@ Module `06-advanced-strings` "Advanced string algorithms" (prereq: data-structur
 1. aho-corasick — Multi-pattern matching, failure links, applications (filters, IDS)
 2. suffix-arrays-and-lcp — Construction, LCP array, longest repeated substring
 3. manacher-and-palindromes — Linear-time palindromes, when to use expand-around-center instead
+
+Module `07-spatial-and-persistent` "Spatial and persistent structures" (prereq: advanced-data-structures/balanced-trees)
+1. spatial-indexes — Quadtrees, k-d trees, R-trees, geohash/S2/H3 cells, nearest-neighbour and range queries, how maps and ride-sharing index locations
+2. persistent-and-immutable-structures — Path copying, fat nodes, persistent vectors and HAMTs (Clojure/Scala/Immutable.js), Git's object model, snapshots and undo
 
 ## Phase 3 — Interview patterns & practice
 
@@ -296,6 +301,7 @@ Module `01-fundamentals` "Networking fundamentals"
 5. tcp-deep-dive — Handshake, sequence/ack, retransmission, flow control, Nagle, teardown, TIME_WAIT
 6. congestion-control — Slow start, AIMD, Cubic, BBR, bufferbloat, what latency graphs tell you
 7. tls-and-pki — TLS 1.3 handshake, certificates, chains, mTLS, why HTTPS is fast now
+8. nat-firewalls-and-cloud-networking — NAT/PAT tables and traversal (STUN/TURN/ICE), stateful firewalls and security groups, VPCs, subnets, private endpoints and peering, zero trust, egress costs
 
 Module `02-application-protocols` "Application protocols" (prereq: networking/fundamentals)
 1. http-1-1 — Semantics, headers, caching (ETag, Cache-Control), keep-alive, head-of-line blocking
@@ -414,6 +420,7 @@ Module `01-ml-foundations` "Machine learning foundations" (prereq: foundations/m
 3. training-and-generalisation — Train/val/test, overfitting, regularisation, evaluation metrics
 4. classical-ml-you-should-know — Trees/forests/boosting, kNN, k-means, logistic regression, when not to use deep learning
 5. embeddings-and-similarity — Vectors, cosine similarity, learned embeddings, nearest-neighbour search
+6. vector-search-internals — Brute force vs IVF vs HNSW vs product quantisation, recall/latency/memory trade-offs, filtered search, index build and update costs, pgvector vs dedicated stores
 
 Module `02-how-llms-work` "How LLMs work" (prereq: ai-and-llms/ml-foundations)
 1. tokenization — BPE, vocabularies, why tokens matter for cost and behaviour
@@ -462,6 +469,7 @@ Module `01-software-craft` "Software craft"
 6. containers-and-infrastructure-as-code — Docker, images, Kubernetes basics, Terraform, GitOps
 7. observability-in-code — Structured logs, metrics, tracing, request IDs (this app)
 8. documentation-and-adrs — READMEs, ADRs, runbooks, writing for future engineers
+9. authentication-and-authorization — OAuth 2 flows and PKCE, OIDC, sessions vs JWTs in depth, refresh tokens and revocation, RBAC/ABAC, SSO/SAML basics, key rotation
 
 Module `02-languages-for-senior-engineers` "Languages"
 1. rust-essentials — Ownership, borrowing, lifetimes, traits, enums, async; reading this app's backend

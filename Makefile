@@ -39,6 +39,9 @@ quizzes: ## Put quiz options in canonical shuffled order and print answer-bias s
 	python3 scripts/shuffle_quiz_options.py
 	python3 scripts/quiz_stats.py
 
+minutes: ## Recompute every lesson's reading time from its prose and exercises
+	python3 scripts/recompute_minutes.py
+
 e2e: ## Run Playwright against a running server on :8080 (uses the Playwright docker image)
 	docker run --rm --user $$(id -u):$$(id -g) --network host -v $(PWD)/web:/work -w /work -e HOME=/tmp -e BASE_URL=http://localhost:8080 \
 	  mcr.microsoft.com/playwright:v1.63.0-noble npx playwright test
@@ -46,4 +49,4 @@ e2e: ## Run Playwright against a running server on :8080 (uses the Playwright do
 image: ## Build the production image
 	docker build -t ascend:local .
 
-.PHONY: help db web build run dev check content quizzes e2e image
+.PHONY: help db web build run dev check content quizzes minutes e2e image

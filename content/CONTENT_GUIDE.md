@@ -33,8 +33,49 @@ algorithm design. They are aiming for a **senior** role at a top-tier company
    senior engineer would say about this topic in an interview or design review
    that a mid-level engineer wouldn't.
 
-Target length: 1,500–3,000 words of prose per lesson plus code/diagrams.
-Minutes in front matter ≈ words/120 + 10 per exercise.
+Target length: 2,500–4,500 words of prose per lesson plus code/diagrams,
+and never above 5,000. Length is a consequence of the depth bar below, not a
+target to pad towards: every paragraph carries a mechanism, a number, a
+worked example or a decision. Minutes in front matter ≈ words/120 + 10 per
+exercise (`make minutes` recomputes it).
+
+## The depth bar (every lesson, checked in review)
+
+A lesson is done when a reader can answer "yes" to each of these:
+
+1. **Hand-traceable.** For each mechanism the lesson names, there is a
+   step-by-step trace on concrete data (a numbered walk or a state table)
+   that the reader could reproduce with pen and paper.
+2. **Every promised subtopic covered.** The lesson's line in `OUTLINE.md`
+   lists its subtopics; each one has a section that explains it, not a
+   sentence that mentions it.
+3. **Quantified.** At least three numbers with provenance (a latency, a
+   size, a threshold, a constant), and where a number is an estimate, the
+   sentence says what it depends on.
+4. **Worked examples.** At least one full input → output example, plus one
+   that exercises an edge case or a failure.
+5. **Failure modes.** At least three ways it goes wrong in production, each
+   with the symptom you would observe, how you would diagnose it, and the
+   fix.
+6. **Trade-offs table.** Alternatives compared on three or more axes.
+7. **Complete code.** Snippets are runnable (not fragments) in Python by
+   default, plus a systems language where the language changes the point;
+   the non-obvious lines are explained.
+8. **Under the hood.** What the runtime, library, kernel or network actually
+   does (Python's dict layout, the kernel's socket buffers, the planner's
+   choice), with claims that are version-honest.
+9. **Interviewer follow-ups.** Three to five questions a senior interviewer
+   asks next, each with a model answer and the common wrong answer.
+10. **What mid-level engineers get wrong.** A short list, each item a
+    specific mistake and its consequence.
+11. **Connections.** Cross-links to at least two other lessons, and where
+    the topic appears in a real system at scale.
+12. **No hand-waving.** "Simply", "just", "obviously", "clearly", "it can be
+    shown" and "beyond the scope" are replaced by the explanation itself or
+    a link to the lesson that has it.
+13. **Exercise and visualisation** where the topic is implementable or the
+    catalogue covers it (see the block formats below).
+14. **Senior signals** closes the lesson, before the quiz.
 
 ## File layout
 
