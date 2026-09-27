@@ -42,7 +42,11 @@ test.describe("public pages", () => {
     const editor = page.locator(".cm-content");
     await editor.click();
     await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.type("function two_sum(nums, target) {\n const seen = new Map();\n for (let i = 0; i < nums.length; i++) {\n if (seen.has(target - nums[i])) return [seen.get(target - nums[i]), i];\n seen.set(nums[i], i);\n }\n return [];\n}", { delay: 0 });
+    await page.keyboard.press("Delete");
+    // insertText is one input event, so bracket auto-closing does not interfere.
+    await page.keyboard.insertText(
+      "function two_sum(nums, target) {\n  const seen = new Map();\n  for (let i = 0; i < nums.length; i++) {\n    if (seen.has(target - nums[i])) return [seen.get(target - nums[i]), i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n",
+    );
     await page.getByTestId("run-tests").click();
     await expect(page.getByTestId("results")).toContainText(/(\d+) \/ \1 passed/, { timeout: 30_000 });
   });

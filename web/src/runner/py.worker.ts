@@ -5,7 +5,7 @@
 // Python validator in scripts/validate_problems.py.
 import type { RunnerRequest, RunnerResponse, TestResult } from "./protocol";
 
-declare const self: DedicatedWorkerGlobalScope & { loadPyodide?: (opts: { indexURL: string }) => Promise<Pyodide> };
+declare const self: DedicatedWorkerGlobalScope;
 
 interface Pyodide {
   runPythonAsync(code: string): Promise<unknown>;
@@ -15,7 +15,8 @@ interface Pyodide {
   setStderr(opts: { batched: (s: string) => void }): void;
 }
 
-const PYODIDE_VERSION = "0.29.1";
+// Pyodide versions track CPython (314.x = Python 3.14).
+const PYODIDE_VERSION = "314.0.7";
 const INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
 
 const HARNESS = String.raw`
@@ -163,8 +164,9 @@ async function getPyodide(): Promise<Pyodide> {
   if (!pyodidePromise) {
     pyodidePromise = (async () => {
       self.postMessage({ id: -1, kind: "status", message: "Loading Python runtime (~10 MB, cached after first use)…" } satisfies RunnerResponse);
-      (self as unknown as { importScripts: (u: string) => void }).importScripts(`${INDEX_URL}pyodide.js`);
-      const py = await self.loadPyodide!({ indexURL: INDEX_URL });
+      // Module workers cannot use importScripts(); load the ES module build.
+      const mod = (await import(/* @vite-ignore */ `${INDEX_URL}pyodide.mjs`)) as { loadPyodide: (opts: { indexURL: string }) => Promise<Pyodide> };
+      const py = await mod.loadPyodide({ indexURL: INDEX_URL });
       py.setStdout({ batched: (s) => stdoutBuf.push(s) });
       py.setStderr({ batched: (s) => stdoutBuf.push(s) });
       await py.runPythonAsync(HARNESS);
@@ -189,6 +191,7 @@ self.onmessage = async (ev: MessageEvent<RunnerRequest>) => {
   try {
     py = await getPyodide();
   } catch (e) {
+    pyodidePromise = null; // allow a retry on the next run
     const res: RunnerResponse =
       req.kind === "run"
         ? { id: req.id, kind: "run", results: [], compileError: `Python runtime failed to load: ${friendlyError(e)}`, totalMs: 0 }

@@ -6,6 +6,9 @@ license.workspace = true
 publish = false
 description = "HTTP server for Ascend: Axum routes, middleware, and static SPA hosting."
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "ascend-api"
 path = "src/main.rs"
@@ -40,3 +43,8 @@ dotenvy = { workspace = true }
 include_dir = { workspace = true }
 sha2 = { workspace = true }
 time = "0.3"
+
+[dev-dependencies]
+tower = { workspace = true }
+http-body-util = { workspace = true }
+tokio = { workspace = true, features = ["test-util"] }

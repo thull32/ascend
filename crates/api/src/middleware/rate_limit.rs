@@ -56,20 +56,21 @@ pub enum Bucket {
     Ai,
 }
 
-/// Railway terminates TLS at its edge and forwards the client IP in
-/// `X-Forwarded-For`; we trust the first hop only when running in production.
-fn client_ip(req: &Request<Body>, trust_proxy: bool) -> IpAddr {
-    if trust_proxy
-        && let Some(xff) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok())
-            && let Some(first) = xff.split(',').next().map(str::trim)
-                && let Ok(ip) = first.parse() {
-                    return ip;
-                }
+/// Resolves the client IP. Behind a proxy, only a header the proxy itself
+/// sets (and overwrites) is trustworthy: `X-Forwarded-For`'s first entry is
+/// whatever the client sent. Railway sets `X-Real-IP`, so production is
+/// configured with `CLIENT_IP_HEADER=x-real-ip`.
+fn client_ip(req: &Request<Body>, header: Option<&str>) -> IpAddr {
+    if let Some(name) = header
+        && let Some(ip) = req.headers().get(name).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse().ok())
+    {
+        return ip;
+    }
     req.extensions().get::<ConnectInfo<SocketAddr>>().map(|c| c.0.ip()).unwrap_or(IpAddr::from([0, 0, 0, 0]))
 }
 
 pub async fn limit(bucket: Bucket, State(state): State<AppState>, req: Request<Body>, next: Next) -> Response {
-    let ip = client_ip(&req, state.config.is_production());
+    let ip = client_ip(&req, state.config.client_ip_header.as_deref());
     let limiters: &Arc<Limiters> = &state.limiter;
     let result = match bucket {
         Bucket::Auth => limiters.auth.check_key(&ip),

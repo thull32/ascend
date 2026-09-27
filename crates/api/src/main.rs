@@ -11,16 +11,24 @@ use ascend_core::Config;
 use sea_orm_migration::MigratorTrait;
 use tokio::signal;
 
-mod app;
-mod error;
-mod extractors;
-mod middleware;
-mod routes;
-mod state;
-mod telemetry;
+use ascend_api::{app, state, telemetry};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // `ascend-api --check-content` validates the embedded curriculum strictly
+    // and exits. The Docker build runs it so a broken lesson fails the build
+    // instead of the deploy.
+    if std::env::args().any(|a| a == "--check-content") {
+        let c = ascend_core::content::load_curriculum(&ascend_core::content::ContentSource::Embedded)?;
+        println!(
+            "content ok: {} tracks, {} lessons, {} problems, version {}",
+            c.tracks.len(),
+            c.lesson_count(),
+            c.problems.len(),
+            c.version
+        );
+        return Ok(());
+    }
     dotenvy::dotenv().ok();
     let config = Config::from_env().map_err(|e| anyhow::anyhow!("configuration: {e}"))?;
     telemetry::init(config.log_json);

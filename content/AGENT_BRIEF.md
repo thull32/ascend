@@ -68,6 +68,21 @@ solution looped forever allocating memory. Therefore:
   termination conditions (especially resize/grow loops) explicitly.
 - Run at most one validation/test process at a time.
 
+## Environment notes
+
+- The interactive shell may be fish. For anything beyond a one-liner, write
+  a script file and run it with `bash script.sh`, or use `bash -c '...'`.
+- Every visualisation `type`/`algorithm` in CONTENT_GUIDE.md is implemented in
+  `web/src/viz/families/`. Open the family file if you need to know which
+  input fields an algorithm accepts (see its `normalise` function and
+  `examples`). Only use catalogue names.
+- The loader runs in lenient mode during authoring: files with broken front
+  matter are skipped with a `warning:` line naming the file. Your files must
+  produce no warnings other than "unknown problem/lesson/prerequisite"
+  references to content another author has not written yet.
+- Before finishing, re-read each file you wrote end to end once. Files cut
+  off mid-write are the most common defect.
+
 ## Final report
 
 List the files written with approximate word counts, any outline items you

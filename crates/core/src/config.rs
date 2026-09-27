@@ -18,6 +18,10 @@ pub struct Config {
     pub ai: AiConfig,
     pub log_json: bool,
     pub env: Environment,
+    /// Header set by the trusted reverse proxy that carries the real client
+    /// IP (Railway: `x-real-ip`). `None` means use the socket address. Never
+    /// trust `X-Forwarded-For` blindly: its first entry is client-controlled.
+    pub client_ip_header: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +104,10 @@ impl Config {
             },
             log_json: parse_or::<bool>("LOG_JSON", env == Environment::Production)?,
             env,
+            client_ip_header: std::env::var("CLIENT_IP_HEADER")
+                .ok()
+                .map(|h| h.trim().to_ascii_lowercase())
+                .filter(|h| !h.is_empty()),
         };
         cfg.validate()?;
         Ok(cfg)
