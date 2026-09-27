@@ -155,26 +155,28 @@ impl Slugger {
     }
 }
 
-/// One slug without de-duplication (see [`Slugger`] for documents).
+/// Characters github-slugger removes: everything except alphabetic
+/// characters, combining marks, decimal digits, connector punctuation
+/// (`_`, `‿`), spaces and hyphens. Superscripts, fractions and emoji go.
+static SLUG_STRIP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^\p{Alphabetic}\p{M}\p{Nd}\p{Pc} -]").expect("static regex"));
+
+/// One slug without de-duplication (see [`Slugger`] for documents), exactly
+/// as github-slugger computes it: lowercase, strip, then spaces to hyphens.
 pub fn slugify(text: &str) -> String {
-    text.to_lowercase()
-        .chars()
-        .filter_map(|c| match c {
-            ' ' => Some('-'),
-            '-' | '_' => Some(c),
-            c if c.is_alphanumeric() => Some(c),
-            // Combining marks (accents written as separate code points) are
-            // kept by github-slugger too.
-            c if ('\u{0300}'..='\u{036F}').contains(&c) => Some(c),
-            _ => None,
-        })
-        .collect()
+    SLUG_STRIP.replace_all(&text.to_lowercase(), "").replace(' ', "-")
 }
 ```
 
 Three details make it exact rather than close. First, the input is the *rendered* text: `plain_heading_text` strips link targets, emphasis markers, backticks and `$`, so a heading written as ``The `Vec` type`` is slugged from "The Vec type", which is what the browser sees. Second, de-duplication counts headings at every level, `#` through `######`, because `rehype-slug` numbers every heading on the page although the TOC lists only `##` and `###`; a unit test pins a document where an `h4` named Summary pushes the next `h3` to `summary-2`. Third, the `while` loop in `slug` handles a trap: in a document with headings `a`, `a-1` and `a`, the third must become `a-2`, because `a-1` is already a real heading.
 
 Then the fix tested the seam, not just the function. `heading_ids_match_github_slugger` pins the cases where the old algorithm disagreed, and the Playwright crawl (`web/e2e/crawl.spec.ts`) now opens every lesson in a real browser and checks that every table-of-contents link lands on an element with that id. The crawl takes long enough that it runs on demand (`CRAWL=1`) rather than on every push, so between crawls the unit tests are the guard.
+
+### And after that: the port that was only nearly exact
+
+The seam test earned its keep at once. The first port kept a character when Rust's `char::is_alphanumeric` said so, and translated github-slugger's rule from its README ("letters and digits") rather than from its code. The next full crawl, 597 pages, found three links that still went nowhere, in headings such as "Pivot choice and the O(n²) adversary" and "Why the height is at most 2 log₂(n + 1)". `is_alphanumeric` is true for `²` and `₂`, because Unicode classes them as numbers (category No, "other number"). github-slugger's generated regex keeps only the *Alphabetic* property, combining marks, *decimal* digits (Nd) and connector punctuation, so it drops them, along with `½` and emoji. The backend wrote `on²`, the browser wrote `on`.
+
+The fix states the rule in the same vocabulary as the reference, Unicode properties, as one character class in the `regex` crate (above). The combining-mark range special case disappeared, because `\p{M}` covers every mark, not just U+0300 to U+036F. And the test changed kind: `slugs_match_github_slugger_on_unicode_edge_cases` holds fifteen inputs whose expected ids were produced by running github-slugger 2.0.0 itself, from the project's `node_modules`, over superscripts, subscripts, fractions, emoji, Arabic-Indic and full-width digits, `µ`, `ª`, `‿`, Roman numerals and tabs. When a component must agree with a reference implementation, generate the expected values from the reference (an *oracle*), because hand-written expectations encode the same misreading as the code.
 
 **Why port rather than derive the id once?** An earlier draft of this lesson argued for removing the duplication: send ids from the API and have the renderer use them. That is cleaner on paper and harder in practice. `rehype-slug` ids every heading wherever Markdown is rendered (problem statements, editorials and module intros too), and making it use the API's ids means a custom plugin that matches rendered headings to TOC entries by position, which must agree with the backend's line scanner about what counts as a heading. That is the same duplicated derivation in a new place. Porting a small, stable, well-specified algorithm and checking agreement end to end in a real browser removes the drift where it bites. The general rule survives: when two components must agree on a derived value, either derive it once or test the agreement where both of them run.
 
@@ -190,10 +192,11 @@ prompt: |
   the list of ids. For each heading:
 
   - Lowercase the whole text.
-  - Then map each character: a space becomes `-`; `-`, `_`, letters and
-    digits (Unicode-aware, so `é` counts) and combining marks in the range
-    U+0300 to U+036F are kept; every other character is dropped. Nothing is
-    collapsed or trimmed.
+  - Then map each character: a space becomes `-`; `-`, letters, combining
+    marks, decimal digits and connector punctuation such as `_` are kept
+    (Unicode-aware, so `é`, `٣` and `_` stay); every other character is
+    dropped, including superscripts like `²`, fractions and emoji. Nothing
+    is collapsed or trimmed.
   - De-duplicate across the document: if the slug is already taken, try
     `slug-1`, `slug-2`, and so on, until one is free. Every id you return
     counts as taken, including suffixed ones.
@@ -238,9 +241,13 @@ tests:
     expected: ["", "-1", "c--rust"]
     hidden: true
     label: empty slugs are de-duplicated too
+  - args: [["The O(n²) adversary", "Height ≤ 2 log₂ n", "Digits ٣ and 7"]]
+    expected: ["the-on-adversary", "height--2-log-n", "digits-٣-and-7"]
+    hidden: true
+    label: superscripts and symbols go, decimal digits in any script stay
 hints:
-  - "Lowercase first, then map character by character. Python's `str.isalnum()` and JavaScript's `/[\\p{Alphabetic}\\p{N}]/u` both treat `é` as a letter; an ASCII-only test fails the Unicode case."
-  - "Combining marks are not letters to `isalnum`, so test the range explicitly: `'\\u0300' <= c <= '\\u036f'`."
+  - "Lowercase first, then map character by character. An ASCII-only test fails the Unicode cases, but so does Python's `str.isalnum()`: it is true for `²`, which the browser drops."
+  - "Test Unicode categories. Python: `unicodedata.category(c)` starts with `L` or `M`, or is `Nd`, `Nl` or `Pc`. JavaScript: `/[\\p{Alphabetic}\\p{M}\\p{Nd}\\p{Pc}]/u.test(c)`."
   - "Keep a map from slug to the last number used for it. While the candidate is taken, bump the counter of the original slug and try `slug-n`; then record the id you return as taken too."
 ```
 

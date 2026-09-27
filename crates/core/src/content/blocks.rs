@@ -282,25 +282,48 @@ impl Slugger {
     }
 }
 
-/// One slug without de-duplication (see [`Slugger`] for documents).
+/// Characters github-slugger removes: everything except alphabetic
+/// characters, combining marks, decimal digits, connector punctuation
+/// (`_`, `‿`), spaces and hyphens. Superscripts, fractions and emoji go.
+static SLUG_STRIP: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^\p{Alphabetic}\p{M}\p{Nd}\p{Pc} -]").expect("static regex"));
+
+/// One slug without de-duplication (see [`Slugger`] for documents), exactly
+/// as github-slugger computes it: lowercase, strip, then spaces to hyphens.
 pub fn slugify(text: &str) -> String {
-    text.to_lowercase()
-        .chars()
-        .filter_map(|c| match c {
-            ' ' => Some('-'),
-            '-' | '_' => Some(c),
-            c if c.is_alphanumeric() => Some(c),
-            // Combining marks (accents written as separate code points) are
-            // kept by github-slugger too.
-            c if ('\u{0300}'..='\u{036F}').contains(&c) => Some(c),
-            _ => None,
-        })
-        .collect()
+    SLUG_STRIP.replace_all(&text.to_lowercase(), "").replace(' ', "-")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Expected values were produced by github-slugger 2.0.0 itself (the
+    /// library `rehype-slug` uses in the browser), so a mismatch here is a
+    /// table-of-contents link that goes nowhere.
+    #[test]
+    fn slugs_match_github_slugger_on_unicode_edge_cases() {
+        let cases = [
+            ("Pivot choice and the O(n²) adversary", "pivot-choice-and-the-on-adversary"),
+            ("Why the height is at most 2 log₂(n + 1)", "why-the-height-is-at-most-2-logn--1"),
+            ("µs and ªb", "µs-and-ªb"),
+            ("snake_case and a‿b", "snake_case-and-a‿b"),
+            ("Chapter Ⅻ", "chapter-ⅻ"),
+            ("Digits ٣٤ and ５", "digits-٣٤-and-５"),
+            ("Café résumé", "café-résumé"),
+            ("Emoji 🚀 rocket", "emoji--rocket"),
+            ("½ and ¼", "-and-"),
+            ("C++ & C#", "c--c"),
+            ("x³ + y³", "x--y"),
+            ("tab\there", "tabhere"),
+            ("A — B – C", "a--b--c"),
+            ("λ-calculus", "λ-calculus"),
+            ("__init__", "__init__"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(slugify(input), expected, "slug of {input:?}");
+        }
+    }
 
     fn quiz(yaml: &str) -> Result<Extracted, BlockError> {
         extract("t.md", &format!("```quiz\n{yaml}```\n"))
