@@ -54,13 +54,28 @@ def _build_tree(values):
         i += 1
     return root
 
+_INPUT_GRAPH_NODES = set()
+
 def _build_graph(adj):
     if not adj:
         return None
     nodes = [Node(i + 1) for i in range(len(adj))]
     for i, nb in enumerate(adj):
         nodes[i].neighbors = [nodes[j - 1] for j in nb]
+    _INPUT_GRAPH_NODES.update(id(n) for n in nodes)
     return nodes[0]
+
+def _shares_graph_nodes(v):
+    if not isinstance(v, Node) or not _INPUT_GRAPH_NODES:
+        return False
+    seen, stack = set(), [v]
+    while stack:
+        n = stack.pop()
+        if id(n) in seen: continue
+        seen.add(id(n))
+        if id(n) in _INPUT_GRAPH_NODES: return True
+        stack.extend(n.neighbors)
+    return False
 
 def _decode(v):
     if isinstance(v, dict):
@@ -130,6 +145,7 @@ def _run_tests(entry_name, tests_json):
     for i, t in enumerate(tests):
         start = time.time()
         actual, err = None, None
+        _INPUT_GRAPH_NODES.clear()
         try:
             args = _decode(json.loads(json.dumps(t.get("args", []))))
             if isinstance(target, type):
@@ -143,7 +159,10 @@ def _run_tests(entry_name, tests_json):
                     outs.append(_encode(getattr(inst, name)(*params)))
                 actual = outs
             else:
-                actual = _encode(target(*args))
+                raw = target(*args)
+                if _shares_graph_nodes(raw):
+                    raise AssertionError("your clone shares nodes with the original graph; build new Node objects")
+                actual = _encode(raw)
         except BaseException as e:
             err = f"{type(e).__name__}: {e}"
         ms = (time.time() - start) * 1000

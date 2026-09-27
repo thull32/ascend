@@ -107,6 +107,9 @@ def build_tree(values):
     return root
 
 
+_INPUT_GRAPH_NODES: set = set()
+
+
 def build_graph(adj):
     """adj[i] = list of 1-indexed neighbour values; node i+1 has val i+1."""
     if not adj:
@@ -114,7 +117,26 @@ def build_graph(adj):
     nodes = [GraphNode(i + 1) for i in range(len(adj))]
     for i, nb in enumerate(adj):
         nodes[i].neighbors = [nodes[j - 1] for j in nb]
+    _INPUT_GRAPH_NODES.update(id(n) for n in nodes)
     return nodes[0]
+
+
+def shares_graph_nodes(v, seen=None) -> bool:
+    """True if a returned graph reuses any node object from the input graph
+    (a "clone" that is not a deep copy)."""
+    if not isinstance(v, GraphNode) or not _INPUT_GRAPH_NODES:
+        return False
+    seen = seen if seen is not None else set()
+    stack = [v]
+    while stack:
+        n = stack.pop()
+        if id(n) in seen:
+            continue
+        seen.add(id(n))
+        if id(n) in _INPUT_GRAPH_NODES:
+            return True
+        stack.extend(n.neighbors)
+    return False
 
 
 def decode(v):
@@ -237,7 +259,11 @@ def validate(path: Path) -> list[str]:
                     outs.append(encode(getattr(inst, name)(*decode(params))))
                 actual = outs
             else:
-                actual = encode(entry(*decode(json.loads(json.dumps(args)))))
+                _INPUT_GRAPH_NODES.clear()
+                raw = entry(*decode(json.loads(json.dumps(args))))
+                if shares_graph_nodes(raw):
+                    raise AssertionError("returned graph shares nodes with the input (not a deep copy)")
+                actual = encode(raw)
         except (Exception, MemoryError, RecursionError, TestTimeout) as e:  # noqa: BLE001
             errors.append(f"{path}: test {i} raised {e!r}")
             continue

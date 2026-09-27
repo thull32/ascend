@@ -51,6 +51,19 @@ test.describe("public pages", () => {
     await expect(page.getByTestId("results")).toContainText(/(\d+) \/ \1 passed/, { timeout: 30_000 });
   });
 
+  test("graph clones that reuse input nodes are rejected by the runner", async ({ page }) => {
+    await page.goto("/practice/clone-graph");
+    await page.getByRole("button", { name: "JavaScript" }).click();
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Delete");
+    await page.keyboard.insertText("function clone_graph(node) {\n  return node;\n}\n");
+    await page.getByTestId("run-tests").click();
+    await expect(page.getByTestId("results")).not.toContainText(/^(\d+) \/ \1 passed/, { timeout: 30_000 });
+    await page.getByTestId("results").getByRole("button").filter({ hasText: "Test 1" }).click();
+    await expect(page.getByTestId("results")).toContainText("shares nodes with the original graph");
+  });
+
   test("python runs in the browser via Pyodide", async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto("/playground");

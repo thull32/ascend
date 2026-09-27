@@ -51,13 +51,29 @@ function buildTree(values: unknown[]): unknown {
   }
   return root;
 }
+const inputGraphNodes = new Set<unknown>();
 function buildGraph(adj: number[][]): unknown {
   if (adj.length === 0) return null;
   const nodes = adj.map((_, i) => ({ val: i + 1, neighbors: [] as unknown[] }));
   adj.forEach((nb, i) => {
     nodes[i]!.neighbors = nb.map((j) => nodes[j - 1]);
   });
+  nodes.forEach((n) => inputGraphNodes.add(n));
   return nodes[0];
+}
+/** True when a returned graph reuses node objects from the input (not a deep copy). */
+function sharesGraphNodes(v: unknown): boolean {
+  if (inputGraphNodes.size === 0 || !v || typeof v !== "object" || !("neighbors" in v)) return false;
+  const seen = new Set<unknown>();
+  const stack: unknown[] = [v];
+  while (stack.length) {
+    const n = stack.pop() as { neighbors?: unknown[] };
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    if (inputGraphNodes.has(n)) return true;
+    stack.push(...(n.neighbors ?? []));
+  }
+  return false;
 }
 function decode(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(decode);
@@ -168,6 +184,7 @@ function runTests(code: string, entry: string, tests: TestCase[]) {
     const t = tests[i]!;
     const start = performance.now();
     logs.length = 0;
+    inputGraphNodes.clear();
     let actual: unknown;
     let err: string | undefined;
     try {
@@ -191,7 +208,9 @@ function runTests(code: string, entry: string, tests: TestCase[]) {
         }
         actual = outs;
       } else {
-        actual = encode((target as (...a: unknown[]) => unknown)(...args));
+        const raw = (target as (...a: unknown[]) => unknown)(...args);
+        if (sharesGraphNodes(raw)) throw new Error("your clone shares nodes with the original graph; create new Node objects");
+        actual = encode(raw);
       }
     } catch (e) {
       err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
