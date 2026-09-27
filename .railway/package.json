@@ -1,0 +1,9 @@
+{
+  "name": "ascend-infra",
+  "private": true,
+  "description": "Railway infrastructure-as-code for Ascend (see railway.ts).",
+  "type": "module",
+  "devDependencies": {
+    "railway": "^3.11.0"
+  }
+}

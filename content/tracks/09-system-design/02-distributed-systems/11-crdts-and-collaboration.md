@@ -6,9 +6,9 @@ minutes: 42
 difficulty: hard
 tags: [system-design, distributed-systems, crdt, operational-transformation, collaboration, eventual-consistency]
 ---
-Alice is on a train with no signal, fixing a typo in paragraph two of a shared document. Bob is at his desk rewriting the heading of the same document. Both of them hit save. A single-leader database with locks cannot serve Alice at all: she is offline, so she cannot take the lock. A multi-leader database with last-writer-wins accepts both writes and then silently throws one of them away, because each saved "the document" and only one document can win. Neither is acceptable for a product whose entire promise is that everyone types at once and nothing is lost.
+Alice is on a train with no signal, fixing a typo in paragraph two of a shared document. Bob is at his desk rewriting the heading of the same document. Both hit save. A single-leader database with locks cannot serve Alice at all: offline, she cannot take the lock. A multi-leader database with last-writer-wins accepts both writes and silently discards one, because each saved "the document" and only one document can win. Neither is acceptable for a product whose promise is that everyone types at once and nothing is lost.
 
-What you want is for every replica (each browser tab, each phone, each datacenter) to accept writes locally with no coordination at all, and for replicas that exchange what they have to converge on the same state, one that keeps every user's intent. Two families of technique deliver this. Conflict-free replicated data types (CRDTs) make the data type itself mergeable. Operational transformation (OT) rewrites concurrent operations against each other, usually through a central server. Google Docs is built on OT; Yjs, Automerge, Riak's data types and Redis Enterprise's active-active databases are built on CRDTs; Figma sits between the two. The senior skill is knowing what each one guarantees, what it costs in metadata and architecture, and which problems neither can solve.
+You want every replica (each browser tab, phone or datacenter) to accept writes locally with no coordination, and replicas that exchange what they have to converge on a state that keeps every user's intent. Two families of technique deliver this. Conflict-free replicated data types (CRDTs) make the data type itself mergeable; operational transformation (OT) rewrites concurrent operations against each other through a central server. Google Docs is built on OT, Yjs, Automerge and Riak's data types on CRDTs, and Figma sits between. The senior skill is knowing what each guarantees, what it costs, and which problems neither can solve.
 
 ## Strong eventual consistency: the contract
 
@@ -72,7 +72,7 @@ Worked through: A holds `{A: 3}`, B holds `{B: 2}`, C holds `{}`. B gossips to C
 
 A **PN-Counter** supports decrements by pairing two G-Counters: `P` for increments, `N` for decrements, value `sum(P) - sum(N)`. Two limits matter in design reviews:
 
-- **No invariants.** A PN-Counter cannot enforce "stock never goes below zero". If two regions each see one unit left and each sell it, both decrements are valid locally and the merged value is -1. Invariants need coordination. The cheapest form is escrow: split the allowance between replicas in advance (EU may sell 60 units, US 40), let each decrement locally within its share, and move allowance with an explicit message when one side runs low.
+- **No invariants.** A PN-Counter cannot enforce "stock never goes below zero": two regions that each sell the last unit merge to -1. Invariants need coordination (see the follow-ups).
 - **One slot per replica, forever.** Use a small, stable set of replica ids (one per region or per server), never one per browser tab, or the state grows with every client that ever connected.
 
 ```exercise
@@ -130,9 +130,9 @@ hints:
 
 A register holds one value, like a document title or a user's display name. Two CRDT designs exist, and the difference between them is the difference between converging and preserving intent.
 
-The **LWW-Register** stores `(value, timestamp, replica id)` and merges by keeping the highest `(timestamp, replica id)` pair. It is a valid CRDT: merge is commutative, associative and idempotent, and replicas converge. But when two writes are concurrent, one is discarded without an error, and with wall-clock timestamps the loser is chosen by clock skew rather than by anything the users did. Use hybrid logical clocks at least, so a write that causally follows another always wins over it.
+The **LWW-Register** stores `(value, timestamp, replica id)` and merges by keeping the highest pair. It is a valid CRDT and replicas converge, but of two concurrent writes one is discarded without an error, and with wall-clock timestamps clock skew picks the loser. Use hybrid logical clocks at least, so a write that causally follows another always wins.
 
-The **MV-Register** (multi-value) tags each write with a version vector. Merge keeps every value whose vector is not dominated by another's. If one write happened after the other, the later one wins; if they were concurrent, both survive as *siblings*, and the application or the user resolves them. This is the Dynamo shopping-cart design and Riak's siblings.
+The **MV-Register** (multi-value) tags each write with a version vector and merge keeps every value not dominated by another. A later write replaces an earlier one; concurrent writes both survive as *siblings* for the application or user to resolve, as in Dynamo's shopping cart and Riak.
 
 ```viz
 {"type": "system", "scenario": "vector-clock", "nodes": 3,
@@ -152,7 +152,7 @@ Adding to a replicated set is easy: union is a join. Removal is where designs di
 | LWW-Element-Set | Timestamp per add and per remove | Latest timestamp wins; clock skew decides ties | Timestamps per element |
 | OR-Set (observed-remove) | Each add gets a unique tag; a remove deletes only the tags it has *observed* | A concurrent add survives a remove ("add wins") | Tags, plus tombstones or a causal summary |
 
-The OR-Set is the one worth knowing in detail. A shopping cart contains milk, added on replica A with tag `a1`. Alice, on replica A, removes milk: her replica records that tag `a1` is removed. Concurrently Bob, on replica B, whose replica also saw `a1`, adds milk again, creating a fresh tag `b1`. When the replicas merge, milk's live tags are `{a1, b1} - {a1} = {b1}`, so milk is in the cart. Alice's remove applied to the add she had seen; it could not have meant to cancel an add she had never seen.
+The OR-Set is the one worth knowing in detail. A shopping cart contains milk, added with tag `a1`. Alice, on replica A, removes milk: tag `a1` is recorded as removed. Concurrently Bob, on replica B, which also saw `a1`, adds milk again with a fresh tag `b1`. On merge, milk's live tags are `{a1, b1} - {a1} = {b1}`, so milk stays. Alice's remove applied to the add she had seen; it cannot cancel an add she never saw.
 
 ```python
 import uuid
@@ -177,7 +177,7 @@ class ORSet:
         self.removed |= other.removed
 ```
 
-The Dynamo paper noted that its cart merge, a union of versions, could make deleted items resurface. The OR-Set is the principled fix: it distinguishes "remove what I saw" from "add something new". The cost is metadata, because removed tags must be remembered. Production versions (Riak's ORSWOT, "OR-Set without tombstones") replace the per-tag tombstones with a version vector summarising which adds each replica has seen, so a remove needs no per-element history.
+The Dynamo paper noted that its cart merge, a union of versions, could make deleted items resurface; the OR-Set is the principled fix. Its cost is remembering removed tags, which production versions (Riak's ORSWOT, "OR-Set without tombstones") replace with a version vector summarising which adds each replica has seen.
 
 ## Sequences: collaborative text
 
@@ -200,9 +200,9 @@ Both replicas agree without talking to each other. Deletes leave **tombstones** 
 
 Three production realities:
 
-- **Metadata.** A naive implementation stores one object per character, each with its own id and a reference to its neighbour: tens of bytes of metadata per byte of text, kept for every character ever typed, deleted ones included. Libraries like Yjs merge runs of consecutive keystrokes from one client into a single item and use compact binary encodings; that is what makes the overhead manageable, and the naive version is where CRDTs got their reputation for bloat.
-- **Interleaving.** If two users type whole words at the same position concurrently, some algorithms can interleave the characters (`HWeolrllod` instead of `HelloWorld`). Fractional-position schemes such as Logoot and LSEQ are prone to it; RGA-style algorithms avoid the worst of it; newer algorithms were designed specifically to be non-interleaving. It is a real user-visible anomaly and a good question to ask of any library you adopt.
-- **Garbage collection.** A tombstone can be discarded only once every replica has seen the delete (the delete is "causally stable"). With a fixed set of servers you can know that; with an unbounded set of clients that may come back from a week offline, you cannot, so tombstone collection usually happens server-side at snapshot time, and a client that was away longer than the collection horizon must resynchronise from a snapshot.
+- **Metadata.** Naively, every character ever typed (deleted ones included) carries its own id and a neighbour reference: tens of bytes of metadata per byte of text. Libraries like Yjs merge runs of consecutive keystrokes from one client into a single item and encode compactly; the naive version is where CRDTs got their reputation for bloat.
+- **Interleaving.** If two users type whole words at the same position concurrently, some algorithms can interleave the characters (`HWeolrllod` instead of `HelloWorld`). Fractional-position schemes such as Logoot and LSEQ are prone to it; RGA-style algorithms avoid the worst of it; newer algorithms were designed specifically to be non-interleaving. Ask about it before adopting a library.
+- **Garbage collection.** A tombstone can be discarded only once every replica has seen the delete (the delete is "causally stable"). With clients that may return after a week offline you cannot know that, so collection usually happens server-side at snapshot time, and a client away longer than the collection horizon must resynchronise from a snapshot.
 
 ## Operational transformation
 
@@ -231,7 +231,7 @@ def transform(op, against):
 
 The tie-break on `site` for two inserts at the same position is what makes both replicas order them identically. This function satisfies the property OT calls TP1: applying `a` then `transform(b, a)` yields the same document as applying `b` then `transform(a, b)`.
 
-TP1 is enough only if there is a single authority that decides the order in which operations are applied. Without one, in peer-to-peer OT, you also need TP2 (transforming along different paths through a history gives the same result), and designing transformation functions that satisfy TP2 turned out to be notoriously hard: several published algorithms were later shown to violate it. That is why practical OT is client-server. Google Docs descends from the Jupiter protocol developed at Xerox PARC in the 1990s, via Google Wave: the server assigns each accepted operation a revision number, and clients rebase onto it.
+TP1 is enough only if a single authority decides the order of operations. Peer-to-peer OT also needs TP2 (transforming along different paths through a history gives the same result), which proved notoriously hard: several published algorithms were later shown to violate it. That is why practical OT is client-server. Google Docs descends from the Jupiter protocol developed at Xerox PARC in the 1990s, via Google Wave: the server assigns each accepted operation a revision number, and clients rebase onto it.
 
 ```mermaid
 sequenceDiagram
@@ -260,9 +260,7 @@ The client side keeps at most one operation in flight and buffers the rest. Ever
 | Server role | Mandatory and stateful per document | Optional for correctness; still useful for auth, durability and fan-out |
 | Examples | Google Docs and many editors of its generation | Yjs, Automerge, Riak data types, Redis Enterprise active-active |
 
-Figma is the instructive middle case. Its documents are trees of objects with properties, not linear text, and it has described its multiplayer system as server-authoritative with CRDT-inspired merging: each property of each object is effectively a last-writer-wins register, with the server deciding the order. Two people changing the same property of the same rectangle at the same instant is rare and cheap to lose; two people moving different rectangles never conflict. Choosing the smallest unit of conflict is often worth more than choosing an algorithm.
-
-With a central server in the picture, the practical gap narrows. The deciding questions are offline and peer-to-peer requirements, the richness of the document model, and whether you would rather build transformation functions or adopt a mature CRDT library.
+Figma is the instructive middle case. Its documents are trees of objects with properties, and it has described its multiplayer system as server-authoritative with CRDT-inspired merging: each property of each object behaves like a last-writer-wins register ordered by the server. Two people changing the same property of the same rectangle at the same instant is rare and cheap to lose; two people moving different rectangles never conflict. Choosing the smallest unit of conflict is often worth more than choosing an algorithm, and with a central server the practical gap between OT and CRDTs narrows to offline and peer-to-peer requirements and the richness of the document model.
 
 ## Architecture of a Google Docs-style system
 
@@ -279,16 +277,16 @@ flowchart LR
 
 The decisions that make this work:
 
-1. **One live owner per document.** All sessions for a document route to one collaboration server, chosen by consistent hashing on the document id or by a lease in a coordination service. The owner orders operations (OT) or validates and relays them (CRDT). Most documents have one or two active editors, so one server holds tens of thousands of open documents.
+1. **One live owner per document.** All sessions for a document route to one collaboration server, chosen by consistent hashing on the document id or by a lease. The owner orders operations (OT) or validates and relays them (CRDT). Most documents have one or two active editors, so one server holds tens of thousands of them.
 2. **Durable before acknowledged.** An operation is appended to the document's replicated log before the client gets its acknowledgement, so an acknowledged keystroke survives the owner crashing. An in-region replicated append costs a few milliseconds, well under the 50 to 100 ms at which a remote cursor starts to feel laggy.
 3. **Snapshots plus log.** Opening a document loads the latest snapshot and replays the operations since. Snapshotting every thousand operations or so bounds open time; the log doubles as version history.
 4. **Idempotent resend.** Each client operation carries `(client id, client sequence)`. After a reconnect the client resends everything unacknowledged and the owner discards what it already has. This is [idempotency](/learn/system-design/building-blocks/idempotency-and-retries) applied to keystrokes.
 5. **Presence is not data.** Cursor positions change many times a second, are worthless a second later and may be dropped. They go over an ephemeral pub/sub channel, never into the durable log.
 6. **Owner failover with fencing.** The owner holds a lease; if it dies, a new owner takes the lease, loads snapshot and log, and clients reconnect and resend. The log append must check a fencing token so a paused old owner cannot interleave its own ordering; see [failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases).
 
-The numbers stay small per document. A fast typist produces 5 to 8 characters a second; clients batch keystrokes every 50 to 100 ms, so each active typist sends at most 10 to 20 messages a second. Fan-out is what grows: 50 simultaneous editors each sending 20 messages a second would be 50,000 deliveries a second if every message went to every client. Batching outbound broadcasts per document every 50 ms caps it at 20 messages a second per client, 1,000 a second for the whole document. Production editors also cap simultaneous editors per document (Google Docs at around a hundred) and serve larger audiences read-only. The [collaborative editing case study](/learn/system-design/case-studies/collaborative-editing) works the full design.
+The numbers stay small per document. Clients batch keystrokes every 50 to 100 ms, so an active typist sends at most 10 to 20 messages a second. Fan-out is what grows: 50 editors at 20 messages a second, each delivered to 49 others, is about 50,000 deliveries a second. Batching outbound broadcasts per document every 50 ms caps it at 20 messages a second per client, 1,000 for the document. Production editors also cap simultaneous editors per document (Google Docs at around a hundred) and serve larger audiences read-only. The [collaborative editing case study](/learn/system-design/case-studies/collaborative-editing) works the full design.
 
-A CRDT-based variant, often called local-first, keeps a full replica in every client and uses the server as a relay and durable store. Sync is a diff: the client sends a compact summary of what it has (Yjs calls it a state vector), and the server replies with exactly the updates the client is missing. The server can go down and clients keep editing; when it returns, they merge.
+The CRDT variant, often called local-first, keeps a full replica in every client and uses the server as relay and durable store. Sync is a diff: the client sends a compact summary of what it has (Yjs calls it a state vector) and the server replies with exactly what is missing. If the server goes down, clients keep editing and merge when it returns.
 
 ## Where CRDTs are the wrong tool
 
@@ -304,15 +302,13 @@ A CRDT-based variant, often called local-first, keeps a full replica in every cl
 
 **Two owners for one document.** A network partition leaves the old owner alive while a new one takes the lease; under OT, each assigns its own order and clients connected to different owners diverge. Detect: log appends rejected on stale fencing tokens. Mitigate: fence every append, and make clients reload from the log when their revision history disagrees with the server's.
 
-**Clock-driven LWW losses.** Registers merged by wall-clock timestamp lose the newer edit when clocks drift. Detect: user reports of reverted changes, which is the problem. Mitigate: hybrid logical clocks, or MV-registers where people typed the value.
-
-**Hot documents.** A company-wide document opened by thousands during an all-hands meeting turns one owner into a fan-out bottleneck. Mitigate: read-only viewers receive batched snapshots through a CDN-style tier, not individual operations; cap live editors.
+**Hot documents.** A company-wide document opened by thousands during an all-hands turns one owner into a fan-out bottleneck. Mitigate: serve viewers batched snapshots from a separate read tier; cap live editors.
 
 ## Interviewer follow-ups
 
 **Q: "You are building the editing layer for a Google Docs competitor. OT or CRDT?"**
 
-It depends on two requirements I would ask about: real offline editing, and whether we ever want peer-to-peer or edge sync. If both are no and we are always connected to our servers, either works, and the deciding factors are the document model and team experience. My default today would be a mature CRDT library such as Yjs behind a thin server that authenticates, persists and fans out, because offline and reconnection come for free and the server stays stateless apart from the log. I would not write my own OT for rich text: the number of transformation pairs grows with every new block type, and the bugs appear as rare divergences in production.
+I would ask two things first: do we need real offline editing, and will we ever want peer-to-peer or edge sync? If both are no, either works. My default would be a mature CRDT library such as Yjs behind a thin server that authenticates, persists and fans out, because offline and reconnection come for free. I would not write my own OT for rich text: transformation pairs multiply with every new block type, and the bugs surface as rare divergences in production.
 
 **Q: "Why not use a PN-Counter for inventory across three regions?"**
 
@@ -320,15 +316,11 @@ Because the counter converges but cannot enforce "never below zero": two regions
 
 **Q: "A user edits offline for a week and returns with 20,000 operations. What happens?"**
 
-With a CRDT the client sends its state vector, the server returns what the client is missing, and each side integrates the other's operations; cost is roughly linear in the number of operations and the result keeps both sides' edits. Where both edited the same passage the merge may be semantically odd, so the UI should highlight regions changed on both sides. With OT, the server transforms 20,000 client operations against every server operation since the client's base revision, which is quadratic in the worst case; practical systems fall back to a three-way diff or ask the user to resolve. If tombstones older than a week have been compacted, the client cannot integrate against ids that no longer exist and must rebase onto a fresh snapshot.
+With a CRDT the client sends its state vector, the server returns what the client lacks, and each side integrates the other's operations, roughly linear in the number of operations; where both sides edited the same passage the merge may read oddly, so the UI should highlight it. With OT the server transforms 20,000 client operations against every server operation since the client's base revision, quadratic in the worst case, so practical systems fall back to a three-way diff or ask the user. Either way, if tombstones older than a week were compacted, the client must rebase onto a fresh snapshot.
 
 **Q: "How do you know two clients actually converged?"**
 
-The algorithm promises it, but implementations have bugs, so I verify: the server periodically computes a hash of the document at a revision and clients compare it with their own at the same revision. A mismatch triggers a reload from the server's snapshot and an error report with both histories, which is the only way divergence bugs get found and fixed.
-
-**Q: "Could you just use last-writer-wins on the whole document with a short sync interval?"**
-
-Only if you are willing to lose edits. At a one-second sync interval, two people typing at once overwrite each other every second. The unit of conflict is the problem: at document granularity everything conflicts. Shrinking the unit to a property (Figma) or a character (text CRDTs) makes most concurrent edits non-conflicting, and that matters more than which merge rule you pick.
+Implementations have bugs, so I verify: the server periodically publishes a hash of the document at a revision and clients compare it with their own. A mismatch triggers a reload from the server's snapshot and an error report with both histories, which is how divergence bugs get found.
 
 ## Senior signals
 
