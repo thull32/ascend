@@ -1,0 +1,477 @@
+---
+slug: data-and-migrations
+title: "Data and migrations: twelve tables, no curriculum, and where races hide"
+description: Ascend's schema table by table, why content is referenced by slug instead of foreign key, composite keys with single-statement upserts, the check-then-act races that were found and closed, cascades, and append-only migrations that run while the old version still serves.
+minutes: 46
+difficulty: hard
+tags: [case-study, postgres, schema-design, upsert, migrations, idempotency, concurrency]
+---
+The schema is the part of a system you cannot redeploy your way out of. Code can be rolled back in a minute; a column that was dropped, a constraint that was never added, or a table whose rows reference content that no longer exists stays wrong until someone writes a migration and a backfill. That is why a senior reviewer reads the migrations before the services.
+
+Ascend's database is small: twelve tables across seven migrations, and almost every row is owned directly or indirectly by a user (the exception, comments whose author deleted their account, is one of this lesson's stories). What makes it worth a lesson is what is *not* in it (the curriculum), how its writes avoid read-modify-write races, which races survived review and how they were closed, and how the schema changes while the previous version of the code is still serving traffic.
+
+## The schema in one diagram
+
+```mermaid
+erDiagram
+  users ||--o{ sessions : "signs in with"
+  users ||--o{ lesson_progress : tracks
+  users ||--o{ module_preferences : sets
+  users ||--o{ quiz_attempts : takes
+  users ||--o{ submissions : submits
+  users ||--o{ conversations : has
+  conversations ||--o{ messages : contains
+  users ||--o{ ai_usage : "spends per day"
+  users |o--o{ comments : writes
+  comments ||--o{ comments : "replied to by"
+  users ||--o{ interviews : runs
+  users ||--o{ activity_days : "active on"
+  users {
+    uuid id PK
+    varchar email UK
+    varchar password_hash
+    varchar role
+  }
+  sessions {
+    varchar token_hash PK "SHA-256 of the cookie token"
+    uuid user_id FK
+    timestamptz expires_at
+    timestamptz last_seen_at
+  }
+  lesson_progress {
+    uuid user_id PK
+    varchar lesson_slug PK "track/module/lesson"
+    varchar status
+    timestamptz completed_at
+  }
+  module_preferences {
+    uuid user_id PK
+    varchar module_slug PK
+    varchar preference
+  }
+  quiz_attempts {
+    uuid id PK
+    uuid user_id FK
+    varchar lesson_slug
+    jsonb answers
+  }
+  submissions {
+    uuid id PK
+    uuid user_id FK
+    varchar target_slug
+    text code
+    jsonb results
+  }
+  conversations {
+    uuid id PK
+    uuid user_id FK
+    jsonb context
+  }
+  messages {
+    uuid id PK
+    uuid conversation_id FK
+    text content
+  }
+  ai_usage {
+    uuid user_id PK
+    date day PK
+    int requests
+    bigint input_tokens
+    bigint output_tokens
+  }
+  comments {
+    uuid id PK
+    uuid user_id FK "nullable since m0007"
+    uuid parent_id FK
+    timestamptz deleted_at
+  }
+  interviews {
+    uuid id PK
+    uuid user_id FK
+    varchar status "at most one active per user"
+    jsonb transcript
+  }
+  activity_days {
+    uuid user_id PK
+    date day PK
+  }
+```
+
+Four identity patterns appear, and each is a deliberate choice:
+
+- **UUIDv7 surrogate keys** for event-like rows (attempts, submissions, messages, comments, interviews). Version 7 UUIDs start with a millisecond timestamp, so new keys arrive in roughly increasing order and inserts append near the right edge of the B-tree instead of splitting random pages, which is the classic cost of random v4 keys. The trade-off is that an ID reveals when it was created; comment responses include `author_id`, a user's UUIDv7, so anyone can read off roughly when each commenter signed up.
+- **Composite natural keys** where the identity *is* the combination: a learner's progress on a lesson, their preference for a module, their AI usage on a day, the fact that they studied on a given day.
+- **A hash as the key** for sessions, so the cookie's secret never touches the database (previous lesson).
+- **A self-reference** for one level of comment threading.
+
+Semi-structured payloads (quiz answers, test results, interview transcripts, coach context) are `jsonb`: stored, returned and occasionally inspected, never joined on. That is the right boundary for JSON in a relational schema.
+
+## Content by slug, not by foreign key
+
+The notable absence is a `lessons` or `problems` table. `migration/src/m0002_learning.rs` says why:
+
+```rust
+//! Learning progress: lesson completion, roadmap personalisation, quiz attempts,
+//! and code submissions.
+//!
+//! Curriculum content itself is *not* in the database: it is versioned Markdown
+//! compiled into the binary (see `ascend_core::content`). Rows here reference
+//! content by stable slug, so content can be edited and redeployed without a
+//! migration, and progress survives content re-ordering.
+```
+
+**The rejected alternative** is to load content into tables on each deploy and point foreign keys at them. That buys referential integrity and costs a synchronisation step that can fail halfway, plus a migration whenever the content model changes. **The failure mode prevented** is the one where a content edit needs a schema change, and where reordering lessons (renaming `03-foo.md` to `04-foo.md`) loses anyone's progress: identity is the slug in the front matter, never the file position.
+
+**What it costs** is integrity. The database will accept `lesson_slug = 'nonsense'`; the only guard is the service, which checks the slug against the in-memory curriculum before writing and returns `NotFound("lesson")` otherwise. When a lesson is deleted or its slug renamed, its rows become orphans, and the code does not notice: the dashboard's `lessons_completed` counts raw rows, orphans included, while the per-track bars count only lessons that still exist, so the two numbers can disagree. A slug rename is therefore a *coupled* change, a content pull request plus a data migration (`UPDATE lesson_progress SET lesson_slug = …`), and nothing enforces that the two ship together. At a larger scale you give each lesson an immutable `id` in its front matter and treat the slug as a mutable alias, or keep a list of redirects that the content validator checks.
+
+## Composite keys and single-statement upserts
+
+Marking a lesson complete, `crates/core/src/services/progress.rs`:
+
+```rust
+// Upsert returning the row: one statement, one round trip, no
+// read-modify-write race.
+super::activity::record(&self.db, user_id).await?;
+let row = LessonProgress::insert(model)
+    .on_conflict(
+        sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
+            .update_columns([
+                lesson_progress::Column::Status,
+                lesson_progress::Column::CompletedAt,
+                lesson_progress::Column::UpdatedAt,
+            ])
+            .to_owned(),
+    )
+    .exec_with_returning(&self.db)
+    .await?;
+Ok(row)
+```
+
+The SQL it produces has this shape:
+
+```sql
+INSERT INTO lesson_progress (user_id, lesson_slug, status, completed_at, created_at, updated_at)
+VALUES ($1, $2, 'completed', $3, $3, $3)
+ON CONFLICT (user_id, lesson_slug) DO UPDATE
+   SET status = excluded.status,
+       completed_at = excluded.completed_at,
+       updated_at = excluded.updated_at
+RETURNING *;
+```
+
+Three details matter. The conflict target is the composite primary key, so the *natural* identity of a progress row is enforced by the database with one index instead of a surrogate id plus a separate unique constraint. `created_at` is deliberately missing from the update list, so it keeps the moment the learner first opened the lesson while `updated_at` moves. And the statement is **idempotent**: sending it twice leaves exactly the state that sending it once did, which the integration test `progress_quiz_and_roadmap` checks by repeating the PUT.
+
+The line above the upsert is newer than the comment above it. `activity::record` appends today to the activity log (the streak story below) with `INSERT ... ON CONFLICT DO NOTHING`, so the function now runs two statements in two round trips, and the comment's "one statement, one round trip" describes only the second. The two are not in a transaction, and that is fine here: if the upsert fails after the log write, the day still counts as active, which is harmless for a streak. If the extra round trip ever mattered, a data-modifying CTE could send both in one statement.
+
+Compare the version everyone writes first: `SELECT` the row; if absent `INSERT`, else `UPDATE`. Two tabs, a double click or a client retry run that sequence concurrently. Both `SELECT`s see nothing, both `INSERT`, and the second fails on the primary key, a 500 for an operation that should have been a no-op. With the upsert, Postgres resolves the conflict inside one statement and both requests succeed.
+
+The same primary-key index also serves the dashboard's `WHERE user_id = $1`, because a B-tree on `(user_id, lesson_slug)` is also an index on `user_id` alone (its leftmost prefix). One index, two access patterns; [Indexes](/learn/databases/relational-fundamentals/indexes) explains the leftmost-prefix rule.
+
+### Check, then act: a race that was fixed
+
+The per-user AI budget in `ai_usage` shows the same principle applied to a limit, and its history is a better lesson than its final form. An earlier version of `BudgetService::check_and_reserve` read today's row, compared the count with the limit in Rust, and then ran an increment upsert. Each statement was atomic; the *sequence* was not. Two requests arriving at 149 of 150 both read 149, both passed the check and both incremented, ending at 151. The overshoot was bounded by concurrency, which made it easy to miss, and it was still a broken invariant. The current version, `crates/core/src/ai/budget.rs`, makes the check and the act one statement:
+
+```sql
+INSERT INTO ai_usage (user_id, day, input_tokens, output_tokens, requests)
+VALUES ($1, $2, 0, 0, 1)
+ON CONFLICT (user_id, day) DO UPDATE
+   SET requests = ai_usage.requests + 1
+ WHERE ai_usage.requests < $3
+   AND ai_usage.input_tokens < $4
+   AND ai_usage.output_tokens < $5
+RETURNING requests
+```
+
+`ON CONFLICT … DO UPDATE … WHERE` only updates when the condition holds, and `RETURNING` produces a row only if something was inserted or updated. No row back means "over budget", and nothing changed. The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. That test is the other half of the fix: a concurrency bug is only fixed when a concurrent test would have caught it.
+
+The rule generalises: **the check and the act must be the same statement, or run under a lock** (`SELECT … FOR UPDATE` inside a transaction). When this track was first drafted, review found three more places where they were not. Two have since been closed at the database level:
+
+| Invariant | Enforced by, before | What a race did | Enforced by, now |
+|---|---|---|---|
+| One account per email | `SELECT` by email, then hash, then `INSERT` | The unique index caught the loser, whose `DbErr` surfaced as a 500 instead of a 409 | Hash first, then `INSERT` and let the unique index decide; the unique violation maps to `Conflict` (409) |
+| One active interview per learner | `UPDATE … SET status = 'abandoned'`, validate, then `INSERT` | Two concurrent starts both inserted: two active interviews | A partial unique index plus a transaction around abandon-and-insert; the loser gets a 409 |
+| Emails compared case-insensitively | The service lowercases before every read and write | Any other writer (a script, a future service) can insert `Alice@…` beside `alice@…` | Unchanged: still a service convention |
+
+The registration fix in `AuthService::register` is small and worth reading whole:
+
+```rust
+// crates/core/src/auth/service.rs — AuthService::register
+let password_hash = password::hash(input.password).await?;
+// ... build the users::ActiveModel
+.insert(&self.db)
+.await
+.map_err(|e| match e.sql_err() {
+    Some(SqlErr::UniqueConstraintViolation(_)) => {
+        AppError::Conflict("an account with that email already exists".into())
+    }
+    _ => AppError::Database(e),
+})?;
+```
+
+Two things changed, and the order matters. Checking for the email first was not only a race: it made "already registered" answer roughly 100 ms faster than a real registration, because it skipped the Argon2 hash, which is a timing oracle for which emails have accounts. Hashing first makes both paths cost the same; letting the unique index decide makes the race harmless. The test `concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four registrations for one address at once and asserts exactly one 200 and three 409s.
+
+The interview fix uses both tools at once, because each covers a different gap. `migration/src/m0007_integrity.rs` adds the index:
+
+```rust
+// migration/src/m0007_integrity.rs
+m.create_index(
+    Index::create()
+        .name("uq_interviews_one_active_per_user")
+        .table(Interviews::Table)
+        .col(Interviews::UserId)
+        .unique()
+        .and_where(Expr::col(Interviews::Status).eq("active"))
+        .to_owned(),
+)
+```
+
+That is `CREATE UNIQUE INDEX … ON interviews (user_id) WHERE status = 'active'`: uniqueness only among active rows, so a learner can have any number of completed interviews. `InterviewService::start` then abandons the old interview and inserts the new one inside one transaction, mapping a unique violation to `AppError::Conflict("another interview was started at the same moment; try again")`. The transaction makes one request atomic: if the insert fails, the old interview is not left abandoned. The index makes two requests safe: under Postgres's default READ COMMITTED isolation, the second transaction's `UPDATE` cannot see the first one's uncommitted insert, so without the index both would insert; with it, the second insert waits on the first transaction's index entry and fails with a unique violation once the first commits. A `SELECT … FOR UPDATE` on the user row would also serialise starts, but only for code that remembers to take the lock; the index holds for every writer. The test `a_learner_has_at_most_one_active_interview_and_solo_locks_the_coach` races five starts and asserts exactly one active row.
+
+The old `start` also hid an ordering bug: it abandoned the learner's active interview *before* validating the requested duration, so a request with `duration_minutes: 5` ended your running interview and then failed with 422. The fixed version validates and resolves everything first (its comment says "a bad request must not abandon the interview the learner already has in progress"), and the same test asserts that an invalid start leaves the active interview untouched. Validation before side effects is the same principle as the boot order in [the tour](/learn/case-study-ascend/the-system/tour-of-the-repository).
+
+Status columns are `varchar(16)` guarded by Rust enums on the way in. A `CHECK (status IN ('in_progress', 'completed'))` constraint costs nothing and makes the database reject a typo from any writer that is not this binary.
+
+## Idempotency beyond upserts
+
+The progress PUT is idempotent by construction. `POST /api/submissions` and `POST /api/comments` are not: a double click, or a client that retries after a timeout without knowing whether the first attempt landed, inserts twice. For submissions the damage is cosmetic (the history shows two runs, and "solved" is computed with `DISTINCT`); for comments it is a visible duplicate post. The web client respects that: its retry policy in `web/src/main.tsx` retries only *queries*, and only on 429, 5xx and network errors, never a mutation. The general fix is an idempotency key: the client generates an ID per *intent*, and the server stores the outcome under it ([Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) covers the full pattern).
+
+```viz
+{"type": "system", "algorithm": "idempotency-key", "title": "Making a non-idempotent POST safe to retry", "caption": "Ascend's PUT endpoints are idempotent by construction; its POST endpoints would need a key like this before any retry logic is added to the client.", "requests": 3}
+```
+
+For Ascend the lightweight version is enough: let the client send a UUID with each comment or submission and add a unique constraint on `(user_id, client_id)`, so a retry hits the constraint and returns the existing row. The rule to carry into design reviews: never add automatic retries to a client until every endpoint it retries is idempotent.
+
+## Streaks: a derived value built on a mutable column
+
+The dashboard's streak, as it was computed until the latest fixes:
+
+```rust
+// crates/core/src/services/progress.rs — summary, before 7154e9f
+// Streak: consecutive UTC days (ending today or yesterday) with any activity.
+let mut days: Vec<chrono::NaiveDate> = progress.iter().map(|p| p.updated_at.date_naive()).collect();
+days.extend(quizzes.iter().map(|q| q.created_at.date_naive()));
+days.sort_unstable();
+days.dedup();
+let streak = compute_streak(&days, Utc::now().date_naive());
+```
+
+`compute_streak` walks backwards from today (or from yesterday, if there is no activity today) while each day is in the set. The walk was correct. The inputs were not, in three ways:
+
+1. **Days are UTC days.** A learner in California (UTC−7 in summer) who studies at 20:00 on Monday and 09:00 on Tuesday produces activity at 03:00 and 16:00 UTC on *Tuesday*. They studied on two consecutive local days and get a streak of one. Someone who studies late in the evening can equally earn two UTC days from one session.
+2. **The input was a mutable column.** `updated_at` on `lesson_progress` is overwritten by every upsert, so a later write to an old lesson's row (marking it complete a week after first opening it, say) *moved* that lesson's day, and the earlier day vanished from the streak. The code was computing "the last time each lesson was touched" plus quiz attempts, not a history of activity, and history that has been overwritten cannot be recounted.
+3. **Practice did not count.** Submissions were not in the input at all, so a day spent solving problems broke the streak.
+
+The fix replaced the input, not the walk. `m0007` adds an append-only fact table, `activity_days (user_id, day)` with a composite primary key, and every service that records learning (lesson progress, quiz attempts, submissions) calls one function:
+
+```rust
+// crates/core/src/services/activity.rs
+pub async fn record<C: ConnectionTrait>(db: &C, user_id: Uuid) -> AppResult<()> {
+    ActivityDays::insert(activity_days::ActiveModel { user_id: Set(user_id), day: Set(Utc::now().date_naive()) })
+        .on_conflict_do_nothing_on([activity_days::Column::UserId, activity_days::Column::Day])
+        .exec_without_returning(db)
+        .await?;
+    Ok(())
+}
+```
+
+One row per learner per day, idempotent by construction (the second write of the day hits the primary key and does nothing, which `activity_counts_toward_the_streak_and_is_recorded_once_per_day` checks), and the summary reads the last 400 days of it. The migration backfills the table from `quiz_attempts`, `submissions` and `lesson_progress.updated_at`, and that backfill is the lesson in miniature: it can only recover what had not already been overwritten. Days lost to the mutable column before the fix stayed lost. Derived values need an event log, and the sooner it exists, the more history it holds.
+
+The first problem is still there: `record` uses `Utc::now().date_naive()`, so days are still UTC days. Fixing it means storing a time zone per user and recording `(now AT TIME ZONE tz)::date`, a product change as much as a schema one. XP had a sibling problem that the same commit fixed: it counted every passing quiz *attempt*, so retaking a quiz farmed XP; it now counts each lesson with a passing attempt once. Scores for AI-generated quizzes are still reported by the browser, so they count toward XP on trust, once per lesson. For a motivational number on a free learning product that is a reasonable trade.
+
+```exercise
+id: streak-days
+title: Reproduce the streak calculation
+prompt: |
+  Implement `streak(days, today)` exactly as `compute_streak` in `crates/core/src/services/progress.rs` behaves.
+
+  `days` is a list of dates with activity as `"YYYY-MM-DD"` strings, unsorted and possibly repeated. `today` is a date string in the same format. If `today` is not in `days`, start counting from yesterday instead (a streak stays alive until the day ends). Then count consecutive days going backwards while each day is present.
+
+  Dates are calendar dates, so month and year boundaries must work.
+languages: [python, javascript]
+entry: streak
+starter:
+  python: |
+    def streak(days, today):
+        # your code here
+        return 0
+  javascript: |
+    function streak(days, today) {
+      // your code here
+      return 0;
+    }
+tests:
+  - args: [["2026-09-24", "2026-09-25", "2026-09-26"], "2026-09-26"]
+    expected: 3
+  - args: [["2026-09-25", "2026-09-24"], "2026-09-26"]
+    expected: 2
+    label: still alive from yesterday
+  - args: [["2026-09-20"], "2026-09-26"]
+    expected: 0
+  - args: [[], "2026-09-26"]
+    expected: 0
+    label: no activity
+  - args: [["2026-09-26", "2026-09-26", "2026-09-25", "2026-09-23"], "2026-09-26"]
+    expected: 2
+    label: duplicates and a gap
+  - args: [["2026-02-28", "2026-03-01", "2026-02-27"], "2026-03-01"]
+    expected: 3
+    hidden: true
+    label: month boundary in a non-leap year
+  - args: [["2025-12-31", "2026-01-01"], "2026-01-02"]
+    expected: 2
+    hidden: true
+    label: year boundary, alive from yesterday
+  - args: [["2026-09-25"], "2026-09-27"]
+    expected: 0
+    hidden: true
+    label: two days ago is too late
+hints:
+  - "Put the days in a set first; duplicates and order stop mattering."
+  - "In Python use `datetime.date.fromisoformat` and `timedelta(days=1)`. In JavaScript parse the parts and use `Date.UTC(y, m - 1, d)`, stepping by 86,400,000 ms; local-time Date methods reintroduce the very time-zone bug this section describes."
+  - "Format the cursor back to `YYYY-MM-DD` (or keep everything as UTC timestamps) before each membership test."
+```
+
+## Deletes, cascades and soft deletes
+
+`migration/src/lib.rs` records the conventions every migration follows:
+
+```rust
+//! Conventions (worth copying in your own projects):
+//! * One migration per bounded context, applied in order. Migrations are
+//!   append-only: never edit a migration that has shipped; add a new one.
+//! * Mutable tables have `created_at`/`updated_at` with DB-side defaults (the
+//!   `timestamps` helper); append-only tables (sessions, messages, quiz
+//!   attempts, submissions) have only `created_at`.
+//! * Foreign keys always declare an `ON DELETE` policy. Rows a user owns
+//!   privately cascade (deleting a user removes their data). Shared content
+//!   (comments) survives as "deleted user" via SET NULL, so other people's
+//!   replies are not destroyed (m0007).
+```
+
+The third convention used to be simpler: ownership rows cascade, and audit rows cascade too, "because deleting a user must remove all of their data". That rule had a flaw nobody had exercised.
+
+### Before: erasing one person erased other people's words
+
+`m0004` created `comments.user_id` as `NOT NULL` with `ON DELETE CASCADE`, and `comments.parent_id` with `ON DELETE CASCADE` too. When a learner deletes one of their own comments, the service soft-deletes it (sets `deleted_at` and empties the body), and the thread keeps its shape; `comments_threading_and_authorisation` asserts that replies survive a soft-deleted parent. But deleting an *account* would have hard-deleted that user's comments, and the second cascade would then have deleted every reply other people wrote to them. The comment listing even had a branch that shows "deleted user" when a comment has no author, and the cascade guaranteed it could never run. Nobody had noticed because there was no account-deletion endpoint, so the cascade path had never executed.
+
+### After: set null, keep the text, require the password
+
+`m0007` makes `comments.user_id` nullable and replaces its foreign key with `fk_comments_user_set_null`, `ON DELETE SET NULL`. Everything else a learner owns (sessions, progress, quiz attempts, submissions, conversations and their messages, interviews, usage, activity) still cascades. The new endpoint, `DELETE /api/auth/me`, requires the account's password, removes the session cookie and deletes the user row; Postgres does the rest in one statement. Afterwards the learner's comments remain, unattributed: the listing's left join finds no author, and the formerly dead branch renders "deleted user". The test `deleting_an_account_requires_the_password_and_keeps_discussions_readable` checks all of it: a wrong password leaves the account in place, the right one removes the user and their sessions, and the comment is still listed with `author_id: null` and `author_name: "deleted user"`.
+
+Why this over the alternatives? Keeping the cascade but stopping it at `parent_id` would orphan the replies anyway, stripped of the question they answer. Soft-deleting users keeps a row of personal data around and adds a "not deleted" filter to every query that touches `users`. Deleting the text as well as the link would destroy the context of other people's replies. `SET NULL` removes the identity and keeps the conversation. It also makes a product and legal decision, which the migration comment and the profile page state plainly ("Your comments stay, shown as written by a deleted user"): a learner who wants their words gone must delete those comments before deleting the account. Whether that satisfies every erasure request is a question for a lawyer, not a migration.
+
+Two smaller details. `m0004` never named the `user_id` foreign key, so `m0007` has to look the generated name up in `pg_constraint` inside a `DO` block before it can drop it; name every constraint you might one day need to change. And the timestamps convention is honest now, but the behaviour it once promised still is not there: the comment soft-delete updates `deleted_at` and `body` and leaves `updated_at` at the creation time, because defaults apply only on `INSERT`. Rewording the comment removed the false promise without fixing the gap; a trigger, or one helper that every update goes through, would close it.
+
+## Indexes follow queries
+
+Every index in the migrations sits next to a comment naming the query it serves, which makes unused ones easy to spot:
+
+| Index | Query it serves |
+|---|---|
+| `sessions` primary key (`token_hash`) | Resolving a cookie on each authenticated request |
+| `idx_sessions_user_id` | Log out everywhere |
+| `idx_sessions_expires_at` | The hourly sweep of expired sessions |
+| `lesson_progress` primary key (`user_id`, `lesson_slug`) | The upsert's conflict target, and the dashboard by `user_id` prefix |
+| `idx_quiz_attempts_user_lesson` | The dashboard, again by `user_id` prefix |
+| `idx_submissions_user_target` (`user_id`, `target_slug`, `created_at`) | "My submissions for this problem, newest first", served in index order |
+| `idx_comments_target` (`target_kind`, `target_slug`, `created_at`) | A lesson's thread, newest 500 |
+| `uq_interviews_one_active_per_user`, partial unique on `user_id` where `status = 'active'` | Enforcing one active interview; also serves "does this learner have an active solo interview" |
+| `activity_days` primary key (`user_id`, `day`) | The once-per-day insert, and the streak's range scan by `user_id` |
+| `idx_messages_conversation_created` | A coach conversation in order |
+
+Growth is where this schema will hurt first. `submissions` stores up to 64 KiB of code for every run, forever, and is by far the fastest-growing table. The dashboard loads a learner's *entire* progress and quiz history on every visit and aggregates in Rust, so its cost grows with how long someone has used the product. Neither matters today. At 100x, keep the last few submissions per learner and problem (or move code to object storage), partition by month, and maintain the dashboard's counters incrementally or aggregate them in SQL.
+
+## Migrations: append-only, on boot, compatible with the past
+
+The rules are short. Migrations are **append-only**: `seaql_migrations` records which ones a database has applied, so editing a shipped file changes nothing on any database that already ran it, and development, CI and production silently diverge. `m0006` is the textbook example of the alternative:
+
+```rust
+m.alter_table(
+    Table::alter()
+        .table(AiUsage::Table)
+        .add_column_if_not_exists(ColumnDef::new(Cache::CacheReadTokens).big_integer().not_null().default(0))
+        .add_column_if_not_exists(ColumnDef::new(Cache::CacheWriteTokens).big_integer().not_null().default(0))
+        .to_owned(),
+)
+.await
+```
+
+`m0006_ai_usage_cache_tokens.rs` adds two columns to a table created by `m0003` instead of editing it. Adding a `NOT NULL` column with a constant default is a metadata-only change in modern Postgres, and old code that does not know the columns keeps working. That second property is the important one.
+
+`m0007_integrity.rs` is the harder kind, because it changes data as well as shape, and it shows three habits. It backfills the new `activity_days` table in the same migration that creates it, with `INSERT … SELECT … ON CONFLICT DO NOTHING`, so the table is useful from the first boot. It cleans up before it constrains: an `UPDATE` first abandons every active interview except each learner's newest, because `CREATE UNIQUE INDEX` fails outright if existing rows already violate it. And its `down` is honest about being lossy: restoring `NOT NULL` on `comments.user_id` requires deleting the anonymised comments first.
+
+Migrations **run on boot, before the server binds** (`crates/api/src/main.rs`). On Postgres, `sea-orm-migration` runs each migration in its own transaction together with its bookkeeping row, so a failure leaves no half-applied schema; the process exits non-zero, the new deployment never passes `/api/readyz`, and Railway keeps the old one serving.
+
+Now the consequence that catches teams out. During a rollout the *old* code is still serving traffic against the *new* schema until the new deployment is healthy. Every migration must therefore be compatible with the release before it, which is the **expand and contract** pattern from [Schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale):
+
+| Release | Schema change | Code change |
+|---|---|---|
+| N | Add `name` beside `display_name`; backfill | Write both columns, read `display_name` |
+| N+1 | None | Read `name` |
+| N+2 | Drop `display_name` | Stop writing it |
+
+A rename in a single release breaks the old deployment the moment the migration commits. `m0007` shows a subtler version of the same hazard. Relaxing `comments.user_id` to nullable is an expand step, harmless to the old code at the moment it runs. But the previous release decodes `user_id` as a non-null `Uuid`, so once the new code has deleted one account, rolling back to that release would turn every thread containing an anonymised comment into a 500. An expand step is only safe for rollback until the new code starts writing values the old code cannot read. Two further hazards are worth naming before they happen:
+
+- **Locks.** A plain `CREATE INDEX` blocks writes to the table while it builds. On a large `submissions` table that is an outage for the old deployment that is still serving. `CREATE INDEX CONCURRENTLY` avoids it but cannot run inside a transaction, so such a migration must opt out of the automatic one (`sea-orm-migration` exposes `use_transaction`).
+- **Replicas racing.** Nothing serialises `Migrator::up` across processes. With one replica that is fine; with several booting at once, two processes run the same migration and one fails and restarts. Take a Postgres advisory lock around the migrator, or run migrations as a separate release step.
+
+The migrations also define `down` functions. They are for local development; in production you roll forward with a new migration, because a `down` that drops a column also drops the data written since.
+
+## What changes at 100x
+
+- **Reads move to a replica, carefully.** Dashboards and the roadmap can read from a replica, except immediately after a write: a learner who marks a lesson complete and then sees it unticked has met replication lag. Route read-your-writes paths to the primary.
+- **Connections become a budget.** The pool is 20 per process, sized for one replica on a small Postgres. N replicas need a connection pooler in front of the database.
+- **Invariants move into the database:** `CHECK` constraints and a case-insensitive email index join the partial unique index, so correctness does not depend on every writer being this binary.
+- **Local days for the activity log:** a stored time zone per learner, so streaks follow the learner's calendar rather than UTC.
+- **Retention and partitioning** for submissions and messages.
+- **Migrations become a release step** with a lock, and expand and contract becomes a checklist item in review.
+
+## Senior signals
+
+- You explain why the curriculum is not in the database, and you name the price (no referential integrity, orphans on rename) and the mitigation (immutable ids or validated redirects).
+- You reach for single-statement upserts and conditional upserts with `RETURNING`, and you can spot the check-then-act sequence that looks atomic because each statement is.
+- You insist that a concurrency fix comes with a concurrent test.
+- You move invariants into the database where they are cheap: partial unique indexes, `CHECK` constraints, functional unique indexes.
+- You read cascade rules as product decisions, notice when erasing one account would erase other people's data, and choose between cascade, set null and soft delete deliberately.
+- You write migrations that are compatible with the previous release, and you know which DDL takes locks that the still-serving old version will feel.
+
+## Check yourself
+
+```quiz
+- q: >-
+    Ascend stores lesson progress keyed by a slug string instead of a foreign key to a lessons table. What is the main cost of this choice?
+  options: ["Progress is lost whenever the lesson files are renumbered or reordered on disk", "Every content edit now requires a schema migration before it can deploy", "Nothing stops a slug from naming a lesson that was renamed or deleted", "Lookups by a string slug are much slower than lookups by an integer key"]
+  answer: 2
+  explanation: >-
+    Reordering is safe because identity is the front-matter slug, and content edits need no migration; those are the benefits. The price is integrity: only the service checks slugs, so a rename leaves orphaned rows unless a data migration ships with it, and nothing enforces that the two ship together.
+- q: >-
+    Two browser tabs send PUT /api/progress/lessons/.../binary-search with status completed at the same instant. What happens with Ascend's upsert, and what would happen with SELECT-then-INSERT?
+  options: ["Both approaches behave identically, because Postgres serialises concurrent writes", "Upsert: two rows appear. SELECT-then-INSERT: exactly one row appears as expected", "Upsert: both succeed. SELECT-then-INSERT: one can hit the key and return 500", "Upsert: both fail on the conflict. SELECT-then-INSERT: both succeed as expected"]
+  answer: 2
+  explanation: >-
+    INSERT ... ON CONFLICT DO UPDATE resolves the conflict inside one statement, so one request inserts and the other updates. In the read-then-write version both SELECTs can see no row, both INSERT, and the loser violates the primary key. Postgres does not serialise the two sequences for you.
+- q: >-
+    An earlier budget check read today's usage, compared it with the limit in Rust, then ran an atomic increment. Why could 30 concurrent requests exceed a limit of 10, and what fixed it?
+  options: ["Postgres drops some concurrent upserts, so a unique index on the user and day fixed it", "The limit was cached in each process, so reading it from the environment fixed it", "The increment was not atomic, so wrapping it in a transaction with a retry loop fixed it", "All read the same under-limit count; one conditional upsert with RETURNING fixed it"]
+  answer: 3
+  explanation: >-
+    Each statement was atomic, but the check and the act were separate, so all 30 could pass the check before any increment landed. Folding the condition into the upsert's WHERE clause makes the database decide and increment in one step, and a concurrent test asserting exactly 10 successes proves it. A transaction alone under READ COMMITTED would not have helped.
+- q: >-
+    A learner in UTC-7 studies on Monday at 20:00 local time and on Tuesday at 09:00 local time. What streak does Ascend show on Tuesday at 10:00 local time?
+  options: ["2, because activity_days records one row per local calendar day", "It depends on the time zone of the server that recorded the activity", "1, because both sessions fall on the same UTC day in the activity_days log", "0, because the Monday session was recorded after midnight UTC"]
+  answer: 2
+  explanation: >-
+    Monday 20:00 at UTC-7 is Tuesday 03:00 UTC and Tuesday 09:00 is Tuesday 16:00 UTC, so both land on the same UTC day. The activity log fixed the mutable-column problem but still records Utc::now().date_naive(), so the server's own zone is irrelevant; a stored time zone per learner would fix it.
+- q: >-
+    Alice deletes her account. Bob had replied to one of Alice's comments. What happens to the two comments?
+  options: ["Both are deleted, because Alice's comment cascades from users and Bob's from its parent", "The deletion fails with a foreign-key violation until Alice deletes her comments", "Both stay; Alice's loses its author link and is shown as written by a deleted user", "Alice's comment is deleted and Bob's reply becomes a top-level comment on the lesson"]
+  answer: 2
+  explanation: >-
+    Since m0007, comments.user_id is ON DELETE SET NULL, so Alice's comment survives without an author and Bob's reply keeps its parent. Before that migration, both foreign keys cascaded, so an account deletion would have removed Bob's words too; the account-deletion endpoint and the SET NULL change shipped together for exactly that reason.
+- q: >-
+    Release N+1 renames a column in its migration and updates the code to use the new name. Railway rolls it out with a health-gated deploy. What breaks?
+  options: ["The new deployment cannot start, because the old one still holds a table lock", "The old code, still serving during the switch, queries a column that is gone", "Nothing, because each migration runs inside its own transaction", "Only the down migration breaks, and production never runs down migrations"]
+  answer: 1
+  explanation: >-
+    The migration commits before the new code takes traffic, while the old code is still serving with queries that name the old column, so they fail in that window. The transaction makes the migration atomic, not compatible. Expand and contract avoids it: add the new column and write both, switch reads in the next release, drop the old column in the one after.
+```
