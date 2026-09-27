@@ -33,6 +33,11 @@ async function collect(page: Page, url: string, issues: Issue[]) {
         out.push({ kind: "viz/exercise", detail: t.slice(0, 200) });
     });
     if (!document.querySelector("article h1, h1")) out.push({ kind: "render", detail: "no h1" });
+    // Every table-of-contents link must land on a heading in the page.
+    document.querySelectorAll('aside a[href^="#"]').forEach((a) => {
+      const id = decodeURIComponent((a.getAttribute("href") ?? "").slice(1));
+      if (id && !document.getElementById(id)) out.push({ kind: "toc-anchor", detail: `#${id} (${text(a)})` });
+    });
     if (/That page does not exist/.test(document.body.textContent ?? "")) out.push({ kind: "404", detail: "not found" });
     return out;
   });

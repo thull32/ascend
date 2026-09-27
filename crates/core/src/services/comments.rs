@@ -26,7 +26,8 @@ pub struct CommentView {
     pub parent_id: Option<Uuid>,
     pub body: String,
     pub author_name: String,
-    pub author_id: Uuid,
+    /// `None` when the author deleted their account.
+    pub author_id: Option<Uuid>,
     pub deleted: bool,
     pub created_at: chrono::DateTime<Utc>,
     pub replies: Vec<CommentView>,
@@ -36,7 +37,7 @@ pub struct CommentView {
 #[derive(Debug, FromQueryResult)]
 struct CommentRow {
     id: Uuid,
-    user_id: Uuid,
+    user_id: Option<Uuid>,
     target_kind: String,
     target_slug: String,
     parent_id: Option<Uuid>,
@@ -99,7 +100,7 @@ impl CommentService {
         let id = Uuid::now_v7();
         comments::ActiveModel {
             id: Set(id),
-            user_id: Set(user_id),
+            user_id: Set(Some(user_id)),
             target_kind: Set(input.target_kind),
             target_slug: Set(input.target_slug),
             parent_id: Set(input.parent_id),
@@ -160,7 +161,7 @@ impl CommentService {
 
     pub async fn delete(&self, user_id: Uuid, is_admin: bool, id: Uuid) -> AppResult<()> {
         let c = Comments::find_by_id(id).one(&self.db).await?.ok_or(AppError::NotFound("comment"))?;
-        if c.user_id != user_id && !is_admin {
+        if c.user_id != Some(user_id) && !is_admin {
             return Err(AppError::Forbidden);
         }
         let mut active: comments::ActiveModel = c.into();

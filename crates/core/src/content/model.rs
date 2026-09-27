@@ -101,6 +101,7 @@ pub struct LessonRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TestCase {
     /// Positional arguments passed to the solution function.
     pub args: Vec<serde_json::Value>,

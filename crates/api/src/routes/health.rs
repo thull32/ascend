@@ -27,6 +27,7 @@ async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<serde_json::
             "database": db_ok,
             "ai": state.coach.enabled(),
             "content_version": state.curriculum.version,
+            "build": crate::build_info::BUILD_ID,
         })),
     )
 }

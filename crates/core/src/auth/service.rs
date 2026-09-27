@@ -90,9 +90,14 @@ impl AuthService {
     ) -> AppResult<(CurrentUser, NewSession)> {
         input.validate()?;
         let email = input.email.trim().to_lowercase();
-        if Users::find().filter(users::Column::Email.eq(&email)).one(&self.db).await?.is_some() {
-            return Err(AppError::Conflict("an account with that email already exists".into()));
-        }
+        // Hash first, then insert and let the unique index decide. Checking
+        // for the email before hashing made "already registered" responses
+        // ~100 ms faster than successful ones (a timing oracle), and a
+        // check-then-insert race surfaced as a 500.
+        //
+        // Registration still says when an email is taken: without an email
+        // round trip there is no way to avoid that, and it is rate limited.
+        // The login endpoint, which attackers probe at scale, reveals nothing.
         let password_hash = password::hash(input.password).await?;
         let now = Utc::now();
         let user = users::ActiveModel {
@@ -111,9 +116,28 @@ impl AuthService {
             updated_at: Set(now),
         }
         .insert(&self.db)
-        .await?;
+        .await
+        .map_err(|e| match e.sql_err() {
+            Some(SqlErr::UniqueConstraintViolation(_)) => {
+                AppError::Conflict("an account with that email already exists".into())
+            }
+            _ => AppError::Database(e),
+        })?;
         let session = self.create_session(user.id, user_agent).await?;
         Ok((user.into(), session))
+    }
+
+    /// Deletes the account and everything it owns (progress, submissions,
+    /// conversations, interviews, sessions cascade). Comments are kept and
+    /// shown as "deleted user" so other people's replies survive (m0007).
+    /// Requires the password: a stolen session alone cannot erase an account.
+    pub async fn delete_account(&self, user_id: Uuid, password: String) -> AppResult<()> {
+        let user = Users::find_by_id(user_id).one(&self.db).await?.ok_or(AppError::NotFound("user"))?;
+        if !password::verify(password, Some(user.password_hash)).await {
+            return Err(AppError::Validation("password is incorrect".into()));
+        }
+        Users::delete_by_id(user_id).exec(&self.db).await?;
+        Ok(())
     }
 
     pub async fn login(&self, input: LoginInput, user_agent: Option<String>) -> AppResult<(CurrentUser, NewSession)> {

@@ -3,11 +3,13 @@
 //! Conventions (worth copying in your own projects):
 //! * One migration per bounded context, applied in order. Migrations are
 //!   append-only: never edit a migration that has shipped; add a new one.
-//! * Every table has `created_at`/`updated_at` with DB-side defaults so the
-//!   application can never forget to set them.
-//! * Foreign keys always declare an `ON DELETE` policy. Ownership rows cascade;
-//!   audit rows (usage, submissions) also cascade because deleting a user must
-//!   remove all of their data (GDPR-style "right to erasure").
+//! * Mutable tables have `created_at`/`updated_at` with DB-side defaults (the
+//!   `timestamps` helper); append-only tables (sessions, messages, quiz
+//!   attempts, submissions) have only `created_at`.
+//! * Foreign keys always declare an `ON DELETE` policy. Rows a user owns
+//!   privately cascade (deleting a user removes their data). Shared content
+//!   (comments) survives as "deleted user" via SET NULL, so other people's
+//!   replies are not destroyed (m0007).
 //! * Indexes are declared next to the columns they serve, with a comment on
 //!   the query pattern that needs them.
 pub use sea_orm_migration::prelude::*;
@@ -18,6 +20,7 @@ mod m0003_ai;
 mod m0004_community;
 mod m0005_interviews;
 mod m0006_ai_usage_cache_tokens;
+mod m0007_integrity;
 
 pub struct Migrator;
 
@@ -31,6 +34,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0004_community::Migration),
             Box::new(m0005_interviews::Migration),
             Box::new(m0006_ai_usage_cache_tokens::Migration),
+            Box::new(m0007_integrity::Migration),
         ]
     }
 }

@@ -14,24 +14,31 @@
 const MATHY = /[\\^_{}=+]/;
 
 function escapeParagraph(text: string): string {
-  const dollars: number[] = [];
+  // Every `$` that is not part of `$$`. Escaped ones (`\$`) can close a span
+  // but never open one: remark-math pairs an opening `$` with the next `$`
+  // even if that one is escaped, which is how "$5 ... \$10" breaks.
+  const dollars: { i: number; escaped: boolean }[] = [];
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== "$") continue;
-    if (text[i - 1] === "\\") continue; // already escaped
     if (text[i + 1] === "$" || text[i - 1] === "$") continue; // $$ display maths
-    dollars.push(i);
+    dollars.push({ i, escaped: text[i - 1] === "\\" });
   }
   const escapeAt: number[] = [];
   let k = 0;
   while (k < dollars.length) {
     const open = dollars[k]!;
+    if (open.escaped) {
+      k += 1;
+      continue;
+    }
     const close = dollars[k + 1];
     if (close === undefined) break; // an unpaired $ is literal anyway
-    const span = text.slice(open + 1, close);
+    const span = text.slice(open.i + 1, close.i);
     const currency = /^\d/.test(span) && /\s/.test(span) && !MATHY.test(span);
-    if (currency) {
-      escapeAt.push(open);
-      k += 1; // the closing $ may itself open the next amount
+    if (currency || close.escaped) {
+      // Money, or a pair that can only be broken maths: make the opener literal.
+      escapeAt.push(open.i);
+      k += 1;
     } else {
       k += 2; // a real formula: skip both delimiters
     }

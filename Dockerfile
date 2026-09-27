@@ -43,6 +43,10 @@ COPY crates crates
 COPY migration migration
 COPY content content
 COPY --from=web /app/web/dist web/dist
+# Railway passes the commit as a build argument; it becomes the build id that
+# /api/readyz reports and that content ETags include.
+ARG RAILWAY_GIT_COMMIT_SHA=""
+ENV ASCEND_BUILD_ID=${RAILWAY_GIT_COMMIT_SHA}
 RUN cargo build --release -p ascend-api \
  && cp target/release/ascend-api /ascend-api \
  # Strict content validation: a broken lesson fails the build, not the deploy.

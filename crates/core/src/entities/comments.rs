@@ -7,7 +7,8 @@ use serde::Serialize;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    pub user_id: Uuid,
+    /// `None` once the author deleted their account (comment kept, anonymised).
+    pub user_id: Option<Uuid>,
     pub target_kind: String,
     pub target_slug: String,
     pub parent_id: Option<Uuid>,

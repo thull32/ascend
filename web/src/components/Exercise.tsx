@@ -70,6 +70,8 @@ export interface CodeRunnerProps {
   onCodeChange?: (code: string, language: Language) => void;
   /** Disable the coach hand-off (solo interview mode). */
   noCoach?: boolean;
+  /** Save attempts as submissions (off in interviews, where the code is kept with the interview). */
+  persist?: boolean;
 }
 
 const LANG_LABEL: Record<string, string> = { python: "Python", javascript: "JavaScript", typescript: "TypeScript" };
@@ -127,7 +129,7 @@ export function CodeRunner(props: CodeRunnerProps) {
       if (id !== runId.current) return;
       setResult(res);
       const passedCount = res.results.filter((r) => r.passed).length;
-      if (user && !res.compileError) {
+      if (user && !res.compileError && props.persist !== false) {
         try {
           await api.post("/submissions", {
             target_kind: props.targetKind,

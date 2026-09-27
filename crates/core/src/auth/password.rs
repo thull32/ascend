@@ -1,11 +1,12 @@
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 
 use crate::error::{AppError, AppResult};
 
 /// A valid hash of a random password, used to equalise timing when the login
 /// email does not exist.
-static DUMMY_HASH: Lazy<String> = Lazy::new(|| hash_sync("ascend-dummy-password-for-timing").expect("dummy hash"));
+static DUMMY_HASH: LazyLock<String> =
+    LazyLock::new(|| hash_sync("ascend-dummy-password-for-timing").expect("dummy hash"));
 
 fn hash_sync(password: &str) -> AppResult<String> {
     // Argon2id, default params (m=19456 KiB, t=2, p=1), random 16-byte salt.
@@ -19,7 +20,17 @@ fn verify_sync(password: &str, hash: &str) -> bool {
     PasswordVerifier::<str>::verify_password(&Argon2::default(), password.as_bytes(), hash).is_ok()
 }
 
+/// Argon2 is deliberately expensive (~19 MiB and tens of ms per call). An
+/// unbounded burst of logins would queue unlimited work on the blocking pool
+/// and exhaust memory, so at most one hash per CPU runs at a time; the rest
+/// wait here (and the auth rate limiter bounds how many can wait).
+static HASH_PERMITS: LazyLock<tokio::sync::Semaphore> = LazyLock::new(|| {
+    let cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(2);
+    tokio::sync::Semaphore::new(cpus.max(2))
+});
+
 pub async fn hash(password: String) -> AppResult<String> {
+    let _permit = HASH_PERMITS.acquire().await.map_err(AppError::internal)?;
     tokio::task::spawn_blocking(move || hash_sync(&password))
         .await
         .map_err(|e| AppError::Internal(format!("join: {e}")))?
@@ -30,6 +41,7 @@ pub async fn hash(password: String) -> AppResult<String> {
 pub async fn verify(password: String, hash: Option<String>) -> bool {
     let exists = hash.is_some();
     let hash = hash.unwrap_or_else(|| DUMMY_HASH.clone());
+    let Ok(_permit) = HASH_PERMITS.acquire().await else { return false };
     let ok = tokio::task::spawn_blocking(move || verify_sync(&password, &hash)).await.unwrap_or(false);
     ok && exists
 }

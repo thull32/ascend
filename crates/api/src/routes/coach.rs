@@ -91,6 +91,7 @@ async fn send(
     AppJson(input): AppJson<SendMessageInput>,
 ) -> ApiResult<impl axum::response::IntoResponse> {
     let client = state.coach.client()?.clone();
+    ensure_coach_unlocked(&state, user.id).await?;
     let (conv, _) = state.coach.get_conversation(user.id, id).await?;
     let progress = state.progress.summary(user.id).await.ok();
     let request = state.coach.prepare_turn(user.id, &conv, input, progress.as_ref()).await?;
@@ -100,7 +101,7 @@ async fn send(
     let coach = state.coach.clone();
     // The spawned task outlives the request; `.instrument` carries the request
     // span (method, path, request id) into its logs.
-    tokio::spawn(
+    state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
             let (reply, usage, error) = sse::pump(upstream, &tx).await;
@@ -139,6 +140,7 @@ async fn generate_quiz(
     Path((t, m, l)): Path<(String, String, String)>,
     body: Option<Json<QuizBody>>,
 ) -> ApiResult<Json<GeneratedQuiz>> {
+    ensure_coach_unlocked(&state, user.id).await?;
     let count = body.map(|b| b.0.count).unwrap_or(5);
     Ok(Json(ascend_core::ai::quiz::generate(&state.coach, user.id, &format!("{t}/{m}/{l}"), count).await?))
 }
@@ -161,4 +163,16 @@ async fn roadmap_suggestions(
         _ => None,
     };
     Ok(Json(ascend_core::ai::roadmap::suggest(&state.coach, user.id, &body.background, goal.as_deref()).await?))
+}
+
+/// Solo mock interviews promise "no AI help". Enforce it here, not only by
+/// hiding buttons in the UI.
+async fn ensure_coach_unlocked(state: &AppState, user_id: uuid::Uuid) -> ApiResult<()> {
+    if state.interviews.has_active_solo(user_id).await? {
+        return Err(ascend_core::AppError::Conflict(
+            "the coach is unavailable during a solo mock interview; end the interview to use it again".into(),
+        )
+        .into());
+    }
+    Ok(())
 }

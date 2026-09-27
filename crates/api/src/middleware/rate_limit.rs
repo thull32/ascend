@@ -1,4 +1,5 @@
-//! In-process rate limiting keyed by client IP (and by user for AI routes).
+//! In-process rate limiting keyed by client IP. Per-user AI spend is capped
+//! separately by the daily budget in `ascend_core::ai::budget`.
 //!
 //! In-memory is the right call for a single-instance deployment; the state
 //! is per process. If we scale horizontally the same interface can be backed
@@ -14,7 +15,7 @@ use axum::extract::{ConnectInfo, State};
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use governor::clock::DefaultClock;
+use governor::clock::{Clock, DefaultClock};
 use governor::state::keyed::DefaultKeyedStateStore;
 use governor::{Quota, RateLimiter};
 
@@ -39,6 +40,17 @@ impl Limiters {
             auth: RateLimiter::keyed(per_min(10)),
             general: RateLimiter::keyed(per_min(300)),
             ai: RateLimiter::keyed(per_min(20)),
+        }
+    }
+}
+
+impl Limiters {
+    /// Drops per-IP state for keys whose quota has fully replenished, so the
+    /// maps do not grow with every IP ever seen. Called periodically.
+    pub fn prune(&self) {
+        for l in [&self.auth, &self.general, &self.ai] {
+            l.retain_recent();
+            l.shrink_to_fit();
         }
     }
 }
@@ -77,10 +89,14 @@ pub async fn limit(bucket: Bucket, State(state): State<AppState>, req: Request<B
         Bucket::General => limiters.general.check_key(&ip),
         Bucket::Ai => limiters.ai.check_key(&ip),
     };
-    if result.is_err() {
+    if let Err(not_until) = result {
+        // Tell the client exactly when a request will next be allowed
+        // (GCRA knows this), rounded up to whole seconds.
+        let wait = not_until.wait_time_from(DefaultClock::default().now());
+        let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
         return (
             StatusCode::TOO_MANY_REQUESTS,
-            [("retry-after", "60")],
+            [("retry-after", secs.max(1).to_string())],
             Json(ErrorBody { code: "rate_limited", message: "too many requests; slow down".into() }),
         )
             .into_response();

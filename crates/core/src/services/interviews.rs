@@ -75,6 +75,8 @@ pub struct TranscriptEntry {
     pub at: chrono::DateTime<Utc>,
 }
 
+const MAX_TRANSCRIPT_ENTRIES: usize = 400;
+
 #[derive(Clone)]
 pub struct InterviewService {
     db: DatabaseConnection,
@@ -143,15 +145,8 @@ impl InterviewService {
     }
 
     pub async fn start(&self, user_id: Uuid, input: StartInterview) -> AppResult<interviews::Model> {
-        // One active interview at a time; abandon any leftovers.
-        Interviews::update_many()
-            .col_expr(interviews::Column::Status, Expr::value("abandoned"))
-            .col_expr(interviews::Column::EndedAt, Expr::value(Utc::now()))
-            .filter(interviews::Column::UserId.eq(user_id))
-            .filter(interviews::Column::Status.eq("active"))
-            .exec(&self.db)
-            .await?;
-
+        // Validate and resolve everything first: a bad request must not
+        // abandon the interview the learner already has in progress.
         let duration = input.duration_minutes.unwrap_or(match input.kind {
             InterviewKind::Coding => 45,
             InterviewKind::SystemDesign => 45,
@@ -198,7 +193,25 @@ impl InterviewService {
             created_at: Set(now),
             updated_at: Set(now),
         };
-        Ok(model.insert(&self.db).await?)
+        // One active interview per user: abandon the old one and insert the new
+        // one atomically. The partial unique index (m0007) turns a concurrent
+        // double-start into a clean conflict instead of two active rows.
+        let txn = self.db.begin().await?;
+        Interviews::update_many()
+            .col_expr(interviews::Column::Status, Expr::value("abandoned"))
+            .col_expr(interviews::Column::EndedAt, Expr::value(Utc::now()))
+            .filter(interviews::Column::UserId.eq(user_id))
+            .filter(interviews::Column::Status.eq("active"))
+            .exec(&txn)
+            .await?;
+        let created = model.insert(&txn).await.map_err(|e| match e.sql_err() {
+            Some(SqlErr::UniqueConstraintViolation(_)) => {
+                AppError::Conflict("another interview was started at the same moment; try again".into())
+            }
+            _ => AppError::Database(e),
+        })?;
+        txn.commit().await?;
+        Ok(created)
     }
 
     async fn pick_problem(&self, difficulty: Option<&str>, user_id: Uuid) -> AppResult<Arc<crate::content::Problem>> {
@@ -257,27 +270,54 @@ impl InterviewService {
         serde_json::from_value(model.transcript.clone()).unwrap_or_default()
     }
 
+    /// Appends entries (and optionally the latest code) in one statement.
+    ///
+    /// The interviewer reply and an assistant reply can be persisted by two
+    /// background tasks at the same moment. A read-modify-write of the JSON
+    /// array would let one overwrite the other; `transcript || $2` appends
+    /// server-side, and the length cap is enforced in the same statement.
     pub async fn append_transcript(
         &self,
         model: interviews::Model,
         entries: Vec<TranscriptEntry>,
         code: Option<String>,
     ) -> AppResult<interviews::Model> {
-        let mut transcript = Self::transcript(&model);
-        transcript.extend(entries);
-        if transcript.len() > 400 {
-            return Err(AppError::validation("interview transcript is too long"));
+        if code.as_ref().is_some_and(|c| c.len() > 64 * 1024) {
+            return Err(AppError::validation("code exceeds 64 KiB"));
         }
-        let mut active: interviews::ActiveModel = model.into();
-        active.transcript = Set(serde_json::to_value(&transcript).map_err(AppError::internal)?);
-        if let Some(code) = code {
-            if code.len() > 64 * 1024 {
-                return Err(AppError::validation("code exceeds 64 KiB"));
-            }
-            active.final_code = Set(Some(code));
-        }
-        active.updated_at = Set(Utc::now());
-        Ok(active.update(&self.db).await?)
+        let new_entries = serde_json::to_value(&entries).map_err(AppError::internal)?;
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            r#"
+            UPDATE interviews
+               SET transcript = transcript || $2::jsonb,
+                   final_code = COALESCE($3, final_code),
+                   updated_at = now()
+             WHERE id = $1
+               AND jsonb_array_length(transcript) + jsonb_array_length($2::jsonb) <= $4
+            RETURNING *
+            "#,
+            [model.id.into(), new_entries.into(), code.into(), (MAX_TRANSCRIPT_ENTRIES as i32).into()],
+        );
+        Interviews::find()
+            .from_raw_sql(stmt)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| AppError::validation("interview transcript is too long"))
+    }
+
+    /// True while the user has a solo interview in progress (within its time
+    /// box plus a grace period, so an abandoned tab cannot lock the coach
+    /// forever). Used to enforce "no AI help" on the server, not just the UI.
+    pub async fn has_active_solo(&self, user_id: Uuid) -> AppResult<bool> {
+        let active = Interviews::find()
+            .filter(interviews::Column::UserId.eq(user_id))
+            .filter(interviews::Column::Status.eq("active"))
+            .filter(interviews::Column::AssistantMode.eq("solo"))
+            .all(&self.db)
+            .await?;
+        let now = Utc::now();
+        Ok(active.iter().any(|i| now < i.started_at + chrono::Duration::minutes(i.duration_minutes as i64 + 15)))
     }
 
     pub async fn finish(

@@ -237,7 +237,8 @@ export interface CommentView {
   parent_id: string | null;
   body: string;
   author_name: string;
-  author_id: string;
+  /** Null when the author has deleted their account. */
+  author_id: string | null;
   deleted: boolean;
   created_at: string;
   replies: CommentView[];

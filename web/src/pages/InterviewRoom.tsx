@@ -179,6 +179,7 @@ export default function InterviewRoom() {
                   codeRef.current = { code, language };
                 }}
                 noCoach
+                persist={false}
               />
             ) : (
               <Spinner />

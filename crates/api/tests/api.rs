@@ -39,7 +39,6 @@ fn config(url: &str) -> Config {
         ai: AiConfig {
             api_key: None,
             model: "test-model".into(),
-            fast_model: "test-fast".into(),
             base_url: "http://127.0.0.1:9".into(),
             daily_output_token_budget: 1000,
             daily_input_token_budget: 100_000,
@@ -484,9 +483,11 @@ async fn malformed_json_uses_the_api_error_shape() {
         .body(Body::from("{not json"))
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    // Unparseable JSON is a malformed request (400); well-formed JSON with
+    // the wrong fields is a validation failure (422).
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     let body: Value = serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(body["code"], "validation_error");
+    assert_eq!(body["code"], "bad_request");
     assert!(body["message"].as_str().unwrap().starts_with("invalid request body"));
 }
 
@@ -505,4 +506,172 @@ async fn request_ids_are_server_controlled() {
     assert!(uuid::Uuid::parse_str(&forged).is_ok(), "replaced with a fresh UUID");
     let propagated = send("0192f6a4-5b1a-7c3e-9a7b-3d2f1e0c4b5a").await;
     assert_eq!(propagated, "0192f6a4-5b1a-7c3e-9a7b-3d2f1e0c4b5a", "valid UUIDs propagate");
+}
+
+async fn user_id(app: &TestApp, cookie: &str) -> uuid::Uuid {
+    let me = app.call("GET", "/api/auth/me", None, Some(cookie), false).await;
+    me.body["id"].as_str().unwrap().parse().unwrap()
+}
+
+async fn count(app: &TestApp, sql: &str, id: uuid::Uuid) -> i64 {
+    let rows = app
+        .db
+        .query_all_raw(Statement::from_sql_and_values(sea_orm::DatabaseBackend::Postgres, sql, [id.into()]))
+        .await
+        .unwrap();
+    rows[0].try_get("", "n").unwrap()
+}
+
+fn solo_coding() -> ascend_core::services::interviews::StartInterview {
+    use ascend_core::services::interviews::{AssistantMode, InterviewKind, StartInterview};
+    StartInterview {
+        kind: InterviewKind::Coding,
+        assistant_mode: AssistantMode::Solo,
+        problem_slug: Some("add-two".into()),
+        difficulty: None,
+        duration_minutes: Some(30),
+        language: Some("python".into()),
+    }
+}
+
+#[tokio::test]
+async fn deleting_an_account_requires_the_password_and_keeps_discussions_readable() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let posted = app
+        .call(
+            "POST",
+            "/api/comments",
+            Some(json!({"target_kind": "lesson", "target_slug": "basics/intro/hello", "body": "A useful note."})),
+            Some(&cookie),
+            true,
+        )
+        .await;
+    assert_eq!(posted.status, StatusCode::OK);
+    let comment_id = posted.body["id"].as_str().unwrap().to_string();
+
+    let wrong =
+        app.call("DELETE", "/api/auth/me", Some(json!({"password": "not-my-password"})), Some(&cookie), true).await;
+    // 422, not 401: the session is valid, and a 401 would make the client
+    // treat the learner as signed out.
+    assert_eq!(wrong.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(count(&app, "SELECT count(*)::bigint AS n FROM users WHERE id = $1", id).await, 1);
+
+    let gone = app
+        .call("DELETE", "/api/auth/me", Some(json!({"password": "correct-horse-battery"})), Some(&cookie), true)
+        .await;
+    assert_eq!(gone.status, StatusCode::OK, "{:?}", gone.body);
+    assert_eq!(count(&app, "SELECT count(*)::bigint AS n FROM users WHERE id = $1", id).await, 0);
+    assert_eq!(count(&app, "SELECT count(*)::bigint AS n FROM sessions WHERE user_id = $1", id).await, 0);
+    let me = app.call("GET", "/api/auth/me", None, Some(&cookie), false).await;
+    assert_eq!(me.status, StatusCode::UNAUTHORIZED, "the session died with the account");
+
+    // Other learners' replies keep their context: the comment stays, unattributed.
+    let list = app.call("GET", "/api/comments?kind=lesson&slug=basics/intro/hello", None, None, false).await;
+    let c = list.body.as_array().unwrap().iter().find(|c| c["id"] == comment_id.as_str()).expect("comment kept");
+    assert_eq!(c["author_id"], Value::Null);
+    assert_eq!(c["author_name"], "deleted user");
+}
+
+#[tokio::test]
+async fn concurrent_registrations_for_one_email_yield_one_account_and_conflicts() {
+    let Some(app) = test_app().await else { return };
+    let email = format!("race-{}@example.com", uuid::Uuid::now_v7());
+    let attempts = (0..4).map(|_| {
+        let body = json!({"email": email, "password": "correct-horse-battery", "display_name": "Racer"});
+        async { app.call("POST", "/api/auth/register", Some(body), None, true).await.status }
+    });
+    let statuses = futures::future::join_all(attempts).await;
+    assert_eq!(statuses.iter().filter(|s| **s == StatusCode::OK).count(), 1, "{statuses:?}");
+    assert!(statuses.iter().all(|s| *s == StatusCode::OK || *s == StatusCode::CONFLICT), "{statuses:?}");
+}
+
+#[tokio::test]
+async fn a_learner_has_at_most_one_active_interview_and_solo_locks_the_coach() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+
+    // Racing starts (double-click, two tabs) must still leave exactly one active.
+    let starts = (0..5).map(|_| app.state.interviews.start(id, solo_coding()));
+    let results = futures::future::join_all(starts).await;
+    assert!(results.iter().any(|r| r.is_ok()));
+    for r in &results {
+        if let Err(e) = r {
+            assert!(matches!(e, ascend_core::AppError::Conflict(_)), "unexpected error: {e:?}");
+        }
+    }
+    let active = "SELECT count(*)::bigint AS n FROM interviews WHERE user_id = $1 AND status = 'active'";
+    assert_eq!(count(&app, active, id).await, 1);
+
+    // A new start replaces the old one rather than stacking.
+    app.state.interviews.start(id, solo_coding()).await.unwrap();
+    assert_eq!(count(&app, active, id).await, 1);
+
+    // "No AI help" is enforced by the server, not only hidden in the UI.
+    let quiz = app.call("POST", "/api/coach/quiz/basics/intro/hello", Some(json!({})), Some(&cookie), true).await;
+    assert_eq!(quiz.status, StatusCode::CONFLICT, "{:?}", quiz.body);
+    assert!(quiz.body["message"].as_str().unwrap().contains("solo mock interview"));
+
+    // An invalid request must not abandon the interview in progress.
+    let mut bad = solo_coding();
+    bad.duration_minutes = Some(5);
+    assert!(app.state.interviews.start(id, bad).await.is_err());
+    assert_eq!(count(&app, active, id).await, 1);
+}
+
+#[tokio::test]
+async fn activity_counts_toward_the_streak_and_is_recorded_once_per_day() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let before = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
+    assert_eq!(before.body["streak_days"], 0);
+
+    for _ in 0..2 {
+        let done = app
+            .call(
+                "PUT",
+                "/api/progress/lessons/basics/intro/hello",
+                Some(json!({"status": "completed"})),
+                Some(&cookie),
+                true,
+            )
+            .await;
+        assert_eq!(done.status, StatusCode::OK);
+    }
+    assert_eq!(count(&app, "SELECT count(*)::bigint AS n FROM activity_days WHERE user_id = $1", id).await, 1);
+    let after = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
+    assert_eq!(after.body["streak_days"], 1);
+    assert!(after.body["xp"].as_u64().unwrap() > 0);
+}
+
+#[tokio::test]
+async fn throttled_responses_say_when_to_retry() {
+    let Some(app) = test_app().await else { return };
+    let body = json!({"email": "nobody@example.com", "password": "wrong-password-123"});
+    let mut throttled = None;
+    for _ in 0..15 {
+        let r = app.call("POST", "/api/auth/login", Some(body.clone()), None, true).await;
+        if r.status == StatusCode::TOO_MANY_REQUESTS {
+            throttled = Some(r);
+            break;
+        }
+    }
+    let r = throttled.expect("the auth bucket throttles repeated logins");
+    let secs: u64 = r.headers["retry-after"].to_str().unwrap().parse().unwrap();
+    assert!((1..=60).contains(&secs), "retry-after {secs}");
+    assert_eq!(r.body["code"], "rate_limited");
+}
+
+#[tokio::test]
+async fn content_etag_revalidates_and_names_the_build() {
+    let Some(app) = test_app().await else { return };
+    let r = app.call("GET", "/api/curriculum", None, None, false).await;
+    let etag = r.headers[header::ETAG].to_str().unwrap().to_string();
+    assert_eq!(etag, &*app.state.content_etag);
+    assert_ne!(etag, format!("\"{}\"", app.state.curriculum.version), "the build is part of the validator");
+    let ready = app.call("GET", "/api/readyz", None, None, false).await;
+    assert_eq!(ready.body["build"], ascend_api::build_info::BUILD_ID);
 }

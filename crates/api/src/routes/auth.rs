@@ -21,7 +21,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .merge(throttled)
         .route("/logout", post(logout))
         .route("/logout-all", post(logout_all))
-        .route("/me", get(me).patch(update_profile))
+        .route("/me", get(me).patch(update_profile).delete(delete_account))
 }
 
 fn session_cookie(state: &AppState, token: String, expires_at: chrono::DateTime<chrono::Utc>) -> Cookie<'static> {
@@ -93,4 +93,20 @@ async fn update_profile(
     AppJson(update): AppJson<ProfileUpdate>,
 ) -> ApiResult<Json<ascend_core::auth::CurrentUser>> {
     Ok(Json(state.auth.update_profile(user.id, update).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct DeleteAccount {
+    password: String,
+}
+
+async fn delete_account(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    jar: CookieJar,
+    AppJson(body): AppJson<DeleteAccount>,
+) -> ApiResult<(CookieJar, Json<serde_json::Value>)> {
+    state.auth.delete_account(user.id, body.password).await?;
+    let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/").build());
+    Ok((jar, Json(serde_json::json!({ "deleted": true }))))
 }

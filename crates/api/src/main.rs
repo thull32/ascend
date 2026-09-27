@@ -55,13 +55,16 @@ async fn main() -> anyhow::Result<()> {
     let state = state::AppState::build(Arc::new(config.clone()), db, curriculum)?;
     let app = app::build(state.clone());
 
-    // Background maintenance: sweep expired sessions hourly.
+    // Background maintenance: sweep expired sessions and prune rate-limiter
+    // state hourly.
     {
         let auth = state.auth.clone();
+        let limiter = state.limiter.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(Duration::from_secs(3600));
             loop {
                 tick.tick().await;
+                limiter.prune();
                 match auth.sweep_expired().await {
                     Ok(n) if n > 0 => tracing::info!(removed = n, "swept expired sessions"),
                     Ok(_) => {}
@@ -76,6 +79,12 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    // Connections are drained; now let in-flight AI replies finish persisting
+    // (bounded, so a hung upstream cannot block the deploy).
+    state.tasks.close();
+    if tokio::time::timeout(Duration::from_secs(30), state.tasks.wait()).await.is_err() {
+        tracing::warn!(remaining = state.tasks.len(), "background tasks still running at shutdown");
+    }
     tracing::info!("shutdown complete");
     Ok(())
 }

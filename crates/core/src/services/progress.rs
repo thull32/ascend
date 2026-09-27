@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::content::Curriculum;
 use crate::entities::prelude::*;
-use crate::entities::{lesson_progress, module_preferences, quiz_attempts, submissions};
+use crate::entities::{activity_days, lesson_progress, module_preferences, quiz_attempts, submissions};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +114,7 @@ impl ProgressService {
         };
         // Upsert returning the row: one statement, one round trip, no
         // read-modify-write race.
+        super::activity::record(&self.db, user_id).await?;
         let row = LessonProgress::insert(model)
             .on_conflict(
                 sea_query::OnConflict::columns([lesson_progress::Column::UserId, lesson_progress::Column::LessonSlug])
@@ -184,14 +185,26 @@ impl ProgressService {
         let in_progress: Vec<String> =
             progress.iter().filter(|p| p.status == "in_progress").map(|p| p.lesson_slug.clone()).collect();
 
-        // Streak: consecutive UTC days (ending today or yesterday) with any activity.
-        let mut days: Vec<chrono::NaiveDate> = progress.iter().map(|p| p.updated_at.date_naive()).collect();
-        days.extend(quizzes.iter().map(|q| q.created_at.date_naive()));
-        days.sort_unstable();
-        days.dedup();
+        // Streak: consecutive UTC days (ending today or yesterday) with any
+        // learning activity, from the append-only activity log.
+        let days: Vec<chrono::NaiveDate> = ActivityDays::find()
+            .select_only()
+            .column(activity_days::Column::Day)
+            .filter(activity_days::Column::UserId.eq(user_id))
+            .filter(activity_days::Column::Day.gte(Utc::now().date_naive() - Duration::days(400)))
+            .into_tuple()
+            .all(&self.db)
+            .await?;
         let streak = compute_streak(&days, Utc::now().date_naive());
 
-        let quizzes_passed = quizzes.iter().filter(|q| q.total > 0 && q.score * 10 >= q.total * 7).count();
+        // A quiz counts once per lesson, however many times it is retaken:
+        // XP must reward learning, not repetition.
+        let quizzes_passed = quizzes
+            .iter()
+            .filter(|q| q.total > 0 && q.score * 10 >= q.total * 7)
+            .map(|q| q.lesson_slug.as_str())
+            .collect::<std::collections::HashSet<_>>()
+            .len();
         let xp = completed.len() as u64 * 50 + solved.len() as u64 * 100 + quizzes_passed as u64 * 30;
 
         let completed_set: std::collections::HashSet<&str> = completed.iter().map(String::as_str).collect();

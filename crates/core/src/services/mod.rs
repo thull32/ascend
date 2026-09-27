@@ -1,6 +1,7 @@
 //! Application services. Each service owns one bounded context, takes a
 //! `DatabaseConnection` (cheap to clone; it's a pool handle) and returns
 //! domain types. No HTTP, no global state.
+pub mod activity;
 pub mod comments;
 pub mod interviews;
 pub mod progress;

@@ -50,7 +50,7 @@ export default function Login() {
   );
 }
 
-export function Field({ label, value, onChange, type = "text", autoComplete, hint }: { label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string; hint?: string }) {
+export function Field({ label, value, onChange, type = "text", autoComplete, hint, required = true }: { label: string; value: string; onChange: (v: string) => void; type?: string; autoComplete?: string; hint?: string; required?: boolean }) {
   const id = label.toLowerCase().replace(/\s+/g, "-");
   return (
     <label className="block text-sm" htmlFor={id}>
@@ -62,7 +62,7 @@ export function Field({ label, value, onChange, type = "text", autoComplete, hin
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={autoComplete}
-        required
+        required={required}
         className="w-full rounded-lg border border-line bg-bg px-3 py-2 outline-none focus:border-accent"
       />
       {hint && <span className="mt-1 block text-xs text-muted">{hint}</span>}

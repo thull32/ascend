@@ -106,7 +106,7 @@ async fn turn(
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
     let coach = state.coach.clone();
-    tokio::spawn(
+    state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
             let (reply, usage, error) = sse::pump(upstream, &tx).await;
@@ -173,7 +173,7 @@ async fn assistant(
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
     let coach = state.coach.clone();
-    tokio::spawn(
+    state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
             let (reply, usage, _) = sse::pump(upstream, &tx).await;

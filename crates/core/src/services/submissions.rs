@@ -79,7 +79,9 @@ impl SubmissionService {
             results: Set(input.results),
             created_at: Set(Utc::now()),
         };
-        Ok(model.insert(&self.db).await?)
+        let saved = model.insert(&self.db).await?;
+        super::activity::record(&self.db, user_id).await?;
+        Ok(saved)
     }
 
     pub async fn list_for_target(

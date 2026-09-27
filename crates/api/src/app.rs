@@ -1,8 +1,9 @@
 //! Router assembly and the middleware stack.
 //!
-//! Order matters (outermost first): request-id → tracing → timeout → body
-//! limit → compression → security headers → routes. CSRF and rate limiting
-//! are applied to the API sub-router only; static assets skip them.
+//! Order matters. From the outside in: request-id sanitising → request-id
+//! assignment and propagation → tracing → timeout → compression → security
+//! headers → routes. The `/api` sub-router adds, from the outside in: body
+//! limit → rate limit → CSRF. Static assets skip those three.
 use std::time::Duration;
 
 use axum::Router;
@@ -65,6 +66,12 @@ pub fn build(state: AppState) -> Router {
         // logs cannot be polluted or correlated with attacker-chosen values.
         .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
         .with_state(state)
+}
+
+/// The SPA shell. Its asset hashes change whenever the frontend does, which
+/// makes it part of the content ETag (see [`crate::build_info`]).
+pub fn index_html() -> &'static [u8] {
+    WEB_DIST.get_file("index.html").map(|f| f.contents()).unwrap_or_default()
 }
 
 async fn api_not_found() -> Response {

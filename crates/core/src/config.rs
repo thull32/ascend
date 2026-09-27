@@ -35,8 +35,6 @@ pub struct AiConfig {
     /// `None` disables every AI feature gracefully (the UI shows a notice).
     pub api_key: Option<SecretString>,
     pub model: String,
-    /// Cheaper model for high-volume, low-stakes calls (titles, quiz grading).
-    pub fast_model: String,
     pub base_url: String,
     /// Per-user, per-day output-token ceiling. Free product; this is the fuse.
     pub daily_output_token_budget: i64,
@@ -96,7 +94,6 @@ impl Config {
             ai: AiConfig {
                 api_key,
                 model: var_or("AI_MODEL", "claude-opus-5"),
-                fast_model: var_or("AI_FAST_MODEL", "claude-haiku-4-5"),
                 base_url: var_or("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
                 daily_output_token_budget: parse_or::<i64>("AI_DAILY_OUTPUT_TOKENS", 60_000)?,
                 daily_input_token_budget: parse_or::<i64>("AI_DAILY_INPUT_TOKENS", 2_000_000)?,

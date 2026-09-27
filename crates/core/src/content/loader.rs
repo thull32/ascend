@@ -45,6 +45,7 @@ pub enum ContentError {
 // ---------- front matter shapes ----------
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TrackFm {
     slug: String,
     title: String,
@@ -58,6 +59,7 @@ fn default_icon() -> String {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ModuleFm {
     slug: String,
     title: String,
@@ -67,6 +69,7 @@ struct ModuleFm {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct LessonFm {
     slug: String,
     title: String,
@@ -85,6 +88,7 @@ fn default_minutes() -> u32 {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ProblemFm {
     slug: String,
     title: String,

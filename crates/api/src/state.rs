@@ -27,6 +27,11 @@ pub struct AppState {
     pub interviews: InterviewService,
     pub coach: CoachService,
     pub limiter: Arc<crate::middleware::rate_limit::Limiters>,
+    /// Background work that must finish even if the client disconnects
+    /// (persisting streamed AI replies). Drained on graceful shutdown.
+    pub tasks: tokio_util::task::TaskTracker,
+    /// Validator for content responses; see [`crate::build_info::content_etag`].
+    pub content_etag: Arc<str>,
 }
 
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
@@ -71,14 +76,7 @@ impl AppState {
                 daily_output_tokens: config.ai.daily_output_token_budget,
             },
         );
-        let coach = CoachService::new(
-            db.clone(),
-            curriculum.clone(),
-            client,
-            budget,
-            config.ai.model.clone(),
-            config.ai.fast_model.clone(),
-        );
+        let coach = CoachService::new(db.clone(), curriculum.clone(), client, budget, config.ai.model.clone());
         Ok(Self {
             auth: AuthService::new(db.clone(), config.session_ttl),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
@@ -89,6 +87,8 @@ impl AppState {
             interviews: InterviewService::new(db.clone(), curriculum.clone()),
             coach,
             limiter: Arc::new(crate::middleware::rate_limit::Limiters::new()),
+            tasks: tokio_util::task::TaskTracker::new(),
+            content_etag: crate::build_info::content_etag(&curriculum.version, crate::app::index_html()).into(),
             config,
             db,
             curriculum,

@@ -23,6 +23,10 @@ describe("escapeCurrency", () => {
   it("handles money followed by maths in the same paragraph", () => {
     expect(escapeCurrency("It costs $5 per run, and $x^2$ grows.")).toBe("It costs \\$5 per run, and $x^2$ grows.");
   });
+  it("never lets a dollar pair with an author-escaped one", () => {
+    expect(escapeCurrency("costs $5 and later \\$10 more")).toBe("costs \\$5 and later \\$10 more");
+    expect(escapeCurrency("For $10n^2$ versus $1000 n \\log n$ and \\$3")).toBe("For $10n^2$ versus $1000 n \\log n$ and \\$3");
+  });
   it("does not double-escape", () => {
     expect(escapeCurrency("\\$5 each and \\$6 each")).toBe("\\$5 each and \\$6 each");
   });

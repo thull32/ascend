@@ -54,7 +54,6 @@ pub struct CoachService {
     client: Option<AnthropicClient>,
     budget: BudgetService,
     model: String,
-    fast_model: String,
 }
 
 const MAX_HISTORY: u64 = 30;
@@ -67,9 +66,8 @@ impl CoachService {
         client: Option<AnthropicClient>,
         budget: BudgetService,
         model: String,
-        fast_model: String,
     ) -> Self {
-        Self { db, curriculum, client, budget, model, fast_model }
+        Self { db, curriculum, client, budget, model }
     }
 
     pub fn enabled(&self) -> bool {
@@ -86,10 +84,6 @@ impl CoachService {
 
     pub fn model(&self) -> &str {
         &self.model
-    }
-
-    pub fn fast_model(&self) -> &str {
-        &self.fast_model
     }
 
     pub fn curriculum(&self) -> &Curriculum {

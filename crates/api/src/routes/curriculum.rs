@@ -51,15 +51,16 @@ struct CurriculumResponse<'a> {
     problem_count: usize,
 }
 
-/// Content responses carry an ETag derived from the content fingerprint, so
-/// browsers revalidate for free and the payload is served from cache.
+/// Content responses carry an ETag derived from the content fingerprint and
+/// the build, so browsers revalidate cheaply and never keep a body across a
+/// deploy that changed its shape.
 fn with_etag(state: &AppState, headers: &HeaderMap, body: impl Serialize) -> Response {
-    let etag = format!("\"{}\"", state.curriculum.version);
-    if headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(etag.as_str()) {
+    let etag: &str = &state.content_etag;
+    if headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(etag) {
         return StatusCode::NOT_MODIFIED.into_response();
     }
     let mut res = Json(body).into_response();
-    res.headers_mut().insert(header::ETAG, HeaderValue::from_str(&etag).expect("hex etag"));
+    res.headers_mut().insert(header::ETAG, HeaderValue::from_str(etag).expect("hex etag"));
     res.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=0, must-revalidate"));
     res
 }

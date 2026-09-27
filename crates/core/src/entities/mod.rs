@@ -1,6 +1,7 @@
 //! SeaORM entities. One module per table; the `prelude` re-exports the
 //! `Entity` types under table-ish names so services read naturally
 //! (`Users::find_by_id(..)`).
+pub mod activity_days;
 pub mod ai_usage;
 pub mod comments;
 pub mod conversations;
@@ -14,6 +15,7 @@ pub mod submissions;
 pub mod users;
 
 pub mod prelude {
+    pub use super::activity_days::Entity as ActivityDays;
     pub use super::ai_usage::Entity as AiUsage;
     pub use super::comments::Entity as Comments;
     pub use super::conversations::Entity as Conversations;

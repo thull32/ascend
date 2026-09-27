@@ -51,14 +51,33 @@ impl FromRequestParts<AppState> for MaybeUser {
 }
 
 /// JSON body extractor whose failures use the API's error shape
-/// (`{"code": "validation_error", "message": ...}`) instead of Axum's
-/// plain-text rejection, so clients handle every error the same way.
+/// (`{"code": ..., "message": ...}`) instead of Axum's plain-text rejection,
+/// while keeping the right status: 400 malformed JSON, 413 too large,
+/// 415 wrong content type, 422 well-formed JSON of the wrong shape.
 #[derive(Debug, Clone, Copy, Default, axum::extract::FromRequest)]
-#[from_request(via(axum::Json), rejection(ApiError))]
+#[from_request(via(axum::Json), rejection(JsonError))]
 pub struct AppJson<T>(pub T);
 
-impl From<axum::extract::rejection::JsonRejection> for ApiError {
+#[derive(Debug)]
+pub struct JsonError {
+    status: axum::http::StatusCode,
+    message: String,
+}
+
+impl From<axum::extract::rejection::JsonRejection> for JsonError {
     fn from(rejection: axum::extract::rejection::JsonRejection) -> Self {
-        ApiError(ascend_core::AppError::Validation(format!("invalid request body: {}", rejection.body_text())))
+        Self { status: rejection.status(), message: format!("invalid request body: {}", rejection.body_text()) }
+    }
+}
+
+impl axum::response::IntoResponse for JsonError {
+    fn into_response(self) -> axum::response::Response {
+        let code = match self.status.as_u16() {
+            413 => "payload_too_large",
+            400 => "bad_request",
+            415 => "unsupported_media_type",
+            _ => "validation_error",
+        };
+        (self.status, axum::Json(crate::error::ErrorBody { code, message: self.message })).into_response()
     }
 }

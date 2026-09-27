@@ -136,10 +136,45 @@ def _matches(expected, actual, any_order):
         return sorted(map(_canon, expected)) == sorted(map(_canon, actual))
     return _canon(expected) == _canon(actual)
 
-def _run_tests(entry_name, tests_json):
+_INJECTED = {"ListNode": ListNode, "TreeNode": TreeNode, "Node": Node, "GraphNode": GraphNode}
+_PRELUDE = "import json, sys, time, math, collections, heapq, itertools, functools, bisect, string, re\nfrom typing import *\n"
+
+def _fresh_namespace():
+    """Each run gets a clean module namespace: a function deleted or renamed
+    since the previous run must not keep passing from stale globals."""
+    ns = {"__name__": "__main__"}
+    ns.update(_INJECTED)
+    exec(_PRELUDE, ns)
+    return ns
+
+def _format_error(e):
+    import traceback
+    frames = [f for f in traceback.extract_tb(e.__traceback__) if f.filename == "<solution>"]
+    where = "".join(f"  line {f.lineno}: {f.line}\n" for f in frames[-3:] if f.line)
+    return (where + "".join(traceback.format_exception_only(type(e), e))).strip()
+
+def _exec_solution(code):
+    ns = _fresh_namespace()
+    exec(compile(code, "<solution>", "exec"), ns)
+    return ns
+
+def _eval_fresh(code):
+    try:
+        _exec_solution(code)
+        return ""
+    except BaseException as e:
+        return _format_error(e)
+
+def _run_code_tests(code, entry_name, tests_json):
+    try:
+        ns = _exec_solution(code)
+    except BaseException as e:
+        return json.dumps({"compileError": _format_error(e)})
+    return _run_tests(ns, entry_name, tests_json)
+
+def _run_tests(ns, entry_name, tests_json):
     tests = json.loads(tests_json)
-    g = globals()
-    target = g.get(entry_name)
+    target = ns.get(entry_name)
     if target is None:
         return json.dumps({"compileError": f"Could not find '{entry_name}'. Define a function or class with exactly that name."})
     results = []
@@ -165,7 +200,7 @@ def _run_tests(entry_name, tests_json):
                     raise AssertionError("your clone shares nodes with the original graph; build new Node objects")
                 actual = _encode(raw)
         except BaseException as e:
-            err = f"{type(e).__name__}: {e}"
+            err = _format_error(e)
         ms = (time.time() - start) * 1000
         results.append({
             "index": i,
@@ -220,17 +255,16 @@ self.onmessage = async (ev: MessageEvent<RunnerRequest>) => {
     return;
   }
   stdoutBuf = [];
+  // Load any Pyodide packages the code imports (numpy etc.); stdlib is built in.
+  try {
+    await (py as unknown as { loadPackagesFromImports(code: string): Promise<void> }).loadPackagesFromImports(req.code);
+  } catch {
+    /* an unknown import will surface as a normal ImportError */
+  }
   if (req.kind === "run") {
     try {
-      await py.runPythonAsync(req.code);
-    } catch (e) {
-      self.postMessage({ id: req.id, kind: "run", results: [], compileError: friendlyError(e), totalMs: performance.now() - start } satisfies RunnerResponse);
-      return;
-    }
-    try {
-      const runTests = py.globals.get("_run_tests") as (entry: string, tests: string) => string;
-      const raw = runTests(req.entry, JSON.stringify(req.tests));
-      const parsed = JSON.parse(raw) as { results?: TestResult[]; compileError?: string };
+      const run = py.globals.get("_run_code_tests") as (code: string, entry: string, tests: string) => string;
+      const parsed = JSON.parse(run(req.code, req.entry, JSON.stringify(req.tests))) as { results?: TestResult[]; compileError?: string };
       const stdout = stdoutBuf.join("").slice(0, 4000);
       const results = (parsed.results ?? []).map((r) => ({ ...r, stdout: stdout || undefined }));
       self.postMessage({ id: req.id, kind: "run", results, compileError: parsed.compileError, totalMs: performance.now() - start } satisfies RunnerResponse);
@@ -240,7 +274,8 @@ self.onmessage = async (ev: MessageEvent<RunnerRequest>) => {
   } else {
     let error: string | undefined;
     try {
-      await py.runPythonAsync(req.code);
+      const evalFresh = py.globals.get("_eval_fresh") as (code: string) => string;
+      error = evalFresh(req.code) || undefined;
     } catch (e) {
       error = friendlyError(e);
     }

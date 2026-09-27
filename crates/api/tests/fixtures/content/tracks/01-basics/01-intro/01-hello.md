@@ -23,6 +23,10 @@ starter:
   python: |
     def add(a, b):
         return 0
+  javascript: |
+    function add(a, b) {
+      return 0;
+    }
 tests:
   - args: [1, 2]
     expected: 3
