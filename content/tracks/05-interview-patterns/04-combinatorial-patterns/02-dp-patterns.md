@@ -1,7 +1,7 @@
 ---
 slug: dp-patterns
 title: "DP patterns: six state shapes that cover the interview canon"
-description: Recognise the optimisation-or-count signal, classify the problem by its state shape (linear, two-sequence, knapsack, interval, grid, string-with-dictionary), and see Coin Change, Longest Common Subsequence, Word Break and House Robber II traced table by table.
+description: Recognise the optimisation-or-count signal and the statements that only look like DP, classify the problem by its state shape, and see Coin Change, LCS, Word Break, House Robber II, Cooldown and Burst Balloons filled cell by cell, with the top-down and bottom-up costs measured in CPython and Node.
 minutes: 40
 difficulty: hard
 tags: [dynamic-programming, memoisation, tabulation, knapsack, lcs, state-design, pattern:dynamic-programming]
@@ -9,7 +9,9 @@ problems: [climbing-stairs, min-cost-climbing-stairs, house-robber, house-robber
 ---
 "Minimum number of coins." "How many ways." "Longest subsequence." "Can the array be split into two equal halves." Each is an optimisation or a count over an exponential set of choices, and each has a brute-force recursion that takes forever because it solves the same subproblem millions of times. The recursion for coins of amount 11 calls itself on amount 9 through three different first coins, and each of those calls amount 7 several ways, and so on. There are only 12 distinct amounts. Dynamic programming is the observation that if you store the answer for each distinct subproblem, the exponential tree collapses to a polynomial table.
 
-The hard part of DP in an interview is not the table; it is naming the state. "What is the smallest description of a partial solution such that the rest of the problem depends only on that description?" Once you can say `dp[i]` means *the answer for the first `i` items* or `dp[i][j]` means *the answer for prefix `i` of A and prefix `j` of B*, the recurrence is usually one line and the code is ten. This lesson gives you the six state shapes that account for nearly every DP problem on the Ascend 150 and the signal that tells you which one you are looking at.
+The hard part of DP in an interview is not the table; it is naming the state. "What is the smallest description of a partial solution such that the rest of the problem depends only on that description?" Once you can say `dp[i]` means *the answer for the first `i` items* or `dp[i][j]` means *the answer for prefix `i` of A and prefix `j` of B*, the recurrence is usually one line and the code is ten.
+
+The [dynamic programming module](/learn/algorithms/dynamic-programming/the-dp-mindset) teaches the mindset and each family in depth, [the knapsack family](/learn/algorithms/dynamic-programming/knapsack-family) included. This lesson is the interview layer on top: the statements that select DP and the ones that only look like it, the six state shapes that cover the Ascend 150, and the execution details (recursion limits, memo keys, number widths) that decide whether a correct recurrence passes.
 
 ## The signal
 
@@ -17,128 +19,142 @@ Reach for DP when the statement contains a **superlative or a count** ("minimum"
 
 | shape | signal in the statement | state | canonical problems |
 |---|---|---|---|
-| **Linear** | one sequence, answer for a prefix depends on a few previous positions | `dp[i]` | [Climbing Stairs](/practice/climbing-stairs), [House Robber](/practice/house-robber), [Decode Ways](/practice/decode-ways), [Max Product Subarray](/practice/max-product-subarray) |
-| **Unbounded / bounded choice over a target** | "coins", "sum to target", "fill capacity", "subset with sum" | `dp[amount]` or `dp[i][amount]` | [Coin Change](/practice/coin-change), [Coin Change II](/practice/coin-change-ii), [Partition Equal Subset](/practice/partition-equal-subset), [Target Sum](/practice/target-sum) |
+| **Linear** | one sequence, answer for a prefix depends on a few previous positions | `dp[i]` | [Climbing Stairs](/practice/climbing-stairs), [Min Cost Climbing Stairs](/practice/min-cost-climbing-stairs), [House Robber](/practice/house-robber), [Decode Ways](/practice/decode-ways), [Max Product Subarray](/practice/max-product-subarray) |
+| **Choice over a target** | "coins", "sum to target", "fill capacity", "subset with sum" | `dp[amount]` or `dp[i][amount]` | [Coin Change](/practice/coin-change), [Coin Change II](/practice/coin-change-ii), [Partition Equal Subset](/practice/partition-equal-subset), [Target Sum](/practice/target-sum) |
 | **Two sequences** | two strings or arrays compared or aligned | `dp[i][j]` = answer for prefixes | [Longest Common Subsequence](/practice/longest-common-subsequence), [Edit Distance](/practice/edit-distance), [Distinct Subsequences](/practice/distinct-subsequences), [Interleaving String](/practice/interleaving-string), [Regular Expression Matching](/practice/regular-expression-matching) |
-| **Grid** | paths through a matrix moving right/down, or the best value ending at a cell | `dp[r][c]` | [Unique Paths](/practice/unique-paths), [Longest Increasing Path](/practice/longest-increasing-path) |
-| **Interval** | "substring", "subarray defined by both ends", "pop/burst/remove one and the neighbours join" | `dp[i][j]` = answer for range `i..j` | [Longest Palindromic Substring](/practice/longest-palindromic-substring), [Palindromic Substrings](/practice/palindromic-substrings), [Burst Balloons](/practice/burst-balloons) |
-| **Sequence with a dictionary or subsequence choice** | "can be segmented", "longest increasing", the transition scans back over earlier positions | `dp[i]` with an `O(i)` transition | [Word Break](/practice/word-break), [Longest Increasing Subsequence](/practice/longest-increasing-subsequence) |
+| **Grid** | paths moving right/down, or the best value ending at a cell | `dp[r][c]` | [Unique Paths](/practice/unique-paths), [Longest Increasing Path](/practice/longest-increasing-path) |
+| **Interval** | "substring", "both ends", "burst/remove one and the neighbours join" | `dp[i][j]` = answer for range `i..j` | [Longest Palindromic Substring](/practice/longest-palindromic-substring), [Palindromic Substrings](/practice/palindromic-substrings), [Burst Balloons](/practice/burst-balloons) |
+| **Scan-back** | "can be segmented", "longest increasing", the transition scans earlier positions | `dp[i]` with an `O(i)` transition | [Word Break](/practice/word-break), [Longest Increasing Subsequence](/practice/longest-increasing-subsequence) |
 
-A seventh shape, **state machine**, is a linear DP with a small set of modes per position ("holding a stock / not holding / cooling down"): [Best Time with Cooldown](/practice/best-time-cooldown). It is worth naming because "how many variables per position" is exactly the question that makes it click.
+A seventh shape, the **state machine**, is a linear DP with a few modes per position ("holding a stock, sold today, resting"): [Best Time with Cooldown](/practice/best-time-cooldown). "How many variables do I need per position?" is the question that makes it click.
 
 What rules it out:
 
-- **You need every solution, not the best or the count.** Memoisation does not reduce output size. That is [Backtracking](/learn/interview-patterns/combinatorial-patterns/backtracking-pattern).
-- **A local rule is provably optimal** (activity selection, jump game): [Greedy](/learn/interview-patterns/combinatorial-patterns/greedy-pattern) in `O(n)` beats DP in `O(n²)`. The test is whether an exchange argument exists; if you cannot state one in a sentence, DP is safer.
-- **No overlap.** If each subproblem is reached exactly once, memoising adds memory for nothing; plain recursion or divide and conquer is the answer.
-- **The state would have to include the whole history** (which elements were used, in what order). Then the state space is exponential and DP does not help; look for a different decomposition or accept the exponential.
+- **You need every solution.** Memoisation cannot shrink the output: [Backtracking](/learn/interview-patterns/combinatorial-patterns/backtracking-pattern).
+- **A local rule is provably optimal**: [Greedy](/learn/interview-patterns/combinatorial-patterns/greedy-pattern) in `O(n)` beats DP in `O(n²)`, if you can state the exchange argument.
+- **No overlap.** Each subproblem reached once means memoising adds memory for nothing.
+- **The state would need the whole history** (which elements were used, in which order), unless the history is a set of at most about 20 items that fits in a bitmask.
+
+### Near misses
+
+| Statement | Looks like | Actually | The tell |
+|---|---|---|---|
+| "Fewest jumps to reach the end", `n = 10⁵` | DP over positions, `O(n²)` | greedy BFS levels, `O(n)` | positions reachable in `k` jumps form one contiguous range |
+| "Most meetings one room can host" | DP over intervals | greedy by earliest end | every meeting is worth the same |
+| "Most *valuable* set of non-overlapping jobs" | greedy by end | DP over jobs sorted by end, plus binary search | values differ, so the exchange argument fails |
+| "Cheapest path from corner to corner, moving in four directions" | grid DP | Dijkstra | moves go up and left too, so no fill order exists |
+| "Fewest one-letter changes from `hit` to `cog`" | string DP | BFS over an implicit graph | every edge costs 1 |
+| "Best single buy and sell" | state-machine DP | running minimum | one number summarises the past |
+| "Largest contiguous-subarray sum" | `dp[i][j]` over ranges | Kadane, `O(n)` | the best sum ending at `i` needs only the one ending at `i − 1` |
+| "Longest simple path in a graph" | DP over nodes | NP-hard with cycles; DP only on a DAG | the graph has cycles |
 
 ## The template
 
-Top-down (memoised recursion) is the fastest to write and reason about: write the brute-force recursion, then cache it. Bottom-up (tabulation) is what you write when the recursion depth would be a problem or when you want to squeeze memory. Either is acceptable in an interview if you can state the state, the recurrence, the base case and the order.
+Write the brute-force recursion, name the arguments that change (they are the state), cache it, and convert to a loop only if depth or speed demands it. Say the four things before writing code:
+
+1. **State**: what `dp[...]` means, in a full sentence with "exactly" or "at most" in it.
+2. **Recurrence**: how a state is computed from smaller states, and which choice each term represents.
+3. **Base cases**: the states with no choices, and the sentinel for impossible (`inf` for minimising, `0` for counting, `False` for feasibility).
+4. **Order and answer**: which state is the answer and what fill order puts its dependencies first.
 
 ```python
-from functools import lru_cache
+from functools import cache
 
-def top_down(items, target):
-    @lru_cache(maxsize=None)
-    def f(i, remaining):                      # state: (index, what is left)
-        if remaining == 0:
-            return 0                          # base: nothing left to do
-        if i == len(items) or remaining < 0:
-            return float("inf")               # base: impossible
-        take = 1 + f(i, remaining - items[i]) # choice 1 (unbounded reuse)
-        skip = f(i + 1, remaining)            # choice 2
-        return min(take, skip)
-    return f(0, target)
+def coin_change_top_down(coins, amount):
+    @cache                                    # a dict from argument tuple to result
+    def f(a):                                 # state: amount still to make
+        if a == 0:
+            return 0                          # base: nothing left
+        best = float("inf")                   # sentinel: impossible so far
+        for c in coins:
+            if c <= a:
+                best = min(best, f(a - c) + 1)   # choice: the last coin is c
+        return best
+    r = f(amount)                             # recursion depth up to amount / min(coins)
+    return -1 if r == float("inf") else r
 
 
-def bottom_up(items, target):
+def coin_change_bottom_up(coins, amount):
     INF = float("inf")
-    dp = [0] + [INF] * target                 # dp[a] = best for amount a
-    for a in range(1, target + 1):
-        for x in items:
-            if x <= a and dp[a - x] + 1 < dp[a]:
-                dp[a] = dp[a - x] + 1
-    return dp[target]
+    dp = [0] + [INF] * amount                 # dp[a] = fewest coins summing to exactly a
+    for a in range(1, amount + 1):            # order: every a - c < a is already final
+        for c in coins:
+            if c <= a and dp[a - c] + 1 < dp[a]:
+                dp[a] = dp[a - c] + 1
+    return -1 if dp[amount] == INF else dp[amount]
 ```
 
 ```javascript
-function topDown(items, target) {
-  const memo = new Map();
-  function f(i, remaining) {
-    if (remaining === 0) return 0;
-    if (i === items.length || remaining < 0) return Infinity;
-    const key = i * (target + 1) + remaining;   // pack the state into one number
-    if (memo.has(key)) return memo.get(key);
-    const take = 1 + f(i, remaining - items[i]);
-    const skip = f(i + 1, remaining);
-    const best = Math.min(take, skip);
-    memo.set(key, best);
-    return best;
+function coinChangeTopDown(coins, amount) {
+  const memo = new Int32Array(amount + 1).fill(-2);   // -2 = not computed; -1 = impossible
+  function f(a) {
+    if (a === 0) return 0;
+    if (memo[a] !== -2) return memo[a];
+    let best = Infinity;
+    for (const c of coins) {
+      if (c <= a) {
+        const sub = f(a - c);
+        if (sub >= 0 && sub + 1 < best) best = sub + 1;
+      }
+    }
+    memo[a] = best === Infinity ? -1 : best;
+    return memo[a];
   }
-  return f(0, target);
+  return f(amount);                           // deep amounts overflow the stack: prefer bottom-up
 }
 
-function bottomUp(items, target) {
-  const dp = new Array(target + 1).fill(Infinity);
+function coinChangeBottomUp(coins, amount) {
+  const dp = new Array(amount + 1).fill(Infinity);
   dp[0] = 0;
-  for (let a = 1; a <= target; a++)
-    for (const x of items)
-      if (x <= a && dp[a - x] + 1 < dp[a]) dp[a] = dp[a - x] + 1;
-  return dp[target];
+  for (let a = 1; a <= amount; a++)
+    for (const c of coins)
+      if (c <= a && dp[a - c] + 1 < dp[a]) dp[a] = dp[a - c] + 1;
+  return dp[amount] === Infinity ? -1 : dp[amount];
 }
 ```
 
-The four things to say before writing any DP, in order:
-
-1. **State**: what `dp[...]` means, in a full sentence with the word "exactly" or "at most" in it. "`dp[a]` is the minimum number of coins that sum to exactly `a`."
-2. **Recurrence**: how a state is computed from smaller states, and which choice each term represents.
-3. **Base cases**: the states with no choices, and the sentinel for impossible (`inf` for minimisation, `0` for counting, `False` for feasibility).
-4. **Order and answer**: which state is the answer and what order guarantees its dependencies are filled first.
-
-Complexity is the number of states times the cost of the transition. Say both factors: "`O(amount)` states, each scanning `O(coins)` options: `O(amount · coins)`."
-
-Watch the coin-change table fill and see the repeated subproblems disappear:
+The JavaScript memo is a typed array indexed by the state, not a `Map` keyed by strings; the measured difference is below. Complexity is **states × transition cost**, stated as both factors: "`amount + 1` states, each scanning `len(coins)` options: `O(amount · coins)`."
 
 ```viz
 {"type": "dp", "algorithm": "coin-change", "coins": [1, 2, 5], "amount": 11, "title": "Coin Change bottom-up", "caption": "dp[a] is the fewest coins for exactly a; each cell looks back one coin value for each coin."}
 ```
 
+## Why the table is correct
+
+**Exhaustive, optimal cases.** The recurrence must split every solution of a state into cases by one choice, the last coin, the last character pair, the last balloon, and each case must reduce to a smaller state whose *optimal* answer is the one to use. The second part is optimal substructure, and it is argued by cut and paste: if an optimal way to make amount `a` ends with coin `c`, the coins before it make `a − c`, and if a cheaper way to make `a − c` existed, swapping it in would beat the optimum.
+
+**Induction over the fill order.** If every state a cell reads is final when the cell is computed, and the recurrence is exhaustive and optimal, then every cell is final when written; by induction on the order, so is the answer. That is why the order is part of the answer and why "moves in four directions" breaks grid DP: there is no order in which every neighbour is final first.
+
+**State sufficiency.** The state must capture everything the future depends on. Take `dp[i]` = "length of the longest increasing subsequence in the first `i` elements" on `[1, 5, 2, 3]`: after three elements it is 2, achieved by `[1, 5]` and by `[1, 2]`. Whether the 3 extends it depends on which, and the state does not say. The fix changes the definition: "longest increasing subsequence *ending at* index `i`", which gives `[1, 2, 2, 3]` and a recurrence over earlier `j` with `a[j] < a[i]`. When a recurrence will not close, the state is missing a fact; add the fact to the index, not a global variable.
+
 ## Worked problems
 
 ### Coin Change
 
-[Coin Change](/practice/coin-change): fewest coins to make `amount` with unlimited coins of the given denominations; −1 if impossible.
-
-State: `dp[a]` = fewest coins summing to exactly `a`. Recurrence: `dp[a] = 1 + min(dp[a − c] for c in coins if c ≤ a)`. Base: `dp[0] = 0`; unreachable amounts stay `inf`. Order: increasing `a`. Answer: `dp[amount]` or −1.
+[Coin Change](/practice/coin-change): fewest coins to make `amount`, unlimited supply, −1 if impossible. State `dp[a]` = fewest coins summing to exactly `a`; `dp[a] = 1 + min(dp[a − c])`; base `dp[0] = 0`, others `inf`; increasing `a`.
 
 Trace with `coins = [1, 2, 5]`, `amount = 11`:
 
-| `a` | candidates `dp[a − c] + 1` | `dp[a]` |
+| `a` | candidates `dp[a − c] + 1` for c = 1, 2, 5 | `dp[a]` |
 |---|---|---|
 | 0 | | 0 |
-| 1 | dp[0]+1 = 1 | 1 |
-| 2 | dp[1]+1 = 2, dp[0]+1 = 1 | 1 |
-| 3 | dp[2]+1 = 2, dp[1]+1 = 2 | 2 |
-| 4 | dp[3]+1 = 3, dp[2]+1 = 2 | 2 |
-| 5 | dp[4]+1 = 3, dp[3]+1 = 3, dp[0]+1 = 1 | 1 |
-| 6 | dp[5]+1 = 2, dp[4]+1 = 3, dp[1]+1 = 2 | 2 |
-| 7 | dp[6]+1 = 3, dp[5]+1 = 2, dp[2]+1 = 2 | 2 |
-| 8 | dp[7]+1 = 3, dp[6]+1 = 3, dp[3]+1 = 3 | 3 |
-| 9 | dp[8]+1 = 4, dp[7]+1 = 3, dp[4]+1 = 3 | 3 |
-| 10 | dp[9]+1 = 4, dp[8]+1 = 4, dp[5]+1 = 2 | 2 |
-| 11 | dp[10]+1 = 3, dp[9]+1 = 4, dp[6]+1 = 3 | 3 |
+| 1 | 1 | 1 |
+| 2 | 2, 1 | 1 |
+| 3 | 2, 2 | 2 |
+| 4 | 3, 2 | 2 |
+| 5 | 3, 3, 1 | 1 |
+| 6 | 2, 3, 2 | 2 |
+| 7 | 3, 2, 2 | 2 |
+| 8 | 3, 3, 3 | 3 |
+| 9 | 4, 3, 3 | 3 |
+| 10 | 4, 4, 2 | 2 |
+| 11 | 3, 4, 3 | 3 |
 
-Answer 3 (5 + 5 + 1). `O(amount · coins)` time, `O(amount)` space. Greedy (take the largest coin that fits) gives 5 + 5 + 1 = 3 here too, but on `coins = [1, 3, 4]`, `amount = 6` greedy gives 4 + 1 + 1 = 3 coins while DP gives 3 + 3 = 2. That counterexample is the standard answer to "why not greedy".
-
-The counting version, [Coin Change II](/practice/coin-change-ii), has the same table with `+` instead of `min` and one crucial change: the coin loop goes *outside* the amount loop, so that each combination is counted once in a fixed coin order rather than once per permutation. Say this without being asked; it is the most common DP follow-up in this family.
+Answer 3 (5 + 5 + 1). Largest-coin-first greedy also gives 3 here, but on `coins = [1, 3, 4]`, `amount = 6` it gives 4 + 1 + 1 while the table gives 3 + 3. That counterexample is the standard answer to "why not greedy". [Coin Change II](/practice/coin-change-ii) counts combinations with `+` instead of `min` and the coin loop *outside* the amount loop, so each multiset is counted once; amount outside counts `1 + 2` and `2 + 1` separately.
 
 ### Longest Common Subsequence
 
-[Longest Common Subsequence](/practice/longest-common-subsequence): the length of the longest sequence that appears in both strings in order (not necessarily contiguously).
-
-State: `dp[i][j]` = LCS length of `a[:i]` and `b[:j]`. Recurrence: if `a[i−1] == b[j−1]` then `dp[i−1][j−1] + 1` (match the last characters), else `max(dp[i−1][j], dp[i][j−1])` (drop one of them). Base: `dp[0][*] = dp[*][0] = 0`. Order: row by row. Answer: `dp[m][n]`.
+[Longest Common Subsequence](/practice/longest-common-subsequence): `dp[i][j]` = LCS length of `a[:i]` and `b[:j]`. If `a[i−1] == b[j−1]`, `dp[i−1][j−1] + 1`; else `max(dp[i−1][j], dp[i][j−1])`. Base row and column 0.
 
 ```python
 def lcs(a, b):
@@ -147,13 +163,13 @@ def lcs(a, b):
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             if a[i - 1] == b[j - 1]:
-                dp[i][j] = dp[i - 1][j - 1] + 1
+                dp[i][j] = dp[i - 1][j - 1] + 1          # match: extend the diagonal
             else:
-                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])  # drop a char from one side
     return dp[m][n]
 ```
 
-Trace with `a = "abcde"`, `b = "ace"` (rows are prefixes of `a`, columns prefixes of `b`):
+Trace with `a = "abcde"`, `b = "ace"`:
 
 | | `""` | `a` | `ac` | `ace` |
 |---|---|---|---|---|
@@ -164,9 +180,7 @@ Trace with `a = "abcde"`, `b = "ace"` (rows are prefixes of `a`, columns prefixe
 | `abcd` | 0 | 1 | 2 | 2 |
 | `abcde` | 0 | 1 | 2 | **3** |
 
-The bold cells are matches (`a`, `c`, `e`); every other cell copies the larger of the cell above or to the left. Answer 3. `O(m·n)` time; space `O(m·n)`, or `O(min(m, n))` with two rows since each row depends only on the previous one. To *reconstruct* the subsequence, walk back from `dp[m][n]`: on a match go diagonally and record the character; otherwise go to whichever neighbour holds the same value.
-
-[Edit Distance](/practice/edit-distance) is the same grid with three terms (`insert`, `delete`, `replace`) and a base row that counts up instead of zeros. [Distinct Subsequences](/practice/distinct-subsequences) and [Interleaving String](/practice/interleaving-string) are the same grid with different recurrences. Once you can say "two sequences, prefixes as state", the rest is filling in the three-way choice.
+Bold cells are matches; every other cell copies the larger of above and left. Answer 3. `O(m · n)` time; `O(min(m, n))` space with two rows, since row `i` reads only row `i − 1`. [Edit Distance](/practice/edit-distance), [Distinct Subsequences](/practice/distinct-subsequences) and [Interleaving String](/practice/interleaving-string) are this grid with different three-way choices.
 
 ```viz
 {"type": "dp", "algorithm": "lcs", "a": "abcde", "b": "ace", "title": "LCS table", "caption": "A match extends the diagonal; a mismatch takes the better of dropping a character from either string."}
@@ -174,9 +188,7 @@ The bold cells are matches (`a`, `c`, `e`); every other cell copies the larger o
 
 ### Word Break
 
-[Word Break](/practice/word-break): can `s` be split into a sequence of dictionary words?
-
-State: `dp[i]` = can `s[:i]` be segmented. Recurrence: `dp[i]` is true if there is a `j < i` with `dp[j]` true and `s[j:i]` in the dictionary. Base: `dp[0] = True` (the empty prefix). Order: increasing `i`. Answer: `dp[n]`.
+[Word Break](/practice/word-break): `dp[i]` = can `s[:i]` be segmented; true if some `j < i` has `dp[j]` and `s[j:i]` in the dictionary. Base `dp[0] = True`.
 
 ```python
 def word_break(s, word_dict):
@@ -184,7 +196,7 @@ def word_break(s, word_dict):
     max_len = max(map(len, words), default=0)
     dp = [True] + [False] * len(s)
     for i in range(1, len(s) + 1):
-        for j in range(max(0, i - max_len), i):     # only look back as far as the longest word
+        for j in range(max(0, i - max_len), i):   # no word is longer than max_len
             if dp[j] and s[j:i] in words:
                 dp[i] = True
                 break
@@ -193,24 +205,22 @@ def word_break(s, word_dict):
 
 Trace with `s = "leetcode"`, `dict = ["leet", "code"]`, `max_len = 4`:
 
-| `i` | `s[:i]` | `j` values tried (with `dp[j]` true) | `s[j:i]` in dict? | `dp[i]` |
+| `i` | `s[:i]` | `j` with `dp[j]` true | `s[j:i]` in dict? | `dp[i]` |
 |---|---|---|---|---|
-| 1 | l | 0 | "l" no | F |
-| 2 | le | 0 | "le" no | F |
-| 3 | lee | 0 | "lee" no | F |
+| 1–3 | l, le, lee | 0 | no | F |
 | 4 | leet | 0 | "leet" **yes** | T |
-| 5 | leetc | 1, 2, 3, 4 → only 4 has `dp` true | "c" no | F |
-| 6 | leetco | 4 | "co" no | F |
-| 7 | leetcod | 4 | "cod" no | F |
+| 5–7 | leetc, leetco, leetcod | 4 | "c", "co", "cod": no | F |
 | 8 | leetcode | 4 | "code" **yes** | T |
 
-Answer true. `O(n · max_len)` substring checks, each `O(max_len)` for the hash. Without the `max_len` bound the inner loop is `O(n)` and the total `O(n²)` substring operations, which is still accepted but shows less care. The follow-up "return all segmentations" switches to backtracking with this table as the prune (only recurse into `j` where `dp[j]` is true).
+The `max_len` bound matters at scale: on `"aaa…ab"` of length 5,000 with words `"a"` to `"aaaaaaaaaa"`, the bounded loop made 5,009 checks (1 ms) and the unbounded one 12.5 million (3.4 s) in CPython 3.14.
+
+```viz
+{"type": "dp", "algorithm": "word-break", "s": "leetcode", "words": ["leet", "code"], "title": "Word Break", "caption": "dp[i] turns true when a dictionary word ends at i and the prefix before it is breakable."}
+```
 
 ### House Robber II
 
-[House Robber II](/practice/house-robber-ii): houses in a circle, adjacent houses cannot both be robbed, maximise the take.
-
-The linear version's state is `dp[i]` = best take from the first `i` houses, recurrence `max(dp[i−1], dp[i−2] + nums[i−1])`, which collapses to two variables. The circle adds one constraint: house 0 and house `n−1` are adjacent. Rather than a new state, run the linear DP twice, once excluding the first house and once excluding the last, and take the better. Either the optimal solution skips house 0 (then it is a linear problem on `1..n−1`) or it skips house `n−1` (linear on `0..n−2`); it cannot take both.
+[House Robber II](/practice/house-robber-ii): houses in a circle, no two adjacent robbed. The linear version is `dp[i] = max(dp[i−1], dp[i−2] + nums[i−1])`, two variables. The circle only links house 0 and house `n − 1`, so an optimum skips at least one of them: run the linear DP on `nums[1:]` and on `nums[:-1]` and take the better.
 
 ```python
 def rob_circle(nums):
@@ -224,36 +234,136 @@ def rob_circle(nums):
     return max(rob_line(nums[1:]), rob_line(nums[:-1]))
 ```
 
-Trace `rob_line` on `[2, 3, 2]` minus the last house, `[2, 3]`: `(prev, cur)` goes `(0,0) → (0,2) → (2,3)`, result 3. Minus the first, `[3, 2]`: `(0,0) → (0,3) → (3,3)`, result 3. Answer 3. On `[1, 2, 3, 1]`: `[2, 3, 1]` gives `(0,0) → (0,2) → (2,3) → (3,3)`: 3; `[1, 2, 3]` gives `(0,0) → (0,1) → (1,2) → (2,4)`: 4. Answer 4.
+On `[1, 2, 3, 1]`: `[2, 3, 1]` gives `(prev, cur)` = `(0,0) → (0,2) → (2,3) → (3,3)`, 3; `[1, 2, 3]` gives `(0,0) → (0,1) → (1,2) → (2,4)`, 4. Answer 4. The move generalises: when one constraint links the ends of a linear structure, *case-split on it* and reuse the linear solution.
 
-The lesson here is a general move: when one extra constraint links the ends of a linear structure, *case-split on the constraint* and reuse the linear solution rather than inventing a bigger state.
+### Best Time with Cooldown
+
+[Best Time with Cooldown](/practice/best-time-cooldown): unlimited trades, one share at a time, and a day of rest after each sale. Three modes per day: `hold` (own a share), `sold` (sold today), `rest` (no share, free to buy). Transitions: `hold = max(hold, rest − p)`, `sold = hold + p`, `rest = max(rest, sold)`, all from yesterday's values.
+
+| price | `hold` | `sold` | `rest` |
+|---|---|---|---|
+| start | −∞ | −∞ | 0 |
+| 1 | −1 | −∞ | 0 |
+| 2 | −1 | 1 | 0 |
+| 3 | −1 | 2 | 1 |
+| 0 | 1 | −1 | 2 |
+| 2 | 1 | 3 | 2 |
+
+Answer `max(sold, rest) = 3`: buy at 1, sell at 2, rest, buy at 0, sell at 2. Buying reads `rest`, never `sold`, and that single choice encodes the cooldown. Updating the three variables in sequence rather than simultaneously lets today's sale feed today's rest, a bug that survives most small tests.
+
+### Burst Balloons
+
+[Burst Balloons](/practice/burst-balloons): bursting balloon `k` earns `left · k · right` with its current neighbours. Choosing the *first* balloon to burst leaves two halves that still interact; choosing the *last* balloon in an open interval `(i, j)` fixes its neighbours at `a[i]` and `a[j]` and makes the halves independent: `dp[i][j] = max over k of dp[i][k] + a[i]·a[k]·a[j] + dp[k][j]`, filled by increasing interval length. On `[3, 1, 5, 8]`, padded to `[1, 3, 1, 5, 8, 1]`:
+
+| length | ends `a[i]`, `a[j]` | balloons inside | best | burst last |
+|---|---|---|---|---|
+| 2 | 1, 1 | 3 | 3 | 3 |
+| 2 | 3, 5 | 1 | 15 | 1 |
+| 2 | 1, 8 | 5 | 40 | 5 |
+| 2 | 5, 1 | 8 | 40 | 8 |
+| 3 | 1, 5 | 3, 1 | 30 | 3 |
+| 3 | 3, 8 | 1, 5 | 135 | 5 |
+| 3 | 1, 1 | 5, 8 | 48 | 8 |
+| 4 | 1, 8 | 3, 1, 5 | 159 | 3 |
+| 4 | 3, 1 | 1, 5, 8 | 159 | 8 |
+| 5 | 1, 1 | 3, 1, 5, 8 | **167** | 8 |
+
+One cell worked: the ends 3 and 8 around `[1, 5]`. Bursting 1 last earns `0 + 3 · 1 · 8 + 40 = 64` (the 40 is the 5 burst earlier between 1 and 8); bursting 5 last earns `15 + 3 · 5 · 8 + 0 = 135`. The whole row: 8 last gives `159 + 1 · 8 · 1 = 167`.
+
+`O(n³)`: `n²` intervals, `n` choices of the last balloon each.
 
 ## Variations
 
-- **Space optimisation**: linear DPs with a look-back of `k` need `k` variables; two-sequence DPs need two rows (or one row updated right-to-left for 0/1 knapsack). Say the full-table version first, then optimise if asked.
-- **0/1 versus unbounded knapsack**: iterate amounts *downward* for 0/1 (each item once), *upward* for unbounded. [Partition Equal Subset](/practice/partition-equal-subset) is 0/1 with a boolean table and target `sum / 2`; [Target Sum](/practice/target-sum) reduces to counting subsets with sum `(total + S) / 2`.
-- **Counting versus optimising**: same table, `+` instead of `min`/`max`, base `1` instead of `0`. Loop order matters for counting combinations versus permutations.
-- **Interval DP**: fill by increasing length `len = 2..n`, then by start `i`, with `j = i + len − 1`, and the transition picks a split point or the *last* element removed ([Burst Balloons](/practice/burst-balloons): "which balloon bursts last in `(i, j)`" is the trick that makes the subproblems independent).
-- **LIS in `O(n log n)`** ([Longest Increasing Subsequence](/practice/longest-increasing-subsequence)): the `O(n²)` DP is the baseline; the patience-sorting array with binary search is the follow-up. Say both.
-- **DP on a DAG / grid with memoised DFS** ([Longest Increasing Path](/practice/longest-increasing-path)): no natural fill order, so memoise the recursion; the strictly increasing condition guarantees no cycles.
-- **State machine DP** ([Best Time with Cooldown](/practice/best-time-cooldown)): `hold`, `sold`, `rest` per day, three transitions. Draw the three-node diagram before writing code.
-- **Regex and wildcard matching**: two-sequence DP where `*` produces a two-way choice (match zero, or consume one and stay); write the recurrence for `p[j−1] == '*'` separately and test on `("aa", "a*")` and `("ab", ".*")`.
-- **Reconstruction**: keep a `choice` table or walk back through the recurrence.
+| Variant | Change to the template | Why it stays correct |
+|---|---|---|
+| Space optimisation | keep the last `k` values, or two rows | the recurrence reads only that window |
+| 0/1 versus unbounded knapsack | sweep capacity downward for 0/1, upward for unbounded | downward reads the previous item's row |
+| Count instead of optimise | `+` for `min`, base `1` for `0` | the cases partition the solutions |
+| Combinations versus orderings | items outer for combinations, amount outer for orderings | one canonical order per multiset |
+| Interval DP | fill by length; pick a split or the *last* element | shorter intervals are final first |
+| LIS in `O(n log n)` | sorted tails plus binary search | `tails[k]` is the smallest tail of a length-`k + 1` run |
+| Memoised DFS on a DAG | recursion with a cache, no fill order | strictly increasing values rule out cycles |
+| State machine | a few variables per position | one variable per mode |
+| Reconstruction | keep the table, walk back from the answer | each step re-derives which case won |
 
-## Pitfalls
+## Complexity, derived
 
-- **A state that is not a full description.** If `dp[i]` "means the best so far" without saying whether element `i` is included, the recurrence will be wrong somewhere. Write the sentence.
-- **Wrong sentinel.** `0` as "impossible" in a minimisation collides with a real answer of 0. Use `inf`, `-1` with explicit checks, or `None`.
-- **Base case off by one.** `dp[0]` for the empty prefix is the base in nearly every string/sequence DP; sizing the table `n` instead of `n + 1` loses it.
-- **Wrong loop nesting for counting.** Coin Change II with amounts outside and coins inside counts permutations (`1+2` and `2+1` separately).
-- **Wrong direction for 0/1 knapsack.** Iterating amounts upward with a single row lets an item be used twice.
-- **Recursion depth in top-down.** `lru_cache` on a state of depth 10⁴ overflows Python's stack. Either raise the limit or switch to bottom-up.
-- **Slicing inside the loop.** `s[j:i] in words` is fine; `dp(s[i:])` with string slices as memo keys costs `O(n)` per key and `O(n²)` memory. Use indices.
-- **Forgetting the greedy counterexample.** If you propose greedy for coins, be ready with `[1, 3, 4]` and amount 6.
-- **`max_len` bound with an empty dictionary.** `max()` on an empty sequence raises; use `default=0`.
-- **Optimising space before correctness.** Get the full table right, then collapse rows. Interviewers would rather see `O(m·n)` space and a correct answer than a clever one-row update with an off-by-one.
+| Problem | States | Transition | Time | Space after compression |
+|---|---|---|---|---|
+| Coin Change | `amount + 1` | `len(coins)` | `O(amount · coins)` | `O(amount)` |
+| LCS, Edit Distance | `(m + 1)(n + 1)` | `O(1)` | `O(m · n)` | `O(min(m, n))` |
+| Word Break | `n + 1` | `max_len` substring checks of up to `max_len` chars | `O(n · L²)` | `O(n)` |
+| House Robber II | `2n` | `O(1)` | `O(n)` | `O(1)` |
+| Cooldown | `3n` | `O(1)` | `O(n)` | `O(1)` |
+| Burst Balloons | `n²` | `n` | `O(n³)` | `O(n²)` |
+| LIS | `n` | `O(n)`, or `O(log n)` with tails | `O(n²)` or `O(n log n)` | `O(n)` |
 
-## Exercise
+The factor a follow-up attacks is usually the transition: LIS `O(n)` → `O(log n)`, Word Break's scan bounded by the longest word. Measured in CPython 3.14: LIS on 10,000 random values took 832 ms as `O(n²)` and 0.7 ms with tails; at 10⁵ the tails version took 8 ms, where the quadratic one would need on the order of 80 s.
+
+## Under the hood
+
+### Top-down in CPython
+
+The memoised coin change above, with coins `[1, 2, 5]`, raised `RecursionError` for every amount above 997: the first call descends through `a − 1`, `a − 2`, … one frame per unit before anything is cached, and CPython's default limit is 1,000 frames. Top-down LCS on two 1,000-character strings recurses up to `m + n` = 2,000 deep and fails the same way. With the limit raised, it ran in 242 ms against 58 ms bottom-up, visited 703,040 of the 10⁶ states, and peaked at 128 MB under `tracemalloc`: each cached state is a tuple key plus a dict slot, on the order of 100–200 bytes ([Recursion limits and `lru_cache`](/learn/algorithms/recursion-backtracking/from-backtracking-to-memoisation) has the per-entry breakdown). Top-down wins only when most states are unreachable.
+
+### Memo keys in JavaScript
+
+Top-down LCS on 1,000-character strings in Node 24: a `Map` keyed by `` `${i},${j}` `` took 216 ms, a `Map` keyed by `i * (n + 1) + j` 77 ms, and an `Int32Array` indexed the same way 15 ms. String keys allocate and hash a string per lookup. Bottom-up on 2,000 × 2,000 took about 25–47 ms with nested arrays and 16–19 ms with one flat `Int32Array`; CPython took 168 ms for the same table with row references hoisted out of the inner loop, 259 ms without.
+
+### When the count outgrows the number
+
+Counting DPs grow exponentially. The ways to make an amount from the eight UK coin denominations first exceed 2⁵³ at 13,512 pence; at 13,600 a JavaScript `Number` table returns 9,422,355,624,004,784 where the exact count ends in 785 (checked against `BigInt` in Node 24). No error is raised. The fixes are the modulus the problem asks for, applied after every addition (sums of two values below 10⁹ + 7 stay exact), or `BigInt`, which ran the same table about ten times slower. A product of two residues, `a * b % MOD`, is not exact in doubles: `999999999 * 999999998 % (10⁹ + 7)` gives 70 instead of 72. Python's integers never overflow but grow a 30-bit digit at a time, so an unreduced count costs more per addition as it grows.
+
+### Table memory
+
+A 2,001 × 2,001 list of lists of small ints is 32 MB of pointers in CPython; when most cells hold distinct ints above 256, each is also a 28-byte object and the table reached 159 MB. Two rows of 2,001 cells are 32 KB. Say the compressed version exists, and write the full table first unless memory is the question.
+
+## Failure modes
+
+**Symptom: minimisation returns 0 for an impossible amount.** Diagnosis: `0` used as the "impossible" sentinel collides with a real answer. Fix: `inf` (or a value larger than any answer), converted to −1 at the end.
+
+**Symptom: Coin Change II returns 3 for amount 3 with coins `[1, 2]`.** Diagnosis: the amount loop is outside, so orderings are counted. Fix: coins outside, amount inside.
+
+**Symptom: a correct top-down solution raises `RecursionError` or a JavaScript `RangeError` on the largest hidden test.** Diagnosis: depth equals the chain of first-choice calls (amount, `m + n`). Fix: bottom-up; raising the limit moves the crash to the C stack.
+
+**Symptom: the cooldown answer is too high.** Diagnosis: `hold`, `sold` and `rest` updated one after another, so a sale on day `t` feeds a purchase on day `t`. Fix: compute all three from the previous day's values (tuple assignment in Python, temporaries in JavaScript).
+
+**Symptom: large counts differ in the last digits between Python and JavaScript.** Diagnosis: the JavaScript table passed 2⁵³. Fix: reduce modulo after every addition, or `BigInt`.
+
+**Symptom: fast on the samples, memory limit on the hidden tests.** Diagnosis: memo keys built from slices (`f(s[i:])`), which store an `O(n)` string per state and cost `O(n)` to hash. Fix: key on indices.
+
+## Trade-offs
+
+| Approach | Code to write | Speed (measured) | Memory | Depth risk | Reconstructs |
+|---|---|---|---|---|---|
+| Top-down, `@cache` | least; mirrors the recursion | 4× slower on LCS | 100–200 B per visited state | yes | yes, from the cache |
+| Bottom-up table | order must be derived | baseline | one cell per state | none | yes |
+| Rolling rows / variables | order plus window | same | `O(window)` | none | no |
+| Bitset row (boolean DPs) | shift-and-or | about 1,200× faster for subset sum ([knapsack family](/learn/algorithms/dynamic-programming/knapsack-family)) | 1 bit per state | none | no |
+
+## Interviewer follow-ups
+
+**"Return the actual subsequence, not its length."** Model answer: keep the full table and walk back from `dp[m][n]`: on a match go diagonally and emit the character, otherwise move to the neighbour holding the same value; `O(m + n)` after the fill. Common wrong answer: tracking a "current best string" in each cell, which copies strings and costs `O(m · n · L)`.
+
+**"Now `n` is 10⁵."** Model answer: name the factor to cut. LIS goes to sorted tails with binary search; Word Break bounds the scan by the longest word or walks a trie; an `O(n²)` interval DP is out and you look for a greedy or monotonic-stack structure. Common wrong answer: "memoise it", which does not change the state count.
+
+**"Return every segmentation, not whether one exists."** Model answer: the output is exponential, so backtrack over split points, using the DP (or a memo of "suffix `i` is breakable") to refuse split points that lead nowhere: [Backtracking](/learn/interview-patterns/combinatorial-patterns/backtracking-pattern). Common wrong answer: storing lists of sentences in each DP cell, which is the exponential output held `n` times.
+
+**"Parallelise the LCS table" or "can several threads share the memo?"** Model answer: cells on one anti-diagonal (`i + j` constant) depend only on the two previous anti-diagonals, so each anti-diagonal can be computed in parallel; some sequence-alignment implementations vectorise along anti-diagonals for this reason. A shared memo of a pure function tolerates races: `functools.lru_cache` stays coherent across threads but may compute a value twice. Common wrong answer: splitting the rows across threads, which serialises on the row dependency.
+
+**"Memory is limited to `O(n)`."** Model answer: two rows, or one row with a saved diagonal; reconstruction then needs Hirschberg's divide and conquer ([DP craft](/learn/algorithms/dynamic-programming/dp-craft)). Common wrong answer: dropping to one row and still claiming the path can be recovered.
+
+## What mid-level engineers get wrong
+
+- **A state that is not a full sentence.** "`dp[i]` is the best so far" without saying whether `i` is included; the recurrence fails on the first case it does not cover.
+- **Treating every "minimum" as DP.** Four-direction grids are Dijkstra, fewest jumps is greedy, fewest transformations is BFS.
+- **Top-down on a deep chain in Python**, which passes the samples and dies at depth 1,000 on the hidden tests.
+- **String memo keys in JavaScript**, three to fourteen times slower than numeric or typed-array memos.
+- **Counting without the modulus in JavaScript**, which silently loses exactness past 2⁵³.
+- **Optimising space before correctness.** A one-row update with an off-by-one is worse than a correct full table.
+- **Forgetting the greedy counterexample** (`[1, 3, 4]`, amount 6) when the interviewer asks "why not greedy".
+
+## Exercises
 
 ```exercise
 id: coin-change-min
@@ -304,15 +414,71 @@ hints:
   - "Return -1 if dp[amount] is still infinity."
 ```
 
+```exercise
+id: decode-ways-linear
+title: Count the decodings
+prompt: |
+  A message of letters was encoded as digits with A = 1, B = 2, ..., Z = 26
+  and the separators were lost. Given the digit string `s` (possibly
+  starting with "0"), return how many ways it can be decoded. A group such
+  as "06" is not a valid code for F; only "6" is. Return 0 when no
+  decoding exists.
+
+  Use a linear DP: dp[i] is the number of decodings of s[:i], and it needs
+  only dp[i - 1] (last digit alone) and dp[i - 2] (last two digits
+  together), so two variables suffice. The longest test has 45 digits, so
+  plain recursion without a memo will time out.
+languages: [python, javascript]
+entry: num_decodings
+starter:
+  python: |
+    def num_decodings(s):
+        # your code here
+        return 0
+  javascript: |
+    function num_decodings(s) {
+      // your code here
+      return 0;
+    }
+tests:
+  - args: ["12"]
+    expected: 2
+  - args: ["226"]
+    expected: 3
+  - args: ["06"]
+    expected: 0
+    label: leading zero
+  - args: ["10"]
+    expected: 1
+    label: a zero must pair with the digit before it
+  - args: ["27"]
+    expected: 1
+    label: 27 is not a letter
+  - args: ["2101"]
+    expected: 1
+    hidden: true
+  - args: ["100"]
+    expected: 0
+    hidden: true
+    label: "00 cannot be decoded"
+  - args: ["111111111111111111111111111111111111111111111"]
+    expected: 1836311903
+    hidden: true
+    label: 45 ones, a Fibonacci number
+hints:
+  - "dp[0] = 1 (the empty prefix has one decoding); dp[1] = 1 unless s[0] is '0'."
+  - "dp[i] gets dp[i - 1] if s[i - 1] is not '0', plus dp[i - 2] if s[i - 2:i] is between 10 and 26."
+  - "Keep only the last two values; a string of ones gives Fibonacci numbers."
+```
+
 ## Senior signals
 
-- You **state the state in a sentence** before writing code, and the sentence says what the index means and whether the answer is "exactly" or "at most".
-- You classify by **state shape** ("two sequences, prefixes as state") and can name three problems with the same shape, which tells the interviewer you will finish.
-- You give the **greedy counterexample** for coins from memory and the general test (exchange argument exists or not).
-- You know the **loop-order and direction rules** for counting combinations versus permutations and for 0/1 versus unbounded knapsack, and explain them by what each order allows.
-- You write the **full table first** and then collapse it, stating the dependency that makes the collapse valid.
-- You recognise **case-splitting** (House Robber II) and **"last element removed"** (Burst Balloons) as the two moves that turn a stuck DP into a standard one.
-- You quote complexity as **states × transition** and can say which factor a follow-up would attack (LIS to `O(n log n)`, Word Break with the `max_len` bound).
+- You **state the state in a sentence** before coding, with "exactly" or "at most", and fix a stuck recurrence by adding the missing fact to the state.
+- You **reject DP when it is the wrong tool**: four-direction grids are Dijkstra, fewest jumps is greedy, unit-cost transformations are BFS, and you say why (no fill order, or an exchange argument).
+- You classify by **state shape** and can name three problems with the same shape, which tells the interviewer you will finish.
+- You know the **loop-order and direction rules** for combinations versus orderings and for 0/1 versus unbounded, and explain them by what each order allows.
+- You recognise **case-splitting** (House Robber II), **choose the last element** (Burst Balloons) and **one variable per mode** (Cooldown) as the moves that unstick a DP.
+- You quote cost as **states × transition** and know the runtime: 1,000 frames of recursion in CPython, top-down about 4× slower than a table when most states are visited, typed arrays over string keys in JavaScript, and exactness ending at 2⁵³.
 
 ## Check yourself
 
@@ -324,33 +490,33 @@ hints:
   explanation: >-
     With amounts outermost, every ordering of the same multiset of coins reaches the amount by a different path and is added separately, so 1+1+1, 1+2 and 2+1 give 3. Putting the coin loop outermost fixes the coin order and counts each multiset once, giving the correct 2.
 - q: >-
-    Which statement of the DP state for Longest Common Subsequence is complete enough to derive the recurrence?
-  options: ["dp[i] is the length of the LCS that ends at index i", "dp[i][j] is 1 if A[i] equals B[j], and 0 otherwise", "dp[i][j] is the LCS length of A[:i] and B[:j]", "dp[i][j] is the best answer found so far in the table"]
+    Which statement of the DP state for the longest increasing subsequence lets the recurrence close?
+  options: ["dp[i] is the LIS length within the first i elements", "dp[i] is the LIS length of a run ending at index i", "dp[i] is 1 if a[i] exceeds a[i - 1], and 0 otherwise", "dp[i] is the largest value seen in the first i elements"]
+  answer: 1
+  explanation: >-
+    Whether a new element extends a subsequence depends on that subsequence's last value. The prefix version loses it: on [1, 5, 2, 3] the prefix of three has LIS 2 via [1, 5] or [1, 2], and only one of them accepts the 3. Fixing where the run ends puts the needed fact into the index.
+- q: >-
+    The cheapest path from the top-left to the bottom-right of a cost grid, where moves may go in all four directions. Why is grid DP the wrong tool?
+  options: ["The table would need one extra dimension per direction", "DP cannot handle a grid wider than a few hundred cells", "No fill order finalises each neighbour before its cell", "Grid DP needs every cost in the grid to be positive"]
   answer: 2
   explanation: >-
-    The state must describe a subproblem fully: which prefixes (the first i characters of A and the first j of B), and what quantity. From that sentence the two cases (last characters match or not) follow directly. The other options are vague, omit the second string, or describe a different problem.
+    DP is correct by induction over a fill order in which every state a cell reads is already final. With up and left moves allowed, cells depend on each other in cycles, so no such order exists. With non-negative costs this is a shortest-path problem, and Dijkstra settles cells in order of distance instead.
 - q: >-
-    A 0/1 knapsack solution uses a single dp row and iterates capacities from 0 upward. What is the effect?
-  options: ["It fails only when some item has a weight of exactly 1", "An item can be reused: dp[c - w] may already hold it", "It is still correct, and faster than iterating downward", "It undercounts, since each capacity is only read once"]
-  answer: 1
-  explanation: >-
-    Upward iteration reads a cell updated in the same pass for the same item, which is the unbounded-knapsack behaviour. Capacities must be iterated downward for 0/1, so that each read sees only values from before this item was considered.
-- q: >-
-    Why does House Robber II run the linear solution twice rather than add a dimension to the state?
-  options: ["Only the end houses conflict; an optimum skips one", "Because the array is too short to justify a 2D table", "Because DP cannot be applied to circular arrays at all", "Because the second run corrects errors left by the first"]
-  answer: 0
-  explanation: >-
-    The circular constraint only links house 0 and house n-1, so any optimal solution omits at least one of them, and the answer is the better of two linear instances that each exclude one end. Case-splitting on the one constraint that breaks linearity reuses the existing solution. Adding a took-house-0 flag to the state also works but is more code for the same complexity.
-- q: >-
-    Word Break on a 10,000-character string with a dictionary whose longest word has 10 letters. What does bounding the inner loop by the longest word length change?
-  options: ["It removes the need for the dp table altogether", "Substring checks drop from about n²/2 to about 10n", "It gives wrong answers for words longer than 10 letters", "Nothing, since the hash lookups dominate the cost anyway"]
-  answer: 1
-  explanation: >-
-    No dictionary word can span more than L characters, so any split point further back than L cannot end a word at i. The bound is safe, each check is at most 10 characters, and it turns O(n^2) substring checks into O(n * L).
-- q: >-
-    The interviewer asks for the longest increasing subsequence on 100,000 elements after you wrote the O(n^2) DP. What is the expected follow-up answer?
-  options: ["It cannot be done faster than O(n²) by any method", "Use a heap of the current tails for O(n log n)", "Sort the array first, then scan it once for runs", "Keep sorted tails and binary search into them"]
+    A memoised top-down Coin Change in CPython passes every sample and raises RecursionError on amount 5,000 with coin 1 present. What is the fix an interviewer expects?
+  options: ["Replace @cache with @lru_cache(maxsize=None)", "Store the memo in a global dict instead of a decorator", "Sort the coins so that the largest one is tried first", "Rewrite it bottom-up, looping over amounts upward"]
   answer: 3
   explanation: >-
-    tails[k] is the smallest possible tail of an increasing subsequence of length k+1. Each element replaces the first tail not smaller than it, found by binary search because tails stays sorted, giving O(n log n); the final length of tails is the LIS length. It does not directly give the subsequence itself, which needs an extra predecessor array.
+    The first call descends one frame per unit of amount before anything is cached, and CPython stops at 1,000 frames. The cache type and where it lives do not change the depth, and trying larger coins first only moves the problem to inputs without them. A loop over amounts has no depth at all.
+- q: >-
+    Counting coin combinations for large amounts in JavaScript, the answers differ from Python in the last digit, with no error. What happened?
+  options: ["Array.fill shared one object across every cell", "The loop order counted orderings for large amounts", "Integer addition in JavaScript wraps at 2^31 - 1", "The counts passed 2^53 and Number rounded them"]
+  answer: 3
+  explanation: >-
+    JavaScript numbers are doubles, exact for integers only up to 2^53. The UK-coin count passes that near 13,500 pence and from there on sums are rounded silently. Reducing modulo the requested prime after each addition, or using BigInt, restores exactness; plain addition does not wrap at 2^31.
+- q: >-
+    Burst Balloons defines dp[i][j] by the balloon burst last in the open interval (i, j), not the one burst first. Why?
+  options: ["Choosing first would count every order twice over", "It lets the table be filled in a single left-to-right pass", "Last means its neighbours are a[i] and a[j]: halves split", "It reduces the running time from O(n^3) down to O(n^2)"]
+  answer: 2
+  explanation: >-
+    If balloon k is burst last in (i, j), everything between i and k and between k and j is gone before it, so its neighbours at that moment are exactly a[i] and a[j], and the two sides never interact. Bursting k first leaves its neighbours adjacent, so the halves depend on each other. The table is still O(n^2) intervals with O(n) choices, filled by increasing length.
 ```
