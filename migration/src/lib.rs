@@ -24,6 +24,7 @@ mod m0007_integrity;
 mod m0008_budget_holds;
 mod m0009_shared_rate_limits;
 mod m0010_login_devices;
+mod m0011_user_timezones;
 
 pub struct Migrator;
 
@@ -41,6 +42,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0008_budget_holds::Migration),
             Box::new(m0009_shared_rate_limits::Migration),
             Box::new(m0010_login_devices::Migration),
+            Box::new(m0011_user_timezones::Migration),
         ]
     }
 }

@@ -8,6 +8,7 @@ use super::{password, token};
 use crate::entities::prelude::*;
 use crate::entities::{sessions, users};
 use crate::error::{AppError, AppResult};
+use crate::services::activity;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct RegisterInput {
@@ -18,6 +19,9 @@ pub struct RegisterInput {
     pub password: String,
     #[validate(length(min = 1, max = 80, message = "must be 1–80 characters"))]
     pub display_name: String,
+    /// The browser's IANA time zone. Ignored when Postgres does not know it.
+    #[serde(default)]
+    pub timezone: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -39,6 +43,7 @@ pub struct CurrentUser {
     pub target_level: Option<String>,
     pub weekly_hours: i16,
     pub preferred_language: String,
+    pub timezone: Option<String>,
     pub onboarded: bool,
     pub created_at: chrono::DateTime<Utc>,
 }
@@ -60,6 +65,7 @@ impl From<users::Model> for CurrentUser {
             target_level: u.target_level,
             weekly_hours: u.weekly_hours,
             preferred_language: u.preferred_language,
+            timezone: u.timezone,
             onboarded: u.onboarded_at.is_some(),
             created_at: u.created_at,
         }
@@ -106,6 +112,12 @@ impl AuthService {
         // round trip there is no way to avoid that, and it is rate limited.
         // The login endpoint, which attackers probe at scale, reveals nothing.
         let password_hash = password::hash(input.password).await?;
+        // A bad zone must not block sign-up: fall back to UTC, and the
+        // browser sets it again once the learner is signed in.
+        let timezone = match input.timezone {
+            Some(tz) if tz.len() <= 64 && activity::is_known_timezone(&self.db, &tz).await? => Some(tz),
+            _ => None,
+        };
         let now = Utc::now();
         let user = users::ActiveModel {
             id: Set(Uuid::now_v7()),
@@ -117,6 +129,7 @@ impl AuthService {
             target_level: Set(None),
             weekly_hours: Set(8),
             preferred_language: Set("python".into()),
+            timezone: Set(timezone),
             onboarded_at: Set(None),
             last_login_at: Set(Some(now)),
             created_at: Set(now),
@@ -287,6 +300,9 @@ pub struct ProfileUpdate {
     #[validate(range(min = 1, max = 80))]
     pub weekly_hours: Option<i16>,
     pub preferred_language: Option<String>,
+    /// IANA name such as `Europe/London`; validated against Postgres.
+    #[validate(length(min = 1, max = 64))]
+    pub timezone: Option<String>,
     pub onboarded: Option<bool>,
 }
 
@@ -312,6 +328,12 @@ impl AuthService {
                 return Err(AppError::validation("preferred_language must be python, javascript or typescript"));
             }
             active.preferred_language = Set(v);
+        }
+        if let Some(v) = update.timezone {
+            if !activity::is_known_timezone(&self.db, &v).await? {
+                return Err(AppError::validation("timezone must be an IANA time zone name, such as Europe/London"));
+            }
+            active.timezone = Set(Some(v));
         }
         if update.onboarded == Some(true) {
             active.onboarded_at = Set(Some(Utc::now()));

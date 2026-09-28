@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "../lib/auth";
+import { deviceTimeZone, useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { Button, Card, ErrorBox, PageTitle } from "../components/ui";
 import { Field } from "./Login";
@@ -11,6 +11,7 @@ export default function Profile() {
   const [level, setLevel] = useState(user?.target_level ?? "");
   const [hours, setHours] = useState(String(user?.weekly_hours ?? 8));
   const [language, setLanguage] = useState(user?.preferred_language ?? "python");
+  const [timezone, setTimezone] = useState(user?.timezone ?? deviceTimeZone() ?? "UTC");
   const [error, setError] = useState<unknown>(null);
   const [saved, setSaved] = useState(false);
   if (!user) return null;
@@ -25,7 +26,7 @@ export default function Profile() {
             setError(null);
             setSaved(false);
             try {
-              await update({ display_name: name, target_company: company, target_level: level, weekly_hours: Number(hours), preferred_language: language as "python" });
+              await update({ display_name: name, target_company: company, target_level: level, weekly_hours: Number(hours), preferred_language: language as "python", timezone });
               setSaved(true);
             } catch (err) {
               setError(err);
@@ -44,6 +45,7 @@ export default function Profile() {
               <option value="typescript">TypeScript</option>
             </select>
           </label>
+          <TimeZoneField value={timezone} onChange={setTimezone} />
           {error ? <ErrorBox error={error} /> : null}
           {saved && <p className="text-sm text-success">Saved.</p>}
           <Button type="submit">Save</Button>
@@ -67,6 +69,45 @@ export default function Profile() {
       <DeleteAccount />
     </div>
   );
+}
+
+/** Streak days are counted in this zone. The list is the browser's own
+ *  (IANA names); the server checks each against Postgres's tz database. */
+function TimeZoneField({ value, onChange }: { value: string; onChange: (tz: string) => void }) {
+  const device = deviceTimeZone();
+  const zones = supportedTimeZones();
+  const options = zones.includes(value) ? zones : [value, ...zones];
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block font-medium">Time zone</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-line bg-bg px-3 py-2">
+        {options.map((tz) => (
+          <option key={tz} value={tz}>
+            {tz.replaceAll("_", " ")}
+          </option>
+        ))}
+      </select>
+      <span className="mt-1 block text-xs text-muted">
+        Your streak counts days in this zone.
+        {device && device !== value ? (
+          <>
+            {" "}
+            <button type="button" className="underline" onClick={() => onChange(device)}>
+              Use this device's zone ({device.replaceAll("_", " ")})
+            </button>
+          </>
+        ) : null}
+      </span>
+    </label>
+  );
+}
+
+function supportedTimeZones(): string[] {
+  try {
+    return [...Intl.supportedValuesOf("timeZone"), "UTC"].filter((tz, i, all) => all.indexOf(tz) === i);
+  } catch {
+    return ["UTC"];
+  }
 }
 
 /** Permanent deletion. Progress, submissions, interviews and coach history go

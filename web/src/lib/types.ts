@@ -12,6 +12,8 @@ export interface User {
   target_level: string | null;
   weekly_hours: number;
   preferred_language: "python" | "javascript" | "typescript";
+  /** IANA time zone; streak days are counted in it. null means UTC. */
+  timezone: string | null;
   onboarded: boolean;
   created_at: string;
 }

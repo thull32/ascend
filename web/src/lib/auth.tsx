@@ -9,7 +9,26 @@ interface AuthState {
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, display_name: string) => Promise<User>;
   logout: () => Promise<void>;
-  update: (patch: Partial<Pick<User, "display_name" | "target_company" | "target_level" | "weekly_hours" | "preferred_language">> & { onboarded?: boolean }) => Promise<User>;
+  update: (patch: Partial<Pick<User, "display_name" | "target_company" | "target_level" | "weekly_hours" | "preferred_language" | "timezone">> & { onboarded?: boolean }) => Promise<User>;
+}
+
+/** This device's IANA time zone, if the browser reports a real one. */
+export function deviceTimeZone(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz && tz !== "Etc/Unknown" ? tz : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Accounts made before time zones were stored (or whose browser sent none)
+ *  adopt this device's zone once, so streak days are local days. A zone
+ *  already set, including one chosen on the profile page, is kept. */
+async function adoptDeviceTimeZone(user: User): Promise<User> {
+  const tz = deviceTimeZone();
+  if (user.timezone || !tz) return user;
+  return api.patch<User>("/auth/me", { timezone: tz }).catch(() => user);
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -20,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      setUser(await api.get<User>("/auth/me"));
+      setUser(await adoptDeviceTimeZone(await api.get<User>("/auth/me")));
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setUser(null);
     } finally {
@@ -38,12 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       refresh,
       async login(email, password) {
-        const u = await api.post<User>("/auth/login", { email, password });
+        const u = await adoptDeviceTimeZone(await api.post<User>("/auth/login", { email, password }));
         setUser(u);
         return u;
       },
       async register(email, password, display_name) {
-        const u = await api.post<User>("/auth/register", { email, password, display_name });
+        const u = await api.post<User>("/auth/register", { email, password, display_name, timezone: deviceTimeZone() });
         setUser(u);
         return u;
       },

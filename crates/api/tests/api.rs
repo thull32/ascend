@@ -744,6 +744,72 @@ async fn activity_counts_toward_the_streak_and_is_recorded_once_per_day() {
 }
 
 #[tokio::test]
+async fn a_day_of_learning_is_the_learners_own_day() {
+    let Some(app) = test_app().await else { return };
+    // Kiritimati (UTC+14) and Pago Pago (UTC-11) are 25 hours apart, so at
+    // any instant their calendar dates differ.
+    let (east, _) = app.register().await;
+    let (west, _) = app.register().await;
+    for (cookie, tz) in [(&east, "Pacific/Kiritimati"), (&west, "Pacific/Pago_Pago")] {
+        let r = app.call("PATCH", "/api/auth/me", Some(json!({"timezone": tz})), Some(cookie), true).await;
+        assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+        assert_eq!(r.body["timezone"], tz);
+        let done = app
+            .call(
+                "PUT",
+                "/api/progress/lessons/basics/intro/hello",
+                Some(json!({"status": "completed"})),
+                Some(cookie),
+                true,
+            )
+            .await;
+        assert_eq!(done.status, StatusCode::OK);
+        let progress = app.call("GET", "/api/progress", None, Some(cookie), false).await;
+        assert_eq!(progress.body["streak_days"], 1, "{tz}");
+    }
+    let db = &app.db;
+    let day = |id: uuid::Uuid| async move {
+        let rows = db
+            .query_all_raw(Statement::from_sql_and_values(
+                sea_orm::DatabaseBackend::Postgres,
+                "SELECT day FROM activity_days WHERE user_id = $1",
+                [id.into()],
+            ))
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        rows[0].try_get::<chrono::NaiveDate>("", "day").unwrap()
+    };
+    let (east_id, west_id) = (user_id(&app, &east).await, user_id(&app, &west).await);
+    let (east_day, west_day) = (day(east_id).await, day(west_id).await);
+    assert!(east_day > west_day, "east {east_day} should be ahead of west {west_day}");
+    let utc = chrono::Utc::now().date_naive();
+    assert!(east_day >= utc && west_day <= utc);
+}
+
+#[tokio::test]
+async fn time_zones_are_validated() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    for bad in ["Mars/Olympus_Mons", "'; DROP TABLE users; --", ""] {
+        let r = app.call("PATCH", "/api/auth/me", Some(json!({"timezone": bad})), Some(&cookie), true).await;
+        assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{bad}: {:?}", r.body);
+    }
+    // Sign-up never fails over a zone: an unknown one is dropped.
+    let email = format!("t-{}@example.com", uuid::Uuid::now_v7());
+    let body =
+        json!({"email": email, "password": "correct-horse-battery", "display_name": "T", "timezone": "Nowhere/Land"});
+    let r = app.call("POST", "/api/auth/register", Some(body), None, true).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["timezone"], Value::Null);
+    let email = format!("t-{}@example.com", uuid::Uuid::now_v7());
+    let body =
+        json!({"email": email, "password": "correct-horse-battery", "display_name": "T", "timezone": "Asia/Kolkata"});
+    let r = app.call("POST", "/api/auth/register", Some(body), None, true).await;
+    assert_eq!(r.body["timezone"], "Asia/Kolkata");
+}
+
+#[tokio::test]
 async fn throttled_responses_say_when_to_retry() {
     let Some(app) = test_app().await else { return };
     // Repeated guesses at one account are throttled per account, whatever

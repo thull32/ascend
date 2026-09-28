@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use chrono::{Datelike, Duration, Utc};
+use chrono::{Duration, Utc};
 use sea_orm::sea_query;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
@@ -186,17 +186,18 @@ impl ProgressService {
         let in_progress: Vec<String> =
             progress.iter().filter(|p| p.status == "in_progress").map(|p| p.lesson_slug.clone()).collect();
 
-        // Streak: consecutive UTC days (ending today or yesterday) with any
-        // learning activity, from the append-only activity log.
+        // Streak: consecutive days in the learner's time zone (ending today
+        // or yesterday) with any learning activity, from the activity log.
+        let today = super::activity::today(&self.db, user_id).await?;
         let days: Vec<chrono::NaiveDate> = ActivityDays::find()
             .select_only()
             .column(activity_days::Column::Day)
             .filter(activity_days::Column::UserId.eq(user_id))
-            .filter(activity_days::Column::Day.gte(Utc::now().date_naive() - Duration::days(400)))
+            .filter(activity_days::Column::Day.gte(today - Duration::days(400)))
             .into_tuple()
             .all(&self.db)
             .await?;
-        let streak = compute_streak(&days, Utc::now().date_naive());
+        let streak = compute_streak(&days, today);
 
         // A quiz counts once per lesson, however many times it is retaken:
         // XP must reward learning, not repetition.
@@ -247,10 +248,10 @@ impl ProgressService {
     }
 }
 
-fn compute_streak(sorted_unique_days: &[chrono::NaiveDate], today: chrono::NaiveDate) -> u32 {
+fn compute_streak(days: &[chrono::NaiveDate], today: chrono::NaiveDate) -> u32 {
     let mut streak = 0u32;
     let mut cursor = today;
-    let set: std::collections::HashSet<_> = sorted_unique_days.iter().copied().collect();
+    let set: std::collections::HashSet<_> = days.iter().copied().collect();
     // Allow the streak to be "alive" if the last activity was yesterday.
     if !set.contains(&cursor) {
         cursor -= Duration::days(1);
@@ -259,7 +260,6 @@ fn compute_streak(sorted_unique_days: &[chrono::NaiveDate], today: chrono::Naive
         streak += 1;
         cursor -= Duration::days(1);
     }
-    let _ = today.weekday();
     streak
 }
 

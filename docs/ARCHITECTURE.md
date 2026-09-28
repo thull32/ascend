@@ -67,7 +67,9 @@ Twelve tables in seven append-only migrations: `users`, `sessions`, `lesson_prog
 with a null author so replies keep their context. Progress and preferences use composite primary keys
 and single-statement upserts (`INSERT … ON CONFLICT DO UPDATE`), so there is no read-modify-write race.
 Invariants live in the schema where they can: a partial unique index allows one active interview per
-learner, and `activity_days` has one row per learner per day, which is what streaks are computed from.
+learner, and `activity_days` has one row per learner per day, which is what streaks are computed from. A
+day is the learner's own calendar day in the IANA zone on their account (`users.timezone`, set from the
+browser and validated against `pg_timezone_names`); Postgres does the conversion.
 
 Content is **not** in the database. Rows reference content by stable slug (`track/module/lesson`), so
 lessons can be edited and redeployed without a migration, and progress survives re-ordering.
@@ -108,8 +110,10 @@ system prompt). Three products sit on top:
   endpoint is enabled and everything the candidate asks it is recorded in the transcript; the evaluation is a
   JSON-schema rubric with an extra "AI direction and verification" dimension for assisted rounds.
 
-Every model call first reserves a request slot in `ai_usage` (per user per UTC day, atomic upsert) and
-records actual tokens afterwards. Streaming replies run in a spawned task that persists the reply even if
+Every model call first places a hold on the day's budget in `ai_usage` (per user per UTC day, under a row
+lock): its estimated input plus its `max_tokens` of output, capped at what is left, which also lowers the
+call's `max_tokens`. Settling replaces the hold with the tokens actually billed, so no call can overshoot
+the limit. Streaming replies run in a spawned task that persists the reply even if
 the browser disconnects; the HTTP response is only a consumer of a channel. See
 [ADR 0004](adr/0004-llm-cost-controls.md).
 
@@ -141,6 +145,8 @@ with a JSON fence (` ```viz {"type": "graph", "algorithm": "dijkstra", …} `).
 
 ## Scaling notes
 
-The service is stateless apart from the in-process rate limiter. To run more than one replica, move rate
-limiting to Redis (the `Limiters` type is the seam) and keep everything else as is. Postgres is the
+Replicas share everything that matters through Postgres: sessions, budgets and the security rate limits
+(sign-up, login, password attempts and model calls, as GCRA state in an `UNLOGGED` table updated by one
+conditional upsert). Only the loose general bucket is per replica, which is fine for what it guards. So
+more replicas need no other change. Postgres is the
 bottleneck long before the app servers; the hot read paths (curriculum, lessons, problems) never touch it.

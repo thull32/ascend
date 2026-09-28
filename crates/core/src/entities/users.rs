@@ -16,6 +16,9 @@ pub struct Model {
     pub target_level: Option<String>,
     pub weekly_hours: i16,
     pub preferred_language: String,
+    /// IANA time zone name; `None` means UTC. Days (streaks) are the
+    /// learner's local days.
+    pub timezone: Option<String>,
     pub onboarded_at: Option<DateTime<Utc>>,
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
