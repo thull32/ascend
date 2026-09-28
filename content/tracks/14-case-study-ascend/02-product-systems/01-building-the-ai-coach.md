@@ -196,28 +196,35 @@ There is a cost to this design worth saying out loud. The Stop button in `useStr
 
 ### Why not EventSource or WebSockets
 
-`EventSource` is the browser's built-in SSE client, and it can only issue GET requests with no body and no custom headers. The coach needs to POST the message plus the learner's editor contents, and every mutating request must carry `X-Requested-With` for CSRF. So `web/src/lib/api.ts` uses `fetch` and parses the byte stream by hand:
+`EventSource` is the browser's built-in SSE client, and it can only issue GET requests with no body and no custom headers. The coach needs to POST the message plus the learner's editor contents, and every mutating request must carry `X-Requested-With` for CSRF. So `streamPost` in `web/src/lib/api.ts` uses `fetch` and hands the decoded text to a parser in `web/src/lib/sse.ts`:
 
 ```typescript
-// web/src/lib/api.ts — streamPost
-for (;;) {
-  const { value, done } = await reader.read();
-  if (done) break;
-  buffer += decoder.decode(value, { stream: true });
-  let idx: number;
-  while ((idx = buffer.indexOf("\n")) >= 0) {
-    const line = buffer.slice(0, idx).replace(/\r$/, "");
-    buffer = buffer.slice(idx + 1);
-    if (line === "") dispatch();
-    else if (line.startsWith(":")) continue;
-    else if (line.startsWith("event:")) event = line.slice(6).trim();
-    else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+// web/src/lib/sse.ts — the line splitter inside createSseParser
+const drain = (final: boolean) => {
+  let start = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const c = buffer[i];
+    if (c === "\n") {
+      line(buffer.slice(start, i));
+      start = i + 1;
+    } else if (c === "\r") {
+      if (i + 1 === buffer.length && !final) break; // maybe half a CRLF: wait
+      line(buffer.slice(start, i));
+      if (buffer[i + 1] === "\n") i++;
+      start = i + 1;
+    }
   }
-}
-dispatch();
+  buffer = buffer.slice(start);
+};
 ```
 
-Network reads split anywhere, including inside a UTF-8 character and inside a line, which is why the decoder runs with `stream: true` and only complete lines are processed. A delta containing a newline arrives as several `data:` lines (Axum splits it), and `dispatch` joins them back with `\n`. WebSockets were never seriously considered: the data flows one way, SSE is plain HTTP that passes through the same middleware (cookies, CSRF, request IDs, timeouts), and it needs no second protocol on the server. See [Real-time transports](/learn/networking/application-protocols/real-time-transports) for the general comparison.
+Network reads split anywhere, including inside a UTF-8 character and inside a line, which is why the decoder runs with `stream: true` and only complete lines are processed. A blank line dispatches the event; several `data:` lines join with `\n`; lines starting with `:` are the server's keep-alive comments.
+
+**Before: a parser that was right for the common case.** The first version lived inline in `streamPost` and split lines on `\n` only, stripping one trailing `\r`. That handles LF and CRLF, and every line axum *ends* with `\n`. But the SSE format also ends a line at a lone CR, and axum's encoder follows it: a payload is split at every CR or LF inside it, each piece getting its own `data:` prefix. The delta `"sunset bye\r"` goes on the wire as `data: sunset bye\rdata: \n`. The old parser read that as one line and showed the learner `sunset bye\rdata: `. Model output rarely contains a carriage return, which is why nothing noticed until the networking lessons were reviewed against the axum source.
+
+**After: follow the spec, and test with the server's own bytes.** The parser now treats CRLF, LF and a lone CR as line ends. The subtle part is the chunk boundary: if a chunk ends with `\r`, the next chunk may start with the `\n` of the same CRLF, and treating the CR as a line end at once would make the LF look like a blank line and dispatch a half-built event. So a trailing CR waits for the next chunk, or for the end of the stream. `web/src/lib/sse.test.ts` feeds it axum's own encodings (copied from axum's tests), splits a stream at every possible byte offset and checks the result never changes, and covers comments, the event-name reset and a final event with no closing blank line. The lesson generalises: when you reimplement one side of a wire format, test against bytes the other side really produces.
+
+WebSockets were never seriously considered: the data flows one way, SSE is plain HTTP that passes through the same middleware (cookies, CSRF, request IDs, timeouts), and it needs no second protocol on the server. See [Real-time transports](/learn/networking/application-protocols/real-time-transports) for the general comparison.
 
 ## The incident: a route change that dropped the reply
 
@@ -414,21 +421,25 @@ The persona rule "never hand over a full solution" is also worth naming for what
 id: parse-sse-stream
 title: Parse an SSE byte stream into events
 prompt: |
-  Implement `parse_sse(chunks)`, the parser from `web/src/lib/api.ts`.
+  Implement `parse_sse(chunks)`, the parser from `web/src/lib/sse.ts`.
   `chunks` is a list of strings in the order they were read from the
-  network; a chunk may end anywhere, even in the middle of a line.
+  network; a chunk may end anywhere, even in the middle of a line or
+  between the CR and LF of a CRLF.
 
   Return a list of `[event, data]` pairs, using these rules:
 
-  - Only complete lines (ending in `\n`) are processed; strip one trailing `\r`.
+  - A line ends at `\r\n`, `\n` or a lone `\r`. A `\r` at the very end
+    of a chunk may be half of a `\r\n`, so decide only once you see what
+    follows it (or the input ends).
   - An empty line dispatches the pending event if at least one `data:` line
-    was collected. After a dispatch the event name resets to `"message"`.
+    was collected. After any empty line the event name resets to `"message"`.
   - A line starting with `:` is a comment (keep-alive) and is ignored.
-  - `event:` sets the event name to the rest of the line, trimmed.
-  - `data:` appends the rest of the line with at most one leading space removed.
-    Several data lines are joined with `\n`.
-  - When the input ends, dispatch any pending data. An unterminated final
-    line (no `\n`) is dropped.
+  - Otherwise the field name is the text before the first `:` and the value
+    is the rest, with at most one leading space removed. `event` sets the
+    event name; `data` appends the value, and several data lines are joined
+    with `\n`. Other fields are ignored.
+  - When the input ends, process any unterminated final line, then dispatch
+    any pending data.
 languages: [python, javascript]
 entry: parse_sse
 starter:
@@ -463,15 +474,22 @@ tests:
     hidden: true
     label: event name resets after dispatch
   - args: [["event: done\ndata: {}\n", "data: partial"]]
-    expected: [["done", "{}"]]
+    expected: [["done", "{}\npartial"]]
     hidden: true
-    label: end of stream
+    label: end of stream flushes the last line and event
+  - args: [["data: sunset bye\rdata: \n\n"]]
+    expected: [["message", "sunset bye\n"]]
+    hidden: true
+    label: a lone CR ends a line, as axum emits it
+  - args: [["data: a\r", "\ndata: b\r\n\r", "\n"]]
+    expected: [["message", "a\nb"]]
+    label: a CRLF split across chunks is one line end
   - args: [["data:x\n\ndata:  y\n\n"]]
     expected: [["message", "x"], ["message", " y"]]
     hidden: true
     label: only one leading space is stripped
 hints:
-  - "Keep a string buffer across chunks; append each chunk, then repeatedly cut off everything up to the first newline."
+  - "Keep a string buffer across chunks. Scan it for `\\n` or `\\r`; on `\\r`, if it is the last character and more input may come, stop and wait, otherwise end the line and skip a following `\\n`."
   - "Keep three pieces of state between lines: the buffer, the current event name, and the list of data lines."
   - "Write dispatch as a small function that does nothing when there is no data, and call it once more after the loop."
 ```

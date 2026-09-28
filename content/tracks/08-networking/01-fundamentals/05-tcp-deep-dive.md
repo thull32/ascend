@@ -1,10 +1,10 @@
 ---
 slug: tcp-deep-dive
 title: "TCP deep dive: sequence numbers, windows, timers and TIME_WAIT"
-description: How TCP's handshake, cumulative ACKs, retransmission timers, receive window, Nagle's algorithm and four-way close actually work, read from tcpdump and ss output, and the production failures each one causes.
+description: How TCP's handshake, sequence numbers, SACK, retransmission timers (Jacobson/Karels worked with numbers and checked against a live socket), receive window, Nagle and delayed ACK (a measured 44 ms stall) and four-way close actually work, TIME_WAIT and port-exhaustion arithmetic, and the production failures each one causes.
 minutes: 44
 difficulty: medium
-tags: [networking, tcp, retransmission, flow-control, nagle, time-wait, tcpdump, ss]
+tags: [networking, tcp, retransmission, sack, rto, flow-control, nagle, delayed-ack, time-wait, tcpdump, ss]
 problems: []
 ---
 Three tickets land in the same week. A reverse proxy starts failing with `connect: cannot assign requested address` once traffic passes about 470 new connections per second to one backend. A tiny RPC that should take 1 ms takes almost exactly 41 ms, every time. And a health check against a host in another VPC hangs for just over two minutes before failing, while the same check against a stopped service fails instantly.
@@ -15,7 +15,7 @@ None of these is a bug in your code in the usual sense. Each is TCP doing precis
 
 TCP numbers bytes, not packets. Each direction of a connection has its own 32-bit sequence space, starting at a random **initial sequence number** (ISN). A segment's sequence number is the number of its first payload byte. An **acknowledgement number** means "I have every byte before this one; send me this one next". Both sides track two pointers per direction: `SND.UNA` (oldest unacknowledged byte) and `SND.NXT` (next byte to send), with `RCV.NXT` on the receiving side.
 
-The ISN is random (Linux hashes the 4-tuple with a secret and a clock, per RFC 6528) for two reasons. It stops an attacker who cannot see your traffic from guessing sequence numbers and injecting data, and it makes it unlikely that a delayed segment from an old connection on the same 4-tuple lands inside the new connection's window.
+The ISN is random (Linux hashes the 4-tuple with a secret and a clock, per RFC 6528) so that an off-path attacker cannot guess sequence numbers to inject data, and so that a delayed segment from an old connection on the same 4-tuple is unlikely to land inside the new connection's window.
 
 Thirty-two bits is 4 GiB of sequence space, which wraps in about 3.4 seconds at 10 Gbit/s. The **timestamps** option guards against that (PAWS): a segment carrying an older timestamp than the last one seen is discarded even if its sequence number looks valid.
 
@@ -42,7 +42,7 @@ The handshake exists to exchange ISNs, and it is also the only moment TCP can ne
 | `TS val/ecr` | Timestamps: one RTT sample per ACK, and PAWS | RTT sampling is coarse; high-speed connections risk accepting wrapped segments. Costs 12 bytes per segment, which is why `ss` shows `mss:1448` rather than 1460 |
 | `wscale 7` | Window scale: the 16-bit window field is multiplied by 2^7 = 128 | The receive window is capped at 65,535 bytes for the life of the connection |
 
-The third line shows `ack 1` and `win 502`. `tcpdump` prints sequence numbers relative to the ISN after the handshake (use `-S` for absolute), and the window is the raw field; multiply by 128 to get the 64,256 bytes actually advertised.
+In the third line `tcpdump` prints `ack 1` relative to the ISN (`-S` shows absolute numbers), and `win 502` is the raw field: × 128 = 64,256 bytes advertised. The measured connection to example.com negotiated `wscale:13,10` and an MSS of 1,400 from Cloudflare's side, so Cloudflare's window fields are multiplied by 2¹³ = 8,192 and the laptop's by 2¹⁰ = 1,024.
 
 ### Listen queues and the one-second connect
 
@@ -57,7 +57,7 @@ TcpExtListenOverflows           48213              0.0
 TcpExtListenDrops               48213              0.0
 ```
 
-For a `LISTEN` socket, `Recv-Q` is the current accept-queue length and `Send-Q` is its limit. `129` against `128` means the queue is full: your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel drops the handshake, the client retransmits its SYN after the initial timeout of **one second**, and your latency histogram grows spikes at 1,000 ms and 3,000 ms. Connection latency clustered at 1 s and 3 s means: check `ListenOverflows` first. (SYN floods target the other queue; **SYN cookies**, on by default, let the server encode the handshake state in its ISN and keep none.)
+For a `LISTEN` socket, `Recv-Q` is the accept-queue length and `Send-Q` its limit; `129` against `128` means your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel drops the handshake, the client retransmits its SYN after the initial **one-second** timeout, and connect latency clusters at 1 s and 3 s: check `ListenOverflows` first. (SYN floods target the other queue; **SYN cookies**, on by default, let the server encode the handshake state in its ISN and keep none.)
 
 ### Refused versus silent
 
@@ -79,7 +79,7 @@ IP 10.0.0.5.44120 > 203.0.113.9.443: Flags [.],  ack 2897, win 501, length 0
 IP 10.0.0.5.44120 > 203.0.113.9.443: Flags [.],  ack 4345, win 490, length 0
 ```
 
-`seq 1:1449` is the byte range `[1, 1449)`. Each server segment also carries `ack 518`: the client's 517-byte TLS record, already acknowledged, piggybacked on data rather than sent as a separate packet. The client acknowledges every second segment, not every segment. That is the **delayed ACK**: the receiver ACKs at least every second full-sized segment, otherwise it waits for a timer (40 ms minimum on Linux, shown as `ato:40` in `ss`; up to 200 ms on Windows) hoping to piggyback the ACK on response data. Delayed ACKs halve ACK traffic on bulk transfers, and they cause the 41 ms stall from the opening. The shrinking `win` (509, 501, 490) is the receive buffer filling because the application has not read yet: flow control, covered below.
+`seq 1:1449` is the byte range `[1, 1449)`, and each server segment piggybacks `ack 518` for the client's 517-byte request. The client acknowledges every second segment: the **delayed ACK** rule is to ACK at least every second full-sized segment and otherwise wait for a timer (40 ms minimum on Linux, `ato:40` in `ss`; up to 200 ms on Windows) in the hope of piggybacking the ACK on response data. It halves ACK traffic on bulk transfers and causes the 41 ms stall from the opening. The shrinking `win` (509, 501, 490) is the receive buffer filling because the application has not read yet: flow control, covered below.
 
 ## Retransmission: timers and duplicate ACKs
 
@@ -105,9 +105,9 @@ One slow sample more than doubles the RTO, because the variance term reacts four
 
 Three details that matter in production:
 
-- **Minimum RTO.** The RFC says 1 second; Linux uses 200 ms and applies the floor to the variance term, so on a LAN `ss` shows `rto:201` to `rto:204`. A lost segment that waits for the timer costs 200 ms, hundreds of times a datacentre RTT.
+- **Minimum RTO.** The RFC says 1 second; Linux uses 200 ms and applies the floor to the variance term, so on a LAN `ss` shows `rto:201` to `rto:204`. A lost segment that waits for the timer costs 200 ms, hundreds of times a datacentre RTT. A live connection from this machine to example.com showed `rtt:19.34/8.341 rto:220`: SRTT 19.34 ms and RTTVAR 8.34 ms give an RFC 6298 RTO of 19.34 + 4 × 8.34 ≈ 53 ms before the RFC's own 1-second floor, but Linux replaces 4 × RTTVAR (33.4 ms) with its 200 ms floor, so the RTO is 19.34 + 200 ≈ 220 ms, rounded to the kernel's clock ticks.
 - **Karn's rule.** An ACK for a retransmitted segment is ambiguous (did it ack the original or the copy?), so it produces no RTT sample. Timestamps remove the ambiguity.
-- **Exponential backoff.** Each consecutive timeout doubles the RTO. Linux gives up after `tcp_retries2` (default 15) retransmissions, about 924.6 seconds by the kernel documentation. A peer that vanishes without a RST (power loss, a partition) leaves your writes blocked for around 15 minutes unless you set `TCP_USER_TIMEOUT` or an application-level timeout. TCP keepalive will not save you either: its default first probe is after two hours of idleness.
+- **Exponential backoff.** Each consecutive timeout doubles the RTO, and Linux gives up after `tcp_retries2` (15) retransmissions, about 924.6 seconds per the kernel documentation. A peer that vanishes without a RST leaves writes blocked for about 15 minutes unless you set `TCP_USER_TIMEOUT` or an application deadline; keepalive does not help, since its first probe comes after two idle hours.
 
 ```exercise
 id: rto-estimator
@@ -168,6 +168,22 @@ Waiting 200 ms or more for a timer is a disaster on a 20 ms path. Most losses ar
 {"type": "network", "scenario": "tcp-retransmit", "title": "Three duplicate ACKs trigger fast retransmit", "caption": "The receiver buffers segments 3 and 4 but keeps ACKing the hole. The retransmission fills it and the cumulative ACK jumps past everything buffered."}
 ```
 
+### SACK, traced
+
+A sender transmits segments 1 to 8 in one window; 3 and 6 are lost. ACKs name the next segment the receiver expects; SACK blocks list what it holds beyond that:
+
+| Arrives | Receiver's ACK | SACK blocks | Sender's view |
+|---|---|---|---|
+| 1, 2 | ACK 3 | none | In order |
+| 4 | ACK 3 (dup 1) | 4 | Hole at 3 |
+| 5 | ACK 3 (dup 2) | 4–5 | Hole at 3 |
+| 7 | ACK 3 (dup 3) | 4–5, 7 | Three segments above 3 are SACKed: 3 is lost, retransmit now. 6 has only 7 above it: not yet |
+| 8 | ACK 3 (dup 4) | 4–5, 7–8 | RACK: 7 and 8 were sent after 6 and have arrived, so once a quarter RTT has passed, 6 is lost too: retransmit |
+| 3 (resent) | ACK 6 | 7–8 | Hole at 6 already being repaired |
+| 6 (resent) | ACK 9 | none | Recovered |
+
+Both holes are repaired within about one round trip. Without SACK (NewReno) the sender learns only the first hole from duplicate ACKs; the ACK for the retransmitted 3 is a "partial ACK" (ACK 6, not 9) that reveals the second hole one RTT later, so two losses cost two round trips and three cost three. Linux enables SACK by default (`net.ipv4.tcp_sack = 1`, measured here) and keeps its retransmission queue in a red-black tree (since 4.15) so that processing thousands of SACK blocks on a fast connection stays O(log n) per block.
+
 With SACK, each duplicate ACK also carries the ranges the receiver does hold (`sack 1 {2897:5793}` in `tcpdump`), so the sender can repair several holes in one RTT. Modern Linux adds time-based loss detection (RACK) and **tail loss probes**: if the *last* segments of a response are lost, nothing follows them to generate duplicate ACKs, so the sender re-sends the final segment after about two RTTs instead of waiting for the RTO. Tail loss is the common case for request/response traffic, so this matters more for APIs than for bulk transfers.
 
 ## Flow control: the receive window
@@ -227,6 +243,17 @@ hints:
   - "Loop the shift upward from 0 and stop at 14. In JavaScript use 2 ** s rather than 1 << s so large values stay exact."
 ```
 
+The advertised window is free buffer space: buffer size minus bytes received but not yet read by the application. Trace a receiver with a 64 KiB buffer whose application reads 20 KiB per round trip while the sender always fills whatever window it is offered:
+
+| Round trip | Window advertised at start | Sender sends | Application reads | Unread at end | Next window |
+|---|---|---|---|---|---|
+| 1 | 64 KiB | 64 KiB | 20 KiB | 44 KiB | 20 KiB |
+| 2 | 20 KiB | 20 KiB | 20 KiB | 44 KiB | 20 KiB |
+| 3 (app pauses 40 ms for GC) | 20 KiB | 20 KiB | 0 | 64 KiB | 0: zero window |
+| 4 | 0 | Zero-window probe only | 64 KiB after the pause | 0 | 64 KiB |
+
+Flow control converges on the reader's pace (20 KiB per round trip), and a pause in the reader appears on the wire as `win 0` within one round trip. The sender then sends periodic zero-window probes, backing off like the RTO, until the window reopens.
+
 Three production consequences:
 
 - **The receiver's buffer is the window.** Linux autotunes the receive buffer between the bounds in `net.ipv4.tcp_rmem` (the default maximum on recent kernels is about 6 MB). If an application sets `SO_RCVBUF` explicitly, autotuning is switched off for that socket, and a "tuned" 256 KB buffer can cap a cross-region transfer far below what the default would have reached. Cross-region replication that is mysteriously slow with no loss is usually a window, not a link.
@@ -249,7 +276,51 @@ sequenceDiagram
     S-->>C: response
 ```
 
-That is the 41 ms RPC from the opening: 1 ms of work plus one delayed-ACK timer. The fixes, in order of preference:
+That is the 41 ms RPC from the opening: 1 ms of work plus one delayed-ACK timer. It reproduces on loopback in a few lines of Python (run under the repository's `scripts/safe_py.sh` on this machine):
+
+```python
+import socket, statistics, threading, time
+
+def server(ls):
+    conn, _ = ls.accept()
+    while True:
+        buf = b""
+        while len(buf) < 200:                       # the request is 200 bytes: header + body
+            chunk = conn.recv(200 - len(buf))
+            if not chunk:
+                return conn.close()
+            buf += chunk
+        conn.sendall(b"k")                          # one-byte reply, only after the whole request
+
+def run(nodelay, coalesce=False, rounds=60):
+    ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(1)
+    threading.Thread(target=server, args=(ls,), daemon=True).start()
+    c = socket.create_connection(ls.getsockname())
+    if nodelay:
+        c.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    times = []
+    for _ in range(rounds):
+        t0 = time.perf_counter()
+        if coalesce:
+            c.sendall(b"h" * 100 + b"b" * 100)      # one write
+        else:
+            c.sendall(b"h" * 100)                   # write 1: sent immediately
+            c.sendall(b"b" * 100)                   # write 2: Nagle holds it until write 1 is ACKed
+        c.recv(1)
+        times.append((time.perf_counter() - t0) * 1000)
+    c.close(); ls.close()
+    return statistics.median(times[20:])            # skip the start, when Linux ACKs immediately
+
+print(run(False), run(True), run(False, coalesce=True))
+```
+
+| Variant | Median per request (loopback) |
+|---|---|
+| Nagle on, write-write-read | 44.0 ms |
+| `TCP_NODELAY` | 0.26 ms |
+| One coalesced write, Nagle on | 0.21 ms |
+
+The first request of the Nagle run took 0.5 ms: a new Linux connection starts in "quick ACK" mode and acknowledges immediately, and only once it switches to delayed ACKs does every request pay the timer. That is why the bug hides in short tests. The fixes, in order of preference:
 
 1. **Write once.** Build the whole message in a buffer, or use `writev`, so the request is one write. This also halves syscalls.
 2. **Set `TCP_NODELAY`.** It disables Nagle on the socket. Go's `net` package sets it by default, as do most RPC libraries and HTTP clients; check yours rather than assume.
@@ -283,14 +354,14 @@ It costs a port. A client connecting to one `(destination IP, port)` from one so
 
 $$\frac{28{,}232 \text{ ports}}{60 \text{ s}} \approx 470 \text{ new connections per second}$$
 
-That is the proxy from the opening: it opened a fresh connection to its single backend per request, closed it, and hit the ceiling at around 470 per second with `EADDRNOTAVAIL`. The fixes, best first:
+That is the proxy from the opening: it opened a fresh connection to its single backend per request, closed it, and hit the ceiling at around 470 per second with `EADDRNOTAVAIL`. The range is configuration, not physics: this WSL2 machine's `ip_local_port_range` is 39160 to 43255, only 4,096 ports, so the same pattern fails at 4,096 / 60 ≈ 68 new connections per second. Measured on loopback, 300 connections opened and closed by the client in 286 ms left exactly 300 sockets in TIME_WAIT on the client side and none on the server. The kernel also caps the table: `tcp_max_tw_buckets` is 131,072 here, and beyond it Linux destroys new TIME_WAIT sockets immediately and logs "time wait bucket table overflow". The fixes, best first:
 
 - **Reuse connections.** Keep-alive and pooling remove the problem entirely and also remove a handshake per request. See [Connection pooling and keep-alive](/learn/networking/networking-in-practice/connection-pooling-and-keep-alive).
 - **Let the server close first** where the protocol allows, so TIME_WAIT lands on the side with a fixed port and many clients (a server's TIME_WAIT entries do not consume its listening port).
 - **Widen the 4-tuple space:** more backend IPs, more source IPs, or a wider `ip_local_port_range`.
-- `net.ipv4.tcp_tw_reuse=1` lets new *outgoing* connections reuse a TIME_WAIT port when TCP timestamps prove the new segments are newer. Its old sibling `tcp_tw_recycle` broke clients behind NAT and was removed from Linux in 4.12; any blog post recommending it is out of date.
+- `net.ipv4.tcp_tw_reuse=1` lets new *outgoing* connections reuse a TIME_WAIT port when TCP timestamps prove the new segments are newer (the current default, 2, measured here, enables it for loopback connections only). Its old sibling `tcp_tw_recycle` broke clients behind NAT and was removed from Linux in 4.12; any blog post recommending it is out of date.
 
-Do not "fix" TIME_WAIT by sending RSTs (`SO_LINGER` 0) as a matter of course. You trade a port-count problem for silently discarded data and the old-segment risk the state exists to prevent.
+Do not "fix" TIME_WAIT with routine RSTs (`SO_LINGER` 0): that trades a port problem for discarded data and the old-segment risk the state prevents.
 
 ### CLOSE_WAIT is always your bug
 
@@ -298,11 +369,11 @@ CLOSE_WAIT means the peer has sent FIN, the kernel has ACKed it, and your applic
 
 ### The idle-timeout race
 
-A load balancer drops idle connections after its idle timeout (60 seconds by default on an AWS Application Load Balancer). Your backend's HTTP server also closes idle keep-alive connections after its own timeout (Node's default `keepAliveTimeout` is 5 seconds). If the backend's timeout is *shorter* than the balancer's, the backend sends FIN at the moment the balancer decides to reuse the connection for a new request; the request meets a closed socket and the balancer returns a 502. The rule: every hop's idle timeout must be longer than the timeout of the hop in front of it, so the client side of each connection is always the one that closes it.
+An AWS Application Load Balancer keeps idle connections for 60 seconds by default; Node's HTTP server closes idle keep-alive connections after 5 (`keepAliveTimeout`). The backend's FIN can cross the balancer's next request on the same connection, and that request becomes a 502. Every hop's idle timeout must be longer than the one in front of it, so the client side of each connection always closes first.
 
 ## Reading a live connection with `ss -ti`
 
-`ss -ti` prints the kernel's view of each connection, and it answers most "why is this connection slow" questions without a packet capture:
+`ss -ti` prints the kernel's view of each connection and answers most "why is this slow" questions without a capture. A bulk sender looks like this:
 
 ```bash
 $ ss -tin dst 203.0.113.9
@@ -326,7 +397,51 @@ ESTAB  0       1286512  10.0.0.5:8443         203.0.113.9:51220
 | `send 6.0Mbps` | cwnd × MSS / RTT: $42 \times 1448 \times 8 / 0.0812 \approx 6.0$ Mbit/s, the ceiling the congestion window allows |
 | `retrans:0/61` | Nothing outstanding right now, 61 retransmissions over the connection's life: about 0.17% of 36,240 data segments |
 
-That connection is limited by congestion, not by the receiver: every loss has cut the window, and even a loss rate of a fraction of a percent keeps it small on an 80 ms path, which is the subject of [Congestion control](/learn/networking/fundamentals/congestion-control). If instead `cwnd` were large and the peer were advertising a small window, the receiver would be the bottleneck. `ss` separates the two in one command.
+That connection is limited by congestion, not by the receiver: even a fraction of a percent of loss keeps the window small on an 80 ms path ([congestion control](/learn/networking/fundamentals/congestion-control)). A large `cwnd` with a small peer window would point at the receiver instead.
+
+## Under the hood: what the kernel keeps per connection
+
+- **Lookup.** Every arriving segment is matched to a socket through the established hash table, keyed by the 4-tuple; a miss falls through to the listening sockets, and a miss there produces a RST. A full connection is a `tcp_sock` of a couple of kilobytes of state before any buffer space.
+- **TIME_WAIT is cheap on purpose.** A closed connection is replaced by a slim `inet_timewait_sock` of a few hundred bytes with one timer, so 131,072 of them cost tens of megabytes, not gigabytes; the scarce resource is ports, not memory.
+- **Timers per socket.** Retransmission (RTO, tail loss probe, RACK reordering timer), delayed ACK, zero-window probe, keepalive (first probe after `tcp_keepalive_time`, 7,200 s here) and TIME_WAIT expiry.
+- **Queues.** The send buffer holds unacknowledged data (`Send-Q`); TCP Small Queues limit how much of it sits in the device queue at once, so the qdisc (`fq_codel` here) does not add seconds of delay; the receive buffer holds unread data (`Recv-Q`) and, with autotuning, grows toward `tcp_rmem[2]` (32 MB on this machine).
+
+## Production failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Accept-queue overflow | Connect latency clusters at 1 s and 3 s under load | `ss -lnt` Recv-Q at the limit; `ListenOverflows` rising | Accept faster (event loop or pool saturation), raise backlog and `somaxconn` |
+| Nagle and delayed ACK | Requests take a flat 40 ms (Linux peer) or 200 ms (Windows peer) regardless of load | Capture shows the second small write waiting for an ACK | One write per message, or `TCP_NODELAY` |
+| Ephemeral port exhaustion | `EADDRNOTAVAIL` on connect above a fixed rate to one destination | `ss -tan state time-wait` count near the port range; rate ≈ ports / 60 | Keep-alive pooling; server closes first; more destination or source addresses |
+| CLOSE_WAIT leak | File descriptors climb until `EMFILE` | Thousands of sockets in CLOSE_WAIT, owned by your process | Close responses and sockets on every path |
+| Dead peer, no RST | Writes hang for about 15 minutes after a peer's host dies | Send-Q grows, retransmits climb in `ss -ti` | `TCP_USER_TIMEOUT`, application deadlines, keepalive tuned below NAT timers |
+| Idle-timeout race | Rare 502s at low traffic behind a load balancer | Backend idle timeout shorter than the balancer's | Order idle timeouts so each hop outlives the one in front |
+| Window-limited transfer | Long-distance throughput far below the link with no loss | `ss -ti` shows no retransmits; peer's window small; `SO_RCVBUF` set in code | Remove the fixed buffer; let autotuning grow to the BDP |
+
+## Trade-offs: sending small messages
+
+| | Nagle on (default) | `TCP_NODELAY` | `TCP_CORK` / `MSG_MORE` | Build the message, one `write`/`writev` |
+|---|---|---|---|---|
+| Latency for write-write-read | Up to one delayed-ACK timer (40–200 ms) | Minimal | Minimal once uncorked | Minimal |
+| Packets for many tiny writes | Coalesced while unacknowledged | One per write | Coalesced until uncorked | One per message |
+| System calls | One per write | One per write | Extra calls to cork and uncork | One per message |
+| Risk | Latency stalls in RPC patterns | Tiny-packet floods from chatty code | Forgetting to uncork (Linux flushes after 200 ms) | None; needs buffering code |
+
+## Interviewer follow-ups
+
+**"Compute the RTO after samples of 100, 100 and 400 ms. Why does one slow sample raise it so much?"** Model answer: 300, 250, 550 ms; RTTVAR moves by a quarter of each deviation and is multiplied by four, so variance dominates and an erratic path gets more slack. On Linux the 200 ms floor on the variance term means a LAN connection's RTO is about RTT + 200 ms. Common wrong answer: "RTO is twice the RTT".
+
+**"What does SACK buy you over fast retransmit alone?"** Model answer: the sender learns every hole in one round trip and repairs several losses per RTT, instead of one per RTT with partial ACKs; with RACK it also detects losses by time rather than by counting duplicates. Common wrong answer: "SACK makes the receiver acknowledge every segment".
+
+**"TIME_WAIT is exhausting ports on a proxy. What do you do?"** Model answer: reuse connections first; then make the server side close where possible, add destination or source addresses, widen the port range, and consider `tcp_tw_reuse` for outgoing connections; never `tcp_tw_recycle` (removed in 4.12) or routine RST-on-close. Common wrong answer: "lower `tcp_fin_timeout`", which controls FIN_WAIT_2, not TIME_WAIT.
+
+## What mid-level engineers get wrong
+
+- Treating `tcp_fin_timeout` as the TIME_WAIT duration; on Linux TIME_WAIT is a compiled-in 60 seconds.
+- Setting `SO_RCVBUF` "for performance", which disables autotuning and caps long-distance throughput.
+- Relying on the kernel's defaults for dead peers: 127 seconds to fail a connect, about 15 minutes to fail a write, two hours to the first keepalive.
+- Splitting one message across several small writes and then chasing a 40 ms latency mode in the wrong layer.
+- Reading `Send-Q` and `Recv-Q` backwards: growing `Recv-Q` means your application is slow to read; growing `Send-Q` means the peer or the path is slow.
 
 ## Senior signals
 
@@ -371,9 +486,9 @@ That connection is limited by congestion, not by the receiver: every loss has cu
   explanation: >-
     Throughput is bounded by min(cwnd, rwnd) per RTT. With no loss and a large cwnd, the receiver's window is the binding limit: 524,288 bytes x 8 / 0.08 s is about 52 Mbit/s, far below the path's bandwidth-delay product of about 100 MB. Setting SO_RCVBUF turned off autotuning, which would have grown the window toward the tcp_rmem maximum. Removing the setsockopt call usually fixes it.
 - q: >-
-    Behind a load balancer with a 60-second idle timeout, a Node service with the default 5-second keepAliveTimeout returns occasional 502s at low traffic. Why?
-  options: ["Node's HTTP server cannot handle keep-alive at all", "Nagle's algorithm delays the balancer's requests", "Backend idle timeout is shorter than the balancer's", "The balancer's TIME_WAIT table fills at low traffic"]
-  answer: 2
+    On a Linux client, ss -ti shows rtt:19.34/8.341 rto:220 for a connection. The RFC 6298 formula SRTT + 4 x RTTVAR gives about 53 ms. Why does the kernel report 220 ms?
+  options: ["The RTO includes the 40 ms delayed-ACK timer of the peer, counted five times", "Linux doubles the RTO after every sample until a loss has been observed", "The RFC's one-second minimum applies, and the kernel scales it by RTT", "Linux floors the 4 x RTTVAR term at 200 ms, so RTO is about SRTT + 200"]
+  answer: 3
   explanation: >-
-    Two hops with idle timeouts race to close the same connection. The backend closes idle connections after 5 seconds, so the balancer sometimes sends a new request on a connection the backend has just closed, and that request fails. Making each hop's idle timeout longer than the one in front of it ensures the client side of every connection closes first.
+    Linux replaces the variance term with its 200 ms minimum when 4 x RTTVAR is smaller, so the RTO is roughly SRTT + 200 ms (19.34 + 200, rounded to clock ticks). RFC 6298 recommends a 1-second floor, which Linux deliberately does not use. Backoff doubles the RTO only after a timeout fires, and delayed ACKs are not added to the RTO.
 ```

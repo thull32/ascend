@@ -1,7 +1,7 @@
 ---
 slug: congestion-control
 title: "Congestion control: slow start, AIMD, Cubic, BBR and bufferbloat"
-description: How a TCP sender guesses a bottleneck it cannot see, why AIMD converges to fairness, why Reno cannot fill a fast long path and Cubic can, what BBR models instead of loss, and how to read bufferbloat and congestion in latency graphs.
+description: How a TCP sender guesses a bottleneck it cannot see, slow start and AIMD traced per round trip and on a measured upload (HyStart exit, Cubic's 0.7 cut, rate-halving), why AIMD converges to fairness, Cubic's window function computed, the Mathis limit on long fat paths, what BBR models instead of loss, and how to read bufferbloat in latency graphs.
 minutes: 34
 difficulty: hard
 tags: [networking, tcp, congestion-control, slow-start, aimd, cubic, bbr, bufferbloat]
@@ -128,6 +128,24 @@ hints:
   - "After a D, cwnd equals ssthresh, so the next clean round is congestion avoidance (+1), not slow start."
 ```
 
+## A real upload, traced from the kernel
+
+Theory is cleaner than any real path, so here is one. From the machine this lesson was written on, a single 4 MB HTTPS upload to Cloudflare's speed-test endpoint ran with Linux's default Cubic while a thread read the socket's `TCP_INFO` every 2 ms (the same fields `ss -ti` prints). The upload averaged 4.1 Mbit/s, the path's minimum RTT was 15.5 ms, and the MSS was 1,388:
+
+| Time | cwnd | ssthresh | Smoothed RTT | Retransmits | What happened |
+|---|---|---|---|---|---|
+| 0 ms | 10 | ∞ | 31 ms | 0 | Initial window after the TLS handshake |
+| 52–128 ms | 13 → 48 | ∞ | 33 → 44 ms | 0 | Slow start: each ACK adds a segment |
+| 136 ms | 55 | **55** | 41 ms | 0 | HyStart exit: RTT had risen ~10 ms above the round's minimum, so slow start ended **without a loss** |
+| 150–242 ms | 56 → 62 | 55 | 41 → 56 ms | 0 | Congestion avoidance: about one segment per RTT; RTT keeps rising as the bottleneck queue fills |
+| 246 ms | 60 | **43** | 51 ms | 1 | First loss: ssthresh = 62 × 0.7 = 43.4, Cubic's β |
+| 250–295 ms | 58 → 43 | 43 | ~50 ms | 2 | The window steps down over one RTT (proportional rate reduction), not in one jump |
+| 403 ms | 42 | **30** | 46 ms | 6 | Next loss: 43 × 0.7 = 30.1 |
+| 470 ms | 29 | **21** | 54 ms | 9 | 30 × 0.7 = 21 |
+| 1.2–2.8 s | 5 – 12 | 5 – 8 | 40 – 64 ms | 17 → 29 | Oscillating around the path's capacity |
+
+Three lessons in one trace. The bottleneck was a 4.1 Mbit/s uplink, whose BDP at the 15.5 ms minimum RTT is 4.1 × 10⁶ × 0.0155 / 8 ≈ 7.9 KB, under six segments; the window finally oscillated between 5 and 12, and everything above six segments was queue, visible as a smoothed RTT of 40 to 64 ms, three to four times the empty-path RTT. Each loss cut ssthresh to 70% of the window, exactly Cubic's β. And the loss rate was high: 29 retransmissions in about 1,000 data segments by 2.8 s, roughly 3%, the signature of a small buffer or a rate policer at the uplink rather than a deep, bloated one.
+
 ## Why Reno cannot fill a fast, long path
 
 The sawtooth has a steady-state throughput that depends on the loss rate. The Mathis approximation for a Reno-style flow is:
@@ -142,7 +160,7 @@ where `p` is the packet loss probability. With a 1,460-byte MSS and a 100 ms RTT
 | 0.1% | 4.5 Mbit/s |
 | 0.01% | 14.2 Mbit/s |
 
-Three things fall out. Throughput is inversely proportional to RTT, so halving the distance (a closer CDN edge) doubles the ceiling. It scales only with the square root of loss, so halving loss buys just 41%. And the loss rate needed for high speed is absurd: RFC 3649 works out that a standard TCP flow at 10 Gbit/s over 100 ms with 1,500-byte packets needs an average window of 83,333 segments and at most one loss every 5 billion packets, about one congestion event every hour and forty minutes. After a single loss, climbing back from 41,667 to 83,333 segments at one segment per RTT takes 41,667 RTTs, about 69 minutes. No real path is that clean. The replication job from the opening, at one loss in ten thousand, sits in the bottom row of the table; Cubic, below, does somewhat better, but still nowhere near 10 Gbit/s.
+Three things fall out. Throughput is inversely proportional to RTT, so halving the distance (a closer CDN edge) doubles the ceiling. It scales only with the square root of loss, so halving loss buys only 41%. And the loss rate needed for high speed is absurd: RFC 3649 works out that a standard TCP flow at 10 Gbit/s over 100 ms with 1,500-byte packets needs an average window of 83,333 segments and at most one loss every 5 billion packets, about one congestion event every hour and forty minutes. After a single loss, climbing back from 41,667 to 83,333 segments at one segment per RTT takes 41,667 RTTs, about 69 minutes. No real path is that clean. The replication job from the opening, at one loss in ten thousand, sits in the bottom row of the table; Cubic, below, does somewhat better, but still nowhere near 10 Gbit/s.
 
 ## Cubic: growth as a function of time
 
@@ -157,9 +175,68 @@ The curve is concave then convex. Right after a loss it grows fast, slows to a n
 - `W_max` = 100 segments: `K` = ∛(100 × 0.3 / 0.4) = ∛75 ≈ 4.2 seconds.
 - `W_max` = 83,333 segments (the 10 Gbit/s path): `K` = ∛62,500 ≈ 39.7 seconds, against Reno's 69 minutes.
 
+Computed from the formula for `W_max` = 100 segments (so `K` ≈ 4.22 s), against Reno recovering from the same loss on a 100 ms path (halve to 50, then +1 per RTT, which is +10 per second):
+
+| Seconds after the loss | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Cubic W(t) | 70.0 | 86.7 | 95.6 | 99.3 | 100.0 | 100.2 | 102.3 | 121.7 |
+| Reno, 100 ms RTT | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 130 |
+
+Cubic regains 87% of the old window in the first second, then creeps past `W_max` for about two seconds (between 3 and 5 s it adds less than one segment), then accelerates. The measured trace's first loss, at a window of 62, gives `K` = ∛(62 × 0.3 / 0.4) ≈ 3.6 s and W(0) = 43.4, the ssthresh the kernel reported. Cubic's constants and time are in seconds and segments here; Linux implements the same curve in fixed-point arithmetic in `tcp_cubic.c`.
+
 Because growth depends on wall-clock time rather than RTT count, two Cubic flows with different RTTs grow at similar rates, which is fairer than Reno, where a flow with a 10 ms RTT ramps ten times faster than one with 100 ms. On short-RTT paths, where Reno would actually be quicker, Cubic runs in a "TCP-friendly" region and takes whichever window is larger.
 
 Cubic is still loss-based. It finds the path's capacity by overflowing the bottleneck buffer, and between losses it keeps that buffer as full as it can. Which brings back the home router.
+
+```exercise
+id: cubic-window
+title: Cubic's window after a loss
+prompt: |
+  Implement Cubic's window function. After a loss at window `w_max`
+  (segments), the window `t` seconds later is
+
+  `W(t) = C * (t - K)**3 + w_max`, with `K = cbrt(w_max * (1 - beta) / C)`,
+
+  using `C = 0.4` and `beta = 0.7`. Return the list of `W(t)` for each `t`
+  in `times`, each rounded to one decimal place (the tests avoid values
+  that end in exactly .x5).
+languages: [python, javascript]
+entry: cubic_window
+starter:
+  python: |
+    def cubic_window(w_max, times):
+        C, BETA = 0.4, 0.7
+        # your code here
+        return []
+  javascript: |
+    function cubic_window(w_max, times) {
+      const C = 0.4, BETA = 0.7;
+      // your code here
+      return [];
+    }
+tests:
+  - args: [100, [0, 1, 2, 3, 4, 5, 6, 8]]
+    expected: [70.0, 86.7, 95.6, 99.3, 100.0, 100.2, 102.3, 121.7]
+    label: the lesson's table
+  - args: [62, [0, 0.5, 1, 2, 3, 4]]
+    expected: [43.4, 50.1, 55.0, 60.4, 61.9, 62.0]
+    label: the measured upload's first loss
+  - args: [1000, [0, 3, 12]]
+    expected: [700.0, 909.8, 1009.9]
+  - args: [62, []]
+    expected: []
+    label: no sample times
+  - args: [83333, [0, 20, 40]]
+    expected: [58333.1, 80281.8, 83333.0]
+    hidden: true
+    label: the 10 Gbit/s path recovers in about 40 s
+  - args: [10, [0, 1.5]]
+    expected: [7.0, 10.0]
+    hidden: true
+hints:
+  - "At t = 0 the formula gives `beta * w_max`: the window right after the cut."
+  - "Python's `x ** (1/3)` and JavaScript's `Math.cbrt` both work because the argument of the cube root is positive; `(t - K) ** 3` must keep its sign."
+```
 
 ## Bufferbloat: when the buffer is the latency
 
@@ -169,19 +246,7 @@ $$\text{queueing delay} = \frac{\text{buffer bytes} \times 8}{\text{link rate}}$
 
 A home router with 256 packets of buffer on a 10 Mbit/s uplink: $256 \times 1500 \times 8 / 10^7 \approx 307$ ms. Memory is cheap, so consumer devices, cable modems and cellular base stations have shipped with buffers of hundreds of milliseconds or more. A loss-based sender cannot see a loss until that buffer is full, so a single bulk upload parks a standing queue of several hundred milliseconds in front of every other packet on the link. That is **bufferbloat**, named by Jim Gettys around 2010, and it is why the video call dies when the backup starts.
 
-Measure it with `ping` while a transfer runs:
-
-```text
-$ ping 1.1.1.1                          # idle link
-64 bytes from 1.1.1.1: icmp_seq=1 ttl=57 time=18.9 ms
-64 bytes from 1.1.1.1: icmp_seq=2 ttl=57 time=19.2 ms
-# ... start an upload ...
-64 bytes from 1.1.1.1: icmp_seq=9 ttl=57 time=287 ms
-64 bytes from 1.1.1.1: icmp_seq=10 ttl=57 time=604 ms
-64 bytes from 1.1.1.1: icmp_seq=11 ttl=57 time=598 ms
-```
-
-Idle RTT 19 ms is propagation plus processing. The 580 ms extra under load is pure queue. More bandwidth does not fix it; the next faster link gets the same queue, just filled faster. Three fixes do:
+You measure it by comparing the RTT under load with the RTT of an empty path. The upload traced above did this from inside the kernel: minimum RTT 15.5 ms, smoothed RTT 40 to 64 ms while the upload ran, so 25 to 50 ms of every packet's delay was queue at the uplink, a mild case. A home connection with a deep buffer shows the same pattern in `ping` at a larger scale: 20 ms idle, several hundred milliseconds during an upload, and back to 20 ms when it stops. Delay that tracks load while loss stays near zero is queueing, never distance. More bandwidth does not fix it; the next faster link gets the same queue, filled faster. Three fixes do:
 
 - **Active queue management.** CoDel measures how long each packet sat in the queue and starts dropping (or marking) when the minimum sojourn time stays above a 5 ms target for a 100 ms interval. The queue can absorb bursts but cannot stand.
 - **Flow queueing.** `fq_codel` gives each flow its own queue and serves them round-robin, so the call's small packets do not wait behind the backup's. It is the default queueing discipline on many Linux distributions, and "smart queue management" on a home router is usually this.
@@ -228,7 +293,7 @@ Most congestion questions arrive as a graph and a complaint. The shapes to recog
 - **Flat, low RTT with a dip in throughput every ten seconds.** BBR's PROBE_RTT.
 - **Throughput collapses with retransmission timeouts clustered in bursts.** A traffic policer (a token bucket that drops excess, as in [Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms)) or a tail-drop queue killing whole windows. Pacing helps; BBR handles policers better than loss-based algorithms.
 
-`iperf3` prints the sender's view of the same things per second:
+`iperf3` prints the sender's view of the same things per second. An illustrative run across a 100 Mbit/s path with a 20 ms base RTT (the shape, not a measurement from this machine):
 
 ```text
 [ ID] Interval           Transfer     Bitrate         Retr  Cwnd
@@ -251,6 +316,40 @@ tc qdisc replace dev eth0 root fq_codel             # AQM on a router or gateway
 ```
 
 Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is how some services use BBR for long-haul client traffic and Cubic inside the data centre.
+
+## Under the hood: congestion control in Linux
+
+- **Pluggable modules.** Each algorithm implements `struct tcp_congestion_ops` (hooks for every ACK, loss, and state change). `net.ipv4.tcp_available_congestion_control` lists what is loaded; on this WSL2 kernel it is `reno cubic`, with Cubic the default, and BBR would need its module (`tcp_bbr`) loaded first.
+- **HyStart** (on by default with Cubic) samples the RTT of the first ACKs of each round and exits slow start when the round's minimum RTT exceeds the previous round's by more than an eighth of it, clamped to 4–16 ms. That is the loss-free exit at a window of 55 in the trace.
+- **Proportional rate reduction** (RFC 6937, Linux 3.2 and later) spreads the window reduction after a loss across the recovery round trip, sending about one new segment for every two acknowledged, instead of stopping dead and then bursting. That is the stepped descent from 62 to 43.
+- **Pacing.** Since Linux 4.13, TCP can pace internally (a high-resolution timer per socket); the `fq` qdisc paces too. BBR depends on pacing; Cubic benefits from it by avoiding line-rate bursts into shallow buffers.
+- **Per-route overrides.** `ip route change default via … initcwnd 20` or `congctl bbr` sets the initial window or the algorithm per destination, which is how some servers use a larger initial window towards their own CDN nodes only.
+
+## Production failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Bufferbloat | Latency rises by hundreds of ms whenever a bulk transfer runs; calls and games stutter | RTT under load far above minimum RTT, with little loss | fq_codel or CAKE on the bottleneck device (home router, VPN gateway), ECN, BBR on the bulk sender |
+| Slow start after idle | Keep-alive connections are slow on the first response after a pause | `ss -ti` shows cwnd back near 10 after idle; `tcp_slow_start_after_idle=1` | Set it to 0 on servers with long-lived connections |
+| Long fat pipe starved by loss | Cross-region transfer uses a small fraction of a large link with a steady trickle of retransmits | Throughput near MSS/RTT × 1.22/√p for the observed loss | Find the loss (a bad optic, a policer), use BBR for bulk flows, parallel streams, or move data closer |
+| Policer drops bursts | Throughput collapses with clusters of retransmission timeouts | Losses at a fixed rate regardless of competing traffic; bursts exceeding a token bucket | Pacing (fq qdisc, BBR), shape instead of police at your own edge |
+| Unfair coexistence | After switching some senders to BBR v1, Cubic flows on shared links slow down (or the reverse) | Per-algorithm throughput differs with buffer depth | Keep one algorithm per shared bottleneck, or use BBRv2/v3 which respond to loss and ECN |
+
+## Interviewer follow-ups
+
+**"Why does halving the RTT double throughput while halving the loss rate does not?"** Model answer: in loss-based congestion avoidance the window grows one segment per RTT and halves per loss, so the average window scales as 1/√p and throughput as window/RTT; halving RTT doubles the rate directly, halving loss gains √2 ≈ 1.41. Common wrong answer: "both are linear".
+
+**"What does BBR measure, and what does it do with it?"** Model answer: the maximum delivery rate over about ten round trips (bottleneck bandwidth) and the minimum RTT over ten seconds (propagation delay); it paces at the bandwidth, caps data in flight near twice their product, and periodically probes up and drains. Common wrong answer: "BBR is a faster Cubic".
+
+**"Your API's p50 latency to distant users is dominated by round trips even though responses are 60 KB. What helps?"** Model answer: a 60 KB response over a fresh connection needs about three RTTs of slow start (10, 20, 40 segments) on top of the handshakes; reuse connections, disable slow start after idle, move the edge closer, or consider a larger initial window towards known paths. Common wrong answer: "buy more bandwidth".
+
+## What mid-level engineers get wrong
+
+- Adding bandwidth to fix latency under load; the bigger pipe gets the same standing queue.
+- Tuning the client for faster downloads; the server's algorithm governs them.
+- Reading every retransmission as a network fault; loss-based algorithms create loss on purpose to find capacity.
+- Switching a fleet to BBR without checking coexistence on shared links and retransmission rates in shallow buffers.
+- Benchmarking with a single long transfer and concluding that short requests will be fast; most real responses never leave slow start.
 
 ## Senior signals
 
@@ -288,6 +387,12 @@ Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is h
   answer: 2
   explanation: >-
     Congestion control is chosen and run by the sender alone; there is no negotiation. Server-to-client traffic uses the server's algorithm, so downloads on lossy or bloated paths get faster and see less queueing. Client uploads still use the client OS's algorithm.
+- q: >-
+    In a measured Cubic upload, ssthresh dropped from 62 to 43, then from 43 to 30, at successive losses. Earlier, slow start had ended at a window of 55 with no loss at all. What explains both?
+  options: ["BBR paces the flow, and PROBE_RTT limits the window every ten seconds", "The policer drops 30% of packets, and slow start always stops at 55", "Reno halves on loss, and the receiver's window capped slow start at 55", "Cubic cuts to 70% on loss, and HyStart ends slow start on rising RTT"]
+  answer: 3
+  explanation: >-
+    62 x 0.7 = 43.4 and 43 x 0.7 = 30.1 are Cubic's multiplicative decrease with beta 0.7; Reno would have halved to 31 and 21. HyStart watches the RTT of each round's ACKs and exits slow start when it rises by more than about an eighth of the minimum, which happened as the uplink queue began to fill. The kernel was running Cubic, not BBR, and there is no fixed slow-start limit.
 - q: >-
     A fresh connection with initcwnd 10 and a 1,460-byte MSS fetches a 40 KB response over an 80 ms RTT path with no loss. Ignoring the handshake, how many round trips does the response take to arrive?
   options: ["3", "1", "2", "4"]

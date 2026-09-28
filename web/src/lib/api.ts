@@ -4,8 +4,10 @@
 //   CSRF middleware requires (a cross-origin page cannot set it).
 // * Errors are normalised to `ApiError` with the server's machine code so
 //   components can branch (`e.code === "rate_limited"`) without string-matching.
-// * SSE streams are consumed with `fetch` + a manual parser rather than
-//   `EventSource`, because `EventSource` cannot POST a JSON body.
+// * SSE streams are consumed with `fetch` and the spec-following parser in
+//   `./sse` rather than `EventSource`, because `EventSource` cannot POST a
+//   JSON body.
+import { createSseParser } from "./sse";
 import type { ApiErrorBody } from "./types";
 
 export class ApiError extends Error {
@@ -92,36 +94,21 @@ export async function streamPost(path: string, body: unknown, handlers: SseHandl
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = "";
-  let event = "message";
-  let data: string[] = [];
-  const dispatch = () => {
-    if (data.length === 0) return;
-    const payload = data.join("\n");
-    data = [];
-    if (event === "delta") handlers.onDelta(payload);
+  const parser = createSseParser(({ event, data }) => {
+    if (event === "delta") handlers.onDelta(data);
     else if (event === "done") {
       try {
-        handlers.onDone?.(JSON.parse(payload));
+        handlers.onDone?.(JSON.parse(data));
       } catch {
         handlers.onDone?.({ input_tokens: 0, output_tokens: 0, stop_reason: null });
       }
-    } else if (event === "error") handlers.onError?.(payload);
-    event = "message";
-  };
+    } else if (event === "error") handlers.onError?.(data);
+  });
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, idx).replace(/\r$/, "");
-      buffer = buffer.slice(idx + 1);
-      if (line === "") dispatch();
-      else if (line.startsWith(":")) continue;
-      else if (line.startsWith("event:")) event = line.slice(6).trim();
-      else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
-    }
+    parser.feed(decoder.decode(value, { stream: true }));
   }
-  dispatch();
+  parser.feed(decoder.decode());
+  parser.end();
 }

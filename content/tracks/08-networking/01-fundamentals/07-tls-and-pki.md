@@ -1,10 +1,10 @@
 ---
 slug: tls-and-pki
 title: "TLS and PKI: the one-round-trip handshake, certificate chains and mTLS"
-description: What each message of the TLS 1.3 handshake does and why it takes one round trip, how 0-RTT trades speed for replay risk, how clients build and verify certificate chains, the chain and expiry failures that page you, how mTLS authenticates services, and why HTTPS is no longer slow.
+description: The TLS 1.3 handshake message by message with the real record bytes and which key encrypts each one, a real four-certificate chain validated step by step, OCSP, CRLs and Certificate Transparency, resumption and the 0-RTT replay risk, mTLS for service identity, the chain and expiry failures that page you, and measured reasons HTTPS is no longer slow.
 minutes: 34
 difficulty: medium
-tags: [networking, tls, pki, certificates, mtls, https, openssl, security]
+tags: [networking, tls, pki, certificates, mtls, https, openssl, security, certificate-transparency, ocsp, 0-rtt]
 problems: []
 ---
 The certificate for `api.example.com` was renewed on Tuesday. On Saturday the old one expires, and at midnight every call from your Android app and every server-to-server client fails with a certificate error, while Chrome on your laptop loads the site perfectly. `curl` says `SSL certificate problem: unable to get local issuer certificate`. The new certificate is valid. The renewal script deployed the leaf certificate and forgot the intermediate, and Chrome was quietly fetching the missing link for itself. Nothing else was.
@@ -35,15 +35,15 @@ What each message carries:
 2. **ServerHello** (plaintext): chosen suite and the server's key share. Both sides now compute the shared secret; everything that follows is encrypted.
 3. **EncryptedExtensions**: the chosen ALPN protocol and other parameters.
 4. **Certificate**: the server's certificate chain.
-5. **CertificateVerify**: a signature over the entire handshake transcript with the certificate's private key. This is the proof that the server holds the key, not just a copy of a public certificate.
+5. **CertificateVerify**: a signature over the entire handshake transcript with the certificate's private key. This is the proof that the server holds the key, not merely a copy of a public certificate.
 6. **Finished** (both directions): a MAC over the transcript, which detects any tampering with the plaintext hellos, such as a downgrade attack that strips strong cipher suites.
 
 TLS 1.2 needed two round trips: the client sent its key share only after the server's first reply had fixed the parameters, and the Finished messages confirming the keys needed a second exchange. TLS 1.3 has the client guess the group and send its share up front. If the guess is wrong (the server wants P-256 and the client sent only X25519), the server replies `HelloRetryRequest` and the handshake costs an extra round trip; this is rare because nearly everything supports X25519.
 
-Here is what `curl -v` prints for that exchange:
+Here is what `curl -v https://example.com/` printed on this machine on 2026-09-28:
 
 ```text
-* Connected to api.example.com (203.0.113.9) port 443
+* Connected to example.com (104.20.23.154) port 443
 * ALPN: curl offers h2,http/1.1
 * TLSv1.3 (OUT), TLS handshake, Client hello (1):
 * TLSv1.3 (IN), TLS handshake, Server hello (2):
@@ -53,16 +53,28 @@ Here is what `curl -v` prints for that exchange:
 * TLSv1.3 (IN), TLS handshake, Finished (20):
 * TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
 * TLSv1.3 (OUT), TLS handshake, Finished (20):
-* SSL connection using TLSv1.3 / TLS_AES_128_GCM_SHA256 / X25519 / id-ecPublicKey
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / id-ecPublicKey
 * ALPN: server accepted h2
-* Server certificate:
-*  subject: CN=api.example.com
-*  start date: Aug  3 00:00:00 2026 GMT
-*  expire date: Nov  1 23:59:59 2026 GMT
-*  subjectAltName: host "api.example.com" matched cert's "api.example.com"
-*  issuer: C=US; O=Example Trust; CN=Example Issuing CA
-*  SSL certificate verify ok.
+> GET / HTTP/2
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+< HTTP/2 200
 ```
+
+### Under the hood: what is encrypted, and with which key
+
+`openssl s_client -msg` prints every record header, which makes the key schedule visible. The same connection, byte counts from the wire:
+
+| Record header (type, legacy version, length) | Contents | Protected by |
+|---|---|---|
+| `16 03 01 01 46` (326 B) | ClientHello: SNI `example.com`, ALPN, X25519 key share | Nothing: plaintext, including the name you are visiting |
+| `16 03 03 00 7a` (122 B) | ServerHello: chosen suite, server key share | Nothing |
+| `14 03 03 00 01` | Fake ChangeCipherSpec (see below) | Nothing |
+| `17 03 03 0f 0e` (3,854 B) | One record holding EncryptedExtensions (19 B), Certificate (3,686 B), CertificateVerify (80 B), Finished (52 B), plus 1 inner type byte and a 16-byte AEAD tag | **Server handshake traffic key**, derived from the X25519 shared secret |
+| `17 03 03 00 45` (69 B) | Client Finished (52 B) + 1 + 16 | **Client handshake traffic key** |
+| `17 03 03 …` | The HTTP request, then two NewSessionTicket messages from the server | **Application traffic keys**, derived after both Finished messages |
+
+Every encrypted record claims to be application data (`0x17`) on the outside; the true type is the last byte inside the ciphertext, so an observer cannot even tell handshake messages from data. The keys come from a chain of HKDF derivations (the *key schedule*): early secret (from a resumption PSK, or zeros), then handshake secret (mixing in the ECDHE result), then master secret, each stage hashed with the transcript so far. The client wrote 393 bytes and read 3,982 in total for the handshake, and 93% of what it read was the certificate chain.
 
 The `Change cipher spec` line in a TLS 1.3 handshake is a fake: a meaningless message sent only so that middleboxes expecting TLS 1.2 do not drop the connection. It is a good example of how deployed middleboxes constrain protocol design.
 
@@ -130,6 +142,28 @@ The server sends its leaf plus every intermediate, but not the root. The client 
 5. Checks key usage, Certificate Transparency and, sometimes, revocation.
 
 Trust stores differ. Browsers ship their own root programmes, the operating system has one, Java has `cacerts`, Node bundles Mozilla's list, and Python uses the OS store or the `certifi` package. A container image built two years ago carries a two-year-old `ca-certificates` package. That is why the same server can be trusted by one client and rejected by another.
+
+### Chain validation, traced on a real chain
+
+example.com's server sent four certificates, 3,658 bytes of DER (1,002 + 742 + 824 + 1,090), which is the 3,686-byte Certificate message above minus 28 bytes of framing:
+
+| # | Subject | Issuer | Key, signature | Validity | Constraints |
+|---|---|---|---|---|---|
+| 0 | CN=example.com | Cloudflare TLS Issuing ECC CA 3 | P-256, ecdsa-with-SHA256 | 26 Sep – 25 Dec 2026 (90 days) | CA:FALSE; SAN `example.com`, `*.example.com`; EKU serverAuth; 2 SCTs |
+| 1 | Cloudflare TLS Issuing ECC CA 3 | SSL.com TLS Transit ECC CA R2 | P-256, ecdsa-with-SHA384 | 2025 – 2035 | CA:TRUE, pathlen:0 |
+| 2 | SSL.com TLS Transit ECC CA R2 | SSL.com TLS ECC Root CA 2022 | P-384, ecdsa-with-SHA384 | 2022 – 2037 | CA:TRUE, pathlen:1 |
+| 3 | SSL.com TLS ECC Root CA 2022 | AAA Certificate Services (Comodo) | P-384, RSA-SHA256 | 2025 – 2028 | CA:TRUE, pathlen:2; a **cross-signed** copy of the root |
+
+OpenSSL on this machine (`openssl verify -show_chain`) validated it in these steps:
+
+1. **Build a path.** Leaf's issuer = certificate 1's subject; certificate 1's issuer = certificate 2's subject; certificate 2's issuer is "SSL.com TLS ECC Root CA 2022", and a self-signed certificate with that name is in Ubuntu's trust store (121 roots). The path stops there, at depth 3. Certificate 3 is never used on this machine; it exists for clients whose stores predate the 2022 root, which can continue the path to Comodo's much older AAA root instead.
+2. **Verify signatures** down the path: each certificate's signature checks out under its issuer's public key.
+3. **Check constraints.** Certificates 1 and 2 have `CA:TRUE` and the certificate-signing key usage; `pathlen:0` on certificate 1 means it may sign leaves but not further CAs, and the path respects every `pathlen`.
+4. **Check dates** against the local clock (28 September 2026): all within their windows.
+5. **Check the name.** The client connected to `example.com`, which equals a SAN entry; `www.example.com` would match `*.example.com`.
+6. **Check purpose and transparency.** EKU includes serverAuth; browsers also require the embedded Signed Certificate Timestamps (two here).
+
+Given only the leaf, the same command fails: `error 20 at 0 depth lookup: unable to get local issuer certificate`. That is the opening incident, reproduced.
 
 ### The missing intermediate
 
@@ -228,21 +262,32 @@ hints:
 **Expiry.** Still the most common TLS outage, and entirely preventable. Public certificate lifetimes are capped by CA/Browser Forum rules: 398 days from 2020, 200 days from March 2026, stepping down to 47 days by 2029. Let's Encrypt has issued 90-day certificates for years. The only sustainable answer is automation (ACME) plus monitoring of the certificate *actually served* on every endpoint, not the file on disk:
 
 ```bash
-echo | openssl s_client -connect api.example.com:443 -servername api.example.com 2>/dev/null \
+echo | openssl s_client -connect example.com:443 -servername example.com 2>/dev/null \
   | openssl x509 -noout -enddate -subject
-notAfter=Nov  1 23:59:59 2026 GMT
-subject=CN = api.example.com
+notAfter=Dec 25 22:56:35 2026 GMT
+subject=CN = example.com
 ```
 
-**Missing intermediate.** Covered above. Serve the full chain file (`fullchain.pem`), not the leaf.
+The DST Root CA X3 expiry in September 2021 is the reference case for trust-store drift: old devices and old OpenSSL builds that had not picked up the newer ISRG root failed at once. The table collects the rest:
 
-**Wrong or missing SNI.** A client that connects by IP address, or an old library that does not send SNI, gets the server's default certificate and a name mismatch. `openssl s_client` without `-servername` reproduces this, which also makes it an easy way to fool yourself while debugging.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Expired certificate | Every non-browser client fails at one instant; browsers show a full-page warning | `openssl s_client … \| openssl x509 -noout -enddate` on the served certificate | ACME automation; alert on days-to-expiry of what is served, per endpoint |
+| Missing intermediate | Browsers work; curl, Go, Java, Python and mobile apps fail with "unknown authority" | `s_client` shows one certificate in the chain; `openssl verify` gives error 20 | Serve `fullchain.pem` |
+| Wrong SNI | Name mismatch only for some clients or when connecting by IP | `s_client` with and without `-servername` return different certificates | Connect by name; upgrade clients that omit SNI |
+| Clock skew | "Not yet valid" or "expired" on a subset of devices | Device clock differs from real time | NTP on every host, including new VMs and containers |
+| Trust-store drift | One runtime or old image fails after a CA changes chains or a root expires | Compare trust stores; the failing client lacks the new root | Update `ca-certificates` in images; serve a chain that old stores can follow (cross-signs) |
+| Oversized first flight | New connections cost an extra round trip | Certificate + handshake bytes above the ~14 KB initial window | Shorter chains, ECDSA keys, drop unneeded cross-signs for modern clients |
 
-**Clock skew.** A device whose clock is wrong sees valid certificates as "not yet valid" or expired. Embedded devices and freshly booted VMs without NTP are the usual victims.
+## Revocation and Certificate Transparency
 
-**Root expiry and trust-store drift.** When an old root expires or a CA changes its chain, clients with outdated trust stores fail. The expiry of the DST Root CA X3 root in September 2021 broke a long tail of old devices and old OpenSSL builds that had not picked up the newer ISRG root. Your own fleet has a long tail too: old container images, pinned runtime versions.
+Two mechanisms deal with certificates that should not be trusted. **Revocation** tells clients that a certificate issued correctly has since been withdrawn (a leaked key). The leaf above carries both options in its extensions: an OCSP responder URL (`http://o.cf-i.ssl.com`) and a CRL URL.
 
-**Revocation is weak.** OCSP checks add latency and a privacy leak, so browsers soft-fail them or rely on revocation lists pushed with browser updates. Stapling (the server attaches a recent OCSP response to the handshake) helps where used. In practice the industry's answer to key compromise is short lifetimes, which is why lifetimes keep shrinking.
+- **OCSP**: the client asks the CA's responder "is serial X revoked?" at connection time. It adds a round trip to a third party and tells the CA which sites you visit, so browsers soft-fail (treat an unreachable responder as "not revoked"), which means an attacker who can block OCSP defeats it.
+- **OCSP stapling**: the server fetches a signed, time-limited OCSP response and attaches it to its Certificate message; no third-party round trip, no privacy leak.
+- **CRLs**: the CA publishes signed lists of revoked serials. Browsers now ship compressed revocation sets built from CRLs (Chrome's CRLSets, Firefox's CRLite) instead of querying per connection. The industry has been moving this way: CA/Browser Forum rules made CRLs mandatory and OCSP optional, and Let's Encrypt shut down its OCSP service in 2025. Short certificate lifetimes are the other half of the answer.
+
+**Certificate Transparency** addresses a different threat: a CA (compromised or careless) issuing a certificate for your name to someone else. Before issuance, the CA submits a precertificate to public, append-only logs built as Merkle trees; each log returns a Signed Certificate Timestamp promising inclusion, and the CA embeds the SCTs in the certificate. Browsers reject publicly trusted certificates without enough SCTs from independent logs (the example.com leaf carries two). Because the logs are public, you can monitor them (crt.sh, or a CT monitoring service) and learn within hours if any CA issues a certificate for your domain. Merkle trees let a client or auditor check that a certificate is in a log, and that the log never rewrote history, with O(log n) hashes, the same structure [error detection](/learn/networking/network-algorithms/error-detection) builds from hashes.
 
 ## mTLS: authenticating the client too
 
@@ -267,12 +312,41 @@ The costs are operational. You run a private CA and its rotation. Debugging need
 Ten years ago "HTTPS is slow" was a real objection. Each reason has since been removed:
 
 - **Round trips.** TLS 1.3 cut the full handshake from two RTTs to one, resumption and 0-RTT cut repeat visits further, and QUIC folds the transport handshake in too. Connection reuse and HTTP/2 multiplexing mean most requests pay no handshake at all.
-- **Key exchange and signatures.** X25519 key agreement and ECDSA P-256 signatures cost tens of microseconds of CPU; an RSA-2048 signature costs on the order of a millisecond. Moving a fleet from RSA to ECDSA certificates measurably cuts handshake CPU on busy terminators.
-- **Bulk encryption.** AES-GCM runs at several gigabytes per second per core using the CPU's AES instructions; ChaCha20-Poly1305 is fast in software on phones without them, which is why clients advertise it.
+- **Key exchange and signatures.** Measured with `openssl speed` on one core of this machine (AMD Ryzen 9 9950X3D, OpenSSL 3.0.13): an X25519 key agreement takes about 20 µs (50,249 per second), an ECDSA P-256 signature about 11 µs (90,259 per second), and an RSA-2048 signature about 166 µs (6,034 per second), 15 times the ECDSA cost. A server signs once per full handshake, so moving a fleet from RSA to ECDSA certificates cuts handshake CPU on busy terminators; clients verify, where RSA is cheaper (101,515 verifies per second against 30,810).
+- **Bulk encryption.** AES-128-GCM measured about 31 GB/s on one core here with the CPU's vector AES instructions, and ChaCha20-Poly1305 about 6.5 GB/s; the latter is the faster choice on phones without AES hardware, which is why clients advertise both. Per-byte encryption cost is no longer a reason to avoid TLS.
 - **Kernel and NIC offload.** Kernel TLS lets the kernel encrypt records and keep `sendfile` zero-copy; some NICs encrypt in hardware. Netflix has published its work on in-kernel TLS in FreeBSD for the Open Connect servers that stream its video, which serve hundreds of gigabits per second of encrypted traffic per machine.
 - **Size of the first flight.** Certificates are not free bytes. If the server's Certificate plus handshake messages exceed the initial congestion window (about 14.6 KB, from [Congestion control](/learn/networking/fundamentals/congestion-control)), the handshake needs an extra round trip. Short chains with ECDSA keys keep it well under. This matters again now that hybrid post-quantum key exchange (X25519 combined with ML-KEM) is being deployed by browsers and CDNs; it adds about a kilobyte to each hello.
 
 What remains expensive is a cold connection to a distant server. That is a latency and geography problem, solved by terminating TLS at an edge close to the user, which is the subject of [CDNs and the edge](/learn/networking/application-protocols/cdns-and-edge).
+
+## Trade-offs: where to terminate TLS
+
+| | Terminate at the edge, plaintext inside | Terminate at the edge, re-encrypt to backends | Passthrough (L4) to the service | Mesh mTLS end to end |
+|---|---|---|---|---|
+| L7 routing, caching, WAF at the edge | Yes | Yes | No | At each sidecar |
+| Data encrypted on the internal network | No | Yes | Yes | Yes |
+| Handshakes per request path | One (client to edge) | Two, the inner one pooled | One | One per hop, pooled |
+| Where private keys live | Edge only | Edge and backends | Every backend | Every workload, short-lived |
+| Backend knows the client identity | Via headers the edge sets | Via headers | From the TLS session itself | From the peer certificate or forwarded headers |
+
+## Interviewer follow-ups
+
+**"What can a passive observer learn from a TLS 1.3 connection?"** Model answer: the IP addresses and ports, the SNI hostname and ALPN list in the plaintext ClientHello (unless Encrypted Client Hello is used), the certificate's existence but not its contents (it is encrypted in 1.3, unlike 1.2), and record sizes and timing, which leak a surprising amount about content. Common wrong answer: "nothing; everything is encrypted".
+
+**"How would you rotate a leaked private key, and how fast do clients stop trusting the old certificate?"** Model answer: issue a new key and certificate, deploy, then revoke the old one; revocation reaches browsers through pushed CRL-based sets within hours to days and non-browser clients often never, which is why short lifetimes and key isolation (keys in HSMs or a keyless signing service) matter more than revocation. Common wrong answer: "revocation takes effect immediately everywhere".
+
+**"Why does the server send intermediates but not the root?"** Model answer: the root must already be in the client's trust store to be trusted, so sending it wastes bytes; intermediates are needed because clients cannot be expected to have them. Cross-signed roots, like certificate 3 above, are the exception: they are intermediates from the point of view of old stores. Common wrong answer: "the root is secret".
+
+**"Is 0-RTT safe for a login request?"** Model answer: no; early data can be replayed by an attacker, so it is only for idempotent requests, and servers use `425 Too Early` to push anything else to the full handshake. Common wrong answer: "yes, it is encrypted".
+
+## What mid-level engineers get wrong
+
+- Testing a certificate deployment in a browser, which hides a missing intermediate.
+- Monitoring the certificate file on disk instead of the certificate each endpoint actually serves.
+- Assuming SNI and the destination hostname are private under TLS 1.3.
+- Enabling 0-RTT globally without restricting it to idempotent requests.
+- Trusting source IPs or network location instead of mTLS identities between services, then losing that trust at a terminating proxy that forwards nothing.
+- Believing revocation will save them after a key leak.
 
 ## Senior signals
 
@@ -292,6 +366,12 @@ What remains expensive is a cold connection to a distant server. That is a laten
   answer: 2
   explanation: >-
     A single certificate in the chain means the intermediate is missing. Chrome uses the AIA URL to fetch it and Firefox preloads intermediates, which masks the problem. Go, Java, curl, Python and mobile clients require the server to send it, so they cannot build a path to a trusted root. An expired or not-yet-valid certificate would produce a date error, not "unknown authority". Serve the full chain.
+- q: >-
+    In a captured TLS 1.3 handshake, the server's second flight is one record with header 17 03 03 0f 0e. What does that header tell an observer?
+  options: ["That the record holds the server's certificate in readable form", "That the record is application data from the HTTP response body", "Only a length: every encrypted record is labelled application data", "That the connection negotiated TLS 1.2, since the version is 03 03"]
+  answer: 2
+  explanation: >-
+    From ServerHello on, TLS 1.3 wraps everything in records whose outer type is 0x17 and whose version is the legacy 0x0303; the real content type is the last byte inside the ciphertext. That record held EncryptedExtensions, Certificate, CertificateVerify and Finished under the server handshake traffic key, so the certificate is not readable, unlike in TLS 1.2. The version field says nothing about the negotiated version, which is in the supported_versions extension.
 - q: >-
     Why does a TLS 1.3 full handshake need one round trip where TLS 1.2 needed two?
   options: ["TLS 1.3 runs over UDP, so it has no TCP handshake", "The client sends its key share in the ClientHello", "TLS 1.3 piggybacks on the TCP handshake packets", "TLS 1.3 skips certificate validation to save a round trip"]
