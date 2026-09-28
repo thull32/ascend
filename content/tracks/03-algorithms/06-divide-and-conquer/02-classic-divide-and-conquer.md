@@ -7,7 +7,7 @@ difficulty: medium
 tags: [divide-and-conquer, fast-exponentiation, karatsuba, closest-pair, majority-element, strassen, recurrence]
 problems: [pow-x-n, kth-largest-array, median-two-sorted]
 ---
-Every algorithm in this lesson was, at the time it was found, a surprise. Multiplying two `n`-digit numbers was "obviously" `n²` work until Karatsuba showed it was not in 1960, in direct response to Kolmogorov's conjecture that it was. Multiplying two matrices was "obviously" `n³` until Strassen found seven products where everyone had used eight. Finding the closest pair of points was "obviously" a comparison of every pair until the strip argument reduced it to `n log n`. In each case the surprise came from the same place: a recurrence where the number of subproblems, or the cost of combining them, was one notch better than the naive decomposition.
+Every algorithm in this lesson was, at the time it was found, a surprise. Multiplying two `n`-digit numbers was taken for granted to be `n²` work until Karatsuba showed it was not in 1960, in direct response to Kolmogorov's conjecture that it was. Multiplying two matrices was assumed to be `n³` until Strassen found seven products where everyone had used eight. Finding the closest pair of points was assumed to need a comparison of every pair until the strip argument reduced it to `n log n`. In each case the surprise came from the same place: a recurrence where the number of subproblems, or the cost of combining them, was one notch better than the naive decomposition.
 
 The previous lesson gave you the tool, the recurrence and the master theorem. This one gives you the five results you should be able to derive, implement and explain, and for each one the specific idea that makes the recurrence come out ahead.
 
@@ -36,7 +36,18 @@ def power_mod(a, n, m):
     return result
 ```
 
-The `% m` on every multiplication is not optional in practice: without it the intermediate values grow to `n` bits and each multiplication becomes as slow as the problem you were avoiding. This is the algorithm behind RSA (`c = m^e mod N` with a 2048-bit exponent takes about 2048 squarings, not 2^2048 multiplications), behind Diffie–Hellman, behind computing large Fibonacci numbers by raising a 2 × 2 matrix to a power, and behind every "compute `x^n` for a negative or huge `n`" interview question ([Pow(x, n)](/practice/pow-x-n) is this with floats and a negative-exponent edge case).
+Trace `3¹³`. The exponent is `13 = 1101₂`, read from the low bit up; `base` squares every step, `result` multiplies in the base only on a 1 bit:
+
+| `n` (remaining bits) | low bit | `base` before | `result` after |
+|---|---|---|---|
+| 13 = `1101` | 1 | 3 | 3 |
+| 6 = `110` | 0 | 9 | 3 |
+| 3 = `11` | 1 | 81 | 243 |
+| 1 = `1` | 1 | 6561 | 1,594,323 |
+
+Four squarings and three multiplications for an exponent of 13, and `3¹³ = 1,594,323`. The bases are `3, 3², 3⁴, 3⁸`, and the result is the product of the ones whose bit is set: `3¹ · 3⁴ · 3⁸ = 3¹³`.
+
+The `% m` on every multiplication is not optional: without it the intermediate values grow to `n` bits and each multiplication becomes as slow as the problem you were avoiding. This is the algorithm behind RSA (`c = m^e mod N` with a 2048-bit exponent takes about 2048 squarings, not 2^2048 multiplications), behind Diffie–Hellman, behind computing large Fibonacci numbers by raising a 2 × 2 matrix to a power, and behind every "compute `x^n` for a negative or huge `n`" interview question ([Pow(x, n)](/practice/pow-x-n) is this with floats and a negative-exponent edge case).
 
 The general principle: any associative operation (`×`, matrix multiplication, function composition, string concatenation in a monoid) can be applied `n` times in `O(log n)` applications. "Apply this linear recurrence a billion times" is a matrix power; "what is the state after 10¹⁸ steps of this deterministic machine" is a function-composition power.
 
@@ -67,11 +78,38 @@ def karatsuba(x, y):
     return z2 * B * B + z1 * B + z0
 ```
 
-For 1,000-digit numbers, `n²` is a million digit-multiplications and `n^1.585` is about 57,000. Python's `int` switches to Karatsuba above about 70 digits; GMP uses Karatsuba, then Toom-Cook (a five-way split with nine multiplications instead of twenty-five), then FFT-based multiplication for numbers with tens of thousands of digits, which is where the [next lesson](/learn/algorithms/divide-and-conquer/fft-intuition) picks up. The lesson for interviews is not the code; it is the move: **find an algebraic identity that lets you recover a needed product from fewer multiplications**, and let the recurrence tell you what you gained.
+Work it on `1234 × 5678` with `B = 100`, so `x₁ = 12, x₀ = 34, y₁ = 56, y₀ = 78`. The three multiplications:
+
+| Product | Computation | Value |
+|---|---|---|
+| `z₂ = x₁ · y₁` | `12 × 56` | 672 |
+| `z₀ = x₀ · y₀` | `34 × 78` | 2,652 |
+| `(x₁ + x₀)(y₁ + y₀)` | `46 × 134` | 6,164 |
+| `z₁ = 6,164 − 672 − 2,652` | subtraction only | 2,840 |
+
+Assemble: `672 × 10⁴ + 2,840 × 10² + 2,652 = 6,720,000 + 284,000 + 2,652 = 7,006,652`, which is `1234 × 5678`. Schoolbook would have done four two-digit products (`12·56, 12·78, 34·56, 34·78`); Karatsuba did three plus some additions, and the third product has operands one digit wider (`46 × 134`), which is why the recursion is on inputs of size `n/2 + 1`, a detail that does not change the exponent.
+
+For 1,000-digit numbers, `n²` is a million digit-multiplications and `n^1.585` is about 57,000. CPython's `int` switches to Karatsuba when both operands exceed 70 internal digits of 30 bits, about 2,100 bits or 630 decimal digits (the section on what happens under the hood has the details); GMP uses Karatsuba, then Toom-Cook (a three-way split with five multiplications instead of nine, then four-way), then FFT-based multiplication for numbers with tens of thousands of digits, which is where the [next lesson](/learn/algorithms/divide-and-conquer/fft-intuition) picks up. The lesson for interviews is not the code; it is the move: **find an algebraic identity that lets you recover a needed product from fewer multiplications**, and let the recurrence tell you what you gained.
 
 ## Strassen: the same move on matrices
 
 Multiplying two `n × n` matrices by splitting each into four `n/2 × n/2` blocks needs eight block products: $T(n) = 8T(n/2) + O(n^2) = O(n^3)$, the same as the triple loop. Strassen found seven products of sums and differences of the blocks from which all four output blocks can be assembled: $T(n) = 7T(n/2) + O(n^2) = O(n^{\log_2 7}) \approx O(n^{2.807})$.
+
+The seven products, each a single half-size multiplication of sums or differences of blocks:
+
+| | Product | | Output block |
+|---|---|---|---|
+| `M₁` | `(A₁₁ + A₂₂)(B₁₁ + B₂₂)` | `C₁₁` | `M₁ + M₄ − M₅ + M₇` |
+| `M₂` | `(A₂₁ + A₂₂) B₁₁` | `C₁₂` | `M₃ + M₅` |
+| `M₃` | `A₁₁ (B₁₂ − B₂₂)` | `C₂₁` | `M₂ + M₄` |
+| `M₄` | `A₂₂ (B₂₁ − B₁₁)` | `C₂₂` | `M₁ − M₂ + M₃ + M₆` |
+| `M₅` | `(A₁₁ + A₁₂) B₂₂` | | |
+| `M₆` | `(A₂₁ − A₁₁)(B₁₁ + B₁₂)` | | |
+| `M₇` | `(A₁₂ − A₂₂)(B₂₁ + B₂₂)` | | |
+
+### Checking the seven products
+
+Check it with the blocks as plain numbers, `A = [[4, 9], [3, 6]]` and `B = [[8, 2], [1, 8]]`: `M₁ = 10 · 16 = 160`, `M₂ = 9 · 8 = 72`, `M₃ = 4 · (−6) = −24`, `M₄ = 6 · (−7) = −42`, `M₅ = 13 · 8 = 104`, `M₆ = (−1) · 10 = −10`, `M₇ = 3 · 9 = 27`. Then `C₁₁ = 160 − 42 − 104 + 27 = 41`, `C₁₂ = −24 + 104 = 80`, `C₂₁ = 72 − 42 = 30`, `C₂₂ = 160 − 72 − 24 − 10 = 54`, and the direct product is `[[4·8 + 9·1, 4·2 + 9·8], [3·8 + 6·1, 3·2 + 6·8]] = [[41, 80], [30, 54]]`. Ten block additions to form the operands and eight to assemble the result: eighteen `O(n²)` additions, which is the constant factor that makes Strassen lose at small sizes.
 
 You are not expected to memorise the seven products. You are expected to know three things. First, that the exponent 2.807 comes from `log₂ 7` and would be `log₂ 8 = 3` with one more product, which is the whole insight in one line. Second, that Strassen's constant factor and numerical instability mean production BLAS libraries use the `n³` algorithm with cache-blocking and SIMD for matrices below a few thousand on a side, and Strassen only above that; "asymptotically better" and "faster on your workload" are different claims. Third, that the theoretical exponent has been pushed to about 2.37 by algorithms that are galactic (their constants make them useless at any physical size), which is a useful phrase to have when someone cites a paper.
 
@@ -102,7 +140,19 @@ def closest_pair_sq(points):                   # returns squared distance
     return rec(pts)
 ```
 
-Two practical notes. Compare squared distances to avoid square roots and floating-point comparisons entirely when the coordinates are integers. And notice the `break`: without it the inner loop is `O(n)` per strip point and the whole combine step is quadratic again; the 7-neighbour bound is what the `break` enforces in practice.
+### The strip on eight points
+
+Trace it on eight integer points, already sorted by `x`: `(1,1) (1,6) (3,3) (5,4) (6,5) (8,1) (9,6) (10,3)`. The top-level split is at `x = 6`. The left half recurses to `d_L = 5` (the pair `(3,3)–(5,4)`) and the right half to `d_R = 8` (`(8,1)–(10,3)`), so `d = 5`. The strip is every point with `(x − 6)² < 5`, that is `x` in `4..8`: `(5,4)`, `(6,5)`, `(8,1)`, sorted by `y` as `(8,1), (5,4), (6,5)`.
+
+| Strip point `a` | Candidate `b` (next in `y` order) | `(b.y − a.y)²` | Action |
+|---|---|---|---|
+| `(8,1)` | `(5,4)` | 9 ≥ 5 | break: everything further down in `y` is further away |
+| `(5,4)` | `(6,5)` | 1 < 5 | compare: `1² + 1² = 2`, new `d = 2` |
+| `(6,5)` | none left | | |
+
+One real comparison in the strip, and it found the closest pair, `(5,4)–(6,5)` at squared distance 2, which straddles the dividing line and was invisible to both halves. The `break` at the first row is the packing bound doing its work: with `d = 5`, no point more than `√5 ≈ 2.24` below in `y` can matter.
+
+Two practical notes. Compare squared distances to avoid square roots and floating-point comparisons entirely when the coordinates are integers. And notice the `break`: without it the inner loop is `O(n)` per strip point and the whole combine step is quadratic again; the 7-neighbour bound is what the `break` enforces.
 
 ## Majority element: shrink the problem by cancellation
 
@@ -120,6 +170,20 @@ def majority(nums):
     return candidate if nums.count(candidate) > len(nums) // 2 else None
 ```
 
+Trace `[2, 2, 1, 1, 1, 2, 2]`, where 2 appears four times out of seven:
+
+| element | candidate after | count after |
+|---|---|---|
+| 2 | 2 | 1 |
+| 2 | 2 | 2 |
+| 1 | 2 | 1 |
+| 1 | 2 | 0 |
+| 1 | 1 | 1: count was 0, so 1 is adopted |
+| 2 | 1 | 0 |
+| 2 | 2 | 1: adopted again |
+
+The survivor is 2, and the verification pass counts four occurrences, more than `7 // 2 = 3`. Now `[1, 2, 3]`, which has no majority: candidate 1 (count 1), then 2 cancels it (count 0), then 3 is adopted (count 1). The pass ends with candidate 3 and a positive count, and 3 appears once, not more than `3 // 2 = 1`. Without the second pass the function would return 3 as "the majority". A positive final count is not evidence.
+
 The generalisation ("elements appearing more than `n/k` times") keeps `k − 1` candidates and cancels `k`-tuples of distinct elements, still in `O(n)` time and `O(k)` space. This is the algorithm behind heavy-hitter detection in streaming systems, and the count-min sketch in the [probabilistic structures module](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) is its approximate cousin.
 
 ## Single-sided recursion: when one half is enough
@@ -132,6 +196,79 @@ The algorithms above recurse into both halves. The ones that recurse into *one* 
 ```
 
 The habit these give you: when a divide-and-conquer recurrence comes out to $O(n \log n)$ and you need linear, ask whether you can decide *which* half contains the answer without solving both.
+
+## Under the hood
+
+**CPython integers.** A Python `int` is an array of 30-bit "digits" (`sys.int_info.bits_per_digit == 30`, four bytes each). `long_mul` uses schoolbook multiplication until both operands have more than `KARATSUBA_CUTOFF = 70` digits, about 2,100 bits or 630 decimal digits, then Karatsuba; there is no Toom-Cook or FFT step, so multiplying two million-digit numbers in Python is `O(n^1.585)` and takes seconds. The `decimal` module's C backend (libmpdec) does have number-theoretic-transform multiplication for very large operands. `pow(a, n, m)` is binary exponentiation with the modular reduction after each step, switching to a windowed variant (several exponent bits per multiplication) for large exponents; either way about `log₂ n` squarings.
+
+**GMP and everything built on it.** GMP (used by Python's `gmpy2`, by Ruby, Haskell, Julia and most computer-algebra systems) climbs a ladder of algorithms with machine-tuned thresholds: schoolbook, then Karatsuba from a few tens of 64-bit limbs, Toom-3 and Toom-4 from a few hundred, and Schönhage–Strassen FFT multiplication from a few thousand limbs upward. The thresholds are set per CPU family by a tuning program, so quote them as orders of magnitude.
+
+**BLAS.** `dgemm` in OpenBLAS, MKL and BLIS is the `n³` algorithm reorganised for hardware: the matrices are cut into blocks sized to the L1, L2 and L3 caches, packed into contiguous buffers, and multiplied by a hand-written SIMD micro-kernel that keeps a small tile of `C` in registers. Strassen is not used by default in any of them; research implementations that apply one or two Strassen levels on top of `dgemm` report gains only for matrices of a few thousand rows and up, with the usual caveat about rounding.
+
+**RSA.** A 2,048-bit RSA private-key operation is `m^d mod N` with a 2,048-bit exponent: about 2,048 modular squarings plus up to 2,048 multiplications (fewer with windowing and the Chinese-remainder split), each on 2,048-bit operands that GMP or OpenSSL multiply with Karatsuba-level algorithms and reduce with Montgomery arithmetic.
+
+**Heavy hitters.** The `n/k` generalisation of Boyer–Moore is the Misra–Gries summary, the exact ancestor of the streaming heavy-hitter sketches: keep `k − 1` counters, cancel `k`-tuples of distinct elements, and verify in a second pass when you can. The [count-min sketch lesson](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) is the approximate, single-pass relative.
+
+## Quantified costs
+
+- **Karatsuba versus schoolbook.** 1,000 digits: `10⁶` versus `1000^1.585 ≈ 5.7 × 10⁴` digit products, 17× fewer; 10⁶ digits: `10¹²` versus about `3.2 × 10⁹`, 300× fewer. The crossover where Karatsuba's extra additions stop hurting is at tens of machine words, which is why CPython's cutoff is 70 limbs and not 2.
+- **Strassen's arithmetic.** Seven products and 18 block additions per level. At `n = 512` one level replaces `8 × 256³ ≈ 1.3 × 10⁸` multiply-adds with `7 × 256³ ≈ 1.2 × 10⁸` plus `18 × 256² ≈ 1.2 × 10⁶` additions, a 12.5% saving on paper that a blocked `dgemm` running near peak erases; the reported crossover is on the order of a thousand rows and depends on the BLAS, the CPU and the accuracy you accept.
+- **Exponentiation.** `a^n mod m` costs `⌊log₂ n⌋` squarings plus one multiplication per set bit: 13 → 4 squarings, 3 multiplications; a 2,048-bit exponent → 2,048 squarings and about 1,024 multiplications on average.
+- **Closest pair.** `n = 10⁶` points: the `O(n log² n)` version with a strip sort per level does about `2 × 10⁷` comparisons in the strips plus 20 sorts of shrinking size; the `O(n log n)` version with merged `y`-orders roughly halves it. Brute force is `5 × 10¹¹` pair checks.
+- **Majority.** One pass and one verification pass, `2n` comparisons and two integers of state; a hash map of counts is also `O(n)` but allocates a dictionary entry per distinct value, on the order of 100 bytes each in Python.
+
+## Trade-offs
+
+| Multiplication | Exponent | Half-size products per level | Extra additions | Wins from about |
+|---|---|---|---|---|
+| Schoolbook | 2 | 4 | few | 1 digit |
+| Karatsuba | `log₂ 3 ≈ 1.585` | 3 | linear, a handful | tens of machine words |
+| Toom-3 | `log₃ 5 ≈ 1.465` | 5 (of size `n/3`) | more, with divisions by small constants | hundreds of words |
+| Schönhage–Strassen FFT | `n log n log log n` | transforms | complex or modular arithmetic | thousands of words |
+
+| Majority element | Time | Space | Passes | Needs the whole array? |
+|---|---|---|---|---|
+| Hash map of counts | `O(n)` | `O(n)` entries | 1 | no |
+| Divide and conquer | `O(n log n)` | `O(log n)` stack | recursive | yes |
+| Boyer–Moore | `O(n)` | `O(1)` | 2 (vote, verify) | vote pass streams; verify needs a second look |
+| Sort, take the middle | `O(n log n)` | `O(1)` or `O(n)` | 1 | yes, and still needs a count |
+
+## Failure modes
+
+**Symptom: a hand-written Karatsuba returns wrong results for some inputs and right ones for others.** Diagnosis: unequal operand lengths or negative operands. Splitting both numbers at `half` computed from the *longer* one keeps the powers of `B` aligned; splitting each at its own midpoint does not. Negative operands break `divmod`-based splitting in languages where `%` follows the dividend's sign. Fix: multiply absolute values, apply the sign at the end, and split both operands at the same position.
+
+**Symptom: `power(x, n)` returns 0 or `Infinity` for a negative exponent, or hangs for `n = -2³¹`.** Diagnosis: the negative-exponent case was handled as `1 / power(x, -n)`, and negating the most negative 32-bit integer overflows back to itself, so the recursion never reaches zero. Fix: handle the exponent in a wider type or as an unsigned magnitude, and treat `x = 0` with a negative exponent as an error.
+
+**Symptom: an integer `power` overflows in Java or C long before the exponent is large.** Diagnosis: `half * half` exceeds `2³¹` once `half ≥ 46,341` (and `2⁶³` once `half ≥ 3,037,000,500`); the answer is meaningless without a modulus. Fix: reduce modulo `m` at every step, or use arbitrary precision if the true value is needed. The [numbers lesson](/learn/foundations/how-code-runs/numbers-strings-unicode) has the widths.
+
+**Symptom: the majority function returns an element that is not a majority.** Diagnosis: no verification pass. On `[1, 2, 3]` the vote ends with candidate 3 and count 1. Fix: count the candidate and compare with `n // 2`; return "none" otherwise.
+
+**Symptom: closest pair is quadratic on some point sets, or returns a wrong answer on floating-point coordinates.** Diagnosis: the `break` is missing or written as `>` instead of `>=`, so ties in `y` (many points on a horizontal line) keep the inner loop running; with floats, comparing squared distances against a `d` that was rounded differently on the two sides can miss a pair by an ulp. Fix: keep the `>=` break, use integer or scaled-integer coordinates, and when floats are unavoidable compare with a tolerance.
+
+**Symptom: Strassen-based multiplication gives results that differ from the library's in the last few digits, and a downstream solver diverges.** Diagnosis: the sums and differences of blocks cancel, so relative error grows with each recursion level; Strassen satisfies a weaker error bound than the classical algorithm. Fix: use `dgemm`, or apply at most one or two Strassen levels on top of it and validate against the classical result on your data.
+
+## Interviewer follow-ups
+
+**"Karatsuba does three multiplications. Can you do two?"** Model answer: not for a two-way split, because the product of two linear polynomials has three coefficients, each needing an independent evaluation; three is optimal for degree-1 splits. More parts help: Toom-3 evaluates at five points for a three-way split (`log₃ 5 ≈ 1.465`), and in the limit the FFT evaluates at `n` roots of unity for `n log n`. Common wrong answer: "yes, if you pick a cleverer identity", without noticing that the number of coefficients is the lower bound.
+
+**"Why is `log₂ 7` the exponent and not 7/8 of `n³`?"** Model answer: the saving compounds at every level of the recursion tree; the leaf count is `7^(log₂ n) = n^(log₂ 7)`, and `n^2.807` is asymptotically smaller than `n³` by a growing factor, not by a constant. Common wrong answer: treating the seven-out-of-eight saving as a constant factor.
+
+**"Boyer–Moore with the second pass is two passes. Can you do it in one?"** Model answer: not in general for a stream you cannot rewind; the vote pass identifies the only possible majority, and confirming it requires counting. If the problem guarantees a majority exists, one pass suffices. Common wrong answer: "return the candidate if the final count is positive", which fails on `[1, 2, 3]`.
+
+**"Closest pair, but the points are on a line."** Model answer: sort and check adjacent pairs, `O(n log n)`; the divide-and-conquer machinery collapses to one dimension. And in three dimensions the strip becomes a slab and the packing constant grows, but the argument survives. Common wrong answer: running the 2D algorithm unchanged, which works but wastes the strip machinery.
+
+**"Compute the `n`-th Fibonacci number for `n = 10¹⁸` modulo a prime."** Model answer: it is the `n`-th power of the matrix `[[1, 1], [1, 0]]`, so exponentiation by squaring with 2×2 matrix multiplication mod `p`: about 60 squarings of eight multiplications each. Common wrong answer: memoised recursion, which is `O(n)` time and memory and never finishes.
+
+## What mid-level engineers get wrong
+
+- **Quoting "Python switches to Karatsuba at 70 digits".** The cutoff is 70 thirty-bit limbs, about 630 decimal digits; below that everything is schoolbook.
+- **Implementing Karatsuba for interview-sized inputs.** For numbers under a few hundred digits the library's schoolbook multiply is faster; the algorithm is worth knowing for the recurrence, not the speed.
+- **Expecting Strassen from `numpy.dot`.** BLAS is a blocked `n³`; Strassen appears only in research libraries at sizes in the thousands.
+- **Skipping the modular reduction inside the loop.** Operands grow to millions of bits and the "logarithmic" algorithm becomes slower than the linear one.
+- **Overflowing `half * half`.** A 32-bit `int` fails at `half = 46,341`; the test cases rarely reach it.
+- **Trusting Boyer–Moore's candidate.** Without the verification pass the function is wrong on every input without a majority.
+- **Dropping the `break` in the strip loop.** Correct answers, quadratic time; the benchmark that reveals it is the one with every point inside the strip.
+- **Recursing into both halves out of habit.** When one half can be ruled out (order statistics, medians), the running time drops by a factor of `log n` or more.
 
 ## Exercises
 
@@ -255,6 +392,9 @@ hints:
 - You can give the packing argument for why each strip point in closest pair is compared with at most 7 others, and you know the `break` is what makes it linear.
 - You reach for Boyer–Moore for majority and can explain the cancellation argument and the necessity of the verification pass.
 - You know single-sided recursion turns `n log n` into `n` (quickselect) or `log n` (binary search), and you ask "which half has the answer" before recursing into both.
+- You know the real thresholds: CPython switches to Karatsuba at 70 thirty-bit limbs (about 630 decimal digits), GMP climbs through Toom-Cook to FFT multiplication, and BLAS `dgemm` is a blocked, vectorised `n³`.
+- You can write the four-digit Karatsuba by hand, name the seven Strassen products, trace Boyer–Moore on an array with no majority, and show the strip comparison that finds a straddling pair.
+- You size the integers before you multiply: `half * half` overflows a 32-bit `int` at `half ≥ 46,341`, and the modular version keeps every operand below `m²`.
 
 ## Check yourself
 
@@ -289,4 +429,10 @@ hints:
   answer: 3
   explanation: >-
     Strassen's seven products come with eighteen block additions, temporaries, and worse rounding behaviour; the cache-blocked, SIMD-vectorised triple loop wins until the n^0.19 gap becomes large. Blocking improves the constant factor, not the exponent, and Strassen works on any matrices (odd sizes can be padded or peeled). Asymptotics describe the limit, not your matrix.
+- q: >-
+    In the closest-pair trace, the strip sorted by y is (8,1), (5,4), (6,5) with d = 5. Why is (8,1) never compared with (5,4)?
+  options: ["Their y gap squared is 9, at least d, so that pair and every later one in y order are too far apart", "Their x gap is 3, more than the strip half-width, so (8,1) is not really in the strip", "The strip is scanned from the top, so (8,1) is only compared with points above it", "They lie on the same side of the dividing line, and same-side pairs were handled by the recursion"]
+  answer: 0
+  explanation: >-
+    The inner loop breaks as soon as the y gap squared reaches d, because the strip is sorted by y and every later point is even further down. (8,1) and (5,4) are on opposite sides of x = 6, so the recursion never saw them; both are inside the strip because (8 − 6)² = 4 and (5 − 6)² = 1 are below 5. The break is what keeps the combine step linear, and here it also happens to be correct: their true squared distance is 18.
 ```

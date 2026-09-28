@@ -39,11 +39,50 @@ def coin_change_with_coins(coins: list[int], amount: int) -> list[int]:
 
 Trace `coins = [1, 3, 4]`, `amount = 6`: the table is `[0, 1, 2, 1, 1, 2, 2]`. From 6 (`dp = 2`): coin 1 → `dp[5] = 2`, no; coin 3 → `dp[3] = 1`, yes, take 3, go to 3. From 3: coin 1 → `dp[2] = 2`, no; coin 3 → `dp[0] = 0`, yes. Result `[3, 3]`.
 
-For LCS, the walk goes from `(m, n)`: on a character match, emit it and step diagonally; otherwise step to whichever of `(i−1, j)` and `(i, j−1)` holds the larger value. The emitted characters come out in reverse. When both neighbours tie, either choice yields a valid LCS; if the problem wants a specific one (lexicographically smallest, say), the tie-break has to be designed, not left to chance.
+### LCS, cell by cell
+
+For LCS the walk goes from `(m, n)`: on a character match, emit it and step diagonally; otherwise step to whichever of `(i−1, j)` and `(i, j−1)` holds the larger value, with a fixed tie-break. `a = "AGGTAB"`, `b = "GXTXAYB"`:
+
+| | `""` | G | X | T | X | A | Y | B |
+|---|---|---|---|---|---|---|---|---|
+| `""` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **A** | 0 | 0 | 0 | 0 | 0 | 1 | 1 | 1 |
+| **G** | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| **G** | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| **T** | 0 | 1 | 1 | 2 | 2 | 2 | 2 | 2 |
+| **A** | 0 | 1 | 1 | 2 | 2 | 3 | 3 | 3 |
+| **B** | 0 | 1 | 1 | 2 | 2 | 3 | 3 | **4** |
+
+| at `(i, j)` | `a[i−1]`, `b[j−1]` | up `dp[i−1][j]` | left `dp[i][j−1]` | move | emitted |
+|---|---|---|---|---|---|
+| (6, 7) | B, B | | | match → (5, 6) | B |
+| (5, 6) | A, Y | 2 | 3 | left → (5, 5) | |
+| (5, 5) | A, A | | | match → (4, 4) | A |
+| (4, 4) | T, X | 1 | 2 | left → (4, 3) | |
+| (4, 3) | T, T | | | match → (3, 2) | T |
+| (3, 2) | G, X | 1 | 1 | tie: up → (2, 2) | |
+| (2, 2) | G, X | 0 | 1 | left → (2, 1) | |
+| (2, 1) | G, G | | | match → (1, 0) | G |
+
+`j = 0` ends the walk; the emitted characters reversed are `GTAB`. The tie at `(3, 2)` is where the choice of LCS is made: going up skips the second `G` of `a`, going left would skip the `X` of `b`, and both lead to a length-4 answer. If the problem wants a specific one (lexicographically smallest, say), the tie-break has to be designed, not left to chance.
 
 ```viz
 {"type": "dp", "algorithm": "lcs", "a": "AGGTAB", "b": "GXTXAYB", "title": "Reconstruction walks the table backwards from the answer cell", "caption": "Diagonal steps on matches emit characters; on mismatches move toward the larger neighbour."}
 ```
+
+### 0/1 knapsack: which items?
+
+With the two-dimensional table from the [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family) (weights `[1, 3, 4, 5]`, values `[1, 4, 5, 7]`, `W = 7`), item `i−1` is in the optimal bag exactly when `dp[i][c] != dp[i−1][c]`: the row for item `i−1` improved on the row without it, and the only way it could is by taking the item.
+
+| row `i` | `dp[i]` over capacities 0..7 |
+|---|---|
+| 0 | `0 0 0 0 0 0 0 0` |
+| 1 (1 kg, 1) | `0 1 1 1 1 1 1 1` |
+| 2 (3 kg, 4) | `0 1 1 4 5 5 5 5` |
+| 3 (4 kg, 5) | `0 1 1 4 5 6 6 9` |
+| 4 (5 kg, 7) | `0 1 1 4 5 7 8 9` |
+
+Walk from `(4, 7)`: `dp[4][7] = 9 == dp[3][7] = 9`, so the 5 kg item is out; `(3, 7)`: `9 != dp[2][7] = 5`, the 4 kg item is in, `c = 3`; `(2, 3)`: `4 != dp[1][3] = 1`, the 3 kg item is in, `c = 0`; `(1, 0)`: `0 == 0`, the 1 kg item is out. Items `{3 kg, 4 kg}`, value 9. The one-row version cannot do this, because the "without this item" row has been overwritten, which is the subject of the next section.
 
 The general rule: **reconstruction is the fill, run in reverse**. If you can state the transition, you can state the walk-back.
 
@@ -51,11 +90,24 @@ The general rule: **reconstruction is the fill, run in reverse**. If you can sta
 
 The rolling-row trick from [grid DP](/learn/algorithms/dynamic-programming/grid-and-two-dimensional-dp) and the sweep-direction rule from [knapsack](/learn/algorithms/dynamic-programming/knapsack-family) both rest on one question: **which earlier states does the transition read?** If it reads only row `i−1`, keep two rows (or one, with the right sweep). If it reads `i−1` and `i−2`, keep three. If it reads an arbitrary earlier state (LIS reads all `j < i`), the full table stays.
 
-Two subtler techniques come up at the senior level.
+### Hirschberg's trick, traced
 
-**Reconstruction with rolled rows: Hirschberg's trick.** Rolling rows destroys the table, so the walk-back is impossible... unless you divide and conquer. For LCS, compute the DP forward on the first half of `a` (rolled, `O(n)` memory) and backward on the second half, find the split point in `b` that maximises `forward[j] + backward[j]`, and recurse on the two halves. Total time stays `O(mn)`, memory drops to `O(m + n)`, and you get the actual subsequence. This is what `diff` implementations use on large files; naming it when the interviewer pushes on memory is a strong signal.
+Rolling rows destroy the table, so the walk-back is impossible, unless you divide and conquer. For LCS, split `a` in half. Compute the last row of the forward DP for the first half of `a` against all of `b` (rolled, `O(n)` memory): `fwd[j]` = LCS of `a[:mid]` and `b[:j]`. Compute the same for the *reversed* second half of `a` against reversed `b`, and un-reverse it: `bwd[j]` = LCS of `a[mid:]` and `b[j:]`. Some split point `j*` of `b` lies on an optimal alignment, and it is the one maximising `fwd[j] + bwd[j]`. Recurse on the two halves.
 
-**Bitsets.** A boolean DP row (subset sum) of `target + 1` cells is `target + 1` bits. Python integers are arbitrary-precision, so `reach |= reach << x` updates the entire row in one operation that runs at machine-word speed:
+On `a = "AGGTAB"`, `mid = 3`, `a[:3] = "AGG"`, `a[3:] = "TAB"`:
+
+| `j` | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
+|---|---|---|---|---|---|---|---|---|
+| `b[:j]` / `b[j:]` | `""` / `GXTXAYB` | `G` / `XTXAYB` | `GX` / `TXAYB` | `GXT` / `XAYB` | `GXTX` / `AYB` | `GXTXA` / `YB` | `GXTXAY` / `B` | `GXTXAYB` / `""` |
+| `fwd[j]` = LCS(`AGG`, `b[:j]`) | 0 | 1 | 1 | 1 | 1 | 1 | 1 | 1 |
+| `bwd[j]` = LCS(`TAB`, `b[j:]`) | 3 | 3 | 3 | 2 | 2 | 1 | 1 | 0 |
+| sum | 3 | **4** | **4** | 3 | 3 | 2 | 2 | 1 |
+
+The maximum is 4, the LCS length, at `j = 1` (or 2). Take `j* = 1`: recurse on (`"AGG"`, `"G"`), which yields `G`, and (`"TAB"`, `"XTXAYB"`), which yields `TAB`; concatenated, `GTAB`. Each level of recursion does `O(mn)` work on the current subproblem and the subproblem sizes halve, so the total is `O(mn) + O(mn/2) + … = O(2mn)`: twice the fill, with `O(m + n)` memory, and the actual subsequence. This is what `diff` implementations use on large inputs. A cheaper cousin is **checkpointing**: keep every `k`-th row, then rebuild each `k`-row band on the way back for `O(mn/k)` memory and `k×` recomputation of the walk.
+
+### Bitsets
+
+A boolean DP row (subset sum) of `target + 1` cells is `target + 1` bits. Python integers are arbitrary-precision, so `reach |= reach << x` updates the entire row in one operation that runs at machine-word speed:
 
 ```python
 def can_partition(nums: list[int]) -> bool:
@@ -68,9 +120,25 @@ def can_partition(nums: list[int]) -> bool:
     return (reach >> (total // 2)) & 1 == 1
 ```
 
-Same recurrence, same downward-sweep semantics (the shift reads the *old* bits), roughly 60× fewer operations. The technique generalises to any boolean DP whose transition is a shift and an OR.
+Same recurrence, same downward-sweep semantics (the shift reads the *old* bits), 64 cells per machine word instead of one per list slot. The technique generalises to any boolean DP whose transition is a shift and an OR.
 
 **Compressing the state space.** Sometimes the state is bigger than it needs to be. Edit distance with a bound `k` only needs the band `|i − j| ≤ k`. Stock with `k` transactions where `k ≥ n / 2` degenerates to unlimited transactions. Detecting these is part of designing the state, not an afterthought.
+
+## Memory, in bytes
+
+The question "can you do better than `O(mn)`" deserves numbers. For a `10⁴ × 10⁴` table, `10⁸` cells:
+
+| representation | bytes per cell | total | notes |
+|---|---|---|---|
+| Python list of lists of `int` | 8 (pointer) + 28 per distinct int object | 0.8 GB + up to 2.8 GB | ints in −5..256 are shared singletons; larger values are separate objects, so an edit-distance table with values up to 10⁴ is mostly distinct objects |
+| NumPy `int32` array | 4 | 400 MB | one allocation, cache-friendly sweeps |
+| NumPy `int64` array | 8 | 800 MB | needed only if values exceed 2 × 10⁹ |
+| memoisation dict on `(i, j)` | 100–200 (entry, tuple key, value) | 10–20 GB | measured in [the memoisation lesson](/learn/algorithms/recursion-backtracking/from-backtracking-to-memoisation) |
+| two rolling rows, `int32` | 4 × 2 × 10⁴ | 80 KB | fits in L2 cache |
+| one boolean row as a bitset | 1/8 | 1.25 KB | subset sum, `reach |= reach << x` |
+| Hirschberg | `O(m + n)` | ~80 KB | plus the reconstructed answer |
+
+The same 10⁸ cells are 3 GB or 80 KB depending on the representation, and the interviewer asking "can you do better" is usually asking whether you know which row of this table you are in. [Space complexity and the memory hierarchy](/learn/foundations/complexity/space-complexity-and-memory-hierarchy) has the cache sizes behind the "fits in L2" remark.
 
 ## DP in disguise
 
@@ -82,11 +150,13 @@ Some of the most-asked DP problems do not say "count" or "minimum" and are misse
 {"type": "dp", "algorithm": "word-break", "s": "catsanddog", "words": ["cat", "cats", "and", "sand", "dog"], "title": "Word break: dp[i] = some dictionary word ends at i and the prefix before it is breakable", "caption": "A yes/no question with a prefix state is still DP. The table is a row of booleans."}
 ```
 
-**Counting structures: Catalan numbers.** "How many structurally distinct BSTs hold keys 1..n?" Fix the root `r`; the left subtree is any BST on `r − 1` keys and the right is any BST on `n − r` keys: `dp[n] = Σᵣ dp[r−1] · dp[n−r]`. That is the Catalan recurrence, and it also counts balanced parenthesis strings, triangulations and binary-tree shapes. The tell is "choose a root/pivot and the two sides are independent instances".
+**Counting structures: Catalan numbers.** "How many structurally distinct BSTs hold keys 1..n?" Fix the root `r`; the left subtree is any BST on `r − 1` keys and the right is any BST on `n − r` keys: `dp[n] = Σᵣ dp[r−1] · dp[n−r]`. That is the Catalan recurrence (`1, 1, 2, 5, 14, 42, 132, …`), and it also counts balanced parenthesis strings, triangulations and binary-tree shapes. The tell is "choose a root/pivot and the two sides are independent instances".
+
+### Graphs, parentheses and probabilities
 
 **Paths in a DAG.** "How many ways to get from A to B" or "longest path" in a graph with no cycles is DP over a topological order: `paths[v] = Σ paths[u]` over predecessors. Unique paths on a grid is this with the grid as an implicit DAG. Longest path in a general graph is NP-hard; the acyclicity is what makes the DP valid.
 
-**Longest valid parentheses.** `dp[i]` = length of the longest valid substring *ending at* `i`. If `s[i] = ')'` and the character before the matched-run `s[i − dp[i−1] − 1]` is `'('`, then `dp[i] = dp[i−1] + 2 + dp[i − dp[i−1] − 2]`. Ugly, but it is the "ends at `i`" pattern from [sequence DP](/learn/algorithms/dynamic-programming/sequence-dp), and a stack solves it too.
+**Longest valid parentheses.** `dp[i]` = length of the longest valid substring *ending at* `i`. If `s[i] = ')'` and the character before the matched run, `s[i − dp[i−1] − 1]`, is `'('`, then `dp[i] = dp[i−1] + 2 + dp[i − dp[i−1] − 2]`. Ugly, but it is the "ends at `i`" pattern from [sequence DP](/learn/algorithms/dynamic-programming/sequence-dp), and a stack solves it too.
 
 **Probability and expectation.** "Expected number of dice rolls to reach 100" or "probability the knight stays on the board after `k` moves" are DP with real-valued cells: the state is the position and remaining moves, the transition averages over outcomes. Interviewers use these to check whether you see past the integer-valued examples.
 
@@ -96,36 +166,91 @@ The shared tell across all of these: an exponential search over choices where th
 
 ## When DP is the wrong tool
 
-DP is not always right, and saying so at the right moment is worth more than any recurrence.
+DP is not always right, and saying so at the right moment is worth more than any recurrence. Each case below comes with the `n` that makes it obvious.
 
-**A greedy choice is provably safe.** Interval scheduling by earliest end, fractional knapsack by density, Huffman merging: DP would also work (`O(n²)` interval DP for scheduling) and would be strictly worse. If you can write an exchange argument, use it. [Greedy and exchange arguments](/learn/algorithms/greedy/greedy-and-exchange-arguments) covers the test.
+**A greedy choice is provably safe.** Interval scheduling by earliest end, fractional knapsack by density, Huffman merging: DP would also work (`O(n²)` interval DP for scheduling) and would be strictly worse. At `n = 10⁵`, the greedy is `n log n ≈ 1.7 × 10⁶` operations and the DP is `10¹⁰`, a factor of 6,000. If you can write an exchange argument, use it. [Greedy and exchange arguments](/learn/algorithms/greedy/greedy-and-exchange-arguments) covers the test.
 
-**The state space is too big.** DP on subsets is `2ⁿ`; DP whose state must include the path taken is `n!`. When `n = 100` and the state is a subset, no memoisation saves you; the problem is NP-hard and the interviewer wants branch-and-bound, a heuristic, or a discussion of why exact is infeasible. Recognising this in the first two minutes, rather than after writing a recurrence, is the senior move.
+**The state space is too big.** DP on subsets is `2ⁿ`: fine at `n = 20` (10⁶ states), out of reach at `n = 40` (10¹²), and at `n = 100` the state count is `2¹⁰⁰ ≈ 1.3 × 10³⁰`, about three thousand times the number of nanoseconds since the Big Bang (roughly 4 × 10²⁶). DP whose state must include the path taken is `n!`. When `n = 100` and the state is a subset, no memoisation saves you; the problem is NP-hard and the interviewer wants branch-and-bound, a heuristic, or a discussion of why exact is infeasible. Recognising this in the first two minutes, rather than after writing a recurrence, is the senior move.
 
-**There is a closed form or a simpler structure.** Fibonacci has a matrix-power `O(log n)` solution; unique paths without obstacles is `C(m+n−2, m−1)`; the number of subarrays with sum `k` is a prefix-sum hash map, not a table. If the DP transition only ever reads `dp[i−1]` and is a fixed linear function, the "DP" is just a loop and calling it DP overstates it.
+**There is a closed form or a simpler structure.** Fibonacci has a matrix-power `O(log n)` solution; unique paths without obstacles is `C(m+n−2, m−1)`; the number of subarrays with sum `k` is a prefix-sum hash map, not a table. If the DP transition only ever reads `dp[i−1]` and is a fixed linear function, the "DP" is a loop and calling it DP overstates it.
 
-**Subproblems do not overlap.** Merge sort and quicksort have the recursive structure but no reuse. Memoising them costs memory and hashing for zero hits.
+**Subproblems do not overlap.** Merge sort and quicksort have the recursive structure but no reuse: every call has a distinct input. Memoising them costs memory and hashing for zero hits.
 
-**The data is streaming or too large for a table.** If `n = 10⁹` items arrive one at a time and the DP would need `O(n)` states, you need a sketch, a sliding window, or a different question.
+**The data is streaming or too large for a table.** If `n = 10⁹` items arrive one at a time and the DP would need `O(n)` states, that is 8 GB of `int64` before the transition runs; you need a sketch, a sliding window, or a different question.
 
 A useful sentence in an interview: "This has optimal substructure, and I think the subproblems overlap, so DP is a candidate; but let me check whether a greedy choice is safe first, because that would be `O(n log n)` instead of `O(n²)`."
 
 ## Debugging a wrong table
 
-When a DP gives the wrong answer, the bug is almost always in one of four places. Check them in this order.
+When a DP gives the wrong answer, the bug is almost always in one of four places. Check them in this order, and look at what each one does to a five-cell table.
 
-1. **State semantics.** Is `dp[i]` about the first `i` elements (half-open) or about index `i` (closed)? Half-open prefixes give an all-zero border with no special cases; mixing the two conventions inside one solution is the most common off-by-one.
-2. **Base cases.** Does the transition produce the first real cell from the bases you set? `dp[0] = 1` in decode ways and coin-change counting is not a statement about the world; it is the value that makes `dp[1]` right. Check by computing `dp[1]` by hand.
-3. **Fill order.** Does every state the transition reads exist when it is read? Interval DP by row instead of by length, knapsack sweeping the wrong way, LIS with `j > i`: each reads garbage silently.
-4. **The answer cell.** `dp[n]` versus `max(dp)` versus `dp[0][n+1]`; LIS and maximum subarray need the max; padded tables shift the answer index.
+1. **State semantics.** Is `dp[i]` about the first `i` elements (half-open) or about index `i` (closed)? Half-open prefixes give an all-zero border with no special cases; mixing the two conventions inside one solution is the most common off-by-one, and its usual symptom is a table one cell too small: `dp = [[0] * n for _ in range(m)]` for a prefix DP raises `IndexError` at `dp[m][n]`, and if the loops are shrunk to fit, the border row that encodes the empty prefix is gone and every cell reads garbage in its place.
+2. **Base cases.** Does the transition produce the first real cell from the bases you set? Coin change over `[1, 3, 4]` with `dp[0] = INF` instead of `0` gives `[INF, INF, INF, INF, INF, INF, INF]`, because every cell is `min` over infinities plus one; with `dp[0] = 0` the table is `[0, 1, 2, 1, 1, 2, 2]`. `dp[0] = 1` in decode ways and coin-change counting is not a statement about the world; it is the value that makes `dp[1]` right. Check by computing `dp[1]` by hand.
+3. **Fill order.** Does every state the transition reads exist when it is read? Interval DP by row instead of by length, knapsack sweeping the wrong way, LIS with `j > i`: each reads garbage silently. A one-row 0/1 knapsack swept upward on weight `[2]`, value `[3]`, capacity 6 returns 9 instead of 3, because the row being read is already the row being written.
+4. **The answer cell.** `dp[n]` versus `max(dp)` versus `dp[0][n+1]`; LIS on `[1, 2, 3, 0]` has `dp = [1, 2, 3, 1]`, so `dp[n−1] = 1` and `max(dp) = 3`; padded tables shift the answer index by one.
 
 The tool for all four is the same: **fill a 5-cell table by hand** for a tiny input and compare it with what the code produces. Print the table. Candidates who trace a small example before running the code find these bugs in a minute; candidates who run and stare find them in ten.
 
-## Performance notes from production
+## Under the hood
 
-A DP that is correct and `O(nm)` can still be too slow if `n = m = 10⁴` in Python: 10⁸ inner-loop iterations is about a minute of pure-Python time, versus well under a second in Rust or Go. Mitigations, in order of effort: reduce the state (band, prune unreachable), vectorise the inner loop with NumPy (edit distance rows can be computed with array operations), move the hot loop to a compiled extension, or accept an approximation. If a DP sits in a request path, precompute it offline where possible: Huffman tables, routing tables and pricing grids are all DP outputs that get computed once and served many times.
+### What a cell costs in CPython
 
-Recursion limits are the other production trap. Top-down memoisation with depth `n = 10⁵` will overflow the stack in Python (default limit about 1,000) and can in JavaScript; convert to bottom-up or an explicit stack before shipping. In an interview, say "I would write this bottom-up in production to avoid the recursion limit" as you write the memoised version.
+A two-row LCS over two random 2,000-character strings took 0.15 s here, 38 ns per cell (CPython 3.14, one machine, tight loop with local variables). At that rate 10⁸ cells is about 4 s, and the figure varies by a factor of a few across interpreter versions and machines; a compiled inner loop is 1–3 ns per cell. If a DP sits in a request path, that difference is the difference between a feature and an outage, and the fixes in order of effort are: reduce the state (band, prune unreachable), vectorise the inner loop, move the hot loop to a compiled extension, or precompute offline. Huffman tables, routing tables and pricing grids are all DP outputs that get computed once and served many times.
+
+### Vectorising a row
+
+Edit distance looks unvectorisable because `dp[i][j]` reads `dp[i][j−1]` in the same row. The trick: compute the substitute and delete candidates for the whole row from the previous row with two array operations, `best[j] = min(prev[j−1] + (a[i−1] != b[j−1]), prev[j] + 1)`, then note that the insert chain makes `cur[j] = min over k ≤ j of best[k] + (j − k)`, which is a cumulative minimum of `best[k] − k` plus `j`: one `np.minimum.accumulate` per row. Rows of 10⁴ then cost a handful of NumPy calls instead of 10⁴ interpreted iterations; the speedup depends on the row length and was not measured here. The other classic is the anti-diagonal sweep, where every cell on a diagonal depends only on the two previous diagonals and can be computed in one vector operation; that is also how GPU implementations of alignment work.
+
+### What `diff` runs
+
+`git diff` does not fill an `O(mn)` table. It runs Myers' 1986 algorithm, which finds the shortest edit script in `O((N + M) · D)` time where `D` is the size of that script: near-linear for similar files, which is the common case. `--diff-algorithm=minimal` spends extra effort to guarantee the smallest script; `patience` (match unique lines first) and `histogram` produce more readable diffs on code that moves blocks around. Python's `difflib.SequenceMatcher` is different again: Ratcliff/Obershelp, which recursively finds the longest contiguous matching block, with an "autojunk" heuristic that ignores items making up more than 1% of a sequence of 200 or more; the docs state it does not produce minimal edit sequences, so it is not LCS and should not be used where minimality matters.
+
+### Recursion limits
+
+Top-down memoisation with depth `n = 10⁵` overflows CPython's default 1,000-frame limit, and raising the limit pushes the failure to the C stack because the `lru_cache` wrapper re-enters the interpreter on every level; JavaScript engines fail at around 10⁴ frames. Convert to bottom-up or an explicit stack before shipping. In an interview, say "I would write this bottom-up in production to avoid the recursion limit" as you write the memoised version.
+
+## Failure modes
+
+**`IndexError` at `dp[m][n]`, or an answer that is one too small.** Symptom: the LCS of two non-empty strings raises, or returns the LCS of the strings minus their last characters. Diagnosis: the table was allocated `m × n` for a prefix-indexed DP that needs `(m + 1) × (n + 1)`, and either the answer cell is out of range or the loops were shrunk and the empty-prefix border is missing. Fix: allocate `n + 1` and index prefixes half-open; check by hand that `dp[1][1]` reads the border.
+
+**The rolling-array version returns a value larger than any subset can produce.** Symptom: 0/1 knapsack returns 9 on a single item of value 3. Diagnosis: the single row is swept upward, so `dp[c − w]` is already this item's row and the item is counted repeatedly. Fix: sweep capacities downward for at-most-once semantics; keep the two-row version until the one-row version matches it on a hand-traced example.
+
+**The walk-back loops forever.** Symptom: the count is right, the reconstruction hangs. Diagnosis: the recomputation test is `dp[a − c] == dp[a]` instead of `dp[a] − 1`; with coins `[1, 3, 4]` and amount 6 it goes 6 → 5 → 2 and then no coin qualifies, so `a` never changes. Fix: the walk must step to a state whose value is exactly one transition away; and guard the loop with a step counter in production code.
+
+**Path counts go negative in Java, or drift in JavaScript.** Symptom: unique paths on a 32 × 32 grid comes out 32 too small in JavaScript, with no error; on 35 × 35 a Java `long` goes negative. Diagnosis: from 30 × 30 the count `C(58, 29) ≈ 3.0 × 10¹⁶` exceeds `2⁵³ ≈ 9.0 × 10¹⁵`, the largest magnitude at which a double represents every integer, so additions are no longer guaranteed exact; on a row-by-row fill the first actual rounding error appears at 32 × 32 (measured: the corner is `465,428,353,255,261,088` and the double sum ends `…056`). `C(68, 34) ≈ 2.8 × 10¹⁹` exceeds `2⁶³ − 1 ≈ 9.2 × 10¹⁸`, and a 100 × 100 grid's count has 59 digits. Fix: count modulo a prime (`10⁹ + 7`) when the problem allows, use `BigInt`/`BigInteger` when it does not, and in Python rely on arbitrary-precision ints while remembering they cost 28 bytes and up per cell.
+
+**Stale answers from a memoised DP.** Symptom: the same call returns different results before and after an unrelated update. Diagnosis: the memo is keyed on the arguments but the function reads a grid or price list that was mutated. Fix: include a version of the mutable input in the key, or clear the cache on every write; the memoisation lesson has the demonstration.
+
+## Reconstruction strategies compared
+
+| strategy | extra memory | extra time | gives the solution | code |
+|---|---|---|---|---|
+| full table + recomputation | none beyond the table (`O(mn)`) | one walk, `O(m + n)` steps × transition cost | yes | +10 lines |
+| full table + parent pointers | a second `O(mn)` table (1 byte per cell suffices) | none | yes, without re-evaluating the transition | +5 lines |
+| rolling rows | `O(n)` | none | **no** | 0 |
+| rolling rows + Hirschberg | `O(m + n)` | about 2× the fill | yes | +30 lines, recursive |
+| rolling rows + checkpoints every `k` rows | `O(mn / k)` | `k` extra row fills per band | yes | +20 lines |
+
+## Interviewer follow-ups
+
+**"Which coins?"** Model answer: walk back from `amount` with recomputation (`dp[a − c] == dp[a] − 1`), or record the last coin per amount during the fill; both are `O(amount)` extra work, the pointer version is faster to walk and costs one more array. Common wrong answer: re-run a search for a combination of size `dp[amount]`, which is exponential.
+
+**"The table is `10⁶ × 10³`. What do you do?"** Model answer: `10⁹` cells is 4 GB as `int32`, so look at the transition: if it reads only the previous row, two rows of 10³; if the path is needed, Hirschberg for `O(m + n)` memory at 2× time, or checkpoints every 1,000 rows for 4 MB of memory and a bounded recomputation. Common wrong answer: "spill the table to disk", which is slower than recomputing.
+
+**"Is DP even the right tool here?"** Model answer: check for a safe greedy choice with an exchange argument first (interval scheduling, fractional knapsack), then check the state count in bytes; if the state is a subset of 100 items, say so and switch to branch-and-bound or approximation. Common wrong answer: writing the recurrence first and discovering the `2¹⁰⁰` states later.
+
+**"Your path counts overflow `long` in Java. Now what?"** Model answer: ask whether the answer is wanted modulo a prime (usual in problem statements), and if so reduce after every addition; otherwise `BigInteger`; a double is never the answer because it silently loses exactness above 2⁵³. Common wrong answer: "use `double` for the big ones".
+
+**"The table is all zeros. Where do you look first?"** Model answer: the base case; a `min`-DP with `dp[0] = INF` or a count-DP with `dp[0] = 0` propagates the wrong base into every cell; compute `dp[1]` by hand and compare. Common wrong answer: rewriting the transition.
+
+## What mid-level engineers get wrong
+
+- **Returning the value and stopping.** Consequence: no answer to "which items", the most common senior-round follow-up.
+- **Rolling the table before being asked for the path.** Consequence: having to explain that the optimisation destroyed the answer, then not knowing Hirschberg.
+- **Quoting `O(mn)` without bytes.** Consequence: proposing a 3 GB table when 80 KB would do, or the reverse, proposing rolling rows that lose the reconstruction.
+- **Treating overflow as someone else's problem.** Consequence: correct recurrences that print wrong numbers at `n = 30` in JavaScript.
+- **Debugging by rerunning.** Consequence: ten minutes staring at output instead of one minute tracing five cells.
+- **Never asking whether greedy works.** Consequence: an `O(n²)` DP for a problem with an `O(n log n)` exchange-argument solution.
 
 ## Exercises
 
@@ -225,12 +350,12 @@ hints:
 
 ## Senior signals
 
-- When asked "which items?", you **walk the table backwards** (parent pointers or recomputation) and can say the memory cost of each.
-- You justify every memory optimisation by naming **which states the transition reads**, and you know Hirschberg's trick for reconstructing after rolling rows.
+- When asked "which items?", you **walk the table backwards** (parent pointers or recomputation), you can trace it cell by cell, and you can say the memory cost of each option.
+- You justify every memory optimisation by naming **which states the transition reads**, you put the table size in bytes, and you know Hirschberg's trick and checkpointing for reconstructing after rolling rows.
 - You recognise **word break, Catalan counting, DAG paths and expectation problems as DP** without the word "minimum" appearing in the statement.
-- You **rule DP out** when a greedy exchange argument exists, when the state is exponential for `n = 100`, or when a closed form is available, and you say so early.
-- You debug a wrong table by **checking state semantics, base cases, fill order and answer cell**, in that order, on a five-cell hand trace.
-- You know the production traps: Python loop speed at `10⁸` cells, recursion limits on deep memoisation, and precomputing DP outputs that sit in a request path.
+- You **rule DP out** when a greedy exchange argument exists (and quote the 6,000× at `n = 10⁵`), when the state is `2¹⁰⁰`, or when a closed form is available, and you say so early.
+- You debug a wrong table by **checking state semantics, base cases, fill order and answer cell**, in that order, on a five-cell hand trace, and you know what each bug does to the table.
+- You know the production traps: tens of nanoseconds per cell in CPython, path counts that pass 2⁵³ at 30 × 30 and first round wrongly at 32 × 32, recursion limits on deep memoisation, and that `git diff` runs Myers rather than a table.
 
 ## Check yourself
 
@@ -240,7 +365,7 @@ hints:
   options: ["None; rolling rows discard the table, so the path is gone", "Switch to a greedy scan that matches characters left to right", "Read the subsequence directly off the two rows still in memory", "Keep the full table, store parents, or use Hirschberg's trick"]
   answer: 3
   explanation: >-
-    Rolling rows lose the walk-back path, but the full table (O(mn) memory), explicit parent pointers, or Hirschberg's divide-and-conquer each recover it; Hirschberg gets the subsequence in O(m + n) memory with the same O(mn) time. So the path is not gone for good. The two remaining rows hold only the last values, not the route, and greedy does not solve LCS.
+    Rolling rows lose the walk-back path, but the full table (O(mn) memory), explicit parent pointers, or Hirschberg's divide-and-conquer each recover it; Hirschberg gets the subsequence in O(m + n) memory with about twice the fill time. So the path is not gone for good. The two remaining rows hold only the last values, not the route, and greedy does not solve LCS.
 - q: >-
     Which of these is NOT a reason to reject DP for a problem?
   options: ["A greedy choice is provably safe and gives a better complexity", "The state must include the set of visited items and n = 200", "The subproblems are disjoint, as in merge sort and quicksort", "The subproblems overlap heavily across the naive recursion"]
@@ -252,7 +377,7 @@ hints:
   options: ["Nothing; a trie over the dictionary solves it without DP", "Every split point must be tried, which is what DP means", "The dictionary is a set, so repeated lookups are cached", "A prefix's yes/no depends on shorter prefixes, which recur"]
   answer: 3
   explanation: >-
-    The yes/no answer for a prefix depends only on yes/no answers for shorter prefixes, and a naive search revisits those prefixes many times: a boolean prefix state with a transition to smaller prefixes is exactly optimal substructure plus overlap. Trying every split is just brute force; the reuse is what makes it DP. A trie speeds up the word-lookup part but does not remove the exponential search without memoisation.
+    The yes/no answer for a prefix depends only on yes/no answers for shorter prefixes, and a naive search revisits those prefixes many times: a boolean prefix state with a transition to smaller prefixes is exactly optimal substructure plus overlap. Trying every split is brute force; the reuse is what makes it DP. A trie speeds up the word-lookup part but does not remove the exponential search without memoisation.
 - q: >-
     Your coin-change table gives the right count but the walk-back loops forever. The most likely bug is:
   options: ["The table should have been filled backwards, from amount down", "The coins are not sorted, so the walk-back picks the wrong one", "The walk-back tests dp[a - c] == dp[a] instead of dp[a] - 1", "Infinity was stored as amount + 1, which the walk-back follows"]
@@ -264,5 +389,11 @@ hints:
   options: ["Add a cache so that repeated cells are not recomputed", "Shrink the state space or vectorise the inner loop", "Switch to top-down so that only needed cells get computed", "Raise the recursion limit so the deep calls can finish"]
   answer: 1
   explanation: >-
-    4 × 10⁸ pure-Python iterations is minutes, not a second, so the state count is the problem. Banding, pruning unreachable cells, NumPy vectorisation or a compiled inner loop are the real levers. Top-down adds call and hash overhead and here needs nearly every cell anyway; the recursion limit is irrelevant to bottom-up; a cache is what the DP already is.
+    4 × 10⁸ cells at tens of nanoseconds each is many seconds, so the state count is the problem. Banding, pruning unreachable cells, NumPy vectorisation or a compiled inner loop are the real levers. Top-down adds call and hash overhead and here needs nearly every cell anyway; the recursion limit is irrelevant to bottom-up; a cache is what the DP already is.
+- q: >-
+    A JavaScript unique-paths solution using plain numbers is exact on small grids but comes out 32 too small on a 32 × 32 grid. Why?
+  options: ["The count passes 2⁵³, beyond which doubles cannot represent every integer", "Floating-point addition is not associative, so row sums drift", "The table exceeds the engine's array length limit at 900 cells", "Recursion depth reaches the engine's frame limit at 30 rows"]
+  answer: 0
+  explanation: >-
+    Square-grid counts pass 2⁵³ ≈ 9.0 × 10¹⁵ at 30 × 30 (C(58, 29) ≈ 3.0 × 10¹⁶), beyond which doubles are spaced 2 or more apart and an addition may round; the 30 × 30 and 31 × 31 results happen to land on representable values, and 32 × 32 is the first grid where the fill actually loses 32. A 1,024-cell array is tiny, a bottom-up fill has no recursion, and the sums are exact integers until they exceed 2⁵³. Use BigInt or count modulo a prime.
 ```

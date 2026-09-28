@@ -54,9 +54,24 @@ def partition(a, lo, hi, pivot_index):
     return i
 ```
 
-Trace `a = [3, 2, 1, 5, 6, 4]`, `k = 1` (the second smallest), using the last element as pivot for readability:
+### The partition, element by element
 
-| range | pivot | after partition | p | decision |
+This is Lomuto's partition. The invariant during the scan: everything in `a[lo:i]` is `< pivot`, everything in `a[i:j]` is `>= pivot`, and `a[j:hi]` is unexamined. `i` is the boundary where the next small element will go. Take `a = [3, 2, 1, 5, 6, 4]` with the last element, 4, as pivot:
+
+| `j` | `a[j]` | `a[j] < 4`? | action | `i` after | array |
+|---|---|---|---|---|---|
+| 0 | 3 | yes | swap `a[0], a[0]` (no-op) | 1 | `[3, 2, 1, 5, 6, 4]` |
+| 1 | 2 | yes | swap `a[1], a[1]` (no-op) | 2 | `[3, 2, 1, 5, 6, 4]` |
+| 2 | 1 | yes | swap `a[2], a[2]` (no-op) | 3 | `[3, 2, 1, 5, 6, 4]` |
+| 3 | 5 | no | nothing | 3 | `[3, 2, 1, 5, 6, 4]` |
+| 4 | 6 | no | nothing | 3 | `[3, 2, 1, 5, 6, 4]` |
+| end | | | swap pivot into `a[3]` | | `[3, 2, 1, 4, 6, 5]` |
+
+The pivot lands at index 3, with `{3, 2, 1}` before it and `{6, 5}` after, neither side sorted. Five comparisons and one real swap. The self-swaps happen because the small elements were already at the front; on a shuffled array `i` lags `j` and each small element is swapped back to position `i`.
+
+Now the whole selection for `k = 1` (the second smallest):
+
+| range | pivot | after partition | `p` | decision |
 |---|---|---|---|---|
 | `[0, 5]` | 4 | `[3, 2, 1, 4, 6, 5]` | 3 | `k=1 < 3`, keep `[0, 2]` |
 | `[0, 2]` | 1 | `[1, 2, 3, 4, 6, 5]` | 0 | `k=1 > 0`, keep `[1, 2]` |
@@ -67,31 +82,73 @@ Three partitions over 6, then 3, then 2 elements: 11 element visits instead of t
 
 ### Why it is expected O(n)
 
-With a random pivot, the pivot lands in the middle half of the range (between the 25th and 75th percentiles) with probability ½. Whenever that happens, the surviving side has at most ¾ of the elements. So on average every two partitions shrink the problem by a factor of at least ¾, and the total work is a geometric series:
+With a random pivot, the pivot lands in the middle half of the range (between the 25th and 75th percentiles) with probability ½. Whenever that happens, the surviving side has at most ¾ of the elements. So on average every two partitions shrink the problem by a factor of at least ¾, and the total work is bounded by a geometric series:
 
-$$n + \tfrac{3}{4}n + \left(\tfrac{3}{4}\right)^2 n + \dots = 4n$$
+$$2\left(n + \tfrac{3}{4}n + \left(\tfrac{3}{4}\right)^2 n + \dots\right) = 8n$$
 
-Rough but right: expected comparisons are about `2n` to `3.4n` depending on `k` and the analysis, which is $\Theta(n)$. Contrast with quicksort, which at each level does work proportional to *all* elements at that level and has $\log n$ levels; the "throw one side away" step is exactly where the logarithm disappears.
+That is a loose upper bound; the "wait for a good pivot" accounting is pessimistic. The exact analysis (Knuth's, for Hoare's original FIND with uniformly random pivots) gives an expected comparison count that depends on `k`: about `2n` when `k` is near either end and about `2(1 + \ln 2)\,n ≈ 3.39n` for the median. So a median costs three to four passes over the data, and the number is independent of the input's order because the randomness is in the algorithm. Contrast with quicksort, which at each level does work proportional to *all* elements at that level and has $\log n$ levels; the "throw one side away" step is exactly where the logarithm disappears.
 
 The worst case is still $O(n^2)$: an adversarial pivot sequence that removes one element per partition. Random pivots make that a probability event rather than an input property, the same argument as for [quicksort](/learn/algorithms/sorting-searching/comparison-sorts). With a *deterministic* pivot, the same killer-adversary attack applies, and if the data is untrusted, that matters.
+
+## Duplicates: the three-way partition
+
+Run the two-way partition above on an array of 10⁶ identical values. `a[j] < pivot` is never true, so `i` stays at `lo` and the pivot is swapped into position `lo`; `p = lo`. If `k > lo`, the range shrinks by exactly one element. The next partition does the same. Selecting the median of an all-equal array costs `n + (n−1) + … + n/2 ≈ 3n²/8` comparisons: for 10⁶ elements, about 4 × 10¹¹, which is minutes in C and hours in Python. Equal keys are not exotic: timestamps at second resolution, HTTP status codes, quantised scores.
+
+The fix is a **three-way partition** (Dijkstra's Dutch national flag): one pass produces `[< pivot | == pivot | > pivot]`. If `k` falls inside the equal band, the answer is the pivot and the search ends immediately; an all-equal array is selected in one linear pass.
+
+```viz
+{"type": "array", "algorithm": "dutch-flag", "values": [1, 2, 0, 2, 1, 0, 2, 1, 0], "title": "Three-way partition: 0 = below the pivot, 1 = equal, 2 = above", "caption": "lo, mid and hi pointers keep the invariant [0,lo) < pivot, [lo,mid) == pivot, (hi,n) > pivot. Elements equal to the pivot are never moved again."}
+```
+
+```python
+def partition3(a, lo, hi, pivot):
+    """Return (lt, gt): a[lo:lt] < pivot, a[lt:gt+1] == pivot, a[gt+1:hi+1] > pivot."""
+    lt, i, gt = lo, lo, hi
+    while i <= gt:
+        if a[i] < pivot:
+            a[lt], a[i] = a[i], a[lt]; lt += 1; i += 1
+        elif a[i] > pivot:
+            a[i], a[gt] = a[gt], a[i]; gt -= 1        # i stays: the swapped-in value is unexamined
+        else:
+            i += 1
+    return lt, gt
+```
+
+In quickselect, after `lt, gt = partition3(...)`: if `lt <= k <= gt` return `pivot`; if `k < lt` keep `[lo, lt−1]`; else keep `[gt+1, hi]`. Every partition now removes at least the pivot's whole equivalence class, so duplicates can only help.
 
 ## Median of medians: guaranteed linear time
 
 In 1973 Blum, Floyd, Pratt, Rivest and Tarjan showed how to pick a pivot that is *guaranteed* to be reasonably central, making selection worst-case $O(n)$. The pivot rule:
 
 1. Split the array into groups of 5.
-2. Sort each group (constant work per group) and take its median, giving `n/5` medians.
+2. Sort each group (at most 7 comparisons each) and take its median, giving `n/5` medians.
 3. Recursively select the median of those medians. That is the pivot.
 
-At least half of the `n/5` group medians are `<=` the pivot, and each such median has two more elements in its group that are `<=` it, so at least `3 · (n/10) = 3n/10` elements are `<=` the pivot. Symmetrically, at least `3n/10` are `>=` it. The pivot is therefore never in the outer 30% of the data, and the recursion after partitioning is on at most `7n/10` elements.
+Trace it on 15 elements, `[12, 3, 7, 25, 1, 18, 9, 30, 4, 22, 15, 6, 28, 11, 19]`:
 
-The recurrence is `T(n) <= T(n/5) + T(7n/10) + O(n)`. Because `1/5 + 7/10 = 9/10 < 1`, the geometric series converges and `T(n) = O(n)`. The group size 5 is the smallest odd number that makes the fractions add to less than 1; with groups of 3 they add to `1/3 + 2/3 = 1` and the bound becomes $O(n \log n)$.
+| group | elements | sorted | median |
+|---|---|---|---|
+| 1 | `12, 3, 7, 25, 1` | `1, 3, 7, 12, 25` | 7 |
+| 2 | `18, 9, 30, 4, 22` | `4, 9, 18, 22, 30` | 18 |
+| 3 | `15, 6, 28, 11, 19` | `6, 11, 15, 19, 28` | 15 |
 
-So why does almost nobody use it? The constant. Sorting groups of five, recursing to find the pivot, then partitioning costs roughly 10–20 comparisons per element versus quickselect's 2–3. On real hardware, a randomised quickselect beats median of medians by a wide margin for every input that is not an adversarial one. It is a beautiful proof that selection is in $O(n)$ worst case, and the interview answer is exactly that sentence: "median of medians makes selection worst-case linear; in practice we use random pivots because the constant is much better, or introselect to get both."
+The medians are `[7, 18, 15]`; their median, found recursively, is **15**. Now count what the guarantee promises. At least half of the three groups (two of them, groups 1 and 3) have a median `<= 15`, and in each such group the median and the two elements below it are `<= 15`: that is `2 × 3 = 6` elements guaranteed at or below the pivot, and symmetrically `6` guaranteed at or above (groups 2 and 3 contribute `18, 22, 30` and `15, 19, 28`). Actual counts on this array: 9 elements `<= 15` and 7 elements `>= 15` (15 counted in both); 15 sits at sorted index 8 of 15, dead centre here, though the guarantee only promised it would avoid the outer 30%. Partition around 15 and the recursion continues on at most 8 elements instead of 14.
 
-**Introselect** is the fix libraries actually ship: run quickselect, and if the recursion depth or the total work exceeds a bound (typically a multiple of `log n` levels), switch to median of medians for the rest. C++'s `std::nth_element` is specified to be linear on average and implementations use this hybrid; NumPy's `np.partition` does the same.
+In general at least half of the `n/5` group medians are `<=` the pivot, and each such median has two more elements in its group that are `<=` it, so at least `3 · (n/10) = 3n/10` elements are `<=` the pivot. Symmetrically, at least `3n/10` are `>=` it. The pivot is therefore never in the outer 30% of the data, and the recursion after partitioning is on at most `7n/10` elements.
 
-## Heap versus quickselect for the k largest
+### Solving the recurrence
+
+`T(n) <= T(n/5) + T(7n/10) + cn`: the first term finds the median of medians, the second is the surviving side, and `cn` covers grouping, sorting the groups and partitioning. Guess `T(n) <= 10cn` and check by substitution, assuming it holds for all smaller sizes:
+
+$$T(n) \le 10c \cdot \tfrac{n}{5} + 10c \cdot \tfrac{7n}{10} + cn = 2cn + 7cn + cn = 10cn.$$
+
+The guess is consistent, so `T(n) = O(n)`. The thing that made it work is `1/5 + 7/10 = 9/10 < 1`: the recursive calls together process less than the whole input, so the geometric series converges. With groups of 3 the pivot is still central (at least `n/3` on each side, so the surviving side is at most `2n/3`), but the recursive call on the medians is `n/3`, and `1/3 + 2/3 = 1`. Try the same substitution: `T(n) <= 10cn/3 + 20cn/3 + cn = 11cn`, which exceeds the guess, and no linear guess works; the recurrence solves to $\Theta(n \log n)$. Five is the smallest odd group size for which the fractions sum to less than 1. [Recurrences](/learn/foundations/complexity/recurrences-and-master-theorem) has the general technique; this recurrence is the one the master theorem does not cover, because the two subproblems have different sizes.
+
+So why does almost nobody use it? The constant. Sorting groups of five, recursing for the pivot, then partitioning costs several times the comparisons of a random-pivot partition (implementations land in the range of 10–20 comparisons per element against quickselect's 2–3.4), and on real hardware a randomised quickselect beats median of medians by a wide margin on every input that is not adversarial. It is a proof that selection is in $O(n)$ worst case, and the interview answer is exactly that sentence: "median of medians makes selection worst-case linear; the constant is much worse than random pivots, so libraries use introselect to get both."
+
+**Introselect** is the hybrid: run quickselect, and if the number of partitions exceeds a bound (typically a small multiple of `log₂ n`), switch to a guaranteed method for the rest. Which guaranteed method depends on the library, and the section on what the libraries do lists who does what.
+
+## Heap, quickselect or sort for the k largest
 
 The other classic route to the k-th largest is a **min-heap of size k**: push each element, pop the minimum whenever the heap exceeds `k`, and after the pass the heap holds the `k` largest with the k-th largest at the root.
 
@@ -99,34 +156,90 @@ The other classic route to the k-th largest is a **min-heap of size k**: push ea
 {"type": "heap", "algorithm": "top-k", "values": [3, 2, 1, 5, 6, 4, 9, 7], "k": 3, "kind": "min", "title": "Top 3 with a min-heap of size 3", "caption": "The root is the smallest of the k largest seen so far; anything smaller than it is rejected in O(1)."}
 ```
 
-| | Quickselect | Min-heap of size k |
-|---|---|---|
-| Time | $O(n)$ expected | $O(n \log k)$ |
-| Extra space | $O(1)$ (in place) | $O(k)$ |
-| Needs the whole array in memory | yes | **no**: works on a stream |
-| Returns the k largest in sorted order | no (unordered on one side) | yes, with $O(k \log k)$ to drain |
-| Mutates input | yes | no |
+| | Quickselect | Min-heap of size k | Full sort |
+|---|---|---|---|
+| Time | $O(n)$ expected | $O(n \log k)$ | $O(n \log n)$ |
+| Extra space | $O(1)$ (in place) | $O(k)$ | $O(n)$ (Timsort) or $O(\log n)$ (in-place quicksort) |
+| Needs the whole array in memory | yes | **no**: works on a stream | yes |
+| Returns the k largest in sorted order | no (one side, unordered) | yes, with $O(k \log k)$ to drain | yes |
+| Mutates input | yes | no | in place, or copies |
+| Worst case | $O(n^2)$ without introselect | $O(n \log k)$ always | $O(n \log n)$ always |
+| Sweet spot | `k` a constant fraction of `n` | `k ≪ n`, or streaming | you need the order anyway |
 
-The choice depends on two questions. **Is `k` small relative to `n`?** For `k = 10`, `log k` is about 3 and the heap's rejection test (`x <= root`, no heap operation at all) filters most elements in one comparison; the heap wins or ties, and it has better constants than a partition. For `k = n/2`, `log k` is 20 and quickselect's linear pass is clearly better. **Is the data streaming?** A stream of 10⁹ events cannot be partitioned in place; a heap of size `k` needs `k` slots and one pass. Top-k over a stream is the heap, full stop.
+The choice depends on two questions. **Is `k` small relative to `n`?** For `k = 10`, `log k` is about 3 and the heap's rejection test (`x <= root`, no heap operation at all) filters most elements in one comparison; the heap wins or ties, and it has better constants than a partition. For `k = n/2`, `log k` is about 20 and the heap does roughly `20n` operations against quickselect's `3.4n`. **Is the data streaming?** A stream of 10⁹ events cannot be partitioned in place; a heap of size `k` needs `k` slots and one pass. Top-k over a stream is the heap, full stop ([top-k and k-way merge](/learn/data-structures/heaps/top-k-and-k-way-merge)).
 
 For [k-closest-points](/practice/k-closest-points) the interviewer expects you to present both and choose on those two axes; for [kth-largest-array](/practice/kth-largest-array) they usually want quickselect written out and the heap mentioned.
 
 ## Median of two sorted arrays
 
-One more selection problem is asked often enough to name: the median of two sorted arrays in $O(\log(\min(m, n)))$ ([median-two-sorted](/practice/median-two-sorted)). It is not quickselect; it is [binary search](/learn/algorithms/sorting-searching/binary-search) over how many elements of the smaller array go into the left half of the merged order. The invariant is "left half has `(m + n + 1) / 2` elements and every element in the left half is `<=` every element in the right half". You binary search the cut position `i` in array A; `j = half - i` is forced in B, and the predicate "`A[i-1] <= B[j]` and `B[j-1] <= A[i]`" is monotone in `i`. It is the hardest common binary search and you should attempt it after this module.
+One more selection problem is asked often enough to name: the median of two sorted arrays in $O(\log(\min(m, n)))$ ([median-two-sorted](/practice/median-two-sorted)). It is not quickselect; it is [binary search](/learn/algorithms/sorting-searching/binary-search) over how many elements of the smaller array go into the left half of the merged order.
 
-## Selection in practice
+Take `A = [1, 3, 8]` and `B = [7, 9, 10, 11]`, seven elements, so the left half has `half = (7 + 1) // 2 = 4`. Cut `A` after `i` elements and `B` after `j = half − i`; the cut is correct when every element left of both cuts is `<=` every element right of both: `A[i−1] <= B[j]` and `B[j−1] <= A[i]` (missing elements count as `±∞`). If `A[i−1] > B[j]`, too much of `A` is on the left, so move `i` down; if `B[j−1] > A[i]`, move `i` up. That predicate is monotone in `i`, which is what makes it a binary search.
 
-Your language almost certainly has selection built in and, as with sorting, knowing what it is doing tells you what it costs.
+| `lo` | `hi` | `i` | `j` | `A[i−1]`, `A[i]` | `B[j−1]`, `B[j]` | check | decision |
+|---|---|---|---|---|---|---|---|
+| 0 | 3 | 1 | 3 | 1, 3 | 10, 11 | `B[2]=10 > A[1]=3` | `B` gives too much: `lo = 2` |
+| 2 | 3 | 2 | 2 | 3, 8 | 9, 10 | `B[1]=9 > A[2]=8` | `lo = 3` |
+| 3 | 3 | 3 | 1 | 8, ∞ | 7, 9 | `8 <= 9` and `7 <= ∞` | valid cut |
 
-- **C++ `std::nth_element(first, nth, last)`**: rearranges so the element at `nth` is the one that would be there if sorted, everything before is `<=`, everything after is `>=`. Introselect, linear average.
-- **NumPy `np.partition(a, k)`** and `np.percentile` use introselect; `np.median` on a large array is a partition, not a sort.
-- **Python `heapq.nlargest(k, iterable)` / `nsmallest`**: heap of size `k`, $O(n \log k)$; the docs tell you to use `sorted(...)[:k]` when `k` is close to `n` and `min`/`max` when `k == 1`. Python has no built-in quickselect; `statistics.median` sorts.
-- **Rust `slice::select_nth_unstable(index)`**: introselect, in place.
-- **Go**: nothing in the standard library; write quickselect or use a heap from `container/heap`.
-- **Databases**: `PERCENTILE_CONT` and `median()` over a large table typically sort or use approximate sketches (t-digest, KLL). If you need p99 of a billion latencies in a dashboard, you want an approximate quantile sketch with bounded memory, not exact selection; the exact answer is a batch job.
+Left half `{1, 3, 8, 7}`, right half `{9, 10, 11}`; with an odd total the median is the largest on the left, `max(8, 7) = 8`. Merged, the arrays are `[1, 3, 7, 8, 9, 10, 11]` and the middle is 8. For an even total the median averages `max(left)` and `min(right)`. Search the *shorter* array so that `j` never goes out of range, and treat `i = 0` and `i = m` as legal cuts with infinities. It is the hardest common binary search and you should attempt it after this module.
 
-The last point is the production version of the streaming question: exact selection needs either all the data in memory (quickselect) or `O(k)` memory for the top `k` (heap), but a *percentile* of a stream needs neither if you accept a small error. That trade is what monitoring systems make on your behalf.
+## Under the hood: what the libraries do
+
+Your language almost certainly has selection built in, and knowing what it does tells you what it costs. These descriptions are of current releases and can change.
+
+- **Python `statistics.median`** calls `sorted(data)` and indexes the middle: $O(n \log n)$ and a full copy. `median_low` and `median_high` do the same. There is no quickselect in the standard library.
+- **Python `heapq.nlargest(k, it)` / `nsmallest`** keep a heap of size `k` decorated with a sequence number for stability, $O(n \log k)$. The implementation switches to `sorted(it)[:k]` when `k` is at least the input size, and the docs say to use `max`/`min` when `k == 1`. Each decorated entry is a 2-tuple, so memory is a few tens of bytes per kept element, not per input element.
+- **NumPy `np.partition(a, kth)`** is introselect: median-of-3 pivots, and if the number of partitions exceeds a depth limit it switches to median of medians (of 5) for the pivot, so it is worst-case linear. `np.median` calls `partition` with `kth = [n//2 − 1, n//2]` for even `n` and averages the two, so a median of 10⁸ floats is two selections, not a sort. `np.percentile` is the same machinery.
+- **C++ `std::nth_element`** in libstdc++ is introselect with depth limit `2·log₂ n`, but its fallback is *heap select* (build a heap of the prefix, sift the rest through it), which is $O(n \log n)$ worst case rather than linear. libc++'s version is a median-of-3 quickselect without a depth-limit fallback and has known quadratic inputs. The standard only promises linear *average* time.
+- **Rust `slice::select_nth_unstable`** is quickselect with a depth limit whose fallback is median of medians, so it is worst-case linear (a guarantee added in recent releases; older versions were average-case only).
+- **Go** has nothing in the standard library; write quickselect or use `container/heap`.
+- **Floyd–Rivest** is the fewer-comparisons variant: sample $\sqrt{n}$-ish elements, select two pivots from the sample that bracket the target rank with high probability, and partition once. Expected comparisons `n + min(k, n−k) + O(√n log n)`, about `1.5n` for the median against quickselect's `3.39n`. It is what you would reach for if selection were the hot loop.
+
+### Sketches for streams
+
+The production version of the streaming question is different again. **Exact** selection needs either the whole array (quickselect) or `O(k)` memory for the top `k` (heap). A *percentile* of a stream of 10⁹ latencies needs neither if you accept a bounded error: **quantile sketches** (t-digest, KLL, GK) keep a few hundred weighted centroids per series, a few kilobytes, and answer p99 with a rank error around 1% and much better accuracy in the tails, which is where p99 lives. Every monitoring system (Prometheus histograms, Datadog's distributions, the `PERCENTILE_APPROX` functions in warehouses) makes that trade on your behalf; the exact answer is a batch job over stored samples. The same idea, bounded memory for bounded error, is what [Count-Min sketch and HyperLogLog](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) do for frequencies and cardinalities.
+
+## Quantified costs
+
+- **Comparisons for the median of `n`:** sort, about `n log₂ n` (`2.7 × 10⁹` for `n = 10⁸`); quickselect, about `3.4n` (`3.4 × 10⁸`); Floyd–Rivest, about `1.5n`; median of medians, of the order of `10n–20n`. The ratio sort : quickselect grows with `n` and is around 8 at `10⁸`.
+- **Heap of size `k` on `n` items:** `n` comparisons against the root plus `O(log k)` per accepted element; with random data the root rejects all but about `k ln(n/k)` elements, so for `k = 100`, `n = 10⁷` the heap does roughly `10⁷ + 1,200 × 7` operations, which is a single pass.
+- **Memory:** quickselect `O(1)` extra but mutates; heap `k` slots; sort `n` slots for Timsort's merge buffer in the worst case; sketch a few KB regardless of `n`.
+- **The quadratic cliff:** deterministic pivot on sorted input, or two-way partition on all-equal input, costs about `n²/2` to `3n²/8` comparisons: `10⁶` elements become `4 × 10¹¹` operations, minutes to hours.
+
+## Failure modes
+
+**A request pins a CPU for minutes.** Symptom: p99 of a ranking endpoint jumps from milliseconds to minutes on specific payloads; a profile shows all the time in `partition`. Diagnosis: quickselect with a deterministic pivot (first, last or middle element) on data a client controls; sorted or reverse-sorted input, or a crafted "median-of-3 killer" sequence, makes every partition remove one element. Fix: random pivot, or introselect; and treat any $O(n^2)$ worst case on untrusted input as a denial-of-service bug, not a performance nit.
+
+**Selecting the median of a column of identical timestamps takes hours.** Symptom: a job that is fast on varied data hangs on a batch where every value is the same. Diagnosis: two-way partition with strict `<`, so every partition strips one element; the all-equal input is the worst case regardless of pivot choice. Fix: three-way partition, which finishes an all-equal array in one pass.
+
+**The k-th largest is consistently one element off.** Symptom: unit tests with distinct values pass for `k = 1`, fail for `k = 2` by returning the wrong neighbour. Diagnosis: 1-based `k` used as a 0-based index, or "k-th largest" translated to index `k` instead of `n − k`. Fix: convert once at the API boundary into a named `target_index`, and test `k = 1`, `k = n` and `k = n/2` explicitly.
+
+**`RecursionError` on large sorted inputs only.** Symptom: a recursive quickselect passes every test and crashes in production on a pre-sorted feed. Diagnosis: with bad pivots the recursion depth is $O(n)$, past CPython's default limit of 1,000. Fix: the iterative loop above (tail-call the surviving side), plus random pivots.
+
+**A later `bisect` on the same list returns garbage.** Symptom: unrelated code that searched a sorted list starts returning wrong indices after the selection feature shipped. Diagnosis: quickselect mutates its input, and the caller's list was shared. Fix: copy before selecting (`list(a)`), or document the mutation in the function's name and contract as `np.partition` (returns a copy) versus `ndarray.partition` (in place) do.
+
+## Interviewer follow-ups
+
+**"The data is a stream of unknown length and you have 1 MB of memory. Find the 100 largest values."** Model answer: a min-heap of 100 entries; each incoming value is compared with the root and rejected in $O(1)$ unless it is larger; $O(n \log 100)$ time, 100 slots of memory. Common wrong answer: buffer everything and run quickselect, which needs the whole stream in memory.
+
+**"Exact median of 10¹⁰ 8-byte integers on a machine with 16 GB of RAM."** Model answer: the data is 80 GB, so it does not fit; make one pass counting values by their top 16 bits (65,536 counters), find the bucket containing rank `n/2`, then a second pass keeping only that bucket's values (on average `10¹⁰ / 65,536 ≈ 150,000` values, trivially in memory) and quickselect within it; two passes over the file. Common wrong answer: an external merge sort, which works but does $O(n \log n)$ work and several passes; or a sketch, when the question said exact.
+
+**"Now return the k smallest in sorted order."** Model answer: quickselect to place the k-th element, then sort the prefix: $O(n + k \log k)$; or the heap at $O(n \log k)$ if streaming. Common wrong answer: sort everything, $O(n \log n)$, or claim quickselect leaves the prefix sorted (it does not).
+
+**"Median of medians is linear. Why does NumPy not use it from the start?"** Model answer: its constant is several times worse than a random pivot's, so introselect runs quickselect and only falls back when a depth limit is hit, getting the average of one and the guarantee of the other. Common wrong answer: "median of medians is approximate", which confuses it with the median-of-3 heuristic.
+
+**"Median of two sorted arrays of sizes `m` and `n` in better than $O(m + n)$."** Model answer: binary search the number of elements taken from the shorter array into the left half; the cut is valid when the last-left of each array is `<=` the first-right of the other; $O(\log \min(m, n))$. Common wrong answer: merge until the middle, which is $O(m + n)$ and is what the interviewer is trying to move you past.
+
+## What mid-level engineers get wrong
+
+- **Sorting to get one order statistic.** Consequence: `log₂ n` times more work, about 27× at `n = 10⁸`, plus a full copy.
+- **Two-way partition on data with many duplicates.** Consequence: quadratic time on the most boring input imaginable, an all-equal column.
+- **Deterministic pivots on untrusted data.** Consequence: a CPU-exhaustion attack that a sorted payload triggers.
+- **A heap for the median.** Consequence: `k = n/2` makes it $O(n \log n)$ with a heap of half the data, worse than sorting in constants and no better in complexity.
+- **"k-th largest" mapped to index `k`.** Consequence: off-by-one results that only show on `k > 1`.
+- **Assuming `nth_element` guarantees linear time.** Consequence: a plan that relies on a worst-case bound the C++ standard never promised.
+- **Mutating a shared array.** Consequence: corruption that shows up in a different module.
 
 ## Exercises
 
@@ -235,12 +348,13 @@ hints:
 
 ## Senior signals
 
-- You know selection is $O(n)$ expected and can explain **why** the logarithm vanishes: only one side of the partition is ever revisited.
-- You can sketch **median of medians** (groups of 5, `3n/10` guarantee, `1/5 + 7/10 < 1`) and say honestly that it is rarely used because of the constant, and that introselect is what ships.
-- You choose between **quickselect and a size-k heap** on two axes: `k` relative to `n`, and whether the data is a stream.
-- You know `nth_element`, `np.partition`, `select_nth_unstable` and `heapq.nlargest` exist and what each costs.
-- You know that exact percentiles of a stream need memory proportional to the data, and that monitoring systems use **quantile sketches** instead.
-- You can explain that the median-of-two-sorted-arrays problem is a binary search on a cut position, not a selection by partition.
+- You know selection is $O(n)$ expected and can explain **why** the logarithm vanishes: only one side of the partition is ever revisited, so the work is a geometric series; you can quote roughly `3.4n` comparisons for a median with random pivots.
+- You trace a **Lomuto partition** by hand, state its invariant, and know that an all-equal array makes the two-way version quadratic and a **three-way partition** fixes it.
+- You can sketch **median of medians** (groups of 5, `3n/10` guarantee, `1/5 + 7/10 < 1`), solve its recurrence by substitution, say why groups of 3 fail, and say honestly that libraries use it only as a fallback.
+- You choose between **quickselect, a size-k heap and a sort** on `k` relative to `n`, streaming, and whether the order is needed.
+- You know what `statistics.median`, `heapq.nlargest`, `np.partition`, `std::nth_element` and `select_nth_unstable` do, including which of them guarantee a linear worst case.
+- You know that exact percentiles of a stream need memory proportional to the data, and that monitoring systems use **quantile sketches** with a few KB per series instead.
+- You can explain the median-of-two-sorted-arrays cut condition and trace the binary search on a concrete pair.
 
 ## Check yourself
 
@@ -275,4 +389,10 @@ hints:
   answer: 3
   explanation: >-
     nth_element is a partition-based selection (introselect), linear on average. The k-th element lands in its sorted position with smaller elements before and larger after, but the two sides are otherwise unordered; that is what makes it linear. Sorting any part of it, prefix or top k, would cost more.
+- q: >-
+    Selecting the median of one million identical values with the two-way Lomuto partition (strict less-than) and random pivots takes minutes. Why?
+  options: ["Every partition strips one element, so the work is quadratic", "Random pivots repeat, so the same partition is redone many times", "Equal keys break the invariant and the loop restarts from lo", "The comparisons are all ties, which the CPU cannot branch-predict"]
+  answer: 0
+  explanation: >-
+    With no element strictly less than the pivot, i never advances, the pivot lands at lo, and the range shrinks by exactly one each time: about 3n²/8 comparisons, some 4 × 10¹¹ for a million elements, whatever pivot is chosen. A three-way partition puts the whole equal band in place in one pass and stops. The invariant is intact and branch prediction is not the issue.
 ```

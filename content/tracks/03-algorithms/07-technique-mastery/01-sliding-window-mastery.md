@@ -25,7 +25,7 @@ Fact 2 is the whole algorithm. Because the best left end for `r + 1` is never to
 Watch `L(r)` march forward for "no repeated value", the most familiar hereditary property:
 
 ```viz
-{"type": "array", "algorithm": "sliding-window-longest-unique", "values": [3, 1, 4, 1, 5, 9, 2, 6, 5, 3], "title": "L(r) only moves right", "caption": "For each right end the left end jumps to just past the previous copy of the new value. It never moves back, which is exactly the heredity theorem."}
+{"type": "array", "algorithm": "sliding-window-longest-unique", "values": [3, 1, 4, 1, 5, 9, 2, 6, 5, 3], "title": "L(r) only moves right", "caption": "For each right end the left end jumps to one past the previous copy of the new value. It never moves back, which is exactly the heredity theorem."}
 ```
 
 Here is the test to run in your head, on some common properties:
@@ -64,7 +64,7 @@ A window of fixed size `k` needs no shrink condition: after admitting `nums[r]`,
 {"type": "array", "algorithm": "sliding-window-max-sum", "values": [2, 1, 5, 1, 3, 2, 7, 1], "k": 3, "title": "Fixed window of size 3", "caption": "Each slide adds one element and subtracts one. Eight elements, eight updates, regardless of k."}
 ```
 
-The one fixed-window idea worth carrying into the hard problems is the **match counter**. In [Permutation in String](/practice/permutation-in-string) you need to know whether the window's letter counts equal the pattern's. Comparing the two 26-entry arrays each step is the `O(σ)` check from above. Instead, keep `matches`, the number of letters whose window count equals the pattern count. Admitting a letter changes one count, so `matches` changes by at most one: it goes up if the count just became equal, and down if it was equal and no longer is. The window is a permutation exactly when `matches == 26`. The same idea, "maintain how many constraints are currently satisfied", is the `missing` counter in Minimum Window Substring.
+The one fixed-window idea worth carrying into the hard problems is the **match counter**. In [Permutation in String](/practice/permutation-in-string) you need to know whether the window's letter counts equal the pattern's. Comparing the two 26-entry arrays each step is the `O(σ)` check from above. Instead, keep `matches`, the number of letters whose window count equals the pattern count. Admitting a letter changes one count, so `matches` changes by at most one: it goes up if the count has become equal, and down if it was equal and no longer is. The window is a permutation exactly when `matches == 26`. The same idea, "maintain how many constraints are currently satisfied", is the `missing` counter in Minimum Window Substring.
 
 ## Counting windows: add r − L(r) + 1
 
@@ -229,6 +229,65 @@ For bitwise OR there is a cheaper special case: keep 32 per-bit counters. Counts
 
 The negatives row is the interview pivot you should see coming: the moment the array can hold negative numbers, "sum" stops being monotone under shrinking, and the window is dead. Say so out loud before switching tools.
 
+## Under the hood
+
+The `O(1)` per step that the amortised argument assumes is real in CPython, but only because of three implementation facts worth knowing.
+
+**The count map.** `counts[x]` on a small integer key hashes to the integer itself (`hash(x) == x` for `|x| < 2^61 − 1`; only `-1` is remapped to `-2`), so the lookup is a mask of the hash against the table size, one slot read and one key comparison. Since Python 3.6 a dict is a compact index table (1, 2, 4 or 8 bytes per slot depending on size) plus a dense entries array of 24-byte `(hash, key, value)` records. `del counts[y]` writes a dummy marker into the index slot and leaves a hole in the entries array; the hole is reclaimed only when the dict is rebuilt on a later resize. `len(counts)` reads the `ma_used` counter, which is why "delete zero-count keys and use `len`" is a genuine `O(1)` distinct count and not a scan in disguise. A measured `get` plus `set` on a small dict costs about 60 ns on a current laptop; the whole `at_most` loop ran at about 120 ns per element on 10⁶ values with 1,000 distinct keys.
+
+**The deque.** `collections.deque` is a doubly linked list of blocks of 64 pointers (`BLOCKLEN` in `_collectionsmodule.c`). `appendleft` and `popleft` touch one block and never shift anything, so the monotonic deque's front pops are `O(1)`. `list.pop(0)` moves every remaining pointer down with `memmove`; 10⁵ pops from a 10⁵-element list took 214 ms against 2 ms for the deque in the same run. In JavaScript, `Array.prototype.shift()` has the same linear cost; a head index into a plain array is the usual fix.
+
+**Strings.** `s[l:r+1]` allocates and copies `r − l + 1` characters every time it runs; a `str` has no view type. Keep indices and compare `s[i]`, which is `O(1)`.
+
+## Quantified costs
+
+- **Pure-Python throughput.** A window loop whose admit, evict and check are each a dict operation runs at roughly 100–300 ns per element, so 10⁶ elements is on the order of 0.1–0.3 s. It depends on how often the shrink loop fires and on the key type (a `str` key is hashed once and cached).
+- **The `O(σ)` scan.** On 20,000 elements with 1,000 distinct values, the version that recounts distinct keys with `sum(1 for c in counts.values() if c > 0)` took 126 times longer than the incremental version, and the ratio grows linearly with the number of distinct values because the scan visits every key ever inserted.
+- **Two-stack queue.** Each element is pushed once, moved across once and popped once: three `O(1)` list operations plus one aggregate computation per move, about 3 × 10⁶ operations for `n = 10⁶`, where a segment tree's `O(log n)` per query does about 2 × 10⁷.
+- **Memory.** A dict entry costs about 100 bytes all-in (24-byte entry, index slot, boxed key and value). A map that never deletes zero counts holds about 100 MB after 10⁶ distinct values, for a window that may contain ten elements.
+
+## Failure modes
+
+**Symptom: `IndexError`, or a negative count, from a loop that passed every visible test.** Diagnosis: one element is invalid on its own, so the shrink loop empties the window and keeps evicting. Without the `k <= 1` guard, `count_product_below([2, 3], 1)` returns −1 and `count_product_below([5, 1], 1)` raises `IndexError`; in JavaScript the same code reads `undefined`, the product becomes `NaN`, and `NaN >= k` is false, so the loop exits with a corrupted state and no error at all. Fix: guard the case where a single element fails, or write the shrink condition as `while left <= right and invalid()` so the empty window is a legal stopping point.
+
+**Symptom: the endpoint's p99 latency is fine on the test fixtures and quadratic on production data.** Diagnosis: the validity check scans the state. Zero-count keys were never deleted, or a 26-slot comparison was generalised to arbitrary integer keys, so each step costs the number of distinct values ever seen. Fix: maintain the distinct count on the `0 → 1` and `1 → 0` transitions, or delete zero-count keys and use `len`.
+
+**Symptom: wrong answers, no exception, only on some inputs.** Diagnosis: the array contains negative numbers and the property was "sum ≤ S" or "sum = S". Heredity fails, `L(r)` is no longer monotone, and the left pointer skips valid windows. Fix: prefix sums with a hash map for equality, a monotonic deque over prefix sums for "shortest with sum ≥ S", as in [prefix sums and hashing tricks](/learn/algorithms/technique-mastery/prefix-sums-and-hashing-tricks).
+
+**Symptom: the shortest-window answer is one too long, or `inf` when a window exists.** Diagnosis: the length was recorded after the shrink loop, when the window is no longer valid, instead of inside it before each eviction. Fix: for closed-under-growing properties, record inside the `while` before evicting; for closed-under-shrinking ones, record after the `while`.
+
+**Symptom: a string problem times out at `n = 10⁵` with an algorithm that is provably `O(n)`.** Diagnosis: `s[l:r+1]` inside the loop copies up to `n` characters per step. Fix: keep indices; slice once at the end.
+
+## Choosing the tool
+
+| Technique | Time | Extra memory | Negatives | Counts or finds | Needs contiguity |
+|---|---|---|---|---|---|
+| Sliding window | `O(n)` | `O(distinct in window)` | No (for sums) | Both | Yes |
+| Prefix sums + hash map | `O(n)` | `O(n)` prefixes | Yes | Counts, longest, shortest | Yes |
+| Monotonic deque over prefix sums | `O(n)` | `O(n)` | Yes | Shortest with sum ≥ S | Yes |
+| DP (Kadane, LIS) | `O(n)` to `O(n²)` | `O(1)` to `O(n)` | Yes | Optimises a value, not a predicate | Kadane yes, LIS no |
+
+## Interviewer follow-ups
+
+**"You found the longest valid window. Now count all valid subarrays."** Model answer: add `r − L(r) + 1` at each right end in the same pass, because heredity makes the valid starts a suffix; the two-pass at-most trick handles "exactly". Common wrong answer: rerun the longest-window loop from every start, which is `O(n²)`.
+
+**"The array now contains negative numbers. Which of your window solutions survive?"** Model answer: anything whose property does not depend on the sign, such as "at most `k` distinct" or "at most `k` zeros", is unaffected; anything about sums or products loses heredity and moves to prefix sums. Common wrong answer: "negatives break sliding windows", said as a blanket rule, or the opposite, not noticing that the sum-based window is now wrong.
+
+**"Give me the window maximum in `O(1)` per step."** Model answer: a monotonic deque of indices, each pushed and popped at most once, so amortised `O(1)`; the front is the maximum. Common wrong answer: a heap with lazy deletion, which is correct but `O(log n)` per step, offered as if it were `O(1)`.
+
+**"The input is a stream you cannot replay. What memory does your variable window need?"** Model answer: the counts, `O(k)` for at-most-`k` distinct, plus the window's own elements, because eviction needs to know what left; a fixed window of size `k` needs exactly `k` elements and a variable one needs its current length, which can be `O(n)` in the worst case. Common wrong answer: "only the hash map", forgetting that you cannot evict what you did not store.
+
+**"Prove the running time."** Model answer: `left + right` starts at 0, increases by one on every iteration of either loop, and never exceeds `2n`, so there are at most `2n` iterations, each `O(1)` given an incremental state. Common wrong answer: "the inner loop rarely runs", which is an observation about typical data, not a bound.
+
+## What mid-level engineers get wrong
+
+- **Applying the template without the heredity check.** The code runs, passes the sample tests, and returns wrong answers on the first input with a negative number or an "exactly" condition.
+- **Shrinking with `if` instead of `while`.** A single admit can require several evictions; the window stays invalid and `right − left + 1` over-counts. The non-shrinking `if` is correct only with the argument given above.
+- **Scanning the state to check validity.** The `O(n)` claim is false; the code is `O(nσ)`, and with integer keys `σ` can be `n`.
+- **Recording at the wrong moment.** Longest and count record after the shrink; shortest records inside it. Swapping them gives an answer off by one eviction.
+- **Copying the window.** `s[l:r+1]`, `tuple(nums[l:r+1])` or `"".join(...)` inside the loop turns `O(n)` into `O(n²)`.
+- **Not stopping at the empty window.** A shrink loop that assumes some valid start exists reads past `right` when a single element is invalid.
+
 ## Exercises
 
 ```exercise
@@ -344,6 +403,8 @@ hints:
 - You reduce **exactly-k to at-most-k** twice, and you know which "exactly" problems this does not rescue: sums with negatives go to prefix sums and hashing.
 - You can prove the **non-shrinking window** in Longest Repeating Character Replacement, or choose the honest `while` version and say why.
 - You handle non-invertible aggregates with a **monotonic deque** (max and min) or a **two-stack queue** (any associative operation), and you try per-bit counters first for OR.
+- You make the **empty window a legal state** of every shrink loop, because one invalid element otherwise walks the pointer off the array.
+- You know what the runtime does per step (a small-int dict lookup is a mask and one compare, `deque.popleft` touches one 64-slot block, `list.pop(0)` and `s[l:r+1]` are linear) and you can put a number on a 10⁶-element pass.
 
 ## Check yourself
 
@@ -378,4 +439,11 @@ hints:
   answer: 2
   explanation: >-
     gcd is associative but has no inverse, so the window's gcd cannot be updated on eviction. The two-stack queue stores prefix aggregates in each stack and rebuilds the front stack only when it empties, so each element is moved once, and it handles push, pop and query. A monotonic deque works for max and min because a dominated value can be discarded forever; gcd has no such dominance. A segment tree would work at O(log n) per query, but it is heavier than needed.
+- q: >-
+    count_product_below([2, 3], 1) is run without the k <= 1 guard. The shrink loop is while prod >= k. What happens?
+  options: ["It raises ZeroDivisionError, because the product reaches 0 after the evictions", "It returns 3, because every subarray of two positive integers is counted", "It returns 0, because the empty window has product 1 and 1 >= 1 stops the loop", "It returns -1, because the window empties and the loop keeps evicting past right"]
+  answer: 3
+  explanation: >-
+    An empty window has product 1, and 1 >= 1 is still true, so the loop does not stop there: it divides by nums[1] (product 0), advances left to 2, and then adds right - left + 1 = -1 at right = 0. On [5, 1] the same loop reads past the end and raises IndexError instead. Any shrink loop must treat the empty window as a legal stopping state, either through a guard on k or a left <= right condition.
 ```
+

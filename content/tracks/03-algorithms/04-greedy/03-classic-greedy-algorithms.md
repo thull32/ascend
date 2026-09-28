@@ -54,11 +54,37 @@ Codes: `a = 0`, `c = 100`, `b = 101`, `f = 1100`, `e = 1101`, `d = 111`. Total b
 
 $$45·1 + 13·3 + 12·3 + 16·3 + 9·4 + 5·4 = 45 + 39 + 36 + 48 + 36 + 20 = 224$$
 
-A fixed 3-bit code for six symbols costs 300. Huffman saves 25% on this distribution, and the saving grows with skew. Notice the shortcut in the trace: the total cost equals the sum of the merged node weights (`14 + 25 + 30 + 55 + 100 = 224`), because every merge adds one bit to the code of every symbol below it. That identity lets you compute the cost without building the tree, which is the second exercise.
+Notice the shortcut in the trace: the total cost equals the sum of the merged node weights (`14 + 25 + 30 + 55 + 100 = 224`), because every merge adds one bit to the code of every symbol below it. That identity lets you compute the cost without building the tree, which is the second exercise.
+
+### Code lengths, the ratio, and the entropy floor
+
+| symbol | frequency | code | length | bits contributed |
+|---|---|---|---|---|
+| a | 45 | `0` | 1 | 45 |
+| d | 16 | `111` | 3 | 48 |
+| b | 13 | `101` | 3 | 39 |
+| c | 12 | `100` | 3 | 36 |
+| e | 9 | `1101` | 4 | 36 |
+| f | 5 | `1100` | 4 | 20 |
+| total | 100 | | average 2.24 | 224 |
+
+Three ratios are worth knowing. Against the 3-bit fixed code the output is `224 / 300 = 74.7%` of the size, a 25.3% saving. Against 8-bit ASCII it is `224 / 800 = 28%`. Against the floor: the entropy of this distribution is `H = −Σ p log₂ p = 2.2199` bits per symbol, so no code with one codeword per symbol can beat 222 bits per 100, and Huffman's 224 is 0.9% above it. Huffman is always within one bit per symbol of the entropy (`H ≤ L < H + 1`), and the gap is large exactly when one symbol dominates: a source with probabilities 0.99 and 0.01 has entropy 0.08 bits but Huffman spends a whole bit per symbol, twelve times the floor. That gap is why arithmetic coding and ANS exist (see the trade-offs table).
+
+### Decoding is a walk from the root
+
+Prefix-freeness means the decoder never needs delimiters. Encode `faced`: `1100 0 100 1101 111`, 15 bits, the same as the 3-bit code because this word happens to use mostly rare symbols. Decoding reads one bit at a time and restarts at the root each time it reaches a leaf:
+
+| bit positions | bits consumed since the root | node reached | emit |
+|---|---|---|---|
+| 0–3 | `1100` | leaf f | f |
+| 4 | `0` | leaf a | a |
+| 5–7 | `100` | leaf c | c |
+| 8–11 | `1101` | leaf e | e |
+| 12–14 | `111` | leaf d | d |
+
+Nothing in the stream says where one symbol ends; the tree's shape does. That property fails the moment the decoder's tree differs from the encoder's, which is the first failure mode below.
 
 **Why greedy is optimal here.** Two facts, both exchange arguments. First, in some optimal tree the two least frequent symbols are siblings at the deepest level: if they are not, swap them with whatever *is* deepest; the swap moves lighter symbols deeper and heavier ones shallower, so the total cannot increase. Second, merging those two into one pseudo-symbol of combined weight turns the problem into an optimal-code problem on `n − 1` symbols whose cost is exactly the original cost minus the merged weight; so an optimal tree for the smaller problem yields an optimal tree for the larger. Induction closes it. Complexity is $O(n \log n)$ for `n` symbols, or $O(n)$ with two queues if the frequencies arrive sorted.
-
-**In production.** DEFLATE (zlib, gzip, PNG, HTTP `Content-Encoding: gzip`) uses Huffman codes after LZ77 matching; JPEG uses them on quantised coefficients; Brotli and Zstandard use variants with static dictionaries and finite-state entropy. The interview follow-up is "what if the frequencies change while streaming?", and the answer is adaptive Huffman or, in practice, periodically rebuilding tables per block, which is what DEFLATE does.
 
 ## Jump game: furthest reach
 
@@ -83,7 +109,20 @@ def min_jumps(nums):
 
 Trace `[2, 3, 1, 1, 4]`: `i=0`: far 2, `i == cur_end` so jumps 1, cur_end 2. `i=1`: far 4. `i=2`: far 4, `i == cur_end`, jumps 2, cur_end 4. Loop ends at `i = 3`. Two jumps (0 → 1 → 4). The loop runs to `n − 2` because reaching the last index never requires jumping *from* it; running to `n − 1` would count one extra jump when the last index is itself a layer boundary.
 
-Why is the greedy layer count minimal? Because it is BFS, and BFS layer numbers are shortest-path distances. The greedy just exploits that layers are intervals.
+A longer one, `[3, 4, 3, 2, 5, 4, 3]`, shows the layers as intervals:
+
+| `i` | `nums[i]` | `far` after | `i == cur_end`? | `jumps` | `cur_end` | layer just closed |
+|---|---|---|---|---|---|---|
+| 0 | 3 | 3 | yes | 1 | 3 | `{0}` |
+| 1 | 4 | 5 | no | 1 | 3 | |
+| 2 | 3 | 5 | no | 1 | 3 | |
+| 3 | 2 | 5 | yes | 2 | 5 | `{1, 2, 3}` |
+| 4 | 5 | 9 | no | 2 | 5 | |
+| 5 | 4 | 9 | yes | 3 | 9 | `{4, 5}` |
+
+The loop stops before `i = 6`. Three jumps (0 → 1 → 5 → 6 is one witness), and the layers `{0}`, `{1, 2, 3}`, `{4, 5}`, `{6}` are BFS levels. `far` overshooting the array (9 for length 7) is harmless: it is only compared against `i`.
+
+Why is the greedy layer count minimal? Because it is BFS, and BFS layer numbers are shortest-path distances. The greedy exploits the fact that layers are intervals, so a queue is unnecessary.
 
 ## Gas station: the restart argument
 
@@ -111,9 +150,18 @@ There is a closed form. Let `max_count` be the highest frequency and `num_max` t
 
 $$\text{time} = \max\big(\,|\text{tasks}|,\ (\text{max\_count} − 1)(n + 1) + \text{num\_max}\,\big)$$
 
-`AAABBB`, `n = 2`: `max_count = 3`, `num_max = 2`, so `(3 − 1)·3 + 2 = 8`: `A B _ A B _ A B`. The `max` with the task count handles the case where there are so many other letters that no idle slots are needed at all, e.g. `AAABBBCCCDDD` with `n = 2` is simply 12.
+`AAABBB`, `n = 2`: `max_count = 3`, `num_max = 2`, so `(3 − 1)·3 + 2 = 8`: `A B _ A B _ A B`. The `max` with the task count handles the case where there are so many other letters that no idle slots are needed at all: `AAABBBCCCDDD` with `n = 2` gives `(3 − 1)·3 + 4 = 10` from the formula but has 12 tasks, so the answer is 12 and every slot is busy.
 
-The heap simulation is the version to write when the interviewer changes the rules (different durations, different cooldowns per task). Push counts into a max-heap; each round, pop up to `n + 1` tasks, run them, decrement, push back the survivors; a round costs `n + 1` unless the heap is empty afterwards, in which case it costs only the number of tasks you ran. Same answer, $O(T \log 26)$, and the shape generalises to [Reorganize String](/practice/reorganize-string), which is the same greedy with `n = 1` and a "which letter goes next" output.
+The heap simulation is the version to write when the interviewer changes the rules (different durations, different cooldowns per task). Push counts into a max-heap; each round, pop up to `n + 1` tasks, run them, decrement, push back the survivors; a round costs `n + 1` unless the heap is empty afterwards, in which case it costs only the number of tasks you ran. Trace `AAAABBBCC` with `n = 2`, so rounds have three slots:
+
+| round | heap (count, letter) before | run | pushed back | time added |
+|---|---|---|---|---|
+| 1 | (4, A) (3, B) (2, C) | A B C | (3, A) (2, B) (1, C) | 3 |
+| 2 | (3, A) (2, B) (1, C) | A B C | (2, A) (1, B) | 3 |
+| 3 | (2, A) (1, B) | A B | (1, A) | 3, one slot idle |
+| 4 | (1, A) | A | none | 1, heap empty so no idle |
+
+Total 10, matching the closed form `(4 − 1)·3 + 1 = 10`. The last row is where implementations go wrong: charging `n + 1` for the final round counts idle time after the last task and returns 12. Same answer as the formula, $O(T \log 26)$, and the shape generalises to [Reorganize String](/practice/reorganize-string), which is the same greedy with `n = 1` and a "which letter goes next" output.
 
 ## Dijkstra, Prim and Kruskal: greedy on a cut
 
@@ -135,12 +183,79 @@ The interview signal is not knowing these algorithms; it is being able to say "P
 
 ## Where greedy runs in production
 
-- **Compression.** Huffman inside DEFLATE, JPEG, and (as tANS/FSE) in Zstandard. If you have tuned `gzip` levels on a CDN, you have tuned how much effort goes into finding matches before the greedy code is built.
+- **Compression.** Huffman inside DEFLATE, JPEG and Zstandard, as detailed below.
 - **Scheduling.** Shortest-job-first minimises mean waiting time (exchange argument: swapping a long job ahead of a short one delays more work); earliest-deadline-first is optimal for meeting deadlines on one machine. Kubernetes' default scheduler scores nodes and greedily places each pod on the best-scoring one, with no backtracking.
 - **Load balancing.** "Least connections" and "power of two choices" are greedy: pick the best-looking server right now. They work because the exchange argument is approximately true and re-evaluated every request.
-- **Bin packing.** First-fit decreasing (sort items descending, put each in the first bin it fits) is a greedy heuristic for VM placement and container packing. It is *not* optimal (bin packing is NP-hard), but it is within a small constant factor of optimal, which is the honest thing to say about most production greedy: not optimal, but good, fast, and bounded.
+- **Bin packing.** First-fit decreasing (sort items descending, put each in the first bin it fits) is a greedy heuristic for VM placement and container packing. It is *not* optimal (bin packing is NP-hard) but uses at most `11/9 · OPT + 1` bins, which is the honest thing to say about most production greedy: not optimal, but fast and bounded.
 
-That last point is the senior framing. Interview greedy is about *provable* optimality. Production greedy is usually a heuristic whose failure modes you have measured. Knowing which one you are running, and being able to say so, is what the design review is checking.
+That is the senior framing. Interview greedy is about *provable* optimality; production greedy is usually a heuristic whose failure modes you have measured. Saying which one you are running is what the design review checks.
+
+## Under the hood
+
+**DEFLATE (gzip, zlib, PNG, HTTP `Content-Encoding: gzip`).** The stream is a sequence of blocks of three kinds: stored, fixed Huffman (a code written into RFC 1951: 8 bits for literals 0–143, 9 for 144–255, 7 for end-of-block and short match lengths) and dynamic Huffman, where the encoder builds two codes per block from the block's own statistics: one over the 286-symbol literal/length alphabet (256 byte values, end-of-block, 29 LZ77 match-length codes) and one over 30 match-distance codes. Two choices make this work at scale. First, the trees are never transmitted. Only the **code lengths** are, and both sides derive the same **canonical code**: codes of equal length are consecutive integers in symbol order, shorter codes numerically first. Huffman's algorithm is asked only for lengths, so ties, which produce different but equally optimal trees, stop mattering. Second, lengths are capped at 15 bits; when a skewed block demands more, zlib's `gen_bitlen` pulls deep leaves up and accepts a marginally longer output. The lengths are themselves coded with a third code over a 19-symbol alphabet (lengths 0–15 plus three run-length symbols) whose lengths are sent as 3-bit fields, so a dynamic block header costs on the order of a hundred bytes, which is why zlib ends a block when its 16 K-entry literal buffer fills rather than every kilobyte. Decoding does not walk a tree bit by bit: `inflate_fast` indexes a table with the next 9 bits of input (6 for distances) and reads symbol, code length and extra-bit count in one lookup, falling through to a second-level table only for longer codes. `gzip -1` through `-9` never touch this step; they change how hard LZ77 searches for matches.
+
+**Other codecs.** JPEG codes quantised DCT coefficients with Huffman tables (default tables, or per-image ones from `libjpeg`'s `-optimize`, a few percent smaller; lengths limited to 16). HPACK, the header compression in [HTTP/2](/learn/networking/application-protocols/http-2-and-http-3), ships a static Huffman code built from header-text letter frequencies, so every request your browser sends is Huffman-coded before it is encrypted. Zstandard uses Huffman for literal bytes and tANS for match lengths and offsets; Brotli adds context modelling and a built-in dictionary. Video codecs show the whole progression: H.264's CAVLC is a Huffman-style variable-length code, while its CABAC mode, HEVC and AV1 use arithmetic coding, because at the probabilities video symbols have the sub-bit gap is worth a multiply per symbol. Every stream Netflix serves ends in one of those coders.
+
+**`heapq`.** The build is `n − 1` rounds of two pops and one push on a heap of at most `n` entries; for 286 symbols that is a few thousand comparisons, negligible next to scanning the block. Push `(weight, tiebreak, node)` tuples: a weight tie with a tree node as payload raises `TypeError` in CPython, the same trap as in [Dijkstra](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra); the [binary heap lesson](/learn/data-structures/heaps/binary-heap-mechanics) has the sift costs. When frequencies arrive sorted, two FIFO queues (leaves, merged nodes) replace the heap and the build is `O(n)`, because merged weights come out in non-decreasing order.
+
+## Quantified costs
+
+- **Entropy gap.** Huffman's average length satisfies `H ≤ L < H + 1` bits per symbol. On the six-symbol example the gap is 0.02 bits (0.9%). On a source dominated by one symbol (`p = 0.99`) it is 0.92 bits, a factor of twelve; arithmetic coding closes it to a few thousandths of a bit at the cost of a multiply per symbol.
+- **Text.** The order-0 letter entropy of English is about 4.1 bits per character, so Huffman over single characters roughly halves 8-bit text. gzip lands around 2–3 bits per character on prose, and nearly all of the extra comes from LZ77 finding repeated strings, not from the entropy coder (an order of magnitude; it depends on the text).
+- **Table cost.** A dynamic DEFLATE block header is on the order of 50–150 bytes, depending on how many of the 316 symbols are used. Below a few hundred bytes of input the header is a large fraction of the output, which is why HTTP servers set a minimum compressible size and why DEFLATE may emit a stored block when compression does not pay.
+- **Depth.** With `n` symbols the deepest code is at most `n − 1` bits, reached on Fibonacci frequencies: 17 symbols with frequencies 1, 1, 2, 3, 5, … (a block of 4,180 symbols) already need 16 bits, over DEFLATE's limit; 20 such symbols need 19.
+- **The other three algorithms.** Jump game and gas station are one pass with `O(1)` state: 10⁶ elements in well under a second of Python. The scheduler's closed form is `O(T)`; the heap simulation is `O(T log 26)` with a log factor under 5.
+
+## Trade-offs
+
+| Entropy coder | Bits above entropy | Speed | Adaptivity | Used in |
+|---|---|---|---|---|
+| Fixed width, `⌈log₂ n⌉` bits | up to `log₂ n − H` | fastest, no table | none | raw formats, ASCII |
+| Huffman, static per block | under 1 bit/symbol; tiny when probabilities are near powers of ½ | one table lookup per symbol | per-block tables, or adaptive Huffman | DEFLATE, JPEG, HPACK, zstd literals |
+| Arithmetic / range coding | around 0.001 bit/symbol | a multiply and a renormalisation per symbol | natural: probabilities update per symbol | CABAC in H.264 and HEVC, AV1, JPEG 2000 |
+| ANS (tANS, rANS) | around 0.01 bit/symbol | as fast as Huffman decoding | per-block tables | Zstandard, LZFSE, JPEG XL |
+
+The scheduling pair has the same shape in miniature:
+
+| Task scheduler | Time | Extra state | Handles |
+|---|---|---|---|
+| Closed form | `O(T)` | two counters | unit durations, one global cooldown |
+| Heap simulation | `O(T log σ)` | a heap of `σ` letters | per-task durations, per-task cooldowns, producing the schedule itself |
+
+## Failure modes
+
+**Symptom: the decoder emits garbage, but only when the encoder ran on a different machine or runtime.** Diagnosis: both sides built the tree from frequencies and broke ties differently (heap insertion order, dictionary iteration order): two different, equally optimal trees whose codes disagree. Fix: transmit code lengths and use canonical codes, as DEFLATE does; the tree is never shared.
+
+**Symptom: a home-grown encoder asserts, or packs codes into a 16-bit field and writes corrupt output, on one block of a large file.** Diagnosis: a skewed block. Fibonacci-like frequencies make the tree a chain, and 17 distinct symbols in a block of a few thousand already need a 16-bit code. Fix: length-limit the code (package-merge for the optimum, or zlib's heuristic of pulling deep leaves up), and add a Fibonacci-frequency input to the tests.
+
+**Symptom: `Content-Encoding: gzip` responses are larger than the uncompressed body for small API replies.** Diagnosis: the dynamic block header and gzip framing cost around 100 bytes, more than a 60-byte JSON reply can save; a static table trained on one payload type and applied to another has the same effect. Fix: a minimum size threshold at the proxy (nginx's `gzip_min_length`), or rely on DEFLATE's stored-block fallback.
+
+**Symptom: a stream consisting of one repeated symbol encodes to zero bytes and the decoder cannot tell how many symbols there were.** Diagnosis: a single-leaf tree gives an empty codeword. Fix: force a minimum code length of 1, or store the symbol count in the header; every production format does one of the two.
+
+**Symptom: the task scheduler's heap simulation returns a time larger than the closed form.** Diagnosis: the final round was charged `n + 1` slots although the heap was empty afterwards, counting idle time after the last task. Fix: charge only the tasks run when the heap is empty after a round; round 4 in the trace costs 1, not 3.
+
+## Interviewer follow-ups
+
+**"The frequencies change as the stream goes on. What do you do?"** Model answer: adaptive Huffman (FGK or Vitter's algorithm rebalance the tree per symbol with encoder and decoder in lockstep) or, the industrial answer, per-block tables: buffer tens of kilobytes, build a code for the block, send its lengths, repeat, as DEFLATE does. Common wrong answer: "rebuild the tree after every symbol", `O(n log n)` per symbol with a decoder that cannot tell when the table changed.
+
+**"Huffman is optimal. So nothing compresses better?"** Model answer: optimal among prefix codes with one integer-length codeword per symbol. Integer lengths waste up to a bit per symbol, badly when one symbol dominates; arithmetic coding and ANS share fractions of a bit across symbols and get within about 1% of entropy, and most of a real compressor's gain comes from the modelling (LZ77, context) in front of the coder anyway. Common wrong answer: treating "optimal prefix code" as "optimal compression".
+
+**"Decode faster than one bit per step."** Model answer: canonical codes plus a lookup table indexed by the next 9 or 10 bits of input, storing the symbol and the code's true length so the bit pointer advances correctly; longer codes fall through to a second-level table. That is zlib's `inflate_fast`. Common wrong answer: walking the tree bit by bit, a data-dependent branch per bit and roughly an order of magnitude slower.
+
+**"Jump Game II, but return the jumps taken, and then make each jump cost `cost[i]`."** Model answer: record the index at which each layer closed and walk back to recover a path; with costs it is no longer BFS by layers but shortest path (Dijkstra, or 0-1 BFS when costs are 0 or 1), because the layer argument relied on every jump costing one. Common wrong answer: still jumping to the furthest reach, which minimises the count, not the cost.
+
+**"Gas station: why does the last candidate necessarily succeed?"** Model answer: the prefix before the final `start` sums negative (every restart happened because a running total went negative), so if the final candidate also failed somewhere, the array would be a negative prefix plus a negative segment plus what follows, and with `sum(diff) ≥ 0` that is a contradiction; the wrap-around part is covered because the whole loop is non-negative. Common wrong answer: stating the restart rule and asserting that the survivor works.
+
+## What mid-level engineers get wrong
+
+- **Shipping the tree or the frequencies instead of the code lengths.** Non-deterministic ties then produce decoders that disagree with encoders; canonical codes make lengths sufficient and the tree irrelevant.
+- **Compressing tiny payloads.** A dynamic table costs about 100 bytes; below that the compressed output is larger than the input. Threshold it.
+- **Quoting Huffman as "within 1% of entropy".** True here, false on skewed sources; the bound is one bit per symbol.
+- **Believing gzip levels change the entropy coder.** They change LZ77 effort only.
+- **Counting the phantom jump.** Looping to `n − 1` in Jump Game II overcounts when the last index closes a layer: `[1, 2]` returns 2 instead of 1.
+- **Stating one half of gas station.** The restart rule alone does not prove the survivor works; the non-negative total does.
+- **Reaching for the closed form after the rules change.** Per-task durations or cooldowns break `(max_count − 1)(n + 1) + num_max`; simulate with the heap.
+- **Calling a production heuristic "greedy, so optimal".** First-fit decreasing and least-connections are heuristics with measured bounds, not proofs; say which kind you are proposing.
 
 ## Exercises
 
@@ -247,6 +362,8 @@ hints:
 - You know the task-scheduler **closed form** and when to abandon it for the heap simulation (variable durations or cooldowns).
 - You reread **Dijkstra, Prim and Kruskal as greedy on a cut** and can produce the cut-property exchange in two sentences.
 - You distinguish **provably optimal greedy** (interviews) from **greedy heuristics with measured bounds** (first-fit, least-connections) in production, and you say which one you are proposing.
+- You know Huffman is optimal only among **integer-length prefix codes**, that the gap to entropy is under one bit per symbol and large on skewed sources, and that arithmetic coding and ANS exist to close it.
+- You know DEFLATE never transmits a tree: it sends **code lengths**, both sides derive the **canonical code**, lengths are capped at 15 bits, and the decoder uses a 9-bit lookup table rather than a bit-by-bit tree walk.
 
 ## Check yourself
 
@@ -276,9 +393,15 @@ hints:
   explanation: >-
     max_count = 4 (A), num_max = 1, so (4 - 1) × 3 + 1 = 10, which exceeds the 9 tasks. One schedule is A B C A B C A B _ A: three full frames of three then the final A. 9 would require no idle slot, impossible with four As needing two gaps each.
 - q: >-
-    Which single idea justifies the greedy choice in Dijkstra, Prim and Kruskal?
-  options: ["Sorting edges by weight, so cheaper edges are always tried first", "The triangle inequality: no detour beats a direct edge", "The cut property: the lightest edge across any cut is safe", "DP on subsets of vertices, reusing each settled set's optimum"]
-  answer: 2
+    An encoder and a decoder each build a Huffman tree from the same frequency table, on different machines, and the decoded output is garbage. Both implementations are correct Huffman builds. What happened, and what does DEFLATE do about it?
+  options: ["One side used a max-heap by mistake; DEFLATE fixes the heap order in the specification", "Floating-point frequencies rounded differently; DEFLATE sends integer counts instead of probabilities", "The trees differ in total length; DEFLATE transmits the full tree so both sides agree", "Ties were broken differently, giving two optimal trees; DEFLATE sends code lengths and derives a canonical code"]
+  answer: 3
   explanation: >-
-    Each algorithm maintains a settled set and commits to the cheapest edge (or, for Dijkstra, the cheapest tentative distance) crossing the cut. The exchange argument, swapping the light edge for the cycle edge it displaces, shows some optimal solution agrees. Only Kruskal sorts edges, and none of them uses DP.
+    Equal weights can be merged in more than one order, and every order gives a tree with the same total length but different codewords. Frequencies are integers, so rounding is not the cause. DEFLATE never transmits a tree or frequencies: it sends each symbol's code length and both sides assign the canonical code (equal lengths get consecutive values in symbol order), so the tie-break is irrelevant.
+- q: >-
+    A binary source emits symbol X with probability 0.99 and Y with probability 0.01. Its entropy is about 0.08 bits per symbol. What does a Huffman code achieve, and why?
+  options: ["About 0.5 bits per symbol, because the two codes average out to half a bit", "About 0.08 bits per symbol, because Huffman is optimal and reaches the entropy", "About 0.1 bits per symbol, within the usual 1% gap of the entropy floor", "1 bit per symbol, because each symbol needs a codeword of at least one whole bit"]
+  answer: 3
+  explanation: >-
+    Huffman assigns one integer-length codeword per symbol, and with two symbols both codewords are exactly one bit, twelve times the entropy. The bound H ≤ L < H + 1 is tight on skewed sources, which is why arithmetic coding and ANS, which share fractions of a bit across symbols, replaced Huffman in video codecs. The 1% gap holds only when probabilities are near powers of one half, as in the lesson's six-symbol example.
 ```

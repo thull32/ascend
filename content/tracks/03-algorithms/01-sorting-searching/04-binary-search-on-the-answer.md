@@ -51,13 +51,25 @@ def smallest_feasible(lo, hi, feasible):
 
 The total cost is $O(\text{cost of feasible} \times \log(\text{hi} - \text{lo}))$. With a linear predicate and an answer range up to 10⁹, that is `30n`, which is fine.
 
+## Why the template is correct
+
+The loop maintains an invariant, the same kind of statement that made plain binary search derivable rather than memorised ([invariants and loop reasoning](/learn/foundations/problem-solving/invariants-and-loop-reasoning)):
+
+> every `x < lo` has `feasible(x) == False`, and `feasible(hi) == True`.
+
+It holds before the loop only if the caller chose `hi` feasible; that is where the "know `hi` is feasible" requirement comes from, and it is not decorative. Each iteration preserves it: if `feasible(mid)` is true, `hi = mid` keeps the second half of the invariant directly; if it is false, monotonicity says every `x <= mid` is also false (a true value below `mid` would force `mid` to be true), so `lo = mid + 1` keeps the first half. When the loop exits, `lo == hi`, everything below `lo` is infeasible and `lo` itself is feasible, so `lo` is the smallest feasible value.
+
+Termination is the same argument as before: `lo <= mid < hi`, so `hi = mid` and `lo = mid + 1` both strictly shrink `hi - lo`. Note what the proof used and what it did not. It used monotonicity in exactly one place, the `lo = mid + 1` step. It never used the predicate being cheap, exact, or integer-valued. That is why the same proof carries over to real-valued answers and to predicates that are load tests.
+
+If `hi` is *not* feasible the invariant is false from the start, and the loop still terminates, returning `hi` itself with no error. That is the one silent failure of this template, and the failure-modes section below shows what it looks like.
+
 ## Koko eating bananas
 
 Piles `[3, 6, 7, 11]`, `h = 8` hours. At speed `s` Koko spends `ceil(p / s)` hours on pile `p` and cannot carry leftover speed to the next pile.
 
 - **Range.** Speed 1 is the smallest conceivable. Speed `max(piles) = 11` finishes each pile in one hour, so it is feasible whenever `h >= len(piles)` (the problem guarantees that).
 - **Predicate.** `hours(s) = sum(ceil(p / s)) <= h`.
-- **Monotone.** Increasing `s` cannot increase any `ceil(p / s)`, so the total hours never go up.
+- **Monotone, precisely.** For any pile `p`, `s < s'` implies `ceil(p / s) >= ceil(p / s')`, because dividing by a larger number gives a smaller quotient and the ceiling is non-decreasing. Summing over piles, `hours(s) >= hours(s')`, so `hours(s) <= h` implies `hours(s') <= h`.
 
 ```python
 def min_eating_speed(piles, h):
@@ -73,7 +85,15 @@ def min_eating_speed(piles, h):
     return lo
 ```
 
-Trace: `lo=1, hi=11`. `mid=6`: hours `1+1+2+2 = 6 <= 8`, feasible, `hi=6`. `mid=3`: `1+2+3+4 = 10 > 8`, `lo=4`. `mid=5`: `1+2+2+3 = 8`, feasible, `hi=5`. `mid=4`: `1+2+2+3 = 8`, feasible, `hi=4`. `lo == hi == 4`. Answer 4, in four predicate calls instead of eleven.
+| iteration | lo | hi | mid | hours per pile at `mid` | total | decision |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 11 | 6 | 1, 1, 2, 2 | 6 ≤ 8 | feasible → `hi = 6` |
+| 2 | 1 | 6 | 3 | 1, 2, 3, 4 | 10 > 8 | infeasible → `lo = 4` |
+| 3 | 4 | 6 | 5 | 1, 2, 2, 3 | 8 ≤ 8 | feasible → `hi = 5` |
+| 4 | 4 | 5 | 4 | 1, 2, 2, 3 | 8 ≤ 8 | feasible → `hi = 4` |
+| exit | 4 | 4 | | | | return 4 |
+
+Four predicate calls instead of eleven. Speed 3 was the last infeasible probe and speed 4 the first feasible one; the invariant guarantees no speed between them was skipped because there is none.
 
 The `(p + s - 1) // s` is integer ceiling division. Writing `math.ceil(p / s)` works for these sizes but converts to a float; with values near 2⁵³ that rounds. Use the integer form.
 
@@ -83,7 +103,7 @@ The `(p + s - 1) // s` is integer ceiling division. Writing `math.ceil(p / s)` w
 
 - **Range.** `lo = max(nums)` (no piece can be smaller than its largest element) and `hi = sum(nums)` (one piece, always feasible).
 - **Predicate.** `feasible(cap)`: greedily walk the array, starting a new piece whenever adding the next element would push the current piece over `cap`; count pieces; feasible if `pieces <= k`.
-- **Monotone.** A larger `cap` never forces an extra piece.
+- **Monotone, precisely.** Any split whose pieces all sum to at most `cap` is also a split whose pieces all sum to at most `cap + 1`, so the minimum number of pieces needed is non-increasing in `cap`.
 
 ```python
 def split_array(nums, k):
@@ -106,13 +126,77 @@ def split_array(nums, k):
     return lo
 ```
 
-Why is the greedy predicate correct? For a fixed `cap`, extending the current piece as far as it will go can never increase the number of pieces needed compared with cutting earlier: any solution that cuts earlier can have its cut moved right without violating `cap`. So greedy computes the *minimum* number of pieces for that `cap`, and "minimum pieces `<= k`" is the right test. (Fewer than `k` pieces is fine; splitting a piece further never raises the maximum.)
+**Why the greedy computes the true minimum number of pieces.** Fix `cap`. Suppose an optimal split uses `p*` pieces and the greedy uses `p` pieces. Compare their first cut positions: the greedy's first piece is the *longest* prefix that fits under `cap`, so the optimal split's first cut is at or before the greedy's. Move the optimal split's first cut right to the greedy's position: the first piece still fits (it is the greedy's piece), and the second piece only lost elements, so it still fits. Repeat for each cut in turn; each move keeps the split valid and never increases the piece count. After all moves the split *is* the greedy split, with at most `p*` pieces, so `p <= p*`. This is an exchange argument of the same form as the ones in [greedy proofs](/learn/algorithms/greedy/greedy-and-exchange-arguments), and it is why "minimum pieces `<= k`" is the right test. Fewer than `k` pieces is fine, because any piece can be split further without raising the maximum.
 
-Trace: `lo=10, hi=32`, `mid=21`: pieces `[7,2,5]=14`, `[10,8]=18` → 2 pieces, feasible, `hi=21`. `mid=15`: `[7,2,5]=14`, `[10]`, `[8]` → 3, `lo=16`. `mid=18`: `[7,2,5]`, `[10,8]` → 2, `hi=18`. `mid=17`: `[7,2,5]`, `[10]`, `[8]` → 3, `lo=18`. Answer 18.
+| iteration | lo | hi | mid | greedy pieces at `mid` | count | decision |
+|---|---|---|---|---|---|---|
+| 1 | 10 | 32 | 21 | `[7,2,5]=14`, `[10,8]=18` | 2 ≤ 2 | `hi = 21` |
+| 2 | 10 | 21 | 15 | `[7,2,5]`, `[10]`, `[8]` | 3 > 2 | `lo = 16` |
+| 3 | 16 | 21 | 18 | `[7,2,5]`, `[10,8]` | 2 ≤ 2 | `hi = 18` |
+| 4 | 16 | 18 | 17 | `[7,2,5]`, `[10]`, `[8]` | 3 > 2 | `lo = 18` |
+| exit | 18 | 18 | | | | return 18 |
 
-## Capacity to ship packages
+## Ship capacity: the boundary trace
 
-Weights `[1..10]`, `d = 5` days, packages shipped in order, one ship of fixed capacity. This is the previous problem with `k = d`, word for word: `lo = max(weights)`, `hi = sum(weights)`, the same greedy. Recognising that two differently-worded problems have the same predicate is the skill being tested.
+Weights `[1, 2, …, 10]`, `d = 5` days, packages shipped in order, one ship of fixed capacity. This is the previous problem with `k = d`, word for word: `lo = max = 10`, `hi = sum = 55`, the same greedy. Recognising that two differently worded problems have the same predicate is the skill being tested. Here is the whole search, with the day count the greedy produces at every probe:
+
+| iteration | lo | hi | mid | greedy loads at capacity `mid` | days | decision |
+|---|---|---|---|---|---|---|
+| 1 | 10 | 55 | 32 | `[1..7]=28`, `[8,9,10]=27` | 2 ≤ 5 | `hi = 32` |
+| 2 | 10 | 32 | 21 | `[1..6]=21`, `[7,8]=15`, `[9,10]=19` | 3 ≤ 5 | `hi = 21` |
+| 3 | 10 | 21 | 15 | `[1..5]=15`, `[6,7]=13`, `[8]`, `[9]`, `[10]` | 5 ≤ 5 | `hi = 15` |
+| 4 | 10 | 15 | 12 | `[1..4]=10`, `[5,6]=11`, `[7]`, `[8]`, `[9]`, `[10]` | 6 > 5 | `lo = 13` |
+| 5 | 13 | 15 | 14 | `[1..4]=10`, `[5,6]=11`, `[7]`, `[8]`, `[9]`, `[10]` | 6 > 5 | `lo = 15` |
+| exit | 15 | 15 | | | | return 15 |
+
+Five probes for a range of 46 values (`ceil(log₂ 46) = 6` is the worst case). Look at iterations 4 and 5: capacities 12 and 14 both need six days, and capacity 13 would too, because the packages 7, 8, 9, 10 each need their own day at any capacity below 15 and `[1..6] = 21` cannot join them. The boundary sits exactly where `[6, 7] = 13` and `[1..5] = 15` both fit: capacity 15 is the first value at which the first five days can absorb everything before the 8. The search never evaluated 13, and did not need to: the invariant says every value below `lo = 15` is infeasible because a feasible 13 would have made 14 feasible.
+
+### The lower bound is part of the predicate's correctness
+
+Why `lo = max(nums)` and not `lo = 1`? Not for speed. Look at what the greedy does with `cap = 7` on `[7, 2, 5, 10, 8]`: it produces the pieces `[7]`, `[2, 5]`, `[10]`, `[8]`, four pieces, and the `10` sits alone in a "piece" whose sum exceeds the cap. The greedy never checks that a single element fits; it only starts a new piece when the *running* sum would overflow. With `k = 5` the predicate therefore reports capacity 7 as feasible (4 ≤ 5), and the search returns **7**, when the true answer is 10 (five pieces, the largest being `[10]`). Measured with the code above: `lo = 1` returns 7; `lo = max(nums)` returns 10.
+
+Two fixes, and you should be able to state both: start the range at `max(nums)`, so the predicate is only ever asked about capacities where every element fits; or make the predicate return `False` as soon as it meets an `x > cap`. The first is cheaper and documents the answer's true range; the second is more robust if someone later changes the range.
+
+## Maximise the minimum: aggressive cows
+
+Stalls at positions `[1, 2, 4, 8, 9]`, three cows; place them to **maximise** the minimum distance between any two. The predicate `can_place(dist)`: walk the sorted stalls, put a cow in the first stall, then in every stall at least `dist` past the previous cow, and check that at least three cows were placed. It is monotone in the *other* direction: if a spacing of `d` is achievable, every spacing `d' < d` is too (the same placement works), so the picture is `T T T F F F` and you want the **last** true.
+
+Two ways to write it. Either search for the first `F` with the template above and return one less, or keep `lo` on the true side with `lo = mid` when feasible, `hi = mid - 1` when not, and round `mid` **up**: `mid = lo + (hi - lo + 1) // 2`.
+
+| iteration | lo | hi | mid (rounded up) | cows placed at | feasible? | decision |
+|---|---|---|---|---|---|---|
+| 1 | 1 | 8 | 5 | 1, 8 | 2 cows, no | `hi = 4` |
+| 2 | 1 | 4 | 3 | 1, 4, 8 | 3 cows, yes | `lo = 3` |
+| 3 | 3 | 4 | 4 | 1, 8 | 2 cows, no | `hi = 3` |
+| exit | 3 | 3 | | | | return 3 |
+
+Now do iteration 2 with `mid` rounded *down*, `mid = lo + (hi - lo) // 2`, on the range `lo = 3, hi = 4` that iteration 3 starts from: `mid = 3`, feasible, `lo = mid = 3`. Nothing changed. Next iteration, `mid = 3` again. The loop spins forever. The rule from the previous lesson applies unchanged: never assign `mid` back to the side it was computed from without adjusting by one; when the assignment is `lo = mid`, round `mid` up so that `mid > lo` whenever `hi > lo`.
+
+The greedy predicate is exact for the same exchange-argument reason as before: placing each cow at the earliest stall that respects `dist` leaves the most room for the remaining cows, and any valid placement can be shifted left cow by cow into the greedy one without breaking the spacing.
+
+## Real-valued answers: fixed iterations
+
+Some answers are not integers. "Maximum average of a contiguous subarray with length at least `k`" asks for a real number. The predicate `avg_at_least(x)`: does some subarray of length `>= k` have average `>= x`? Subtract `x` from every element; the question becomes "does some subarray of length `>= k` have sum `>= 0`", which a prefix-sum pass answers in $O(n)$ by tracking the minimum prefix at least `k` positions back ([prefix sums](/learn/data-structures/arrays-strings/prefix-sums-and-difference-arrays)). It is monotone (an average `>= x` is also `>= x'` for `x' < x`), so the picture is `T T T F F F` over the reals and you want the boundary.
+
+```python
+def max_average(nums, k):
+    lo, hi = min(nums), max(nums)
+    for _ in range(60):                       # fixed count, not an epsilon test
+        mid = (lo + hi) / 2
+        if avg_at_least(nums, k, mid):
+            lo = mid                          # answer is mid or higher
+        else:
+            hi = mid
+    return lo
+```
+
+Why 60 and not `while hi - lo > 1e-9`? After 60 halvings a starting range of 10⁴ is down to `10⁴ / 2⁶⁰ ≈ 10⁻¹⁴`. But doubles near 10⁴ are spaced about `1.8 × 10⁻¹²` apart (one unit in the last place is `2⁻³⁹` at that magnitude), so after roughly 52 halvings (`log₂(10⁴ / 1.8 × 10⁻¹²)`) `mid` evaluates to `lo` or `hi` and the interval stops shrinking. An epsilon of `1e-9` is still met there; an epsilon of `1e-13` never is, and that loop spins. The fixed count terminates whatever the magnitudes, and the iterations after the interval reaches one ULP are harmless no-ops. Rounding direction does not matter for reals; only the exit condition does.
+
+## Searching a value space that is not integers
+
+Sometimes the answer is the `k`-th smallest element in an implicit collection rather than a threshold. In [kth-smallest-sorted-matrix](/practice/kth-smallest-sorted-matrix), the rows and columns are sorted, and the predicate `count(x) = number of matrix entries <= x` is monotone in `x` and computable in $O(n)$ with a staircase walk from the bottom-left corner: move up when the entry exceeds `x`, right otherwise, adding the column height each time you move right. Binary search the *value* range `[matrix[0][0], matrix[-1][-1]]` for the smallest `x` with `count(x) >= k`. The result is guaranteed to be an actual matrix entry, because `count` is a step function that only changes at entries: the first `x` at which it reaches `k` is the value of some entry. That is a common interview surprise: the search space is values, `mid` is usually not in the matrix, and the answer still is.
+
+The same shape solves "k-th smallest pair distance" (count pairs with difference `<= d` by two pointers, $O(n)$ per probe) and "k-th smallest in a multiplication table" (count entries `<= x` row by row); the alternative in each is to materialise all `n²` candidates.
 
 ## How to spot the pattern
 
@@ -123,26 +207,66 @@ The signals, in decreasing order of reliability:
 | "minimum ... such that ..." or "maximum ... such that ..." | Optimising a threshold subject to a feasibility condition |
 | "minimise the maximum" / "maximise the minimum" | The classic shape; the maximum is the answer being searched |
 | The answer is a number in a known range, and checking one candidate is easy | Predicate is cheap, range is bounded, so `log(range)` calls is affordable |
-| A greedy or DP feels almost right but the objective is about a threshold | Binary search removes the objective; the predicate is just feasibility |
+| A greedy or DP feels almost right but the objective is about a threshold | Binary search removes the objective; the predicate is only feasibility |
 | Constraints like values up to 10⁹ with `n` up to 10⁵ | `n log(10⁹) ≈ 30n` fits; `n²` does not |
 
-And the disqualifier: if you cannot make the one-sentence monotonicity argument, stop. "Minimum number of coins to make amount `x`" is *not* monotone in `x` (amount 6 needs one 6-coin; amount 7 might need three), so it is DP, not binary search.
+And the disqualifier: if you cannot make the one-sentence monotonicity argument, stop. "Minimum number of coins to make amount `x`" is *not* monotone in `x` (amount 6 needs one 6-coin; amount 7 might need three), so it is DP, not binary search. "Batch size that maximises throughput" is not monotone either: throughput rises with batch size until the batch stops fitting in cache, then falls, and a binary search over a rise-then-fall curve converges to wherever its first probe happened to land.
 
-The **maximise-the-minimum** variant flips the predicate's direction: feasibility looks like `T T T T F F F` and you want the *last* `T`. Either search for the first `F` and subtract one, or keep the same loop with `lo = mid` and `hi = mid - 1` and round `mid` *up* (`lo + (hi - lo + 1) // 2`) so the range still shrinks. The rounding direction is the off-by-one that catches people here; derive it from "does `lo = mid` shrink the range when `hi = lo + 1`?"
+## Alternatives, compared
 
-## Searching a value space that is not integers
+| Approach | Time for split-array, `n = 10⁵`, sums to 10⁹ | Needs | Also yields | Code |
+|---|---|---|---|---|
+| Binary search on the answer | `O(n log S)` ≈ 3 × 10⁶ ops | a monotone feasibility test | the split itself (run the greedy at the answer) | 15 lines |
+| Interval DP `dp[k][i]` | `O(k n²)` ≈ 10¹⁰ · `k` | nothing but optimal substructure | the split, via parent pointers | 20 lines |
+| Direct greedy on the objective | `O(n log n)` | a provable exchange argument on the *objective* | the split | 10 lines, when it exists (it does not for split-array) |
+| Linear scan of the answer range | `O(n · S)` ≈ 10¹⁴ | nothing | the split | 8 lines |
 
-Sometimes the answer is the `k`-th smallest element in an implicit collection rather than a threshold. In [kth-smallest-sorted-matrix](/practice/kth-smallest-sorted-matrix), the rows and columns are sorted, and the predicate `count(x) = number of matrix entries <= x` is monotone in `x` and computable in $O(n)$ with a staircase walk. Binary search the *value* range `[matrix[0][0], matrix[-1][-1]]` for the smallest `x` with `count(x) >= k`. The result is guaranteed to be an actual matrix entry, because `count` only changes at entries. That is a common interview surprise: the search space is values, `mid` is usually not in the matrix, and the answer still is.
+The DP wins only when the objective is not a threshold: "minimise the sum of squares of the piece sums" has no per-piece feasibility test, so the DP is the answer there.
 
-When the answer is a real number (a rate, a ratio, a distance), use the fixed-iteration real-valued search from the previous lesson with the same predicate structure; 100 halvings of any sane range exceed double precision.
+## Under the hood: `git bisect` and production searches
 
-## Production sightings
+`git bisect` is this lesson's template applied to a commit graph. You mark one commit `bad` and an older one `good`; the candidates are the commits reachable from `bad` but not from `good`. History is a DAG, not a line, so "the middle commit" is not well defined. Git instead computes, for each candidate, how many candidates would remain in the worse of the two outcomes if that commit were tested, and picks the one that minimises it: the commit that most nearly halves the set, counted by ancestry rather than by date. It prints the count: "Bisecting: 1500 revisions left to test after this (roughly 11 steps)", and `roughly 11` is `log₂ 1500` rounded up. Two details matter operationally. `git bisect skip` marks a commit as untestable (it does not build); git then picks a nearby candidate, and if the boundary lands inside a skipped stretch it reports the range rather than a single commit. `git bisect run <script>` automates the loop: the script's exit code is the predicate, 0 for good, 125 for skip, any other value from 1 to 127 for bad. The whole thing assumes monotonicity, which for "does the bug reproduce" means the bug was introduced once and never fixed and reintroduced within the range; when that assumption fails, bisect blames an innocent commit with full confidence.
 
-This is not only an interview trick.
+Capacity planning is the same search with a slower predicate. "Smallest replica count such that p99 latency under load `L` stays below 200 ms" is `first_true` over replica counts, and each probe is a load test: deploy, warm up, hold steady state long enough for a stable p99 (several minutes). From 1 to 256 replicas that is 8 probes, an afternoon; a linear sweep is 256 probes, a month. Three habits separate the senior version: verify `feasible(hi)` first, because an unreachable SLO makes the search return `hi` looking like an answer; repeat each probe and take a majority, because one noisy flip corrupts every later decision; and confirm the curve is monotone, since more replicas stop helping once a shared dependency saturates. [Benchmarking pitfalls](/learn/systems/performance-engineering/benchmarking-pitfalls) covers why single measurements lie.
 
-- **Autoscaling and capacity planning.** "Smallest number of replicas such that p99 latency under load `L` is below target" is binary search over replica count with a load test as the predicate. Each predicate call costs minutes, so `log` calls versus linear calls is the difference between an afternoon and a week.
-- **`git bisect`** is `first_true` over commits with the predicate "does the bug reproduce".
-- **Rate limiter and quota tuning**, choosing a batch size that keeps memory under a limit, finding the largest page size that meets a latency SLO: all of them are "largest `x` such that measurement(x) is acceptable" and all of them assume monotonicity, which you should verify rather than hope for (throughput versus batch size is famously *not* monotone once you thrash the cache).
+## Quantified costs
+
+- **Probe count** is `ceil(log₂(hi − lo + 1))`: 4 for Koko's range of 11, 6 for the ship's range of 46, 30 for 10⁹, 60 for 10¹⁸. Tightening `[1, 10⁹]` to `[max, sum]` saves probes and never changes the answer.
+- **Total work** with `n = 10⁵` and a linear predicate over a range of 10⁹ is 30 × 10⁵ = 3 × 10⁶ element visits: well under a second in CPython, milliseconds compiled. A linear scan of the answer range is 10¹⁴, which is days.
+- **The predicate dominates.** A sort inside it makes the total `O(n log n log R)`; hoist anything that does not depend on `mid` outside the loop.
+
+## Failure modes
+
+**The search returns the upper bound, and it is not an answer.** Symptom: a capacity planner returns "256 replicas" on a service whose SLO no replica count can meet; a scheduler returns `hi` for an infeasible instance and downstream code proceeds. Diagnosis: `feasible(hi)` was never true, so the invariant was false from the start; the loop terminates at `lo == hi == hi` with no signal. Fix: choose `hi` by a construction that is provably feasible (one piece, `max(piles)`), or test `feasible(hi)` up front and return a sentinel when it fails.
+
+**The answer is below the largest element.** Symptom: split-array returns 7 for `[7, 2, 5, 10, 8]` with `k = 5`; the true answer is 10. Diagnosis: `lo = 1`, and the greedy piece counter never checks that a lone element fits under `cap`, so the `10` sits in a piece that violates the cap and the predicate reports feasible. Fix: `lo = max(nums)`, or return `False` from the predicate on any `x > cap`.
+
+**Bisection over a measurement converges to a different answer every run.** Symptom: "optimal batch size" comes out as 64 on Monday and 512 on Tuesday. Diagnosis: the measured predicate is not monotone (throughput versus batch size rises then falls; p99 versus replicas is noisy), so the sequence of probe results is `F T F T` and the search follows whichever flip it hits first. Fix: repeat and majority-vote each probe; for a rise-then-fall curve use a unimodal search (golden section or ternary) or a scan, not bisection.
+
+**Negative sums in Java or Go.** Symptom: the predicate declares huge capacities infeasible, or small ones feasible, only on large inputs. Diagnosis: the running sum of 10⁵ values up to 10⁹ reaches 10¹⁴, past `2³¹ − 1 ≈ 2.1 × 10⁹`, and the `int` accumulator wrapped. Fix: 64-bit accumulators (`long`, `int64`), which hold up to 9.2 × 10¹⁸; Python and JavaScript's `Number` (exact to 2⁵³ ≈ 9 × 10¹⁵) do not have this failure at these sizes.
+
+**A request hangs at 100% CPU.** Symptom: one input never returns; the thread dump shows the search loop. Diagnosis: a maximise-the-minimum search with `lo = mid` and `mid` rounded down, stuck on a two-value range; or a real-valued search with an epsilon smaller than the double spacing at that magnitude. Fix: round `mid` up when the update is `lo = mid`; use a fixed iteration count for reals.
+
+## Interviewer follow-ups
+
+**"You solved split-array in `O(n log S)`. What is the DP, and when would you prefer it?"** Model answer: `dp[j][i]` = minimum largest-piece sum splitting the first `i` elements into `j` pieces, `dp[j][i] = min over t < i of max(dp[j−1][t], sum(t..i))`, `O(k n²)`, or `O(k n log n)` with a binary search inside. Prefer it when the objective is not a threshold, such as minimising the sum of squared piece sums, which has no feasibility reformulation. Common wrong answer: "the DP is more exact; binary search is an approximation", which confuses this exact method with numerical root finding.
+
+**"Your predicate sorts the input. Does that change the complexity?"** Model answer: per probe `O(n log n)`, total `O(n log n log R)`; but the sort does not depend on `mid`, so hoist it out and the predicate is linear again. Common wrong answer: re-sorting inside every probe and reporting the total as `O(n log n)`.
+
+**"The answer is a real number. How do you know when to stop?"** Model answer: a fixed number of halvings (50–100) chosen so the interval falls below double precision; an epsilon loop can fail to terminate when `hi − lo` is already one ULP and `eps` is smaller. Common wrong answer: `while hi − lo > 1e-9`, with no idea of the magnitude at which that breaks.
+
+**"Find the k-th smallest distance between any two elements of an array."** Model answer: sort once; binary search the distance `d` over `[0, max − min]`; `count(d)` = number of pairs with difference `<= d`, computed by two pointers in `O(n)`; total `O(n log n + n log(max − min))`. Common wrong answer: generate all `n(n−1)/2` distances and select, which is `O(n²)` memory and time.
+
+**"The range is `[1, 10¹⁸]` and each predicate call takes a second. Now what?"** Model answer: 60 probes is a minute, which is fine; if the answer is expected to be small, gallop first (probe 1, 2, 4, 8, … until feasible) to shrink the range to `[x/2, x]`, then bisect, for `2 log₂(answer)` probes instead of 60. Common wrong answer: declaring the problem infeasible, or a linear scan from 1.
+
+## What mid-level engineers get wrong
+
+- **`lo = 0, hi = 10⁹` by reflex.** Consequence: 30 probes where 5 would do, and a predicate that is asked about values where its assumptions (every element fits) are false, producing the 7-instead-of-10 bug.
+- **Skipping the monotonicity sentence.** Consequence: binary searching a non-monotone quantity (coins for an amount, throughput against batch size) and trusting a number that means nothing.
+- **Writing an optimiser inside the predicate.** The predicate is *feasibility*, not "the best split for this cap"; a DP inside the predicate multiplies the cost by `n` for no gain. Consequence: `O(n² log S)` when `O(n log S)` was available.
+- **Mixing the first-true and last-true templates.** `lo = mid` with `mid` rounded down. Consequence: an infinite loop on a two-value range, which random tests rarely hit.
+- **Assuming `feasible(hi)`.** Consequence: the search returns `hi` on infeasible instances and downstream code treats a non-answer as an answer.
+- **`math.ceil(p / s)` on large integers.** Consequence: a float rounding error at 2⁵³ that flips a boundary probe.
 
 ## Exercises
 
@@ -249,12 +373,13 @@ hints:
 
 ## Senior signals
 
-- You recognise "minimise the maximum" and "smallest `x` such that" as **binary search on the answer** before considering DP.
-- You state the **monotonicity argument** in one sentence and refuse to apply the pattern when you cannot.
-- You choose `lo` and `hi` from the problem's structure (`max` and `sum`, `1` and `max`) rather than `0` and `10⁹`, and you know an infeasible `hi` produces a silent wrong answer.
-- You know the predicate is usually a **greedy** and can argue why greedy computes the true minimum for that cap.
-- You handle **maximise-the-minimum** by flipping the rounding of `mid` and can explain why.
-- You see the same pattern in **`git bisect`**, capacity planning and threshold tuning, and you check monotonicity of real measurements before trusting it.
+- You recognise "minimise the maximum" and "smallest `x` such that" as **binary search on the answer** before considering DP, and you can say which problems (non-threshold objectives) still need the DP.
+- You state the **monotonicity argument** in one precise sentence (`feasible(x) ⇒ feasible(x + 1)`, because the same witness works) and refuse to apply the pattern when you cannot.
+- You choose `lo` and `hi` from the problem's structure (`max` and `sum`, `1` and `max`) rather than `0` and `10⁹`, you know an infeasible `hi` produces a silent wrong answer, and you know that a `lo` below `max` can make a greedy predicate lie.
+- You know the predicate is usually a **greedy** and can give the exchange argument for why it computes the true minimum for that cap.
+- You handle **maximise-the-minimum** by rounding `mid` up when the update is `lo = mid`, and you can show the two-value range on which rounding down spins forever.
+- You search reals with a **fixed iteration count** and can say at what magnitude an epsilon loop stops terminating.
+- You see the same pattern in **`git bisect`** (which halves by ancestor count, not by date) and in capacity planning, and you verify monotonicity of real measurements, repeat noisy probes, and check `feasible(hi)` before trusting a result.
 
 ## Check yourself
 
@@ -289,4 +414,10 @@ hints:
   answer: 1
   explanation: >-
     count is a step function that increases only when x passes an entry. The first x at which it reaches k is therefore exactly the value of some entry, so no rounding or post-processing is needed. The staircase walk visiting entries is how count is computed, not why the result lands on one.
+- q: >-
+    Split-array with lo = 1 instead of lo = max(nums) returns 7 on [7, 2, 5, 10, 8] with k = 5, where the correct answer is 10. What went wrong?
+  options: ["The greedy never rejects a lone element larger than the cap", "The search needs at least log₂(sum) probes to be exact", "With k = 5 the monotone shape of the predicate breaks down", "The upper bound sum(nums) was infeasible for this input"]
+  answer: 0
+  explanation: >-
+    At cap 7 the greedy produces [7], [2, 5], [10], [8]: four pieces, one of which is a single element above the cap, and 4 <= 5 makes the predicate report feasible. Starting the range at max(nums), or rejecting any x > cap inside the predicate, removes the lie. The predicate is still monotone, the probe count is not the issue, and sum(nums) is always feasible.
 ```

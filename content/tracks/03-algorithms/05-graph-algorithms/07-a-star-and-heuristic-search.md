@@ -50,6 +50,39 @@ Two details to notice. The function returns when the goal is *popped*, not when 
 
 Watch which nodes get expanded. Dijkstra would settle every node with `g < 13` before F; A* orders by `g + h` and pops F as soon as no unexpanded node could possibly beat it.
 
+### Traced on a grid
+
+A 5 × 5 grid, `#` is a wall, start at the top-left `(0,0)`, goal at the bottom-right `(4,4)`, 4-directional unit moves, `h` = Manhattan distance to the goal, ties broken towards larger `g`:
+
+```text
+S . . . .
+. # # # .
+. . . # .
+# # . # .
+. . . . G
+```
+
+| Pop | Cell | `g` | `h` | `f` | Pushed (cell: g, h, f) | Open list after |
+|---|---|---|---|---|---|---|
+| 1 | (0,0) | 0 | 8 | 8 | (1,0): 1, 7, 8; (0,1): 1, 7, 8 | (1,0) 8, (0,1) 8 |
+| 2 | (1,0) | 1 | 7 | 8 | (2,0): 2, 6, 8 | (2,0) 8, (0,1) 8 |
+| 3 | (2,0) | 2 | 6 | 8 | (2,1): 3, 5, 8 | (2,1) 8, (0,1) 8 |
+| 4 | (2,1) | 3 | 5 | 8 | (2,2): 4, 4, 8 | (2,2) 8, (0,1) 8 |
+| 5 | (2,2) | 4 | 4 | 8 | (3,2): 5, 3, 8 | (3,2) 8, (0,1) 8 |
+| 6 | (3,2) | 5 | 3 | 8 | (4,2): 6, 2, 8 | (4,2) 8, (0,1) 8 |
+| 7 | (4,2) | 6 | 2 | 8 | (4,3): 7, 1, 8; (4,1): 7, 3, 10 | (4,3) 8, (0,1) 8, (4,1) 10 |
+| 8 | (4,3) | 7 | 1 | 8 | (4,4): 8, 0, 8 | (4,4) 8, (0,1) 8, (4,1) 10 |
+| 9 | (4,4) | 8 | 0 | 8 | goal popped: return 8 | (0,1) 8, (4,1) 10 left unexpanded |
+
+Nine expansions for a path of length 8: every cell on the path has `f = 8`, because along this corridor the Manhattan estimate happens to be exact, and the two cells that were pushed but never expanded, `(0,1)` at `f = 8` and `(4,1)` at `f = 10`, are the only wasted work. BFS on the same grid settles the 16 open cells at distance less than 8 before it reaches the goal. The tie-break matters even here: `(0,1)` and `(1,0)` both have `f = 8` at pop 2; preferring larger `g` is what keeps the search moving along the path rather than fanning out across the top row.
+
+```viz
+{"type": "graph", "algorithm": "grid-bfs",
+ "title": "BFS on the same grid, for comparison",
+ "caption": "BFS settles every open cell closer than the goal, 16 of them, before it pops the goal; A* above expanded 9.",
+ "grid": [[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[1,1,0,1,0],[0,0,0,0,0]]}
+```
+
 ## Admissible: never overestimate
 
 A heuristic is **admissible** if `h(v) ≤ h*(v)` for every node, where `h*(v)` is the true cost of the cheapest path from `v` to the goal. `h = 0` is admissible (and gives you Dijkstra). Straight-line distance is admissible on a road network because no road is shorter than the straight line. Manhattan distance is admissible on a 4-connected grid, and is in fact exact on an empty grid.
@@ -64,7 +97,22 @@ A heuristic is **consistent** (or monotone) if for every edge `(u, v)` with weig
 
 What consistency buys: along any path, `f` is non-decreasing, since `f(v) = g(u) + w + h(v) ≥ g(u) + h(u) = f(u)`. Non-decreasing `f` along paths means that when a node is popped, its `g` is already optimal, exactly as in Dijkstra, and it never needs to be reopened. The `closed` set in the code above is only correct *because* `h` is consistent. With an admissible but inconsistent heuristic, a node can be popped with a suboptimal `g`, and a later, cheaper path to it must reopen it; A* remains optimal if you allow reopening, but its running time loses its guarantee and can become exponential in pathological cases.
 
-The distinction matters in practice when the heuristic is learned, cached or hand-tuned rather than geometric. If you ever assemble a heuristic as `max(h1, h2)` of two consistent heuristics, the result is still consistent (and stronger). If you assemble it as a weighted sum or from a lookup table with rounding, check the triangle inequality on every edge, which is a linear pass and the subject of the second exercise.
+There is a cleaner way to see all of this. Define the **reduced cost** of an edge as `w'(u, v) = w(u, v) − h(u) + h(v)`. Along any path the `h` terms telescope, so every path's reduced cost is its true cost minus `h(start)` plus `h(goal) = 0`: the same constant shift for every path, which changes no comparison. A* is exactly Dijkstra run on the reduced costs, because `g(v) + h(v)` is the reduced-cost distance plus the constant. And consistency, `h(u) ≤ w + h(v)`, says precisely that every reduced cost is non-negative, which is the one condition [Dijkstra's proof](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra) needs. An inconsistent heuristic is a negative reduced edge, and A* with a closed set fails on it for the same reason Dijkstra fails on negative edges.
+
+### An admissible heuristic that breaks the closed set
+
+Four nodes: `S→A` costs 1, `A→B` costs 1, `S→B` costs 3, `B→G` costs 2. True remaining costs are `h*(A) = 3`, `h*(B) = 2`, `h*(S) = 4`. Take `h(A) = 3`, `h(B) = 0`, `h(S) = 0`, `h(G) = 0`: every value is at or below the truth, so `h` is admissible. But on the edge `A→B`, `h(A) = 3 > 1 + h(B) = 1`, the triangle inequality fails, and the reduced cost of `A→B` is `1 − 3 + 0 = −2`.
+
+| Pop | With a closed set | With reopening |
+|---|---|---|
+| S, `f = 0` | push A (`g 1, f 4`), push B (`g 3, f 3`) | same |
+| B, `g = 3, f = 3` | closed; push G (`g 5, f 5`) | push G (`g 5, f 5`) |
+| A, `g = 1, f = 4` | finds B at `g = 2`, but B is closed: **discarded** | pushes B again (`g 2, f 2`) |
+| next | G pops with `g = 5`: **wrong**, the true distance is 4 | B pops at `g = 2`, pushes G (`g 4, f 4`); G pops with 4 |
+
+B was popped early because its `f` was small, with a `g` that was not yet optimal; the closed set then refused the improvement. With Manhattan, Euclidean or any other metric heuristic this cannot happen, and the second exercise checks the triangle inequality on every edge so that a learned or hand-tuned heuristic is caught before it produces routes like this one.
+
+The distinction matters when the heuristic is learned, cached or hand-tuned rather than geometric. If you ever assemble a heuristic as `max(h1, h2)` of two consistent heuristics, the result is still consistent (and stronger). If you assemble it as a weighted sum or from a lookup table with rounding, check the triangle inequality on every edge, which is a linear pass and the subject of the second exercise.
 
 ## Choosing the heuristic
 
@@ -84,7 +132,7 @@ Tie-breaking matters more than people expect. Many nodes share the same `f` near
 
 ## A worked count
 
-A 9 × 9 empty grid, start at the centre, goal in the corner, 4-directional moves. Dijkstra (BFS here, since costs are uniform) settles every cell at distance less than 8 before it pops the goal: about 113 cells, then the goal. A* with Manhattan distance has `f = 8` for every cell on a shortest path and `f ≥ 10` for every cell off it, so it expands only cells with `f = 8` before popping the goal: the diagonal band of cells between start and corner, roughly 25. Add a wall and the band bends around it, with expansions spilling into the "wrong" region only as far as the wall forces. That ratio, four or five to one on a small open grid and much larger on a big map, is why every game engine ships A* rather than Dijkstra.
+A 9 × 9 empty grid, start at the centre, goal in the corner, 4-directional moves. Dijkstra (BFS here, since costs are uniform) settles every cell at distance less than 8 before it pops the goal: 77 of the 81 cells (only the four corners are at distance 8). A* with Manhattan distance has `f = 8` for every cell on a shortest path and `f ≥ 10` for every cell off it, so it expands only cells with `f = 8` before popping the goal. There are 25 such cells, the rectangle between the centre and the corner, and which of them get expanded depends on tie-breaking: with ties broken towards larger `g`, A* walks one shortest path and expands 9 cells; with ties broken the other way it can expand all 25 before the goal surfaces. Either way, 9 or 25 against 77. Add a wall and the band bends around it, with expansions spilling into the "wrong" region only as far as the wall forces. That ratio, three to eight times on a small open grid and much larger on a big map, is why every game engine ships A* rather than Dijkstra.
 
 ## When A* is the wrong tool
 
@@ -95,6 +143,74 @@ A 9 × 9 empty grid, start at the centre, goal in the corner, 4-directional move
 - **Memory.** A* keeps every generated node in memory. On huge implicit graphs (puzzle state spaces, planning problems) that is the bottleneck, and **IDA\*** (iterative deepening on an `f` bound) trades time for `O(depth)` memory.
 
 For continent-scale road routing, plain A* with straight-line distance is only a few times faster than Dijkstra, because road distances exceed straight-line distances by a fairly consistent factor and the ellipse is still huge. Production routing engines use A* with **landmarks** (precomputed distances to a few dozen well-placed nodes give much tighter lower bounds via the triangle inequality) or **contraction hierarchies**, which preprocess the graph so that queries touch a few hundred nodes. Knowing that A* is the textbook answer and not the deployed one is a useful thing to say in a design interview.
+
+## Under the hood
+
+**networkx.** `astar_path(G, source, target, heuristic)` is a lazy-deletion heap loop like the Dijkstra one, with two details worth copying. It keeps an `enqueued` dictionary of `(g, h)` per node so that the heuristic is evaluated once per node rather than once per push, and it skips a popped entry when a cheaper `g` for that node has been enqueued since, which is the stale-entry guard. The heap entries carry a counter to break ties, so an unorderable node payload never raises. It raises `NetworkXNoPath` on an unreachable target after exhausting the graph, which on a big graph with an unreachable goal means a full Dijkstra's worth of work; check reachability first when that case is common.
+
+**Game engines.** Grid A* with a binary heap is the baseline. On uniform-cost grids, **jump point search** skips runs of straight-line cells whose expansion cannot change the answer, cutting expansions by an order of magnitude on open maps with no preprocessing. **Navigation meshes** replace the grid with convex polygons and run A* on the polygon graph, then smooth the path with string-pulling; the search graph has hundreds of nodes instead of a million cells. **Hierarchical pathfinding** (HPA*) pre-clusters the map and searches cluster entrances first. For hundreds of agents heading to one goal, a **flow field** (one Dijkstra from the goal, then every agent follows the gradient) beats hundreds of A* runs.
+
+**Routing engines.** OSRM uses contraction hierarchies or multi-level Dijkstra, GraphHopper uses contraction hierarchies with landmark (ALT) fallbacks, and Valhalla runs a bidirectional A* over tiled graphs. The **ALT** heuristic is the one that matters for this lesson: precompute exact Dijkstra distances from a few dozen well-spread landmarks `L`, then `h(v) = max_L |d(L, t) − d(L, v)|` is a lower bound by the triangle inequality and is consistent because it is built from true distances. It is far tighter than straight-line distance on road networks, where the true distance exceeds the crow-flies distance by an unpredictable factor. Contraction hierarchies go further: they preprocess shortcuts so that a query is a bidirectional search that only moves "upward" in a node ordering and settles on the order of hundreds of nodes on a continent-sized graph.
+
+**Planning and puzzles.** The 15-puzzle has `16! / 2 ≈ 10¹³` reachable states; A* with the Manhattan heuristic expands millions of states on hard instances and runs out of memory, which is why IDA* (iterative deepening on an `f` bound, `O(depth)` memory) with **pattern databases** (exact costs for subsets of tiles, precomputed and stored) is the standard solver, typically expanding thousands of states instead. The same shape, an admissible heuristic from a relaxed version of the problem, is how classical AI planners (STRIPS-style, delete relaxation) build their heuristics.
+
+## Quantified costs
+
+- **Per-node work.** Manhattan distance is two subtractions and two absolute values, on the order of 100 ns from Python and a nanosecond compiled. A great-circle (haversine) heuristic costs several trigonometric calls, about a microsecond in Python; cache it per node, as networkx does, rather than recomputing per push.
+- **Open-list memory.** Each Python heap entry `(f, -g, r, c)` is a 72-byte tuple plus the ints, roughly 100 bytes; an open list of `10⁶` entries is about 100 MB. On a `1,000 × 1,000` grid Dijkstra can push most of the million cells; A* with a good heuristic pushes a corridor.
+- **Expansions.** On the 9 × 9 example: Dijkstra 77, A* 9 to 25. On a `1,000 × 1,000` open grid from one corner to the other, Dijkstra settles nearly all `10⁶` cells, while Manhattan A* with larger-`g` tie-breaking expands on the order of the path length, about `2 × 10³`.
+- **Road networks.** Plain A* with straight-line distance settles a few times fewer nodes than Dijkstra (the factor depends on how much roads wind), still hundreds of thousands on a continental query; ALT brings it down to tens of thousands and contraction hierarchies to hundreds, at the cost of minutes to hours of preprocessing and a rebuild when weights change.
+- **Weighted A*.** Scaling `h` by `ε = 1.5` typically cuts expansions by an order of magnitude on grids with obstacles and returns paths within 50% of optimal, often within a few percent (depends on the map).
+
+## Trade-offs
+
+| Search | Optimal? | Preprocessing | Memory | Nodes touched per query | Needs |
+|---|---|---|---|---|---|
+| Dijkstra | yes | none | `O(V)` | everything closer than the goal | non-negative weights |
+| A* (consistent `h`) | yes | none | `O(V)` worst case | corridor towards the goal | a lower bound on remaining cost |
+| Weighted A* (`ε · h`) | within factor `ε` | none | less than A* | much fewer | a tolerance for suboptimal paths |
+| Greedy best-first (`f = h`) | no | none | small | fewest, when it works | nothing; no guarantee |
+| Bidirectional Dijkstra | yes | none | two frontiers | about half of Dijkstra's | a correct stopping rule |
+| ALT (A* + landmarks) | yes | one Dijkstra per landmark, stored distances | `O(V × landmarks)` | tens of thousands on a continent | static graph |
+| Contraction hierarchies | yes | minutes to hours | shortcuts, a few × `E` | hundreds | static graph; rebuild on weight change |
+| IDA* | yes | none | `O(depth)` | re-expands across iterations | implicit graphs too big to store |
+| Jump point search | yes | none | `O(V)` | far fewer than grid A* | uniform-cost grid |
+
+## Failure modes
+
+**Symptom: routes come back longer than the ones a Dijkstra run produces, on some queries only.** Diagnosis: the heuristic overestimates somewhere. Manhattan distance on an 8-connected grid is the classic case (a diagonal move covers two Manhattan units for a cost of one), and so is a heuristic in the wrong units (metres against a `g` measured in seconds). Fix: use the metric that matches the movement model (Chebyshev or octile for 8 directions), divide distance-based heuristics by the maximum speed when costs are times, and add a test that compares A* against Dijkstra on random pairs.
+
+**Symptom: correct paths on grids, occasional wrong paths once the heuristic came from a lookup table or a model.** Diagnosis: admissible but inconsistent, exactly the four-node example: a node closed with a suboptimal `g`. Fix: run the triangle-inequality check on every edge (the second exercise); if it fails, either allow reopening and accept the loss of the runtime bound, or fall back to a consistent geometric heuristic, since taking the maximum with a consistent one keeps admissibility but not consistency.
+
+**Symptom: the returned distance is sometimes one edge too long.** Diagnosis: the search returns when the goal is *pushed*, not popped; the first push carries a tentative `g`. Fix: return on pop, as in the code; a push is a candidate, not a result.
+
+**Symptom: a query to an unreachable goal takes as long as a full Dijkstra and uses memory to match.** Diagnosis: with no path, A* exhausts the reachable component before it can say no. Fix: a connectivity precheck (union-find or flood fill on the static graph, cached), or a budget on expansions with an explicit "not found within budget" result.
+
+**Symptom: the process is killed for memory on a large implicit state space.** Diagnosis: A* keeps every generated node; on puzzles or planning graphs the open list grows exponentially with depth. Fix: IDA*, or a memory-bounded variant such as SMA*, or a stronger heuristic (pattern databases) that shrinks the expanded set.
+
+**Symptom: two identical queries return different, equally short paths, and a test asserting an exact path flakes.** Diagnosis: ties in `f` broken by whatever order the heap happens to hold, often by floating-point noise in `h`. Fix: deterministic tie-breaking in the heap key, `(f, -g, node_id)`, and integer costs where possible.
+
+## Interviewer follow-ups
+
+**"There are several acceptable goals. How does the heuristic change?"** Model answer: `h(v) = min` over goals of the single-goal heuristic, which stays admissible and consistent; or run the search backwards from all goals at once if the graph is reversible. Common wrong answer: running A* once per goal and taking the best.
+
+**"How would you validate a heuristic someone hands you?"** Model answer: two checks. Admissibility: compare `h(v)` with exact distances from a Dijkstra on the reversed graph for a sample of goals. Consistency: for every edge `(u, v, w)`, check `h(u) ≤ w + h(v)`, one linear pass. Then a differential test of A* against Dijkstra on random pairs. Common wrong answer: "if the paths look reasonable it is fine."
+
+**"Why is A* only a few times faster than Dijkstra on real road maps, and what do routing engines do about it?"** Model answer: straight-line distance is a loose bound on road distance, so the ellipse of expanded nodes is still enormous; ALT tightens the bound with landmark distances, and contraction hierarchies preprocess shortcuts so a query touches hundreds of nodes. Common wrong answer: "use a better heap."
+
+**"Can A* handle negative edge weights?"** Model answer: no, for the same reason as Dijkstra: the argument that a popped node is settled needs non-negative reduced costs, and a negative edge is a negative reduced cost whatever `h` is. Reweight first (Johnson's potentials, which are themselves a consistent heuristic) or use Bellman–Ford. Common wrong answer: "yes, if the heuristic is admissible."
+
+**"The target moves while you search."** Model answer: replan incrementally rather than from scratch: D* Lite and LPA* reuse the previous search tree and repair only the affected part, which is what robots use; for games, re-run A* on a coarse graph and smooth. Common wrong answer: re-running full A* every frame and hoping it is fast enough.
+
+## What mid-level engineers get wrong
+
+- **Returning when the goal is pushed.** Off-by-one-edge distances that only show on some inputs.
+- **Assuming "admissible" is enough for a closed set.** It is enough for optimality with reopening, not for settling on pop; consistency is the condition.
+- **Manhattan on an 8-way grid, or metres against seconds.** An inadmissible heuristic that returns visibly bad routes.
+- **A heuristic that costs more than it saves.** A database lookup or a sub-search per node can make A* slower than Dijkstra.
+- **Treating tie-breaking as cosmetic.** On open grids it is a factor of two or three in expansions and the difference between deterministic and flaky output.
+- **Reaching for A* with many goals or all destinations.** One-to-all is Dijkstra's shape.
+- **Believing production map routing is plain A*.** It is preprocessing (CH, ALT) plus a bidirectional search; A* is what you write in an interview and in a game.
 
 ## Exercises
 
@@ -240,6 +356,9 @@ hints:
 - You can name the right heuristic for 4-way, 8-way and weighted-diagonal grids and for time-based road costs, and you know `max` of consistent heuristics is consistent.
 - You know when A* is the wrong tool (many goals, no heuristic, expensive heuristic) and that weighted A* trades a bounded factor of optimality for speed.
 - You know production routing uses landmarks or contraction hierarchies rather than plain A*, and why.
+- You can explain A* as Dijkstra on reduced costs `w − h(u) + h(v)`, and consistency as "no reduced edge is negative", and you can produce the four-node example where an admissible but inconsistent heuristic makes the closed-set version return 5 instead of 4.
+- You can trace `g`, `h` and `f` per expansion on a small grid and say what the open list still holds when the goal pops.
+- You know the library and engine realities: networkx caches `h` per node and skips stale heap entries, game engines use JPS and navmeshes on top of A*, and routing engines precompute (CH, ALT) so that a query touches hundreds of nodes instead of millions.
 
 ## Check yourself
 
@@ -273,5 +392,11 @@ hints:
   options: ["Smaller g, since a shorter known path is more reliable", "The one discovered first, since FIFO order is stable", "Larger g, since its smaller h puts it nearer the goal", "Neither, since equal f means equal work remaining"]
   answer: 2
   explanation: >-
-    Among equal-f nodes, larger g means the remaining estimate is smaller, so the search is deeper along a promising path and finishes sooner. On open grids this tie-break can halve expansions; equal f does not mean equal work remaining.
+    Among equal-f nodes, larger g means the remaining estimate is smaller, so the search is deeper along a promising path and finishes sooner. On the 9 × 9 example it is the difference between 9 and 25 expansions; equal f does not mean equal work remaining.
+- q: >-
+    On S→A (1), A→B (1), S→B (3), B→G (2) with h(A) = 3 and h = 0 elsewhere, A* with a closed set returns 5 although the true distance is 4. Which statement explains it?
+  options: ["h overestimates at A, because h(A) = 3 exceeds the direct edge S→A, so admissibility fails", "h is admissible but not consistent: the reduced cost of A→B is −2, so B closes with a suboptimal g", "Ties at f = 4 were broken towards smaller g, so A was expanded after G", "The closed set is checked at push time instead of pop time, which discards improvements"]
+  answer: 1
+  explanation: >-
+    h(A) = 3 equals the true remaining cost from A, so admissibility holds; what fails is the triangle inequality on A→B, whose reduced cost 1 − 3 + 0 is negative. B pops early at g = 3, and when A later finds B at g = 2 the closed set refuses the update, so G inherits the bad value. Allowing reopening, or using a consistent heuristic, gives 4. The push-time-closed bug is a different defect, and G is never expanded before A here.
 ```

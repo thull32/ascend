@@ -37,7 +37,7 @@ The pair-table argument does not actually need sorted values. It needs some reas
 
 $$\text{area}(lo, j) = (j - lo)\cdot\min(h[lo], h[j]) \le (j - lo)\cdot h[lo] < (hi - lo)\cdot h[lo] = \text{area}(lo, hi)$$
 
-Every remaining pair that uses `lo` is strictly worse than the pair you just measured, so row `lo` is dominated and `lo` moves. The monotone quantity is the *width*, which only shrinks as you move inwards, and the shorter wall caps the height. On `h = [1, 8, 6, 2, 5, 4, 8, 3, 7]` the first cell `(0, 8)` has area `8 · 1 = 8`. Every other container using wall 0 is narrower and still capped at height 1, so dropping wall 0 loses nothing. This is also why moving the *taller* wall is wrong: the shorter wall still caps every remaining pair that uses it, so moving the taller one throws away candidates without proving they are worse.
+Every remaining pair that uses `lo` is strictly worse than the pair you have measured, so row `lo` is dominated and `lo` moves. The monotone quantity is the *width*, which only shrinks as you move inwards, and the shorter wall caps the height. On `h = [1, 8, 6, 2, 5, 4, 8, 3, 7]` the first cell `(0, 8)` has area `8 · 1 = 8`. Every other container using wall 0 is narrower and still capped at height 1, so dropping wall 0 loses nothing. This is also why moving the *taller* wall is wrong: the shorter wall still caps every remaining pair that uses it, so moving the taller one throws away candidates without proving they are worse.
 
 [Trapping Rain Water](/practice/trapping-rain-water)'s two-pointer version uses the same kind of dominance. Keep `left_max` and `right_max`, each including the height under its own pointer. If `left_max <= right_max`, the water above `lo` is exactly `left_max - h[lo]`: the right side is guaranteed to have a wall at least `right_max` tall, so the left maximum is the binding one. You can settle `lo` now and move it. The comparison decides which side has enough information to be finished.
 
@@ -83,7 +83,7 @@ The function returns `write = 5`. With `k = 1` it is [Remove Duplicates from Sor
 
 Sorting `0`s, `1`s and `2`s in one pass keeps four regions with this invariant: `a[0:lo]` are 0s, `a[lo:mid]` are 1s, `a[mid:hi+1]` are unknown, `a[hi+1:]` are 2s. Loop while `mid <= hi`:
 
-- `a[mid] == 0`: swap with `a[lo]`, then `lo += 1` and `mid += 1`. The element arriving from `lo` is a 1 (or `lo == mid` and it is the 0 you just placed), so it is known.
+- `a[mid] == 0`: swap with `a[lo]`, then `lo += 1` and `mid += 1`. The element arriving from `lo` is a 1 (or `lo == mid` and it is the 0 you placed there), so it is known.
 - `a[mid] == 1`: `mid += 1`.
 - `a[mid] == 2`: swap with `a[hi]`, then `hi -= 1`, and **do not** advance `mid`, because the element arriving from `hi` has not been examined.
 
@@ -117,14 +117,15 @@ With two sorted arrays, give each its own pointer and advance the one that is "b
 
 Sorting buys an order in which one comparison tells you which way to move. It costs `O(n log n)` time, loses the original indices, and mutates the input unless you copy it first. The alternative for pair problems is a hash map, and the two tools answer different questions:
 
-| Question | Hash map | Sort + two pointers |
-|---|---|---|
-| Pair with sum exactly `t`, return original indices | `O(n)`, natural | `O(n log n)`, must carry indices through the sort |
-| Pair with sum *closest* to `t` | No help: a map has no notion of "near" | `O(n log n)` |
-| Count pairs with sum `< t` | No help without an ordered structure | `O(n log n)`, add a row length per step |
-| All unique triples summing to 0 | `O(n²)`, deduplication is painful | `O(n²)`, duplicates skip cleanly |
-| Extra space | `O(n)` | `O(1)` beyond the sort |
-| Data arrives as a stream | Works | Needs all the data first |
+| Question | Hash map | Sort + two pointers | Sort + binary search |
+|---|---|---|---|
+| Pair with sum exactly `t`, return original indices | `O(n)`, natural | `O(n log n)`, must carry indices through the sort | `O(n log n)`, same index bookkeeping |
+| Pair with sum *closest* to `t` | No help: a map has no notion of "near" | `O(n log n)` | `O(n log n)`, one `bisect` per element |
+| Count pairs with sum `< t` | No help without an ordered structure | `O(n log n)`, add a row length per step | `O(n log n)`, one `bisect` per element |
+| All unique triples summing to 0 | `O(n²)`, deduplication is painful | `O(n²)`, duplicates skip cleanly | `O(n² log n)`, slower for no gain |
+| Extra space | `O(n)` map, about 100 bytes per entry | `O(1)` beyond the sort | `O(1)` beyond the sort |
+| Data arrives as a stream | Works | Needs all the data first | Needs all the data first |
+| Queries against a fixed array | One map, `O(1)` per query | Sort once, `O(n)` per query | Sort once, `O(log n)` per query |
 
 The rule of thumb: **equality goes to a hash map; order goes to sorting.** A hash map answers "is this exact value present?" and knows nothing about neighbouring values. "Less than", "closest", "within a range" and "count how many" all need order. This is why [Two Sum](/practice/two-sum) on unsorted input with indices is a hash-map problem, while [Two Sum II](/practice/two-sum-sorted) with sorted input is a pointer problem that needs no extra space.
 
@@ -136,6 +137,57 @@ One language trap: JavaScript's default `sort()` compares elements as **strings*
 - **Subarray sums with negative numbers:** neither pointers nor windows. Use [prefix sums and hashing](/learn/algorithms/technique-mastery/prefix-sums-and-hashing-tricks).
 - **An objective that is not monotone along a pointer.** "Maximum product of two elements" with negatives is solved by sorting, but the answer is one of two candidates (the two largest, or the two most negative), not a pointer walk.
 - **k-Sum for larger `k`:** anchors plus pointers give `O(n^(k-1))`. Hashing all pair sums gives `O(n^(k/2))`, which is [meet in the middle](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation).
+
+## Under the hood
+
+**What the sort costs, and when it is free.** CPython's `list.sort` and `sorted` are Timsort: the algorithm first scans for *runs* (already ascending or strictly descending stretches, the latter reversed in place), extends short runs to a minimum length of 32–64 with binary insertion sort, and merges runs with a galloping mode that skips ahead exponentially when one run is winning. On input that is already sorted there is one run and no merge, so the sort is a single `O(n)` pass. Measured on 10⁶ random integers: 0.15 s to sort, 0.02 s to "sort" the already-sorted result, and 0.02 s for the reversed one. A two-pointer solution that re-sorts input which is already ordered therefore pays almost nothing for the sort, and an interviewer who hears "the sort is `O(n log n)` so I would rather not sort" should also hear that caveat. V8 (Chrome, Node) has used TimSort for `Array.prototype.sort` since 2018, with the same run detection; before that, arrays above ten elements used an unstable quicksort.
+
+**The `key=` function runs once per element.** Python decorates the list with the computed keys before sorting, so a `key=lambda p: (p[1], p[0])` costs `n` calls, not `n log n`. The comparison itself is then a tuple comparison in C.
+
+**Memory.** Sorting a copy (`sorted(a)`) allocates `n` pointer slots of 8 bytes; the integer objects are shared, not copied, so 10⁶ elements cost 8 MB for the copy, plus Timsort's temporary buffer of up to `n/2` pointers during merges. The two-pointer pass itself allocates nothing.
+
+**The pointer loop.** A step of the opposite-ends loop on 10⁶ sorted Python ints measured about 130 ns: an index, an addition, a comparison and a branch, all interpreted. In C or Rust the same step is a few nanoseconds, and the data-dependent branch (which pointer moves) mispredicts often enough on random data that branchless versions exist; that is a constant-factor concern, not something to design around.
+
+## Quantified costs
+
+- **Sorting versus pointing.** `n log₂ n` for `n = 10⁶` is about 2 × 10⁷ comparisons. The pointer pass is at most `n` steps. On this machine the sort took 0.15 s and the pass 0.13 s in Python, so for a single query the sort is roughly half the cost; for `q` queries against the same array it is amortised away.
+- **3Sum.** The anchor-plus-pair loop does about `n²/2` pointer steps: 4.5 × 10⁶ for `n = 3,000` (under a second in Python), 5 × 10⁷ for `n = 10⁴` (several seconds in Python, milliseconds in C), 5 × 10⁹ for `n = 10⁵` (out of reach in any language for an interactive service). The `n²` is not an implementation defect, as the 3SUM section explained.
+- **Hash map alternative.** A Python dict of `n` integer keys costs about 100 bytes per entry, so the `O(n)` two-sum map for 10⁶ elements is around 100 MB; the sorted copy is 8 MB. When memory is the constraint, the pointer version wins by an order of magnitude.
+
+## Failure modes
+
+**Symptom: `IndexError` (Python) or a pointer past the end (JavaScript reads `undefined`, compares `undefined === 1` as false, and silently exits) on input that ends with repeated values.** Diagnosis: a duplicate-skip loop written `while a[lo] == a[lo + 1]` without `lo < hi`. On `[1, 1, 1]` it walks off the array. Fix: every inner loop needs the same bound as the outer one; `while lo < hi and a[lo] == a[lo - 1]`, run *after* the move, is the safe form because it compares with an index you know exists.
+
+**Symptom: triangle counts and pair counts are wrong in JavaScript, and only on arrays with values of different digit counts.** Diagnosis: `nums.sort()` with no comparator compares as strings, so `[10, 9, 1, 100, 2]` sorts to `[1, 10, 100, 2, 9]` and the pointer proof's precondition is false; nothing throws. Fix: `nums.sort((x, y) => x - y)`. The `triangle-count` exercise has a hidden test for exactly this.
+
+**Symptom: 3Sum returns duplicate triples.** Diagnosis: no skipping after a hit or across equal anchors. Without skips, `[-1, 0, 1, 2, -1, -4]` yields `(-1, 0, 1)` twice and `[0, 0, 0, 0]` yields `(0, 0, 0)` twice. Fix: after recording a triple, advance `lo` past all copies of `a[lo]` and `hi` past all copies of `a[hi]`; skip an anchor equal to the previous anchor. Deduplicating with a set of tuples afterwards works but costs `O(n²)` memory in the worst case.
+
+**Symptom: the Dutch flag loop hangs.** Diagnosis: a branch that moves neither pointer, typically the `2` case written as "swap with `hi`" without `hi -= 1`, or the `0` case without `lo += 1`. On `[2, 2]` the swap exchanges equal values and the state never changes. Fix: name the potential `hi - mid + 1` and check that every branch decreases it.
+
+**Symptom: an in-place merge produces `[1, 2, 2, ...]` from `[1, 4, 7]` and `[2, 3, 5]`.** Diagnosis: writing from the front. The second step writes `2` over the unread `4`; the third step then compares the corrupted `2` with `3` and writes `2` again. Fix: write from the back, where `w = i + j + 1` is always at least one ahead of the unread part of `a`.
+
+**Symptom: keep-at-most-`k` deletes elements it should keep.** Diagnosis: the test compares with `a[read - k]`, an input position that may already have been overwritten. Fix: compare with `a[write - k]`, which is in the output and records what was actually kept.
+
+## Interviewer follow-ups
+
+**"Convince me the pair search never skips the answer."** Model answer: the pair table. Each comparison eliminates a full row or column, because the current sum is an upper or lower bound on every remaining sum in that row or column; the answer is never in an eliminated line, and each step removes one line, so at most `n − 1` steps. Common wrong answer: "because the array is sorted", which names the precondition and proves nothing.
+
+**"Extend to k-Sum. What is the complexity, and can you beat it?"** Model answer: `k − 2` nested anchors plus one pointer sweep is `O(n^(k−1))`; hashing all pair sums gives `O(n^(k/2))` time and memory for even `k`, the [meet-in-the-middle](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation) idea. For `k = 3` nobody knows an `O(n^(2−ε))` algorithm. Common wrong answer: claiming `O(n²)` for 4Sum with pointers, or `O(n log n)` for 3Sum.
+
+**"Why not a hash map for the closest-pair-to-target problem?"** Model answer: a hash map answers exact membership only; "closest" is an order question, and the sorted pointer walk is the natural `O(n log n)` tool. A balanced tree or `bisect` on a sorted copy also works, at `O(n log n)`. Common wrong answer: proposing a hash map keyed on rounded values, which has no bound on what it misses.
+
+**"Partition so that all zeros come first, keeping relative order of the non-zeros."** Model answer: that is the read/write compaction, stable by construction, `O(n)` time and `O(1)` space; a swap-based partition (Lomuto, Dutch flag) is unstable. Common wrong answer: offering the swap partition and asserting it preserves order.
+
+**"Your solution sorts the input. Is that `O(1)` extra space?"** Model answer: Timsort needs up to `n/2` pointers of temporary space and `sorted` copies the list; an in-place `list.sort()` mutates the caller's data. Say which you are doing; if true `O(1)` is required, heapsort or an in-place introsort is the honest tool. Common wrong answer: "yes, it is in place", said of `sorted`.
+
+## What mid-level engineers get wrong
+
+- **Sorting in JavaScript without a comparator.** Strings compare, numbers do not, and the two-pointer invariant is silently false.
+- **Moving the taller wall in Container With Most Water** because "the taller wall is more promising", discarding pairs that were never proven worse.
+- **Skipping duplicates before recording a hit, or without the `lo < hi` bound.** The first misses valid triples when the array has repeated values; the second runs off the array.
+- **Advancing `mid` after the `hi` swap in the Dutch flag.** The unexamined element that arrived from `hi` is classified as a `1`.
+- **Merging in place from the front**, or comparing with `a[read - k]` in a compaction loop. Both read data that has already been overwritten.
+- **Calling `sorted` "constant extra space".** It is `O(n)` for the copy plus Timsort's buffer.
 
 ## Exercises
 
@@ -248,6 +300,8 @@ hints:
 - You explain the Dutch flag's **asymmetric swap** by where the incoming element came from.
 - You choose between hashing and sorting with **"equality goes to a hash, order goes to sorting"**, and you mention that 3Sum's `O(n²)` is believed to be essentially optimal.
 - You count with pointers by **adding a whole row** (`hi - lo`) when a comparison certifies it, instead of enumerating pairs.
+- You know what the sort really costs: **Timsort is `O(n)` on already-ordered input**, `sorted` copies `n` pointers, and V8's default comparator compares strings.
+- You bound every duplicate-skip loop and every inner loop with the **same `lo < hi` condition** as the outer one, and you skip duplicates after recording a hit, not before.
 
 ## Check yourself
 
@@ -266,7 +320,7 @@ hints:
     The shorter wall caps the height of every pair it belongs to, and the width only shrinks inwards, so every remaining pair using lo is strictly worse than the current one and row lo is dominated. Containers using hi are narrower too, but their height is min(h[j], 9), which can exceed 3, so moving hi would discard pairs such as (lo + 1, hi) that could be better and are not proven worse.
 - q: >-
     In the Dutch national flag loop, after swapping a[mid] with a[hi] because a[mid] was 2, why does mid stay where it is?
-  options: ["Not advancing mid is what keeps the potential dropping, so the loop is O(n)", "Keeping mid still stops the 2 just placed at hi from being swapped out again", "The element that arrived from hi is still unexamined and must be classified first", "It should advance; the swapped-in element is always a 1, as in the lo case"]
+  options: ["Not advancing mid is what keeps the potential dropping, so the loop is O(n)", "Keeping mid still stops the 2 now placed at hi from being swapped out again", "The element that arrived from hi is still unexamined and must be classified first", "It should advance; the swapped-in element is always a 1, as in the lo case"]
   answer: 2
   explanation: >-
     Everything left of mid has been examined, and everything right of hi is known to be 2, but the region between them is unknown. The swap brings an unknown element to mid. The lo-side swap is different: the element arriving from lo has already been examined, which is why mid advances there. Progress still happens because hi decreases, so the potential hi - mid + 1 drops; not advancing mid is about correctness, not speed.
@@ -282,4 +336,11 @@ hints:
   answer: 1
   explanation: >-
     The invariant is that a[0:write] is the correct output so far. Because that output is sorted, a[write - 2] == a[read] means the last two kept values already equal a[read]. The input position read - 2 says nothing about what was kept, and it may have been overwritten: on [1, 1, 1, 2, 2, 2, 3] at read = 4, a[2] already holds a 2, so comparing with a[read - 2] would wrongly drop the second 2, while a[write - 2] = 1 keeps it.
+- q: >-
+    A 3Sum implementation sorts, anchors each index, and runs opposite-end pointers, but on [-1, 0, 1, 2, -1, -4] it returns (-1, 0, 1) twice. Where is the missing step?
+  options: ["Deduplicate the input with a set before sorting, so no value appears more than once", "Sort in descending order, so that repeated values are visited from the largest first", "Skip an anchor equal to the previous anchor, and after a hit move lo and hi past repeated values", "Stop the pointer sweep at the first hit for each anchor, since one triple per anchor is enough"]
+  answer: 2
+  explanation: >-
+    The two -1 values act as two anchors and each finds (0, 1); repeated values at lo or hi produce the same triple again after a hit. Skipping equal anchors and stepping lo and hi past duplicates after recording removes both sources, and the skip loops need the lo < hi bound to avoid running off the array. Removing duplicates from the input is wrong because (0, 0, 0) and (-1, -1, 2) are valid triples that need repeated values; one hit per anchor would miss triples such as (-4, 1, 3) alongside (-4, 2, 2).
 ```
+

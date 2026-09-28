@@ -24,11 +24,18 @@ A subsequence keeps characters in order but need not be contiguous. The LCS of `
 
 $$dp[i][j] = \begin{cases} 1 + dp[i-1][j-1] & a[i-1] = b[j-1] \\ \max(dp[i-1][j],\, dp[i][j-1]) & \text{otherwise} \end{cases}$$
 
-The equal case deserves a sentence of justification because interviewers ask: if `a[i-1] = b[j-1] = x`, why not also consider dropping one of them? Because any LCS of the two prefixes that does not end with this pair of `x`s can be modified to end with them without getting shorter (replace its last match, or append this one), so matching them is always safe. That is an exchange argument, the same tool as in [greedy proofs](/learn/algorithms/greedy/greedy-and-exchange-arguments).
-
 **Order.** Row by row, increasing `i` then `j`: the transition reads `(i-1, j-1)`, `(i-1, j)` and `(i, j-1)`, all filled earlier. **Answer.** `dp[m][n]`.
 
-Trace `a = "abcde"`, `b = "ace"`:
+Fill `a = "abcde"`, `b = "ace"` cell by cell. Row 0 and column 0 are zeros. Then:
+
+| cell | prefixes | last chars | reads | value |
+|---|---|---|---|---|
+| `dp[1][1]` | `a` / `a` | equal | `1 + dp[0][0]` | 1 |
+| `dp[1][2]` | `a` / `ac` | `a ≠ c` | `max(dp[0][2], dp[1][1]) = max(0, 1)` | 1 |
+| `dp[2][2]` | `ab` / `ac` | `b ≠ c` | `max(dp[1][2], dp[2][1]) = max(1, 1)` | 1 |
+| `dp[3][2]` | `abc` / `ac` | equal | `1 + dp[2][1] = 1 + 1` | 2 |
+| `dp[4][3]` | `abcd` / `ace` | `d ≠ e` | `max(dp[3][3], dp[4][2]) = max(2, 2)` | 2 |
+| `dp[5][3]` | `abcde` / `ace` | equal | `1 + dp[4][2] = 1 + 2` | 3 |
 
 | | `""` | a | c | e |
 |---|---|---|---|---|
@@ -39,7 +46,7 @@ Trace `a = "abcde"`, `b = "ace"`:
 | **d** | 0 | 1 | 2 | 2 |
 | **e** | 0 | 1 | 2 | **3** |
 
-Bold cells are diagonal matches. `dp[3][2]` (`"abc"` vs `"ac"`): `c = c`, so `1 + dp[2][1] = 1 + 1 = 2`. `dp[4][3]` (`"abcd"` vs `"ace"`): `d ≠ e`, so `max(dp[3][3], dp[4][2]) = max(2, 2) = 2`.
+Bold cells are diagonal matches.
 
 ```viz
 {"type": "dp", "algorithm": "lcs", "a": "abcde", "b": "ace", "title": "LCS: diagonal on match, max(up, left) otherwise", "caption": "Watch the diagonal steps: each one is a character both strings share, in order."}
@@ -58,7 +65,27 @@ def lcs(a: str, b: str) -> int:
     return dp[m][n]
 ```
 
-Time `O(mn)`, space `O(mn)`; with two rolling rows `O(min(m, n))`. To recover the subsequence itself, walk back from `(m, n)`: on a match, emit the character and go diagonally; otherwise go to whichever of up/left holds the larger value. `diff` is LCS on lines instead of characters: lines in the LCS are unchanged, everything else is an insertion or deletion.
+Time `O(mn)`, space `O(mn)`; with two rolling rows `O(min(m, n))`.
+
+### Reconstructing the subsequence
+
+Walk back from `(m, n) = (5, 3)`; on a match emit the character and go diagonally, otherwise move to the neighbour that holds the cell's value:
+
+| at | last chars | move | emitted |
+|---|---|---|---|
+| `(5, 3) = 3` | `e = e` | diagonal to `(4, 2)` | `e` |
+| `(4, 2) = 2` | `d ≠ c` | `dp[3][2] = 2 ≥ dp[4][1] = 1`, up to `(3, 2)` | |
+| `(3, 2) = 2` | `c = c` | diagonal to `(2, 1)` | `c` |
+| `(2, 1) = 1` | `b ≠ a` | `dp[1][1] = 1 ≥ dp[2][0] = 0`, up to `(1, 1)` | |
+| `(1, 1) = 1` | `a = a` | diagonal to `(0, 0)` | `a` |
+
+Reversed, `"ace"`. When up and left tie, either move yields a valid LCS, and different tie-breaks yield different (equally long) subsequences; `diff` tools care about which one, as the follow-ups discuss.
+
+## Why the prefix state is sufficient
+
+The interviewer's "why is that the whole recurrence?" has a precise answer. Consider any common subsequence of `a[0..i)` and `b[0..j)` and ask what it does with the two last characters. There are three possibilities and no others: it uses `a[i-1]` matched to `b[j-1]` (possible only when they are equal), it does not use `a[i-1]` (so it is a common subsequence of `a[0..i-1)` and `b[0..j)`), or it does not use `b[j-1]` (a common subsequence of `a[0..i)` and `b[0..j-1)`). The three terms of the recurrence are exactly these three cases, so the maximum over them is the true optimum. Nothing about *which* earlier characters were matched matters, because any common subsequence of two prefixes is a valid start for any continuation; that is what makes `(i, j)` a sufficient state.
+
+The equal case still deserves a sentence, because the recurrence takes only the diagonal there instead of the maximum of all three. If `a[i-1] = b[j-1] = x`, take any LCS of the two prefixes that does not end by matching these two `x`s; it either uses at most one of them or neither. Replace its last match by the pair `(a[i-1], b[j-1])` (or append the pair if both were unused), and the result is a common subsequence at least as long. So an optimal solution that matches the pair always exists, and the other two terms can never exceed `1 + dp[i-1][j-1]`. That is an exchange argument, the same tool as in [greedy proofs](/learn/algorithms/greedy/greedy-and-exchange-arguments).
 
 ## Edit distance
 
@@ -76,6 +103,8 @@ The minimum number of single-character insertions, deletions or substitutions to
 
 $$dp[i][j] = \begin{cases} dp[i-1][j-1] & a[i-1] = b[j-1] \\ 1 + \min(dp[i-1][j-1],\, dp[i-1][j],\, dp[i][j-1]) & \text{otherwise} \end{cases}$$
 
+The case analysis is exhaustive for the same reason as in LCS: in any edit script, the last character of `a` is either kept (matched to `b[j-1]`), substituted into `b[j-1]`, or deleted; and if `b[j-1]` is not produced from `a[i-1]` it must have been inserted. Every script falls into one of the three branches, so the minimum over them is optimal.
+
 Trace `a = "horse"`, `b = "ros"`:
 
 | | `""` | r | o | s |
@@ -87,15 +116,46 @@ Trace `a = "horse"`, `b = "ros"`:
 | **s** | 4 | 3 | 3 | 2 |
 | **e** | 5 | 4 | 4 | **3** |
 
-`dp[2][2]` (`"ho"` vs `"ro"`): `o = o`, so `dp[1][1] = 1` (substitute h→r). `dp[3][1]` (`"hor"` vs `"r"`): `r = r`, so `dp[2][0] = 2` (delete h and o). `dp[5][3]`: `e ≠ s`, `1 + min(dp[4][2], dp[4][3], dp[5][2]) = 1 + min(3, 2, 4) = 3`. The answer is 3: delete h, substitute... one optimal script is `horse → rorse → rose → ros` (substitute, delete, delete).
+`dp[1][1]` (`h` vs `r`): `h ≠ r`, `1 + min(dp[0][0], dp[0][1], dp[1][0]) = 1 + min(0, 1, 1) = 1`, a substitution. `dp[2][2]` (`ho` vs `ro`): `o = o`, so `dp[1][1] = 1`. `dp[3][1]` (`hor` vs `r`): `r = r`, so `dp[2][0] = 2` (delete h and o). `dp[5][3]`: `e ≠ s`, `1 + min(dp[4][2], dp[4][3], dp[5][2]) = 1 + min(3, 2, 4) = 3`.
+
+### Reconstructing the edit script
+
+Walk back from `(5, 3)`, at each cell asking which neighbour explains the value:
+
+| at | last chars | test | operation | move to |
+|---|---|---|---|---|
+| `(5, 3) = 3` | `e ≠ s` | `dp[4][3] = 2 = 3 − 1` (up) | delete `e` | `(4, 3)` |
+| `(4, 3) = 2` | `s = s` | `dp[3][2] = 2` (diagonal, free) | keep `s` | `(3, 2)` |
+| `(3, 2) = 2` | `r ≠ o` | `dp[2][2] = 1 = 2 − 1` (up) | delete `r` | `(2, 2)` |
+| `(2, 2) = 1` | `o = o` | `dp[1][1] = 1` (diagonal, free) | keep `o` | `(1, 1)` |
+| `(1, 1) = 1` | `h ≠ r` | `dp[0][0] = 0 = 1 − 1` (diagonal) | substitute `h→r` | `(0, 0)` |
+
+In forward order: `horse → rorse` (substitute) `→ rose` (delete r) `→ ros` (delete e). Three edits, and the walk found *which* three, which is what a spell checker needs when it explains a suggestion and what `diff` prints as `+`/`-` lines.
 
 ```viz
 {"type": "dp", "algorithm": "edit-distance", "a": "horse", "b": "ros", "title": "Edit distance: min of substitute (diagonal), delete (up), insert (left), each plus 1", "caption": "The border is i and j, not 0. Every interior cell reads three neighbours."}
 ```
 
-Note the shape: LCS and edit distance read the same three neighbours; they differ in the combine operation and the border. In fact, when only insertions and deletions are allowed (no substitution), `distance = m + n − 2·LCS`. The two problems are the same computation seen from different sides.
+Note the shape: LCS and edit distance read the same three neighbours; they differ in the combine operation and the border. When only insertions and deletions are allowed (no substitution), `distance = m + n − 2·LCS`: every character not in the LCS must be deleted from `a` or inserted from `b`. The two problems are the same computation seen from different sides.
 
-A practical note: spell checkers and fuzzy search do not run full edit distance against every dictionary word. They bound the distance (`k ≤ 2`) and only compute a band of width `2k + 1` around the diagonal, giving `O(k·n)` per comparison, or use precomputed structures (BK-trees, Levenshtein automata). If an interviewer asks "how would you fuzzy-match a query against a million strings", the banded DP is the first optimisation to name.
+## Counting instead of optimising: distinct subsequences
+
+The same prefix state counts as well as optimises. [Distinct Subsequences](/practice/distinct-subsequences) asks how many ways `t` occurs as a subsequence of `s`. **State.** `dp[i][j]` = the number of ways `t[0..j)` appears in `s[0..i)`. **Transition.** The last character of `s` is either not used, contributing `dp[i-1][j]`, or, when `s[i-1] = t[j-1]`, used as the match for `t[j-1]`, contributing `dp[i-1][j-1]`. The two cases are disjoint (used or not), so they add. **Border.** `dp[i][0] = 1`: the empty `t` occurs exactly once in anything; `dp[0][j] = 0` for `j > 0`.
+
+Trace `s = "rabbbit"`, `t = "rabbit"`:
+
+| | `""` | r | a | b | b | i | t |
+|---|---|---|---|---|---|---|---|
+| `""` | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| **r** | 1 | 1 | 0 | 0 | 0 | 0 | 0 |
+| **a** | 1 | 1 | 1 | 0 | 0 | 0 | 0 |
+| **b** | 1 | 1 | 1 | 1 | 0 | 0 | 0 |
+| **b** | 1 | 1 | 1 | 2 | 1 | 0 | 0 |
+| **b** | 1 | 1 | 1 | 3 | 3 | 0 | 0 |
+| **i** | 1 | 1 | 1 | 3 | 3 | 3 | 0 |
+| **t** | 1 | 1 | 1 | 3 | 3 | 3 | **3** |
+
+`dp[5][4]` (`rabbb` vs `rabb`): the last `b` is unused (`dp[4][4] = 1`) or matched (`dp[4][3] = 2`), total 3. The three answers are the three choices of which `b` to drop. Counts grow fast: with `s` thirty-four `a`s and `t` seventeen, the answer is `C(34, 17) = 2,333,606,220`, past 2³¹, which is why this problem's constraints promise the answer fits or ask for it modulo a prime. The counting variant is where fixed-width overflow bites first in this family.
 
 ## Palindromes: interval state on one string
 
@@ -107,7 +167,7 @@ A practical note: spell checkers and fuzzy search do not run full edit distance 
 
 **Order.** The transition reads `(i+1, j-1)`, a *shorter* interval. So fill by increasing length: all length-1 intervals (always true), then length 2, then 3, and so on. Equivalently, iterate `i` from `n-1` down to 0 and `j` from `i` up to `n-1`; then `(i+1, j-1)` has already been computed.
 
-**Answer.** The longest `(i, j)` with `pal[i][j]` true, or the count of true cells for [Palindromic Substrings](/practice/palindromic-substrings).
+**Answer.** The longest `(i, j)` with `pal[i][j]` true, or the count of true cells for [Palindromic Substrings](/practice/palindromic-substrings): `"babad"` has 7 (`b, a, b, a, d, bab, aba`), `"aaaa"` has 10.
 
 ```viz
 {"type": "dp", "algorithm": "palindrome-substrings", "a": "babad", "title": "Palindromic substrings: pal[i][j] = s[i]==s[j] and pal[i+1][j-1]", "caption": "The table fills by interval length. Each true cell is a palindrome; the longest one on the top-right diagonal band is the answer."}
@@ -129,9 +189,19 @@ def longest_palindrome(s: str) -> str:
     return s[best_i:best_j + 1]
 ```
 
-`O(n²)` time and space. The honest senior answer is that for the *substring* problem, expand-around-centre is also `O(n²)` time, uses `O(1)` space, is shorter, and is usually faster in practice; write that one in an interview and mention the DP. The DP earns its keep when many overlapping palindrome queries are needed (palindrome partitioning) or for the *subsequence* variant, which has no centre to expand from.
+`O(n²)` time and space. The honest senior answer is that for the *substring* problem, expand-around-centre is also `O(n²)` time, uses `O(1)` space, is shorter, and is usually faster: for each of the `2n − 1` centres (a character or a gap between two), widen while the ends match. Write that one in an interview and mention the DP. The DP earns its keep when many overlapping palindrome queries are needed (palindrome partitioning) or for the *subsequence* variant, which has no centre to expand from. The `O(n)` algorithm is [Manacher's](/learn/advanced-data-structures/advanced-strings/manacher-and-palindromes), rarely expected.
 
-Longest palindromic *subsequence* (characters need not be contiguous): `dp[i][j]` = length of the longest palindromic subsequence within `s[i..j]`. If `s[i] = s[j]`, they pair up: `2 + dp[i+1][j-1]`. Otherwise drop one end: `max(dp[i+1][j], dp[i][j-1])`. Same fill order by length. Or notice that it equals `LCS(s, reverse(s))` and reuse the LCS code; both are `O(n²)`.
+**Longest palindromic subsequence** (characters need not be contiguous): `dp[i][j]` = length of the longest palindromic subsequence within `s[i..j]`. If `s[i] = s[j]`, they pair up: `2 + dp[i+1][j-1]`. Otherwise drop one end: `max(dp[i+1][j], dp[i][j-1])`. Same fill order by length. Trace `"bbbab"` (rows `i`, columns `j`, only `j ≥ i` filled):
+
+| | b | b | b | a | b |
+|---|---|---|---|---|---|
+| **b** | 1 | 2 | 3 | 3 | **4** |
+| **b** | | 1 | 2 | 2 | 3 |
+| **b** | | | 1 | 1 | 3 |
+| **a** | | | | 1 | 1 |
+| **b** | | | | | 1 |
+
+`dp[0][4]`: `s[0] = s[4] = b`, so `2 + dp[1][3] = 2 + 2 = 4` (`"bbbb"`). `dp[2][4]` (`"bab"`): `b = b`, `2 + dp[3][3] = 3`. Or notice that the answer equals `LCS(s, reverse(s))` and reuse the LCS code; both are `O(n²)`.
 
 ## Regular-expression matching
 
@@ -161,7 +231,7 @@ Trace `s = "aab"`, `p = "c*a*b"`. Prefixes of `p`: `""`, `c`, `c*`, `c*a`, `c*a*
 | **aa** | F | F | F | F | T | F |
 | **aab** | F | F | F | F | F | **T** |
 
-`dp[0][2]` (`""` vs `c*`): star, zero copies, `dp[0][0] = T`. `dp[1][3]` (`a` vs `c*a`): literal `a` matches, `dp[0][2] = T`. `dp[2][4]` (`aa` vs `c*a*`): star on `a`; zero copies gives `dp[2][2] = F`; at-least-one gives `s[1] = a` matches `a` and `dp[1][4] = T`. `dp[3][5]`: literal `b` matches, `dp[2][4] = T`. Match.
+`dp[0][2]` (`""` vs `c*`): star, zero copies, `dp[0][0] = T`. `dp[1][3]` (`a` vs `c*a`): literal `a` matches, `dp[0][2] = T`. `dp[2][4]` (`aa` vs `c*a*`): star on `a`; zero copies gives `dp[2][2] = F`; at-least-one gives `s[1] = a` matches `a` and `dp[1][4] = T`. `dp[3][5]`: literal `b` matches, `dp[2][4] = T`. Match. The same code says `"mississippi"` does not match `"mis*is*p*."`, because after `mis*is*` consumes `missis`, `p*` cannot absorb the `s` before `ippi`.
 
 ```python
 def is_match(s: str, p: str) -> bool:
@@ -182,19 +252,85 @@ def is_match(s: str, p: str) -> bool:
     return dp[m][n]
 ```
 
-`O(mn)`. Production regex engines are not this: they compile to automata (RE2, Rust's `regex`) for guaranteed linear time, or backtrack (PCRE, JavaScript) and can go exponential on patterns like `(a*)*b`, which is the source of ReDoS vulnerabilities. Knowing that the interview DP is polynomial *because* the state space is `m × n` while a backtracking matcher's state is the whole call history is exactly the kind of connection a senior engineer makes.
+`O(mn)`.
 
-## The two-string template
+### Why the DP is polynomial and a backtracker is not
 
-| Problem | State `dp[i][j]` | Match case | Mismatch case | Border |
+Read each row of the table as a set: row `i` is the set of pattern positions that can be "alive" after consuming `s[0..i)`. That is exactly the state of a non-deterministic finite automaton being simulated character by character, which is how Thompson's 1968 construction and every automata-based engine (RE2, Go's `regexp`, Rust's `regex`) work: at most `n` alive states per character, so `O(mn)` in the worst case with no exponential blow-up. Backtracking engines (PCRE, Python's `re`, JavaScript) instead explore one alternative at a time and revisit the same `(i, j)` pairs without a memo. On the pattern `(a+)+b` against a string of `a`s, Python's `re.match` measured 0.02 s at 20 characters and 0.07 s at 22 on this machine, roughly tripling per added character; a few more characters and one regex call takes seconds, which is the whole of a ReDoS attack. The interview DP is polynomial *because* it memoises the `(i, j)` state that backtracking recomputes.
+
+## Under the hood: memory, bands and bit-parallel rows
+
+The cost model for a two-string DP is the table, and the table is bigger than it looks. Two strings of 10⁴ characters give 10⁸ cells: 800 MB as NumPy `int64`, 400 MB as `int32`, and several gigabytes as a Python list of lists (8 bytes of pointer plus a 28-byte `int` object per cell). Two rolling rows are 160 KB. Nobody allocates the full table for strings that long; they roll rows and, when they need the alignment itself, use the checkpointing trick in [DP craft](/learn/algorithms/dynamic-programming/dp-craft).
+
+Three further reductions are worth knowing by name.
+
+**Banding (Ukkonen, 1985).** If you only care whether the distance is at most `k`, cells with `|i − j| > k` cannot lie on a path of cost `≤ k` (each step away from the diagonal is at least one edit), so you fill a band of width `2k + 1`: `5,000` cells instead of `10⁶` for two 1,000-character strings and `k = 2`. Spell checkers and fuzzy search with a small distance cutoff live here. If the band's final cell exceeds `k`, the true distance does too.
+
+**Bit-parallel rows (Myers, 1999).** For edit distance, the differences between adjacent cells are always in `{−1, 0, +1}`, so a whole row can be encoded as a few bit-vectors and updated with about 15 word operations per text character, processing 64 cells at once: `O(n ⌈m / 64⌉)` instead of `O(nm)`. Libraries such as RapidFuzz and Edlib use this and are tens of times faster than a scalar table on short-to-medium strings.
+
+**Automata for many queries.** A Levenshtein automaton for a word `w` and bound `k` accepts exactly the strings within distance `k` of `w`; intersecting it with a dictionary trie enumerates all fuzzy matches without a DP per word. Lucene's fuzzy queries do this for `k ≤ 2`. [Aho–Corasick](/learn/advanced-data-structures/advanced-strings/aho-corasick) is the analogous move for exact multi-pattern matching.
+
+And on `diff`: the LCS table is `O(mn)` regardless of how similar the files are, so `git diff` does not use it. It runs Myers' 1986 algorithm, whose time is `O((m + n) · D)` for edit distance `D`, near-linear on files that differ in a few lines; `--minimal`, `--patience` and `--histogram` select variants that trade time for nicer alignments. Python's `difflib.SequenceMatcher` is a different algorithm again (longest matching blocks with an "autojunk" heuristic that ignores elements appearing more than 1% of the time in sequences over 200 items), which is why its output sometimes disagrees with an LCS.
+
+## Costs, and when the table is the wrong tool
+
+| Situation | Cells | Right tool |
+|---|---|---|
+| Two 100-character strings, exact answer | 10⁴ | full table, reconstruct from it |
+| Two 10⁴-character strings, distance only | 10⁸ | two rolling rows (160 KB), ~10 s in CPython at ~100 ns/cell, well under 1 s compiled |
+| Same, but only "is distance ≤ 2?" | 5 × 10⁴ | banded DP |
+| Two 10⁵-line files, human-readable diff | 10¹⁰ | Myers `O((m+n)D)`; the table does not fit |
+| One query against 10⁶ dictionary words, distance ≤ 2 | 10⁶ small tables | Levenshtein automaton or BK-tree index |
+| Regex on untrusted input in a service | | automata engine (RE2-class), never a backtracker |
+
+Top-down memoisation beats the bottom-up table in this family when most cells are unreachable: the regex DP with a pattern of many literals reaches only a thin diagonal, and a memoised `match(i, j)` visits those cells alone. Bottom-up wins for LCS and edit distance, where every cell is needed and the loop's constant factor is 10–20× smaller than a memoised call in CPython.
+
+## Failure modes
+
+**`edit_distance("abc", "")` returns 0.** Symptom: distances are too small whenever one string is a prefix of the other. Diagnosis: the border was initialised to zeros, LCS-style, so deleting or inserting a whole prefix looks free and every interior cell that routes through the border inherits the underestimate. Fix: `dp[i][0] = i`, `dp[0][j] = j`; check `dp[3][0]` by hand before trusting the table.
+
+**`is_match("aaa", "a*")` returns false.** Symptom: stars match exactly one character. Diagnosis: the one-or-more branch was written as `dp[i-1][j-2]`, advancing past the star after a single consumption. Fix: `dp[i-1][j]`, staying on the same pattern element; test with `"aaa"` vs `"a*"` and `""` vs `"a*b*"`.
+
+**The two-row LCS disagrees with the full table.** Symptom: results off by one on some inputs. Diagnosis: the diagonal `dp[i-1][j-1]` was read from the current row after it had been overwritten (the [grid DP](/learn/algorithms/dynamic-programming/grid-and-two-dimensional-dp) lesson shows why no sweep direction fixes this). Fix: save the previous row's `j-1` value in a variable before overwriting it, or keep two rows and swap.
+
+**A 2,000-character comparison takes minutes instead of a second.** Symptom: CPU-bound, memory churning. Diagnosis: the inner loop compares `a[:i]` or `s[i:j]` slices, copying `O(n)` characters per cell and turning `O(mn)` into `O(mn · n)`. Fix: index characters (`a[i-1]`), never slice inside the loop; [strings in depth](/learn/data-structures/arrays-strings/strings-in-depth) has the cost model.
+
+**Distinct-subsequence counts come out negative.** Symptom: correct on short inputs, garbage past a few dozen characters in Java or C++. Diagnosis: `int` overflow; `C(34, 17)` already exceeds 2³¹. Fix: reduce modulo the requested prime at each cell, or use a 64-bit type and check the constraints.
+
+**A regex endpoint pins a CPU core.** Symptom: p99 latency spikes with a handful of requests. Diagnosis: a backtracking engine given a pattern with nested quantifiers (`(a+)+b`) and adversarial input; each extra character multiplies the work. Fix: an automata-based engine for untrusted patterns or inputs, a match timeout, and a linter that rejects nested quantifiers.
+
+## Trade-offs
+
+| Approach | Time | Memory | Gives the alignment | When |
 |---|---|---|---|---|
-| LCS | LCS length of prefixes | `1 + diag` | `max(up, left)` | 0 |
-| Edit distance | min edits between prefixes | `diag` | `1 + min(diag, up, left)` | `i`, `j` |
-| Distinct subsequences | ways `b[0..j)` appears in `a[0..i)` | `diag + up` | `up` | `dp[i][0] = 1` |
-| Interleaving string | `c[0..i+j)` is an interleaving of `a[0..i)`, `b[0..j)` | `(a[i-1]==c[i+j-1] and up) or (b[j-1]==c[i+j-1] and left)` | same | from the two strings alone |
-| Regex | `s[0..i)` matches `p[0..j)` | `diag` | star: `dp[i][j-2] or (match and up)` | star chains |
+| Full `m × n` table | `O(mn)` | `O(mn)` | yes, by walking back | short strings; the interview default |
+| Two rolling rows | `O(mn)` | `O(min(m, n))` | no | distance only |
+| Banded, cutoff `k` | `O(k · n)` | `O(k · n)` or `O(k)` rolled | yes, within the band | "is it within k edits?" |
+| Bit-parallel (Myers 1999) | `O(n ⌈m/64⌉)` | `O(⌈m/64⌉)` words | no (distance only) | many short comparisons |
+| Myers `O((m+n)D)` diff | `O((m+n)D)` | `O(m+n)` | yes | long, similar sequences (`diff`) |
+| Automata engine (regex) | `O(mn)` worst, linear typical | `O(n)` states | not applicable | untrusted patterns |
 
-Every one of them is "look at the last character of each prefix, enumerate what could have happened to it". Once that reflex is installed, an unfamiliar two-string problem is a ten-minute derivation instead of a guess.
+## Interviewer follow-ups
+
+**"LCS of three strings?"** Model answer: the state becomes three prefixes, `dp[i][j][k]`, with the same last-character case analysis: all three equal gives `1 + dp[i-1][j-1][k-1]`, otherwise the max over dropping one character from any string. `O(n³)` time and space, so `n ≈ 300` is the comfortable limit in Python. Common wrong answer: `LCS(LCS(a, b), c)`, which is wrong because the intermediate LCS is not unique and the wrong choice loses matches.
+
+**"Allow swapping two adjacent characters as one edit."** Model answer: Damerau–Levenshtein adds a fourth candidate when `a[i-1] = b[j-2]` and `a[i-2] = b[j-1]`: `1 + dp[i-2][j-2]`; the state is unchanged, only the transition reads one more cell. Common wrong answer: treating a transposition as two substitutions, which overcounts by one for every swap.
+
+**"The strings are 10⁵ characters each."** Model answer: 10¹⁰ cells is out for any table. If the expected distance is small, banded DP in `O(nk)` or Myers' bit-parallel rows; if the strings are similar in the `diff` sense, Myers' `O((m+n)D)`; if neither, approximate (sketching, or align in chunks). Common wrong answer: "roll the rows", which fixes memory but still runs 10¹⁰ steps.
+
+**"Why does `diff` sometimes produce an ugly alignment even though it is optimal?"** Model answer: many alignments tie on length, and the tie-break in the walk-back decides which lines are called "unchanged"; a run of blank lines or braces can be matched to the wrong block. Patience diff first aligns lines that are unique in both files and recurses between them, sacrificing optimality for readability. Common wrong answer: "the LCS is unique".
+
+**"Would you ship this regex DP in a request path?"** Model answer: not this one, but the idea: use an automata engine (RE2, Go `regexp`, Rust `regex`) that gives the same `O(mn)` guarantee with real regex features, and never a backtracking engine on untrusted patterns; if you must use a backtracker, enforce a timeout and forbid nested quantifiers. Common wrong answer: "regex is fast", which is true until one crafted input takes seconds.
+
+## What mid-level engineers get wrong
+
+- **Copying the LCS border into edit distance.** Consequence: systematic underestimates that the small tests may not catch.
+- **`dp[i-1][j-2]` in the star case.** Consequence: `a*` matches exactly one `a`; the bug is invisible on patterns whose stars need one repetition.
+- **Slicing strings inside the inner loop.** Consequence: an extra factor of `n` in time and constant allocation; `O(n³)` disguised as `O(n²)`.
+- **Choosing the palindrome DP for the substring problem.** Consequence: `O(n²)` memory for no gain over expand-around-centre; the DP is for the subsequence variant and for repeated queries.
+- **Treating the counting variant like the optimising one.** Consequence: no `+`-disjointness check, so double counting, and no thought about overflow.
+- **Reaching for the full table on long inputs.** Consequence: gigabytes of memory where two rows or a band would do.
+- **Assuming a regex engine is linear.** Consequence: a ReDoS incident from a pattern that looked innocent.
 
 ## Exercises
 
@@ -286,12 +422,13 @@ hints:
 
 ## Senior signals
 
-- You define two-string states as **half-open prefixes** so the empty-prefix border needs no special cases, and you state the border values explicitly (0 for LCS, `i`/`j` for edit distance).
-- You justify the LCS match case with an **exchange argument** rather than "it is obvious".
-- You know that edit distance with insert/delete only is `m + n − 2·LCS`, and that `diff` is LCS on lines.
+- You define two-string states as **half-open prefixes** so the empty-prefix border needs no special cases, and you state the border values explicitly (0 for LCS, `i`/`j` for edit distance, `dp[i][0] = 1` for counting).
+- You can say **why the case analysis is exhaustive** (what happened to the last character of each prefix) and justify the LCS match case with an **exchange argument** rather than "it is obvious".
+- You **walk the table back** to produce the subsequence or the edit script, and you know that ties give different, equally valid answers.
+- You know that edit distance with insert/delete only is `m + n − 2·LCS`, that `diff` is LCS on lines in principle and Myers' `O((m+n)D)` inside `git`, and that `difflib` is neither.
 - For palindromic substrings you **write expand-around-centre** and mention the DP; for the subsequence variant you reach for the interval DP or `LCS(s, reverse(s))`.
-- You get the regex star case right: `dp[i][j-2]` for zero copies **or** `match and dp[i-1][j]` for one-or-more, and you can say why `dp[i-1][j-2]` is wrong.
-- You connect the interview DP to production: banded edit distance for fuzzy search, automata-based regex engines for guaranteed linear time, and ReDoS as the failure mode of backtracking engines.
+- You get the regex star case right, and you can explain the table as an **NFA simulation**: why the DP is polynomial and a backtracking engine is not.
+- You put numbers on the table (10⁸ cells is 800 MB as `int64`, two rows are 160 KB) and you name **banding, bit-parallel rows and Levenshtein automata** as the production optimisations.
 
 ## Check yourself
 
@@ -319,11 +456,17 @@ hints:
   options: ["Expand-around-centre is O(n), since each centre is expanded only once", "Expand-around-centre is also O(n²) time but needs only O(1) space", "The DP is O(n log n), since each length reads only one shorter length", "The O(n²) DP beats expand-around-centre, since it reuses subresults"]
   answer: 1
   explanation: >-
-    Both are O(n²) time in the worst case (e.g. 'aaaa…'), since a single centre can expand O(n) times. Expand-around-centre avoids the n² table and is usually faster in practice. The DP table becomes worthwhile when many overlapping palindrome checks are needed, as in palindrome partitioning, which reuses pal[i][j] many times. Manacher's algorithm is the O(n) option, rarely expected.
+    Both are O(n²) time in the worst case (e.g. 'aaaa…'), since a single centre can expand O(n) times. Expand-around-centre avoids the n² table and is usually faster, since it allocates nothing. The DP table becomes worthwhile when many overlapping palindrome checks are needed, as in palindrome partitioning, which reuses pal[i][j] many times. Manacher's algorithm is the O(n) option, rarely expected.
 - q: >-
     An interviewer asks how you would fuzzy-match a query against a million dictionary words with edit distance at most 2. The strongest first answer is:
   options: ["Sort the dictionary, then binary search for the closest word", "Compute only a band of width 2k+1 around the diagonal per word", "Use LCS instead, since it is cheaper to compute than edit distance", "Run the full O(mn) DP against every word, since a million is small"]
   answer: 1
   explanation: >-
-    Cells far from the diagonal cannot have distance ≤ k, so the band suffices, costs O(k·n) per word, and is a direct optimisation of the DP you just wrote. The next level is avoiding the linear scan altogether with indexing structures such as BK-trees or Levenshtein automata. Binary search does not apply to edit distance; LCS costs the same O(mn); and a million full DPs is wasteful when the interviewer wants the band idea first.
+    Cells far from the diagonal cannot have distance ≤ k, so the band suffices, costs O(k·n) per word, and is a direct optimisation of the DP you wrote. The next level is avoiding the linear scan altogether with a Levenshtein automaton over a trie or a BK-tree. Binary search does not apply to edit distance; LCS costs the same O(mn); and a million full DPs is wasteful when the interviewer wants the band idea first.
+- q: >-
+    The regex DP is O(mn) for every input, yet Python's re can take seconds on (a+)+b against thirty a's. What explains the difference?
+  options: ["A backtracker must allocate a new table for every alternative it tries", "Python's re is implemented in pure Python, so each step is slower", "The DP memoises each (i, j) state once; a backtracker revisits them", "The DP supports only . and *, so it has fewer cases to check"]
+  answer: 2
+  explanation: >-
+    Each row of the table is the set of pattern positions alive after consuming a prefix, which is an NFA simulation: at most n states per character, so mn work in total. A backtracking engine explores alternatives one at a time and recomputes the same (string position, pattern position) pairs without a memo, which on nested quantifiers is exponential. Python's re is C code, and feature count is not the issue; the missing memo is.
 ```

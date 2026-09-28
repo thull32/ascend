@@ -88,6 +88,20 @@ Back to the opening array, `[4, 5, 0, -2, -3, 1]` with `k = 5`:
 
 Residue 0 occurs twice, residue 4 four times, residue 2 once, so the answer is `C(2,2) + C(4,2) = 1 + 6 = 7`. The pair `(0, 6)` is the whole array (sum 5). The six pairs among positions 1, 2, 3, 5 are `[5]`, `[5, 0]`, `[5, 0, -2, -3]`, `[0]`, `[0, -2, -3]` and `[-2, -3]`.
 
+The one-pass version is the same count taken incrementally: at each prefix, add the number of earlier prefixes with the same residue, then record this one. `count` below is the five-slot array after the step.
+
+| `j` | `P[j]` | residue | earlier with same residue | running total | `count[0..4]` after |
+|---|---|---|---|---|---|
+| 0 | 0 | 0 | | 0 | `1 0 0 0 0` |
+| 1 | 4 | 4 | 0 | 0 | `1 0 0 0 1` |
+| 2 | 9 | 4 | 1 | 1 | `1 0 0 0 2` |
+| 3 | 9 | 4 | 2 | 3 | `1 0 0 0 3` |
+| 4 | 7 | 2 | 0 | 3 | `1 0 1 0 3` |
+| 5 | 4 | 4 | 3 | 6 | `1 0 1 0 4` |
+| 6 | 5 | 0 | 1 | 7 | `2 0 1 0 4` |
+
+Adding `count[r]` before incrementing it adds `0 + 1 + 2 + 3` for residue 4 and `0 + 1` for residue 0, which is `C(4,2) + C(2,2)` built one term at a time. The incremental form is the one to write when you also need the *positions* (first or last index per residue) rather than only the total.
+
 **The negative-remainder bug.** In JavaScript, Java, C, C++, Go and Rust, `%` takes the sign of the dividend: `-7 % 5` is `-2`, not `3`. Residues `-2` and `3` are the same class, but they land in different buckets (or at a negative array index), and the count comes out silently low. Tests without negative numbers still pass. Normalise with `((p % k) + k) % k`. Python's `%` already returns a value in `[0, k)` for positive `k`.
 
 Two variations use the other knobs:
@@ -153,12 +167,70 @@ The first row can also be solved with the at-most-k window. The prefix route is 
 
 "Count the submatrices of an `R × C` grid that sum to `target`." Fix a top row `r1` and let the bottom row `r2` grow from `r1` downwards. Keep `col[c]` as the sum of column `c` between the two rows, updated in `O(C)` per new `r2`. Each `(r1, r2)` pair reduces the problem to the 1D count over `col`, which is the six-line template. The total is `O(R² · C)` time and `O(C)` space. Put the smaller dimension in the `R²` factor, transposing if necessary. For a 100 × 100 grid that is about 500,000 map operations. "Reduce 2D to many 1D problems by fixing a pair of rows" is the move to remember, and it applies to maximum-sum rectangles as well (run Kadane on `col`).
 
-## Where the hashing goes wrong
+## Under the hood
 
-- **Hash maps are `O(1)` expected, not worst case.** C++'s `std::unordered_map` hashes integers to themselves in common implementations, so an adversary who knows the bucket count can put every prefix in one bucket and make each operation `O(n)`. Competitive-programming "anti-hash" tests do exactly this. The defence is a randomised hash, covered in [meet in the middle and randomisation](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation). Python randomises the hashing of strings per process, but not the hashing of integers.
-- **Floats.** Never use float prefix sums as keys: `0.1 + 0.2 != 0.3`. Scale to integers (cents, basis points) first.
-- **Overflow.** JavaScript numbers hold integers exactly up to `2^53`, about `9 × 10^15`. A prefix sum of `10^5` values of size `10^9` reaches `10^14`, which is safe, but squares and products are not. In fixed-width languages, use 64-bit accumulators. Remainders keep numbers small, which is another reason to reduce modulo `k` as you go.
-- **Memory.** The map can hold `n + 1` keys. When the key space is small and bounded (residues, masks, prefix values in `[-n, n]`), an array is faster and uses predictable memory.
+**How the map handles prefix sums.** CPython hashes an `int` as its value modulo `2⁶¹ − 1` (so `hash(5) == 5`, `hash(2**61) == 1`, and only `-1` is remapped to `-2`). A dict lookup masks that hash with the table size (a power of two), reads one index slot, and compares the key; on a collision it probes with `i = (5·i + perturb + 1) & mask`, shifting the high bits of the hash into `perturb` each round. Prefix sums of small values are nearly consecutive integers, so they land in distinct slots and the map behaves like an array indexed by prefix value until it fills to two-thirds and doubles. That is why the six-line template runs at about 180 ns per element on 10⁶ values in pure Python (measured), most of it interpreter overhead rather than hashing.
+
+The same property is an attack surface. Integer hashing is not randomised in CPython, and libstdc++'s `std::unordered_map` hashes integers to themselves with prime bucket counts, so an input whose prefix sums are all multiples of the current bucket count lands every key in one bucket and turns each operation into a linear scan. Competitive-programming "anti-hash" tests are built exactly this way; the defence, a randomised hash or a splitmix-style mixer, is in [meet in the middle and randomisation](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation).
+
+**Memory per entry.** A dict entry is a 24-byte `(hash, key, value)` record plus a 1–8-byte index slot, plus a 28-byte boxed `int` for any key outside the cached range `[-5, 256]`. Measured: a dict of 632,000 distinct prefix sums traced at 41 MB, about 65 bytes per entry. A residue array is `k` slots of 8 bytes, whatever `n` is.
+
+**Remainders by language.** Python's `%` is floored (`-7 % 5 == 3`); C, C++, Java, JavaScript, Go and Rust truncate toward zero (`-7 % 5 == -2`). Rust offers `rem_euclid` for the floored result; everywhere else, `((p % k) + k) % k`.
+
+**Vectorised prefix sums.** `numpy.cumsum` computes the prefix array in one C loop, but NumPy integer arrays wrap on overflow without raising: a cumulative sum that passes `2⁶³` comes back negative, and on platforms where the default integer is 32 bits the ceiling is about `2 × 10⁹`. Pass `dtype=np.int64` explicitly, or check `abs(sum) < 2**62` before trusting the result.
+
+## Quantified costs
+
+- **The template.** One dict `get` and one `set` per element: about 0.2 s for 10⁶ elements in Python, 10–20 ms in C or Rust with a good hash map. The `O(n²)` extend-from-every-start version does 5 × 10¹¹ additions at 10⁶ elements, which is hours.
+- **Memory.** Hash map of prefixes: roughly 65 bytes × (number of distinct prefixes), up to 65 MB at 10⁶. Residue array: `8k` bytes. Parity-mask array: 32 slots.
+- **Inequalities.** A Fenwick tree over compressed prefix values does `2 log₂ n` array steps per element: about 4 × 10⁷ steps for `n = 10⁶`, a few seconds in Python and tens of milliseconds in C.
+- **Two dimensions.** `R² × C` map operations: 10⁶ for a 100 × 100 grid, 1.25 × 10⁸ for 500 × 500 (minutes in pure Python, under a second in C). Transposing so the smaller dimension is squared is a free factor of `R/C`.
+
+## Failure modes
+
+**Symptom: the count is too low, but only on inputs with negative numbers, and only in JavaScript, Java, C++, Go or Rust.** Diagnosis: `%` keeps the sign of the dividend, so residues `-2` and `3` occupy different buckets (or a negative array index, which in JavaScript is a silent property write rather than an error). Fix: normalise with `((p % k) + k) % k`, and add a test whose prefix sums go negative.
+
+**Symptom: the count is off by exactly the number of valid subarrays that start at index 0.** Diagnosis: the map was not seeded with `P[0]`. Fix: `seen[0] = 1` (or `first[0] = 0` for longest-window variants) before the loop.
+
+**Symptom: with `k = 0` the answer is too large by `n`.** Diagnosis: the current prefix was inserted before the lookup, so every prefix matched itself and counted an empty subarray. Fix: look up, then insert.
+
+**Symptom: the JavaScript version disagrees with Python above about 10¹⁵.** Diagnosis: a prefix sum has passed `2⁵³`, where `Number` loses integer precision, and two different prefixes hash to the same rounded value. Fix: `BigInt`, or reduce modulo `k` as you go when only divisibility matters.
+
+**Symptom: intermittent misses when the values are prices or durations.** Diagnosis: float keys; `0.1 + 0.2` is not `0.3`, so equal sums produce unequal keys. Fix: scale to integers (cents, microseconds) before summing.
+
+**Symptom: a Python or C++ service is fine in staging and times out on one customer's data.** Diagnosis: adversarial or unlucky key distribution collapsing the hash table (all prefix sums multiples of a large power of two, or of the bucket count). Fix: a randomised hash, or an ordered structure with a worst-case bound.
+
+## Choosing the structure
+
+| Structure | Condition it answers | Time per element | Memory | Online? |
+|---|---|---|---|---|
+| Hash map of prefixes | Equality: `P[i] = f(P[j])` | `O(1)` expected | ~65 B × distinct prefixes | Yes |
+| Counter array (residues, masks) | Equality over a small key space | `O(1)` | `k` or `2^m` slots | Yes |
+| Fenwick tree over compressed prefixes | Inequality: count `P[i] ≤ x` | `O(log n)` | `O(n)` | No: needs all values to compress |
+| Merge-sort count on prefixes | Inequality, count only | `O(log n)` amortised | `O(n)` | No |
+| Monotonic deque over prefixes | Shortest window with `P[j] − P[i] ≥ k` | `O(1)` amortised | `O(n)` worst case | Yes |
+| Sliding window | Hereditary predicates only | `O(1)` amortised | `O(window)` | Yes |
+
+## Interviewer follow-ups
+
+**"Now count subarrays with sum at least `k`, negatives allowed."** Model answer: `P[j] − P[i] ≥ k` is `P[i] ≤ P[j] − k`, an inequality, so use a Fenwick tree over the sorted distinct prefix values or a merge-sort count, `O(n log n)`. Common wrong answer: a sliding window, which needs heredity that negatives destroy.
+
+**"Return the longest such subarray instead of the count."** Model answer: store the first index of each key and never overwrite it; the candidate at `j` is `j − first[key]`. For shortest, store the last index. Common wrong answer: keeping counts and trying to recover positions afterwards.
+
+**"Make it two-dimensional: count submatrices summing to `t`."** Model answer: fix a top row, extend the bottom row downwards while maintaining column sums, and run the 1D template on the column array per row pair, `O(R²C)`. Common wrong answer: a 2D prefix table followed by a check of all `O(R²C²)` rectangles.
+
+**"XOR instead of sum."** Model answer: identical template with `^` and partner key `X[j] ^ t`; no sign or overflow issues because XOR is its own inverse. Common wrong answer: subtracting XOR values.
+
+**"Why not a window here at all?"** Model answer: a window needs the property to survive shrinking or growing; "sum equals `k`" survives neither, and with negatives even "sum at most `k`" does not. Windows still work for sign-independent properties such as "at most `k` distinct". Common wrong answer: "windows never work with negative numbers", said as a rule without the reason.
+
+## What mid-level engineers get wrong
+
+- **Forgetting `seen[0] = 1`.** Every subarray starting at index 0 is missed; the tests with a full-array match fail and nothing else does.
+- **Inserting before looking up.** Correct for `k ≠ 0`, wrong by `n` for `k = 0`.
+- **Trusting `%` on negative numbers** in a truncating language, then debugging the algorithm instead of the arithmetic.
+- **Using prefix differences for max, min, gcd or OR.** There is no inverse; the "prefix max" of a range is not `P[j] − P[i]`. Reach for a sparse table or segment tree.
+- **A hash map when an array would do.** Residues, parity masks and prefix sums bounded in `[-n, n]` fit in an array with predictable memory and no hashing.
+- **Float prefix sums as keys.** Equal sums compare unequal; the bug appears on real data, never on the sample.
 
 ## Exercises
 
@@ -271,6 +343,8 @@ hints:
 - You normalise **negative remainders** in languages whose `%` keeps the sign, and you mention it before the interviewer finds the bug.
 - You compress several parities into a **bitmask key**, and you switch from a hash map to an array when the key space is small.
 - You reduce 2D problems to 1D by **fixing two rows**, and you say which dimension goes in the quadratic factor.
+- You know why the map is fast (**integer hashes are the values themselves**, so consecutive prefixes fill consecutive slots) and why that same fact makes unrandomised integer hashing attackable.
+- You can put numbers on it: about 65 bytes per dict entry, 0.2 s per 10⁶ elements in Python, `R²C` for the 2D version, and `2⁵³` as the point where JavaScript prefix sums stop being exact.
 
 ## Check yourself
 
@@ -304,5 +378,12 @@ hints:
   options: ["Dividing out each element is O(n) per element, so the total becomes O(n²)", "Division is slow on most CPUs, and n divisions would dominate the run time", "The total product overflows, while prefix and suffix products stay small", "Zero has no multiplicative inverse, so a single zero breaks the division"]
   answer: 3
   explanation: >-
-    The prefix difference trick needs an inverse. Zero has no multiplicative inverse, so dividing out an element fails exactly when an element is zero. Prefix and suffix products compute each answer without undoing anything. Speed is not the issue (one product, then n O(1) divisions), and prefix products can grow just as large as the total.
+    The prefix difference trick needs an inverse. Zero has no multiplicative inverse, so dividing out an element fails exactly when an element is zero. Prefix and suffix products compute each answer without undoing anything. Speed is not the issue (one product, then n O(1) divisions), and prefix products can grow as large as the total.
+- q: >-
+    A C++ solution using std::unordered_map<long long, int> over prefix sums passes every test except one where all values are multiples of the map's bucket count, and on that one it times out. What happened?
+  options: ["Integers hash to themselves, so every prefix sum landed in one bucket and each lookup became a linear scan", "The prefix sums overflowed long long, so the map kept growing with wrapped-around keys", "unordered_map is O(log n) per operation, and the test is only the largest one", "The bucket count is prime, so multiples of it are rejected and reinserted on every access"]
+  answer: 0
+  explanation: >-
+    libstdc++ hashes an integer to its own value and picks the bucket by taking it modulo a prime bucket count, so keys that are all multiples of that prime share bucket 0. Every insert and lookup then walks the whole chain, and n operations cost O(n²). Overflow would change the keys, not the speed; unordered_map is O(1) expected, not O(log n). A randomised hash function, or a mixer that scrambles the bits, is the fix, which is why hash randomisation exists in Python for strings and in Rust and Go for every map.
 ```
+
