@@ -17,5 +17,12 @@ pub mod interview;
 pub mod quiz;
 pub mod roadmap;
 
+/// Output ceiling for single-shot structured calls (quiz, roadmap,
+/// evaluation). Adaptive thinking counts toward `max_tokens`, so the cap must
+/// leave room for reasoning plus the JSON; 16,000 is the recommended ceiling
+/// for a non-streaming request (it stays under HTTP timeouts). The daily
+/// budget, not this cap, is what bounds spend.
+pub const STRUCTURED_MAX_TOKENS: u32 = 16_000;
+
 pub use anthropic::{AnthropicClient, ChatMessage, Role, StreamEvent, Usage};
 pub use budget::BudgetService;

@@ -32,7 +32,10 @@ sea-orm-migration = { version = "2.0", features = ["sqlx-postgres", "runtime-tok
 
 # --- serialization / data ---
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# `preserve_order`: JSON objects keep insertion order. Structured-output
+# schemas depend on it: constrained decoding emits keys in schema order, so a
+# sorted map would make the model commit to a verdict before its evidence.
+serde_json = { version = "1", features = ["preserve_order"] }
 serde_yaml_ng = "0.10"
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }

@@ -110,30 +110,34 @@ pub struct Dimension {
     pub notes: String,
 }
 
-fn eval_schema() -> serde_json::Value {
+/// Evidence first, verdict last: constrained decoding writes keys in schema
+/// order, so the grader scores each dimension with notes, lists strengths and
+/// improvements and summarises before it commits to an overall score and
+/// verdict. A verdict written first can only be justified, not reasoned to.
+pub fn eval_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "additionalProperties": false,
-        "required": ["overall_score", "verdict", "summary", "strengths", "improvements", "dimensions", "next_steps"],
+        "required": ["dimensions", "strengths", "improvements", "summary", "overall_score", "verdict", "next_steps"],
         "properties": {
-            "overall_score": {"type": "integer"},
-            "verdict": {"type": "string", "enum": ["strong_hire", "hire", "lean_hire", "lean_no_hire", "no_hire"]},
-            "summary": {"type": "string"},
-            "strengths": {"type": "array", "items": {"type": "string"}},
-            "improvements": {"type": "array", "items": {"type": "string"}},
             "dimensions": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["name", "score", "notes"],
+                    "required": ["name", "notes", "score"],
                     "properties": {
                         "name": {"type": "string"},
-                        "score": {"type": "integer"},
-                        "notes": {"type": "string"}
+                        "notes": {"type": "string"},
+                        "score": {"type": "integer"}
                     }
                 }
             },
+            "strengths": {"type": "array", "items": {"type": "string"}},
+            "improvements": {"type": "array", "items": {"type": "string"}},
+            "summary": {"type": "string"},
+            "overall_score": {"type": "integer"},
+            "verdict": {"type": "string", "enum": ["strong_hire", "hire", "lean_hire", "lean_no_hire", "no_hire"]},
             "next_steps": {"type": "array", "items": {"type": "string"}}
         }
     })
@@ -191,7 +195,7 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
         context: None,
         cache_conversation: false,
         messages: vec![ChatMessage { role: Role::User, content: user }],
-        max_tokens: 4000,
+        max_tokens: super::STRUCTURED_MAX_TOKENS,
         effort: Effort::High,
         json_schema: Some(eval_schema()),
     };
@@ -227,5 +231,17 @@ pub fn assistant_request(coach: &CoachService, model: &interviews::Model, histor
         max_tokens: 3000,
         effort: Effort::Medium,
         json_schema: None,
+    }
+}
+
+#[cfg(test)]
+mod schema_order_tests {
+    #[test]
+    fn the_grade_follows_the_evidence() {
+        let text = super::eval_schema().to_string();
+        let at = |k: &str| text.find(&format!("\"{k}\":")).unwrap();
+        assert!(at("dimensions") < at("summary") && at("summary") < at("overall_score"));
+        assert!(at("overall_score") < at("verdict"));
+        assert!(at("notes") < at("score"));
     }
 }

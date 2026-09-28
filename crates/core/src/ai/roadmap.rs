@@ -24,6 +24,36 @@ pub struct RoadmapSuggestions {
 }
 
 const MAX_BACKGROUND_CHARS: usize = 4000;
+use super::STRUCTURED_MAX_TOKENS;
+
+/// Key order is generation order under constrained decoding, so the schema
+/// asks for the summary of the learner first and, per suggestion, the reason
+/// before the preference: conclusions follow evidence rather than precede it.
+/// (A sorted map once put `suggestions` first; the model sometimes closed the
+/// empty list at once and left the summary blank.)
+pub fn suggestions_schema(slugs: &[&str]) -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary", "suggestions"],
+        "properties": {
+            "summary": {"type": "string"},
+            "suggestions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["module", "reason", "preference"],
+                    "properties": {
+                        "module": {"type": "string", "enum": slugs},
+                        "reason": {"type": "string"},
+                        "preference": {"type": "string", "enum": ["confident", "priority"]}
+                    }
+                }
+            }
+        }
+    })
+}
 
 pub async fn suggest(
     coach: &CoachService,
@@ -70,34 +100,16 @@ pub async fn suggest(
         goal.unwrap_or("senior software engineer at a top-tier company"),
         background
     );
-    let schema = serde_json::json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["summary", "suggestions"],
-        "properties": {
-            "summary": {"type": "string"},
-            "suggestions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["module", "preference", "reason"],
-                    "properties": {
-                        "module": {"type": "string", "enum": slugs},
-                        "preference": {"type": "string", "enum": ["confident", "priority"]},
-                        "reason": {"type": "string"}
-                    }
-                }
-            }
-        }
-    });
+    let schema = suggestions_schema(&slugs);
     let req = Request {
         model: coach.model().to_string(),
         system,
         context: None,
         cache_conversation: false,
         messages: vec![ChatMessage { role: Role::User, content: user }],
-        max_tokens: 3000,
+        // Thinking counts toward max_tokens; a low cap spends it all thinking
+        // and truncates the answer.
+        max_tokens: STRUCTURED_MAX_TOKENS,
         effort: Effort::Medium,
         json_schema: Some(schema),
     };
@@ -132,4 +144,16 @@ pub async fn suggest(
     });
     out.suggestions.truncate(12);
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schema_asks_for_evidence_before_conclusions() {
+        let text = suggestions_schema(&["a/b"]).to_string();
+        assert!(text.find("\"summary\":").unwrap() < text.find("\"suggestions\":").unwrap());
+        assert!(text.find("\"reason\":").unwrap() < text.find("\"preference\":").unwrap());
+    }
 }

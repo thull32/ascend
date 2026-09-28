@@ -72,7 +72,7 @@ pub async fn generate(
         context: None,
         cache_conversation: false,
         messages: vec![ChatMessage { role: Role::User, content: user }],
-        max_tokens: 6000,
+        max_tokens: super::STRUCTURED_MAX_TOKENS,
         effort: Effort::Medium,
         json_schema: Some(schema()),
     };
@@ -89,4 +89,14 @@ pub async fn generate(
 
 fn coach_lesson(coach: &CoachService, slug: &str) -> AppResult<std::sync::Arc<crate::content::Lesson>> {
     coach.curriculum_lesson(slug).ok_or(AppError::NotFound("lesson"))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn questions_are_written_before_their_answers() {
+        let text = super::schema().to_string();
+        let at = |k: &str| text.find(&format!("\"{k}\":")).unwrap();
+        assert!(at("q") < at("options") && at("options") < at("answer") && at("answer") < at("explanation"));
+    }
 }
