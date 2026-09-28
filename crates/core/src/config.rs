@@ -29,6 +29,9 @@ pub struct Config {
     pub grader_dir: std::path::PathBuf,
     /// Grading runs at once (`GRADER_SLOTS`); default half the cores, 1–4.
     pub grader_slots: Option<usize>,
+    /// Pwned Passwords range API for screening new passwords
+    /// (`PWNED_PASSWORDS_URL`; empty disables the check).
+    pub pwned_passwords_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +120,8 @@ impl Config {
                 .map(|h| h.trim().to_ascii_lowercase())
                 .filter(|h| !h.is_empty()),
             grader_dir: var_or("GRADER_DIR", "runtimes/grader").into(),
+            pwned_passwords_url: Some(var_or("PWNED_PASSWORDS_URL", "https://api.pwnedpasswords.com"))
+                .filter(|u| !u.trim().is_empty()),
             grader_slots: std::env::var("GRADER_SLOTS").ok().map(|v| v.parse()).transpose().map_err(|_| {
                 ConfigError::Invalid { name: "GRADER_SLOTS", reason: "must be a positive integer".into() }
             })?,

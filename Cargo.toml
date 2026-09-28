@@ -50,6 +50,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"]
 argon2 = "0.6"
 rand = "0.10"
 sha2 = "0.11"
+sha1 = "0.11"
 base64 = "0.23"
 secrecy = { version = "0.10", features = ["serde"] }
 validator = { version = "0.21", features = ["derive"] }

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
+use super::breached::BreachedPasswords;
 use super::{password, token};
 use crate::entities::prelude::*;
 use crate::entities::{sessions, users};
@@ -88,6 +89,8 @@ pub struct AuthService {
     /// A session unused for this long is dead even before `session_ttl`:
     /// a forgotten laptop should not stay signed in for a month.
     session_idle: Duration,
+    /// Screens new passwords against known breaches; `None` skips it.
+    breached: Option<BreachedPasswords>,
 }
 
 impl AuthService {
@@ -96,7 +99,13 @@ impl AuthService {
             db,
             session_ttl: Duration::from_std(session_ttl).unwrap_or_else(|_| Duration::days(30)),
             session_idle: Duration::from_std(session_idle).unwrap_or_else(|_| Duration::days(14)),
+            breached: None,
         }
+    }
+
+    pub fn with_breach_check(mut self, breached: BreachedPasswords) -> Self {
+        self.breached = Some(breached);
+        self
     }
 
     pub async fn register(
@@ -114,6 +123,13 @@ impl AuthService {
         // Registration still says when an email is taken: without an email
         // round trip there is no way to avoid that, and it is rate limited.
         // The login endpoint, which attackers probe at scale, reveals nothing.
+        if let Some(check) = &self.breached
+            && check.is_breached(&input.password).await == Some(true)
+        {
+            return Err(AppError::validation(
+                "password has appeared in a data breach, so attackers try it early; choose a different one",
+            ));
+        }
         let password_hash = password::hash(input.password).await?;
         // A bad zone must not block sign-up: fall back to UTC, and the
         // browser sets it again once the learner is signed in.

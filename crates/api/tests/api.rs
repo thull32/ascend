@@ -55,6 +55,7 @@ fn config(url: &str) -> Config {
         client_ip_header: Some("x-test-client-ip".into()),
         grader_dir: grader_dir(),
         grader_slots: None,
+        pwned_passwords_url: None,
     }
 }
 
@@ -254,6 +255,57 @@ async fn login_errors_do_not_leak_account_existence() {
     let body = json!({"email": "fourteen@example.com", "password": "fourteen-chars", "display_name": "W"});
     let short = app.call("POST", "/api/auth/register", Some(body), None, true).await;
     assert_eq!(short.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+/// A stand-in for the Pwned Passwords range API that lists one password.
+async fn stub_pwned_passwords(breached: &'static str) -> String {
+    use sha1::{Digest, Sha1};
+    let hash: String = Sha1::digest(breached.as_bytes()).iter().map(|b| format!("{b:02X}")).collect();
+    let router = axum::Router::new().route(
+        "/range/{prefix}",
+        axum::routing::get(move |axum::extract::Path(prefix): axum::extract::Path<String>| {
+            let hash = hash.clone();
+            async move {
+                // Padding (count 0) the way the real service adds it.
+                let mut body = String::from("0000000000000000000000000000000000A:0\r\n");
+                if hash.starts_with(&prefix) {
+                    body.push_str(&format!("{}:42\r\n", &hash[5..]));
+                }
+                body
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+    format!("http://{addr}")
+}
+
+#[tokio::test]
+async fn breached_passwords_are_refused_at_sign_up_and_an_outage_does_not_block_it() {
+    use ascend_core::auth::breached::BreachedPasswords;
+    use ascend_core::auth::service::{AuthService, RegisterInput};
+    let Some(app) = test_app().await else { return };
+    let url = stub_pwned_passwords("a-breached-passphrase-123").await;
+    let auth = AuthService::new(app.db.clone(), Duration::from_secs(3600), Duration::from_secs(1800))
+        .with_breach_check(BreachedPasswords::new(url).unwrap());
+    let input = |password: &str| RegisterInput {
+        email: format!("t-{}@example.com", uuid::Uuid::now_v7()),
+        password: password.into(),
+        display_name: "T".into(),
+        timezone: None,
+    };
+    match auth.register(input("a-breached-passphrase-123"), None).await {
+        Err(ascend_core::AppError::Validation(m)) => assert!(m.contains("data breach"), "{m}"),
+        Err(e) => panic!("expected a validation error, got {e:?}"),
+        Ok(_) => panic!("a breached password was accepted"),
+    }
+    assert!(auth.register(input("an-unbreached-passphrase-456"), None).await.is_ok());
+
+    // Nothing listening: the check fails open.
+    let down = AuthService::new(app.db.clone(), Duration::from_secs(3600), Duration::from_secs(1800))
+        .with_breach_check(BreachedPasswords::new("http://127.0.0.1:9").unwrap());
+    assert!(down.register(input("a-breached-passphrase-123"), None).await.is_ok());
 }
 
 #[tokio::test]

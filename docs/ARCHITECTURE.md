@@ -87,11 +87,16 @@ deploy that changes a response's shape invalidates cached copies), and builds an
 
 ## Authentication
 
+- Passwords follow NIST SP 800-63B-4: at least 15 characters at sign-up, no composition rules, and each new
+  password screened against Have I Been Pwned's breach corpus with k-anonymity (only five hex digits of its
+  SHA-1 leave the server; the check fails open if the service is down).
 - Argon2id password hashing on Tokio's blocking pool; login verifies against a dummy hash for unknown
-  emails so timing does not reveal which emails are registered.
+  emails so timing does not reveal which emails are registered. Password attempts are limited per account,
+  or per device for a browser that has signed in to that account before (an `ascend_device` cookie), so
+  an attacker's guesses cannot lock the owner out.
 - Opaque 256-bit session tokens in an `HttpOnly`, `SameSite=Lax`, `Secure` cookie. The database stores only
-  the SHA-256 of the token, so a database leak cannot be replayed. Sessions are revocable individually or
-  all at once; an hourly task sweeps expired rows.
+  the SHA-256 of the token, so a database leak cannot be replayed. Sessions expire after 30 days, or after
+  14 days unused; they are revocable individually or all at once, and an hourly task sweeps dead rows.
 - CSRF: `SameSite=Lax`, plus an `Origin`/`Referer` check against the configured origin, plus a required
   `X-Requested-With` header that cross-origin pages cannot send without a CORS preflight (which is never
   granted).

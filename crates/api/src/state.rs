@@ -139,7 +139,11 @@ impl AppState {
         );
         let coach = CoachService::new(db.clone(), curriculum.clone(), client, budget, config.ai.model.clone());
         Ok(Self {
-            auth: AuthService::new(db.clone(), config.session_ttl, config.session_idle),
+            auth: match &config.pwned_passwords_url {
+                Some(url) => AuthService::new(db.clone(), config.session_ttl, config.session_idle)
+                    .with_breach_check(ascend_core::auth::breached::BreachedPasswords::new(url.clone())?),
+                None => AuthService::new(db.clone(), config.session_ttl, config.session_idle),
+            },
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),
