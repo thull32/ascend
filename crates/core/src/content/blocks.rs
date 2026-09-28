@@ -226,8 +226,9 @@ static CODE_SPAN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"`([^`]*)`").ex
 /// Underscore emphasis only counts when the delimiters are not inside a word
 /// (CommonMark's flanking rule), so `snake_case` and an unclosed
 /// `__consumer_offsets` stay literal while `__strong__` and `_em_` do not.
-static UNDERSCORE_EMPHASIS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(^|[^\p{L}\p{N}_])(__|_)(\S(?:.*?\S)?)(?:__|_)($|[^\p{L}\p{N}_])").expect("static regex"));
+static UNDERSCORE_EMPHASIS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(^|[^\p{L}\p{N}_])(__|_)(\S(?:.*?\S)?)(?:__|_)($|[^\p{L}\p{N}_])").expect("static regex")
+});
 
 /// Heading text as the browser renders it: link targets, emphasis delimiters
 /// and code backticks removed, code-span contents kept verbatim. Inline maths
