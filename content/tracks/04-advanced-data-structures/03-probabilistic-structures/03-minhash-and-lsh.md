@@ -161,7 +161,7 @@ It is no longer the default. LSH needs many tables to reach high recall in high 
  "caption": "The modern replacement for LSH in high-dimensional nearest-neighbour search: greedy descent through layered proximity graphs."}
 ```
 
-LSH still wins in three places: when the data is sets rather than vectors (MinHash has no graph-based competitor for Jaccard), when you need a *join* over billions of items in a batch pipeline (bucketing shuffles beautifully; graph search does not), and when the index must be built in a single streaming pass with no training step. Say that when an interviewer asks "why not just use a vector database?" for a deduplication problem.
+LSH still wins in three places: when the data is sets rather than vectors (MinHash has no graph-based competitor for Jaccard), when you need a *join* over billions of items in a batch pipeline (bucketing shuffles beautifully; graph search does not), and when the index must be built in a single streaming pass with no training step. Say that when an interviewer asks "why not use a vector database?" for a deduplication problem.
 
 ## Trade-offs
 

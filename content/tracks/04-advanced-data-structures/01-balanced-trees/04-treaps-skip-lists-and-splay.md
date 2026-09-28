@@ -80,7 +80,7 @@ There is no treap visualiser in the catalogue, but a plain BST built from keys i
 
 ### Split and merge: the feature that makes treaps worth knowing
 
-The operation that balanced trees do awkwardly and treaps do trivially is **split**: divide a treap into two treaps, one with keys `< k` and one with keys `≥ k`, in O(log n). Walk down from the root; at each node, if its key is below `k` the node and its left subtree belong to the left result, so recurse into the right subtree; otherwise mirror. **Merge** two treaps where every key in the first is below every key in the second: the root is whichever root has the higher priority, and you recurse on one side.
+The operation that balanced trees do awkwardly and treaps do in one short recursion is **split**: divide a treap into two treaps, one with keys `< k` and one with keys `≥ k`, in O(log n). Walk down from the root; at each node, if its key is below `k` the node and its left subtree belong to the left result, so recurse into the right subtree; otherwise mirror. **Merge** two treaps where every key in the first is below every key in the second: the root is whichever root has the higher priority, and you recurse on one side.
 
 ```python
 def split(node, k):                    # -> (keys < k, keys >= k)

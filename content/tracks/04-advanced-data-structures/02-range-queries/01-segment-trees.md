@@ -9,7 +9,7 @@ problems: [range-sum-query-immutable, sliding-window-maximum]
 ---
 You keep a per-second request count for the last day, 86,400 integers, and a dashboard asks "how many requests between 09:14:03 and 11:02:57" a few hundred times a second while new counts land every second. A prefix-sum array answers each query with one subtraction, but every new second invalidates every later prefix, and rebuilding costs `O(n)`. A plain array makes updates free and every query `O(n)`. Both are wrong at 86,400 elements and hundreds of queries per second; both are catastrophic at a billion.
 
-The segment tree splits the difference: `O(log n)` for a point update and `O(log n)` for a range query. It does that by storing not just the elements but a summary of every "aligned" interval, so that any query range can be assembled from at most `2 log n` of those pre-computed pieces. This lesson builds one on eight concrete values, traces every operation on it node by node, then puts numbers on memory and cache behaviour, shows what a production-grade library (AtCoder's `segtree`) stores, and ends with the places where interval summaries run at scale under other names.
+The segment tree splits the difference: `O(log n)` for a point update and `O(log n)` for a range query. It does that by storing, besides the elements, a summary of every "aligned" interval, so that any query range can be assembled from at most `2 log n` of those pre-computed pieces. This lesson builds one on eight concrete values, traces every operation on it node by node, then puts numbers on memory and cache behaviour, shows what a production-grade library (AtCoder's `segtree`) stores, and ends with the places where interval summaries run at scale under other names.
 
 ## Why prefix sums stop working
 
@@ -157,7 +157,7 @@ class SegmentTree:
                 + self._query(2 * node + 1, mid + 1, hi, l, r))
 ```
 
-**Why `4n`.** With `n` a power of two the deepest index is `2n − 1`. Otherwise the halving splits unevenly, some leaves sit one level deeper than others, and the index of the deepest leaf can exceed `2n`. Counting the exact slots needed (highest index reached plus one) for a few sizes: `n = 5` needs 10, `n = 6` needs 14, `n = 10` needs 26, `n = 17` needs 34, `n = 100` needs 254, and the worst ratio for any `n < 300` is 3.65 (it is approached when `n` is just above a power of two). `4n` is the smallest round bound that always works; `2 · 2^⌈log₂ n⌉` is the tight one. Allocate `2n` for this layout and `n = 6` writes past the end.
+**Why `4n`.** With `n` a power of two the deepest index is `2n − 1`. Otherwise the halving splits unevenly, some leaves sit one level deeper than others, and the index of the deepest leaf can exceed `2n`. Counting the exact slots needed (highest index reached plus one) for a few sizes: `n = 5` needs 10, `n = 6` needs 14, `n = 10` needs 26, `n = 17` needs 34, `n = 100` needs 254, and the worst ratio for any `n < 300` is 3.65 (at `n = 272 = 256 + 16`). `4n` is the smallest round bound that always works; `2 · 2^⌈log₂ n⌉` is the tight one. Allocate `2n` for this layout and `n = 6` writes past the end.
 
 This is the version to reach for when the query logic is non-trivial (finding the first index whose prefix exceeds a threshold, for instance), because `[lo, hi]` is right there in the recursion and you can make decisions with it.
 
@@ -228,7 +228,7 @@ The nodes taken (9, 14, 5, 6 for `[1,6]`; 11 and 3 for `[3,7]`) are exactly the 
 
 ## Non-power-of-two n and non-commutative operations
 
-The iterative tree works for any `n`, not just powers of two, but the shape changes. With `n = 6` the leaves are at 6..11 and the internal nodes cover: node 3 = `[0,1]`, node 4 = `[2,3]`, node 5 = `[4,5]`, node 2 = `[2..5]`, and node 1 = `[2..5]` followed by `[0..1]`. Node 1 is not a contiguous interval and the levels are ragged. The query loop never breaks, because it only relies on the parent relation `i → 2i, 2i + 1` and it never takes node 1 for a proper sub-range, so sum, min, max, gcd and XOR all work unchanged for any `n`.
+The iterative tree works for any `n`, powers of two or not, but the shape changes. With `n = 6` the leaves are at 6..11 and the internal nodes cover: node 3 = `[0,1]`, node 4 = `[2,3]`, node 5 = `[4,5]`, node 2 = `[2..5]`, and node 1 = `[2..5]` followed by `[0..1]`. Node 1 is not a contiguous interval and the levels are ragged. The query loop never breaks, because it only relies on the parent relation `i → 2i, 2i + 1` and it never takes node 1 for a proper sub-range, so sum, min, max, gcd and XOR all work unchanged for any `n`.
 
 Non-commutative operations (matrix products, string concatenation, function composition) expose a real bug. Build the tree over the letters `a..h` and concatenate instead of adding. `query(2, 5)` gives `"cdef"`, correct by luck. `query(1, 6)` with the single-accumulator loop above gives **`"bgcdef"`**: the loop took node 9 (`b`), then node 14 (`g`), then node 5 (`cd`), then node 6 (`ef`), appending each as it came. The left pieces arrive left to right and the right pieces arrive right to left, interleaved. The fix keeps two accumulators:
 

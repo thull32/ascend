@@ -1,59 +1,85 @@
 ---
 slug: senior-signals-in-coding-rounds
 title: "Senior signals in coding rounds: same problem, different rating"
-description: What separates a senior rating from a mid-level one when two candidates write the same correct code, dimension by dimension, with a side-by-side LRU cache round, the follow-up ladder, and what changes in AI-assisted rounds.
+description: What separates a senior rating from a mid-level one when two candidates write the same correct code, shown as two annotated, timestamped LRU Cache rounds with the interviewer's notes and the two resulting write-ups side by side, plus the follow-up ladder, measured production numbers and AI-assisted rounds.
 minutes: 19
 difficulty: medium
 tags: [interview, senior, coding-round, levelling, lru-cache, ai-assisted]
 problems: [lru-cache, merge-intervals, time-based-kv]
 ---
-Two candidates get the same LRU cache problem in the same week. Both produce correct O(1) code with a hash map and a doubly linked list. Both pass every test. One comes out with "hire, senior-consistent". The other gets "hire, but at the level below", or "leaning no for senior". Nobody tells either of them why, and the second candidate spends the next month grinding more problems, which will not help, because the difference was never the algorithm.
+Two candidates get the same LRU cache problem in the same week. Both produce correct O(1) code with a hash map and a doubly linked list. Both pass every test. One comes out with "hire, senior-consistent". The other gets "hire, at the level below". Nobody tells either of them why, and the second spends the next month grinding more problems, which will not help, because the difference was never the algorithm.
 
-The difference is almost entirely in *how* the 45 minutes were spent: who drove the session, whether trade-offs were stated or left implicit, whether the code read like something you would approve in review, whether testing happened unprompted, and what happened when the interviewer asked "now what if it's shared across threads?" This lesson makes those differences concrete, dimension by dimension, and then shows them side by side in a single round.
+The difference is in *how* the 45 minutes were spent: who drove the session, whether trade-offs were stated or left implicit, whether the code read like something you would approve in review, whether testing happened unprompted, and what happened when the interviewer asked "now what if it's shared across threads?" This lesson makes that concrete. It shows the signals interviewers commonly record, runs the same LRU round twice with timestamps and the interviewer's notes beside each line, puts the two write-ups side by side, and then explains how a level is argued from them.
 
 ## How coding rounds feed the level decision
 
-Be clear-eyed about what coding rounds do. At many large companies, the coding bar for mid-level and senior engineers is similar and the problems overlap heavily. Level is decided mostly by system design and behavioural rounds, where scope and judgement show more directly. See [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop) for how the pieces combine.
+At many large companies the coding bar for mid-level and senior engineers is similar and the problems overlap heavily. Level is decided mostly by system design and behavioural rounds, where scope and judgement show more directly; [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop) covers how the pieces combine.
 
-That does not make coding rounds level-neutral. They can pull a level decision *down*: a senior candidate who needs heavy hints, writes messy code, or has to be led through every phase looks mid-level in that round, and a hiring committee reading "strong system design, but the coding felt junior" will hesitate. Some companies, especially those using practical, multi-part coding problems, deliberately look for senior signals in the coding round itself: code structure, extensibility, production awareness. So the goal is not merely to pass; it is to produce a round whose notes read "senior-consistent".
+That does not make coding rounds level-neutral. They can pull a level decision *down*: a senior candidate who needs heavy hints, writes messy code, or has to be led through every phase looks mid-level in that round, and a hiring committee reading "strong design, but the coding felt junior" hesitates. Some companies, especially those using practical multi-part problems, deliberately look for senior signals in the coding round itself: structure, extensibility, production awareness. So the goal is a round whose notes read "senior-consistent", not merely a pass.
 
 ## The five dimensions, mid-level versus senior
 
-Most coding rubrics reduce to five dimensions. They are also the five that Ascend's mock interviewer scores. Here is what a pass looks like at each level.
+Most coding rubrics reduce to five dimensions, and they are the five Ascend's mock interviewer scores (1 to 5 each, with quoted evidence).
 
 | Dimension | Mid-level pass | Senior pass |
 |---|---|---|
 | Problem understanding and clarification | Asks questions when prompted; understands the problem | Drives clarification, finds the constraint that matters, states assumptions, scopes open problems |
 | Algorithmic approach and complexity | Reaches the optimal approach, perhaps with a nudge; states complexity | Presents alternatives with trade-offs, chooses for a stated reason, gives complexity with its assumptions (expected vs worst, auxiliary vs total) |
-| Code quality and correctness | Working code | Readable, well-named, decomposed code that is correct on the first trace; appropriate structure without gold-plating |
+| Code quality and correctness | Working code | Readable, decomposed code that is correct on the first trace; structure without gold-plating |
 | Testing and edge cases | Tests when asked; covers the obvious cases | Tests unprompted with chosen cases; finds own bugs; re-checks complexity against the code |
 | Communication | Explains when asked; responds to the interviewer | Drives the session, manages the clock, makes decisions visible, treats the interviewer as a collaborator |
 
-Notice that the senior column is not "knows harder algorithms". It is *ownership*: of the problem definition, of the choice, of the quality, of the verification, and of the session itself. That is the same thing a senior engineer is paid for at work, which is why interviewers look for it. [What senior means](/learn/senior-craft/technical-leadership/what-senior-means) covers the job-level version.
+The senior column is not "knows harder algorithms". It is *ownership*: of the problem definition, the choice, the quality, the verification and the session. That is what a senior engineer is paid for at work, which is why interviewers look for it; [What senior means](/learn/senior-craft/technical-leadership/what-senior-means) covers the job-level version.
 
-## Side by side: one LRU cache, two candidates
+## The axis underneath: prompted or unprompted
 
-The problem: implement an LRU cache with `get(key)` and `put(key, value)` in O(1), evicting the least recently used entry when capacity is reached. This is [LRU Cache](/practice/lru-cache).
+Read the two columns again and one difference runs through all five rows. The mid-level candidate does the right thing *when asked*; the senior candidate does it *before* being asked. Interviewers record which, because the notes are timestamped and the prompt is in them. The same correct behaviour produces a different line depending on who started it:
 
-### Opening minutes
+| Behaviour | Unprompted: the note commonly reads | Prompted: the note commonly reads |
+|---|---|---|
+| Settle whether `get` refreshes recency | "clarified semantics that affect correctness" | "semantics clarified when asked" |
+| Test updating an existing key | "tested the case that breaks LRU implementations" | "bug on update path found by interviewer" |
+| Say what the complexity assumes | "complexity with assumptions (expected O(1))" | "complexity correct when asked" |
+| Raise concurrency or capacity limits | "anticipated the follow-up; deferred it explicitly" | "follow-up answered correctly but shallowly" |
+| Name the library you would use at work | "knew the production equivalent without hiding behind it" | rarely noted |
+| Cut scope when behind | "managed time; stated the cut" | "ran out of time" |
 
-**Candidate A:**
+None of the prompted lines is a negative in isolation. Six of them together describe a candidate who can do the work when directed, which is close to the definition of the level below. That is how two sets of identical code produce two different recommendations.
 
-> "OK, so I need a hash map for O(1) lookup and a doubly linked list for ordering. I'll start coding."
+The reason interviewers care is what the difference costs at work. An engineer who settles semantics, tests the case that breaks and raises the concurrency question unprompted produces a change that survives review. One who does the same things only when asked produces a change that needs a reviewer to ask, and at team scale the reviewer's time is the scarce resource. The prompt in the transcript stands in for the review comment that would have been needed.
 
-**Candidate B:**
+## Round A: the mid-level version
 
-> "Two quick questions. Does `get` count as a use, so it refreshes recency? And can capacity be zero? I'll assume integer keys and a single thread for now and come back to concurrency at the end. The standard approach is a hash map from key to node plus a doubly linked list in recency order, so `get`, `put` and eviction are all O(1). In Python, `OrderedDict` with `move_to_end` does exactly this and is what I'd use in production. Would you like me to use it, or build the list myself?"
->
-> **Interviewer:** Build it yourself.
+The problem: implement an LRU cache with `get(key)` and `put(key, value)` in O(1), evicting the least recently used entry at capacity. This is [LRU Cache](/practice/lru-cache).
 
-A's approach is correct. B's is the same approach, but B has settled two semantic questions that affect correctness, deferred concurrency explicitly, and shown awareness of the production answer without hiding behind it. B has also let the interviewer choose what they want to see, which avoids the awkward moment where a candidate reaches for `OrderedDict` and the interviewer has to ask them to start again.
+| Time | What happens | Interviewer's note |
+|---|---|---|
+| 03:10 | A: "Hash map for lookup, doubly linked list for order. I'll start coding." | "went straight to a known solution; no clarification" |
+| 03:30–12:30 | Codes with long silences; pointer updates inline in `get` and `put`; unlink logic written three times | "silent coding; duplicated pointer logic ×3" |
+| 12:40 | I: "Does `get` update recency?" A: "Yes, I'll move it to the front there too." | "semantics clarified only when asked" |
+| 17:10 | A: "I think it's done." I: "How would you test it?" A runs the example; it passes | "testing prompted; example only" |
+| 19:00 | I: "What if I `put` a key that's already there?" A traces; `put` adds a second node; A unlinks the old node first | "bug on update path found by interviewer; fixed correctly" |
+| 22:30 | I: "Complexity?" A: "O(1) for both." | "correct when asked" |
+| 24:00 | I: "Make it thread-safe." A: "A lock around `get` and `put`." I: "Any cost?" A: "Some overhead." | "correct but shallow; did not see `get` mutates shared state" |
+| 28:00 | I: "Capacity in bytes, not items?" A: "Count bytes instead of items." | "did not consider one insert evicting several" |
 
-### The code
+A's final code is correct and passes every test, including the ones the interviewer suggested. Read the right-hand column again: it contains exactly one clear negative, the update bug found by the interviewer, and A fixed it correctly. Everything else is neutral or mildly positive in isolation. What the column lacks is any line a reader could quote as evidence of senior ownership: no question A chose to ask, no test A chose to run, no cost A named without being asked. That absence, not the bug, is what the level recommendation will rest on.
 
-Candidate A writes one class with pointer manipulation inline in `get` and `put`, about 45 lines with the unlink logic duplicated three times. It works.
+## Round B: the senior version
 
-Candidate B:
+| Time | What happens | Interviewer's note |
+|---|---|---|
+| 03:10 | B: "Two questions. Does `get` count as a use? Can capacity be zero? I'll assume integer keys and a single thread, and come back to concurrency." | "clarified semantics unprompted; deferred concurrency explicitly" |
+| 03:50 | B: "Map from key to node plus a doubly linked list in recency order: every operation O(1). In Python, `OrderedDict.move_to_end` does exactly this and is what I'd use at work. Use it, or build the list?" I: "Build it." | "knew the production equivalent; let me choose" |
+| 04:30 | B: "Sentinels, so unlink and append never check for null. The node stores its key, because eviction starts from the node and must delete the map entry. Two helpers, since every operation is unlink plus append." | "stated design decisions before coding" |
+| 05:00–12:30 | Codes, narrating only those three decisions | "clean decomposition; one invariant comment; no gold-plating" |
+| 12:40 | B: "Testing the cases that break LRU: capacity 1; update an existing key then force an eviction; a `get` refreshing recency." Traces the update case with a list column | "tested unprompted with chosen cases, incl. update-then-evict" |
+| 15:30 | B: "Expected O(1) per operation, since dict operations are expected constant; O(capacity) memory, one node and one dict slot per entry." | "complexity with its assumptions" |
+| 16:30 | I: "Make it thread-safe." B answers (below) | "mechanism, hidden cost, escalation and its price, measurement" |
+| 19:00 | I: "Capacity in bytes?" B: "Track total bytes; evict in a loop until under budget, so one large put can evict many; reject an item larger than the whole budget." | "anticipated multi-evict and the oversize edge" |
+| 21:00 | I: "Entries expire after a TTL?" B: "Store a deadline per node. Expire lazily on `get`; for memory, a min-heap of deadlines swept on each `put`, or a periodic sweep. The heap adds O(log n) to `put`." | "third follow-up handled with costs" |
+
+B's code:
 
 ```python
 class Node:
@@ -106,45 +132,113 @@ class LRUCache:
         self._append(node)
 ```
 
-B narrates three decisions while writing, and only three: "Sentinel nodes, so unlink and append never check for null." "The node stores its key, because eviction starts from the node and has to delete the map entry." "Two helpers, because every operation is some combination of unlink and append." The code has one comment, and it states the invariant. Nothing is over-engineered: there is no abstract base class, no generic type parameters, no configurable eviction policy.
+The thread-safety answer at 16:30, in full, because it is the moment the round turned:
 
-### Testing
+> **B:** The simplest correct version is one lock around both methods. `get` mutates the list, so reads need the lock too, which serialises every operation. An uncontended acquire and release is tens of nanoseconds in CPython; contention is the real cost. If it becomes the bottleneck, stripe: hash each key to one of N independent caches, each with its own lock. That gives up global LRU order for LRU within a stripe, which is usually fine. Production caches often approximate further: Redis samples a few keys (the `maxmemory-samples` setting, 5 by default) and evicts the oldest among them instead of maintaining a list. I'd pick by measured contention and the hit rate we need.
 
-A, when asked: "It should work. Let me run the example." The example passes.
+A's answer ("a lock") is not wrong. B's names the hidden cost (reads serialise), the standard escalation (striping) and its price (approximate LRU), how production systems approach it, and what would decide, in about forty seconds. It only happened because B reached the follow-up at minute 16 with time to spare; A reached the same question at minute 24 after two prompted fixes.
 
-B, unprompted: "Let me test the cases that break LRU implementations. First, capacity one: put 1, put 2, and 1 should be evicted. Second, updating an existing key must not evict anything, and must refresh recency: put 1, put 2, put 1 again with a new value, put 3; now 2 should be evicted, not 1. That second case is where people forget to move the node. Third, a `get` refreshes recency, which the example covers." B runs them. All pass.
+## The two write-ups, side by side
 
-### The follow-up
+Within about a day, each interviewer turns the notes into a write-up. Plausible versions:
 
-The interviewer asks: "How would you make this thread-safe?"
+| Dimension | Round A | Round B |
+|---|---|---|
+| Problem understanding | Mixed: no questions; recency semantics clarified when asked at 12:40 | Strong: clarified `get` semantics and capacity 0 unprompted; deferred concurrency explicitly |
+| Algorithm and complexity | Solid: standard approach; complexity correct when asked | Strong: approach with production equivalent; complexity with assumptions |
+| Code quality | Mixed: correct, but pointer logic duplicated three times, no helpers | Strong: two helpers, sentinels, one invariant comment, nothing speculative |
+| Testing | Weak: prompted; example only; update-path bug found by interviewer | Strong: unprompted, chosen cases including update-then-evict; no bugs found by me |
+| Communication | Mixed: long silences; waited for prompts at each phase | Strong: drove the session; decisions narrated; reached three follow-ups |
+| Follow-ups | Correct but shallow (lock without cost; bytes without multi-evict) | Mechanism, cost, escalation, measurement on all three |
 
-**A:** "I'd add a lock around `get` and `put`."
+```text
+Round A - Recommendation: hire at the level below (mid-level).
+Correct, working LRU with the standard design. Every senior behaviour I look
+for appeared only after a prompt: semantics at 12:40, testing at 17:10, the
+update bug at 19:00. Follow-ups answered correctly but without cost or
+mechanism. Would be a solid mid-level hire; no evidence of senior ownership.
 
-**B:** "The simplest correct version is one lock around both methods. Note that `get` mutates the list, so even reads need the lock, which serialises every operation on the cache. If that becomes the bottleneck, the usual move is to stripe: hash each key to one of N independent LRU caches, each with its own lock. That gives up global LRU order; eviction becomes LRU within a stripe, which is usually fine. Production caches often go further and approximate LRU to make reads cheaper. Redis, for example, evicts by sampling a few keys and picking the oldest of them, rather than maintaining an exact list. I'd pick based on the measured contention and the hit rate we need."
+Round B - Recommendation: hire, senior-consistent.
+Drove the round from 03:10. Clarified the semantics that affect correctness,
+chose sentinels and helpers for stated reasons, tested the update-then-evict
+case unprompted and got it right first time. Thread-safety answer named the
+hidden cost (reads serialise), striping and its price, and what to measure.
+Reached three follow-ups with time left.
+```
 
-A's answer is not wrong. B's answer shows that B knows *why* the obvious answer has a cost (reads need the exclusive lock too), knows the standard escalation (striping) and its price (approximate LRU), and knows how production systems actually approach it, all in about forty seconds, and closes by tying the choice to measurement. That is the senior signal, and it only appeared because B reached the follow-up with time to spare.
+Both write-ups say "hire". The difference is the level, and every sentence of B's that carries level evidence cites something B did before being asked.
+
+### Where the two rounds diverged
+
+Put the timestamps next to each other and the gap has three sources, none of them typing speed.
+
+- **Forty seconds of questions at minute 3.** B settled `get` recency and capacity 0 before any code existed. A learned the `get` semantics at 12:40, reworked `get`, and finished coding at 17:10 instead of 12:30: four and a half minutes. A never settled capacity 0 at all; a cache with no guard treats the tail sentinel as the entry to evict and crashes, and only the interviewer's choice of tests kept that out of the notes.
+- **Narrated structure from minute 4.** B's two helpers meant the update path was written once, as unlink plus append. A's three copies of the pointer logic are where the update bug lived.
+- **Testing designed in, not asked for.** B's unprompted testing and complexity statement ran from 12:40 to 16:30, under four minutes, and found nothing, because the risky case had been designed for. A's prompted testing, the interviewer-found bug and the prompted complexity ran from 17:10 to 24:00, about seven.
+
+Together that is roughly seven and a half minutes, which is the difference between B reaching the first follow-up at 16:30 and A reaching it at 24:00. B answered three follow-ups; A answered two, shallowly, and ran out of round. The level evidence was decided in the first twelve minutes, by time that B's habits saved.
 
 ## The senior deltas, one at a time
 
 ### You drive the session
 
-You move from phase to phase without being prompted, announce transitions, and keep the clock. The interviewer should feel like a collaborator you are working with, not a proctor pushing you along. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) is the mechanism.
+You move from phase to phase without being prompted, announce transitions and keep the clock. The interviewer should feel like a collaborator, not a proctor. Count the transitions in the two rounds: questions to design, design to code, code to test, test to complexity, complexity to follow-ups. B started four of the five and the interviewer only opened the follow-ups, which is the interviewer's job. In A's round the interviewer started every transition after coding began. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) is the mechanism.
 
 ### Trade-offs are spoken, including what you would not do
 
-For every significant choice, name the alternative and the condition under which you would switch. "Heap of size k, O(n log k), because k is small; if k were close to n, I'd sort." Saying what you would *not* do, and why, is one of the clearest seniority markers, because it shows you saw the whole option space rather than the first option that worked.
+For every significant choice, name the alternative and the condition under which you would switch: "Heap of size k, O(n log k), because k is small; if k were close to n, I'd sort." Saying what you would *not* do, and why, shows you saw the option space rather than the first option that worked.
 
 ### Code reads like production code, without gold-plating
 
-Good names. Small helpers where they remove duplication. Invariant comments rather than narration comments. Validation at the boundary, not scattered through the logic. Equally important is what you leave out: no class hierarchies, no configuration, no generality nobody asked for. Over-engineering a 40-line problem is a negative signal, because at work it shows up as over-engineered systems.
+Good names, small helpers where they remove duplication, invariant comments rather than narration comments, validation at the boundary. Equally, what you leave out: no class hierarchies, no configuration, no generality nobody asked for. A pluggable eviction policy in a 40-line problem costs ten minutes and reads as a habit of over-building.
 
-### You know the gap between the interview answer and production
+### You know the gap between the interview answer and production, with numbers
 
-A sentence or two, not a lecture: "In production I'd use `OrderedDict`"; "a real rate limiter would need to be shared across instances, which moves the state to Redis"; "for 10⁹ items I'd sort externally". This shows you know the interview version is a model, not the thing itself. Keep it brief; name-dropping without substance reads worse than silence.
+A sentence or two, not a lecture, and ideally with a number you can defend. Measured on CPython 3.14 on a Ryzen 9 9950X3D desktop, 10⁶ mixed `get`/`put` operations on a 10⁴-entry cache: the hand-built map-plus-list version above ran at 133 ns per operation, an `OrderedDict` version at 101 ns, and the hand-built version behind one `threading.Lock` at 201 ns (an uncontended `with lock:` alone measured 51 ns). Memory was about 148 and 137 bytes per entry (tracemalloc, integer keys and values included); one `__slots__` node is 64 bytes. So "in production I'd use `OrderedDict`" is honestly about forty fewer lines to get wrong, not a large speed win. That kind of calibration is what separates production awareness from name-dropping.
+
+### Complexity comes with its assumptions
+
+"O(1)" is the mid-level answer for LRU and it is correct. The senior answer says what it rests on: dict operations are *expected* O(1), so the cache is expected O(1) per operation; the worst case is O(n) when many keys collide, which adversarial input can force for some key types; memory is O(capacity), one node and one dict slot per entry. The same habit applies everywhere: amortised or worst case, auxiliary or total space, for which input distribution. It takes one sentence and it is one of the lines interviewers most often quote as senior evidence, because it shows you know where the guarantee ends.
+
+### Part one is written so part two is an addition
+
+Practical multi-part rounds test extensibility directly. [Time-Based Key-Value Store](/practice/time-based-kv) is a common base: `set(key, value, timestamp)` and `get(key, timestamp)` returning the latest value at or before the timestamp. Part one, with timestamps per key clarified as increasing, keeps two parallel lists per key and appends; `get` is a `bisect_right` on the timestamps. Then the parts arrive:
+
+```python
+import bisect
+
+class TimeMap:
+    def __init__(self):
+        self.times = {}                    # key -> sorted timestamps
+        self.values = {}                   # key -> values, parallel to times
+
+    def set(self, key, value, timestamp):
+        times = self.times.setdefault(key, [])
+        vals = self.values.setdefault(key, [])
+        i = bisect.bisect_right(times, timestamp)   # part 2: was an append
+        times.insert(i, timestamp)
+        vals.insert(i, value)
+
+    def get(self, key, timestamp):
+        times = self.times.get(key)        # a read must not create an entry
+        if not times:
+            return ""
+        i = bisect.bisect_right(times, timestamp) - 1
+        return self.values[key][i] if i >= 0 else ""
+
+    def compact(self, key, before):        # part 3: drop versions older than `before`
+        times = self.times.get(key)
+        if times:
+            i = bisect.bisect_left(times, before)
+            del times[:i]
+            del self.values[key][:i]
+```
+
+Part two ("timestamps can now arrive out of order") replaced the two appends in `set` with one bisect and two inserts, and the candidate says the cost: `list.insert` is O(n) per out-of-order write, fine unless writes are mostly out of order, in which case a sorted container keyed by timestamp brings it to O(log n). Part three ("compact old versions") is a new method that reuses the same bisect. Both parts were additions because part one isolated the one decision that could change (where a timestamp goes) behind one line. The `.get` in `get` is the other detail an experienced reviewer notices: indexing a `defaultdict` on a read would create an empty entry for every missing key queried, a slow memory leak under traffic. This class passes all seven tests of the practice problem.
 
 ### Follow-ups are design questions, and you answer them as such
 
-Follow-ups tend to climb a ladder. Here is the typical ladder with mid-level and senior answers:
+Follow-ups tend to climb a ladder:
 
 | Follow-up | Mid-level answer | Senior answer |
 |---|---|---|
@@ -152,39 +246,97 @@ Follow-ups tend to climb a ladder. Here is the typical ladder with mid-level and
 | "Input arrives as a stream" | "Re-run the algorithm on each arrival" | Identifies the incremental state that makes each update cheap; gives the amortised cost |
 | "Make it thread-safe" | "Add a lock" | Says what the lock serialises, the contention cost, striping or lock-free alternatives, and what each gives up |
 | "Now it's distributed" | "Use Redis" | Partitioning key, consistency of the operation across nodes, what is approximated, what fails |
-| "Values have different sizes" | "Count items" | Capacity in bytes; evict in a loop until under budget; notes that a large insert can evict many entries |
+| "Values have different sizes" | "Count bytes" | Capacity in bytes; evict in a loop until under budget; one large insert can evict many |
 
-You do not need a perfect answer to each rung. You need to reason from the mechanism, name the cost, and say what you would measure.
+You do not need a perfect answer on each rung. You need to reason from the mechanism, name the cost, and say what you would measure.
 
 ### Your confidence is calibrated
 
-"I'm confident this is O(n) amortised, because each element is pushed and popped at most once. I'm less sure about the worst case of the rehash; let me think…" Senior engineers say which parts they are sure of and which they are not. Bluffing is the one behaviour graded lower than not knowing, because at work it causes incidents.
+"I'm confident this is O(n) amortised, because each element is pushed and popped at most once. I'm less sure about the worst case of the rehash; let me think." Senior engineers say which parts they are sure of and which they are not. On LRU that sounds like: "I'm sure `get` and `put` are expected O(1). I believe `move_to_end` is O(1) because `OrderedDict` keeps its own linked list, but I'd confirm that in the docs before relying on it in a hot path." The interviewer can then probe the uncertain half, which is a conversation; a confident wrong claim is a note. Bluffing is graded below not knowing, because at work it causes incidents.
+
+## Choosing how to build the cache
+
+| Option | Code you write | Cost per operation | Exactness | What the interviewer can assess |
+|---|---|---|---|---|
+| Map plus hand-built doubly linked list | About 40 lines | 133 ns measured | Exact LRU | Pointer handling, sentinels, invariants |
+| `OrderedDict` with `move_to_end` | About 12 lines | 101 ns measured | Exact LRU | Library knowledge; little else |
+| Hand-built behind one lock | About 45 lines | 201 ns measured, uncontended | Exact LRU | Correctness under threads; reads serialise |
+| N striped caches, a lock each | About 55 lines | One lock per call; contention divided by about N | LRU within a stripe | Contention reasoning |
+| Sampled eviction, Redis-style | A timestamp per key, no list | No reordering on `get`; eviction compares a sample | Approximate | Trading exactness for cheap reads |
+
+## Under the hood: how a level is argued from a coding round
+
+The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) describes the general path from notes to write-up to debrief. What is specific to level is this, as commonly reported.
+
+**Level evidence has to be affirmative.** A round with no negatives and no senior signals confirms the bar and says nothing about level. Round A has no serious negative; its problem is an absence, and absence is recorded ("no evidence of senior ownership"). A candidate cannot earn level by avoiding mistakes.
+
+**Prompted and unprompted lines are weighed differently.** The debrief reads timestamps. "Found the update bug" and "update bug found by interviewer at 19:00, fixed correctly" describe the same code and different engineers. When interviewers disagree about level, the discussion typically goes to these lines, and the unprompted ones carry.
+
+**The coding round is read for consistency with the others.** A senior recommendation from design and behavioural rounds next to Round A's write-up produces a question: is the coding a concern, or was it an off day? Round B's write-up answers it before it is asked. A "hire at the level below" from coding does not sink a senior case alone, but it is the most common reason a split decision resolves downward.
+
+**Follow-up depth is the most level-specific evidence in the round.** Base-problem code overlaps between levels; the thread-safety and byte-capacity answers do not. That is why reaching the follow-ups with time left matters: in Round A they arrived at minutes 24 and 28 after two prompted fixes, and there was no time for a third.
+
+**A split is settled by the specific lines, not the adjectives.** Suppose one interviewer reads Round A as "solid, probably senior" because the final code was clean and correct. The counter-argument in the room is a list of timestamps: semantics at 12:40 when asked, testing at 17:10 when asked, the update bug found at 19:00 by the interviewer, a lock "with some overhead". Adjectives ("solid", "strong") are hard to argue with and easy to discount; timestamped lines are the opposite. That is why a candidate should aim to produce lines that can be quoted, and why the notes in Round B are almost all of that kind.
 
 ## Anti-signals that read as mid-level
 
-- **Silent coding**, then a finished function. The interviewer cannot see your reasoning, so they cannot credit it.
-- **A recited solution with no derivation.** Interviewers notice when an answer arrives fully formed, and they respond by changing a constraint. If you know the problem, say so honestly ("I've seen a version of this") and then show the reasoning anyway.
-- **Waiting to be told what to do next.** "Should I code it now?" once is fine. At every transition, it signals you need direction.
+- **Silent coding**, then a finished function. The interviewer cannot credit reasoning they did not hear.
+- **A recited solution with no derivation.** Interviewers notice answers that arrive fully formed and respond by changing a constraint. If you know the problem, say so ("I've seen a version of this") and show the reasoning anyway.
+- **Waiting to be told what to do next.** "Should I code it now?" once is fine; at every transition it signals you need direction.
 - **Defensiveness about bugs**, or arguing with a hint.
-- **Over-engineering**, or name-dropping technologies without explaining the mechanism.
-- **Running out of time with no testing.** It suggests you do not manage your own delivery.
+- **Over-engineering**, or naming technologies without the mechanism.
+- **Running out of time with no testing**, which suggests you do not manage your own delivery.
 
 ## When the round allows an AI assistant
 
-Some companies have started running coding rounds in which candidates may use an AI assistant, reflecting how engineers now work. The senior signal does not disappear in these rounds; it moves. Typing speed and syntax recall matter less. What gets scored is how well you *direct* and *verify*: breaking the problem down before prompting, giving the assistant the constraints you clarified, reading every line it produces, testing it with the same deliberately chosen cases, catching and explaining its mistakes, and being able to justify every line you accept. Blind acceptance of generated code is the AI-era version of silent coding, and it is scored harshly.
+Some companies now run coding rounds in which candidates may use an AI assistant. The senior signal moves rather than disappears. Typing speed and syntax recall matter less; what gets scored is how well you *direct* and *verify*: decompose the problem before prompting, give the assistant the constraints you clarified, read every line it produces, test it with the same chosen cases, catch and explain its mistakes, and justify every line you accept. Blind acceptance is the AI-era version of silent coding. An assistant asked for an LRU cache will usually produce a correct happy path; whether its `put` handles an existing key is exactly the kind of thing you are expected to check.
 
-Ascend's mock interviews support both modes. Choose **Solo** on `/interviews` for the classic round, with the coach locked. Choose **AI-assisted** to get an AI pair-programmer in a side panel. The interviewer will ask you to justify what you accept, everything you ask the assistant is visible to the grader, and the report adds an "AI direction and verification" dimension that is weighted heavily. [The AI-native interview](/learn/ai-assisted-engineering/senior-engineering-with-ai/the-ai-native-interview) covers this format in depth. Practise both; you may meet either.
+On `/interviews`, **Solo** is the classic round with the coach locked. **AI-assisted** adds a pair-programmer panel: the interviewer asks you to justify code you accept, your conversation with the assistant is part of the transcript the grader reads, and the report adds an "AI direction and verification" dimension that is weighted heavily. [The AI-native interview](/learn/ai-assisted-engineering/senior-engineering-with-ai/the-ai-native-interview) covers the format in depth.
+
+## Failure modes
+
+**Symptom: "hire at the level below" with correct code and no stated negatives.** Diagnosis: every senior behaviour happened after a prompt; the notes are full of "when asked". Check your transcript for the minute of each clarification, first test and bug fix, and who started each. Fix: plan the unprompted moments before the round: two semantic questions at minute 3, the breaking test case at the start of testing, one sentence on concurrency or scale before you are asked.
+
+**Symptom: "over-engineered; ran out of time".** Diagnosis: generality nobody asked for (an eviction-policy interface, type parameters, a config object) spent the minutes that testing and follow-ups needed. Fix: build the smallest thing that satisfies the interface, and name extension points in one sentence ("a policy object would go here if we needed LFU").
+
+**Symptom: "answered follow-ups with technology names".** Diagnosis: "use Redis", "add a lock", "shard it" without what it serialises, costs or gives up. Fix: for every follow-up, say the mechanism, the cost and what you would measure, in that order.
+
+**Symptom: "strong start, collapsed when a constraint changed".** Diagnosis: a recited solution; the candidate knew the code but not why each part was there, so a change (byte capacity, TTL) had nothing to attach to. Fix: derive aloud even when you know the answer, naming what each structure is for.
+
+**Symptom: "confidently wrong" in the notes.** Diagnosis: a bluffed claim, such as "a dict is thread-safe, so no lock is needed", which ignores that the list pointers are updated in several steps. Fix: separate what you are sure of from what you are not, out loud.
+
+## Interviewer follow-ups
+
+**"Make it thread-safe."** Model answer: one lock around `get` and `put`, because `get` reorders the list and so mutates shared state; uncontended acquisition is cheap (51 ns measured in CPython) and contention is the real cost; if contended, stripe by key hash and accept per-stripe LRU, or approximate LRU with sampling; decide by measured contention. Common wrong answer: "use a concurrent hash map", which protects the map and leaves the list races untouched.
+
+**"Why not use `OrderedDict`?"** Model answer: at work I would; it is implemented in C, measured about 25% faster than the hand-built version (101 against 133 ns per operation) with similar memory, and it removes forty lines of pointer code; building the list here shows the mechanism you asked to see. Common wrong answer: "`OrderedDict` is O(n) for `move_to_end`", which is false and reads as bluffing.
+
+**"Capacity is in bytes and values vary in size."** Model answer: track total bytes; after inserting, evict from the LRU end in a loop until under budget; one insert can evict many entries; decide what happens to an item larger than the budget (reject it). Common wrong answer: "count bytes instead of items", which misses the loop and the oversize case.
+
+**"Entries expire after a TTL."** Model answer: store a deadline per node; check it lazily on `get`; to bound memory, sweep expired entries via a min-heap of deadlines on each `put` (O(log n) more per put) or a periodic sweep; note that expiry and LRU order are independent orders. Common wrong answer: a timer thread per entry, which costs a thread per key.
+
+**"Now it's shared across ten servers."** Model answer: partition keys by consistent hashing so each key has one owner, keep a local LRU per node, and accept that LRU is per node rather than global; say what happens when a node fails (its keys miss until warm). Common wrong answer: "put it in Redis", which moves the problem without describing it. The [distributed cache case study](/learn/system-design/case-studies/distributed-cache) goes further.
+
+## What mid-level engineers get wrong
+
+- **Believing level is decided by harder problems.** They grind more problems, and the next round's notes are full of "when asked" again.
+- **Treating clarification as optional on a known problem.** LRU "has no ambiguity", so `get` semantics and capacity 0 are settled by the interviewer at minute 12.
+- **Testing only the example.** The update-then-evict case is the one interviewers ask about, and "found by interviewer" lands in the testing row.
+- **Answering follow-ups with a noun.** "A lock" is correct and says nothing about what it costs; the write-up says "shallow".
+- **Mentioning production tools to impress.** "Redis does this" without the sampling mechanism reads as name-dropping.
+- **Finishing at minute 40.** No follow-up is reached, so there is no level evidence at all, and the round can only confirm the bar.
 
 ## Practising for the senior column
 
-Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache) or [Time-Based Key-Value Store](/practice/time-based-kv), and run it as a solo mock on `/interviews`. Solving it is not the point. After the report comes back, read each dimension's notes against the senior column of the table above, and list the specific moments where you were in the mid-level column: a trade-off you did not state, a test you only ran when asked, a follow-up you answered with a technology name instead of a mechanism. Then run the same problem again a week later and target those moments. Problems you already know are the best practice for senior signals, because all your attention is free for everything except the algorithm.
+Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache), [Merge Intervals](/practice/merge-intervals) or [Time-Based Key-Value Store](/practice/time-based-kv), and run it as a solo mock on `/interviews`. Solving it is not the point. When the report comes back, write your own two-column timestamp table like the ones above and mark every line "prompted" or "unprompted". Then run the same problem a week later and move three lines from the right column to the left. Problems you already know are the best practice for senior signals, because all your attention is free for everything except the algorithm.
 
 ## Senior signals
 
 - You own each phase, from clarification to verification, without being prompted, and treat the interviewer as a collaborator.
+- You know that prompted and unprompted versions of the same behaviour produce different notes, and you plan the unprompted ones.
 - You state alternatives with the conditions under which you would switch, including what you would not do.
-- Your code is clean and decomposed with invariant comments, and deliberately free of unrequested generality.
-- You mention the production equivalent or the limits of the interview answer in a sentence, without lecturing.
+- Your code is decomposed with invariant comments, and deliberately free of unrequested generality.
+- You mention the production equivalent in a sentence, with a number you can defend when you have one.
 - You answer follow-ups from the mechanism: what breaks, what replaces it, what it costs, and what you would measure.
 - In AI-assisted rounds, you direct, verify and justify every line you accept.
 
@@ -192,33 +344,39 @@ Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache) o
 
 ```quiz
 - q: >-
-    Two candidates write the same correct LRU cache. Which behaviour most distinguishes the senior candidate?
-  options: ["Clarifying semantics and testing edge cases unprompted", "Finishing the same working code a few minutes faster", "Mentioning as many caching technologies as possible", "Splitting the solution into more classes and interfaces"]
-  answer: 0
+    Two candidates write identical, correct LRU caches. One clarifies get semantics, tests the update case and raises concurrency unprompted; the other does all three after the interviewer asks. How do the write-ups typically differ?
+  options: ["Identical, since the final code is the same", "Senior-consistent versus the level below", "Both below the bar, since hints were given", "The second rated higher for responsiveness"]
+  answer: 1
   explanation: >-
-    Seniority shows in ownership: settling the semantics that affect correctness (does get refresh recency?), verifying without being asked (the update-existing-key case), and reasoning about trade-offs from the mechanism (the cost of locking on reads). Speed matters little once the code is correct, extra classes are over-engineering, and name-dropping without mechanism reads as shallow.
+    Notes are timestamped and record who started each behaviour. The same correct actions, done only after prompts, describe someone who does the work when directed, which is close to the definition of the level below. Prompts to clarify or test are not core-idea hints, so neither candidate fails the bar on that basis.
 - q: >-
     At many large companies, what role does the coding round typically play in the level decision?
-  options: ["It matters for level only when hiring new graduates", "It has no effect on level; it is a pure pass or fail", "A bar check, though weak execution can pull level down", "It alone decides the level, and other rounds confirm it"]
+  options: ["No effect on level; it is only pass or fail", "It matters for level only for new graduates", "A bar check that can still pull level down", "It alone decides level; other rounds confirm it"]
   answer: 2
   explanation: >-
-    Level is usually driven more by system design and behavioural rounds, so the coding round is mostly a bar check, but a coding round that looks mid-level (heavy hints, messy code, needing to be led) undermines a senior case. Practical, multi-part coding rounds often assess senior signals such as structure and extensibility directly.
+    Level is usually driven more by system design and behavioural rounds, so coding is mostly a bar check, but a write-up like "hire at the level below" is a common reason a split senior decision resolves downward. Practical multi-part rounds often assess senior signals such as structure and extensibility directly.
 - q: >-
-    The interviewer asks how to make your LRU cache thread-safe. Which answer is strongest?
-  options: ["Use a concurrent hash map in place of the plain dict", "One lock serialises even gets; stripe by key if contended", "None is needed, since caches never need to be thread-safe", "Add one lock around get and put, and the job is done"]
+    The interviewer asks how to make the LRU cache thread-safe. Which answer is strongest?
+  options: ["No lock is needed, as dict operations are atomic", "Add one lock around get and put; nothing more", "Use a concurrent hash map in place of the dict", "One lock serialises even gets; stripe if contended"]
+  answer: 3
+  explanation: >-
+    get reorders the list, so reads mutate shared state and need the lock; one lock serialises everything, and striping by key hash cuts contention at the price of per-stripe LRU. A concurrent map leaves the linked-list races untouched, and individual dict operations being atomic says nothing about the multi-step pointer updates.
+- q: >-
+    Measured on CPython 3.14, an OrderedDict-based LRU ran at 101 ns per operation against 133 ns for the hand-built map and list, with similar memory. What is the honest production argument for OrderedDict?
+  options: ["It is thread-safe, so no lock is ever required", "Far less code to get wrong, at similar speed", "It is several times faster than the hand-built list", "It uses a fraction of the memory per entry"]
   answer: 1
   explanation: >-
-    One lock is simplest, but get mutates recency, so reads serialise too. Striping by key hash cuts contention at the price of per-stripe rather than global LRU, and production caches often approximate LRU; choose based on measured contention. That answer names the obvious solution, its hidden cost, the escalation and what it gives up. A concurrent map alone does not protect the linked list, which is where the races are.
+    The measured gap is about 25 percent and memory per entry was 137 against 148 bytes, so the case is roughly forty fewer lines of pointer code, not speed or memory. OrderedDict is not a lock-free concurrent structure, so the thread-safety question remains. Calibrated claims like this separate production awareness from name-dropping.
 - q: >-
-    Which is an example of gold-plating that counts against you in a 45-minute coding round?
-  options: ["Extracting a helper that removes duplicated pointer logic", "Writing a one-line comment stating the list's invariant", "Adding a pluggable eviction policy and generic types", "Validating the capacity argument in the constructor"]
+    Which of these is gold-plating that counts against you in a 45-minute LRU round?
+  options: ["A guard in put for a capacity of zero", "A one-line comment stating the invariant", "A pluggable eviction-policy interface", "A helper that removes duplicated unlinks"]
   answer: 2
   explanation: >-
-    Unrequested generality, such as a pluggable eviction-policy interface and type parameters nobody asked for, costs time and signals a habit of over-building. Helpers that remove duplication, invariant comments, and validation at the boundary are all signs of good judgement.
+    Unrequested generality costs the minutes that testing and follow-ups need and signals a habit of over-building; naming the extension point in a sentence gets the credit without the cost. Helpers that remove duplication, invariant comments and boundary guards are signs of good judgement.
 - q: >-
-    In an AI-assisted coding round, what replaces "silent coding" as the key anti-signal?
-  options: ["Asking the assistant to produce a first draft of the code", "Accepting generated code without reading or testing it", "Using the AI assistant at any point during the round", "Pointing out and correcting the assistant's mistakes"]
-  answer: 1
+    In an AI-assisted round, the assistant produces an LRU cache that passes the example. What is the senior move before accepting it?
+  options: ["Test update-then-evict and explain each part", "Ask the assistant whether its code is correct", "Accept it, since it already passes the example", "Rewrite it by hand to show you did not need it"]
+  answer: 0
   explanation: >-
-    In assisted rounds you are graded on direction and verification. Using the assistant and asking it for drafts are expected; catching and explaining its mistakes is a strong positive. Accepting its output without reading, testing or being able to justify it hides your reasoning, just as silent coding does, and it risks shipping bugs.
+    Assisted rounds grade direction and verification: run your own chosen cases, such as updating an existing key and then forcing an eviction, and be able to justify every line you accept. Passing the example is the case least likely to catch the common bug, asking the assistant to grade itself verifies nothing, and a rewrite wastes the time the format gives you.
 ```

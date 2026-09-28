@@ -1,82 +1,258 @@
 ---
 slug: clarifying-and-scoping
 title: "Clarifying and scoping: the questions that choose the algorithm"
-description: Which clarifying questions change the approach and which only burn time, how to turn n into an operation budget, how to state assumptions when the interviewer says "your call", and how to scope an open-ended practical problem.
+description: A catalogue of clarifying questions by problem type with the answer that changes the approach, a measured operation budget for n, a worked Meeting Rooms II where one answer turns O(n log n) into O(n), and how clarification is graded, noted and argued in a debrief.
 minutes: 21
 difficulty: medium
 tags: [interview, clarifying-questions, constraints, scoping, assumptions]
-problems: [top-k-frequent, merge-intervals, subarray-sum-equals-k, time-based-kv]
+problems: [top-k-frequent, merge-intervals, subarray-sum-equals-k, time-based-kv, meeting-rooms-ii]
 ---
 "Given a log of API requests, return the k users who made the most requests." You can have a hash map and a sort on the screen in ninety seconds. Then at minute 25 the interviewer asks what happens when two users tie for k-th place, and you discover your output order depends on dictionary iteration order. At minute 35 they mention that the log is 200 GB. The code handles neither, and it is too late to change the approach.
 
-Every one of those facts was available at minute 4 for the price of a question. Clarifying is not a politeness ritual before the real work starts; it is the step where the algorithm gets chosen. The input size picks the complexity class. The value range picks between a hash map and an array. "Is it sorted?" picks two pointers or binary search. "Does it fit in memory?" picks between an in-memory algorithm and a streaming one. The opposite failure is just as real: twelve questions in eight minutes, most of whose answers you never use, reads as stalling. This lesson is about asking the four or five questions whose answers you *will* use, and knowing before you ask which way each answer sends you.
+Every one of those facts was available at minute 4 for the price of a question. Clarifying is the step where the algorithm gets chosen: the input size picks the complexity class, the value range picks between a hash map and an array, "is it sorted?" picks two pointers or binary search, and "does it fit in memory?" picks between an in-memory algorithm and a streaming one. The opposite failure is as real: twelve questions in eight minutes, most of whose answers you never use, reads as stalling. This lesson gives you the questions whose answers you *will* use, organised by problem type, with the approach each answer sends you to; a measured way to turn n into a time budget; one fully traced case where a single answer removes the `log n`; and the notes an interviewer writes about all of it.
 
 ## A question is worth asking if the answer changes your code
 
-Before asking anything, run a quick test: for each possible answer, would I write different code? If yes, ask. If no, assume, and state the assumption in a sentence.
+Before asking anything, run one test: for each possible answer, would I write different code? If yes, ask. If no, assume, and state the assumption in a sentence.
 
-"Can the list be empty?" usually fails this test, because you will handle empty input with a one-line guard either way. State it instead: "I'll return an empty list for empty input." "Can values be negative?" often passes. For "longest subarray with sum at most k", non-negative values mean the window sum only grows when you extend the window and only shrinks when you contract it, so a sliding window works. Negatives break that property and push you towards prefix sums combined with binary search or a sorted structure. One answer selects the algorithm.
+"Can the list be empty?" usually fails this test, because you will handle empty input with a one-line guard either way. State it instead: "I'll return an empty list for empty input." "Can values be negative?" often passes. For "longest subarray with sum at most k", non-negative values mean the window sum only grows when you extend the window and only shrinks when you contract it, so a sliding window works in O(n). Negatives break that monotonicity and push you to prefix sums with a binary search over the running prefix maximum, O(n log n). One answer selects the algorithm.
 
-## The questions that change the algorithm
+The test also orders your questions. Ask first the ones whose answers would invalidate the most code: size, memory, sortedness, value range. Ask later the ones that change a single line: tie-breaking, output order, inclusive or exclusive bounds. And turn the one-line ones into statements whenever the example or common sense already implies the answer.
 
-| Question | If the answer is… | …the approach shifts to |
+## The catalogue: questions by problem type
+
+Five questions apply to nearly every problem: **how large is n**, **does it fit in memory**, **is the input sorted**, **what is the value range**, and **is this called once or many times**. The tables below add the questions specific to each problem type. Each row gives the question, the answer that changes the approach, and where that answer sends you. Skim the table for the type you are facing at minute 3; you will need two or three rows, not all of them.
+
+### Arrays and sequences
+
+| Question | Answer that changes the approach | New approach |
 |---|---|---|
-| How large is n? | ≤ 20 | Exponential is fine: backtracking, bitmask enumeration |
-| | up to a few thousand | O(n²) is fine: nested loops, 2D DP |
-| | 10⁵ to 10⁶ | O(n log n) or O(n): sort, heap, hash map, two pointers |
-| | 10⁹ or unbounded | Stream, sample, or use math or binary search on the answer |
+| What range do values take? | Bounded, e.g. 1..n or 0..10⁴ | Counting array or counting sort, O(n + range), instead of an O(n log n) comparison sort; 1..n also allows [cyclic sort](/learn/interview-patterns/array-patterns/cyclic-sort) and index marking in O(1) extra space |
 | Can values be negative or zero? | Yes | Sum-based sliding windows break; prefix sums plus a hash map; max-product needs a running min and max |
-| What is the value range? | Small (0–255, lowercase letters) | A counting array instead of a hash map; counting sort |
-| Is the input sorted? | Yes | Two pointers, binary search, merge-style walks |
-| Are there duplicates? | Yes | Dedupe logic in backtracking; first/last-occurrence binary search |
-| One answer or all? Any valid one? | All | Enumeration; the output size may dominate the complexity |
-| What exactly is returned? | Indices, not values | Sorting destroys indices, so sort pairs or use a hash map |
-| How are ties broken? | A specified order | The sort key or heap key must include the tiebreaker |
-| May I modify the input? | Yes | In-place tricks with O(1) extra space: cyclic sort, marking by sign |
-| Does it fit in memory? Is it a stream? | No / yes | One pass, bounded state, a heap of size k, external sort |
-| Called once or many times? | Many queries | Precompute once (prefix sums, an index, a sort), then answer each query fast |
+| Is the input sorted? | Yes | Two pointers or binary search, O(n) or O(log n), instead of a hash map or a sort |
+| Are there duplicates? | Yes | First/last-occurrence binary search; a skip-equal step in backtracking; a `set` would change counts |
+| Return indices or values? | Indices | Sorting destroys positions: sort `(value, index)` pairs or keep a value-to-index map |
+| Contiguous subarray or subsequence? | Subsequence | Windows and prefix sums no longer apply; DP, or greedy with a heap |
+| May I modify the input? | Yes | In-place sign marking or swapping, O(1) extra space |
 
-The first row does the most work. Ask for n every time, then convert it into a budget.
+### Intervals and scheduling
 
-## Turning n into a budget
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Do touching intervals overlap? Half-open or closed? | Touching merges / `[s, e)` | `<=` versus `<` in the overlap test; at equal times, process ends before starts in a sweep |
+| Is the input sorted by start? | Yes | Skip the O(n log n) sort; one pass |
+| Are times integers in a small range? | Minutes within one day, 0..1,440 | Difference array over the range, O(n + 1,440), no sort (worked below) |
+| Count, or assignment (which room)? | Assignment | A min-heap of `(end, room_id)` rather than two sorted arrays |
+| Do intervals arrive one at a time? | Yes | Sorted structure keyed by start, O(log n) per insert; see [Insert Interval](/practice/insert-interval) |
+| Can a meeting have zero length? | Yes | Decide whether `[s, s)` needs a room; half-open says no |
 
-A rough but reliable rule: compiled languages do something like 10⁸ to 10⁹ simple operations per second, and Python does something like 10⁷. Judges and interviewers both think in these orders of magnitude, even when nothing is being run.
+### Graphs and grids
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Directed or undirected? | Directed | Cycle detection needs three colours or Kahn's algorithm; reachability is not symmetric |
+| Weighted? Negative weights? | Weighted / negative | BFS becomes Dijkstra; negative weights need Bellman-Ford |
+| Connected? Isolated nodes? | Not connected | Outer loop over every node; the number of traversals is the component count |
+| Four or eight directions? May I write into the grid? | Eight / yes | Change the direction list; sink visited cells instead of keeping a set |
+| How many cells? | 10⁶ or more | Iterative traversal; CPython's default recursion limit is 1,000 frames |
+| Self-loops or parallel edges? | Yes | Parent-skip cycle checks give wrong answers; track edge ids |
+| Do edges arrive over time between queries? | Yes | Union-find instead of repeated traversals |
+
+### Trees
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Binary tree or BST? | BST | In-order is sorted; search and LCA walk one path in O(h) |
+| Balanced? How deep can it be? | Unbalanced, n up to 10⁵ | Height can be n: explicit stack instead of recursion |
+| Are parent pointers available? | Yes | LCA by walking up from both nodes; no search from the root |
+| Are values unique? | No | Define where equal keys go; compare nodes by identity, not value |
+| Is the tree modified between queries? | Yes | No precomputed Euler tour or depth table; maintain or recompute |
+
+### Linked lists
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Singly or doubly linked? | Singly | Removal needs the predecessor: dummy head, or trail a pointer |
+| Can it contain a cycle? | Yes | Floyd's cycle check before any loop that assumes termination |
+| May I modify it? | No | Palindrome check needs O(n) extra space, or reverse half and restore it |
+| Do I get the head, or only the node to delete? | Only the node | Copy the next node's value and unlink the next node |
+| Is the length known? | No | Two pointers with a gap of k for k-th from the end in one pass |
+
+### Strings, encoding and Unicode
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Lowercase ASCII only, or Unicode? | Lowercase only | `int[26]` counts instead of a hash map; Unicode needs a map and a definition of "character" |
+| Case-sensitive? Ignore punctuation? | Ignore both | Normalise first, or skip non-alphanumerics inside two pointers |
+| Characters, bytes or UTF-16 units? | Characters, in JavaScript | `"😀".length` is 2 in JavaScript and `len("😀")` is 1 in Python; iterate with `for...of` |
+| Are "é" (one code point) and "e" + accent (two) equal? | Yes | NFC-normalise before comparing; see [numbers, strings and Unicode](/learn/foundations/how-code-runs/numbers-strings-unicode) |
+| What separates words? | Any non-letter | A regex tokeniser; `split(" ")` produces empty tokens on double spaces |
+| Can the delimiter appear inside the data? | Yes | Length-prefix encoding, as in [Encode and Decode Strings](/practice/encode-decode-strings) |
+
+### Numeric: overflow, modulo, precision
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Can sums or products exceed 2³¹ − 1, or 2⁵³ in JavaScript? | Yes | 64-bit integers in Java, Go, C++; `BigInt` or per-step modulo in JavaScript; Python ints never overflow, but arithmetic slows as they grow |
+| Return the answer modulo 10⁹ + 7? | Yes | Reduce after every add and multiply; fix negative remainders after subtraction |
+| Integers or floating point? Money? | Floats or money | Compare with a tolerance, or use integer cents; float sums depend on addition order |
+| Negative operands with `/` or `%`? | Yes | Python's `//` floors toward −∞ and `%` takes the divisor's sign; Java truncates toward zero, and Java's and JavaScript's `%` take the dividend's sign |
+| What range can the answer take? | 1..10⁹ | Binary search on the answer: about 30 feasibility checks |
+
+### Design and class problems
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Which operations, and which is hot? | Many reads, few writes | Make `get` O(1) and let `put` cost O(log n) |
+| Required cost per operation? | O(1) each | Hash map plus doubly linked list, as in [LRU Cache](/practice/lru-cache) |
+| Does a read count as a use? Does an update refresh? | Yes | Move-to-end on both paths |
+| What happens at capacity 0 or on a missing key? | Capacity 0 allowed | A guard in `put`; return a sentinel or raise, and say which |
+| Are timestamps increasing? | Yes | Append plus binary search, as in [Time-Based Key-Value Store](/practice/time-based-kv); otherwise a sorted insert |
+| Single-threaded? | Concurrent callers | Lock scope; a `get` that reorders needs the lock too |
+
+### Streams and big data
+
+| Question | Answer that changes the approach | New approach |
+|---|---|---|
+| Does it fit in memory? | No | Hash-partition to files, aggregate per partition, merge |
+| One pass over an unbounded stream? | Yes | Bounded state: a size-k heap, reservoir sampling, running aggregates |
+| Is approximate acceptable? | Yes | Count-Min sketch, HyperLogLog, sampling |
+| Queries versus updates, which is more frequent? | Many queries | Maintain the answer incrementally; otherwise recompute on demand |
+| Can events arrive out of order? | Yes | Buffer with a watermark; never assume monotonic time |
+
+## Turning n into a budget, measured
+
+"Python does about 10⁷ operations a second" is the folk number. Here is what one machine does. These were measured on CPython 3.14 and Node 24 on a Ryzen 9 9950X3D desktop under WSL2 (best of three runs, with `time.perf_counter` and `performance.now`). A laptop is often 1.5 to 3 times slower, and an online judge can be slower again, so treat them as a ceiling on how fast your loop can be, not a promise.
+
+| Loop body, per iteration | CPython 3.14 | Node 24 |
+|---|---|---|
+| `t += i` over 10⁷ | 12.5 ns (0.125 s total) | 0.5 ns (5 ms total) |
+| Call a one-line function | 16 ns | 0.2 ns (inlined by the JIT) |
+| Compare a pair in a nested loop, n = 2,000 | 14 ns (0.028 s for 2 × 10⁶ pairs) | 0.37 ns (0.74 ms) |
+| Increment a dict / `Map` entry, 10⁶ keys drawn from 10⁵ | 51 ns (0.051 s) | 31 ns (31 ms) |
+| Increment a list / `Int32Array` slot | 12 ns (0.012 s) | 6 ns (5.8 ms) |
+
+The numbers support a two-line rule. CPython runs 10⁷ to 10⁸ simple loop iterations per second, with hash operations near the bottom of that range. A JIT (V8, the JVM) or a compiled language runs 10⁸ to 10⁹ simple iterations, but a hash-map operation still costs tens of nanoseconds (31 ns for a `Map` increment here), so hash-heavy loops sit nearer 10⁷ to 10⁸ per second in every language. Plan with the bottom of each range and you are rarely wrong by more than a factor of ten.
 
 Worked for n = 10⁵:
 
-- O(n²) = 10¹⁰ operations: minutes in a compiled language, hours in Python. Out.
-- O(n log n) ≈ 10⁵ × 17 ≈ 1.7 × 10⁶: milliseconds. In.
-- O(n) = 10⁵: trivial.
+- O(n²) is 5 × 10⁹ pair comparisons: at 14 ns each, about 70 seconds in CPython on this machine and about 2 seconds in Node. Out in both.
+- O(n log n) is about 1.7 × 10⁶ steps: milliseconds. In.
+- O(n) with a dict increment per element: about 5 ms. In.
 
-For n = 2,000, O(n²) is 4 × 10⁶, which is fine even in Python. That changes which solution you should write. If the brute force is O(n²) and n is 2,000, write the brute force cleanly and spend the saved minutes on tests and follow-ups. Saying "n is small enough that the quadratic version is fine and much simpler; I'd only optimise if n grew" is a senior sentence, not a lazy one, provided you can also say what the optimisation would be.
+For n = 2,000, the O(n²) pair loop measured 28 ms in CPython. That changes which solution you should write: code the quadratic version cleanly and spend the saved minutes on tests and follow-ups. "n is small enough that the quadratic version runs in about 30 ms and is much simpler; I'd optimise if n grew past 10⁴" is a senior sentence, provided you can also say what the optimisation would be. For n ≤ 20, 2²⁰ ≈ 10⁶ subsets is well under a second; a constraint that small is often a hint that the problem wants exponential search with pruning, or bitmask DP. If the interviewer will not give you n ("assume it's large"), treat it as 10⁵ to 10⁶ and say so.
 
-For n ≤ 20, 2²⁰ ≈ 10⁶ subsets. A constraint that small is often a signal that the problem wants exponential search with pruning, or bitmask DP.
+## Worked example: one answer turns O(n log n) into O(n)
 
-If the interviewer will not give you n ("assume it's large"), treat it as 10⁵ to 10⁶ and say so.
+[Meeting Rooms II](/practice/meeting-rooms-ii): given meetings as half-open intervals `[start, end)`, return the minimum number of rooms so that no two overlapping meetings share one. The standard plan is O(n log n). One clarifying question can remove the `log n`.
+
+### The plan before the question
+
+Sort by start and keep a min-heap of the end times of rooms in use. For each meeting, if the earliest-ending room is free by its start, reuse that room; otherwise open one.
+
+```python
+import heapq
+
+def min_meeting_rooms(intervals):
+    ends = []                                   # min-heap: end times of rooms in use
+    for s, e in sorted(intervals, key=lambda iv: iv[0]):
+        if ends and ends[0] <= s:               # <= because intervals are half-open
+            heapq.heapreplace(ends, e)          # reuse the room that frees first
+        else:
+            heapq.heappush(ends, e)             # every room is busy: open one
+    return len(ends)
+```
+
+Trace it on five meetings in minutes after midnight: A `[540, 600)` (9:00 to 10:00), B `[555, 585)`, C `[570, 630)`, D `[600, 660)`, E `[585, 615)`. Sorted by start: A, B, C, E, D.
+
+| Meeting | Start | `ends[0] <= start`? | Action | Heap array after | Rooms |
+|---|---|---|---|---|---|
+| A | 540 | heap empty | push 600 | `[600]` | 1 |
+| B | 555 | 600 ≤ 555, no | push 585 | `[585, 600]` | 2 |
+| C | 570 | 585 ≤ 570, no | push 630 | `[585, 600, 630]` | 3 |
+| E | 585 | 585 ≤ 585, yes | replace 585 by 615 | `[600, 615, 630]` | 3 |
+| D | 600 | 600 ≤ 600, yes | replace 600 by 660 | `[615, 660, 630]` | 3 |
+
+Answer 3. The sort is O(n log n) and each heap operation is O(log r) for r rooms, so the whole thing is O(n log n).
+
+### The question, and the difference array
+
+> **Candidate:** Are the times whole minutes within a single day?
+>
+> **Interviewer:** Yes, it's a booking system for one day.
+
+That answer bounds every endpoint to 0..1,440. The number of rooms in use at minute t is (meetings started at or before t) minus (meetings ended at or before t). Record +1 at each start and −1 at each end in an array of 1,441 slots, then take a running sum; the peak of the running sum is the answer. No sort, no heap.
+
+```python
+def min_meeting_rooms_day(intervals):
+    """Meetings are [start, end) in whole minutes, 0 <= start < end <= 1440."""
+    delta = [0] * 1441                          # one slot per minute boundary
+    for s, e in intervals:
+        delta[s] += 1                           # a room is taken at s
+        delta[e] -= 1                           # and free again at e (half-open)
+    rooms = peak = 0
+    for d in delta:                             # running sum = rooms in use
+        rooms += d
+        peak = max(peak, rooms)
+    return peak
+```
+
+The same five meetings, showing only the slots that are not zero:
+
+| Minute | Changes in `delta` | Net | `rooms` after | `peak` |
+|---|---|---|---|---|
+| 540 | A starts | +1 | 1 | 1 |
+| 555 | B starts | +1 | 2 | 2 |
+| 570 | C starts | +1 | 3 | 3 |
+| 585 | B ends, E starts | 0 | 3 | 3 |
+| 600 | A ends, D starts | 0 | 3 | 3 |
+| 615 | E ends | −1 | 2 | 3 |
+| 630 | C ends | −1 | 1 | 3 |
+| 660 | D ends | −1 | 0 | 3 |
+
+The other 1,433 slots are zero and leave `rooms` unchanged. Answer 3, matching the heap. Minute 585 is the half-open rule doing its work: B's −1 and E's +1 land in the same slot and cancel, so E takes B's room. With closed intervals you would write the −1 at `e + 1` instead, and the answer would become 4.
+
+The cost is O(n + T) for T = 1,441 slots, which is O(n) because T is a constant fixed by the answer to the question. It is the [difference-array technique](/learn/data-structures/arrays-strings/prefix-sums-and-difference-arrays) applied to time.
+
+### What it is worth, measured
+
+One million random meetings within a day (durations of 1 to 120 minutes), the same machine and runtimes as above, best of three:
+
+| Version | CPython 3.14 | Node 24 |
+|---|---|---|
+| Sort by start + min-heap | 0.686 s | 0.367 s |
+| Sort starts and ends separately, two pointers | 0.402 s | 0.146 s (typed-array sort) |
+| Difference array over 1,441 slots | 0.037 s | 0.0058 s |
+
+All three returned the same peak. The difference array is about 18 times faster in CPython and 60 times faster in Node, and at n = 10⁵ the CPython gap was 27 ms against 3 ms. Neither version would time out at this size; the point is that the question was cheap and the answer changed the complexity class and the code.
+
+### When the answer is no
+
+"Times are Unix timestamps in seconds over a year" makes T about 3.2 × 10⁷. A Python list of that many zeros is 8 bytes per slot, 252 MB, and on the same machine the running-sum loop over it measured 1.4 s before a single meeting was processed. The bound that made O(n) possible is gone, so you go back to sorting: either the heap, or sort the 2n endpoints and sweep them, which is coordinate compression in disguise. Say the threshold aloud: "if T is within a small multiple of n, and at most about 10⁷, the array wins; otherwise sort".
+
+The same move appears wherever a range is bounded: values 1..n turn a sort into counting or cyclic sort, lowercase letters turn a hash map into 26 counters, and ages 0..150 turn "sort the users by age" into a 151-bucket pass.
 
 ## Questions that do not change anything
-
-Some questions feel diligent and are not.
 
 - **"What language should I use?"** Pick the one you are fastest in; see [Choosing an interview language](/learn/senior-craft/languages-for-senior-engineers/choosing-an-interview-language).
 - **"Can I use the standard library?"** Almost always yes. The exception is when a library call *is* the problem. For top-k, `heapq.nlargest` does the interesting part, so ask the precise version: "Is it fine to use the standard heap, or would you like to see the heap operations?"
 - **"Should I handle null input?"** A one-line guard either way. State it.
 - **"Is performance important?"** It always is. Ask for n instead.
-- **Questions the example already answers.** If the example output is sorted by count, descending, confirm it in a clause ("and highest count first, like the example") rather than asking.
+- **Questions the example already answers.** If the example output is sorted by count, confirm it in a clause ("highest count first, like the example") rather than asking.
 
 ## Examples are clarifying questions
 
-The cheapest clarifying question is an example with your expected output: "So for `[[1,4],[4,5]]` I'd return `[[1,5]]`, right?" It checks your understanding of the whole problem, not one attribute of it, and it tends to surface the edge case you had not thought to ask about. Interviewers often answer a concrete example more precisely than an abstract question, because they can check it against their notes.
+The cheapest clarifying question is an example with your expected output: "So for `[[1,4],[4,5]]` I'd return `[[1,5]]`, right?" It checks your understanding of the whole problem rather than one attribute of it, and interviewers answer a concrete example more precisely than an abstract question, because they can check it against their notes.
 
-Write two examples: a normal one that you work through fully, and a small one that tests a definition, such as touching intervals, ties, duplicates or an empty result. For [Merge Intervals](/practice/merge-intervals), the touching-endpoints example settles `<` versus `<=` before a single line of code exists.
+Write two examples: a normal one you work through fully, and a small one that tests a definition, such as touching intervals, ties, duplicates or an empty result. For [Merge Intervals](/practice/merge-intervals), the touching-endpoints example settles `<` versus `<=` before a single line of code exists. For Meeting Rooms II, B ending at 585 as E starts at 585 settles whether that is one room or two.
 
 ## When the interviewer says "your call"
 
-Senior interviews often leave details deliberately open. You ask how ties should be broken and hear "what do you think?" That is not evasion; they are checking whether you can make a reasonable decision and own it. Do not ask again. Decide, say why, and say what would change:
+Senior interviews often leave details open on purpose. You ask how ties should be broken and hear "what do you think?" They are checking whether you can make a reasonable decision and own it. Do not ask again. Decide, say why, and say what would change:
 
-> "Then I'll break ties by user id ascending so the output is deterministic, which also makes it testable. If the product needed something else, like earliest first request, it's only a change to the sort key."
+> "Then I'll break ties by user id ascending so the output is deterministic and testable. If the product needed earliest-first-request instead, only the sort key changes."
 
-Keep an **assumption ledger** as a comment at the top of the editor. It takes thirty seconds, it stops you forgetting what you decided, and it gives the interviewer something to point at during follow-ups.
+Keep an **assumption ledger** as a comment at the top of the editor. It takes thirty seconds, stops you forgetting what you decided, and gives the interviewer something to point at during follow-ups.
 
 ```python
 # Assumptions (agreed at 05:30)
@@ -86,19 +262,17 @@ Keep an **assumption ledger** as a comment at the top of the editor. It takes th
 # - output: list of (user_id, count), highest count first
 ```
 
-When the follow-up arrives ("what if the log is 200 GB?"), you point at line two: "That's the assumption that changes. Here's what I'd do instead: a streaming count per user if the distinct users fit in memory; otherwise partition by hash of user id into files, count each partition, and merge the per-partition top-k lists."
+When the follow-up arrives ("what if the log is 200 GB?"), you point at line two: "That's the assumption that changes. If the distinct users fit in memory, one streaming pass with a count per user. If not, partition lines by a hash of user id into files, count each partition, and merge the per-partition top-k lists."
 
 ## Scoping an open-ended problem
 
-Practical and multi-part rounds are increasingly common at senior level: "implement an in-memory key-value store with expiry", "build a rate limiter", "write a log aggregator". The statement is short on purpose, and the first five minutes are a small design exercise. Your job is to turn the statement into a concrete interface and an explicit list of what you are not building.
+Practical and multi-part rounds are common at senior level: "implement an in-memory key-value store with expiry", "build a rate limiter". The statement is short on purpose, and the first five minutes are a small design exercise: turn the statement into a concrete interface and an explicit list of what you are not building.
 
-Take "implement a rate limiter". A strong scoping pass sounds like this:
-
-> **Candidate:** Let me pin down the interface first. I'm thinking of a class with `allow(key) -> bool`, where the key is a user or API token, and a limit of N requests per W seconds set at construction. Two questions. Does the window need to be exact, or is a small burst at window boundaries acceptable? And is this single-process, or shared across servers?
+> **Candidate:** Interface first: a class with `allow(key) -> bool`, the key being a user or API token, and a limit of N requests per W seconds set at construction. Two questions. Does the window need to be exact, or is a burst at window boundaries acceptable? Single process, or shared across servers?
 >
-> **Interviewer:** Exact, single process. Keep it simple.
+> **Interviewer:** Exact, single process.
 >
-> **Candidate:** Then I'll keep a sliding log per key: a deque of timestamps. On each call I drop timestamps older than W and allow the request if fewer than N remain. I'll inject the clock so tests don't need to sleep. Out of scope for now: thread safety, cleaning up idle keys, and sharing limits across servers. I'll come back to how each would change at the end.
+> **Candidate:** Then a sliding log per key: a deque of timestamps. Each call drops timestamps older than W and allows the request if fewer than N remain. I'll inject the clock so tests don't sleep. Out of scope for now: thread safety, evicting idle keys, sharing limits across servers.
 
 The interface goes on the screen before any logic:
 
@@ -114,96 +288,160 @@ class RateLimiter:
         self.log: dict[str, deque[float]] = {}
 
     def allow(self, key: str) -> bool:
-        ...
+        now = self.clock()
+        q = self.log.setdefault(key, deque())
+        while q and q[0] <= now - self.window:   # drop timestamps outside the window
+            q.popleft()
+        if len(q) < self.limit:
+            q.append(now)
+            return True
+        return False
 ```
 
-Three decisions in that pass carry most of the signal. The interface is chosen before the internals. The clock is injected, so the code is testable. And the out-of-scope list is spoken aloud. That list turns the later follow-ups into "yes, that's the thing I set aside; here's how it changes" rather than "oh, I hadn't thought of that".
+Three decisions in that pass carry most of the signal: the interface is chosen before the internals, the clock is injected so the code is testable, and the out-of-scope list is spoken. That list turns later follow-ups into "yes, that's what I set aside; here's how it changes" instead of "I hadn't thought of that".
 
-Scoping also means naming the cost of the choice you made. The sliding log stores up to N timestamps per key, which is O(N) memory per active key. Saying "if N were large, a sliding-window counter or a token bucket would bound memory at the price of exactness" shows you chose the log on purpose.
+Scoping also means naming the cost of the choice. The sliding log stores up to N timestamps per active key: with N = 1,000 and 10⁵ active keys, that is 10⁸ floats, several gigabytes in CPython. "If N were large, a sliding-window counter or a token bucket bounds memory at two numbers per key, at the price of exactness" shows the log was chosen on purpose. The [rate limiter case study](/learn/system-design/case-studies/rate-limiter) has the distributed version.
 
 ## A weak and a strong opening, side by side
 
 Problem: "Return the k most frequent words in a document."
 
-**Weak, with too few questions:**
+**Too few questions.** "OK, I'll count with a dictionary and sort," typing at 00:40. At minute 28 the interviewer asks about ties; the sort key lacks the word, so equal counts come out in insertion order. At minute 35: "it's a 50 GB corpus." Nothing prepared.
 
-> "OK, I'll count with a dictionary and sort." *(starts typing at 00:40)*
-
-The code works on the example. At minute 28 the interviewer asks about ties. The sort key does not include the word, so equal-count words come out in insertion order, which does not match the expected output. At minute 35: "The document is a 50 GB corpus." The candidate has nothing prepared.
-
-**Weak, with too many:**
-
-> "Is the document a string or a list? Are words separated only by spaces? What about punctuation? Uppercase? Hyphens? Apostrophes? Is k always positive? Can k be zero? Can k exceed the number of words? What if the document is empty? Should I return a list or a set? Do you want the counts too?" *(minute 9, no example yet)*
-
-Several of these are reasonable on their own, but asked as a list they show no prioritisation and use up a fifth of the round. Tokenisation rules can be assumed and stated in one line.
+**Too many.** "String or list? Only spaces? Punctuation? Uppercase? Hyphens? Apostrophes? k positive? k zero? k above the word count? Empty document? List or set? Counts too?" Minute 9, no example. Each is defensible alone; as a list they show no priority and spend a fifth of the round. Tokenisation can be assumed in one line.
 
 **Strong:**
 
-> **Candidate:** So I count word frequencies and return the k highest. Four things would change my code. Roughly how big is the document, and does it fit in memory? How are ties at k-th place broken? Should the output be in frequency order? And is k small compared with the number of distinct words? I'll assume lowercase, split on non-letters, and return an empty list for an empty document.
+> **Candidate:** So I count word frequencies and return the k highest. Four things would change my code: roughly how big is the document and does it fit in memory; how are ties at k-th place broken; is the output in frequency order; and is k small compared with the distinct words? I'll assume lowercase, split on non-letters, and an empty list for an empty document.
 >
-> **Interviewer:** Fits in memory, a few million words. Ties alphabetical. Yes, most frequent first. k is small, around 10.
+> **Interviewer:** A few million words, fits. Ties alphabetical. Most frequent first. k is about 10.
 >
-> **Candidate:** Then counting is O(n). For the top k, I can sort the d distinct words in O(d log d), or keep a heap of size k in O(d log k). With k around 10 the heap is cheaper. The tie rule needs care in the heap, because I'm keeping the k *largest* counts but ties prefer the *smallest* word, so I'll write the comparison explicitly. Example: `"b a b c a b"` with k = 2 gives `["b", "a"]`.
+> **Candidate:** Counting is O(n). For the top k, sorting d distinct words is O(d log d); a size-k heap is O(d log k), cheaper for k = 10. The tie rule needs care in the heap: I keep the k *largest* counts but ties prefer the *smallest* word, so the comparison is written explicitly. Example: `"b a b c a b"` with k = 2 gives `["b", "a"]`.
 
-Forty-five seconds of questions, and every answer is used: the size picks in-memory counting, the tie rule picks the key, the order picks the output shape, and small k picks the heap. The tokenisation assumptions are stated, not asked. This is the same shape as [Top K Frequent Elements](/practice/top-k-frequent) with a tiebreaker added, which is exactly the kind of twist interviewers add to a known problem.
+Forty-five seconds of questions, every answer used: size picks in-memory counting, the tie rule picks the key, the order picks the output shape, small k picks the heap. This is [Top K Frequent Elements](/practice/top-k-frequent) with a tiebreaker added, which is exactly the twist interviewers add to a known problem.
 
 ## Clarifying does not stop at minute 8
 
-New questions come up while you code, and it is fine to ask them then: "I've just realised I don't know whether timestamps are guaranteed to increase. Are they?" That is far better than guessing silently. [Time-Based Key-Value Store](/practice/time-based-kv) is a good example: whether `set` timestamps arrive in increasing order decides whether you can append to a list and binary-search it, or need a sorted insert.
+New questions come up while you code; ask them then. "I've realised I don't know whether timestamps are guaranteed to increase. Are they?" beats a silent guess. In [Time-Based Key-Value Store](/practice/time-based-kv), that answer decides between append plus binary search and a sorted insert.
 
-What changes is the cost. A question at minute 5 costs nothing; the same question at minute 25 may mean rewriting code. That is why the size, order and uniqueness questions, which are the ones most likely to invalidate an approach, belong at the front. [Subarray Sum Equals K](/practice/subarray-sum-equals-k) is the classic case: a candidate who never asked about negative values writes a sliding window, and the first test with a negative number breaks it.
+What changes is the cost. A question at minute 5 costs nothing; the same question at minute 25 may mean rewriting code. That is why size, order and sign go first. [Subarray Sum Equals K](/practice/subarray-sum-equals-k) is the classic case: a candidate who never asked about negative values writes a sliding window, and the first test with a negative number breaks it.
 
 ## How much is too much
 
-A workable rule for a 45-minute round: three to five questions, two examples and one sentence of stated assumptions, all within five minutes. Signs you are over-clarifying:
+A workable rule for a 45-minute round: three to five questions, two examples and one sentence of stated assumptions, all within five minutes. You are over-clarifying when a question would be a one-line guard either way, when the example already answers it, when no example is written yet, or when you are asking because you have no idea for the approach. The last one is being stuck, not clarifying; see [Getting unstuck](/learn/interview-patterns/interview-execution/getting-unstuck).
 
-- You are asking about things that would be a one-line guard either way.
-- You are asking questions the example already answers.
-- You have not written an example yet.
-- You notice you are asking because you do not yet have an idea for the approach. That is being stuck, not clarifying; see [Getting unstuck](/learn/interview-patterns/interview-execution/getting-unstuck).
+| Strategy | Minutes spent | Risk of a late rewrite | What the notes say | Fails when |
+|---|---|---|---|---|
+| Code first, ask when blocked | 0–1 | High: size, memory and ties surface at minute 25+ | "did not clarify; missed the tie rule" | Any problem with a planted constraint |
+| Ask everything up front | 8–10 | Low | "slow start; questions not prioritised" | The clock: testing and follow-ups get squeezed |
+| Ask the three to five that change code, state the rest | 3–5 | Low | "clarified unprompted; stated assumptions" | Rarely; an unstated assumption can still be wrong, which the ledger exposes early |
+| Example with expected output as the main question | 1–2 | Low for definitions, none for scale | "confirmed understanding with an example" | Scale and memory, which an example cannot reveal |
 
-To practise, start a coding interview on `/interviews` and treat the first five minutes as the whole exercise. The mock interviewer answers clarifications the way a real one does: it gives constraints when you ask for them and does not volunteer the approach. The report's "problem understanding and clarification" score tells you whether your questions landed.
+## Under the hood: how clarification is graded
+
+Most rubrics have a dimension close to "problem understanding" (Ascend's mock interviewer calls it "problem understanding and clarification" and scores it 1 to 5, quoting moments from the transcript). The evidence for it is narrow and checkable, which is why it is one of the easiest dimensions to win. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) covers how the whole round becomes a write-up; this section is what the clarification lines look like.
+
+A commonly reported interviewer habit is to keep one material constraint in reserve: the input size, a memory limit, a tie rule, or "the times are minutes in a day". It is given when asked and otherwise revealed at a follow-up. The note records which way round it happened. Two plausible sets of notes for the top-k log problem:
+
+```text
+Candidate 1
+03:05  restated in one sentence, correct
+03:20  asked n, fits in memory?, tie rule, k vs distinct  (4 questions, all used)
+03:40  tie rule -> "your call"; chose user_id asc, reason: deterministic + testable
+04:10  example with expected output; matches mine
+05:30  typed a 4-line assumption ledger; malformed lines: assumed + stated, not asked
+31:00  revealed 200 GB -> pointed at ledger line 2; hash-partition plan in 90 s
+
+Candidate 2
+03:05  typing dict + sort, no questions
+11:40  asked mid-code whether output should be sorted
+24:50  I asked about ties -> order was dict order; patched the sort key
+33:00  revealed 200 GB -> "hadn't considered it"; no plan by 36:00
+```
+
+In the debrief, this dimension is argued from three facts. First, **discovered versus volunteered**: how many of the constraints that mattered did the candidate ask for, and how many did the interviewer have to supply? "Found three of four; I volunteered the size" is a pass; "every constraint was volunteered" is a concern at any level. Second, **time to a confirmed example**: an example checked at minute 4 means the rest of the round was spent on the right problem. Third, **whether the assumptions absorbed the follow-up**: Candidate 1's 200 GB answer cites a line written at 05:30, which reads as planning, not luck. Question count is not one of the three; four material questions outrank twelve.
+
+## Failure modes
+
+**Symptom: "solved a slightly different problem" in the feedback.** Diagnosis: no example with a confirmed expected output, so a definitional difference (touching intervals, inclusive bounds, what "k most frequent" returns on ties) survived until testing. Check your transcript for the minute at which the interviewer first agreed with an output you wrote. Fix: never leave clarification without an example the interviewer has confirmed, including one that tests a definition.
+
+**Symptom: "slow start" or "questions not prioritised", with the first code at minute 14.** Diagnosis: questions that fail the changes-my-code test (null input, language, "is performance important?"), or questions asked to postpone the approach. Count the questions whose answers you used; if it is under half, that is the cause. Fix: ask the three to five that change code, state the rest as assumptions in one line.
+
+**Symptom: the follow-up forces a rewrite ("the log is 200 GB", "times are arbitrary timestamps").** Diagnosis: the memory, stream or range question was never asked, so the design silently depended on it, and nothing on screen said so. Fix: the assumption ledger; any line on it can become the follow-up, and pointing at it turns a rewrite into "here is what changes".
+
+**Symptom: a time limit on a hidden test in an execution-enabled round, although the algorithm "looked fine".** Diagnosis: n was not asked, or the budget was computed with the wrong rate: an O(n²) pair loop at n = 10⁵ is about 70 s in CPython on a fast desktop. Fix: ask n first and convert it using measured per-iteration costs, allowing a factor of ten for slower hardware.
+
+**Symptom: the tie case fails and the output order changes between runs or languages.** Diagnosis: the sort or heap key omits the tiebreaker, so equal elements come out in insertion or heap order. Fix: ask how ties break (or decide, if told "your call") and put the tiebreaker in the key before coding.
+
+## Interviewer follow-ups
+
+**"Why did you ask whether times were minutes in a day?"** Model answer: a bounded range lets me index by value instead of comparing values; with T = 1,441 slots the difference array is O(n + T), measured 18 times faster than sort + heap at 10⁶ meetings in CPython. Common wrong answer: "to be thorough", which tells the interviewer the question was not chosen for a reason.
+
+**"Now times are Unix timestamps over a year."** Model answer: T is about 3.2 × 10⁷, so the array costs 252 MB as a Python list and measured 1.4 s to scan; the bound is gone, so sort the 2n endpoints and sweep, O(n log n), independent of T. Common wrong answer: "the difference array is still O(n)", which drops the O(T) term that has become the dominant one.
+
+**"You chose ties by user id. What if product wants the earliest first request?"** Model answer: the tiebreaker moves into the key as `(-count, first_seen[user])`, which needs one more map filled in the counting pass; complexity unchanged. Common wrong answer: sorting again after the top-k selection, which cannot promote a user the heap has already evicted.
+
+**"n is 10⁵ and you're in Python. Is O(n log n) fine?"** Model answer: about 1.7 × 10⁶ comparisons; a sort of 10⁶ keyed items measured 0.14 s, so 10⁵ is around 10 ms; yes, with a large margin. Common wrong answer: "Python is slow, so we need O(n)", which trades clarity for a saving nobody needs.
+
+**"What would you have done if I'd refused to give you n?"** Model answer: assume 10⁵ to 10⁶, say so, write it in the ledger, and choose the O(n log n) or O(n) design; revisit if told otherwise. Common wrong answer: asking again, or writing the brute force on the grounds that n was not stated.
+
+## What mid-level engineers get wrong
+
+- **Asking for n and then not using it.** The answer 10⁵ should produce an out-loud budget; without one the question is decoration, and an O(n²) plan survives to minute 20.
+- **Asking the universal questions but not the type-specific one.** Size and sortedness asked, but "do touching intervals merge?" not asked, so `<` versus `<=` is decided by accident.
+- **Treating "your call" as a refusal.** Asking again reads as needing to be told; the interviewer wanted a decision and a reason.
+- **Clarifying in the abstract only.** No example with an expected output, so the misunderstanding is found by the first test, not at minute 4.
+- **Designing for the worst case nobody asked about.** Building the distributed version before the single-process one exists, which is how practical rounds run out of time.
+- **Forgetting the O(T) term.** Proposing a counting or difference array without asking the range, then discovering the range is 10⁹.
+- **Keeping assumptions in your head.** When the follow-up changes one, you cannot say which code depends on it.
 
 ## Senior signals
 
-- You ask for the input size first and turn it into an operation budget out loud.
+- You ask for the input size first and turn it into a budget out loud, with a per-operation cost you can defend and the hardware caveat.
 - Every question you ask has an answer you use, and you can say which way each answer sends the design.
-- When told "your call", you decide, justify the decision, and note what would change, rather than asking again.
+- You carry a type-specific question for the problem in front of you (touching intervals, UTF-16 length, overflow, parent pointers), not only the universal five.
+- You spot when a bounded range removes a `log n`, and you state the threshold at which it stops paying.
+- When told "your call", you decide, justify it and note what would change, rather than asking again.
 - You scope open-ended problems by fixing the interface first and naming what is out of scope.
 - You keep an assumption ledger and use it to absorb follow-ups: "that's the memory assumption; here's what changes".
-- You use an example with an expected output as a clarifying question, and it catches definitional edge cases (touching, ties, duplicates) before any code exists.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    For "find the longest subarray with sum at most k", which clarifying question most changes the algorithm?
-  options: ["Can the array be empty or hold one element?", "Can the values in the array be negative?", "Should I return the length or the subarray?", "Which programming language should I use?"]
-  answer: 1
-  explanation: >-
-    With non-negative values, extending the window never decreases the sum and shrinking never increases it, so a sliding window is correct. Negative values break that monotonicity and force a different technique. Empty input is a one-line guard, and returning the subarray instead of its length changes only the bookkeeping.
-- q: >-
-    n is at most 2,000 and the brute force is O(n²). What is the best plan?
-  options: ["Ask the interviewer to raise n so the problem is harder", "Use a hash map, since it is faster at any input size", "Find an O(n log n) solution before writing any code", "Write the O(n²) version cleanly; name the faster idea"]
-  answer: 3
-  explanation: >-
-    Converting n into an operation count is the point of asking for it. About 4 × 10⁶ operations is fast even in Python, so the simpler code is the better engineering choice, and describing the optimisation you would use if n grew shows you are choosing simplicity rather than missing the alternative.
-- q: >-
-    You ask how ties should be broken and the interviewer says "your call". What is the strongest response?
-  options: ["Rephrase the question slightly and ask it once more", "Choose a rule, justify it, and note what would change", "Ignore ties, since they rarely occur in real inputs", "Return every tied item so that any rule is satisfied"]
-  answer: 1
-  explanation: >-
-    "Your call" tests whether you can make and own a reasonable decision: pick a rule, give a reason such as deterministic output for testing, record it in your assumptions, and say how the code would change for a different rule. Asking again signals you need to be told. Ignoring ties makes the output nondeterministic, and returning extra items changes the contract of the function.
-- q: >-
-    In a practical "build a rate limiter" round, which opening move carries the most signal?
-  options: ["Fixing the interface and naming what is out of scope", "Asking which language the company uses in production", "Implementing thread safety first, before any logic", "Designing the distributed version from the start"]
+    You have a sort-plus-heap plan for Meeting Rooms II. Which answer to a clarifying question lets you drop the sort and solve it in O(n)?
+  options: ["Times are whole minutes within one day", "No two meetings share a start time", "Back-to-back meetings may share a room", "Meetings arrive already sorted by start"]
   answer: 0
   explanation: >-
-    Scoping an open problem means choosing a concrete interface, making it testable (for example by injecting the clock), and being explicit about what you are deferring. Starting with thread safety or distribution builds the hardest parts first without a working core, which is how practical rounds run out of time.
+    A bounded integer range lets you index by time: +1 at each start and -1 at each end in 1,441 slots, then a running sum whose peak is the answer, O(n + 1,440). Sorted starts remove one sort, but the heap of end times still costs O(log r) per meeting. Distinct starts and the back-to-back rule change a comparison, not the complexity class.
 - q: >-
-    Which of these questions is most likely to read as stalling rather than clarifying?
-  options: ["How should ties be broken?", "Should I handle a null input?", "How large is n, roughly?", "Is the input already sorted?"]
+    Measured on a fast desktop, a CPython pair comparison in a nested loop costs about 14 ns. Roughly how long does an O(n²) pair loop take at n = 10⁵?
+  options: ["About 70 s, so the quadratic plan is out", "About 7 s, which is borderline but passes", "About 0.1 s, so the quadratic plan is fine", "About 3 hours, since Python is interpreted"]
+  answer: 0
+  explanation: >-
+    n² / 2 is 5 × 10⁹ pairs; at 14 ns each that is 70 seconds, before allowing for slower laptops or judges. At n = 2,000 the same loop measured 28 ms, which is why the size answer, converted into a budget, decides whether the brute force is acceptable.
+- q: >-
+    A JavaScript solution for "longest substring without repeating characters" uses s.length and s[i]. Which answer to a clarifying question breaks it?
+  options: ["The input may contain emoji like 😀", "The input may repeat one letter only", "The input may be the empty string", "The input may contain uppercase letters"]
+  answer: 0
+  explanation: >-
+    JavaScript strings are UTF-16: an emoji outside the Basic Multilingual Plane is two code units, so s.length counts it as 2 and s[i] returns half a surrogate pair. Iterating with for...of or Array.from works on code points. Uppercase, empty and single-letter inputs need no change of representation.
+- q: >-
+    The interviewer changes Meeting Rooms II so that times are Unix timestamps in seconds over a year. What should happen to the difference-array solution?
+  options: ["Replace it with a heap of start times per room", "Keep it, but store the array as a Python dict", "Replace it with a sweep over the sorted endpoints", "Keep it, since it remains O(n) for any input"]
+  answer: 2
+  explanation: >-
+    The array has one slot per time unit, about 3.2 × 10⁷ here: 252 MB as a Python list and 1.4 s to scan on a fast desktop, and the O(T) term now dominates. Sorting the 2n endpoints and sweeping costs O(n log n) independent of T. A dict keyed only by endpoints can work but must still be iterated in time order, which is the sort again.
+- q: >-
+    You ask how ties at k-th place should be broken and hear "your call". What is the strongest response?
+  options: ["Return every tied item to satisfy any rule", "Ask the same question again in other words", "Ignore ties, as real inputs rarely have them", "Pick a rule, give a reason, say what changes"]
+  answer: 3
+  explanation: >-
+    "Your call" tests whether you can make and own a reasonable decision: choose a rule such as user id ascending for deterministic, testable output, write it in the assumption ledger, and say the key changes if the product wants another rule. Asking again signals you need to be told; ignoring ties makes output nondeterministic; returning extra items changes the function's contract.
+- q: >-
+    In a debrief, which fact most strengthens a candidate's problem-understanding rating?
+  options: ["The candidate asked more than ten clarifying questions", "The material constraints were asked for, not volunteered", "The candidate avoided asking and inferred all constraints", "The candidate wrote the distributed design before coding"]
   answer: 1
   explanation: >-
-    Null handling is a one-line guard whatever the answer, so state your assumption instead of asking. Size, sortedness and tie-breaking each change which algorithm or key you write.
+    Interviewers commonly hold one material constraint in reserve and note whether the candidate asked for it or had to be told. Discovered constraints, an example confirmed early, and assumptions that absorb the follow-up are the evidence. Question count is not: four material questions outrank twelve, and silent inference leaves nothing in the notes.
 ```

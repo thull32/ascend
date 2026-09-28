@@ -9,7 +9,7 @@ problems: [merge-intervals, insert-interval, top-k-frequent]
 ---
 A 45-minute coding interview is not 45 minutes of problem solving. Take off three minutes of introductions at the start and four for your questions at the end, and you have about 38 minutes for a problem the interviewer expects to see understood, solved, coded, tested and extended. Most candidates who fail a round they "nearly had" did not fail on the algorithm. They spent fourteen minutes circling the approach, finished typing at minute 41, never traced a single input, and never reached the follow-up question where the interviewer had planned to find out whether they were senior. The feedback says "ran out of time", and the people making the hiring decision read that as "could not deliver".
 
-The fix is not typing faster. It is a budget: a fixed sequence of phases, a deliverable for each, and checkpoints at which you look at the clock and deliberately change course if you are behind. This lesson gives you that budget, the sentences that move you between phases, and two runs of a full round so you can hear how it sounds, including one where the candidate takes a wrong turn and recovers. The [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) gave you the *order* of the steps; this lesson gives you the *clock*.
+The fix is not typing faster. It is a budget: a fixed sequence of phases, a deliverable for each, and checkpoints at which you look at the clock and deliberately change course if you are behind. The [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) gave you the *order* of the steps; this lesson gives you the *clock*.
 
 ## Where the 45 minutes go
 
@@ -25,11 +25,11 @@ The fix is not typing faster. It is a budget: a fixed sequence of phases, a deli
 
 Three things about this table are not obvious.
 
-**Coding gets only a third of the time.** Candidates practise by writing code, so they assume the interview is mostly code. It is not. Fifteen minutes is plenty for 20–40 lines of interview code if you knew what you were going to write before you started. It is nowhere near enough if you are designing while you type. The seven minutes of approach are what make fifteen minutes of code possible.
+**Coding gets only a third of the time.** Fifteen minutes is plenty for 20–40 lines of interview code if you knew what you were going to write before you started, and nowhere near enough if you are designing while you type. The seven minutes of approach are what make fifteen minutes of code possible.
 
-**Testing is a fixed slot, not whatever is left.** If testing gets whatever time is left, it gets none. Most company rubrics score testing as its own item, and so does Ascend's mock interviewer. It is also the item candidates most often leave blank.
+**Testing is a fixed slot, not whatever is left.** Left to the remainder, it gets none. Most rubrics score testing as its own item, and it is the one candidates most often leave blank.
 
-**Follow-ups are where level is decided.** The interviewer usually has one or two extensions planned: "now the input doesn't fit in memory", "now it's a stream", "now make it thread-safe". Mid-level and senior candidates often write the same code for the base problem and only diverge on the follow-up. If you finish at minute 44, nobody asks you one.
+**Follow-ups are where level is decided.** The interviewer usually has one or two extensions planned ("now it doesn't fit in memory", "now it's a stream", "now make it thread-safe"), and mid-level and senior candidates often write the same base code and diverge only there.
 
 ## Variants of the clock
 
@@ -63,13 +63,13 @@ Say the brute force in one sentence with its cost. Name the bottleneck. Propose 
 
 > "So that's O(n log n) time for the sort and O(n) space for the output. Does that sound reasonable, or would you like me to look for something better before I code?"
 
-That last sentence may be the most valuable one in the round. It lets the interviewer redirect you *before* you spend fifteen minutes coding an approach they were going to reject. Interviewers almost always answer it honestly: "sounds good", "can you do better than n log n?", or "let's go with that and see". Every one of those answers saves you time.
+That last sentence lets the interviewer redirect you *before* you spend fifteen minutes coding an approach they were going to reject. Every honest answer to it ("sounds good", "can you do better than n log n?", "let's see") saves you time.
 
 **Checkpoint at minute 15:** you should be typing. If you have only a brute force and no route to anything better, say so and pick one of two options: code the brute force now and optimise afterwards, or spend two more minutes and ask a targeted hint. [Getting unstuck](/learn/interview-patterns/interview-execution/getting-unstuck) has the decision rule.
 
 ### 15–30: code
 
-Describe the structure in a sentence or two, then write it top-down: the main function first, calling helpers you fill in afterwards. Narrate decisions, not keystrokes. Around minute 22, give a one-line progress marker ("main loop's done; next is the helper that merges two blocks") so the interviewer knows where you are.
+Describe the structure in a sentence or two, then write it top-down: the main function first, calling helpers you fill in afterwards. Narrate decisions, not keystrokes. Around minute 22, give a one-line progress marker so the interviewer knows where you are.
 
 If you hit a detail that is not central, leave a marker and move on:
 
@@ -99,7 +99,7 @@ Have two real questions ready. Good ones are about the work: "What's a technical
 
 ## Checkpoints as a decision procedure
 
-The checkpoints are the part people skip, and they are what make the protocol work under pressure. When you are behind, the instinct is to keep going and hope. The protocol says: at each checkpoint, compare where you are with where you should be, and if you are behind, make a named cut.
+At each checkpoint, compare where you are with where you should be, and if you are behind, make a named cut instead of keeping going and hoping.
 
 ```mermaid
 flowchart TD
@@ -116,8 +116,6 @@ flowchart TD
   D -->|yes| E["Full test, then follow-ups"]
   D1 --> E
 ```
-
-Every cut is said out loud. "I'm going to skip validation so we get to testing" tells the interviewer you are managing the clock. The same cut made silently looks like an oversight.
 
 ### The minute-15 decision, costed
 
@@ -158,11 +156,11 @@ Here is a round on [Merge Intervals](/practice/merge-intervals), cut down to its
 >
 > **[18:20] Candidate:** Re-sorting each time is O(n log n) per arrival. I'd keep the merged intervals in a sorted structure keyed by start. A new interval binary-searches to its position and absorbs neighbours on either side. Each interval can be absorbed only once, so with a balanced tree that's O(log n) amortised per arrival. With a plain Python list it's O(n) per arrival because of the shifting, which is essentially [Insert Interval](/practice/insert-interval).
 
-This candidate finished the base problem at minute 18, which is typical for a medium you recognise: the example made the sort obvious and the approach phase took two minutes. The spare time went into follow-ups, which is where the senior signal was earned. On a harder problem the same protocol stretches to fill the budget, but the order stays the same.
+The base problem was done at minute 18, typical for a medium you recognise, and the spare time went into the follow-up, which is where the senior signal was earned.
 
 ## A second run, with a wrong turn
 
-The Merge Intervals run went smoothly because the candidate recognised the problem. Most rounds do not. Here is a round on [Top K Frequent Elements](/practice/top-k-frequent) where the candidate starts down the wrong road, notices, recovers, and then finds their own bug in testing. Read it for *where* each recovery sits on the clock; that is what the interviewer is watching.
+Most rounds are not recognised on sight. Here is one on [Top K Frequent Elements](/practice/top-k-frequent) where the candidate takes a wrong turn, recovers, and then finds their own bug in testing. Read it for *where* each recovery sits on the clock.
 
 ### Minutes 3–10: clarify, approach, wrong turn
 
@@ -234,7 +232,7 @@ def top_k_frequent(nums, k):
 
 ### What the interviewer wrote down
 
-Interviewers take timestamped notes while you talk, because the feedback is written later from them. Here is a plausible version of this interviewer's notes, in the phrases that recur in write-ups. Every line corresponds to a moment the candidate controlled.
+A plausible version of this interviewer's notes, in the phrases that recur in write-ups; every line is a moment the candidate controlled.
 
 | Time | What the candidate did | The note |
 |---|---|---|
@@ -247,8 +245,6 @@ Interviewers take timestamped notes while you talk, because the feedback is writ
 | 19:00–21:15 | Degenerate cases, the `>` line, complexity from the code, the bound's assumption | "chose tests deliberately; stated the assumption behind the complexity" |
 | 23:45 | Exact versus approximate streaming, with costs | "handled the follow-up with trade-offs" |
 | overall | Announced every transition; never needed prompting | "drove the session" |
-
-Notice what the detour at 06:30 cost: two minutes and one line of feedback, and the line is positive. Had the candidate coded the full-heap version and discovered its memory cost only when asked about streaming, the note would have read "needed a nudge to see the size-k shape", and the streaming answer would have arrived at minute 33 or not at all.
 
 ## What the interviewer writes down
 
@@ -269,7 +265,7 @@ Write-ups vary by company, but their vocabulary is stable. These phrases, or clo
 | "handled the follow-up with trade-offs" | Algorithm, communication | The most common phrase in a senior-consistent write-up |
 | "answered with a technology name, no mechanism" / "had to be prompted at each phase" | Communication | Mid-level |
 
-The phrases are evidence, not scores. "Found and fixed own bug at 18:00" carries more weight in a debrief than a 3-out-of-4 on a testing scale, because it can be checked against the transcript and compared across candidates. Absence is recorded too: "did not test" and "no follow-up reached" are facts about the round, and a dimension with no evidence cannot be earned back.
+The phrases are evidence, not scores: "found and fixed own bug at 18:00" can be checked against the transcript and compared across candidates, which a 3-out-of-4 cannot. Absence is recorded too; a dimension with no evidence cannot be earned back.
 
 ## Under the hood: how a round becomes a decision
 
@@ -300,9 +296,9 @@ The "behind the clock" one is underrated. Offering the interviewer the choice wh
 
 ## Keeping the clock visible
 
-You cannot manage time you are not watching. Put a clock where your eyes already are: a small timer beside the editor, or a watch on the desk. Look at it at each transition, not constantly. In Ascend's mock interviews at `/interviews`, the timer sits in the header and turns red in the last five minutes.
+You cannot manage time you are not watching. Put a clock where your eyes already are: a small timer beside the editor, or a watch on the desk. Look at it at each transition, not constantly.
 
-For your first few mocks, write the checkpoint minutes (8, 15, 25, 33) on a sticky note and compare them with your actual times afterwards. Most people find the same pattern: the approach phase runs long, testing gets squeezed, and follow-ups never happen.
+For your first few mocks, write the checkpoint minutes (8, 15, 25, 33) on a sticky note and compare them with your actual times afterwards.
 
 A few numbers make the budget concrete. Typing 25–30 lines you have already designed takes three to five minutes for most people, depending on typing speed and how much you narrate; if coding is taking fifteen, the other ten are design happening at the keyboard. Tracing one heap push or one loop iteration aloud takes roughly fifteen to twenty seconds, so the four-row table above fits in under two minutes, and a six-operation class sequence takes three to four. The widely quoted window of visible effort before asking for a hint is three to five minutes; it varies between interviewers, but none report rewarding eight minutes of silence.
 
@@ -344,7 +340,7 @@ These are questions the Top K interviewer asked or could have. Each has a model 
 
 Reading a budget does not install it. Three practice loops do.
 
-1. **Timed solo mocks.** Start a solo coding interview on `/interviews` at medium difficulty. Solo mode locks the AI coach for the duration, as in a real round. The report scores five dimensions: problem understanding and clarification, algorithmic approach and complexity, code quality and correctness, testing and edge cases, and communication. Afterwards, open the transcript and note when you started coding and when you started testing. Those two timestamps predict your score better than anything else.
+1. **Timed solo mocks.** Start a solo coding interview on `/interviews` at medium difficulty; solo mode locks the AI coach, as in a real round. Afterwards, note in the transcript when you started coding and when you started testing. Those two timestamps predict your score better than anything else.
 2. **Transition-only drills.** Take a problem you already know, such as [Top K Frequent Elements](/practice/top-k-frequent), and run only minutes 3–15 aloud: restate, clarify, example, brute force, optimise, buy-in. Seven minutes, no code. Five of these in an evening train the part of the round that most often runs over.
 3. **Two-problem drills.** Pair an easy problem with a medium and give yourself 40 minutes for both. This trains the "good enough, move on" decision that phone screens reward.
 
@@ -357,7 +353,6 @@ After each mock, write the interviewer's notes yourself, in the phrase vocabular
 - You make scope cuts out loud, with a reason, and say where the skipped code would go.
 - You offer the interviewer a choice when time is short instead of deciding silently.
 - In multi-part problems, you write part one so that part two is an addition rather than a rewrite.
-- You keep introductions and closing questions short, because the round's time belongs to the problem.
 - You check a plan against the claim you made for it before coding it, and when they disagree you say so, switch, and keep what carries over.
 - You know the vocabulary of the write-up ("drove the session", "found and fixed own bug", "needed a hint on the core idea") and can point to the minute in your own transcript that produced each line.
 - At the minute-15 checkpoint you name which of the four moves you are taking and give yourself a deadline for it.
