@@ -10,5 +10,6 @@ pub mod extractors;
 pub mod middleware;
 pub mod migrate;
 pub mod routes;
+pub mod serve;
 pub mod state;
 pub mod telemetry;

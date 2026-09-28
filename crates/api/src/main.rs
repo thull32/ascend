@@ -16,10 +16,12 @@ use std::time::Duration;
 use ascend_core::Config;
 use tokio::signal;
 
-use ascend_api::{app, migrate, state, telemetry};
+use ascend_api::{app, migrate, serve, state, telemetry};
 
 /// How long open connections get to finish after SIGTERM.
 const DRAIN_TIMEOUT: Duration = Duration::from_secs(25);
+/// Then how long background tasks get to persist streamed replies.
+const TASK_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -90,30 +92,12 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     tracing::info!(addr = %config.bind_addr, "listening");
-    // Graceful shutdown stops accepting, then waits for open connections. A
-    // client that never finishes reading (a stalled stream) would hold it
-    // forever, so the drain is bounded.
-    let (draining_tx, mut draining) = tokio::sync::watch::channel(false);
-    let server = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .with_graceful_shutdown(async move {
-            shutdown_signal().await;
-            let _ = draining_tx.send(true);
-        });
-    let drain_deadline = async move {
-        if draining.wait_for(|started| *started).await.is_ok() {
-            tokio::time::sleep(DRAIN_TIMEOUT).await;
-        } else {
-            std::future::pending::<()>().await;
-        }
-    };
-    tokio::select! {
-        result = server.into_future() => result?,
-        () = drain_deadline => tracing::warn!("connections still open after the drain timeout; shutting down anyway"),
+    if serve::serve(listener, app, shutdown_signal(), DRAIN_TIMEOUT).await? == serve::Drain::TimedOut {
+        tracing::warn!("connections still open after the drain timeout; shutting down anyway");
     }
     // Connections are drained; now let in-flight AI replies finish persisting
     // (bounded, so a hung upstream cannot block the deploy).
-    state.tasks.close();
-    if tokio::time::timeout(Duration::from_secs(30), state.tasks.wait()).await.is_err() {
+    if !serve::finish_tasks(&state.tasks, TASK_TIMEOUT).await {
         tracing::warn!(remaining = state.tasks.len(), "background tasks still running at shutdown");
     }
     tracing::info!("shutdown complete");
