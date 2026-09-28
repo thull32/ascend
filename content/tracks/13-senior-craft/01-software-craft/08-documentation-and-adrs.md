@@ -97,7 +97,7 @@ The context names the constraint that makes the decision right ("There is a sing
 
 ## How these four ADRs changed on their first evening
 
-`git log -- docs/adr` shows the whole history, all on 26 September 2026 (times in UTC−7):
+`git log -- docs/adr` shows the whole history: four commits on the evening of 26 September 2026 and one two days later (times in UTC−7):
 
 | Commit | Time | What changed |
 |---|---|---|
@@ -105,10 +105,11 @@ The context names the constraint that makes the decision right ("There is a sing
 | `1d3da0c` | 22:51 | Code only: a per-user daily **input**-token budget, `AI_DAILY_INPUT_TOKENS`, enforced in `crates/core/src/ai/budget.rs` |
 | `008eee6` | 22:54 | A "Revisit when" section appended to all four, after a review |
 | `32c721f` | 23:46 | ADR 0004 edited in place: the AI rate limit became per session, with an "(Amended: …)" note |
+| `8f82820` | 28 Sep, 10:31 | ADR 0004 amended in place again, with the billed-input budget, after a review of this lesson |
 
 Two lessons are in that table. First, the "Revisit when" sections edited accepted records, and so did the amendment. Many teams allow appending clarifications that leave the decision unchanged (a trigger, a link, a typo) and require a superseding ADR for anything that changes what was decided; the per-IP to per-session change is arguably the second kind. Whichever line your team draws, write it down, because "never edited" and "quietly edited" are the two failure modes.
 
-Second, ADR 0004 disagrees with the code it governs. Its decision lists "request and output-token budgets", and its consequences name `AI_DAILY_REQUESTS` and `AI_DAILY_OUTPUT_TOKENS` as the budgets; the input budget added 28 minutes after the ADR was written (default 2,000,000 billed input tokens a day) appears nowhere in it. Nothing checks ADRs against code, so a decision record goes stale the first time a change touches its subject without touching its file. The cheapest guard is a question in the pull-request template: "does this change an ADR's decision or consequences?"
+Second, ADR 0004 disagreed with the code it governs. Its decision listed "request and output-token budgets", and its consequences named `AI_DAILY_REQUESTS` and `AI_DAILY_OUTPUT_TOKENS` as the budgets; the input budget added 28 minutes after the ADR was written (default 2,000,000 billed input tokens a day) appeared nowhere in it. Nothing checks ADRs against code, so a decision record goes stale the first time a change touches its subject without touching its file. A review of this lesson found the gap two days later, and commit `8f82820` amended the decision with a note that also records *why* the budget counts billed input (cache writes at 1.25x and cache reads at 0.1x, because counting only uncached input left the most expensive input unbudgeted). The fix shows both halves of the problem: the amendment is another in-place edit, and the consequences section still names only the two original variables, so even a correction drifts unless someone reads the whole record. The cheapest guard is a question in the pull-request template: "does this change an ADR's decision or consequences?"
 
 The triggers themselves are good examples. ADR 0001 lists "A second replica is needed (move rate limiting to Redis first)"; ADR 0004 names a metric, "Cache hit rates in the `ai_usage` cache columns fall". A trigger tied to a number someone can watch is the strongest kind.
 
@@ -170,15 +171,15 @@ hints:
 
 ## A full ADR, worked: the question and the facts
 
-The next three sections write an ADR for a decision this codebase has not made yet. It is a worked example in this lesson, not a file in `docs/adr/`, which holds only 0001 to 0004; the code still migrates at boot.
+The next three sections write an ADR for a decision this codebase faced when this module was reviewed, with the facts as they stood at commit `527d3d1`. It is a worked example in this lesson, not a file in `docs/adr/`, which holds only 0001 to 0004. The code has since decided, and the last part compares the worked decision with the real one.
 
 **Step 1: write the question as a question.** "Move migrations out of boot" is a proposal and presumes the answer. The question is: *when should schema migrations run relative to a new version starting, so that deploys, restarts and rollbacks stay safe?*
 
-**Step 2: collect facts, each with its source and how you know it.**
+**Step 2: collect facts, each with its source and how you know it** (as of commit `527d3d1`).
 
 | Fact | Source | How known |
 |---|---|---|
-| The API runs `migration::Migrator::up` before binding the port | `crates/api/src/main.rs` | read |
+| The API ran `migration::Migrator::up` before binding the port | `crates/api/src/main.rs` | read |
 | `up` creates `seaql_migrations` if needed, computes pending migrations, and applies each in its own transaction on Postgres; it takes no lock | sea-orm-migration 2.0.3, `migrator.rs` and `exec.rs` | read |
 | A database that records a migration the binary lacks stops boot: `Error: Custom Error: Migration file of version 'm0008_learner_notes' is missing, this migration has been applied but its file is missing`, exit code 1, straight after `running migrations` | local run against a scratch database with one extra row | observed |
 | All seven migrations apply to an empty database within one second (identical `applied_at`) | local run | observed |
@@ -270,6 +271,14 @@ least one release, so the previous build can run on the new schema.
 
 Each trigger names a signal that someone or something can observe: a duration in a log, a log line's presence, a platform change, a library release. "Revisit if it becomes a problem" is not a trigger.
 
+## What shipped, compared with the worked ADR
+
+Commit `8f82820` made the decision in code, and it took option B, not C. `crates/api/src/migrate.rs` takes a transaction-scoped Postgres advisory lock, reads `seaql_migrations`, and plans one of four outcomes: `UpToDate`, `Apply` (run the pending ones), `SchemaAhead` (start without migrating, with a WARN), or `Diverged` (refuse to boot). The integration test `boot_migrations_are_locked_and_tolerate_a_newer_schema` runs two boots at once and plants a migration row "from the future".
+
+Step 6 already said what that choice depends on. B and C differ only on L, a migration outlasting the 120-second health window, and every migration so far applies in under a second. B keeps fewer moving parts (no pre-deploy command, no separate `migrate` path for local development) and accepts exactly the cost it scored zero on. An honest ADR for B would therefore carry that as its first revisit trigger: the first migration that approaches the health window moves long DDL and backfills out of boot, which is option C's territory.
+
+Two lessons follow. The scoring did not make the decision; it shrank the disagreement to one named weight a reviewer can argue about. And the facts did more work than the options: the restart hazard found in step 3 made "do nothing" untenable.
+
 ## READMEs: the first ten minutes
 
 A README has one job: get a competent stranger from `git clone` to a running system and a passing test, then point them to everything else. It answers, in order: what is this, how do I run it, how do I test it, where next. This repository's `README.md` follows that order: a pitch, a table of contents, a pointer to the architecture document and ADRs, the stack, then four commands (`make db`, copy `.env.example` to `.env`, `make web`, `make run`), then `make check`, `make e2e` and `make image`.
@@ -285,12 +294,12 @@ The rule that keeps a README honest: **the first command must work**, on a clean
 The Makefile's default goal is `help`, whose recipe is one pipeline (shown with its colour codes removed and `$(MAKEFILE_LIST)` written as `Makefile`):
 
 ```bash
-grep -E '^[a-zA-Z_-]+:.*?## ' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $1, $2}'
+grep -E '^[a-zA-Z0-9_-]+:.*?## ' Makefile | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-16s %s\n", $1, $2}'
 ```
 
 Traced on `run: db build ## Build everything and run the server on :8080`: `grep` keeps the line because it starts with a name, a colon, anything, then `## `. POSIX extended regular expressions have no lazy quantifiers, so `.*?` behaves as `.*`. `awk` splits on the leftmost-longest match of `:.*## `, which starts at the first colon and ends after the last `## `, leaving `$1 = "run"` and `$2 =` the description, colons and all. The prerequisites `db build` vanish into the separator. Lines without `## `, and `.PHONY`, never match.
 
-Counted on this Makefile: 12 targets carry a `##` description, and `make help` prints 11. The missing one is `e2e`, because `[a-zA-Z_-]+` has no digits. The README tells readers to run `make e2e`; the menu advertised as unable to drift dropped it the day a target name contained a digit. Widening the class to `[a-zA-Z0-9_-]+` prints all 12 (checked). A generated document is only as correct as its generator, so test the generator: a CI step that compares the number of `##` targets with the number of lines `make help` prints would have caught it.
+Counted on this Makefile before commit `8f82820`: 12 targets carried a `##` description, and `make help` printed 11. The missing one was `e2e`, because the old class `[a-zA-Z_-]+` had no digits. The README tells readers to run `make e2e`; the menu advertised as unable to drift dropped it the day a target name contained a digit. Widening the class to `[a-zA-Z0-9_-]+` prints all 12 (checked), and that is the one-character-class change the commit made. A generated document is only as correct as its generator, so test the generator: a CI step that compares the number of `##` targets with the number of lines `make help` prints would have caught it, and would catch the next one.
 
 ## Under the hood: what rustdoc does with `//!`
 
@@ -310,7 +319,7 @@ A service can be designed to make runbooks short. This one names the variable in
 
 ## A runbook entry, written out: the checks
 
-**Symptom.** Railway marks a new deployment failed after the 120-second health window. **Impact.** None yet: readiness gates traffic, so the previous deployment keeps serving. Check 3 decides whether that stays true.
+**Symptom.** Railway marks a new deployment failed after the 120-second health window. **Impact.** None yet: readiness gates traffic, so the previous deployment keeps serving. Check 3 decides whether the serving version is still healthy on the schema the failed release left behind.
 
 **Check 1: what is serving?** `curl -s -i https://$DOMAIN/api/readyz`. Healthy is `200` with a body like the one observed locally, keys in alphabetical order because `serde_json`'s map sorts them: `{"ai":true,"build":"<commit>","content_version":"986c3fa09b7c2880","database":true,"status":"ok"}`. `build` should be the previous commit. Unhealthy is `503` with `"status":"degraded","database":false`: Postgres is unreachable, or all 20 pool connections stayed busy for the 5-second acquire timeout. That is an outage and a different runbook.
 
@@ -321,118 +330,120 @@ railway deployment list --service ascend --limit 5          # note the FAILED de
 railway logs --deployment <FAILED_ID> --lines 200
 ```
 
-Without the id, `railway logs` shows the most recent successful deployment (the help text of Railway CLI 5.62.1 says so), which is the healthy old one. A healthy boot is four JSON INFO lines: `booting ascend-api`, `running migrations`, `curriculum loaded`, `listening`. Compare the last lines:
+Without the id, `railway logs` shows the most recent successful deployment (the help text of Railway CLI 5.62.1 says so), which is the healthy old one. A healthy boot is a handful of JSON lines: `booting ascend-api`; then either the migrator's own `Applying migration '…'` lines followed by `migrations applied`, or `schema up to date`; then `curriculum loaded` and `listening`. After a rollback, a WARN `database schema is ahead of this build (a rollback?); starting without migrating` is expected too. Compare the last lines:
 
 | Last lines of the failed deployment | Cause | Mitigation |
 |---|---|---|
 | `Error: configuration: missing required environment variable DATABASE_URL` | variable unset | M1 |
 | `Error: configuration: invalid value for COOKIE_SECURE: must be true in production (set PUBLIC_ORIGIN to an https:// URL)` | bad value | M1 |
-| `booting ascend-api`, then an `Error:` line about a connection or a pool timeout | database unreachable from the new container | database runbook |
-| `running migrations`, then `Error: Custom Error: Migration file of version '…' is missing, …` | image older than the schema | M2 |
-| `running migrations`, then nothing until the window closes | a long migration or a lock wait | M3 |
+| `booting ascend-api`, then `Error: database connect: …`, the password shown as `***` | database unreachable from the new container | database runbook |
+| `booting ascend-api`, then `Error: database and build have diverged: …` | the database has a migration this build lacks *and* lacks one it has: two branches deployed against one database | M2 |
+| `Applying migration '…'`, or `booting ascend-api` alone, then nothing until the window closes | a long migration, or a wait on the migration lock or a table lock | M3 |
 | `listening` is present | boot succeeded; readiness failed | check `PORT` and `/api/readyz` on the new instance |
 
 The configuration errors were observed locally: they are plain text on stderr, printed before JSON logging starts, so search for `Error: configuration` rather than filtering on a JSON field.
 
-**Check 3: is the schema ahead of what is serving?** In `railway connect Postgres`, run `SELECT version, to_timestamp(applied_at) FROM seaql_migrations ORDER BY version;`, then list the serving commit's migrations with `git show <SERVING_SHA>:migration/src/lib.rs | grep -oE 'm[0-9]{4}_[a-z_]+' | sort -u`. Healthy: every row appears in that list. Unhealthy: a row the serving commit lacks. The failed release committed its migration, the serving process will fail the same way on its next restart, and this is now urgent.
+Until commit `8f82820` this table had a row that needed its own mitigation: `running migrations`, then `Migration file of version '…' is missing`, meaning an image older than the schema, which could not boot at all. Boot now starts such an image as `SchemaAhead`; the row disappeared because the code changed, which is the best way for a runbook entry to get shorter. The connect error in the third row also used to print the database password in full; it is redacted where the error is created.
 
-**Check 4, if stuck at `running migrations`:** `SELECT pid, state, now() - xact_start AS open_for, pg_blocking_pids(pid) AS blocked_by, left(query, 60) FROM pg_stat_activity WHERE datname = current_database() ORDER BY xact_start;`. Healthy: no transaction open longer than seconds. Unhealthy: the migration's statement with a non-empty `blocked_by`, usually an idle transaction holding a lock ([schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) reproduces this queue).
+## A runbook entry, written out: the schema and the lock
+
+**Check 3: is the schema ahead of what is serving, and does that matter?** In `railway connect Postgres`, run `SELECT version, to_timestamp(applied_at) FROM seaql_migrations ORDER BY version;`, then list the serving commit's migrations with `git show <SERVING_SHA>:migration/src/lib.rs | grep -oE 'm[0-9]{4}_[a-z_]+' | sort -u`. A row the serving commit lacks means the failed release committed its migration. Before commit `8f82820` that was urgent, because the serving process would refuse to boot on its next restart; now it restarts as `SchemaAhead`. What matters instead is whether that migration was expand-only: if it dropped, renamed or tightened anything the serving code reads, the serving version is already failing requests, so check its error rate.
+
+**Check 4, if the boot stalls while migrating:** first, who holds the migration lock? `SELECT pid, granted FROM pg_locks WHERE locktype = 'advisory' AND classid = 1634952037 AND objid = 1852047361;` (the two halves of `migrate.rs`'s key `0x6173_6365_6e64_0001`). A granted row from another backend means another boot is migrating, or hung while holding the lock. Then, what is the migration waiting for? `SELECT pid, state, now() - xact_start AS open_for, pg_blocking_pids(pid) AS blocked_by, left(query, 60) FROM pg_stat_activity WHERE datname = current_database() ORDER BY xact_start;`. Healthy: no transaction open longer than seconds. Unhealthy: the migration's statement with a non-empty `blocked_by`, usually an idle transaction holding a lock ([schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) reproduces this queue).
 
 ## A runbook entry, written out: mitigation, escalation, verification
 
 **M1, configuration.** `railway variable set NAME=value --service ascend`. Setting a variable starts a new deployment unless you pass `--skip-deploys`, so this is also the retry.
 
-**M2, image older than the schema.** Do not retry the old image, or anything older; none of them can boot. Fix forward: revert the application change but keep its migration file (migrations are append-only, so the reverting commit still knows `m0008`), or ship the fix. If check 3 found the serving deployment in the same state, do this before anything restarts it.
+**M2, diverged histories.** Do not delete rows from `seaql_migrations` to make a build boot: the schema changes those rows describe would stay applied. Find which branch each unknown migration came from, and deploy a build that contains both histories (merge the branches, keeping every migration file, since migrations are append-only). Before commit `8f82820`, M2 was "image older than the schema: fix forward, never retry the old image", and it applied to every rollback across a migration.
 
-**M3, long migration.** From check 4, end the blocking session once you know what it is (`SELECT pg_terminate_backend(<pid>);`), then redeploy. For a migration that legitimately needs longer than the window, apply it from a machine that can reach the database with the standalone runner (`cargo run -p migration -- up`) and redeploy; boot then finds nothing pending.
+**M3, long migration.** From check 4, end the blocking session once you know what it is (`SELECT pg_terminate_backend(<pid>);`), then redeploy; a hung boot holding the migration lock releases it when its connection ends, because the lock is transaction-scoped. For a migration that legitimately needs longer than the window, apply it from a machine that can reach the database with the standalone runner (`cargo run -p migration -- up`) and redeploy; boot then finds nothing pending.
 
-**Escalation.** Check 1 unhealthy: open an incident now. Check 3 unhealthy: whoever can ship a fix-forward, within the hour, because the serving process is one crash from down. No application log lines at all: the platform, via its status page.
+**Escalation.** Check 1 unhealthy: open an incident now. Check 3 shows a migration that was not expand-only: whoever can ship a fix-forward, now, because the serving version is running against a schema it was not written for. No application log lines at all: the platform, via its status page.
 
 **Verification.** `railway deployment list` shows the new deployment as successful and active; `/api/readyz` returns `200` with `build` equal to the new commit; the new deployment's log contains `listening`; `seaql_migrations` matches the new commit's migration list. Then add whatever surprised you to this entry.
 
 ## Exercise: can this image boot against this database?
 
-Check 3 and the worked ADR both rest on the migrator's comparison. Implement it.
+Check 3, the runbook's error table and the worked ADR all rest on one comparison. Implement the version that ships in `migrate.rs`.
 
 ```exercise
 id: migration-boot-check
 title: Can this image boot against this database?
 prompt: |
-  Model sea-orm-migration 2.0.3's check at boot. `applied` lists the versions
-  recorded in the database's `seaql_migrations` table (any order). `image`
-  lists the migrations compiled into the binary, in the order it applies them.
+  Model the boot decision in Ascend's `crates/api/src/migrate.rs`. `applied`
+  lists the versions recorded in the database's `seaql_migrations` table (any
+  order). `image` lists the migrations compiled into the binary, in the order
+  it applies them.
 
-  - `missing`: versions in `applied` that are not in `image`, sorted
-    ascending (the library's own message lists them in no fixed order).
-    If any exist, the binary refuses to boot and applies nothing.
-  - Otherwise it boots and applies every migration in `image` that is not in
-    `applied`, in `image` order, even if it sorts before migrations already
-    applied.
+  - `unknown`: versions in `applied` that are not in `image`, sorted ascending.
+  - `pending`: migrations in `image` that are not in `applied`, in `image`
+    order, even one that sorts before migrations already applied.
 
-  Return `{"boots": bool, "missing": [...], "will_apply": [...]}`.
+  The plan is `"up_to_date"` when both are empty, `"apply"` when only
+  `pending` is non-empty, `"schema_ahead"` when only `unknown` is non-empty
+  (an older build on a newer schema: it boots without migrating), and
+  `"diverged"` when both are non-empty (it refuses to boot).
+
+  Return `{"plan": ..., "boots": bool, "unknown": [...], "will_apply": [...]}`,
+  where `will_apply` is `pending` when the plan is `"apply"` and empty
+  otherwise.
 languages: [python, javascript]
 entry: migration_check
 starter:
   python: |
     def migration_check(applied, image):
         # your code here
-        return {"boots": True, "missing": [], "will_apply": []}
+        return {"plan": "up_to_date", "boots": True, "unknown": [], "will_apply": []}
   javascript: |
     function migration_check(applied, image) {
       // your code here
-      return { boots: true, missing: [], will_apply: [] };
+      return { plan: "up_to_date", boots: true, unknown: [], will_apply: [] };
     }
 tests:
   - args: [["m0001_identity", "m0002_learning", "m0003_ai"], ["m0001_identity", "m0002_learning", "m0003_ai"]]
-    expected: {"boots": true, "missing": [], "will_apply": []}
+    expected: {"plan": "up_to_date", "boots": true, "unknown": [], "will_apply": []}
     label: up to date
   - args: [["m0001_identity", "m0002_learning"], ["m0001_identity", "m0002_learning", "m0003_ai"]]
-    expected: {"boots": true, "missing": [], "will_apply": ["m0003_ai"]}
+    expected: {"plan": "apply", "boots": true, "unknown": [], "will_apply": ["m0003_ai"]}
     label: a release with a new migration
   - args: [["m0006_ai_usage_cache_tokens", "m0007_integrity", "m0008_learner_notes"], ["m0006_ai_usage_cache_tokens", "m0007_integrity"]]
-    expected: {"boots": false, "missing": ["m0008_learner_notes"], "will_apply": []}
+    expected: {"plan": "schema_ahead", "boots": true, "unknown": ["m0008_learner_notes"], "will_apply": []}
     label: rolling back across a migration
   - args: [[], ["m0001_identity", "m0002_learning"]]
-    expected: {"boots": true, "missing": [], "will_apply": ["m0001_identity", "m0002_learning"]}
+    expected: {"plan": "apply", "boots": true, "unknown": [], "will_apply": ["m0001_identity", "m0002_learning"]}
     label: empty database
   - args: [["m0001_a", "m0002_b", "m0004_d"], ["m0001_a", "m0002_b", "m0003_c", "m0004_d"]]
-    expected: {"boots": true, "missing": [], "will_apply": ["m0003_c"]}
+    expected: {"plan": "apply", "boots": true, "unknown": [], "will_apply": ["m0003_c"]}
     hidden: true
     label: an out-of-order migration is applied, not refused
   - args: [["m0009_b", "m0001_a", "m0008_c"], ["m0001_a", "m0002_new"]]
-    expected: {"boots": false, "missing": ["m0008_c", "m0009_b"], "will_apply": []}
+    expected: {"plan": "diverged", "boots": false, "unknown": ["m0008_c", "m0009_b"], "will_apply": []}
     hidden: true
-    label: several missing, sorted; nothing applied
+    label: two histories; nothing applied
+  - args: [["m0009_b", "m0001_a", "m0008_c"], ["m0001_a"]]
+    expected: {"plan": "schema_ahead", "boots": true, "unknown": ["m0008_c", "m0009_b"], "will_apply": []}
+    hidden: true
+    label: several unknown, sorted
   - args: [[], ["m0002_b", "m0001_a"]]
-    expected: {"boots": true, "missing": [], "will_apply": ["m0002_b", "m0001_a"]}
+    expected: {"plan": "apply", "boots": true, "unknown": [], "will_apply": ["m0002_b", "m0001_a"]}
     hidden: true
     label: image order, not sorted order
 hints:
   - "Two set differences: database minus image, and image minus database."
-  - "Decide boots from the first difference before computing what to apply."
-  - "Walk `image` in order to build `will_apply`, so the binary's order is kept."
+  - "The pair (unknown is empty, pending is empty) decides the plan; only diverged refuses to boot."
+  - "Walk `image` in order to build the pending list, so the binary's order is kept."
 ```
-
-## Writing that gets read
-
-- **Lead with the conclusion.** The first sentence of a section should be the answer.
-- **Be concrete.** "Sessions expire after `SESSION_TTL_DAYS` (default 30)" beats "sessions have a configurable lifetime".
-- **Date it and give it a status.** Readers need to know whether a document describes the present or last year's plan.
-- **Delete stale documents.** A wrong document is worse than none, because it is trusted.
-- **Keep diagrams as code.** Mermaid diagrams live in Markdown and diff in review.
-- **Write for the reader who was not in the room.** Define the acronym, link the ticket, name the constraint everyone knew.
-
-AI tools draft reference documentation and ADR skeletons well; they cannot know the alternatives you rejected in a hallway conversation. [AI in design and review](/learn/ai-assisted-engineering/senior-engineering-with-ai/ai-in-design-and-review) covers using them without outsourcing the judgement.
 
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| An ADR describes limits the code no longer has (ADR 0004 and the input-token budget) | The code changed in a pull request that never touched the ADR | A pull-request template question; review `docs/adr` alongside the code it governs |
-| A documented command is missing from `make help` | The generator's pattern excludes digits, so `e2e` never matches | Widen the pattern; a CI check that counts `##` targets against the menu |
+| An ADR describes limits the code no longer has (ADR 0004 and the input-token budget, until `8f82820`) | The code changed in a pull request that never touched the ADR | A pull-request template question; review `docs/adr` alongside the code it governs |
+| A documented command is missing from `make help` | The generator's pattern excluded digits, so `e2e` never matched (this Makefile until `8f82820`) | Widen the pattern; a CI check that counts `##` targets against the menu |
 | On-call reads "check the database is healthy" and stalls | The step has no command and no expected output | Exact commands with healthy and unhealthy output |
 | The runbook's log check shows a healthy boot for a failed deploy | `railway logs` defaults to the last successful deployment | Pass the failed deployment's id |
-| A rollback deployment never turns healthy | The image is older than the schema; the runbook said "roll back" | Name fix-forward as the mitigation when a migration shipped |
+| A rollback deployment never turns healthy | The migration tool refuses a schema ahead of the image (sea-orm-migration's own check; Ascend's boot until `8f82820`) | Boot that starts without migrating when the schema is only ahead; keep fix-forward for diverged histories |
 | The README's first command fails for every new hire | Nothing runs the documented commands | CI invokes the same `make` targets the README lists |
 | A settled decision is reopened every quarter | No "alternatives considered", so nobody knows why the obvious option lost | Record rejected options with the reason |
 | A broken intra-doc link ships | CI never runs `cargo doc` | `RUSTDOCFLAGS="-D warnings" cargo doc --no-deps` in CI |
@@ -449,7 +460,7 @@ AI tools draft reference documentation and ADR skeletons well; they cannot know 
 
 ## Interviewer follow-ups
 
-**"Should migrations run at boot?"** Model answer: it depends on forces you can name: whether an older image must boot against a newer schema (sea-orm-migration refuses to), whether replicas boot concurrently (it takes no lock), and how long migrations run against the health window. Then state the hazard: a failed release can leave the serving version unable to restart. Common wrong answer: "never at boot, it's an anti-pattern", without the forces that make it fine for one replica with sub-second migrations.
+**"Should migrations run at boot?"** Model answer: it depends on forces you can name: whether an older image must boot against a newer schema (sea-orm-migration's own check refuses to, which is why Ascend's `migrate.rs` plans around it), whether replicas boot concurrently (the library takes no lock, so Ascend takes an advisory lock), and how long migrations run against the health window, the one force boot-time migration still loses. Then state the hazard the facts exposed: without that planning, a failed release leaves the serving version unable to restart. Common wrong answer: "never at boot, it's an anti-pattern", without the forces that make it fine for one replica with sub-second migrations.
 
 **"An accepted ADR turns out to be wrong. What do you do?"** Model answer: write a superseding ADR and mark the old one superseded, so both reasonings survive; allow appended clarifications only if the team's written policy says so, and note them as amendments. Common wrong answer: edit the decision in place, which erases why it was once right.
 
@@ -491,11 +502,11 @@ AI tools draft reference documentation and ADR skeletons well; they cannot know 
   explanation: >-
     ADRs are a history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history, and a code comment leaves the ADR log asserting something false.
 - q: >-
-    A release applies migration m0008 and then fails its health check, so Railway keeps the previous deployment serving. With sea-orm-migration 2.0.3 migrating at boot, what risk remains?
-  options: ["Railway retries the new deployment until the health check eventually passes", "The old version corrupts data, because it writes rows in the old schema format", "The migration is rolled back when the deploy fails, which takes a table lock", "The old process cannot restart, because its migrator refuses the unknown m0008"]
+    A release applies migration m0008, which only adds a nullable column, and then fails its health check, so Railway keeps the previous deployment serving. An hour later that old process restarts. Since commit 8f82820, what happens?
+  options: ["It runs m0008's down step so the schema matches its own again", "It refuses to boot, because its migrator does not know m0008", "It waits on the migration lock until the failed release is removed", "It plans SchemaAhead, logs a warning and serves as before"]
   answer: 3
   explanation: >-
-    The migration committed before the health check failed, so the database records m0008. The old binary is still serving, but on its next restart its migrator finds an applied migration it does not know and exits, taking the service down with no deploy in progress. Nothing rolls the migration back, and an expand-only change leaves the old code able to read and write.
+    migrate.rs finds a migration it does not know and none of its own pending, so it starts without migrating, and an expand-only change leaves the old code able to read and write. Before the commit, sea-orm-migration's own check refused the unknown m0008, so the restart took the service down with no deploy in progress; that hazard is what the worked ADR's facts exposed. Nothing runs down steps automatically, and the advisory lock is held only while a boot is migrating.
 - q: >-
     A runbook step says: check whether the database is healthy. What is the main problem?
   options: ["Runbooks should leave databases to the DBA team and cover only the application", "It is not actionable: give the exact command and what healthy output looks like", "It is too short; runbook steps should explain the database architecture first", "It belongs in an ADR, because database health is an architectural decision"]
@@ -503,11 +514,11 @@ AI tools draft reference documentation and ADR skeletons well; they cannot know 
   explanation: >-
     On-call readers need copy-pasteable checks with expected results, such as calling /api/readyz and reading the database field, which is false both when Postgres is down and when the pool stayed busy for the 5-second acquire timeout. More background or a different document does not fix a step nobody can execute.
 - q: >-
-    The Makefile has 12 targets with a ## description, but make help prints only 11. Why?
-  options: ["Make hides every target that also appears in the .PHONY declaration", "Its grep pattern allows no digits in a target name, so e2e never matches", "Its awk script drops any target whose recipe spans more than one line", "Targets that have prerequisites are filtered out by the grep pattern"]
+    Before commit 8f82820, the Makefile had 12 targets with a ## description, but make help printed only 11. Why?
+  options: ["Its awk script dropped any target whose recipe spanned several lines", "Its grep pattern allowed no digits in a target name, so e2e never matched", "Targets with prerequisites were filtered out by the grep pattern", "Make hid every target that also appeared in the .PHONY declaration"]
   answer: 1
   explanation: >-
-    The pattern is ^[a-zA-Z_-]+: followed by ## somewhere, and e2e contains a digit. Prerequisites and multi-line recipes are irrelevant: run: db build still matches, and the .PHONY line only fails to match because it starts with a dot. Widening the class to include 0-9 prints all 12, and a CI check comparing the counts would have caught it.
+    The pattern was ^[a-zA-Z_-]+: followed by ## somewhere, and e2e contains a digit. Prerequisites and multi-line recipes are irrelevant: run: db build still matches, and the .PHONY line only fails to match because it starts with a dot. The commit widened the class to include 0-9, which prints all 12, and a CI check comparing the counts would have caught it.
 - q: >-
     A README's setup section has not been tested for a year. What is the most reliable way to keep it correct?
   options: ["Add a banner warning readers that the steps may be out of date", "Ask each new hire to fix whatever breaks during their first week", "Move the setup steps to a wiki where anyone can edit them", "Have CI run the same setup and test commands the README lists"]

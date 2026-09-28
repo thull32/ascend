@@ -207,6 +207,16 @@ async fn resolve(parts: &mut Parts, state: &AppState) -> Result<Option<User>, Ap
 
 **What it costs.** Authentication is opt-in per handler. A new mutating endpoint that forgets `CurrentUser` is public, and nothing but review and tests catches it; a `route_layer` that requires a session for a whole group of routes would make the safe choice the default. And because middleware runs before extractors, the rate limiter cannot ask who the user is. For a long time that meant every limiter was keyed by IP. The AI limiter now sidesteps the problem without authenticating anyone: it keys on a 16-byte SHA-256 digest of the session cookie, falling back to the IP when there is no cookie. That is safe precisely because of the order. A forged cookie earns a fresh bucket, but only for a request the `CurrentUser` extractor then rejects with 401 before any model is called, and it still pays the per-IP general bucket on the way in.
 
+### Where authentication can run
+
+| Option | Session queries on public reads | Safe by default for a new route | Limiter can key by user | Cost |
+|---|---|---|---|---|
+| Middleware on all of `/api` | One per request, including lessons and search | Yes | Yes, it runs first | Postgres on the hottest path |
+| Lazy extractor (Ascend) | None | No: a handler without `CurrentUser` is public | No; a cookie digest stands in | Review and tests must catch a forgotten extractor |
+| `route_layer` requiring a session per router group | None outside the group | Yes, inside the group | Only inside the group | Routers split by audience, public and private |
+
+The third row is the one to move to as the surface grows: it keeps the public paths free and makes the private default safe. If the layer stores its result in the same `MaybeUser` extension that `resolve` caches in, a handler that also names `CurrentUser` does not pay for a second lookup.
+
 ## Thin routes
 
 The progress router, `crates/api/src/routes/progress.rs`, is the whole HTTP surface for progress and quizzes:
@@ -348,7 +358,36 @@ At 100x the order stays and the parameters change:
 
 - **Per-route deadlines.** A single 240 s timeout is sized for the slowest AI endpoint and applied to everything. A stuck query on an ordinary route can hold one of the pool's 20 connections for four minutes; twenty of those and every route waits the pool's 5 s acquire timeout and fails. Give CRUD routes deadlines of a few seconds, set a Postgres `statement_timeout`, and keep long deadlines for the AI routes only.
 - **Load shedding.** A concurrency limit in front of the database-backed routes fails fast under overload instead of queueing until the timeout.
-- **Traces, not just IDs.** Replace the request ID with W3C trace context and export spans (OpenTelemetry), so a slow request shows which of its queries was slow ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). The sanitiser already has the right shape for this: accept a propagated identifier only when it is well formed, generate one otherwise.
+- **Traces as well as IDs.** Replace the request ID with W3C trace context and export spans (OpenTelemetry), so a slow request shows which of its queries was slow ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). The sanitiser already has the right shape for this: accept a propagated identifier only when it is well formed, generate one otherwise.
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| `SetRequestId` moved inside `Trace` | Every log line reads `request_id=-`; users quote ids that match nothing | `make_span_with` reads the header before the layer that sets it has run | Id layers outermost; `request_ids_are_server_controlled` pins the sanitiser, not the order, so add an assertion on a log line |
+| A new mutating endpoint without `CurrentUser` | Anonymous writes succeed; rows with no owner, or a 500 when the service expects one | An integration test that calls every non-GET route without a cookie and expects 401 | A `route_layer` that requires a session for the private router group |
+| One slow query with no `statement_timeout` (none is set today) | Every route, including health checks, fails after exactly 5 s | Pool acquire timeouts in the logs; `pg_stat_activity` shows 20 busy connections running the same statement | `statement_timeout` for the app role, per-route deadlines of a few seconds, 240 s only on AI routes |
+| The global timeout fires | A 503 with an empty body and no CSP or HSTS; the frontend shows its generic `http_error` | The `Trace` line shows status 503 and a latency of 240,000 ms | Produce the timeout inside the security-headers layer, with the API's `{code, message}` body |
+| A database error returned verbatim | Constraint and column names in a response body | `internal_details_are_not_returned` fails, or a scanner finds SQL text in a 500 | One mapping function; `Database` and `Internal` log the detail and say "internal error" |
+
+## Interviewer follow-ups
+
+**"Why does the general rate limiter sit outside the CSRF check?"** Model answer: every rejection should cost the attacker a token. Outside CSRF, a flood of cross-site POSTs is throttled like any other traffic; inside it, rejected requests would be free, and the CSRF layer would do work for traffic the limiter was about to drop. Common wrong answer: "order does not matter, both reject bad requests", which ignores who pays for a rejection.
+
+**"You resolve sessions lazily. How can the AI limiter be per user if middleware runs before extractors?"** Model answer: it keys on the first 16 bytes of a SHA-256 of the session cookie, falling back to the IP. A forged cookie gets a fresh bucket, but the `CurrentUser` extractor then answers 401 before any model call, and the request has already spent a token from the per-IP general bucket, so forging buys nothing. Common wrong answer: "look the user up in the middleware", which puts a query on every request the limiter sees.
+
+**"A learner reports a 503 after exactly four minutes on quiz generation. Walk me through it."** Model answer: 240 s is the outer `TimeoutLayer`; the AI client's own timeout is 180 s and would have produced a 502 `ai_upstream` first, so the model call was not the slow part. Find the request id's log line, then look at what else the handler awaited: a pool acquire is bounded at 5 s, a statement is not. Common wrong answer: "raise the timeout", which hides the unbounded wait and holds a pool connection longer.
+
+**"Why does malformed JSON get 400 while a missing field gets 422?"** Model answer: they are different client bugs. 400 says the bytes are not JSON, a serialisation fault; 422 says valid JSON has the wrong fields, a form or contract fault. `JsonError` keeps the rejection's own status (400, 413, 415) and uses 422 only for shape errors, and `malformed_json_uses_the_api_error_shape` asserts it. Common wrong answer: "any 4xx will do", which leaves a client unable to tell its serialiser from its validation.
+
+## What mid-level engineers get wrong
+
+- **Reading a `.layer()` chain top-down.** The last call is the outermost layer; reading it the other way puts the timeout in the wrong place in every argument that follows.
+- **Authenticating in middleware for every request.** It adds a database query to reads that were designed to come from memory.
+- **One global deadline.** A 240 s limit sized for AI calls lets a stuck CRUD query hold one of 20 pooled connections for four minutes.
+- **Using 408 for a server-side deadline.** It invites the client to repeat a POST.
+- **Formatting a database error into the response.** It leaks schema detail to anyone who can trigger it.
+- **Trusting the first `X-Forwarded-For` entry.** The client wrote it; only a header the proxy sets and overwrites, such as Railway's `X-Real-IP`, identifies the connection.
 
 ## Senior signals
 

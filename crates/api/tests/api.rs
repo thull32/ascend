@@ -837,3 +837,40 @@ async fn grading_freezes_the_transcript_and_a_failed_grade_reopens_the_interview
     assert_eq!(done.status, "completed");
     assert_eq!(InterviewService::transcript(&done).len(), 1);
 }
+
+#[tokio::test]
+async fn an_abandoned_solo_interview_releases_the_coach_and_a_dead_grade_can_be_retried() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let interview = app.state.interviews.start(id, solo_coding()).await.unwrap();
+    assert!(app.state.interviews.has_active_solo(id).await.unwrap());
+
+    // A tab closed mid-interview must not lock the coach forever: past the
+    // time box (30 minutes here) plus the 15-minute grace, the lock lifts.
+    let backdate = |sql: String| app.db.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql));
+    backdate(format!("UPDATE interviews SET started_at = now() - interval '44 minutes' WHERE id = '{}'", interview.id))
+        .await
+        .unwrap();
+    assert!(app.state.interviews.has_active_solo(id).await.unwrap(), "still inside the grace period");
+    backdate(format!("UPDATE interviews SET started_at = now() - interval '46 minutes' WHERE id = '{}'", interview.id))
+        .await
+        .unwrap();
+    assert!(!app.state.interviews.has_active_solo(id).await.unwrap(), "past time box plus grace");
+
+    // A grade whose request died (deploy, crash) is stuck in `grading`. A
+    // second "finish" is refused while it could still be running…
+    let grading = app.state.interviews.begin_grading(interview.clone(), None).await.unwrap();
+    assert!(matches!(
+        app.state.interviews.begin_grading(grading.clone(), None).await,
+        Err(ascend_core::AppError::Conflict(_))
+    ));
+    // …and accepted once it is older than five minutes.
+    backdate(format!("UPDATE interviews SET updated_at = now() - interval '6 minutes' WHERE id = '{}'", interview.id))
+        .await
+        .unwrap();
+    let retried = app.state.interviews.begin_grading(grading, None).await.unwrap();
+    assert_eq!(retried.status, "grading");
+    let done = app.state.interviews.finish(retried, json!({"summary": "ok"}), 60, "completed").await.unwrap();
+    assert_eq!(done.status, "completed");
+}

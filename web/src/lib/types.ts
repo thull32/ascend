@@ -315,6 +315,8 @@ export interface Interview {
   score: number | null;
   started_at: string;
   ended_at: string | null;
+  /** Last change; while grading, when grading began. */
+  updated_at: string;
 }
 
 export interface ApiErrorBody {

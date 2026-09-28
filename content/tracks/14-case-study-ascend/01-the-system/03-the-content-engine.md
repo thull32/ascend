@@ -6,7 +6,7 @@ minutes: 43
 difficulty: hard
 tags: [case-study, content-as-code, caching, etag, validation, search, rust]
 ---
-Ascend's curriculum is about 9 MB of Markdown: hundreds of lessons and 180 practice problems, each with YAML front matter and embedded quizzes, exercises and visualisations. Whatever system serves it has to satisfy five requirements at once. Content must be *reviewable* like code, *validated* before it reaches a learner (a broken quiz is a bug report), *fast* to serve (it is the hottest read path), *consistent* with the code that renders it, and it must not leak quiz answers to anyone who opens the network tab.
+Ascend's curriculum is about 14 MB of Markdown at the time of writing: nearly 350 lessons and 180 practice problems, each with YAML front matter and embedded quizzes, exercises and visualisations. Whatever system serves it has to satisfy five requirements at once. Content must be *reviewable* like code, *validated* before it reaches a learner (a broken quiz is a bug report), *fast* to serve (it is the hottest read path), *consistent* with the code that renders it, and it must not leak quiz answers to anyone who opens the network tab.
 
 Most teams reach for a CMS or a content table in the database. Ascend compiles the Markdown into the executable, parses it once at boot into an immutable graph, and serves every lesson from memory. This lesson reads that engine (`crates/core/src/content`), the choices behind it, and the places where it is weaker than it looks.
 
@@ -29,6 +29,14 @@ pub enum ContentSource {
 **The rejected alternative** is a CMS or a content table (ADR 0001). A CMS lets non-developers edit, but content then needs its own migrations, backups and synchronisation with the code that renders it, and edits bypass review and CI. **The failure modes this prevents** are specific: "the lesson references a problem that does not exist in production", "the renderer expects a field the content service has not deployed yet", and "someone fixed a typo and broke a quiz". With content in the same commit as the code, a reviewed pull request is the only way to change either, and the same build validates both.
 
 **What it costs.** Every content change is a deploy, about a minute with cached dependency layers. A typo fix cannot be hot-patched. The binary carries the raw Markdown and the process holds the parsed curriculum in memory (tens of megabytes at most, which is cheap). And editing requires Git, which is fine while the authors are engineers and becomes the first thing to revisit if they stop being.
+
+| | Compiled into the binary (Ascend) | Content table in Postgres | Headless CMS |
+|---|---|---|---|
+| Review and CI | Every change is a reviewed pull request, validated by the build | Needs its own approval workflow | Editor UI; validation only if you build it |
+| Time to fix a typo | A deploy | Seconds | Seconds |
+| Consistency with the renderer | Atomic: one artifact | Schema and data migrate separately | Separate API versions drift |
+| Cost of a read | Hash lookup in memory | A query, or a cache in front of it | A network call, or a cache |
+| Who can edit | People who use Git | Admins with a tool | Anyone with access |
 
 ## The pipeline, once at boot
 
@@ -98,7 +106,7 @@ Why accept it? The failure modes are loud. A mis-extracted block almost always f
 
 ## Heading anchors: two slugifiers, then one algorithm
 
-The table of contents is computed server-side: `headings` scans the lesson body for `##` and `###` lines outside code fences and gives each an id, and the lesson page renders them as `href="#id"` links. The browser gives the rendered headings their ids independently, with `rehype-slug` in `web/src/components/Markdown.tsx`. Two components derive the same value, and until the latest fix commit they derived it differently.
+The table of contents is computed server-side: `headings` scans the lesson body for `##` and `###` lines outside code fences and gives each an id, and the lesson page renders them as `href="#id"` links. The browser gives the rendered headings their ids independently, with `rehype-slug` in `web/src/components/Markdown.tsx`. Two components derive the same value, and until fix commit `7154e9f` they derived it differently.
 
 ### Before: a slugifier that looked right
 
@@ -170,15 +178,15 @@ pub fn slugify(text: &str) -> String {
 
 Three details make it exact rather than close. First, the input is the *rendered* text: `plain_heading_text` strips link targets, emphasis markers, backticks and `$`, so a heading written as ``The `Vec` type`` is slugged from "The Vec type", which is what the browser sees. Second, de-duplication counts headings at every level, `#` through `######`, because `rehype-slug` numbers every heading on the page although the TOC lists only `##` and `###`; a unit test pins a document where an `h4` named Summary pushes the next `h3` to `summary-2`. Third, the `while` loop in `slug` handles a trap: in a document with headings `a`, `a-1` and `a`, the third must become `a-2`, because `a-1` is already a real heading.
 
-Then the fix tested the seam, not just the function. `heading_ids_match_github_slugger` pins the cases where the old algorithm disagreed, and the Playwright crawl (`web/e2e/crawl.spec.ts`) now opens every lesson in a real browser and checks that every table-of-contents link lands on an element with that id. The crawl takes long enough that it runs on demand (`CRAWL=1`) rather than on every push, so between crawls the unit tests are the guard.
+Then the fix tested the seam as well as the function. `heading_ids_match_github_slugger` pins the cases where the old algorithm disagreed, and the Playwright crawl (`web/e2e/crawl.spec.ts`) now opens every lesson in a real browser and checks that every table-of-contents link lands on an element with that id. The crawl takes long enough that it runs on demand (`CRAWL=1`) rather than on every push, so between crawls the unit tests are the guard.
 
 ### And after that: the port that was only nearly exact
 
 The seam test earned its keep at once. The first port kept a character when Rust's `char::is_alphanumeric` said so, and translated github-slugger's rule from its README ("letters and digits") rather than from its code. The next full crawl, 597 pages, found three links that still went nowhere, in headings such as "Pivot choice and the O(n²) adversary" and "Why the height is at most 2 log₂(n + 1)". `is_alphanumeric` is true for `²` and `₂`, because Unicode classes them as numbers (category No, "other number"). github-slugger's generated regex keeps only the *Alphabetic* property, combining marks, *decimal* digits (Nd) and connector punctuation, so it drops them, along with `½` and emoji. The backend wrote `on²`, the browser wrote `on`.
 
-The fix states the rule in the same vocabulary as the reference, Unicode properties, as one character class in the `regex` crate (above). The combining-mark range special case disappeared, because `\p{M}` covers every mark, not just U+0300 to U+036F. And the test changed kind: `slugs_match_github_slugger_on_unicode_edge_cases` holds fifteen inputs whose expected ids were produced by running github-slugger 2.0.0 itself, from the project's `node_modules`, over superscripts, subscripts, fractions, emoji, Arabic-Indic and full-width digits, `µ`, `ª`, `‿`, Roman numerals and tabs. When a component must agree with a reference implementation, generate the expected values from the reference (an *oracle*), because hand-written expectations encode the same misreading as the code.
+The fix states the rule in the same vocabulary as the reference, Unicode properties, as one character class in the `regex` crate (above). The combining-mark range special case disappeared, because `\p{M}` covers every mark, not only U+0300 to U+036F. And the test changed kind: `slugs_match_github_slugger_on_unicode_edge_cases` holds fifteen inputs whose expected ids were produced by running github-slugger 2.0.0 itself, from the project's `node_modules`, over superscripts, subscripts, fractions, emoji, Arabic-Indic and full-width digits, `µ`, `ª`, `‿`, Roman numerals and tabs. When a component must agree with a reference implementation, generate the expected values from the reference (an *oracle*), because hand-written expectations encode the same misreading as the code.
 
-**Why port rather than derive the id once?** An earlier draft of this lesson argued for removing the duplication: send ids from the API and have the renderer use them. That is cleaner on paper and harder in practice. `rehype-slug` ids every heading wherever Markdown is rendered (problem statements, editorials and module intros too), and making it use the API's ids means a custom plugin that matches rendered headings to TOC entries by position, which must agree with the backend's line scanner about what counts as a heading. That is the same duplicated derivation in a new place. Porting a small, stable, well-specified algorithm and checking agreement end to end in a real browser removes the drift where it bites. The general rule survives: when two components must agree on a derived value, either derive it once or test the agreement where both of them run.
+**Why port rather than derive the id once?** Sending ids from the API is cleaner on paper. But `rehype-slug` ids every heading wherever Markdown is rendered (problem statements, editorials, module intros), and making it use the API's ids needs a plugin that matches rendered headings to TOC entries by position, which must agree with the backend's line scanner about what counts as a heading: the same duplicated derivation in a new place. Porting a small, stable, well-specified algorithm and checking agreement in a real browser removes the drift where it bites. The rule: when two components must agree on a derived value, derive it once or test the agreement where both run.
 
 ```exercise
 id: heading-slugify
@@ -257,16 +265,16 @@ In strict mode the loader refuses to produce a curriculum if any file has front 
 
 That list is longer than it was. When this track was first drafted, three kinds of mistake loaded without complaint and reached learners, and each is a small case study in silent failure:
 
-- **Unknown keys.** No front-matter struct used `#[serde(deny_unknown_fields)]`, so a lesson with `problem:` instead of `problems:` simply had no practice problems, and a quiz question with `explaination:` lost its explanation, because the real field has a default. serde ignores unknown keys unless told otherwise, and a typo in a key is indistinguishable from a field that was meant to be absent. Every front-matter, quiz, exercise and test-case struct now denies unknown fields, and the same typo fails the build with the file name.
+- **Unknown keys.** No front-matter struct used `#[serde(deny_unknown_fields)]`, so a lesson with `problem:` instead of `problems:` had no practice problems, and a quiz question with `explaination:` lost its explanation, because the real field has a default. serde ignores unknown keys unless told otherwise, and a typo in a key is indistinguishable from a field that was meant to be absent. Every front-matter, quiz, exercise and test-case struct now denies unknown fields, and the same typo fails the build with the file name.
 - **Quiz answer indices.** `answer: 7` on a four-option question deserialised perfectly (it is a valid `usize`) and marked every learner wrong. `validate_quiz` now bounds-checks it, and also rejects a question with fewer than two options or with two options that are equal after trimming.
 - **Exercise starters.** Exercises declare Python and JavaScript unless they say otherwise, and nothing checked that each declared language had starter code. `validate_exercise` now requires one per language, which is why an exercise that only makes sense in one language must say `languages: [python]`.
 
-The fix is the same shape each time: the type or the validator encodes what "well formed" means, so a mistake becomes an error with a file name at build time instead of wrong behaviour on a phone. What is still *not* validated is just as instructive:
+The fix is the same shape each time: the type or the validator encodes what "well formed" means, so a mistake becomes an error with a file name at build time instead of wrong behaviour on a phone. What is still *not* validated is as instructive:
 
 - **Internal links.** A `/learn/...` link to a lesson that does not exist is not checked by the loader, and the crawl checks table-of-contents anchors and render errors, not links in prose.
 - **Lesson exercises.** Problems execute a reference solution; lesson exercises have no reference solution to execute, so a wrong `expected` value ships. The authoring brief asks authors to run one by hand, and nothing enforces it.
 
-Then there is the escape hatch. `CONTENT_LENIENT=1` downgrades reference errors to warnings and skips files that fail to parse, so several authors can write interdependent lessons concurrently. The Dockerfile declares `ARG CONTENT_LENIENT=0` with the comment "Keep 0 for releases"; Railway exposes service variables to Dockerfile `ARG`s at build time, and the booting process reads the same variable. Until recently `.railway/railway.ts` declared it with `preserve()`, meaning "keep whatever value is set in the dashboard", so a `1` left over from an authoring sprint would have quietly turned both the build gate and the boot check lenient. The infrastructure file now pins it, `CONTENT_LENIENT: "0"`, with a comment that a dangling cross-reference or malformed block fails the build. That moves the gate from someone's memory into reviewed configuration. It is still configuration rather than an invariant: the binary honours the flag in production if it is ever set some other way, and refusing to boot with `APP_ENV=production` and lenient mode together would make the mistake impossible rather than unlikely.
+Then there is the escape hatch. `CONTENT_LENIENT=1` downgrades reference errors to warnings and skips files that fail to parse, so several authors can write interdependent lessons concurrently. The Dockerfile declares `ARG CONTENT_LENIENT=0` ("Keep 0 for releases"); Railway exposes service variables to Dockerfile `ARG`s at build time, and the booting process reads the same variable. `.railway/railway.ts` once declared it with `preserve()` ("keep whatever the dashboard says"), so a `1` left over from an authoring sprint would have quietly made both the build gate and the boot check lenient. It now pins `CONTENT_LENIENT: "0"`, which moves the gate from memory into reviewed configuration. It is still configuration, not an invariant: `lenient()` is `CONTENT_LENIENT == "1"` wherever it is set, and refusing to boot with `APP_ENV=production` and lenient mode together would make the mistake impossible rather than unlikely.
 
 ## Versions and ETags
 
@@ -331,15 +339,27 @@ fn with_etag(state: &AppState, headers: &HeaderMap, body: impl Serialize) -> Res
 }
 ```
 
-The first visit to a lesson returns 200 with a 20-hex-character ETag. `max-age=0, must-revalidate` tells the browser it may keep the body but must ask before reusing it; on the next visit the browser sends `If-None-Match` on its own and gets a 304 with no body. Note the ordering inside the function: the 304 check happens *before* serialisation, so a revalidation skips JSON encoding and compression. `private` keeps shared caches out of it, which is conservative (these responses are identical for everyone). The integration test `content_etag_revalidates_and_names_the_build` asserts that the ETag is no longer the bare content version, and `/api/readyz` now reports the same `build` id, so you can see which build a replica is serving.
+The first visit to a lesson returns 200 with a 20-hex-character ETag. `max-age=0, must-revalidate` tells the browser it may keep the body but must ask before reusing it ([HTTP/1.1](/learn/networking/application-protocols/http-1-1) covers conditional requests); on the next visit the browser sends `If-None-Match` on its own and gets a 304 with no body. Note the ordering inside the function: the 304 check happens *before* serialisation, so a revalidation skips JSON encoding and compression. `private` keeps shared caches out of it, which is conservative (these responses are identical for everyone). The integration test `content_etag_revalidates_and_names_the_build` asserts that the ETag is no longer the bare content version, and `/api/readyz` now reports the same `build` id, so you can see which build a replica is serving.
+
+Trace one lesson across a deploy that changed code but no Markdown:
+
+| Step | Browser sends | Server does | Browser gets |
+|---|---|---|---|
+| 1 | `GET /api/lessons/...`, no validator | Serialises the lesson | 200, body, `ETag: "a1…"` (20 hex characters) |
+| 2 | Same URL, `If-None-Match: "a1…"` | Compares strings before serialising | 304, no body |
+| 3 | (deploy: new `RAILWAY_GIT_COMMIT_SHA`, so a new `BUILD_ID`) | `AppState::build` computes `"b7…"` once at boot | |
+| 4 | `If-None-Match: "a1…"` | Mismatch | 200, the new body with the new field, `ETag: "b7…"` |
+| 5 | A proxy rewrote it to `W/"b7…"` | Exact comparison fails | 200 with the full body, every time |
+
+Under the old content-only validator, step 3 left the ETag at `"a1…"` and step 4 answered 304: the returning learner kept the old body.
 
 Why this fix rather than the alternatives? Hashing each serialised body would always be exact, but it serialises every response to compute the validator, which throws away the cheap 304 path. A hand-bumped "schema version" constant is exact only as long as nobody forgets to bump it. The build id is automatic and errs in the safe direction. Its costs are worth stating:
 
 - **Over-invalidation, now per deploy.** Every deploy changes every content ETag, even one that only touched a log line, and the fingerprint still covers every `.md` under `content/`, including the authoring guide. Harmless at this scale; per-lesson hashes combined with the build id are the refinement.
 - **Local builds share one id.** Outside Railway the build id is `dev-` plus the crate version, the same for every build, so there only the content and the SPA shell move the validator. The failure the fix targets is a production one, so that is acceptable.
-- **Exact matching.** `If-None-Match` is compared as one exact string. A weak validator (`W/"…"`, which some proxies produce when they re-compress) or a list of ETags never matches, so the client silently gets full 200s. Correct, just slower.
+- **Exact matching.** `If-None-Match` is compared as one exact string. A weak validator (`W/"…"`, which some proxies produce when they re-compress) or a list of ETags never matches, so the client silently gets full 200s: correct, and slower.
 
-Static assets use the other classic strategy: Vite puts a content hash in every file name under `/assets/`, and those files are served `public, max-age=31536000, immutable`, while `index.html` is `no-cache`. New code means new URLs, so the long cache can never serve stale JavaScript to a page that loaded the new `index.html`.
+Static assets use the other classic strategy: Vite puts a content hash in every file name under `/assets/`, and those files are served `public, max-age=31536000, immutable`, while `index.html` is `no-cache`. New code means new URLs, so the long cache can never serve stale JavaScript to a page that loaded the new `index.html`. The reverse case, a page still running the *old* `index.html` that asks for a chunk the new build no longer has, now gets a 404 with `no-store` instead of `index.html` served as JavaScript, and the SPA reloads once (commit `8f82820`).
 
 ## Search without a search service
 
@@ -371,7 +391,7 @@ for t in tokenize(body).take(4000) {
 
 A query sums the weights of exact token matches and, for query terms of three or more characters, adds half the weight of every indexed token that *starts with* the term, so `dijk` finds `dijkstra`. Worked example: the Dijkstra lesson has `dijkstra` in its title (5), its slug (3), its tags (4) and twice in its description (2 each), a weight of 16, so the query `dijk` scores it 8 through the prefix path. A lesson that mentions Dijkstra twice in its body has a weight of 0.1 for that token and scores 0.05. Body text can never contribute more than about 1, however often a word appears.
 
-The prefix path is the part that does not scale. It iterates over the *entire vocabulary* for every query term, which is O(V) per term. With tens of thousands of distinct tokens that is well under a millisecond, and the handler truncates queries to 100 characters and results to 50, which bounds the worst case. A trie answers the same question in time proportional to the prefix length plus the number of matches:
+The prefix path is the part that does not scale. It iterates over the *entire vocabulary* for every query term, which is O(V) per term. With tens of thousands of distinct tokens that is well under a millisecond, and the handler truncates queries to 100 characters and results to 50, which bounds the worst case. A [trie](/learn/data-structures/tries-and-string-structures/tries) answers the same question in time proportional to the prefix length plus the number of matches:
 
 ```viz
 {"type": "trie", "algorithm": "prefix-autocomplete", "title": "Prefix search without scanning the vocabulary", "caption": "Walking to the node for the prefix touches four nodes; everything below it is a match. The index in search.rs instead compares the prefix against every token it knows.", "operations": [["insert", "dijkstra"], ["insert", "dfs"], ["insert", "divide"], ["insert", "dp"], ["insert", "diameter"], ["prefix", "dijk"], ["prefix", "di"]]}
@@ -385,6 +405,35 @@ The tokenizer has quirks worth knowing before a learner reports them: it splits 
 - **Per-lesson validators** that combine the lesson's content hash with the build identifier.
 - **Search** moves to a real engine as described above.
 - **Authoring at scale.** If content authors come to outnumber engineers, "every edit is a deploy" flips from feature to bottleneck. The next step keeps the good part (Git, review, the same validator) and loses the one-artifact guarantee: a content pipeline that validates and publishes versioned bundles to object storage, which the API loads and swaps atomically at runtime.
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| A misspelled front-matter or quiz key | Before the fix, a lesson with no practice problems or a question with no explanation, and no error | serde ignores unknown keys by default | `deny_unknown_fields` on every struct: now a build error with the file name |
+| Browser and backend slug a heading differently | Tapping a table-of-contents entry does nothing | The crawl reports a `toc-anchor` issue for that page | One algorithm, with expected values generated by github-slugger itself |
+| The validator ignores code changes | Returning learners miss a new field until the next content edit | DevTools shows a 304 for the lesson after a deploy | Build id and SPA shell in the ETag |
+| `CONTENT_LENIENT=1` reaches production | A lesson silently missing, or a link to a problem that does not exist | Boot log lines starting `warning: skipping` | Pinned to `"0"` in `railway.ts`; refuse lenient mode when `APP_ENV=production` |
+| A fence nested inside a longer fence | A documentation example extracted as a real quiz | Build error: more than one quiz block, or YAML that does not parse | Avoid the pattern today; a CommonMark event parser if it ever mis-parses silently |
+
+## Interviewer follow-ups
+
+**"Why compile the curriculum into the binary rather than use a CMS?"** Model answer: the content and the code that renders it change together, so one artifact makes them atomic, every edit is reviewed and validated by the same build, and the hottest read is a hash lookup with no database. The price is a deploy per edit and Git for authors; ADR 0001 names non-engineer authors as the condition that reopens it, and the next step would be validated bundles in object storage swapped at runtime. Common wrong answer: "a CMS is more flexible", with no account of drift or review.
+
+**"How do you guarantee quiz answers never reach the client before grading?"** Model answer: by construction and by test. The extractor emits a public projection with questions and options only, the full spec sits in a `#[serde(skip)]` field, grading happens server-side, and `lesson_payload_hides_quiz_answers` inspects the payload. The honest caveat: answers are revealed after the first graded attempt, and exercise tests, "hidden" ones included, are shipped to the browser that runs them. Common wrong answer: "the frontend does not display them", which the network tab defeats.
+
+**"Your ETag is a hash of the content. What is wrong with that?"** Model answer: a validator must cover everything the bytes depend on, and the response shape depends on code, so a code-only deploy returned 304 with a stale body; Ascend adds the build id and the SPA shell. Then name the costs: every deploy invalidates everything, and a weak `W/` validator from a proxy never matches the exact comparison. Common wrong answer: "hash the response body", which serialises every response and throws away the cheap 304 path.
+
+**"Search scans the whole vocabulary for every prefix query. When do you replace it?"** Model answer: when a measurement says so. With tens of thousands of distinct tokens a scan is well under a millisecond, and the handler caps queries at 100 characters and results at 50. Replace it when the corpus grows by orders of magnitude or relevance complaints arrive, with a trie for prefixes or tantivy for BM25 in-process, before reaching for a separate search service. Common wrong answer: "add Elasticsearch", a new stateful dependency for a problem nobody has measured.
+
+## What mid-level engineers get wrong
+
+- **Hand-writing the expected values for a port.** The first slugger port and its tests shared the same misreading of github-slugger; values generated by the reference found it.
+- **Trusting serde's defaults.** Without `deny_unknown_fields`, a typo in a key is indistinguishable from a field left out on purpose.
+- **Deriving a cache validator from the data alone.** The response also depends on the code that shapes it.
+- **Calling client-side tests "hidden".** They are undisplayed, not secret; anything the browser runs, the learner can read.
+- **Validating content at request time.** An error found by a learner's request is an incident; the same error found by the build is a red CI run with a file name.
+- **Leaving an escape hatch in configuration nobody reviews.** A lenient flag left in a dashboard turns off the one check that guards content.
 
 ## Senior signals
 
@@ -405,9 +454,9 @@ The tokenizer has quirks worth knowing before a learner reports them: it splits 
   explanation: >-
     The validator is a pure function of inputs compiled into the binary: the sorted content files, the build id and the embedded index.html. Any process from the same build derives the same value. Mixing in start time would do the opposite and invalidate every cache on each restart.
 - q: >-
-    Before the latest fixes, a deploy that added a field to the lesson JSON but changed no Markdown left returning browsers without the field. Why, and what closed the gap?
-  options: ["A lesson cache in Postgres went stale; clearing that table on every boot fixed it", "index.html was cached for a year, so the old SPA kept running; serving it no-cache fixed it", "The ETag hashed content only, so revalidation returned 304; adding the build id fixed it", "Railway kept serving the old container for an hour; gating on the readiness probe fixed it"]
-  answer: 2
+    Before commit 7154e9f, a deploy that added a field to the lesson JSON but changed no Markdown left returning browsers without the field. Why, and what closed the gap?
+  options: ["Railway kept serving the old container for an hour; gating on the readiness probe fixed it", "The ETag hashed content only, so revalidation returned 304; adding the build id fixed it", "A lesson cache in Postgres went stale; clearing that table on every boot fixed it", "index.html was cached for a year, so the old SPA kept running; serving it no-cache fixed it"]
+  answer: 1
   explanation: >-
     The browser revalidated correctly, but the validator it compared against did not change, because it was derived from content alone. A cache key must include everything the response depends on. index.html was already served no-cache, and there is no lesson cache in Postgres.
 - q: >-

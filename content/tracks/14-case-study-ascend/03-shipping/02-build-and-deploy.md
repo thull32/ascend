@@ -29,7 +29,7 @@ and so is the built frontend:
 static WEB_DIST: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../web/dist");
 ```
 
-The static handler serves files under `assets/` with `Cache-Control: public, max-age=31536000, immutable` (their names contain content hashes, so a new build means new names) and everything else, including `index.html` for client-side routes, with `no-cache`.
+The static handler serves files under `assets/` with `Cache-Control: public, max-age=31536000, immutable` (their names contain content hashes, so a new build means new names) and everything else, including `index.html` for client-side routes, with `no-cache`. One exception arrived with commit `8f82820`: a *missing* file under `assets/` is a 404 with `no-store`. Before it, a tab still running the previous build asked for a code-split chunk the new binary did not have, received `index.html`, and failed to parse HTML as JavaScript; now the 404 fires Vite's `vite:preloadError`, and `web/src/main.tsx` reloads the page once into the new build.
 
 ADR 0001 records the trade. The rejected alternatives were a CDN-hosted frontend plus a separate API (two pipelines, CORS, cross-origin cookies) and content in a database or CMS (migrations, backups, a sync story, and content that drifts from the code rendering it). What embedding buys is an entire failure class removed: there is no "the new binary is live but the content volume is stale" and no "the SPA expects an API field the server does not have yet", because the three always ship together. What it costs is that a typo fix in a lesson is a full deploy. With cached dependency layers that takes about a minute, which is acceptable while content changes arrive as reviewed pull requests.
 
@@ -39,7 +39,7 @@ Embedding has one trap worth knowing. `include_dir!` reads files at compile time
 
 ```text
 # Dockerfile (Rust stages)
-FROM lukemathwalker/cargo-chef:latest-rust-1.98-slim-trixie AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.98-slim-trixie@sha256:38dfdbf4fda95c516f873f33032e490baa988b75f7d83c7d12f788f770785b36 AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -69,24 +69,35 @@ RUN cargo build --release -p ascend-api \
  && CONTENT_LENIENT=${CONTENT_LENIENT} /ascend-api --check-content
 ```
 
-Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles just the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute".
+Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles only the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute".
 
-Two more details matter. The **web** stage (Node 24, `pnpm install --frozen-lockfile`, `pnpm build`) is independent and runs in parallel; its only output is `web/dist`, copied into the builder because `include_dir!` needs it at compile time. And the builder ends by running the freshly built binary with `--check-content`, which loads the embedded curriculum strictly and exits non-zero on any broken lesson. The build *is* the content gate; a broken lesson cannot become an image. The lines just above the build are newer: the commit SHA becomes `ASCEND_BUILD_ID`, compiled into the binary, reported by `/api/readyz` and mixed into every content ETag, so a deploy that changes a response's shape can never be answered with a browser's stale body ([The content engine](/learn/case-study-ascend/the-system/the-content-engine) has the before and after).
+Trace four commits through the stages to see which layers Docker reuses:
+
+| Commit changes | `planner` | `cook` (dependencies) | `web` | Workspace `cargo build` and `--check-content` |
+|---|---|---|---|---|
+| A lesson in `content/` | Cached: it never copies `content/` | Cached | Cached | Rebuilt: the `COPY content` layer changed |
+| A route handler in `crates/api` | Re-runs, and writes a byte-identical `recipe.json` | Cached: its input is the recipe's contents, which did not change | Cached | Rebuilt |
+| A React component | Cached | Cached | Rebuilt | Rebuilt: `web/dist` changed |
+| A new crate in `Cargo.toml` | New recipe | **Rebuilt: every dependency compiles again** | Cached | Rebuilt |
+
+The second row is the whole trick: the planner does re-run on every source change, but Docker keys the cook layer on the *content* of the file it copies, and the recipe describes only the dependency graph. Every row ends in the final build, because the commit SHA, declared after `cook`, is compiled in as the build id.
+
+Two more details matter. The **web** stage (Node 24, `pnpm install --frozen-lockfile`, `pnpm build`) is independent and runs in parallel; its only output is `web/dist`, copied into the builder because `include_dir!` needs it at compile time. And the builder ends by running the freshly built binary with `--check-content`, which loads the embedded curriculum strictly and exits non-zero on any broken lesson. The build *is* the content gate; a broken lesson cannot become an image. The lines above the build came later: the commit SHA becomes `ASCEND_BUILD_ID`, compiled into the binary, reported by `/api/readyz` and mixed into every content ETag, so a deploy that changes a response's shape can never be answered with a browser's stale body ([The content engine](/learn/case-study-ascend/the-system/the-content-engine) has the before and after).
 
 ```text
 # Dockerfile (runtime stage)
-FROM gcr.io/distroless/cc-debian13:nonroot AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
 COPY --from=builder /ascend-api /usr/local/bin/ascend-api
 ENV APP_ENV=production \
     HOST=0.0.0.0 \
     PORT=8080 \
-    RUST_LOG=info,ascend_api=info,ascend_core=info,tower_http=info,sea_orm=warn,sqlx=warn
+    RUST_LOG=info,ascend_api=info,ascend_core=info,tower_http=info,sea_orm=warn,sea_orm_migration=info,sqlx=warn
 EXPOSE 8080
 USER nonroot
 ENTRYPOINT ["/usr/local/bin/ascend-api"]
 ```
 
-The runtime image is distroless: glibc, CA certificates and not much else, no shell, no package manager, running as a non-root user. The final image is around 85 MB and its only moving part is the binary.
+The runtime image is distroless: glibc, CA certificates and not much else, no shell, no package manager, running as a non-root user. Its only moving part is the binary, which carries about 14 MB of Markdown and 8 MB of built SPA inside it (measured from `content/` and `web/dist` at the time of writing); the Dockerfile's header calls the result a ~85 MB image, against over a gigabyte for the builder. Every `FROM` is pinned by digest as well as tag, so a rebuild of the same commit pulls the same bases. `RUST_LOG` names `sea_orm_migration=info` explicitly because targets match by prefix, and `sea_orm=warn` alone silenced the lines that say which migrations ran at boot.
 
 | Runtime base | Why not |
 |---|---|
@@ -115,27 +126,30 @@ rust:
   env:
     TEST_DATABASE_URL: postgres://ascend:ascend@localhost:5432/ascend_test
   steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       with:
+        # Pinned by SHA, the action cannot read the toolchain from its ref.
+        toolchain: stable
         components: rustfmt, clippy
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
     # The server embeds web/dist at compile time; a placeholder is enough for Rust CI.
     - run: mkdir -p web/dist && echo '<!doctype html><title>ci</title>' > web/dist/index.html
     - run: cargo fmt --all -- --check
     - run: cargo clippy --workspace --all-targets
     - run: cargo test --workspace
+    # then: strict validate_content, and cargo audit against the RustSec database
 ```
 
-Five jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service, strict content validation), **problems** (every reference solution executed on Python 3.14), **web** (typecheck, Vitest, production build), **image** (the Dockerfile builds, with GitHub Actions layer caching, but the image is not pushed), and **e2e** (a debug build of the server started against a Postgres service, with the Playwright smoke suite run on desktop and phone profiles). A `concurrency` group cancels superseded runs on the same branch. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
+Five jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service, strict content validation), **problems** (every reference solution executed on Python 3.14), **web** (typecheck, Vitest, production build), **image** (the Dockerfile builds, with GitHub Actions layer caching, but the image is not pushed), and **e2e** (a debug build of the server started against a Postgres service, with the Playwright smoke suite run on desktop and phone profiles). A `concurrency` group cancels superseded runs on the same branch. Since `8f82820` the workflow runs with a read-only token (`permissions: contents: read`), pins every action to a commit SHA rather than a movable tag such as `v4`, audits Rust dependencies with `cargo audit` and web production dependencies with `pnpm audit --prod`, and `.github/dependabot.yml` proposes weekly, grouped updates to the pins, the base images, and the Cargo and npm dependencies. A tag is a pointer its owner can move; a SHA is the code you reviewed. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
 
 ### Before and after: a deploy path that did not wait for CI
 
-Now compare this pipeline with what actually deploys. Until the latest fixes, the Railway service was declared with `source: github("thull32/ascend", { checkSuites: false })`: Railway built and deployed every push to `main` without waiting for the GitHub checks. The deploy path's only gates were the ones inside the Dockerfile, so the code had to compile and the content had to validate, and nothing else. A failing API test, a failing Vitest suite (including the one that renders every visualisation), a clippy warning or a broken reference solution showed up as a red CI run *after* the change was already live. Five jobs of evidence, and none of them on the path to production.
+Now compare this pipeline with what actually deploys. Until commit `6ab2be2`, the Railway service was declared with `source: github("thull32/ascend", { checkSuites: false })`: Railway built and deployed every push to `main` without waiting for the GitHub checks. The deploy path's only gates were the ones inside the Dockerfile, so the code had to compile and the content had to validate, and nothing else. A failing API test, a failing Vitest suite (including the one that renders every visualisation), a clippy warning or a broken reference solution showed up as a red CI run *after* the change was already live. Five jobs of evidence, and none of them on the path to production.
 
 The fix is one word, `checkSuites: true`, and the comment above it now says what it means: "A push to main deploys once CI passes." That is the cheapest possible change with the largest effect, which is why it belongs at the top of any deploy review: find the gates that exist and check that they are actually *on the path*.
 
-One divergence remains. Railway builds its own image from the repository, so the image CI built is not the image that runs; the Dockerfile and lockfiles are the same, but base images are pulled at build time, and `cargo-chef:latest-rust-1.98-slim-trixie` is a moving tag. The e2e job, meanwhile, tests a debug binary built with `cargo build`, not either image. Neither is unusual for a one-person project, and both are what a design review should name. The cheap fix is to pin base images by digest. The 100x version is to build once in CI, run the smoke suite against that image, push it to a registry, and deploy that image by digest, so the artifact you tested is byte-for-byte the artifact you run.
+One divergence remains. Railway builds its own image from the repository, so the image CI built is not the image that runs. The inputs now match closely (the same Dockerfile, lockfiles, and base images pinned by digest), but the e2e job tests a debug binary built with `cargo build`, not either image. The 100x version is to build once in CI, run the smoke suite against that image, push it to a registry, and deploy that image by digest, so the artifact you tested is byte-for-byte the artifact you run.
 
 ## Infrastructure as code
 
@@ -161,6 +175,10 @@ const app = service("ascend", {
     ANTHROPIC_API_KEY: preserve(),
     // Strict: a dangling cross-reference or malformed block fails the build.
     CONTENT_LENIENT: "0",
+    // Time between SIGTERM and SIGKILL for a replaced deployment. The
+    // server's own shutdown is bounded to fit inside it: 25 s for open
+    // connections, then 30 s for replies still being persisted.
+    RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60",
   },
 });
 ```
@@ -176,14 +194,29 @@ One entry used to deserve a raised eyebrow: `CONTENT_LENIENT: preserve()`, meani
 ```rust
 // crates/api/src/main.rs — main
 let db = state::connect_db(&config).await?;
-tracing::info!("running migrations");
-migration::Migrator::up(&db, None).await?;
+match ascend_api::migrate::run(&db).await? { /* advisory lock; Apply, UpToDate or SchemaAhead */ }
 // ... load the curriculum, build state and router, start the hourly session sweep
 let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
-tracing::info!(addr = %config.bind_addr, "listening");
-axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
+// Graceful shutdown stops accepting, then waits for open connections. A
+// client that never finishes reading (a stalled stream) would hold it
+// forever, so the drain is bounded.
+let (draining_tx, mut draining) = tokio::sync::watch::channel(false);
+let server = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        let _ = draining_tx.send(true);
+    });
+let drain_deadline = async move {
+    if draining.wait_for(|started| *started).await.is_ok() {
+        tokio::time::sleep(DRAIN_TIMEOUT).await; // 25 s
+    } else {
+        std::future::pending::<()>().await;
+    }
+};
+tokio::select! {
+    result = server.into_future() => result?,
+    () = drain_deadline => tracing::warn!("connections still open after the drain timeout; shutting down anyway"),
+}
 // Connections are drained; now let in-flight AI replies finish persisting
 // (bounded, so a hung upstream cannot block the deploy).
 state.tasks.close();
@@ -192,7 +225,7 @@ if tokio::time::timeout(Duration::from_secs(30), state.tasks.wait()).await.is_er
 }
 ```
 
-The order is the design. Configuration is validated first (production refuses to start with insecure cookies). Migrations run before the port is bound, so if the process is listening, the schema is current. `/api/readyz` runs `SELECT 1` and returns 503 if the database is unreachable, plus the content version, the build id and whether AI is configured. Railway polls it for up to 120 seconds and only moves traffic to the new container once it returns 200.
+The order is the design. Configuration is validated first (production refuses to start with insecure cookies). Migrations run before the port is bound, under a Postgres advisory lock so replicas booting together cannot race, so if the process is listening, the schema is at least as new as the build needs ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations) traces `migrate::plan`). `/api/readyz` runs `SELECT 1` and returns 503 if the database is unreachable, plus the content version, the build id and whether AI is configured. Railway polls it for up to 120 seconds and only moves traffic to the new container once it returns 200.
 
 ```mermaid
 sequenceDiagram
@@ -209,14 +242,14 @@ sequenceDiagram
   R->>N: poll /api/readyz for up to 120 s
   alt returns 200
     R->>N: route traffic
-    R->>O: SIGTERM, drain in-flight requests
+    R->>O: SIGTERM, then SIGKILL after 60 s
   else never healthy
     R->>N: stop, deployment failed
     Note over O: keeps serving the previous version
   end
 ```
 
-A failed migration exits non-zero, the new container never becomes healthy, and the old one keeps serving. That is the good failure. The dangerous one is a migration that *succeeds* followed by code that is broken in a way `SELECT 1` cannot see. Traffic moves, errors climb, you roll back to the previous deployment, and the previous binary now runs against the **new** schema. If the migration renamed or dropped a column the old code reads, the rollback fails too.
+A failed migration exits non-zero, the new container never becomes healthy, and the old one keeps serving. That is the good failure. The dangerous one is a migration that *succeeds* followed by code that is broken in a way `SELECT 1` cannot see. Traffic moves, errors climb, you roll back to the previous deployment, and the previous binary now runs against the **new** schema. Until `8f82820` it did not even get that far: `Migrator::up` refuses to start when `seaql_migrations` holds a version the binary has no file for, so every rollback after a migrating release crash-looped at boot. Now `migrate::plan` recognises a schema *ahead* of the build, logs a warning and starts without migrating. That is safe only because of the next rule: if the migration renamed or dropped a column the old code reads, the rollback boots and then fails on every query that names it.
 
 ```viz
 {"type": "system", "algorithm": "blue-green", "title": "Why rollback depends on the migration", "caption": "Both versions run against one schema, briefly during a switch and indefinitely after a rollback. Expand first (add, never rename or drop), contract in a later deploy."}
@@ -227,8 +260,8 @@ A failed migration exits non-zero, the new container never becomes healthy, and 
 Two smaller weaknesses sit in the same code, and a third has been fixed:
 
 - **Readiness checks one dependency.** A deploy with a revoked `ANTHROPIC_API_KEY` reports `ai: true` (which means "configured", not "working") and goes live. A readiness check should not call a paid API on every poll, but a boot-time probe of the key, logged loudly, would catch it.
-- **Migrate-on-boot assumes one replica.** With several replicas starting at once, each runs the migrator. You want exactly one migrator: a Postgres advisory lock around `Migrator::up`, or a separate pre-deploy command that runs migrations once before any new replica starts.
-- **Graceful shutdown used to drain connections, not tasks.** On SIGTERM, Axum stops accepting and waits for in-flight requests. An AI reply whose browser had already disconnected lived only in a bare `tokio::spawn` task that nobody waited for, so when `main` returned, the reply and its usage record were lost. The lines at the end of `main` above are the fix: background work is spawned on a `TaskTracker`, and shutdown waits up to 30 seconds for it. The guarantee now has a stated bound, and it only holds if the platform's grace period between SIGTERM and SIGKILL is at least that long, which is worth checking in the platform's settings rather than assuming.
+- **Migrate-on-boot assumed one replica** (fixed in `8f82820`). Several replicas starting at once each ran the migrator, and one failed on "relation already exists". `migrate::run` now holds `pg_advisory_xact_lock` for the whole run; `boot_migrations_are_locked_and_tolerate_a_newer_schema` boots twice at once and expects two `UpToDate`s.
+- **Graceful shutdown that never ran** (fixed twice). First, background work lived in a bare `tokio::spawn`, so an AI reply whose browser had gone was dropped when `main` returned; a `TaskTracker` drained for up to 30 s fixed that. Then the platform: Railway's draining window defaulted to 0 seconds, so SIGKILL followed SIGTERM at once and none of that code ran in production. `RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60"` now gives it room, and `main` bounds its own drain to fit: 25 s for open connections (a stalled SSE reader cannot hold the process), then 30 s for tasks. A shutdown guarantee is only as long as the window the platform grants, so read that setting rather than assuming it.
 
 ## The edge, and the client IP incident
 
@@ -273,10 +306,39 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 ```
 
 - **Build once, deploy by digest.** CI builds the image, runs the Playwright smoke suite against that image rather than a debug build, pushes it, and the platform deploys that exact digest. Deploys already wait for CI; this closes the gap between what CI tested and what runs.
-- **Pin every base image by digest**, so a rebuild of the same commit produces the same image.
 - **Canary instead of all-at-once.** One replica on the new version, automated comparison of error rate and p99 against the stable version, then promotion. It needs the metrics the next lesson adds.
 - **Migrations as their own step**, run once, with expand/contract enforced in review.
 - **A job queue for AI replies**, so no deploy cuts off a stream, however long it runs; the task tracker covers 30 seconds.
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| The deploy path skips CI | A red CI run for a change that is already live | Railway deployed before the check suite finished | `checkSuites: true` (in place since `6ab2be2`) |
+| An incremental build embeds stale content | `make run` serves the lesson as it was before the edit | `include_dir!` read the files, but Cargo was never told to watch them | `build.rs` with `rerun-if-changed` (in place) |
+| A migration succeeds and the code is broken | Errors after traffic moves, and the rollback fails too | The previous binary queries a column the migration renamed or dropped | Expand and contract: every migration usable by the previous release |
+| A revoked model API key | Readiness says 200 with `ai: true`; every coach call fails | `ai` means "configured", not "working" | A boot-time probe of the key, logged loudly |
+| A moving base-image or action tag | The same commit builds a different image next week, or CI runs code nobody reviewed | Image digests differ between two builds of one commit | Pins by digest and SHA, kept current by Dependabot (in place since `8f82820`) |
+| A drain window of 0 s | Replies cut off at every deploy although the code drains them | Railway's `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` unset | 60 s, with the server's own drain bounded to 55 s (in place) |
+
+## Interviewer follow-ups
+
+**"Is the artifact in production the one you tested?"** Model answer: not exactly, and a senior says where. Railway builds its own image from the repository, the `image` job's image is thrown away, and the smoke suite tests a debug build. Base images and actions are pinned by digest and SHA, which makes two builds of one commit close but not identical in process. Build once in CI, run the smoke suite against that image, push it and deploy it by digest. Common wrong answer: "same Dockerfile, same image", which ignores tags, build profiles and the embedded SPA.
+
+**"A migration succeeded and the new code is broken. Walk me through the rollback."** Model answer: readiness passed, because `SELECT 1` cannot see a logic bug; traffic moved; rolling back redeploys old code, not old schema, so the previous binary now runs against the new schema. If the migration renamed or dropped anything the old code reads, the rollback fails too. Prevent it with expand and contract. Common wrong answer: "roll back the deployment", as though that restored the database.
+
+**"Why does readiness check only the database?"** Model answer: readiness answers "can this process take traffic". The database is required for almost every route; the model is required for one feature, and a readiness check that calls a paid API on every poll costs money and would take the whole site out during a provider outage. Probe the key once at boot instead, and let AI routes degrade on their own. Common wrong answer: "check every dependency", which turns a partial outage into a total one.
+
+**"What changes to run three replicas?"** Model answer: migrations already run under an advisory lock, so concurrent boots are safe, though replicas queue behind a long one; rate limits need a shared store; three pools of 20 must fit under Postgres's `max_connections` with headroom for a rolling deploy; the 30-second task drain holds per replica. Sessions are already in Postgres and content is identical in every build, so neither changes. Common wrong answer: "set `replicas: 3`".
+
+## What mid-level engineers get wrong
+
+- **Copying all the source before building dependencies.** Every commit recompiles hundreds of crates.
+- **Treating a green readiness probe as proof the release is good.** It proves the process can take traffic; a canary proves the release behaves.
+- **Building gates that are not on the deploy path.** Five CI jobs guarded nothing while the deploy did not wait for them.
+- **Changing settings in a dashboard.** Nobody reviews them, and a rebuilt project forgets them.
+- **Keying anything on the first `X-Forwarded-For` entry.** The client wrote it.
+- **Renaming a column in one release.** The old code still serving during the switch, and after any rollback, breaks.
 
 ## Exercise
 
@@ -365,10 +427,10 @@ hints:
     Validation belongs on the path that produces the artifact: the Docker check runs the freshly built binary against the curriculum compiled into it, not a checkout that might differ, and it holds even if a deploy ever bypasses CI. CI's validate_content step is strict too, and reference solutions are executed by a separate CI job.
 - q: >-
     A release renames a column in its migration. The new version passes readiness, then starts returning errors, and you roll back to the previous deployment. What happens?
-  options: ["Nothing, because SeaORM maps the old and new column names to each other", "Railway refuses to roll back any deployment whose migration succeeded", "The old binary starts but then fails on every query that uses the old column name", "The rollback restores the old schema automatically before starting"]
+  options: ["Nothing, because SeaORM maps the old and new column names to each other", "Railway refuses to roll back any deployment whose migration succeeded", "The old binary boots, skips migrating, then fails every query naming the old column", "The rollback restores the old schema automatically before starting"]
   answer: 2
   explanation: >-
-    Migrations ran forward on boot and nothing runs them backward, so rollback redeploys code, not schema. Rollback safety requires expand and contract: add the new column in one release, move reads and writes, and remove the old one in a later release.
+    Migrations ran forward on boot and nothing runs them backward, so rollback redeploys code, not schema. migrate::plan sees a schema ahead of the build and starts without migrating, and the old queries then name a column that no longer exists. Rollback safety requires expand and contract: add the new column in one release, move reads and writes, and remove the old one in a later release.
 - q: >-
     The rate limiter originally used the first X-Forwarded-For entry as the client IP. What could an attacker do?
   options: ["Send a new fake address each time and get a fresh bucket every time", "Only slow down their own requests, since the limiter keys on them", "Nothing, because Railway strips the header before the app sees it", "Bypass the CSRF check by claiming the site's own origin in that same header"]
@@ -381,4 +443,10 @@ hints:
   answer: 1
   explanation: >-
     A failing migration or a boot panic never binds the port, and an unreachable database makes readyz return 503. The ai field only says a key is configured, not that it works, so a revoked key goes live; a boot-time probe would catch it without calling a paid API on every health poll.
+- q: >-
+    A commit changes only one route handler in crates/api. Which Docker layers rebuild?
+  options: ["Only the web stage, because the SPA is embedded into the API binary", "Every Rust layer, because the planner copies crates/ and so its cache is invalid", "The planner and the final workspace build; the dependency cook stays cached", "Nothing but --check-content, because the source is only embedded, not compiled"]
+  answer: 2
+  explanation: >-
+    The planner copies crates/, so it re-runs, but it writes the same recipe.json, and the cook layer is keyed on that file's contents, so every dependency stays cached. Only the workspace crates compile again. The web stage never sees Rust sources, and source is compiled, not embedded.
 ```

@@ -97,7 +97,7 @@ const dfs: G = (input) => {
     disc[u] = t++;
     s.nodeTones[u] = "active";
     s.labels[u] = `${disc[u]}/`;
-    s.vars = { stackDepth: depth, discovered: disc };
+    s.vars = { stackDepth: depth, discovered: { ...disc } };
     f.push(`Enter ${u} (discovery time ${disc[u]}, depth ${depth}).`, "enter");
     for (const { to, key } of adj.get(u) ?? []) {
       if (!seen.has(to)) {

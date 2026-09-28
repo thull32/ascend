@@ -22,7 +22,7 @@ Production consequences follow directly. Containers start in milliseconds becaus
 
 ## Under the hood: digests, layers and overlayfs
 
-An image is a JSON **manifest** that lists a config blob and a sequence of layer blobs, each identified by the SHA-256 of its bytes; the image's digest is the SHA-256 of the manifest itself. A tag such as `node:24-trixie-slim` is a mutable pointer to a digest, and BuildKit records the resolution: in this app's CI log for run 36441384084, the web stage starts `FROM docker.io/library/node:24-trixie-slim@sha256:8ec5d755…`. Pinning `@sha256:` in the Dockerfile makes that resolution part of the reviewed code instead of an accident of build time.
+An image is a JSON **manifest** that lists a config blob and a sequence of layer blobs, each identified by the SHA-256 of its bytes; the image's digest is the SHA-256 of the manifest itself. A tag such as `node:24-trixie-slim` is a mutable pointer to a digest, and BuildKit records the resolution: in this app's CI log for run 36441384084, the web stage starts `FROM docker.io/library/node:24-trixie-slim@sha256:8ec5d755…`. Pinning `@sha256:` in the Dockerfile makes that resolution part of the reviewed code instead of an accident of build time. This Dockerfile did not pin until commit `8f82820`: its three `FROM` lines now carry the digests that run recorded (`node:24-trixie-slim@sha256:8ec5d755…` among them), and `.github/dependabot.yml` opens a grouped weekly pull request when a tag moves, so a base-image upgrade arrives as a reviewed diff instead of a silent change between two builds of one commit.
 
 Each layer is a tar archive of the files one step added, changed or deleted (steps such as `ENV` change only metadata and add no layer). Content addressing deduplicates across images: in the same run, one 29.83 MB layer (`6b37362b…`) was downloaded once and served both the Node stage and the Rust stage, because both base images are built on the same Debian trixie slim layer.
 
@@ -201,7 +201,7 @@ Distroless has no shell and no package manager: less for an attacker to use, and
 
 The runtime stage ends with `ENTRYPOINT ["/usr/local/bin/ascend-api"]`, the exec form, so the binary itself is PID 1. That matters for three reasons.
 
-**Signals.** The kernel applies no default action to signals sent to a namespace's PID 1 from inside it: a signal with no installed handler is ignored. Only SIGKILL and SIGSTOP from an ancestor namespace are forced. So a PID 1 without a SIGTERM handler ignores `docker stop`, which waits 10 seconds by default before SIGKILL; Kubernetes waits `terminationGracePeriodSeconds`, 30 by default; Railway waits its draining setting, which [CI/CD and deployment](/learn/senior-craft/software-craft/ci-cd-and-deployment) shows defaults to 0. `crates/api/src/main.rs` installs the handler through Tokio:
+**Signals.** The kernel applies no default action to signals sent to a namespace's PID 1 from inside it: a signal with no installed handler is ignored. Only SIGKILL and SIGSTOP from an ancestor namespace are forced. So a PID 1 without a SIGTERM handler ignores `docker stop`, which waits 10 seconds by default before SIGKILL; Kubernetes waits `terminationGracePeriodSeconds`, 30 by default; Railway waits its draining setting, which defaults to 0 and which this app has set to 60 since [CI/CD and deployment](/learn/senior-craft/software-craft/ci-cd-and-deployment) found the gap. `crates/api/src/main.rs` installs the handler through Tokio:
 
 ```rust
 // crates/api/src/main.rs (excerpt)
@@ -260,7 +260,7 @@ spec:
             limits: { memory: 512Mi }
 ```
 
-Read it as decisions. The image is pinned by digest. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The grace period covers the 240-second request timeout plus draining. The memory limit is where exit 137 will come from. Three replicas also change this codebase's arithmetic: the in-memory rate limiter would give each client up to three times its budget (`docs/ARCHITECTURE.md` names the fix: move it to Redis, "the `Limiters` type is the seam"); each pod opens up to 20 database connections, so four pods during a surge can hold 80 of a small Postgres's roughly 100; and every pod runs the migrator at boot with no lock.
+Read it as decisions. The image is pinned by digest. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The grace period covers the 240-second request timeout plus draining. The memory limit is where exit 137 will come from. Three replicas also change this codebase's arithmetic: the in-memory rate limiter would give each client up to three times its budget (`docs/ARCHITECTURE.md` names the fix: move it to Redis, "the `Limiters` type is the seam"); each pod opens up to 20 database connections, so four pods during a surge can hold 80 of a small Postgres's roughly 100; and every pod runs the migrator at boot, which is why boot takes a Postgres advisory lock before planning migrations (`crates/api/src/migrate.rs`, added after a review of this module found that three pods would race).
 
 ## A rolling update, traced
 

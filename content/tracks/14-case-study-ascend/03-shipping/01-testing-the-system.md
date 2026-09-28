@@ -6,7 +6,7 @@ minutes: 40
 difficulty: hard
 tags: [case-study, testing, integration-tests, playwright, vitest, property-testing, resource-limits]
 ---
-Ascend is a small team's product with a large surface: a Rust API with authentication and budgets, three AI products, hundreds of lessons with embedded quizzes and exercises, more than 150 practice problems with reference solutions, roughly 230 animations, and two code runners in the browser. There is no QA team, and the infrastructure code describes a single production service. Whatever confidence exists comes from automated checks, so the question is not "do we have tests" but "which checks buy the most confidence per minute of CI, and which failures would still ship".
+Ascend is a small team's product with a large surface: a Rust API with authentication and budgets, three AI products, nearly 350 lessons with embedded quizzes and exercises, 180 practice problems with reference solutions, a catalogue of about 230 animations embedded more than 700 times, and two code runners in the browser. There is no QA team, and the infrastructure code describes a single production service. Whatever confidence exists comes from automated checks, so the question is not "do we have tests" but "which checks buy the most confidence per minute of CI, and which failures would still ship".
 
 This lesson reads the portfolio as it is (`crates/api/tests/api.rs`, the Rust unit tests, `scripts/validate_problems.py`, the Vitest suites, `web/e2e/*.spec.ts`, `web/playwright.config.ts`, `.github/workflows/ci.yml`) and tells two incidents that shaped it: YAML that silently changed type, and a reference solution that ate a machine.
 
@@ -14,11 +14,11 @@ This lesson reads the portfolio as it is (`crates/api/tests/api.rs`, the Rust un
 
 | Layer | Where | What it proves | Runs in CI |
 |---|---|---|---|
-| Rust unit tests | `#[test]` in `crates/core` and `crates/api/src` | Pure logic: role collapsing, streaks, the history window, heading ids, password and token helpers, quiz validation, CSRF decisions, error mapping, the embedded curriculum loads; plus the AI client against a one-shot local server | Yes |
-| API integration | `crates/api/tests/api.rs` (22 tests) | The production router, every middleware layer, real PostgreSQL | Yes, with a Postgres service |
+| Rust unit tests | 29 `#[test]` and `#[tokio::test]` functions in `crates/core/src` and `crates/api/src` | Pure logic: role collapsing, streaks, the history window, heading ids, password and token helpers, quiz validation, CSRF decisions, error mapping, the boot migration plan, credential redaction, the embedded curriculum loads; plus the AI client against a one-shot local server | Yes |
+| API integration | `crates/api/tests/api.rs` (24 tests) | The production router, every middleware layer, real PostgreSQL | Yes, with a Postgres service |
 | Content validation | `validate_content` example; `ascend-api --check-content` in the Docker build | Typed front matter, block syntax, every cross-reference | Yes, strict |
 | Problem validation | `scripts/validate_problems.py` | Every reference solution passes every one of its tests | Yes |
-| Web unit | Vitest: family tests beside the viz families, `viz/content.test.ts`, `lib/markdown.test.ts` | Generators produce valid, pure, independent frames; every curriculum animation renders; currency and maths parse | Yes |
+| Web unit | Vitest, 13 files: family tests beside the viz families, `viz/content.test.ts`, `lib/markdown.test.ts`, `lib/sse.test.ts` | Generators produce valid, pure, independent frames; every curriculum animation renders; currency and maths parse; the SSE parser handles every line ending and chunk boundary | Yes |
 | Types | `tsc -b` | The SPA typechecks | Yes |
 | E2E smoke | `web/e2e/smoke.spec.ts` | Real browser, real server: pages, both runners, auth, CSRF, account deletion | Yes, desktop and mobile, against a debug build |
 | Content crawl | `web/e2e/crawl.spec.ts`, only with `CRAWL=1` | Every lesson and problem renders without errors, and every table-of-contents link lands | No: on demand |
@@ -76,7 +76,18 @@ let n: i64 = rows[0].try_get("", "n").unwrap();
 assert_eq!(n, 0, "raw session token found in the database");
 ```
 
-A mock would assert what you believe the database does. The real one asserts what it does. The tests read like a security checklist: cookies are `HttpOnly` and `SameSite=Lax`; wrong-password and unknown-email login responses are byte-identical; a mutating request without `X-Requested-With`, or with a foreign `Origin`, gets 403; lesson payloads contain no quiz answers or explanations; an `If-None-Match` with the lesson's ETag gets 304; submissions with a test count that does not match the problem are rejected; AI endpoints return `ai_disabled` when no key is configured. The newest ones are races, which is the part worth copying: 30 budget reservations against a limit of 10, four registrations for one email, five interview starts for one learner, twenty transcript appends to one interview and two racing finishes, each fired concurrently (as spawned tasks or with `futures::future::join_all`) and each asserting the invariant rather than a particular winner. A concurrency fix that arrives without the concurrent test that would have caught it is a claim, not a fix.
+A mock would assert what you believe the database does. The real one asserts what it does. The tests read like a security checklist: cookies are `HttpOnly` and `SameSite=Lax`; wrong-password and unknown-email login responses are byte-identical; a mutating request without `X-Requested-With`, or with a foreign `Origin`, gets 403; lesson payloads contain no quiz answers or explanations; an `If-None-Match` with the lesson's ETag gets 304; submissions with a test count that does not match the problem are rejected; AI endpoints return `ai_disabled` when no key is configured. The newest ones are races, which is the part worth copying: 30 budget reservations against a limit of 10, four registrations for one email, five interview starts for one learner, twenty transcript appends to one interview and two racing finishes, two boots migrating at once, each fired concurrently (as spawned tasks or with `futures::future::join_all`) and each asserting the invariant rather than a particular winner. The newest, `grading_freezes_the_transcript_and_a_failed_grade_reopens_the_interview`, is sequential on purpose: it drives the service through each state (freeze, a refused late reply, a refused second click, reopen, retry) and checks the transcript length at every step. A concurrency fix that arrives without the concurrent test that would have caught it is a claim, not a fix.
+
+Trace the budget race test, because its shape is reusable. The test config allows 10 requests a day; the test spawns 30 tasks that each call `check_and_reserve` for the same user, joins them, and counts the `Ok`s:
+
+| Step | What happens | What it rules out |
+|---|---|---|
+| 1 | 30 tasks start; each sends one conditional upsert | Nothing yet |
+| 2 | The first to reach the row takes its lock; the other 29 wait on it in turn | A mutex in Rust; the database serialises |
+| 3 | Each waiter re-checks `requests < 10` against the committed row: 10 succeed, 20 get no row back | Check-then-act overshoot, which would grant more than 10 |
+| 4 | `assert_eq!(granted, 10)`, then the stored `requests_used` must also be 10 | Refused requests that still incremented the counter |
+
+It asserts the invariant, exactly ten, never which ten, so it cannot be flaky under a different scheduling order.
 
 Two honest caveats, one of them now closed. When `TEST_DATABASE_URL` is unset the tests print a notice and *pass*, so `cargo test` works offline. That used to be as true in CI as on a laptop, so a misconfigured job would have reported green having tested nothing. The code-review commit added the `assert!` you can see above: offline runs may still skip, but with `CI` set a missing database fails the run. A skip that is silent everywhere is a false green waiting to happen; a skip that is loud where it matters is a convenience. The other caveat has narrowed but stands. The API test config sets no API key and points the AI base URL at `127.0.0.1:9`, so the integration tests cover graceful degradation, the solo-interview lock, the budget and the per-session limiter in front of model calls, never a stream through a route. The client itself is now tested against a real socket: two unit tests in `ai/anthropic.rs` start a one-shot local HTTP server that replays a canned response, one a stream ending in a provider `error` event, one a 429, and check what reaches the caller. That is the stub-server idea at the smallest useful scale, and it is how the error-text fix was proven. The route-level code around it (the tracked persistence task, budget settlement after a disconnect, the SSE error event reaching the browser) is still covered only by the live, opt-in browser suite.
 
@@ -196,17 +207,60 @@ When this track was first drafted, `ci.yml` had four jobs (Rust, problems, web, 
 
 Look closely at *what* it tests, though: `./target/debug/ascend-api`, a debug build compiled in the job, not the image that the `image` job builds and that production runs. The two share source and lockfiles but not the build profile, the embedded `web/dist` or the base image. Running the smoke suite against the built image would test the artifact itself. The AI suite belongs in a nightly job with its own small budget, not on every push, and so does the crawl, which takes too long for every push and is the only automated check that every table-of-contents link lands.
 
+## The pipeline, job by job
+
+`.github/workflows/ci.yml` runs five jobs on every push to `main` and every pull request, with `RUSTFLAGS: -D warnings` so a warning fails the build, a read-only token, and every action pinned to a commit SHA:
+
+| Job | Needs | Runs | Typical failure it catches |
+|---|---|---|---|
+| `rust` | Postgres 17 service | `cargo fmt --check`, Clippy, `cargo test --workspace` (unit and API tests), strict `validate_content`, `cargo audit` | A lost update, a CSRF regression, a quiz with an out-of-range answer, a dependency with a RustSec advisory |
+| `problems` | Python 3.14 | `validate_problems.py`, the quiz-order check, quiz statistics | A reference solution that fails its own tests; a hint that YAML made a mapping |
+| `web` | Node 24, pnpm | `pnpm audit --prod`, `tsc -b`, `vitest run`, `vite build` | A misnamed algorithm in a lesson; an SSE parse regression; a vulnerable production dependency |
+| `image` | `rust`, `web` | The production Docker build, cached | A Dockerfile or cargo-chef break; `--check-content` failing inside the build |
+| `e2e` | `rust`, `web`; Postgres | A debug server started beside Postgres, `readyz` polled for 60 s, `smoke.spec.ts` on desktop and phone | Pyodide not starting; a page that throws in a real browser |
+
+The `needs` edges mean a Rust or web failure stops the two expensive jobs from running at all, and Railway's `checkSuites: true` means none of it is advisory: a push to `main` deploys only after the suites pass ([Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy)).
+
 ## What to test more
 
 In priority order, with the failure each one would catch:
 
 1. **The stub server, promoted to the API tests.** The one-shot server in the client's unit tests, pointed at by the integration config's AI base URL, would let the API tests drive a real stream through the routes: a disconnect mid-stream still persists the reply and records usage; a truncated stream still settles; shutdown waits for a stream in flight.
 2. **A cross-language harness conformance corpus** run by the TypeScript harness, the Pyodide harness and `validate_problems.py`. The float drift between them was fixed by hand, and half-way rounding still differs.
-3. **Stronger assertions in the content scan**: `content.test.ts` already runs every `viz` block on its real input; adding the `undefined`/`NaN`, purity and snapshot-independence checks would give every embedded animation the protection the first system pack has.
-4. **Unit tests for the SSE parser and the runner's time budget**, the two pieces of frontend logic with sharp edge cases and no tests.
+3. **Stronger assertions in the content scan**: `content.test.ts` already runs every `viz` block on its real input; adding a `NaN` check, a purity check and a content-level aliasing check (each frame's JSON when pushed against the same frame at the end, which finds two live bugs today) would give every embedded animation more than the first system pack has. A plain `undefined` check would misfire on the memory family's correct sentence about undefined behaviour.
+4. **Unit tests for the runner's time budget and `WorkerHandle`**, the frontend logic with sharp edges and no tests: the budget formula, the exactly-once race between an answer and the timer, and `ready` resetting after a timeout.
 5. **Smoke against the built image, and the crawl on a schedule**, so the artifact that ships is the artifact that was tested, and table-of-contents links are checked more often than by hand.
 
-Three items have dropped off this list since it was first written, and they show what "done" looks like: a concurrent test for the budget (`ai_budget_reservation_cannot_be_overshot_by_concurrency`), a concurrent test for the transcript (`transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries`), and Playwright in CI. The first item has started to move too: the stub server exists, one layer down. Notice what the remaining items have in common: each targets a seam (process and network, two languages, content and code, concurrent requests) rather than a function. The pure functions in this codebase are few and simple; the bugs live between things.
+Four items have dropped off this list since it was first written, and they show what "done" looks like: a concurrent test for the budget (`ai_budget_reservation_cannot_be_overshot_by_concurrency`), a concurrent test for the transcript (`transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries`), Playwright in CI, and the SSE parser's tests (`web/src/lib/sse.test.ts`, eight cases, two of them fed the exact bytes axum's own tests show its encoder producing, one that splits a stream at every offset). The first item has started to move too: the stub server exists, one layer down. Notice what the remaining items have in common: each targets a seam (process and network, two languages, content and code, concurrent requests) rather than a function. The pure functions in this codebase are few and simple; the bugs live between things.
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| A suite that skips when its dependency is missing | CI green with the API tests never run | The job log shows "skipping API integration test" | Skip offline, fail when `CI` is set (in place) |
+| A validator that executes content without limits | The machine runs out of memory during authoring; unrelated processes die | Many validator processes at once, one of them growing without bound | `RLIMIT_AS` and an alarm per test, one process at a time, a cgroup for the whole job |
+| E2E against a different artifact | Smoke passes, production fails to start | The smoke job ran a debug build; the image differs in profile, embedded SPA and base image | Run the smoke suite against the built image |
+| A flaky end-to-end test hidden by retries | Intermittent production bugs that CI "never" shows | Retries turned red runs green | `retries: 0`, traces kept on failure |
+| A concurrency fix tested sequentially | The race returns under load | No test fires the operations at once | Spawn N tasks, join, assert the invariant rather than a winner |
+
+## Interviewer follow-ups
+
+**"Why run API tests against a real Postgres rather than mocks?"** Model answer: the behaviour worth testing is database semantics: conditional upserts, a partial unique index, what lands in a column. A mock restates what the author believes; the real database checks it. Each test registers its own user, so 24 tests share one database and run in parallel without truncation, and the cost is a service container in CI. Common wrong answer: "integration tests are too slow", which confuses a real database with a deployed environment.
+
+**"How do you test a race?"** Model answer: fire the operations concurrently (spawned tasks or `join_all`), then assert the invariant rather than a particular winner: exactly 10 of 30 reservations, one account and three 409s, one active interview, twenty entries after twenty appends. The test must fail against the old code, or it proves nothing. Common wrong answer: "add a sleep between the calls", which serialises exactly the thing under test.
+
+**"Your validator executes untrusted reference solutions. How do you keep it from taking the machine down?"** Model answer: both limits, because they catch different failures. `RLIMIT_AS` turns a runaway allocation into a `MemoryError` inside the process, and an alarm stops a loop that spins without allocating. Then a machine-level bound, because per-process limits do not add up: one process at a time, or a cgroup around the job. Common wrong answer: "a timeout", which a doubling allocation beats by several orders of magnitude.
+
+**"What is still untested, and in what order would you fix it?"** Model answer: rank by seam. First a stub model server in the API tests, so a real stream exercises persistence after a disconnect; then a conformance corpus for the three comparison rules; then the stronger invariants on every embedded animation; then the runner's time budget; then smoke against the built image. Common wrong answer: "raise line coverage", which counts executed lines in pure functions while the bugs live between systems.
+
+## What mid-level engineers get wrong
+
+- **Mocking the database to test database behaviour.** The mock passes and the race ships.
+- **Letting a suite skip silently in CI.** Green without testing is worse than red.
+- **Trusting a schema-less loader.** YAML turns a colon into a mapping, and the error surfaces far from its cause.
+- **Putting one limit around executed code.** Memory limits miss spin loops, alarms miss fast allocations, and neither bounds the machine.
+- **Retrying flaky end-to-end tests into green.** The flake is a bug you have agreed not to see.
+- **Testing a different artifact from the one you ship.** A debug build is not the image.
 
 ## Exercise
 
@@ -306,11 +360,17 @@ hints:
   options: ["Both loaders read it as a string, since plain YAML strings need no quotes at all", "The Rust loader turns the mapping into a string and carries on loading", "safe_load gives a dict for that hint; the typed Rust loader rejects it", "Both loaders reject the file, because the line is not valid YAML at all"]
   answer: 2
   explanation: >-
-    An unquoted colon followed by a space makes a mapping. It is valid YAML, just not the shape you meant, so only a loader that knows the expected type can reject it: hints is Vec<String> in Rust. The problem validator also checks for it explicitly and tells the author to quote the hint.
+    An unquoted colon followed by a space makes a mapping. It is valid YAML, but not the shape you meant, so only a loader that knows the expected type can reject it: hints is Vec<String> in Rust. The problem validator also checks for it explicitly and tells the author to quote the hint.
 - q: >-
     The live AI Playwright suite costs tokens and is not run in CI. What is the best way to keep its value?
   options: ["Delete it, because a model's output is nondeterministic and cannot be tested", "Schedule it with a small budget, and put a stub-server stream test in CI", "Make it assert the exact reply text, so that any regression is caught at once", "Run it on every push with retries enabled, so that flaky failures stay quiet"]
   answer: 1
   explanation: >-
     It found a real remount bug and the per-IP throttling of learners behind one NAT, so deleting it throws away proven value. Exact-text assertions would make it flaky, and retries would hide the flakiness. A stub server moves the deterministic part (persistence, settlement, error events) into every CI run.
+- q: >-
+    A concurrency test fires 30 budget reservations at once against a limit of 10. Which assertion makes it a good test?
+  options: ["Exactly 10 succeed and the stored count is 10, whichever ten they are", "At least one reservation is refused, which shows the limit is enforced", "The first 10 tasks spawned succeed and the last 20 are all refused", "All 30 finish within one second, which shows no request deadlocked"]
+  answer: 0
+  explanation: >-
+    Asserting the invariant, exactly ten and a stored count of ten, holds under any scheduling order, so the test is deterministic, and it fails against a check-then-act version that grants more than ten. Spawn order does not decide which tasks win the row lock, so naming the winners would be flaky, and one refusal or a time bound would pass against the broken code too.
 ```

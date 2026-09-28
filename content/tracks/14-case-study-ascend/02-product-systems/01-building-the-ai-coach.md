@@ -12,7 +12,7 @@ That gives three requirements that pull against each other. Text must appear as 
 
 ## A small typed client instead of an SDK
 
-There is no official Anthropic SDK for Rust, so `crates/core/src/ai/anthropic.rs` is a 300-line client that covers exactly what the product uses: one-shot completions for JSON outputs and streamed text for chat. The whole request shape lives in one function:
+There is no official Anthropic SDK for Rust, so `crates/core/src/ai/anthropic.rs` is a client of about 360 lines, plus 90 of tests, that covers exactly what the product uses: one-shot completions for JSON outputs and streamed text for chat. The whole request shape lives in one function:
 
 ```rust
 // crates/core/src/ai/anthropic.rs — AnthropicClient::builder
@@ -38,7 +38,7 @@ fn builder(&self, req: &Request, stream: bool) -> AppResult<reqwest::RequestBuil
     };
 ```
 
-Five decisions are visible in those lines. The system prompt is split in two: a stable block (`req.system`) that carries a cache breakpoint, and an optional per-request context block (`req.context`) after it with none; a top-level `cache_control` switches on automatic caching of the conversation for multi-turn chats. (What that buys, and what the single-block version it replaced cost, is the subject of the caching section below.) Thinking is adaptive, so the model decides how much to reason, and `effort` is the dial: the coach uses `Medium`, the interview grader `High`. JSON-schema output is optional per request, which is how quizzes and evaluations get guaranteed-parseable JSON without a retry loop. And streaming is a boolean on the same body, so the streaming and non-streaming paths cannot drift apart. Two unit tests serialise a request and assert the block layout, because a silent change here would not break anything visibly; it would only raise the bill.
+Five decisions are visible in those lines. The system prompt is split in two: a stable block (`req.system`) that carries a cache breakpoint, and an optional per-request context block (`req.context`) after it with none; a top-level `cache_control` switches on automatic caching of the conversation (the caching section below prices it). Thinking is adaptive, and `effort` is the dial: the coach uses `Medium`, the interview grader `High`. JSON-schema output is optional per request, which is how quizzes and evaluations get parseable JSON without a retry loop. And streaming is a boolean on the same body, so the two paths cannot drift apart. Two unit tests, `stable_prefix_is_cached_and_context_is_not` and `single_shot_requests_skip_conversation_caching`, serialise a request and assert the block layout, because a silent change here would break nothing visibly; it would only raise the bill.
 
 The streaming method has a contract written in its doc comment: *the returned stream always ends with exactly one `Done` or `Error` event.*
 
@@ -68,11 +68,11 @@ if !finished {
 }
 ```
 
-The invariant matters because everything downstream settles accounts on the terminal event. If the upstream connection simply ends (a proxy cut it, the provider restarted), the `finished` flag still produces a `Done`, so the consumer records whatever usage it saw. Notice also what is *not* forwarded: thinking deltas fall into `Delta::Other` and are dropped. While the model thinks, no bytes flow to the browser, which is why the SSE response sends a keep-alive comment every 15 seconds.
+The invariant matters because everything downstream settles accounts on the terminal event. If the upstream connection ends without a `message_delta` (a proxy cut it, the provider restarted), the `finished` flag still produces a `Done`, so the consumer records whatever usage it saw. Notice also what is *not* forwarded: thinking deltas fall into `Delta::Other` and are dropped. While the model thinks, no bytes flow to the browser, which is why the SSE response sends a keep-alive comment every 15 seconds.
 
 Errors are translated once, in `map_status`: a provider 429 becomes `AppError::RateLimited` with a 30-second retry hint, 529 and 503 become "overloaded, try again shortly", 401/403 become "the AI coach is temporarily unavailable" (a credentials problem is ours to fix, and the learner only needs to know the feature is down), and a 400 becomes a generic "the AI provider rejected the request". The provider's error body is logged and never forwarded, because it can echo request content.
 
-That rule used to have a hole, and it is worth seeing where. `map_status` only runs when the HTTP status is an error, before streaming starts. Once a 200 stream was open, a provider `error` event (`overloaded_error` halfway through a reply, say) and a transport failure were turned into `StreamEvent::Error(error.message)` and `StreamEvent::Error(e.to_string())`, and `sse::respond` sent that text to the browser as it was. The same was true of non-streaming failures, which built `AiUpstream` from a reqwest error or a JSON parse error. The fix logs the provider's words and shows the learner a classified message of its own:
+That rule used to have a hole. `map_status` only runs when the HTTP status is an error, before streaming starts. Once a 200 stream was open, a provider `error` event (`overloaded_error` halfway through a reply) or a transport failure became `StreamEvent::Error` carrying the provider's own text, which `sse::respond` sent to the browser as it was; non-streaming failures built `AiUpstream` from a reqwest or JSON parse error the same way. The fix logs the provider's words and shows the learner a classified message:
 
 ```rust
 // crates/core/src/ai/anthropic.rs
@@ -87,9 +87,9 @@ fn interrupted_message(kind: &str) -> &'static str {
 }
 ```
 
-and every non-streaming failure goes through `AppError::ai_upstream(public, detail)`, which logs `detail` and returns only `public`. The learner still learns what *kind* of failure it was, which is what they need to decide whether to retry. Two unit tests pin it against a real socket: a tiny local HTTP server replays a stream whose `error` event contains the word SECRET, and `provider_error_text_never_reaches_the_learner` asserts that the event the learner receives mentions "overloaded" and not SECRET; `upstream_throttling_carries_a_retry_hint` does the same for a 429. Every path that turns someone else's text into yours needs its own check, because a rule enforced in one function covers exactly that function.
+and every non-streaming failure goes through `AppError::ai_upstream(public, detail)`, which logs `detail` and returns only `public`. Two unit tests pin it against a real socket: a tiny local HTTP server replays a stream whose `error` event contains the word SECRET, and `provider_error_text_never_reaches_the_learner` asserts that the event the learner receives mentions "overloaded" and not SECRET; `upstream_throttling_carries_a_retry_hint` does the same for a 429. Every path that turns someone else's text into yours needs its own check, because a rule enforced in one function covers exactly that function.
 
-**Rejected alternative:** a multi-provider LLM library or an unofficial crate. It would save 300 lines and cost control over the exact bytes sent, which is where prompt caching lives, and add a dependency whose request shape changes on its schedule, not yours. **Failure mode prevented:** a silent change in how the system prompt is serialised, which would not break anything visibly but would quietly turn every cache read into a cache write. **At 100x:** the client has no retries and no circuit breaker. A provider overload today becomes an error bubble in the chat. With real traffic you would add bounded retries with jittered backoff for 529s on the non-streaming path and a breaker that flips AI features to the existing "unavailable" state when the error rate crosses a threshold, rather than letting every user wait for a timeout.
+**Rejected alternative:** a multi-provider LLM library or an unofficial crate. It would save a few hundred lines and cost control over the exact bytes sent, which is where prompt caching lives. **Failure mode prevented:** a silent change in how the system prompt is serialised, turning every cache read into a cache write. **At 100x:** the client has no retries and no circuit breaker, so a provider overload becomes an error bubble in the chat. Add bounded, jittered retries for 529s before the first byte, and a breaker that flips AI features to the existing "unavailable" state when the error rate crosses a threshold.
 
 ## Streaming through a channel, not through the handler
 
@@ -127,7 +127,7 @@ state.tasks.spawn(
 Ok(sse::respond(rx))
 ```
 
-The pump forwards every event and deliberately ignores send failures:
+The pump forwards every event and deliberately ignores send failures; the comment above the send in the source says why: a closed receiver means the browser went away, and the task keeps consuming so the reply is persisted and its usage recorded.
 
 ```rust
 // crates/api/src/routes/sse.rs — pump
@@ -137,8 +137,6 @@ while let Some(ev) = upstream.next().await {
         StreamEvent::Done { usage: u, .. } => usage = *u,
         StreamEvent::Error(e) => error = Some(e.clone()),
     }
-    // A closed receiver just means the browser went away; keep consuming
-    // so the reply is still persisted and its usage still recorded.
     let _ = tx.send(ev).await;
 }
 (full, usage, error)
@@ -176,7 +174,7 @@ Three details make this correct rather than merely plausible.
 
 **Bounded lifetime.** The HTTP client is built with `timeout(AI_TIMEOUT_SECS)` (180 s by default), and a reqwest total timeout covers reading the body, so a stuck upstream ends the task with an `Error` and the invariant above still produces a terminal event.
 
-**Tracked, not just spawned.** The first version used a bare `tokio::spawn`. That protected a reply from a closed tab but not from a deploy: on SIGTERM, Axum's graceful shutdown waits for in-flight *requests*, and a stream whose browser had already gone was no longer a request, only a task nobody was waiting for. When `main` returned, the runtime dropped it mid-reply, and the reply and its usage record were lost, the very outcome the channel design exists to prevent. Now the task is spawned on `state.tasks`, a `TaskTracker` from `tokio_util`, and after the server stops accepting connections `main` does this:
+**Tracked as well as spawned.** The first version used a bare `tokio::spawn`. That protected a reply from a closed tab but not from a deploy: on SIGTERM, Axum's graceful shutdown waits for in-flight *requests*, and a stream whose browser had gone was only a task nobody waited for. When `main` returned, the runtime dropped it mid-reply, reply and usage record with it. Now the task is spawned on `state.tasks`, a `TaskTracker` from `tokio_util`, and after the server stops accepting connections `main` does this:
 
 ```rust
 // crates/api/src/main.rs — main
@@ -186,7 +184,7 @@ if tokio::time::timeout(Duration::from_secs(30), state.tasks.wait()).await.is_er
 }
 ```
 
-The wait is bounded because a hung upstream must not block a deploy indefinitely, and because the platform will eventually kill the process anyway. So the guarantee is now "replies that finish within 30 seconds of shutdown are persisted", and anything longer is counted in a log line rather than lost silently. A job queue with a worker that streams through a broker is what removes the bound, at the cost of a second moving part. The same change added `.instrument(tracing::Span::current())`, so the task's log lines carry the request's id even though they are written after the response has ended.
+The wait is bounded because a hung upstream must not block a deploy, and the platform kills the process eventually anyway. Before it, `main` also bounds the connection drain to 25 s, so a browser still reading a stream cannot hold the process; its task keeps generating after the connection closes. Both bounds sit inside Railway's 60-second draining window, which until commit `8f82820` was the default of 0 seconds: SIGKILL followed SIGTERM at once, and none of this ran in production. The guarantee is "replies that finish within about a minute of SIGTERM are persisted"; anything longer is counted in a log line rather than lost silently. A job queue whose worker streams through a broker removes the bound, at the cost of a second moving part. The same change added `.instrument(tracing::Span::current())`, so the task's log lines carry the request id after the response has ended.
 
 There is a cost to this design worth saying out loud. The Stop button in `useStreamingChat` aborts the `fetch`, which closes the connection, which the server treats exactly like a closed tab: it keeps generating and bills the full reply. Stop saves the learner's attention, not tokens. Distinguishing "stop" from "disconnect" needs a cancellation token the stop endpoint can trigger; the code does not have one.
 
@@ -220,7 +218,7 @@ const drain = (final: boolean) => {
 
 Network reads split anywhere, including inside a UTF-8 character and inside a line, which is why the decoder runs with `stream: true` and only complete lines are processed. A blank line dispatches the event; several `data:` lines join with `\n`; lines starting with `:` are the server's keep-alive comments.
 
-**Before: a parser that was right for the common case.** The first version lived inline in `streamPost` and split lines on `\n` only, stripping one trailing `\r`. That handles LF and CRLF, and every line axum *ends* with `\n`. But the SSE format also ends a line at a lone CR, and axum's encoder follows it: a payload is split at every CR or LF inside it, each piece getting its own `data:` prefix. The delta `"sunset bye\r"` goes on the wire as `data: sunset bye\rdata: \n`. The old parser read that as one line and showed the learner `sunset bye\rdata: `. Model output rarely contains a carriage return, which is why nothing noticed until the networking lessons were reviewed against the axum source.
+**Before: a parser that was right for the common case.** The first version, inline in `streamPost`, split lines on `\n` only, stripping one trailing `\r`. But the SSE format also ends a line at a lone CR, and axum's encoder splits a payload at every CR or LF inside it, each piece with its own `data:` prefix. The delta `"sunset bye\r"` goes on the wire as `data: sunset bye\rdata: \n`, which the old parser read as one line, showing the learner `sunset bye\rdata: `. Model output rarely contains a carriage return, so nothing noticed until the networking lessons were reviewed against the axum source (commit `527d3d1` fixed it).
 
 **After: follow the spec, and test with the server's own bytes.** The parser now treats CRLF, LF and a lone CR as line ends. The subtle part is the chunk boundary: if a chunk ends with `\r`, the next chunk may start with the `\n` of the same CRLF, and treating the CR as a line end at once would make the LF look like a blank line and dispatch a half-built event. So a trailing CR waits for the next chunk, or for the end of the stream. `web/src/lib/sse.test.ts` feeds it axum's own encodings (copied from axum's tests), splits a stream at every possible byte offset and checks the result never changes, and covers comments, the event-name reset and a final event with no closing blank line. The lesson generalises: when you reimplement one side of a wire format, test against bytes the other side really produces.
 
@@ -276,7 +274,7 @@ useEffect(() => {
 }, [detail.data, id]);
 ```
 
-The general lesson: component identity is part of your state model. A URL change is not "just navigation" when a long-lived operation lives in component state, and the only test that reproduces the timing is one with a real stream. No unit test of `useStreamingChat` or of the parser would have found it.
+The general lesson: component identity is part of your state model. A URL change is more than navigation when a long-lived operation lives in component state, and the only test that reproduces the timing is one with a real stream. No unit test of `useStreamingChat` or of the parser would have found it.
 
 ## Prompt caching: from one breakpoint to three blocks
 
@@ -344,7 +342,7 @@ One consequence reached into the budget below. With automatic caching, almost ev
 
 ## Budgets: reserve before, settle after
 
-Every model call goes through `BudgetService`, the only code that touches `ai_usage` (one row per user per UTC day). The ordering is deliberate. A request slot is reserved *before* the call, so a call that fails upstream still costs a slot (fail closed for abuse, and a client retrying in a loop runs out quickly). Tokens are recorded *after*, in the background task, which a disconnect cannot skip. On top sits `Bucket::Ai` in `middleware/rate_limit.rs`, 20 model calls per minute per session, for bursts; the daily budget is the cost fuse. (That limiter used to be keyed by IP and to cover every coach route, reading history included, until the live AI and smoke suites, whose browsers all share one address, showed it throttling a class behind one NAT; [Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security) tells that story.)
+Every model call goes through `BudgetService`, the only code that touches `ai_usage` (one row per user per UTC day). A request slot is reserved *before* the call, so a call that fails upstream still costs a slot (fail closed: a client retrying in a loop runs out quickly). Tokens are recorded *after*, in the background task, which a disconnect cannot skip. On top sits `Bucket::Ai`, 20 model calls per minute per session, for bursts; the daily budget is the cost fuse. Production sets 150 requests and 120,000 output tokens a day in `.railway/railway.ts` and keeps the default 2,000,000 billed input tokens. (Why the limiter is keyed by session rather than IP is in [Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security).)
 
 ### Before: a check and an increment
 
@@ -365,7 +363,7 @@ pub async fn check_and_reserve(&self, user_id: Uuid) -> AppResult<()> {
 }
 ```
 
-`bump` was an `INSERT ... ON CONFLICT (user_id, day) DO UPDATE SET requests = ai_usage.requests + $n`, so the increment itself was atomic. Read the function as an adversary, though. The check was a read, the increment a separate statement, and nothing tied them together. Two requests arriving together when the user was at 149 of 150 both read 149, both passed, both incremented: 151. The overshoot was bounded by how many requests one user could have in flight, which made it easy to miss, and it was still a broken invariant.
+`bump` was an atomic `INSERT ... ON CONFLICT (user_id, day) DO UPDATE SET requests = ai_usage.requests + $n`. Read the function as an adversary, though: the check was a read, the increment a separate statement. Two requests arriving together at 149 of 150 both read 149, both passed, both incremented: 151.
 
 ### After: the database decides
 
@@ -393,7 +391,7 @@ match self.db.query_one_raw(stmt).await? {
 }
 ```
 
-`ON CONFLICT DO UPDATE ... WHERE` updates only when the condition holds, and `RETURNING` produces a row only if something was inserted or updated, so no row back means "over budget" and nothing changed. The row lock taken by the conflicting update serialises concurrent reservations for the same user. The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. The same commit added a daily *input* token limit (`AI_DAILY_INPUT_TOKENS`, two million by default) beside the request and output limits, and that limit then had a gap of its own.
+No row back means "over budget" and nothing changed. The row lock taken by the conflicting update serialises concurrent reservations for the same user, and the waiter re-checks the `WHERE` against the committed row ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations) traces it step by step). The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at once against a limit of 10 and asserts that exactly 10 succeed. The same commit added a daily *input* token limit (`AI_DAILY_INPUT_TOKENS`, two million by default) beside the request and output limits, and that limit then had a gap of its own.
 
 ### Before and after: a limit on the wrong column
 
@@ -493,6 +491,35 @@ hints:
   - "Keep three pieces of state between lines: the buffer, the current event name, and the list of data lines."
   - "Write dispatch as a small function that does nothing when there is no data, and call it once more after the loop."
 ```
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| The handler owns the upstream stream | Replies missing after a tab closes; `ai_usage` totals below the provider's invoice | Conversations with a user message and no assistant reply after it | Stream through a tracked task and a channel (in place) |
+| A volatile value lands before the stable breakpoint | Spend rises with flat traffic | `cache_read_tokens` near zero in the `coach turn complete` log lines after a deploy | Keep the stable block byte-identical; the layout tests pin where each block goes |
+| History trimmed one exchange per turn | Long conversations cost more per turn than short ones | `cache_write_tokens` per turn grows with conversation length | Step the window by 10 messages (in place) |
+| A budget on uncached input only | Heavy users are never refused although spend climbs | `input_tokens` near zero while `cache_write_tokens` is large in `ai_usage` | Budget billed input: writes 1.25, reads 0.1 (in place) |
+| A reply still streaming when the bounded drain ends (25 s, then 30 s) | A reply cut off by a deploy | `background tasks still running at shutdown` with `remaining` | A job queue that outlives the web process |
+
+## Interviewer follow-ups
+
+**"Why not return the model stream from the handler?"** Model answer: in Axum, a disconnect drops the response body and every future it owns, so the upstream call is cancelled, the reply is never persisted and its tokens never recorded. Moving the stream into a tracked task that owns persistence, with the response as a reader of a 64-slot channel, keeps backpressure for slow readers and completeness for departed ones. Common wrong answer: "save the reply in a `finally` block", which never runs when the future is dropped.
+
+**"The learner presses Stop. What does it cost, and would you change it?"** Model answer: Stop aborts the `fetch`, which the server cannot tell from a closed tab, so the full reply is generated, stored and billed. Saving tokens needs an explicit cancel signal, such as a per-turn cancellation token that a stop endpoint triggers and the pump checks, and a stored partial reply. For a tutor, a few cents per abandoned reply is acceptable; for autocomplete it would not be. Common wrong answer: "aborting the request cancels generation".
+
+**"How do you know prompt caching is working in production?"** Model answer: from the counters, not the configuration. Every turn logs input, output, cache-read and cache-write tokens, `ai_usage` keeps all four per user per day, and the hit rate is reads over all input; a prefix under the model's minimum or a changed byte fails silently, with no error. Common wrong answer: "we set `cache_control`, so it is cached".
+
+**"What stops one user or script spending the shared key?"** Model answer: two layers keyed differently. Twenty model calls a minute per session stops bursts; the daily budget in billed tokens, reserved by one conditional upsert, caps cost, and its refusal carries `Retry-After` to UTC midnight. Then name the gaps: the token checks are pre-flight, so a call can overshoot by its `max_tokens`, and the per-user cap does not cap the total. Common wrong answer: "a spend limit at the provider", which fails every user at once.
+
+## What mid-level engineers get wrong
+
+- **Letting the HTTP response own work that must finish.** A closed tab cancels it, and with it the persistence and the bill.
+- **An unbounded channel between a fast producer and a slow reader.** Memory grows with every slow phone; 64 slots and an awaited send push back on the provider instead.
+- **Holding a pooled database connection for the length of a stream.** A thousand streams would need a thousand connections from a pool of 20.
+- **A bare `tokio::spawn` for work that must survive shutdown.** Nothing waits for it, and its log lines lose the request id.
+- **Splitting SSE on `\n` alone.** A lone CR is a line end, and the server's encoder emits one for any CR in the payload.
+- **Forwarding the provider's error text.** It can quote the request, including another learner's content in a shared prompt.
 
 ## Senior signals
 

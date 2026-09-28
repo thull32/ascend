@@ -50,7 +50,7 @@ pub async fn verify(password: String, hash: Option<String>) -> bool {
 
 **Before: nothing bounded concurrency.** `spawn_blocking` moves work off the async threads, but Tokio's blocking pool grows to hundreds of threads by default, and each Argon2 computation holds 19 MiB. The auth rate limit was per IP, so a few hundred IPs submitting logins at once could make the process allocate gigabytes. Password hashing is a denial-of-service amplifier by design: the attacker sends a few bytes, the server spends tens of milliseconds and 19 MiB.
 
-**After: a semaphore sized to the machine.** The latest fixes added this beside the hash functions, and both `hash` and `verify` take a permit before they spawn the blocking work:
+**After: a semaphore sized to the machine.** Commit `7154e9f` added this beside the hash functions, and both `hash` and `verify` take a permit before they spawn the blocking work:
 
 ```rust
 // crates/core/src/auth/password.rs
@@ -93,15 +93,15 @@ sequenceDiagram
   end
 ```
 
-The same test then registers an email that already has an account and asserts a **409 "an account with that email already exists"**. That is the front door to exactly the information the login path works to hide: anyone can learn whether an address has an account by trying to register it. Until the latest fixes it leaked through timing as well, because registration checked for the email *before* hashing, so "already registered" came back roughly 100 ms sooner than a real sign-up. Registration now hashes first and lets the unique index decide, which removes the timing difference and the race described in [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request). The status code remains, deliberately, and the code says so in a comment: "Registration still says when an email is taken: without an email round trip there is no way to avoid that, and it is rate limited. The login endpoint, which attackers probe at scale, reveals nothing." The complete fix is an email step, where registration always answers "check your inbox" and the message differs, but that needs an email provider, deliverability work and a verification flow. For a learning platform, where knowing that someone studies here is low-sensitivity, skipping it is a defensible trade-off, and it is now a written one.
+The same test then registers an email that already has an account and asserts a **409 "an account with that email already exists"**. That is the front door to exactly the information the login path works to hide. Before `7154e9f` it leaked through timing as well: registration checked for the email *before* hashing, so "already registered" came back roughly 100 ms sooner than a real sign-up. Registration now hashes first and lets the unique index decide, which removes the timing difference and the race described in [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request). The status code remains, and a comment in the code says why: "Registration still says when an email is taken: without an email round trip there is no way to avoid that, and it is rate limited. The login endpoint, which attackers probe at scale, reveals nothing." The complete fix is an email step (registration always answers "check your inbox"), which needs an email provider and a verification flow. For a learning platform, where knowing that someone studies here is low-sensitivity, skipping it is a defensible, written trade-off.
 
-A smaller finding shows how timing defences fail at their edges. `DUMMY_HASH` is a lazily initialised static: the first time anything reads it, it computes an Argon2 hash. The earlier `verify` read it with `hash.unwrap_or_else(|| DUMMY_HASH.clone())` on the async task, before taking a permit. So the very first unknown-email login after each boot computed a full Argon2 hash on a Tokio worker thread, outside the semaphore, and then verified against it: roughly twice as slow as every other login, a one-off signal that this email has no account. The fix moved the read into the blocking closure, inside the permit, and added `password::warm_up()`, which `main` awaits after building the application state: it takes a permit and forces the static on the blocking pool, so by the time the port is bound the dummy hash exists and every unknown-email login costs exactly one verification. A lazy static is a hidden first-call cost, and a timing defence has to account for first calls too.
+A smaller finding shows how timing defences fail at their edges. `DUMMY_HASH` is a lazily initialised static: the first read computes an Argon2 hash. The earlier `verify` read it on the async task, before taking a permit, so the first unknown-email login after each boot hashed *and* verified, roughly twice as slow as every other login: a one-off signal that this email has no account. The fix moved the read into the blocking closure, inside the permit, and added `password::warm_up()`, which `main` awaits before binding the port, so every unknown-email login costs exactly one verification. A lazy static is a hidden first-call cost, and a timing defence has to account for first calls too.
 
 One small choice remains a matter of taste: a failed login returns 422 through `AppError::Validation`; 401 is more conventional, and either is fine as long as it is consistent.
 
 ### Deleting an account: a password, a 422 and a per-account limit
 
-Until the latest fix commit there was no way to delete an account at all. `DELETE /api/auth/me` now exists, and three details in it are security decisions:
+Until commit `7154e9f` there was no way to delete an account at all. `DELETE /api/auth/me` now exists, and three details in it are security decisions:
 
 ```rust
 // crates/api/src/routes/auth.rs — delete_account
@@ -142,7 +142,7 @@ pub fn looks_valid(token: &str) -> bool {
 
 The token is 256 bits from the thread-local CSPRNG, encoded as 43 URL-safe characters. The cookie carries the token; the `sessions` table stores only its SHA-256 as the primary key.
 
-**Why a fast, unsalted hash is right here when it is wrong for passwords.** A password has perhaps 30 to 40 bits of real entropy, so an attacker with the hash simply tries likely passwords; slowness and salt are the only defence. A session token has 256 bits of entropy and no dictionary, so inverting SHA-256 on a random input is infeasible at any speed. The hash exists so that a *read-only* leak (a backup, a replica, a log line with a query) cannot be replayed as a login. The integration test `auth_lifecycle_and_session_storage` queries the table for the raw token and asserts it is not there.
+**Why a fast, unsalted hash is right here when it is wrong for passwords.** A password has perhaps 30 to 40 bits of real entropy, so an attacker with the hash tries likely passwords in order of popularity; slowness and salt are the only defence. A session token has 256 bits of entropy and no dictionary, so inverting SHA-256 on a random input is infeasible at any speed. The hash exists so that a *read-only* leak (a backup, a replica, a log line with a query) cannot be replayed as a login. The integration test `auth_lifecycle_and_session_storage` queries the table for the raw token and asserts it is not there.
 
 Resolving a cookie, `crates/core/src/auth/service.rs`:
 
@@ -382,7 +382,7 @@ Only a header that the trusted proxy *sets and overwrites* is safe. The first en
 
 When this track was first drafted, every limiter was keyed by client IP: 10 logins per minute, 20 AI requests per minute on every coach and interview route, and 300 requests per minute for everything else. A reviewer could see two problems on paper. A university or an office behind one NAT shares one address, so a class signing in together would exhaust ten logins in seconds; and an attacker with many addresses gets a fresh bucket per address, so a per-IP limit does little against a distributed guess at one account.
 
-The live tests found the first problem before any learner did. The AI and smoke suites run many browsers against one server, and every one of them has the same IP, exactly like that class. The per-IP buckets throttled legitimate test learners, reading coach history included. The fix changed the keys rather than just the numbers:
+The live tests found the first problem before any learner did. The AI and smoke suites run many browsers against one server, and every one of them has the same IP, exactly like that class. The per-IP buckets throttled legitimate test learners, reading coach history included. The fix changed the keys as well as the numbers:
 
 | Bucket | Before | After | Why |
 |---|---|---|---|
@@ -393,7 +393,7 @@ The live tests found the first problem before any learner did. The AI and smoke 
 
 The session key is a 16-byte prefix of the SHA-256 of the cookie, so raw tokens never sit in the limiter's memory, and it is computed without authenticating anyone, which the previous lesson showed is safe because the extractor rejects a forged cookie before any model call. `ai_throttling_is_per_session_and_only_for_model_calls` checks that one learner is throttled while a second learner from the same address is not, and the throttling test now checks that case and whitespace in the email do not buy a fresh allowance.
 
-The per-account bucket has a cost you should be able to name, and it is still open, as a documented trade-off: it lets anyone who knows a learner's email *delay their login*. Ten wrong guesses against that email, which the looser per-IP bucket allows from a single address, empty the account's bucket, and the owner's own correct password is refused with 429 until tokens refill, up to a minute; a script that repeats the burst keeps them out. The bucket also charges successful logins, so the owner's own attempts count against it. That is the standard trade-off of per-account limits. The usual mitigations are to charge only failed attempts, to exempt a device that has signed in successfully before, or to add a CAPTCHA step instead of refusing outright.
+The per-account bucket has a cost you should be able to name, still open as a documented trade-off: anyone who knows a learner's email can *delay their login*. Ten wrong guesses, which the per-IP bucket allows from one address, empty the account's bucket, and the owner's correct password is refused with 429 until a token refills; a script that repeats the burst keeps them out. The bucket also charges successful logins. The usual mitigations are to charge only failures, to exempt a device that has signed in before, or to ask for a CAPTCHA instead of refusing.
 
 What a reviewer should still raise:
 
@@ -401,7 +401,7 @@ What a reviewer should still raise:
 - **IPv6.** An attacker who controls a /64 has more addresses than the per-IP buckets have memory. Keying by /64 prefix for IPv6 closes it.
 - **Fallbacks.** If the configured header is missing, the socket address is used, which behind a proxy is the proxy itself, so everyone shares one bucket. Without connection info, everyone shares `0.0.0.0`.
 
-Two items that used to be on this list are fixed. The keyed maps only grew, because governor drops idle keys only when `retain_recent` is called and nothing called it, so every distinct IP ever seen stayed in memory until restart; the hourly maintenance task in `main` now calls `Limiters::prune`, which runs `retain_recent` and `shrink_to_fit` on every limiter. And every 429 used to say `Retry-After: 60`, although governor knows the exact earliest retry time; it now sends that, rounded up to whole seconds, and the web client waits that long before retrying a query.
+Two former items are fixed. The keyed maps only grew, because governor drops idle keys only when `retain_recent` is called and nothing called it; the hourly task in `main` now calls `Limiters::prune` on every limiter. And every 429 used to say `Retry-After: 60`; it now sends governor's exact earliest retry time, rounded up to whole seconds.
 
 ## TLS and secrets
 
@@ -428,7 +428,36 @@ fn validate(&self) -> Result<(), ConfigError> {
 }
 ```
 
-Secrets live only in the environment. `DATABASE_URL` and the Anthropic key are `SecretString`s, whose `Debug` output is redacted, so logging the whole `Config` cannot leak them, and every use is an explicit, greppable `expose_secret()`. `.railway/railway.ts` declares the key with `preserve()`, so infrastructure-as-code never contains the value; `.dockerignore` keeps `.env` out of the build context. The AI key is optional: without it the product runs, the coach reports itself disabled, and routes that need the model return 503 with code `ai_disabled`.
+Secrets live only in the environment. `DATABASE_URL` and the Anthropic key are `SecretString`s, whose `Debug` output is redacted, so logging the whole `Config` cannot leak them, and every use is an explicit, greppable `expose_secret()`. One path escaped that rule until commit `8f82820`: a failed database connect could quote the URL it used, password included, in the boot log. `connect_db` now passes the error through `redact_credentials`, which keeps the user name and replaces the password with `***`, and a unit test pins it. `.railway/railway.ts` declares the key with `preserve()`, so infrastructure-as-code never contains the value; `.dockerignore` keeps `.env` out of the build context. The AI key is optional: without it the product runs, the coach reports itself disabled, and routes that need the model return 503 with code `ai_disabled`.
+
+## Failure modes
+
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| A login burst from hundreds of addresses | Memory climbs about 19 MiB per concurrent hash until the process is killed | Blocking-pool thread count and resident memory rise together during the burst | A semaphore of one permit per CPU (in place); waiters hold a future, not 19 MiB |
+| A stranger locks a learner out | The owner's correct password gets 429 | Many 422s for one email from several addresses, then the owner's 429 | Charge failed attempts only; exempt devices that signed in before |
+| The client-IP header is misconfigured | Either everyone behind the proxy shares one bucket and mass 429s follow, or an attacker rotates a forged header | Every request logs the same client address, or addresses that change per request | `CLIENT_IP_HEADER=x-real-ip`, a header the edge overwrites; never the first `X-Forwarded-For` entry |
+| Absolute session expiry | An active learner is signed out mid-lesson on day 30 | `expires_at` equals login time plus `SESSION_TTL_DAYS`; `last_seen_at` is recent | Sliding expiry with an absolute cap |
+| A GET route with a side effect | A cross-site link changes state for signed-in learners | `SameSite=Lax` still sends the cookie on top-level GET navigations, and CSRF checks only mutating methods | Keep GETs safe; move the side effect to POST |
+
+## Interviewer follow-ups
+
+**"Why server-side sessions rather than JWTs?"** Model answer: there is one service, so stateless verification buys nothing, and every session check is a primary-key lookup on the hashed token. Revocation is a `DELETE` ("log out everywhere" is one statement), where a JWT needs a denylist, which is server state anyway. The cookie is `HttpOnly`, so script cannot read it. JWTs earn their place when many services verify tokens without calling home. Common wrong answer: "JWTs scale better", with no account of revocation or of where the token is stored.
+
+**"How do you stop a distributed attacker guessing one learner's password, and what does it cost?"** Model answer: key a limit by the thing being attacked: ten attempts per minute per account, shared by login and account deletion, so rotating addresses buys nothing. The cost is a targeted lockout, since anyone who knows the email can drain the bucket; charge only failures or trust known devices to soften it. Common wrong answer: "a tighter per-IP limit", which a botnet ignores and a classroom behind one NAT pays for.
+
+**"Your login is timing-safe. Is account enumeration solved?"** Model answer: no. Registration still answers 409 for a taken email, a documented trade-off that only an email-verification flow closes, and timing defences have edges: the lazily computed dummy hash made the first unknown-email login after each boot twice as slow until `warm_up` moved that cost before the port binds. Common wrong answer: "yes, the error messages are identical", which checks one endpoint and one request.
+
+**"The Referer check matched by prefix. Why was that not exploitable, and what do you conclude?"** Model answer: browsers send `Origin` on cross-site mutations, so the Referer branch did not run, and the custom header and `SameSite` would each have stopped the request anyway. Conclude that layers must be independent, and move the decision into a pure function so adversarial inputs (look-alike hosts, other schemes and ports, `null`) are table-tested. Common wrong answer: "no harm done", which misses that one more wrong layer would have been an exposure.
+
+## What mid-level engineers get wrong
+
+- **Hashing passwords with a fast hash, or running Argon2 on async worker threads without a bound.** The first is crackable offline; the second turns a login burst into gigabytes of memory.
+- **Storing raw session tokens.** A read-only leak of the table becomes a set of working logins.
+- **Treating `SameSite` as the CSRF defence.** It is about sites, not origins, and every app under the same registrable domain is the same site.
+- **Relying on `Content-Type: application/json` for CSRF.** Bodyless routes such as logout never check it.
+- **Keying limits on `X-Forwarded-For`.** Its first entry is whatever the client wrote.
+- **Keeping a JWT in `localStorage`.** Any XSS reads it, and it cannot be revoked before it expires.
 
 ## What changes at 100x
 

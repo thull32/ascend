@@ -327,7 +327,7 @@ const monotonicNextGreater: G = ({ values }) => {
       s.tones[j] = "done";
       s.aux = { label: "stack (indices)", values: [...stack] };
       s.pointers = { i };
-      s.vars = { answer: ans };
+      s.vars = { answer: [...ans] };
       f.push(`values[${i}] = ${values[i]} > values[${j}] = ${values[j]}: pop ${j}, its next greater is ${values[i]}.`, "pop");
     }
     stack.push(i);
@@ -336,7 +336,7 @@ const monotonicNextGreater: G = ({ values }) => {
     for (const j of stack) s.tones[j] = "frontier";
     s.aux = { label: "stack (indices)", values: [...stack] };
     s.pointers = { i };
-    s.vars = { answer: ans };
+    s.vars = { answer: [...ans] };
     f.push(`Push ${i}. Stack values stay decreasing: ${stack.map((j) => values[j]).join(" > ") || "∅"}.`, "push");
   }
   clearTones();

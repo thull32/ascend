@@ -1,7 +1,7 @@
 ---
 slug: ci-cd-and-deployment
 title: "CI/CD and deployment: pipelines, environments, blue-green, canaries, rollbacks and migrations"
-description: A real pipeline timed job by job with and without caches, blue-green and canary releases traced step by step with the sample-size arithmetic that sets stage lengths, a failed canary rolled back, draining and readiness on a real platform, why this app cannot roll back across a migration, expand/contract tied to the versions that are live, and an error budget that decides when to ship.
+description: A real pipeline timed job by job with and without caches, blue-green and canary releases traced step by step with the sample-size arithmetic that sets stage lengths, a failed canary rolled back, draining and readiness on a real platform, how this app's boot learned to survive a rollback across a migration, expand/contract tied to the versions that are live, and an error budget that decides when to ship.
 minutes: 29
 difficulty: medium
 tags: [ci-cd, deployment, blue-green, canary, rollback, migrations, slo, error-budget, senior-craft]
@@ -60,11 +60,15 @@ A cold Rust cache turns a 16-second debug build into almost six minutes. [Contai
 
 **Cancellation has a cost.** A `concurrency` group cancels a run when a newer commit arrives on the same branch. On 27 September, run 36298629453 was cancelled at 06:08:48, sixteen seconds after the run for `8657191` was created, with its image job two and a half minutes in. Every earlier run had failed or been cancelled before its image job finished, so nothing had ever been exported to the layer cache, and the next run built every layer from scratch: the 356-second row above. Cancelling saves runner time on stale commits; during a burst of pushes it can also stop the cache from ever warming.
 
-**Two builds of one commit.** The image job builds the Dockerfile but does not push it (`push: false`), and Railway builds its own image from the same commit when `main` changes. That is the pattern rule 2 warns about. Frozen lockfiles and base images that resolve to the same digests (CI's build log records them) make the two builds very likely equivalent, and for a one-person project the simplicity is a fair trade; the stricter design pushes CI's image to a registry and deploys that digest.
+**Two builds of one commit.** The image job builds the Dockerfile but does not push it (`push: false`), and Railway builds its own image from the same commit when `main` changes. That is the pattern rule 2 warns about. Frozen lockfiles and base images pinned by digest (every `FROM` line has carried `@sha256:` since commit `8f82820`; before it, only CI's build log recorded which digest a tag resolved to) make the two builds equivalent in their inputs, and for a one-person project the simplicity is a fair trade; the stricter design pushes CI's image to a registry and deploys that digest.
 
 **E2E tests a debug build.** The Playwright suite used to run only on demand (`make e2e`), so a broken browser journey could merge with every check green; the `e2e` job now runs it on every pull request and every push to `main`. It exercises a debug binary compiled from source, not the image, so rule 3 is still approximated: a packaging mistake in the Dockerfile would pass it.
 
-**Local parity.** `make check` runs the format, lint, test and validation steps (the Makefile calls it "Everything CI runs, locally"); it leaves out the SPA build, the image, the browser suite and the quiz-order check. Closing a gap usually means naming the next one.
+**Local parity.** `make check` runs the format, lint, test and validation steps (the Makefile calls it "Everything CI runs, locally"); it leaves out the SPA build, the image, the browser suite, the quiz-order check and the dependency audits. Closing a gap usually means naming the next one.
+
+## The pipeline is also an attack surface
+
+On the timed run, every action was referenced by a movable tag such as `actions/checkout@v4`, and the workflow's token had the default permissions. A review of this module pointed at the 2025 incident in which a popular action's tags were moved to a commit that printed CI secrets into logs. Commit `8f82820` pinned each action to a full commit SHA with the version as a comment, gave the workflow a read-only token (`permissions: contents: read`), and added `cargo audit` to the rust job and `pnpm audit --prod` to the web job; `.github/dependabot.yml` now proposes weekly, grouped pull requests to move the pins, so pinning does not mean never upgrading. The audit found a real advisory on its first run, in a `lodash-es` pulled in through `mermaid`, overridden to `^4.18.1` in `web/pnpm-workspace.yaml`. [Security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) places this under OWASP's integrity and vulnerable-component risks.
 
 ## Environments and configuration
 
@@ -104,7 +108,7 @@ const app = service("ascend", {
 
 `checkSuites: true` makes Railway wait for the commit's GitHub check suites, the five jobs above, before it deploys. The line used to read `false`, so the only thing keeping a red build out of production was branch protection; the fix turned a default nobody noticed into a decision a reviewer can see.
 
-The boot sequence in `crates/api/src/main.rs` makes the health check meaningful: load and validate config, connect to Postgres, **run pending migrations**, load the curriculum, and only then bind the port. `/api/readyz` runs `SELECT 1` and reports the database status, whether AI is configured, the content version and the build (the commit, compiled in from `RAILWAY_GIT_COMMIT_SHA`). A 200 means "config valid, schema current, database reachable, content loaded". [Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) walks the same path from the codebase's side.
+The boot sequence in `crates/api/src/main.rs` makes the health check meaningful: load and validate config, connect to Postgres, **plan and run pending migrations under an advisory lock** (below), load the curriculum, and only then bind the port. `/api/readyz` runs `SELECT 1` and reports the database status, whether AI is configured, the content version and the build (the commit, compiled in from `RAILWAY_GIT_COMMIT_SHA`). A 200 means "config valid, schema current, database reachable, content loaded". [Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) walks the same path from the codebase's side.
 
 ```mermaid
 sequenceDiagram
@@ -130,7 +134,7 @@ Railway's documentation fixes the rest of the contract. The platform polls the h
 
 Zero downtime needs the old version to finish what it started. `main.rs` listens for SIGTERM, stops accepting connections, lets in-flight requests complete, then waits up to 30 seconds for background tasks such as an AI reply still being saved for a learner who closed the tab. A request can legitimately run for minutes: the router's `TimeoutLayer` allows 240 seconds before answering 503, and a streamed AI reply may use most of that.
 
-How long the platform waits between SIGTERM and SIGKILL decides whether any of that runs. Railway exposes it as the `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` service variable, and its documentation gives the default as **0 seconds**: SIGTERM, then SIGKILL immediately. `railway.ts` does not set it, so unless it was set in the dashboard, where the reviewed file cannot show it, the graceful shutdown code is correct and never gets time to run. A reviewer asks for the variable in the file with a value above the slowest legitimate request plus the 30-second task wait, which here is a few minutes. A separate variable, `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS`, keeps the old deployment up for a while after the new one goes live.
+How long the platform waits between SIGTERM and SIGKILL decides whether any of that runs. Railway exposes it as `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`, and its documentation gives the default as **0 seconds**: SIGTERM, then SIGKILL at once. Until commit `8f82820`, `railway.ts` did not set it, so the shutdown code was correct and never got time to run. Nothing failed loudly, because the symptom (a reply cut off mid-stream during a deploy) looks like a network blip; reading the platform's documentation beside the code during a review found it. The fix has two halves. `railway.ts` sets the variable to `"60"`, in the reviewed file rather than the dashboard. And `main.rs` bounds its own shutdown to fit inside that window: `DRAIN_TIMEOUT` gives open connections 25 seconds, because graceful shutdown otherwise waits for every connection and one client that stops reading a stream would hold it until SIGKILL; then background tasks get 30 seconds. 25 + 30 = 55 seconds, under 60, so the process reaches its own `shutdown complete` instead of being killed partway. The window is deliberately shorter than the 240-second request timeout: a reply still streaming at a deploy is cut after 25 seconds, but the spawned task that persists it keeps running and is saved if it finishes within the next 30. A separate variable, `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` (also 0 by default), keeps the old deployment up for a while after the new one goes live.
 
 Readiness and liveness are different questions. `/api/healthz` answers "is the process up?" and checks nothing else; `/api/readyz` answers "should this instance get traffic?" and checks the database. An orchestrator that restarts containers on failed *liveness* must never use a check that depends on the database, or a 40-second database failover becomes every instance restarting at once.
 
@@ -223,7 +227,7 @@ The counts are typical, not lucky: the power arithmetic above gives this bug an 
 
 Weights live in the layer-7 proxy. Envoy's `weighted_clusters`, the Kubernetes Gateway API's weighted `backendRefs` and cloud load balancers' weighted target groups all pick a destination per request, and controllers such as Argo Rollouts and Flagger step the weights and query metrics between steps. A per-request random split sends one user's consecutive requests to different versions. That breaks anything version-coupled: a page rendered by v2 whose next request lands on v1, or a single-page app whose content-hashed assets exist only in the version that built them. Hash the user or session ID into the split instead, so each user sees one version.
 
-This app shows the asset problem without any canary. The React bundle is compiled into the binary, and pages are lazy-loaded chunks with content-hashed names. After a deploy that changed a chunk, a tab opened before it requests `/assets/Dashboard-<old hash>.js`; the new binary has no such file, and `static_handler` falls back to `index.html` as it does for any unknown path, so the import fails as HTML served where JavaScript was expected. Keeping the previous build's assets available for a while, or reloading on Vite's documented `vite:preloadError` event, closes it.
+This app showed the asset problem without any canary. The React bundle is compiled into the binary, and pages are lazy-loaded chunks with content-hashed names. After a deploy that changed a chunk, a tab opened before it requested `/assets/Dashboard-<old hash>.js`; the new binary had no such file, and `static_handler` fell back to `index.html` as it does for any unknown path, so the import failed as HTML served where JavaScript was expected, an error the SPA could not tell apart from a bug. Commit `8f82820` fixed both ends. The server answers a missing `/assets/…` path with `404` and `Cache-Control: no-store` (the integration test for the SPA fallback now checks it), and `web/src/main.tsx` listens for Vite's `vite:preloadError` event and reloads once into the new build, with a `sessionStorage` flag so that a broken new build cannot cause a reload loop. Keeping previous builds' assets would avoid even that reload, but the binary embeds exactly one build, so it would need an external asset store; one reload is the cheaper contract.
 
 A one-replica service cannot split by instance, but it can canary by **feature flag**: hash the user ID, enable the new path for 5% of users, and compare their error rate with everyone else's.
 
@@ -233,7 +237,16 @@ Rollback means redeploying the previous artifact. It is fast when artifacts are 
 
 Some changes cannot be undone by redeploying code: a migration that **dropped or rewrote** data, data written in a **new format** the old version cannot read, and **external side effects** such as emails sent or payments captured.
 
-This app adds one more, found by reading the migration library. sea-orm-migration 2.0.3, the library behind the `Migrator::up` call at boot, compares the migrations recorded in `seaql_migrations` with those compiled into the binary and returns an error when the database records one the binary does not know: "Migration file of version 'm0007_integrity' is missing, this migration has been applied but its file is missing". `main.rs` propagates it, so the previous binary exits before binding, the rollback deployment never turns healthy, and the release you were escaping keeps serving. **Rolling back across a migration is impossible by redeploying the old image**; the options are roll-forward, or releasing every migration one deploy before the code that needs it, so that the code release's predecessor already knows the migration (the migration-only release still cannot be rolled back, but it changes no behaviour, so there is nothing to escape). A second trap sits behind the first: before commit `7154e9f` the comment entity read `user_id` as a non-null `Uuid`, and `m0007` made it nullable, so even a patched old binary would fail to decode any comment whose author had deleted their account.
+This app had one more, found by reading the migration library. sea-orm-migration 2.0.3 compares the migrations recorded in `seaql_migrations` with those compiled into the binary and returns an error when the database records one the binary does not know: "Migration file of version 'm0007_integrity' is missing, this migration has been applied but its file is missing". `main.rs` used to call `Migrator::up` at boot and propagate that error, so the previous binary exited before binding and a rollback never turned healthy. Worse, a release whose migration committed and whose new version then failed its health check left the old deployment serving but unable to survive its next restart. Commit `8f82820` replaced the bare call with `crates/api/src/migrate.rs`, which reads the recorded versions itself and picks one of four plans:
+
+| The database, relative to the binary | Plan | Boot |
+|---|---|---|
+| has exactly the binary's migrations | `UpToDate` | serves |
+| lacks some of the binary's migrations, has nothing extra | `Apply` | runs them, then serves |
+| has extra migrations, lacks none of the binary's | `SchemaAhead` | serves without migrating, after a WARN "database schema is ahead of this build" |
+| has extra migrations *and* lacks some of the binary's | `Diverged` | refuses to boot: two branches were deployed against one database |
+
+`SchemaAhead` is safe only under a contract the code cannot check: every migration stays expand-only for at least one release, so the previous build can run on the new schema. The history shows what breaking it looks like. Before commit `7154e9f` the comment entity read `user_id` as a non-null `Uuid`, and `m0007` made the column nullable, so a binary from before that commit would boot as `SchemaAhead` and then fail to decode any comment whose author had deleted their account. Relaxing a constraint is a contract change for old readers.
 
 ## Migrations when two versions are live
 
@@ -241,7 +254,7 @@ During a rollout, blue-green and any rollback, **old code runs against the new s
 
 | Release | Migration | Writes | Reads | Live together | Roll back one release? |
 |---|---|---|---|---|---|
-| R1 expand | add `display_name`, nullable | both columns | `name` | R0, R1 | code: yes; in this app, only if the migration shipped a release earlier |
+| R1 expand | add `display_name`, nullable | both columns | `name` | R0, R1 | yes: R0 boots as `SchemaAhead` and ignores the new column |
 | backfill job | none | fills `display_name` in batches | | R1 | |
 | R2 | none | both | `display_name` | R1, R2 | yes: R1 reads `name`, which R2 still writes |
 | R3 | none | `display_name` | `display_name` | R2, R3 | yes; two releases back to R1 is not, since `name` went stale |
@@ -251,7 +264,7 @@ Writing both before reading the new column means the backfill only covers rows o
 
 This repository's conventions, at the top of `migration/src/lib.rs`, are the same discipline in miniature: migrations are **append-only** (production has recorded a shipped migration as applied, so editing it only changes what fresh databases get), and every foreign key declares an `ON DELETE` policy. The comments fix is itself append-only: the original table cascaded on user deletion, which also deleted other people's replies through `parent_id`, and the correction shipped as `m0007_integrity`, not as an edit to `m0004_community`.
 
-Migrating at boot fits one replica. Two limits to raise in review: sea-orm-migration 2.0.3 takes no lock around `up`, so replicas booting together all run the pending migration, and whichever commits second fails on the `seaql_migrations` primary key or on DDL that already ran, then exits and restarts; and a migration longer than the 120-second health window fails the deploy midway, so large-table work (an index on a big table, a backfill) belongs in a separate, online step.
+Migrating at boot fits one replica, and a review raised two limits. sea-orm-migration 2.0.3 takes no lock around `up`, so replicas booting together would all run the pending migration, and whichever committed second would fail on the `seaql_migrations` primary key or on DDL that already ran, then exit and restart. `migrate.rs` now takes a transaction-scoped Postgres advisory lock (`pg_advisory_xact_lock` on a fixed key) before planning, so a second replica waits, then finds `UpToDate`; a replica that crashes mid-run drops its connection, which releases the lock. The integration test `boot_migrations_are_locked_and_tolerate_a_newer_schema` runs two boot migrations at once and inserts a migration row "from the future" to check `SchemaAhead`. The other limit stands: a migration longer than the 120-second health window fails the deploy midway, so large-table work (an index on a big table, a backfill) belongs in a separate, online step.
 
 ## Let the error budget decide when to ship
 
@@ -392,11 +405,11 @@ hints:
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| A burst of 502s or reset connections at every deploy | The old instance is killed with requests in flight: draining time of 0 s, or no SIGTERM handler | Handle SIGTERM and drain; set the platform's grace period above the slowest request |
-| Rollback deployment never turns healthy after a release with a migration | The old binary's migrator finds an applied migration it does not know and exits (this app: "Migration file ... is missing") | Roll forward; ship migrations one release before the code that needs them |
+| A burst of 502s or reset connections at every deploy | The old instance is killed with requests in flight: a draining window of 0 s (this app until `8f82820`), or no SIGTERM handler | Handle SIGTERM with a bounded drain; set the platform's window above that bound, in the reviewed file |
+| Rollback deployment never turns healthy after a release with a migration | The migrator refuses a database that records a migration the binary lacks (sea-orm-migration's check; this app until `8f82820`) | Plan migrations at boot and start without migrating when the schema is only ahead; keep migrations expand-only for a release |
 | Canary passed, full rollout fails | Stages too short to detect the regression, a missing business metric, or a load-dependent bug (pool exhaustion, cache stampede) | Size stages with power arithmetic; gate on saturation and business metrics; keep a 50% stage |
-| Deploy fails after two minutes; the new instance's last log line is "running migrations" | A migration outran the 120 s health window | Move long DDL and backfills to a separate online step |
-| Users see a broken page after a deploy until they reload | Stale tab requests a content-hashed chunk the new build does not have | Serve previous assets for a while; reload on `vite:preloadError` |
+| Deploy fails after two minutes; the new instance's last log line is `Applying migration '…'` | A migration outran the 120 s health window, or waited on a lock | Move long DDL and backfills to a separate online step; find the lock holder in `pg_locks` |
+| Users see a broken page after a deploy until they reload | A stale tab requests a content-hashed chunk the new build lacks and gets `index.html` as JavaScript (this app until `8f82820`) | Answer missing assets with a 404; reload once on `vite:preloadError` |
 | Pipeline time doubles for one commit | Cache miss: `Cargo.lock` changed, or the cache was never exported because the run that would have written it was cancelled | Expect it for dependency bumps; on `main`, let runs finish (`cancel-in-progress` only for pull requests) so the cache gets written |
 | Works in staging, fails in production | Configuration differs and is only read on first use | Validate every setting at boot so the health check fails instead |
 
@@ -415,7 +428,7 @@ hints:
 
 **"How long should each canary stage run?"** Model answer: long enough for the stage's request count to detect the regression you care about: expected errors at the baseline rate, a limit a few standard deviations above, then the power against the smallest regression you must catch; for a fivefold one at 1,000 rps, a 1% stage needs about 4.4 minutes and a 10% stage about 30 seconds. Common wrong answer: "five minutes per stage", regardless of traffic.
 
-**"The release passed the canary and an hour later errors climb. Roll back or roll forward?"** Model answer: roll back if the release is reversible (no contract migration, no new data format, no external side effects) and the trigger says so; roll forward if the fix is smaller and better understood, or if a migration makes rollback impossible, as it does for this app's migrator. Common wrong answer: "always roll back", without checking what the release changed in the database.
+**"The release passed the canary and an hour later errors climb. Roll back or roll forward?"** Model answer: roll back if the release is reversible (no contract migration, no new data format, no external side effects) and the trigger says so; roll forward if the fix is smaller and better understood, or if a migration makes rollback impossible, as this app's migrator did until boot learned to start against a newer schema. Common wrong answer: "always roll back", without checking what the release changed in the database.
 
 **"Rename a column with zero downtime."** Model answer: expand, dual-write, backfill, switch reads, stop writing, contract, one release each, checking at every step which two versions can be live and that the previous release still works on the schema. Common wrong answer: one migration during a quiet hour, which breaks the version still serving the moment it runs.
 
@@ -426,8 +439,8 @@ hints:
 - **Rebuilding per environment.** Production runs an image nobody tested.
 - **A 1% canary for five minutes, then 100%.** The first stage cannot see anything smaller than a gross failure, and the jump to 100% skips every stage that could.
 - **Comparing the canary with yesterday.** Daily traffic patterns become false alarms or hide regressions.
-- **Assuming rollback is always available.** A contract migration, a new data format or, in this app, any new migration removes it.
-- **Graceful shutdown code without the platform setting.** With 0 seconds of draining the handler starts and is killed at once.
+- **Assuming rollback is always available.** A contract migration, a new data format, or a migration tool that refuses a newer schema (this app's, until it planned migrations itself) removes it.
+- **Graceful shutdown code without the platform setting.** With 0 seconds of draining the handler starts and is killed at once; with an unbounded drain, one stalled stream holds it until SIGKILL anyway.
 - **Readiness that only says "the process is up".** Traffic moves to an instance that cannot reach its database.
 - **Flags that never die.** Each forgotten flag doubles the code paths someone must reason about.
 
@@ -462,11 +475,11 @@ hints:
   explanation: >-
     The canary sees 600 requests; a healthy one expects 0.6 errors and the gate trips at 4. The broken release produces 3 on average, so it trips only about 35% of the time. A fivefold ratio sounds decisive, but with counts this small it is not; the same stage needs about 4.4 minutes for 95% power, and a 10% stage about 30 seconds.
 - q: >-
-    You roll this app back to the previous image after a release whose only schema change was adding a nullable column. What happens?
-  options: ["The old binary refuses to boot because the database records a migration it lacks", "The old binary runs the migration's down step at boot and then serves traffic", "Railway reverts the migration before starting the old image, then routes traffic", "The old binary starts and ignores the new column, which is the point of expand"]
-  answer: 0
+    You roll this app back to the previous image after a release whose only schema change was adding a nullable column. With boot migrations planned by migrate.rs, what happens?
+  options: ["The old binary refuses to boot because the database has a migration it lacks", "The old binary runs the new migration's down step, then serves traffic", "The old binary finds the schema ahead, skips migrating and serves", "Railway reverts the migration before it starts the old image"]
+  answer: 2
   explanation: >-
-    sea-orm-migration 2.0.3 errors when seaql_migrations records a migration the binary does not contain, and main.rs exits on that error, so the rollback never passes the health check and the newer release keeps serving. The schema itself would have been compatible; the migrator's check is what blocks it. Shipping each migration one release before the code that needs it keeps a rollback target that knows it.
+    migrate.rs sees a migration it does not know and none of its own pending, plans SchemaAhead, logs a warning and starts; the nullable column is invisible to the old code, which is what expand-only migrations guarantee. Refusing to boot is what sea-orm-migration's own check did before commit 8f82820, which made this rollback impossible. Nothing runs down steps or reverts migrations automatically.
 - q: >-
     You need to rename a column that the current release reads and writes. Which plan keeps every deploy reversible?
   options: ["Rename the column during a maintenance window when no traffic reaches the database", "Add the new column, dual-write, backfill, switch reads, then drop the old one later", "Create a view with the new name over the table, then rename the table beneath it", "Ship a single migration that renames the column together with the matching code change"]
@@ -474,9 +487,9 @@ hints:
   explanation: >-
     Expand and contract keeps the schema compatible with the two releases that can be live at every step, so overlap and a one-release rollback are safe. A one-step rename, with or without a maintenance window, breaks whichever version expects the other name the moment it runs.
 - q: >-
-    Railway documents a default of 0 seconds for RAILWAY_DEPLOYMENT_DRAINING_SECONDS. What does that mean for this app's graceful shutdown?
-  options: ["SIGKILL follows SIGTERM at once, so draining and the 30-second task wait never get to run", "Nothing, because Railway waits for open connections to close before it stops a deployment", "Shutdown is skipped entirely, so the process exits cleanly without receiving any signal", "The old deployment keeps serving for 0 seconds, but in-flight requests are moved to the new one"]
+    Ascend sets RAILWAY_DEPLOYMENT_DRAINING_SECONDS to 60 and bounds its own shutdown at 25 seconds for connections, then 30 for background tasks. Why keep the server's total under the platform's window?
+  options: ["So SIGKILL never lands mid-shutdown and cuts the task wait short", "So the new deployment's health check can begin as soon as possible", "Because Railway rejects any drain longer than the health-check window", "Because the timers start before SIGTERM and need slack to catch up"]
   answer: 0
   explanation: >-
-    The draining setting is the time between SIGTERM and SIGKILL. With 0 seconds, requests in flight and background AI replies are cut off even though main.rs handles SIGTERM correctly. The fix is a value in the reviewed file above the slowest legitimate request plus the task wait.
+    The window is the time between SIGTERM and SIGKILL. At Railway's default of 0, which applied until commit 8f82820, SIGKILL arrived at once and neither the drain nor the task wait ran. A server budget longer than the window fails the same way at its end; 55 seconds fits inside 60, so the process reaches its own shutdown. The timers start at SIGTERM, and draining the old deployment is separate from the new one's health check.
 ```

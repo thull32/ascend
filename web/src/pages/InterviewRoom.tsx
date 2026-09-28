@@ -14,6 +14,9 @@ import { Button, ErrorBox, Spinner } from "../components/ui";
 import { cn } from "../lib/utils";
 import type { Language } from "../components/CodeEditor";
 
+/** Matches the server: a grading row older than this may be graded again. */
+const GRADING_RETRY_AFTER_MS = 5 * 60 * 1000;
+
 export default function InterviewRoom() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
@@ -94,20 +97,43 @@ export default function InterviewRoom() {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [chat.turns]);
 
+  // Ticks while grading so an interrupted grade turns into a retry button on
+  // time; polling alone re-renders only when the data changes.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (q.data?.status !== "grading") return;
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, [q.data?.status]);
   const finish = useMutation({
     mutationFn: () => api.post<Interview>(`/interviews/${id}/finish`, { code: codeRef.current?.code }),
     onSuccess: (i) => qc.setQueryData(["interview", id], i),
   });
 
   if (!interview) return <Spinner className="mt-20" />;
-  if (interview.status === "grading")
+  if (interview.status === "grading") {
+    // The server treats a grade that has not landed within five minutes as
+    // abandoned (the request died in a deploy or crash) and accepts a new
+    // "finish"; offer it here instead of a spinner that never ends.
+    const stale = now - new Date(interview.updated_at).getTime() > GRADING_RETRY_AFTER_MS;
     return (
       <div className="mx-auto mt-20 flex max-w-md flex-col items-center gap-3 text-center" role="status">
-        <Spinner />
-        <p className="font-medium">Grading your interview…</p>
-        <p className="text-sm text-muted">The transcript is frozen and the evaluator is reading it. This usually takes under a minute.</p>
+        {stale ? null : <Spinner />}
+        <p className="font-medium">{stale ? "Grading did not finish" : "Grading your interview…"}</p>
+        <p className="text-sm text-muted">
+          {stale
+            ? "The evaluation was interrupted. Your transcript is saved; grade it again."
+            : "The transcript is frozen and the evaluator is reading it. This usually takes under a minute."}
+        </p>
+        {stale && (
+          <Button onClick={() => finish.mutate()} disabled={finish.isPending} data-testid="retry-grading">
+            {finish.isPending ? "Grading…" : "Grade again"}
+          </Button>
+        )}
+        {finish.error ? <ErrorBox error={finish.error} /> : null}
       </div>
     );
+  }
   if (interview.status !== "active") return <Report interview={interview} />;
   const isCoding = interview.kind === "coding";
   const assisted = interview.assistant_mode === "assisted";

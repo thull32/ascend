@@ -38,7 +38,11 @@ The structured form has a **constant message** (`coach stream error`), so you ca
 
 ```rust
 let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-    EnvFilter::new("info,ascend_api=debug,ascend_core=debug,tower_http=info,sea_orm=warn,sqlx=warn")
+    // `sea_orm=warn` would also silence `sea_orm_migration` (targets match
+    // by prefix), hiding which migrations ran at boot; re-enable it.
+    EnvFilter::new(
+        "info,ascend_api=debug,ascend_core=debug,tower_http=info,sea_orm=warn,sea_orm_migration=info,sqlx=warn",
+    )
 });
 let registry = tracing_subscriber::registry().with(filter);
 if json {
@@ -48,28 +52,28 @@ if json {
 }
 ```
 
-Production writes one JSON object per line (the module comment says Railway's log explorer parses it); development gets compact human-readable lines. `flatten_event(true)` puts event fields at the top level, so a query is `status >= 500` rather than `fields.status >= 500`. `with_current_span(true)` attaches the fields of the span the event happened in, which is how the request ID reaches every line, while `with_span_list(false)` leaves out the chain of ancestor spans. The filter sets levels **per module**, so a chatty dependency cannot drown the service's own signal. `RUST_LOG` replaces the whole default; the production image sets `RUST_LOG=info,ascend_api=info,ascend_core=info,tower_http=info,sea_orm=warn,sqlx=warn`.
+Production writes one JSON object per line (the module comment says Railway's log explorer parses it); development gets compact human-readable lines. `flatten_event(true)` puts event fields at the top level, so a query is `status >= 500` rather than `fields.status >= 500`. `with_current_span(true)` attaches the fields of the span the event happened in, which is how the request ID reaches every line, while `with_span_list(false)` leaves out the chain of ancestor spans. The filter sets levels **per module**, so a chatty dependency cannot drown the service's own signal. `RUST_LOG` replaces the whole default; the production image sets `RUST_LOG=info,ascend_api=info,ascend_core=info,tower_http=info,sea_orm=warn,sea_orm_migration=info,sqlx=warn`. The comment in that excerpt records a fix, traced in the next section.
 
 ## Levels, filters and the prefix rule
 
 Levels should mean something a reader can act on:
 
 - **ERROR**: someone should look. `crates/api/src/error.rs` logs `database error` and `internal error` here.
-- **WARN**: degraded but handled. The coach's upstream stream failed; the AI key is missing so AI features are off.
-- **INFO**: lifecycle and business events: `booting ascend-api`, `running migrations`, `curriculum loaded`, `listening`, `coach turn complete`.
+- **WARN**: degraded but handled. The coach's upstream stream failed; the AI key is missing so AI features are off; `database schema is ahead of this build (a rollback?); starting without migrating`.
+- **INFO**: lifecycle and business events: `booting ascend-api`, `migrations applied` or `schema up to date`, `curriculum loaded`, `listening`, `coach turn complete`.
 - **DEBUG**: detail for development, off in production.
 
-`EnvFilter` picks, for each event and each span, the most specific directive whose target is a **string prefix** of the callsite's target (in tracing-subscriber 0.3.23 the check is a plain `starts_with`, not a match on `::` segments). Traced against the production filter:
+`EnvFilter` picks, for each event and each span, the most specific directive whose target is a **string prefix** of the callsite's target (in tracing-subscriber 0.3.23 the check is a plain `starts_with`, not a match on `::` segments). Traced against the production filter before and after commit `8f82820`:
 
-| Callsite target | Event | Directive that wins | Emitted? |
+| Callsite target | Event | Before: directive that wins | After: directive that wins |
 |---|---|---|---|
-| `ascend_api` | INFO `running migrations` | `ascend_api=info` | yes |
-| `sea_orm_migration::migrator::exec` | INFO `Applying migration 'm0007_integrity'` | `sea_orm=warn`, a prefix of `sea_orm_migration` | **no** |
-| `tower_http::trace::on_request` | DEBUG `started processing request` | `tower_http=info` | no |
-| `tower_http::trace::on_response` | INFO `finished processing request` | `tower_http=info` | yes |
-| `tower_http::trace::on_eos` | DEBUG `end of stream` | `tower_http=info` | no |
+| `ascend_api` | INFO `migrations applied` (earlier `running migrations`) | `ascend_api=info`: emitted | the same: emitted |
+| `sea_orm_migration::migrator::exec` | INFO `Applying migration 'm0007_integrity'` | `sea_orm=warn`, a prefix of `sea_orm_migration`: **dropped** | `sea_orm_migration=info`, the longer prefix: emitted |
+| `tower_http::trace::on_request` | DEBUG `started processing request` | `tower_http=info`: dropped | the same: dropped |
+| `tower_http::trace::on_response` | INFO `finished processing request` | `tower_http=info`: emitted | the same: emitted |
+| `tower_http::trace::on_eos` | DEBUG `end of stream` | `tower_http=info`: dropped | the same: dropped |
 
-The second row was observed, not only derived: a local run of the debug binary against an empty database, with the production filter, applied all seven migrations and printed nothing between `running migrations` and `curriculum loaded`. In production a slow migration therefore looks like silence. Adding `sea_orm_migration=info` makes it speak.
+The second row's "before" was observed, not only derived: a local run of the debug binary against an empty database, with the old production filter, applied all seven migrations and printed nothing between `running migrations` and `curriculum loaded`, so in production a slow migration looked like silence. That observation, made while reviewing this lesson, is why commit `8f82820` added `sea_orm_migration=info` to both the default filter and the Dockerfile's `RUST_LOG`. When two directives match, the one with the longer target wins, so the migrator's INFO lines return while the rest of `sea_orm` stays at WARN. The same commit replaced the vague `running migrations` with lines that say what boot decided: `migrations applied` with the list, `schema up to date`, or the WARN about a schema ahead of the build.
 
 Spans obey the same filter, and that has a sharper edge. The `request` span that carries the request ID is created with `info_span!` in `ascend_api::app`. Set `RUST_LOG=warn` to cut volume and the span is never created, so every WARN and ERROR line that remains loses its `span` object, request ID included, with no error anywhere. Lower the verbosity of noisy *events*; keep the span's target at INFO.
 
@@ -99,13 +103,13 @@ A coach turn adds this event, derived from the macro in `coach.rs` (not observed
 
 ## What the lines do not say
 
-Reading the source behind each line finds three traps, all derived from the code rather than seen in production logs.
+Reading the source behind each line found three traps, all derived from the code rather than seen in production logs; the third has since been fixed.
 
 **Streams report time to headers.** tower-http calls `on_response` when the handler returns the response, and for the coach that is the SSE response, sent before the first token. The `latency` on its `finished processing request` line is therefore the time to open the upstream stream; the stream's own duration goes to a DEBUG `end of stream` event that production filters out. Subtract the timestamps of the `finished` line and the `coach turn complete` line with the same request ID to get it.
 
 **One failure, two ERROR lines.** For any 5xx, tower-http's default classifier also logs ERROR `response failed` with `classification = "Status code: 500 Internal Server Error"`. A database failure writes `database error`, `response failed` and the INFO `finished` line with `status: 500`. Count failures from `status` on the `finished` line, not by counting ERROR lines.
 
-**A field named `message` collides.** `crates/core/src/ai/anthropic.rs` logs `warn!(kind = %error.kind, message = %error.message, "anthropic stream error event")`. Flattened, that object has two `message` keys. Python's `json.loads` and JavaScript's `JSON.parse` both keep the last (checked), so the constant `anthropic stream error event` is replaced by the provider's text and the event cannot be counted by its message. Renaming the field (`provider_message`) fixes it.
+**A field named `message` collided.** `crates/core/src/ai/anthropic.rs` used to log `warn!(kind = %error.kind, message = %error.message, "anthropic stream error event")`. Flattened, that object had two `message` keys. Python's `json.loads` and JavaScript's `JSON.parse` both keep the last (checked), so the constant `anthropic stream error event` was replaced by the provider's text and the event could not be counted by its message. Commit `8f82820` renamed the field `provider_message`. Nothing in Rust flags it: only the JSON formatter's flattening makes the name collide, so reading the emitted output is the test.
 
 ## What a log line costs
 
@@ -309,7 +313,7 @@ Take a service with 1,000,000 requests a day, 0.3% of them errors (3,000) and 0.
 
 Logs are copied to more places, kept longer and read by more people than your database. Treat them as a data store with weaker controls.
 
-- **Never log credentials**: passwords, session tokens, cookies, API keys, `Authorization` headers. Ascend's `SecretString` redacts the database URL and API key from `Debug` output, so dumping the config cannot leak them. Dependencies can still echo a secret: sea-orm 2.0.3's connect function, given a URL it cannot parse, returns `The connection string '…' cannot be parsed.` with the whole string, password included, and `main` prints that error at boot. Validate the format yourself before the library sees it.
+- **Never log credentials**: passwords, session tokens, cookies, API keys, `Authorization` headers. Ascend's `SecretString` redacts the database URL and API key from `Debug` output, so dumping the config cannot leak them. Dependencies can still echo a secret: sea-orm 2.0.3's connect function, given a URL it cannot parse, returns `The connection string '…' cannot be parsed.` with the whole string, password included, and `main` used to print that error at boot. Since commit `8f82820`, `connect_db` wraps the error with `redact_credentials` (in `crates/api/src/state.rs`), which replaces the password in any `scheme://user:password@host` with `***`, and the unit test `connect_errors_never_carry_the_password` pins four cases, including a percent-encoded password. Redacting where the error is created covers every place the message goes; a filter in one log pipeline covers one.
 - **Bound what you copy from outside.** The AI client logs at most 500 characters of an upstream error body; session user agents are truncated to 255 characters before storage.
 - **Logs and responses get different text.** The provider's error message goes to the log (`anthropic stream error event`, with its `kind`); the learner sees a short classified sentence such as "The reply was interrupted. Try again."
 - **Log an error once, where it is handled.** Internal and database errors are logged exactly once in the error mapping, with the detail the client never sees. Library layers (tower-http's `response failed`) may add their own line; know which ones do.
@@ -453,10 +457,11 @@ hints:
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | WARN and ERROR lines stop carrying `request_id` after a logging change | `RUST_LOG` raised above INFO for `ascend_api`, so the `request` span is never created | Keep the span's target at INFO; reduce noisy events instead |
-| A deploy sits at `running migrations` with no further output until the health window closes | `sea_orm=warn` prefix-matches `sea_orm_migration` and hides the migrator's progress | Add `sea_orm_migration=info` to the filter |
+| A deploy goes silent once boot starts migrating, until the health window closes | A broad directive (`sea_orm=warn`) prefix-matches `sea_orm_migration` and hides the migrator's progress (this app until `8f82820`) | Add the more specific `sea_orm_migration=info` |
+| A malformed `DATABASE_URL` puts its password in the boot log | A library error quotes the input it rejected (sea-orm's connect error; this app until `8f82820`) | Redact where the error is created, as `redact_credentials` does |
 | The lines about a failed coach reply carry no request ID | Work in a spawned task runs outside the handler's span | `.instrument(tracing::Span::current())` on the future; IDs in queue messages |
 | The error dashboard shows twice the real failure count | Each 5xx writes the app's ERROR line and tower-http's `response failed` | Count `status` ≥ 500 on `finished processing request` |
-| An event cannot be counted by its message | A field named `message` collides with the flattened message | Rename the field |
+| An event cannot be counted by its message | A field named `message` collides with the flattened message (`anthropic.rs` until `8f82820`) | Rename the field, as `provider_message` did |
 | The metrics backend runs out of memory a day after a deploy | A label taken from the raw path or an ID: one series set per conversation | Label by route template; IDs go to logs and traces |
 | p99 looks healthy while one instance's users wait seconds | Averaged per-instance percentiles or summaries | Export histograms and sum buckets before `histogram_quantile` |
 | Dashboards say the coach answers in 400 ms while learners wait 20 s | The logged latency of an SSE response is time to headers | Record stream duration as its own field or histogram |
