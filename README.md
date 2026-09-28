@@ -38,7 +38,7 @@ Start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), then the decision rec
 - **Backend:** Rust 2024, [Axum 0.8](https://github.com/tokio-rs/axum), [SeaORM 2](https://www.sea-ql.org/SeaORM/) on PostgreSQL 17, Tokio
 - **AI:** Anthropic Messages API over a small typed client (streaming SSE, JSON-schema outputs, prompt caching)
 - **Frontend:** React 19, TypeScript (strict), Vite, Tailwind 4, TanStack Query, CodeMirror 6, Pyodide, Mermaid, KaTeX
-- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (2,000+ tests, including every visualisation in the curriculum rendered and checked for frames that change after they are recorded); Playwright end-to-end on desktop and mobile, plus opt-in live-AI and full-content crawl suites; a validator that executes every problem's reference solution against its tests
+- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (2,000+ tests, including every visualisation in the curriculum rendered and checked for frames that change after they are recorded); Playwright end-to-end on desktop and mobile against the production Docker image in CI (which also checks the container stops cleanly on SIGTERM), plus opt-in live-AI and full-content crawl suites; a validator that executes every problem's reference solution against its tests
 - **Deploy:** one ~85 MB distroless image on [Railway](https://railway.com), migrations on boot, health-checked rollouts
 
 ## Run it locally
