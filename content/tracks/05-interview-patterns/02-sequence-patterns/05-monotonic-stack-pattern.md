@@ -1,82 +1,88 @@
 ---
 slug: monotonic-stack-pattern
 title: "Monotonic stack: next greater, nearest smaller, and greedy removal"
-description: The one invariant that turns every "next greater element" and "largest rectangle" problem into a linear pass, why it is O(n) when it looks quadratic, and how to pick the stack's direction from the question.
+description: The one invariant that turns every "next greater element" and "largest rectangle" problem into a linear pass, the exact 2n bound on its work, how to pick direction and tie rule from the question, Daily Temperatures with ties, circular Next Greater, Largest Rectangle with equal bars and Remove K Digits traced step by step, and the deque version with its JavaScript trap.
 minutes: 34
 difficulty: medium
 tags: [pattern:monotonic-stack, stack, monotonic-deque, sliding-window, greedy]
 problems: [next-greater-element, remove-k-digits, daily-temperatures, largest-rectangle-histogram, sliding-window-maximum]
 ---
-For every day in a list of temperatures, how many days until a warmer one? For every bar in a histogram, how far left and right does its height extend? Delete `k` digits from a number to make it as small as possible. Each of these has an obvious O(n²) answer (for each element, scan until you find what you need) and each has an O(n) answer that uses a stack whose contents are always sorted.
+For every day in a list of temperatures, how many days until a warmer one? For every bar in a histogram, how far left and right does its height extend? Delete `k` digits from a number to make it as small as possible. Each has an obvious O(n²) answer (for each element, scan outward until you find what you need), and for `n = 10⁵` that brute force is up to 5 × 10⁹ comparisons. Each also has an O(n) answer built on a stack whose contents are always sorted.
 
-That sorted stack is the *monotonic stack*, and it is the pattern behind a surprising share of "hard" array problems. It is confusable with the plain [stack patterns](/learn/interview-patterns/sequence-patterns/stack-patterns) because the code uses `push` and `pop`, but the reasoning is different: nothing is nested. The invariant is on the *values* the stack holds, and every pop is an answer to a query. [Daily Temperatures](/practice/daily-temperatures) and [Largest Rectangle in Histogram](/practice/largest-rectangle-histogram) are filed under "stack" in the problem list and [Sliding Window Maximum](/practice/sliding-window-maximum) under "sliding window"; all three are canonically solved here.
+That sorted stack is the *monotonic stack*. The code uses `push` and `pop` like the [stack patterns](/learn/interview-patterns/sequence-patterns/stack-patterns), but nothing is nested: the invariant is on the *values* the stack holds, and every pop answers a query. The data-structure lessons, [Monotonic stack](/learn/data-structures/stacks-queues/monotonic-stack) and [Monotonic deque](/learn/data-structures/stacks-queues/monotonic-deque), trace the classic inputs and cover stock span, subarray minimums and time-based windows. This lesson is about recognising the pattern when the statement hides it, choosing the direction and the tie rule without trial and error, and handling the follow-ups that change it.
 
 ## The signal
 
-The phrase that selects the pattern is some version of **"for each element, find the nearest element to its left or right that is greater (or smaller)"**. It is often disguised:
+The phrase that selects the pattern is some version of **"for each element, the nearest element to its left or right that is greater (or smaller)"**. It is usually disguised:
 
-- "How many days until a warmer temperature" is *next greater to the right*, reported as a distance.
-- "Largest rectangle in a histogram" is *nearest smaller on both sides* of each bar, because those are the walls that stop the bar's rectangle.
-- "Sum of subarray minimums" is *nearest smaller on both sides* again, because it tells you how many subarrays each element is the minimum of.
-- "Remove `k` digits to get the smallest number" is *greedy removal*: keep the sequence increasing by deleting any earlier element that is larger than the current one, while you still have budget.
-- "Maximum of every window of size `k`" is the deque version: the same invariant, plus eviction from the front when an index falls out of the window.
+- "How many days until a warmer temperature": next greater to the right, reported as a distance.
+- "Largest rectangle in a histogram": nearest *smaller* on both sides of each bar, because those bars are the walls.
+- "Sum of subarray minimums": nearest smaller on both sides, which counts the subarrays in which each element is the minimum.
+- "Remove `k` digits to make the smallest number", "most competitive subsequence": greedy removal, which is a monotonic stack with a budget on pops.
+- "Maximum of every window of size `k`": the same invariant in a deque, with eviction from the front.
 
-The structural tell is that a brute force would be "for each `i`, scan outward until the condition holds", and the scans overlap. The monotonic stack removes the overlap by *remembering only the candidates that could still be somebody's answer*.
+The structural tell: the brute force is "for each `i`, scan outward until the condition holds", and the scans overlap. The stack removes the overlap by remembering only the candidates that could still be somebody's answer.
 
-What rules it out: if the query is "next greater in the whole array by value" (not nearest by position), sort. If you need *arbitrary* range minimum queries after preprocessing, that is a sparse table or a segment tree, not a stack. If the sequence changes after you build the answer (updates interleaved with queries), the stack is a one-shot structure and you need a balanced tree.
+The near-misses:
+
+| Statement says | Pattern | Why the monotonic stack is wrong |
+|---|---|---|
+| "Range maximum for each of `q` arbitrary queries `[l, r]`" | [Sparse table](/learn/advanced-data-structures/range-queries/sparse-tables-and-sqrt-decomposition) | Queries are not "nearest from each element"; O(1) per query after O(n log n) build |
+| "The same, with point updates between queries" | [Segment tree](/learn/advanced-data-structures/range-queries/segment-trees) | The stack is a one-shot pass; it cannot absorb an update without recomputing |
+| "Smallest element greater than `x` anywhere in the array" | Sort and binary search, or a balanced BST | "Greater by value", not "nearest by position" |
+| "Trapping rain water" | [Two pointers](/learn/interview-patterns/array-patterns/two-pointers) (a stack also works) | Two pointers solve it in O(1) space; the stack version is O(n) space |
+| "Maximum of each window" | Monotonic **deque** | The maximum must leave from the front when it ages out |
+| "Longest subarray with `max − min ≤ limit`" | [Sliding window](/learn/interview-patterns/array-patterns/sliding-window) with two monotonic deques | The window's left edge moves by the constraint, not by a fixed `k` |
 
 ## The invariant, and why it is linear
 
-Keep a stack of **indices** whose values are monotone from bottom to top. For "next greater to the right", the values decrease from bottom to top. Scan left to right. When element `x` arrives:
+Keep a stack of **indices** whose values are monotone from bottom to top. For next greater to the right, values never increase from bottom to top. Scan left to right; when `x` arrives at index `i`:
 
-1. While the stack is non-empty and the top's value is smaller than `x`, pop it. **That popped index has just found its answer: `x` is the first greater element to its right.** Nothing between them was greater (otherwise it would have popped it earlier), and `x` is greater, so `x` is the nearest.
-2. Push `x`'s index. Everything below it is now greater than or equal to `x`, so the invariant holds.
+1. While the stack is non-empty and the top's value is smaller than `x`, pop it. **The popped index `j` has found its answer: `x` is the nearest greater element to its right.** Every index between `j` and `i` was pushed after `j`; each one either is still above `j` on the stack or was popped by something that arrived before `i`. Either way it is not greater than `nums[j]` (a greater one would have popped `j`), so nothing between them qualifies, and `x` does.
+2. Push `i`. Everything below it is now at least `x`, so the values still never increase upwards.
 
-At the end, whatever is still on the stack has no greater element to its right.
+At the end, indices still on the stack have no greater element to their right.
 
-Why it is O(n) even though there is a `while` inside a `for`: each index is pushed exactly once and popped at most once. The total number of pops across the entire run is at most `n`, so the inner loop's *total* work is O(n) regardless of how it is distributed. This is the amortised argument from [Amortised analysis](/learn/foundations/complexity/amortized-analysis); say the phrase "each element is pushed and popped at most once" out loud and the interviewer will stop worrying about the nested loop.
+**The exact bound.** Each index is pushed once, so there are `n` pushes. Each pop removes an index pushed earlier, so there are at most `n` pops. Each evaluation of the `while` condition either pops (at most `n` times in total) or ends that iteration's loop (once per `i`, `n` times), so there are at most `2n` comparisons. The nested loop is O(n) with a constant you can state; this is the potential-function argument from [Amortised analysis](/learn/foundations/complexity/amortized-analysis) with the stack height as the potential.
 
 ```viz
 {"type": "array", "algorithm": "monotonic-stack-next-greater", "values": [2, 1, 2, 4, 3, 1, 5]}
 ```
 
-The direction of the stack is chosen by the question:
+The direction and the comparison come from the question:
 
-| Question | Stack values (bottom to top) | Pop while top is |
-|---|---|---|
-| Next greater to the right | decreasing | `< x` |
-| Next greater or equal | decreasing | `< x` (use `<=` to pop equals, depending on tie rule) |
-| Next smaller to the right | increasing | `> x` |
-| Previous greater (scan left to right; answer for `x` is the top after popping) | decreasing | `<= x` |
-| Previous smaller | increasing | `>= x` |
+| Question | Stack values, bottom to top | Pop while top is | Answer recorded |
+|---|---|---|---|
+| Next greater to the right | non-increasing | `< x` | for the popped index |
+| Next greater **or equal** | strictly decreasing | `<= x` | for the popped index |
+| Next smaller to the right | non-decreasing | `> x` | for the popped index |
+| Previous greater | strictly decreasing | `<= x` | for `x`: the top after popping |
+| Previous smaller | strictly increasing | `>= x` | for `x`: the top after popping |
 
-A single left-to-right pass gives you *both* the previous-X (the top of the stack after popping, at the moment you push) and the next-X (recorded when an index is popped). Most "both sides" problems need only one pass with that observation.
+One left-to-right pass gives both kinds of answer: the *next* answer for each popped index, and the *previous* answer for `x` (the top of the stack after popping, before pushing). Most "both walls" problems need one pass.
 
 ## The template
 
 ```python
-def next_greater(nums: list[int]) -> list[int]:
-    n = len(nums)
-    ans = [-1] * n            # -1 = no greater element to the right
-    stack = []                # indices; values decreasing from bottom to top
+def next_greater(nums):
+    ans = [-1] * len(nums)    # -1: no greater element to the right
+    stack = []                # indices; values never increase from bottom to top
     for i, x in enumerate(nums):
-        while stack and nums[stack[-1]] < x:
+        while stack and nums[stack[-1]] < x:   # the comparison is the tie rule
             j = stack.pop()
-            ans[j] = x        # or i, or i - j, depending on what is asked
-        stack.append(i)
+            ans[j] = x        # or i, or i - j: what is asked for
+        stack.append(i)       # read stack[-1] BEFORE this line for "previous greater or equal"
     return ans
 ```
 
 ```javascript
 function nextGreater(nums) {
-  const n = nums.length;
-  const ans = new Array(n).fill(-1);
-  const stack = [];                 // indices; values decreasing bottom to top
-  for (let i = 0; i < n; i++) {
+  const ans = new Array(nums.length).fill(-1);
+  const stack = [];                       // indices
+  for (let i = 0; i < nums.length; i++) {
     const x = nums[i];
     while (stack.length && nums[stack[stack.length - 1]] < x) {
-      const j = stack.pop();
-      ans[j] = x;
+      ans[stack.pop()] = x;
     }
     stack.push(i);
   }
@@ -84,126 +90,138 @@ function nextGreater(nums) {
 }
 ```
 
-Store indices, not values. The value is one lookup away, and the index is what you need for distances, widths and window eviction. The three knobs are the comparison in the `while` (direction and tie handling), what you write into `ans[j]` at pop time, and whether you also read `stack[-1]` before pushing to get the previous-X answer for `i`.
+Store indices, not values: the value is one lookup away, and the index is what distances, widths and window eviction need. The three knobs are the comparison (direction and tie rule), what you write at pop time, and whether you read the top before pushing.
 
 ## Worked problems
 
-### Daily Temperatures
+### Daily Temperatures, with a tie
 
-For each day, return how many days you wait for a strictly warmer temperature, or 0 if none comes. [Daily Temperatures](/practice/daily-temperatures).
-
-The insight: this is next-greater-to-the-right with the answer expressed as `i - j`. The stack holds indices of days still waiting; their temperatures decrease from bottom to top because any day that was warmer than a later day would already have been answered.
+[Daily Temperatures](/practice/daily-temperatures): for each day, the number of days until a *strictly* warmer one, or 0. Next greater to the right, reported as `i − j`.
 
 ```python
-def daily_temperatures(t: list[int]) -> list[int]:
+def daily_temperatures(t):
     ans = [0] * len(t)
     stack = []
     for i, cur in enumerate(t):
-        while stack and t[stack[-1]] < cur:
+        while stack and t[stack[-1]] < cur:    # strictly warmer
             j = stack.pop()
             ans[j] = i - j
         stack.append(i)
     return ans
 ```
 
-Trace on `t = [73, 74, 75, 71, 69, 72, 76, 73]`:
+Trace `t = [34, 38, 34, 34, 36, 40, 28]`:
 
-| i | temp | Pops (index: answer) | Stack after (indices) | Stack temps |
+| `i` | temp | Pops (index: answer) | Stack after (indices) | Temps on stack |
 |---|---|---|---|---|
-| 0 | 73 | — | `0` | 73 |
-| 1 | 74 | 0: 1−0 = 1 | `1` | 74 |
-| 2 | 75 | 1: 2−1 = 1 | `2` | 75 |
-| 3 | 71 | — | `2 3` | 75 71 |
-| 4 | 69 | — | `2 3 4` | 75 71 69 |
-| 5 | 72 | 4: 5−4 = 1, then 3: 5−3 = 2 | `2 5` | 75 72 |
-| 6 | 76 | 5: 6−5 = 1, then 2: 6−2 = 4 | `6` | 76 |
-| 7 | 73 | — | `6 7` | 76 73 |
+| 0 | 34 | | `0` | 34 |
+| 1 | 38 | 0: 1 | `1` | 38 |
+| 2 | 34 | | `1 2` | 38 34 |
+| 3 | 34 | none: 34 is not warmer than 34 | `1 2 3` | 38 34 34 |
+| 4 | 36 | 3: 1, then 2: 2 | `1 4` | 38 36 |
+| 5 | 40 | 4: 1, then 1: 4 | `5` | 40 |
+| 6 | 28 | | `5 6` | 40 28 |
 
-Indices 6 and 7 remain; their answers stay 0. Result: `[1, 1, 4, 2, 1, 1, 0, 0]`. Step 5 shows the mechanism: 72 answers two waiting days in one arrival, and the order of the pops (69 first, then 71) is exactly the order of the stack. Step 6 shows why the answer for index 2 is 4 and not something smaller: days 3, 4 and 5 were all colder than 75 and were resolved without ever being compared to it.
+Result `[1, 4, 2, 1, 1, 0, 0]`, with 9 comparisons against the `2n = 14` bound. Row 3 is the tie: the second 34 does not answer the first. Change the comparison to `<=` and the second 34 pops index 2, which returns `[1, 4, 1, 1, 1, 0, 0]`, claiming 34 is warmer than 34. Row 5 shows why index 1's answer is 4: days 2 to 4 were all colder than 38 and were resolved without ever being compared with it.
 
-Time O(n): eight pushes, six pops. Space O(n) for the stack in the worst case (strictly decreasing input never pops).
+### Next Greater Element, circular
 
-### Largest Rectangle in Histogram
-
-Given bar heights, return the area of the largest rectangle that fits under the histogram. [Largest Rectangle in Histogram](/practice/largest-rectangle-histogram).
-
-The insight: the best rectangle has some bar as its *limiting height*, and extends left and right until it hits a bar that is strictly shorter. So for each bar you need the nearest shorter bar on each side. An increasing stack gives both in one pass: when bar `i` pops bar `j` (because `h[i] < h[j]`), then `i` is `j`'s right wall and the new top of the stack is `j`'s left wall. Width is `i - left - 1`, or `i` when there is no left wall.
-
-Append a sentinel height of 0 at the end so every bar is eventually popped and measured.
+[Next Greater Element](/practice/next-greater-element) asks for the first strictly larger value to the right, or −1; its follow-up makes the array circular, so the search wraps past the end. Run `i` from `0` to `2n − 1` over `nums[i % n]`, and push only during the first pass. The second pass exists to pop.
 
 ```python
-def largest_rectangle(heights: list[int]) -> int:
+def next_greater_circular(nums):
+    n = len(nums)
+    ans = [-1] * n
+    stack = []
+    for i in range(2 * n):
+        x = nums[i % n]
+        while stack and nums[stack[-1]] < x:
+            ans[stack.pop()] = x
+        if i < n:
+            stack.append(i)          # pushing in the second pass would duplicate indices
+    return ans
+```
+
+Trace `nums = [3, 8, 4, 1, 2]`:
+
+| `i` | index `i % n` | `x` | Pops (index → answer) | Stack after |
+|---|---|---|---|---|
+| 0 | 0 | 3 | | `0` |
+| 1 | 1 | 8 | 0 → 8 | `1` |
+| 2 | 2 | 4 | | `1 2` |
+| 3 | 3 | 1 | | `1 2 3` |
+| 4 | 4 | 2 | 3 → 2 | `1 2 4` |
+| 5 | 0 | 3 | 4 → 3 | `1 2` |
+| 6 | 1 | 8 | 2 → 8 | `1` |
+| 7–9 | 2, 3, 4 | 4, 1, 2 | | `1` |
+
+Result `[8, −1, 8, 2, 3]`. Index 4 (value 2) and index 2 (value 4) found their answers only after wrapping. Index 1 holds the maximum and stays on the stack, which is correct: nothing in a circle is greater than the maximum. Time O(n): `n` pushes, at most `n` pops, `2n` outer iterations.
+
+### Largest Rectangle in Histogram, with equal bars
+
+[Largest Rectangle in Histogram](/practice/largest-rectangle-histogram): the best rectangle has some bar as its limiting height and extends until a strictly shorter bar on each side. Keep an increasing stack. When bar `i` pops bar `j`, `i` is `j`'s right wall and the new top is its left wall, so the width is `i − left − 1` (with `left = −1` for an empty stack). A trailing sentinel height of 0 flushes every bar.
+
+```python
+def largest_rectangle(heights):
     best = 0
-    stack = []                                  # indices; heights increasing
-    for i, h in enumerate(heights + [0]):       # sentinel flushes the stack
+    stack = []                                   # indices; heights increasing
+    for i, h in enumerate(heights + [0]):        # sentinel pops everything left
         while stack and heights[stack[-1]] > h:
             top = stack.pop()
-            height = heights[top]
             left = stack[-1] if stack else -1
-            best = max(best, height * (i - left - 1))
+            best = max(best, heights[top] * (i - left - 1))
         stack.append(i)
     return best
 ```
 
-Trace on `heights = [2, 1, 5, 6, 2, 3]` with sentinel at `i = 6`:
+Trace `heights = [3, 1, 3, 3, 2, 4]`; the classic `[2, 1, 5, 6, 2, 3]` is traced in [Monotonic stack](/learn/data-structures/stacks-queues/monotonic-stack). This input has two equal bars:
 
-| i | h | Pops: (index, height, left wall, width, area) | Stack after | `best` |
+| `i` | `h` | Pops: (index, height, left wall, width, area) | Stack after | `best` |
 |---|---|---|---|---|
-| 0 | 2 | — | `0` | 0 |
-| 1 | 1 | (0, 2, none, 1−(−1)−1 = 1, 2) | `1` | 2 |
-| 2 | 5 | — | `1 2` | 2 |
-| 3 | 6 | — | `1 2 3` | 2 |
-| 4 | 2 | (3, 6, left 2, 4−2−1 = 1, 6); (2, 5, left 1, 4−1−1 = 2, 10) | `1 4` | 10 |
-| 5 | 3 | — | `1 4 5` | 10 |
-| 6 | 0 | (5, 3, left 4, 6−4−1 = 1, 3); (4, 2, left 1, 6−1−1 = 4, 8); (1, 1, none, 6, 6) | `6` | 10 |
+| 0 | 3 | | `0` | 0 |
+| 1 | 1 | (0, 3, −1, 1, 3) | `1` | 3 |
+| 2 | 3 | | `1 2` | 3 |
+| 3 | 3 | none: `3 > 3` is false | `1 2 3` | 3 |
+| 4 | 2 | (3, 3, left 2, 1, 3); (2, 3, left 1, 2, 6) | `1 4` | 6 |
+| 5 | 4 | | `1 4 5` | 6 |
+| 6 | 0 | (5, 4, left 4, 1, 4); (4, 2, left 1, 4, **8**); (1, 1, −1, 6, 6) | `6` | 8 |
 
-Answer 10: the bars of height 5 and 6 form a 5 × 2 rectangle. The width formula is the part to trace carefully. When bar 2 (height 5) is popped at `i = 4`, its left wall is index 1 (height 1, the new top) and its right wall is index 4 (height 2). Bars strictly between the walls are indices 2 and 3, so width is `4 − 1 − 1 = 2`. When bar 1 (height 1) is popped by the sentinel with an empty stack, there is no left wall, so it spans the entire array: width 6.
+Answer 8: height 2 across indices 2–5. The equal bars show the tie behaviour. With `>`, equal heights stack up; the right copy (index 3) is popped first with width 1, because its "left wall" is the equal bar at index 2, which is not shorter. The left copy is popped next and gets the true width 2. One of each run of equal bars always gets the full width, so the maximum is right even though an intermediate width looks wrong; with `>=`, the roles swap and the answer is equally correct. Without the sentinel, the input `[1, 2, 3, 4, 5]` never pops and returns 0 instead of 9.
 
-The comparison is `>` and not `>=`. With equal heights, the left copy is popped by the right copy with a width that excludes the right copy; the right copy is later popped with the full width because its left wall is *past* the left copy. The final answer is still correct because the rightmost equal bar gets the whole span; it is a common source of confusion when candidates try to prove the algorithm and see the "wrong" width for the earlier bar.
+### Remove K Digits: a budget on pops
 
-Time O(n), space O(n).
-
-### Remove K Digits
-
-Given a number as a string and an integer `k`, remove exactly `k` digits so that the result is the smallest possible number. Leading zeros are dropped; an empty result is `"0"`. [Remove K Digits](/practice/remove-k-digits).
-
-The insight: the leftmost digit dominates. If a digit is larger than the digit after it, removing it is the best single deletion you can make at that position, because it lowers the most significant place that changes. Keep an increasing stack of digits; when a smaller digit arrives, pop larger ones while budget remains. If budget is left over at the end, the stack is non-decreasing, so remove from the end.
+[Remove K Digits](/practice/remove-k-digits): remove exactly `k` digits to make the smallest number, without leading zeros (empty means `"0"`). The leftmost digit that exceeds its successor is the highest-value place you can lower, so removing it is the best single deletion. Keep a non-decreasing stack and pop while budget remains.
 
 ```python
-def remove_k_digits(num: str, k: int) -> str:
+def remove_k_digits(num, k):
     stack = []
     for d in num:
-        while k and stack and stack[-1] > d:
+        while k and stack and stack[-1] > d:   # the budget guards the pop
             stack.pop()
             k -= 1
         stack.append(d)
     if k:
-        stack = stack[:-k]            # remaining budget: drop the largest tail
+        stack = stack[:-k]                     # leftover budget: cut the largest tail
     return "".join(stack).lstrip("0") or "0"
 ```
 
-Trace on `num = "1432219"`, `k = 3`:
+Trace `num = "4205123"`, `k = 3`:
 
-| Digit | Pops (digit, k after) | Stack after | k |
+| Digit | Pops (k after) | Stack after | `k` |
 |---|---|---|---|
-| 1 | — | `1` | 3 |
-| 4 | — | `1 4` | 3 |
-| 3 | 4 (k→2) | `1 3` | 2 |
-| 2 | 3 (k→1) | `1 2` | 1 |
-| 2 | — | `1 2 2` | 1 |
-| 1 | 2 (k→0) | `1 2 1` | 0 |
-| 9 | — (budget exhausted) | `1 2 1 9` | 0 |
+| 4 | | `4` | 3 |
+| 2 | 4 (2) | `2` | 2 |
+| 0 | 2 (1) | `0` | 1 |
+| 5 | | `0 5` | 1 |
+| 1 | 5 (0) | `0 1` | 0 |
+| 2 | budget spent | `0 1 2` | 0 |
+| 3 | | `0 1 2 3` | 0 |
 
-Result `"1219"`. The second 2 is not popped by the 1, because k reached 0 after the first pop; the `while k` guard is doing the work. Two edge traces worth stating aloud:
+`"0123"` becomes `"123"` after stripping. Two edges to say aloud: `"12345"` with `k = 2` never pops, so the whole answer comes from the tail cut (`"123"`); `"10"` with `k = 2` empties the stack and must return `"0"`, not `""`.
 
-- `"10200"`, `k = 1`: 1 is popped by 0, stack becomes `0 2 0 0`, `lstrip` gives `"200"`.
-- `"10"`, `k = 2`: 1 popped by 0 (k=1), then `stack[:-1]` empties it, and `"" or "0"` returns `"0"`.
+### The deque version: Sliding Window Maximum
 
-Time O(n), space O(n). This is the same invariant as next-greater with a *budget* on the pops, and the leftover-budget step is the part people forget: `"12345"`, `k = 2` never pops, so the answer comes entirely from the tail cut.
-
-## The deque version: sliding window maximum
-
-Return the maximum of every window of `k` consecutive elements. [Sliding Window Maximum](/practice/sliding-window-maximum). The pattern is the decreasing stack with one extra move: the *front* of the structure is evicted when its index leaves the window, so you need pops from both ends, a deque. The front is always the current window's maximum, because anything larger would have popped it and anything older has been evicted.
+[Sliding Window Maximum](/practice/sliding-window-maximum): the decreasing stack plus one move, evicting the front when its index leaves the window. The front is always the window's maximum: anything larger would have popped it, and anything older has been evicted.
 
 ```viz
 {"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3}
@@ -212,40 +230,93 @@ Return the maximum of every window of `k` consecutive elements. [Sliding Window 
 ```python
 from collections import deque
 
-def max_sliding_window(nums: list[int], k: int) -> list[int]:
-    dq, out = deque(), []           # indices; values decreasing front to back
+def max_sliding_window(nums, k):
+    dq, out = deque(), []            # indices; values decreasing front to back
     for i, x in enumerate(nums):
         while dq and nums[dq[-1]] < x:
             dq.pop()
         dq.append(i)
         if dq[0] <= i - k:
-            dq.popleft()            # index left the window
+            dq.popleft()             # the front index has left the window
         if i >= k - 1:
             out.append(nums[dq[0]])
     return out
 ```
 
-The [monotonic deque](/learn/data-structures/stacks-queues/monotonic-deque) lesson has the proof and the comparison with a heap: the heap is O(n log k) and needs lazy deletion; the deque is O(n) because each index enters and leaves at most once. In JavaScript there is no built-in deque; use an array with a `head` index instead of `shift()`, which is O(n).
+The traces, the heap comparison and time-based windows are in [Monotonic deque](/learn/data-structures/stacks-queues/monotonic-deque). The interview trap is JavaScript, covered under "Under the hood".
 
-## Variations
+## Variants
 
-- **Circular array.** "Next greater element in a circular array": iterate `i` from `0` to `2n − 1`, using `nums[i % n]`, and only push indices from the first pass. The second pass exists purely to pop, so every element sees everything after it, wrapping around.
-- **Both walls in one pass.** For "sum of subarray minimums" or histogram-style problems, record the right wall at pop time and the left wall as the top of the stack at push time. Watch the tie rule: use strict on one side and non-strict on the other so equal elements are counted exactly once.
-- **Values instead of indices.** When only the values are needed and the input is a stream, push values; you lose distances and window eviction. Under interview conditions, always start with indices; converting later is trivial.
-- **A budget on pops.** Remove K Digits, "create maximum number", "most competitive subsequence": the pop loop gains a counter, and the tail cut handles leftover budget.
-- **Two-dimensional histogram.** Maximal rectangle in a binary matrix: compute a height array per row (consecutive ones ending at that row) and run the histogram algorithm on each row, O(rows × cols) in total. Recognising that a "matrix" problem is `n` histogram problems is the whole solution.
+| Variant | What changes in the template | Complexity |
+|---|---|---|
+| **Circular array** | Iterate `2n` times over `i % n`, push only when `i < n` | O(n) |
+| **Previous greater / smaller** | Read the top after popping, before pushing | O(n) |
+| **Both walls, counting subarrays** | Strict comparison on one side, non-strict on the other, so each run of equal values is counted once | O(n) |
+| **Budget on pops** (Remove K Digits, most competitive subsequence) | `while k and …`; cut the tail with leftover budget | O(n) |
+| **Maximal rectangle of 1s in a matrix** | Build a height array per row, run the histogram per row | O(rows × cols) |
+| **132 pattern** | Scan right to left with a decreasing stack; the last popped value is the best "2" | O(n) |
+| **Window maximum** | Deque; evict the front by index | O(n) |
+| **Online stock span** | Store `(price, span)` pairs so a popped entry's span is added to the new one | O(1) amortised per call |
 
-## Pitfalls
+## Complexity, derived
 
-- **Pushing values when you need indices.** You will discover halfway through that you need `i - j` for the distance or `i` for eviction, and rewriting under time pressure is where bugs appear. Push indices from the start.
-- **Wrong tie handling.** For "strictly warmer" the pop condition is `<`; if the problem says "greater or equal", it is `<=`. For nearest-smaller-on-both-sides problems, using the same strictness on both sides double counts or misses equal elements.
-- **Forgetting the sentinel.** In the histogram problem, without the trailing 0 the last increasing run is never measured. Either append a sentinel or run a second loop that flushes the stack; appending is fewer lines and fewer bugs.
-- **Off-by-one in the width.** The width between walls at `left` and `right` is `right − left − 1`, and "no left wall" is `left = −1`, not `0`. Trace one pop by hand in the interview.
-- **`shift()` on a JavaScript array in the deque version.** It reallocates the array on every call, making the "O(n)" algorithm O(n · k). Keep a `head` pointer or implement a small ring buffer.
-- **Believing the inner `while` makes it O(n²).** It does not, and being unable to explain why is worse than not knowing the pattern. Each index is pushed once and popped at most once; total work is bounded by `2n`.
-- **Leaving leftover budget unspent.** In Remove K Digits, a non-decreasing input like `"12345"` never triggers a pop; you must still remove `k` from the tail.
+At most `n` pushes, `n` pops and `2n` comparisons, as argued above, so O(n) time. Space is the maximum stack height, which depends on the data far more than on `n`. Measured on CPython 3.14 for next greater over 10⁶ elements: on random floats the stack never exceeded 37 entries; on a descending input it held all 10⁶ indices (nothing ever pops); on an ascending input it never held more than one. The time barely moved with the shape: 60 ms on random data, 42 ms descending, 45 ms ascending, and 16 ms for the random case in Node 24. The brute force on a descending input of only 20,000 elements took 2.2 s in CPython, which extrapolates to over an hour for 10⁶.
 
-## Exercise
+| Approach for "nearest greater for every element" | Time | Extra space | Online | Handles updates | Answers arbitrary ranges |
+|---|---|---|---|---|---|
+| Brute-force scan | O(n²) | O(1) | yes | trivially | O(range) each |
+| Monotonic stack | O(n), at most 2n comparisons | O(n) worst, often tiny | previous-X yes; next-X answers arrive late | no, recompute | no |
+| Sparse table plus binary search | O(n log n) build, O(log n) each | O(n log n) | no | no | yes, O(1) max |
+| Segment tree plus descent | O(n log n) | O(n) | yes | O(log n) | yes, O(log n) |
+
+## Under the hood
+
+### What the stack holds on real data
+
+The stack is the set of indices still waiting for an answer, so its size is a property of the input's shape. On a random permutation, the waiting indices at any moment are the prefix's "records seen from the right", about `ln n` of them on average, which is why 37 was the peak over a million random values. On a monotone feed in the wrong direction, nothing ever resolves and every index waits. In Python each waiting index is an 8-byte list slot pointing to an `int` object (28 bytes for values above 256, which are not cached), so a million waiting indices is about 36 MB; V8 keeps small integers unboxed in a packed array.
+
+### JavaScript has no deque, and `shift()` is O(n)
+
+`Array.prototype.shift` moves every remaining element down one slot unless V8 can trim the front of the backing store in place, which it does not do reliably for large arrays. Measured in Node 24 on a decreasing input of 2 × 10⁵ values with `k = 5 × 10⁴`, which keeps the deque full: 313 ms with `shift()` against 2.3 ms with a preallocated `Int32Array` and `head`/`tail` indices. On random data the deque stays short and the two were 5 ms and 3 ms, so the bug hides until the adversarial test. Python's `collections.deque` is a linked list of fixed-size blocks with O(1) `popleft`; never use `list.pop(0)` for the same job.
+
+### Where it runs outside interviews
+
+Precedence-climbing parsers pop operators while the top binds at least as tightly, a monotonic stack over precedence. The all-nearest-smaller-values pass builds a Cartesian tree in O(n), the first step of O(1)-query range-minimum structures over suffix-array LCP arrays ([Suffix arrays and LCP](/learn/advanced-data-structures/advanced-strings/suffix-arrays-and-lcp)). Metrics agents compute "time since the last higher reading" online with a stack of waiting samples.
+
+## Failure modes
+
+**"Warmer" answered by an equal value.** *Symptom:* Daily Temperatures returns 1 for a day followed by the same temperature. *Diagnosis:* `<=` in the pop condition, so equal values resolve each other. *Fix:* read the tie rule from the statement ("strictly warmer" is `<`), and trace an input with a repeated value before running.
+
+**The histogram misses the best rectangle.** *Symptom:* `[1, 2, 3, 4, 5]` returns 0; any input ending in an increasing run is wrong. *Diagnosis:* no sentinel, so bars still on the stack at the end are never measured. *Fix:* append a 0 height, or flush the stack after the loop with `i = n`.
+
+**Rectangles that are too wide.** *Symptom:* areas larger than any real rectangle. *Diagnosis:* width computed as `i − top` or `i − left` instead of `i − left − 1`, or "no left wall" taken as 0 instead of −1. *Fix:* the walls are exclusive; trace one pop by hand.
+
+**A sliding-window job that times out only on some inputs.** *Symptom:* a JavaScript window-maximum passes random tests and times out on a sorted one. *Diagnosis:* `shift()` on a long array, 136× slower in the measurement above. *Fix:* a head index or a ring buffer.
+
+**Memory grows during a downtrend.** *Symptom:* a service that computes "next higher price" for every tick grows its heap steadily through a falling market and releases it in one burst when the price recovers. *Diagnosis:* a decreasing feed never pops, so the stack holds every tick of the downtrend. *Fix:* bound it by time (expire entries older than the horizon you report on, turning the stack into a deque), or report "no higher price within the window" explicitly.
+
+## Interviewer follow-ups
+
+**"Make it circular."** Model answer: iterate `2n` times over `i % n` and push only in the first pass; still at most `n` pushes and `n` pops, O(n). Common wrong answer: concatenate the array with itself and push everything, which doubles memory and produces duplicate answers that must be reconciled.
+
+**"Give me the previous smaller element instead."** Model answer: same single pass with an increasing stack; pop while the top is `>= x`, then the top (if any) is the previous strictly smaller element for `x`. Nothing else changes. Common wrong answer: reverse the array and rerun next smaller, which works but shows the candidate does not see that one pass yields both directions.
+
+**"Now answer arbitrary range-maximum queries."** Model answer: the pattern changes; a sparse table gives O(1) queries after an O(n log n) build if the array is static, and a segment tree gives O(log n) queries and updates. Common wrong answer: rerun the stack per query, O(n) each.
+
+**"Maximal rectangle of 1s in a binary matrix."** Model answer: for each row, height[c] is the number of consecutive 1s ending at that row in column c; run the histogram algorithm on each row's heights. O(rows × cols) total. Common wrong answer: enumerate corners, O(rows² × cols²).
+
+**"Prove the digit removal is optimal."** Model answer: two results of the same length compare at their first differing digit, and everything after it is irrelevant. When a kept digit is larger than the digit that follows it and budget remains, deleting it makes that position smaller than in any result that keeps it, so the deletion is safe; the stack takes the leftmost such descent first. Once no descent is left, the kept digits are non-decreasing and deleting from the end removes the largest ones. Common wrong answer: "remove the k largest digits", which turns `"4205123"` with `k = 3` into `"2012"` instead of `"123"`.
+
+## What mid-level engineers get wrong
+
+- **Pushing values instead of indices.** Consequence: halfway through they need `i − j` or eviction by position and rewrite under time pressure.
+- **Picking the tie rule by trial and error.** Consequence: a solution that passes samples without repeated values and fails the hidden ones.
+- **Believing the inner `while` makes it O(n²).** Consequence: they abandon a correct solution, or cannot defend it; the answer is "at most `n` pops in total, `2n` comparisons".
+- **Forgetting the sentinel or the leftover budget.** Consequence: increasing tails are never measured, and non-decreasing inputs to Remove K Digits return the original number.
+- **`shift()` as a deque in JavaScript.** Consequence: O(nk) on adversarial inputs.
+- **Reaching for the stack on range queries.** Consequence: O(n) per query where a sparse table answers in O(1).
+
+## Exercises
 
 ```exercise
 id: stock-span
@@ -299,46 +370,108 @@ hints:
   - "Push the current index after computing its span so the invariant holds for the next day."
 ```
 
+```exercise
+id: next-greater-circular
+title: Next greater element in a circular array
+prompt: |
+  `nums` is circular: the element after the last is the first. For each
+  index, return the first value strictly greater than `nums[i]` found by
+  walking forward (wrapping around), or `-1` if there is none. Values are
+  non-negative.
+
+  Example: `[3, 8, 4, 1, 2]` → `[8, -1, 8, 2, 3]`.
+
+  Aim for O(n) time with one monotonic stack of indices and no copy of the
+  array.
+languages: [python, javascript]
+entry: next_greater_circular
+starter:
+  python: |
+    def next_greater_circular(nums):
+        # iterate i over 0 .. 2n - 1 using nums[i % n]
+        return []
+  javascript: |
+    function next_greater_circular(nums) {
+      // iterate i over 0 .. 2n - 1 using nums[i % n]
+      return [];
+    }
+tests:
+  - args: [[1, 2, 1]]
+    expected: [2, -1, 2]
+  - args: [[3, 8, 4, 1, 2]]
+    expected: [8, -1, 8, 2, 3]
+  - args: [[]]
+    expected: []
+    label: empty input
+  - args: [[5]]
+    expected: [-1]
+    label: single element never beats itself
+  - args: [[2, 2, 2]]
+    expected: [-1, -1, -1]
+    label: equal is not greater
+  - args: [[5, 4, 3, 2, 1]]
+    expected: [-1, 5, 5, 5, 5]
+    hidden: true
+    label: every answer wraps
+  - args: [[1, 5, 3, 6, 8]]
+    expected: [5, 6, 6, 8, -1]
+    hidden: true
+  - args: [[0, 0, 1]]
+    expected: [1, 1, -1]
+    hidden: true
+hints:
+  - "Walk i from 0 to 2n - 1 and read x = nums[i % n], so every element sees everything after it, wrapping once."
+  - "Pop while the value at the top index is strictly less than x, recording x as the popped index's answer."
+  - "Push i only while i < n: the second lap exists to answer waiting indices, not to add new ones."
+```
+
 ## Senior signals
 
-- You say "each index is pushed once and popped at most once, so the nested loop is O(n) total" without being asked, and you connect it to amortised analysis.
-- You choose increasing versus decreasing by reading the question, and you can state the tie rule (strict or not) and which side it applies to before writing the comparison.
-- You store indices, not values, and you can name the three things indices buy you: distances, widths and window eviction.
-- You recognise the histogram problem inside "maximal rectangle in a binary matrix" and the next-greater problem inside "days until warmer".
-- You know that the deque version of the same invariant replaces a heap for sliding-window maximum, why it is O(n) rather than O(n log k), and that `Array.prototype.shift` would wreck that bound in JavaScript.
-- You can explain why a greedy digit removal is optimal: the leftmost position where a digit exceeds its successor is the highest-value place you can lower.
+- You say "at most `n` pops in total, so at most `2n` comparisons" before the interviewer asks about the nested loop, and you can name the potential function.
+- You choose **direction and tie rule** from the wording ("strictly warmer", "greater or equal") and state which side of a two-wall problem is strict.
+- You store **indices** and can name what they buy: distances, widths, eviction.
+- You see the histogram inside "maximal rectangle in a matrix", next greater inside "days until warmer", and a budgeted pop inside "remove k digits".
+- You know the stack's size is a property of the **data**: tiny on random input, all of it on a monotone feed, and you plan memory for the adversarial shape.
+- You know the deque version replaces a heap for window maxima, and that `shift()` destroys its bound in JavaScript.
+- You know where the pattern **stops**: arbitrary range queries and updates need a sparse table or a segment tree.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A monotonic-stack solution has a while loop inside a for loop. Why is the total running time O(n) rather than O(n²)?
-  options: ["The input is assumed sorted, so pops are rare and cheap", "The while loop runs at most once per outer iteration", "Each index is pushed once and popped at most once overall", "The stack never holds more than a constant number of items"]
+    A monotonic-stack pass over n elements has a while loop inside a for loop. What is the tightest bound on the number of while-condition comparisons?
+  options: ["About n log n, because pops shrink the stack geometrically", "At most 2n, since each check pops or ends that iteration's loop", "About n squared over 2 in the worst case of a descending input", "At most n, because each element is compared exactly once"]
+  answer: 1
+  explanation: >-
+    Every check either pops, which happens at most n times over the whole run because each index is pushed once, or fails and ends the loop, which happens once per element. A descending input never pops, so it does n failing checks, not a quadratic number; a single element can be compared several times, so exactly once per element is wrong.
+- q: >-
+    Daily Temperatures asks for the wait until a strictly warmer day. The input has two consecutive days at 34. Which pop condition is correct, and what does the other one return for the first 34?
+  options: ["Either condition works, since equal days are resolved later anyway", "Pop while top is at most current; the other answers 1 for the first 34", "Pop while top is at most current; the other answers 0 for the first 34", "Pop while top is below current; the other answers 1 for the first 34"]
+  answer: 3
+  explanation: >-
+    Strictly warmer means an equal temperature must not resolve a waiting day, so the condition is top < current. With <=, the second 34 pops the first and records a wait of 1, claiming 34 is warmer than 34; in the traced input that changes the answer from 2 to 1.
+- q: >-
+    In the circular next-greater algorithm you iterate i from 0 to 2n - 1. Why are indices pushed only while i < n?
+  options: ["The maximum element must be popped before the second lap starts", "Pushing in the second lap changes the stack from decreasing to increasing", "The second lap reads values past the end of the array otherwise", "Pushing in the second lap would put each index on the stack twice"]
+  answer: 3
+  explanation: >-
+    The second lap exists so that waiting indices can see the elements before them, wrapping once. Pushing again would add a second copy of every index, and the copies would record answers from the third lap's point of view or overwrite correct ones. The modulo keeps reads in range, and the maximum correctly stays on the stack with answer -1.
+- q: >-
+    Heights [3, 1, 3, 3, 2, 4] with the pop condition heights[top] > h. When index 4 (height 2) arrives, the right 3 (index 3) is popped with width 1. Is the algorithm wrong?
+  options: ["Yes, and switching to >= is needed to measure the width 2", "No, index 2 is popped next with its left wall at 1 and width 2", "No, because the answer comes from the height-1 bar anyway", "Yes, the equal bar should have stopped the stack from growing"]
+  answer: 1
+  explanation: >-
+    With a strict comparison equal bars stack up, so the right copy's recorded left wall is the equal bar and its width is understated. The left copy, popped immediately after, sees the true left wall at index 1 and gets width 2 (area 6). One bar of each equal run always gets the full width, so the maximum, 8, is correct; with >= the roles swap and it is equally correct.
+- q: >-
+    A JavaScript sliding-window-maximum passes random tests but times out on a long sorted-descending input. What is the most likely cause?
+  options: ["The comparison should be <= so that equal values are evicted", "V8 falls back to dictionary mode for arrays of indices", "shift() moves every element, and the deque is full on this input", "Descending input makes the monotonic deque pop every element"]
   answer: 2
   explanation: >-
-    Pops are charged to the element being popped, not to the iteration doing the popping. Each element can be popped only once, so the sum of all inner-loop iterations is bounded by n, even though one iteration may pop many. The stack can grow to n elements on a monotone input, so a constant-size bound is false.
+    On a descending input nothing is popped from the back, so the deque holds k indices and each shift() copies all of them, O(nk) overall; measured at 313 ms against 2.3 ms with a head index. On random data the deque stays short, which hides the problem. A head index or ring buffer restores O(n).
 - q: >-
-    You need, for each element, the nearest element to its right that is strictly smaller. Which stack do you keep, and when do you pop?
-  options: ["Increasing values; pop while top is greater than the new element", "Increasing values; pop while top is less than the new element", "Decreasing values; pop while top is less than the new element", "Decreasing values; pop while top is greater than the new element"]
+    An interviewer asks for the maximum over q arbitrary ranges [l, r] of a static array. What do you reach for?
+  options: ["A sparse table, O(1) per query after O(n log n)", "A monotonic stack rerun for each query range", "A max-heap of all elements with lazy deletion", "A monotonic deque slid across every query range"]
   answer: 0
   explanation: >-
-    A new element that is smaller than the top resolves the top's query, so you pop while top is greater. What remains is increasing from bottom to top. A decreasing stack that pops while the top is less is the next-greater configuration.
-- q: >-
-    In the histogram algorithm, bar j is popped at index i and the stack top after the pop is index p. What is the width of bar j's rectangle?
-  options: ["i - p - 1", "i - p + 1", "i - j - 1", "i - j + 1"]
-  answer: 0
-  explanation: >-
-    p and i are the strictly shorter walls on each side; the rectangle covers the bars strictly between them, which number i - p - 1. Measuring from j ignores how far the bar extends to the left over bars that were popped earlier. If the stack is empty, treat p as -1 so the width is i.
-- q: >-
-    Remove K Digits on "12345" with k = 2 should return "123". Where does the answer come from?
-  options: ["The stack pops 4 and 5 as soon as each one arrives", "No pops fire, so the leftover budget trims the tail", "The lstrip step at the end strips off the last two digits", "It returns \"0\" because the budget is left unspent"]
-  answer: 1
-  explanation: >-
-    Every digit is larger than the previous, so the pop condition never fires. The final step slices off k digits from the end of a non-decreasing stack, which is the correct greedy choice because the largest digits are at the end.
-- q: >-
-    Why is the sliding window maximum solved with a deque instead of a plain stack?
-  options: ["A plain stack cannot store indices, only values", "Expired indices leave from the front as the window slides", "A heap would be faster, but a deque is easier to code", "A deque gives O(1) random access into the window"]
-  answer: 1
-  explanation: >-
-    The monotone invariant is maintained by popping from the back, exactly as in a stack, but the maximum is read from the front and must be dropped when its index leaves the window. Two-ended access is the only extra requirement. A heap is slower, O(n log k), not faster.
+    The monotonic stack answers "nearest greater for every element" in one pass; it has no way to answer an arbitrary range without rerunning, O(n) per query. A sparse table precomputes maxima of power-of-two blocks and answers any range with two overlapping blocks in O(1); with updates, a segment tree gives O(log n).
 ```
