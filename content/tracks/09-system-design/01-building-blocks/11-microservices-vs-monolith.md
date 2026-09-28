@@ -1,88 +1,158 @@
 ---
 slug: microservices-vs-monolith
 title: "Microservices vs monolith: boundaries, data ownership and the distributed monolith trap"
-description: Why the real reason to split a system is team scaling, what a service boundary actually is, the availability and latency arithmetic of distribution, and how to extract a service without building a distributed monolith.
+description: Why the real reason to split a system is team scaling, the cost of a network hop measured, latency and availability of call chains simulated, a distributed-monolith cascade traced thread by thread, the modular monolith and how to enforce it, boundaries drawn by data ownership, and extracting a service without building a distributed monolith.
 minutes: 30
 difficulty: hard
-tags: [system-design, microservices, monolith, service-boundaries, strangler-fig, data-ownership]
+tags: [system-design, microservices, monolith, modular-monolith, service-boundaries, strangler-fig, data-ownership, distributed-monolith]
 ---
 A team of eight engineers ships a monolith. It deploys twice a day, has one database, and handles 2,000 requests per second on four machines. Someone proposes splitting it into services "for scale". Eighteen months later there are 23 services, deploys need a coordination spreadsheet, a checkout request touches nine of them in sequence, p99 latency has tripled, and the on-call rotation has burned out two people. The system still handles 2,000 requests per second.
 
-Nothing about that story is unusual. Microservices solve a specific problem, which is that too many people are changing one codebase and one database for it to be deployed safely and independently. They do not solve scale (a monolith scales horizontally just fine), and they introduce a set of costs that are paid on every request and every deploy. The senior position is to know exactly which problem you are solving, to default to a modular monolith until that problem arrives, and when you do split, to split along boundaries that hold.
+Nothing about that story is unusual. Microservices solve a specific problem: too many people changing one codebase and one database for it to be deployed safely and independently. They do not solve traffic scale (a stateless monolith scales horizontally), and they add costs paid on every request and every deploy. The senior position is to know which problem you are solving, default to a modular monolith until it arrives, and when you split, split along boundaries that hold. This lesson puts numbers on each of those costs.
 
 ## What the split is actually for
 
 | Claimed reason | Does splitting help? |
 |---|---|
-| "We need to scale" | Rarely. Run more copies of the monolith. Splitting helps only when one component's scaling profile (CPU-heavy video encoding, memory-heavy search) differs so much that co-locating it wastes hardware |
-| "Deploys are risky" | Yes, if the risk comes from unrelated teams' changes shipping together. No, if the risk comes from missing tests |
+| "We need to scale" | Rarely. Run more copies of the monolith. Splitting helps when one component's scaling profile (CPU-heavy encoding, memory-heavy search) differs enough that co-locating it wastes hardware |
+| "Deploys are risky" | Yes, if the risk is unrelated teams' changes shipping together. No, if it is missing tests |
 | "Teams block each other" | Yes. This is the real reason: independent deployability for independent teams |
-| "We want to use Go for one part" | Sometimes; a real but small benefit |
-| "Blast radius" | Yes, if a bug in recommendations should not take down checkout, and if you actually isolate them (separate processes, pools and databases) |
-| "Resume" | No |
+| "We want Go for one part" | Sometimes; a real but small benefit |
+| "Blast radius" | Yes, if a bug in recommendations must not take down checkout, and only if isolation is real: separate processes, pools and databases |
 
-Netflix's move to services in the late 2000s was driven by the monolith being a single point of failure for a fast-growing engineering organisation, plus the need to run in the cloud with independent scaling and failure isolation. The result is on the order of a thousand services behind an edge gateway (Zuul), with service discovery (Eureka) and client-side load balancing. That scale of organisation is the context in which the pattern pays; [Netflix microservices and resilience](/learn/system-design/case-studies/netflix-microservices-and-resilience) looks at the machinery it required.
+Netflix's move to services in the late 2000s was driven by a monolith that was a single point of failure for a fast-growing engineering organisation, and by the move to the cloud; it has since described running on the order of a thousand services behind an edge gateway (Zuul) with service discovery (Eureka). The same pattern has run in reverse: Amazon's Prime Video team wrote publicly in 2023 about consolidating a video-quality monitoring pipeline, built from serverless functions passing data between them, into a single process, and reported cutting its infrastructure cost by about 90%. Distribution is a cost you pay for organisational independence; [Netflix microservices and resilience](/learn/system-design/case-studies/netflix-microservices-and-resilience) shows the machinery it requires.
 
 ## The modular monolith as the default
 
-A modular monolith is one deployable unit with strictly enforced internal boundaries: modules with public interfaces, no cross-module database access, dependency direction enforced by the build (Bazel visibility, Java modules, a lint rule). It gets you most of the design benefit of services (clear ownership, explicit contracts) with none of the runtime cost. In-process calls cost about a microsecond; a network call costs about a millisecond plus serialisation, a thousand times more. A single transaction can span modules. One deploy, one on-call, one set of dashboards.
+A modular monolith is one deployable unit with enforced internal boundaries: modules with public interfaces, no module touching another's tables, dependency direction checked by the build. It gives most of the design benefit of services (ownership, explicit contracts) with none of the runtime cost: calls are function calls, one transaction can span modules, and there is one deploy, one on-call and one set of dashboards.
 
-The extraction test: if a module could be moved to its own process by changing only its call sites from in-process to RPC, it is well bounded. If extraction would require untangling shared tables, it is not, and it is not ready to be a service either.
+"Enforced" means a failing build, not a wiki page. Real codebases use Bazel visibility, Java modules or ArchUnit, import-linter in Python, or Packwerk, the tool Shopify open-sourced for its Rails monolith. The mechanism is small enough to write:
+
+```python
+import ast, pathlib
+
+# Which other modules' public APIs each module may import.
+ALLOWED = {"orders": {"payments.api", "catalogue.api"}, "payments": set(), "catalogue": set()}
+
+def boundary_violations(root):
+    root = pathlib.Path(root)
+    for path in root.rglob("*.py"):
+        owner = path.relative_to(root).parts[0]              # orders/..., payments/...
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                target = node.module.split(".")[0]
+                if target in ALLOWED and target != owner and node.module not in ALLOWED[owner]:
+                    yield f"{path}:{node.lineno} {owner} imports {node.module}"
+
+if __name__ == "__main__":
+    problems = list(boundary_violations("src"))
+    print("\n".join(problems) or "boundaries clean")
+    raise SystemExit(1 if problems else 0)                   # fail CI on any violation
+```
+
+`orders` may call `payments.api` but not `payments.models` or `payments.db`, so payments can change its internals without a coordinated change. The extraction test follows: if a module could move to its own process by changing only its call sites from in-process to RPC, it is well bounded. If extraction would require untangling shared tables, it is not ready to be a service.
 
 ## What a service boundary is
 
-A service boundary is a **data ownership boundary**. A service owns its tables; nobody else reads or writes them. Other services get the data through the service's API or its published events. That single rule is what makes independent deployment possible: the service can change its schema without coordinating, because nobody else depends on the schema.
+A service boundary is a **data ownership boundary**. A service owns its tables; nobody else reads or writes them; others get the data through its API or its published events. That rule is what makes independent deployment possible: the service can change its schema because nobody depends on it. Enforce it where it cannot be bypassed, in the database:
 
-The boundaries that hold tend to follow bounded contexts from domain-driven design: the concepts that change together (an "order" in checkout, in fulfilment and in accounting are three different models with three lifecycles) and the teams that own them. Boundaries that do not hold are drawn around technical layers (a "database service", a "validation service") or around nouns shared by everyone (the "User service" that 40 services call synchronously, so that its 99.9% availability caps everyone at 99.9%).
+```sql
+CREATE ROLE orders_svc LOGIN;
+REVOKE ALL ON orders, order_lines FROM PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON orders, order_lines TO orders_svc;
+-- billing_svc gets no grant here: it keeps its own copy from OrderPlaced events
+```
 
-Sizing heuristics: one team owns it end to end (two-pizza scale); it has a distinct change frequency or scaling profile; it can fail without taking the core product down; it has a small, stable API. If a proposed service fails all four, it is a module.
+Boundaries that hold follow bounded contexts from domain-driven design: concepts that change together, owned by one team. An "order" in checkout, in fulfilment and in accounting is three models with three lifecycles. Boundaries that fail are drawn around technical layers (a "validation service") or around nouns everyone needs synchronously: a "User service" called by 40 services at 99.9% availability caps each of them at 99.9% for every request that needs it.
+
+Sizing heuristics: one team owns it end to end; it has a distinct change frequency or scaling profile; it can fail without taking the core product down; its API is small and stable. A proposed service that fails all four is a module.
+
+Worked on an e-commerce monolith, boundaries come out of a table of writers and readers, not a list of nouns:
+
+| Table | Written by | Read by | Owner | How the others get it |
+|---|---|---|---|---|
+| `orders`, `order_lines` | Checkout | Fulfilment, billing, support UI | Orders | `OrderPlaced` and `OrderShipped` events; support reads through the Orders API |
+| `inventory_levels` | Fulfilment **and** checkout | Catalogue (in-stock badge) | Inventory | Checkout calls a `Reserve` API because it needs the answer now; catalogue keeps a boolean from `StockChanged` events |
+| `products`, `prices` | Catalogue admin | Checkout, search | Catalogue | Checkout copies the price into the order at purchase, deliberately; search consumes `ProductChanged` |
+| `customers` | Accounts | Nearly everyone | Accounts | Events carry the few fields each consumer needs; no synchronous "get customer" on a hot path |
+
+Two writers on `inventory_levels` is the finding: a table needs one owner, so the second writer becomes a caller of the owner's API. Every query that joined across a new boundary then gets its own decision. The support UI's "orders from the last 30 days with customer names" either reads a customer name that Orders keeps from `CustomerChanged` events, or composes two API calls; a nightly report can read the warehouse instead. Writing those decisions down is most of the design work of a split.
+
+## Under the hood: the cost of a network hop, measured
+
+Moving a call across a process boundary adds serialisation, system calls and a network round trip. Measured on one machine (Python 3.14 on WSL2; client and server in the same process, so thread hand-offs are included), with a 723-byte JSON order:
+
+| Call | p50 | Relative to in-process |
+|---|---|---|
+| In-process function computing the order total | 0.37 µs | 1× |
+| `json.dumps` + `json.loads` of the payload, once each way | 9.3 µs | 25× |
+| Raw TCP echo of the payload over loopback, persistent connection | 174 µs | 470× |
+| HTTP/1.1 keep-alive POST with JSON both ways, loopback | 372 µs (p99 496 µs) | 1,000× |
+| The same HTTP call with Nagle left on at the server | 44 ms | 120,000× |
+
+The loopback numbers are generous: a real hop adds the wire. A same-zone round trip in a cloud is on the order of 100–500 µs depending on provider and instance type, a cross-zone one about 0.5–2 ms, and TLS adds a handshake on each new connection. A compiled service does its own share of the work in tens of microseconds rather than hundreds, but the wire is the same for every language. The rule of thumb survives: **a microsecond becomes a millisecond**. A request that made 50 calls into a module now makes 50 RPCs, 20 to 50 ms of overhead before any work, unless the interface becomes a batch call.
+
+The last row is a real trap. `http.server` writes headers and body in two `send()` calls; with Nagle's algorithm on, the second small write waits for the ACK of the first, and the client's kernel delays that ACK by up to 40 ms. Most frameworks set `TCP_NODELAY`; the one that does not turns every internal call into 40 ms.
 
 ## The arithmetic of distribution
 
-Every network hop costs availability and latency, and the costs compound.
+**Availability in series.** Five services, each 99.9% available, called in sequence: $0.999^5 = 99.5\%$, 3.6 hours of downtime a month instead of 43 minutes. Ten: 99.0%.
 
-**Availability in series.** Five services, each 99.9% available, called in sequence: 0.999^5 = 99.5%. That is 3.6 hours of downtime per month instead of 43 minutes. Ten services: 99.0%. The monolith had one availability number; the chain has the product.
+**Latency in series and fan-out.** Simulated with 200,000 requests (seed 7), each call lognormal with a p50 of 5 ms and a p99 of 50 ms:
 
-**Latency in series.** A request that calls five services in sequence, each with a p50 of 5 ms and a p99 of 50 ms, has a p50 around 25 ms and a p99 that is not 50 ms: the probability of at least one of five independent calls hitting its own p99 is 1 - 0.99^5 ≈ 5%, so the chain's p95 is already at the single-service p99, and its p99 is worse.
+| Shape | p50 | p95 | p99 | Share of requests ≥ 50 ms |
+|---|---|---|---|---|
+| One call | 5.0 ms | 25.6 ms | 49.9 ms | 1% |
+| Five calls in sequence | 35.3 ms | 83.6 ms | 124.4 ms | 25% |
+| Twenty calls in parallel (wait for all) | 30.4 ms | 80.2 ms | 131.3 ms | 18% |
 
-**Fan-out.** A page that fans out to 20 services in parallel has p(at least one hits p99) = 1 - 0.99^20 ≈ 18%. Nearly one in five page loads waits for somebody's tail. Tail latency amplification is the reason large fan-out systems (search, feeds) use hedged requests, tight per-call timeouts and partial results.
-
-**Cost per call.** In-process: ~1 microsecond. Same-host loopback with serialisation: ~100 microseconds. Cross-host in one AZ: ~0.5 to 1 ms plus serialisation of the payload (JSON at tens of MB/s per core, Protobuf faster). A request that used to make 50 in-process calls to a module now makes 50 RPCs: 50 ms of pure overhead, before any work.
+Two surprises. The sequential p50 is 35 ms, not 5 × 5 = 25 ms: latency is skewed, so each call's mean (8.2 ms) exceeds its median and the sum inherits the means. And a quarter of five-hop requests take longer than any single service's p99. The fan-out figure matches $1 - 0.99^{20} = 18\%$; it is why search and feed systems use hedged requests, tight per-call timeouts and partial results.
 
 ```viz
 {"type": "system", "scenario": "request-flow", "nodes": 5,
  "title": "One request across a service chain", "caption": "Each hop adds a network round trip, serialisation and a chance of hitting that service's tail. Five sequential hops turn 99.9% per service into 99.5% end to end."}
 ```
 
-## The distributed monolith
+## The distributed monolith, traced
 
-The failure mode has a name because it is so common. A distributed monolith is a system with the runtime costs of microservices and none of the independence:
+A distributed monolith has the runtime costs of microservices and none of the independence. Its most expensive symptom is the cascade. A gateway with a shared pool of 300 threads serves browse (800 req/s at 25 ms: 20 threads busy by Little's law) and checkout (200 req/s). Checkout has 100 threads and calls pricing synchronously with a 5-second timeout. Pricing's database slows and its latency goes from 20 ms to 2 s:
 
-- **Synchronous chains.** Checkout calls order, which calls inventory, which calls pricing, which calls customer. Every request is a tour of the fleet; every service's outage is everyone's outage.
-- **Shared database.** Services read each other's tables. A schema change requires coordinating every reader; the "independent" services deploy in lockstep.
-- **Lockstep releases.** A feature needs changes in four services that must go out together, with a release manager and a rollback plan spanning all four.
-- **Chatty APIs.** N+1 across the network: fetch 100 orders, then call the customer service 100 times. Each call is a millisecond; the page takes 100 ms doing what one join did in 2.
+| t | Event | Checkout threads busy | Gateway threads busy | Browse |
+|---|---|---|---|---|
+| 0 s | Pricing latency rises to 2 s | 4, then +200 per second | ~25 | Healthy |
+| 0.5 s | Checkout pool full: 200 req/s × 2 s would need 400 | 100 | Rising by 200/s as requests wait on checkout | Healthy |
+| 1.9 s | Gateway pool full of requests waiting on checkout | 100 | 300 | Requests find no thread: errors |
+| 2 s on | Pricing answers at 100 threads / 2 s = 50/s against 200/s arriving | 100 | 300 | Down |
+| 5 s | First timeouts; callers retry three times | 100 | 300 | Down, now with 3× checkout load |
 
-The tell in a design review is a sequence diagram with more than three synchronous hops for a user request, or an entity that appears in several services' schemas. The fix is at the boundary: events instead of synchronous calls where the caller does not need an answer now ([Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture)), data replicated into the consumer via events instead of read across, and batch endpoints instead of per-item calls ([API design](/learn/system-design/building-blocks/api-design-and-versioning)).
+Browse never called pricing, and it went down 1.9 seconds after pricing slowed. Three decisions caused it, each with its fix in [Resilience patterns](/learn/system-design/building-blocks/resilience-patterns): a timeout far above the dependency's p99 (a 100 ms timeout caps checkout's pricing concurrency at 200 × 0.1 = 20 threads), one shared gateway pool instead of a bulkhead per route, and retries at every layer.
+
+The other symptoms, and the boundary decision behind each:
+
+- **Shared database.** Services read each other's tables, so a schema change needs every reader to deploy in step.
+- **Lockstep releases.** A feature needs four services to ship together, with a release manager and a four-way rollback plan.
+- **Chatty APIs.** Fetch 100 orders, then call the customer service 100 times: 100 ms of round trips for what one join did in 2 ms.
+
+The tell in a design review is more than three synchronous hops on a user request, or one entity in several services' schemas. The fixes are at the boundary: events where the caller does not need an answer now ([Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture)), data replicated into the consumer instead of read across, and batch endpoints instead of per-item calls ([API design](/learn/system-design/building-blocks/api-design-and-versioning)).
 
 ## Extracting a service: the strangler fig
 
-Big-bang rewrites fail often enough that the safe approach has a name. The strangler fig routes traffic through a facade, moves one capability at a time behind it, and retires the old path when the new one has taken all the traffic.
+Big-bang rewrites fail often enough that the safe approach has a name. The strangler fig routes traffic through a facade, moves one capability at a time behind it, and retires the old path when the new one has all the traffic.
 
 ```viz
 {"type": "system", "scenario": "strangler-fig", "requests": 8,
  "title": "Migrating one capability at a time", "caption": "The facade routes a growing share of a capability's traffic to the new service while the monolith keeps serving the rest. Each step is reversible by flipping the route back."}
 ```
 
-The order of operations for extracting, say, the notifications module:
+Extracting the notifications module:
 
-1. **Define the interface** the rest of the monolith uses to call notifications; make all callers go through it (this is the modular-monolith step and it may take most of the effort).
-2. **Stand up the service** implementing that interface, initially reading the monolith's tables (a temporary violation of ownership, explicitly time-boxed).
-3. **Route traffic** through a facade or feature flag: 1%, then 10%, then 100%, comparing results in shadow mode where possible.
-4. **Move data ownership.** Create the service's own tables; dual-write from the monolith and the service during the transition; backfill history; verify counts and checksums; cut reads over to the service's tables; stop the dual write; drop the monolith's copy. Every step has a rollback.
-5. **Retire** the module in the monolith.
+1. **Define the interface** every caller in the monolith uses, and route all calls through it. This is the modular-monolith step and often most of the effort.
+2. **Stand up the service** behind that interface, temporarily reading the monolith's tables, with a date by which that stops.
+3. **Route traffic** through a facade or flag: 1%, 10%, 100%, comparing results in shadow mode where possible.
+4. **Move data ownership.** Create the service's own tables, replicate with CDC or the outbox (never two application writes), backfill history, verify counts and checksums, cut reads, then writes, then drop the monolith's copy. Each step has a rollback.
+5. **Retire** the module.
 
-Step 4 is where the risk is. Dual writes have the dual-write problem from the event-driven lesson: use the outbox or CDC to replicate, not two application writes. [Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) works through the backfill and cutover in detail.
+Step 4 carries the risk; [Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) traces the dual-write race and the backfill.
 
 ```mermaid
 flowchart LR
@@ -96,72 +166,128 @@ flowchart LR
 
 ## Discovery, mesh and the platform you now need
 
-Once there are services, each needs to find the others (service discovery: DNS, Eureka, Consul, Kubernetes services), to call them with timeouts, retries and circuit breakers ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)), to authenticate to them (mTLS), and to be observed across hops (distributed tracing). Doing that in every service's code in every language is what led to the sidecar proxy and the service mesh: Envoy next to each service, handling discovery, mTLS, retries and telemetry uniformly, configured by a control plane (Istio, Linkerd).
+Services must find each other (DNS, Eureka, Consul, Kubernetes services), call each other with timeouts, retries and circuit breakers, authenticate each other (mTLS), and be observed across hops (distributed tracing). Doing that in every service in every language led to the sidecar proxy and the service mesh: Envoy beside each service, configured by a control plane (Istio, Linkerd).
 
 ```viz
 {"type": "system", "scenario": "service-mesh", "nodes": 4,
  "title": "Sidecars handling the cross-cutting concerns", "caption": "Each service talks to its local proxy; the proxies do discovery, mTLS, retries and tracing. The cost is an extra hop per call, on the order of a millisecond, and a control plane to operate."}
 ```
 
-The mesh is not free: an extra proxy hop per call (about 0.5 to 1 ms), memory per sidecar (tens to hundreds of MB), and a control plane that is itself a distributed system. It pays for itself at dozens of services in several languages; at five services in one language, a shared client library does the same job for less. [Service meshes and proxies](/learn/networking/networking-in-practice/service-meshes-and-proxies) covers the mechanics.
+A mesh costs two extra proxy traversals per call (typically well under a millisecond each, more under load), tens to hundreds of MB per sidecar, and a control plane that is itself a distributed system. It pays at dozens of services in several languages; at five services in one language a shared client library does the same job. [Service meshes and proxies](/learn/networking/networking-in-practice/service-meshes-and-proxies) covers the mechanics.
 
 ## A decision framework
 
 | Signal | Stay monolithic | Split |
 |---|---|---|
-| Team size | Under ~15 engineers on the codebase | Multiple teams blocked on each other's deploys |
-| Deploy frequency | Daily deploys work | Deploys batch changes from many teams and fail together |
-| Scaling profile | Uniform | One component needs 10x the hardware or a different kind |
-| Failure isolation | Acceptable that a bug anywhere affects everything | A non-core feature must not take down the core |
+| Team size | Under ~15 engineers on the codebase | Several teams blocked on each other's deploys |
+| Deploys | Daily deploys work | Deploys batch many teams' changes and fail together |
+| Scaling profile | Uniform | One component needs 10× the hardware, or a different kind |
+| Failure isolation | A bug anywhere affecting everything is acceptable | A non-core feature must not take down the core |
 | Data | One schema with cross-entity transactions | Clear ownership; cross-entity consistency can be eventual |
-| Platform | No mesh, no tracing, no per-service on-call | Those exist or the organisation will build them |
+| Platform | No tracing, no per-service on-call | Discovery, tracing, per-service pipelines exist or will be funded |
 
-The honest summary for an interview: "I would start with a modular monolith, enforce the module boundaries in the build, and extract a service when a specific team or scaling or isolation problem appears, using the strangler pattern. I would not split to be ready for scale."
+The interview summary: "I would start with a modular monolith with boundaries enforced in the build, and extract a service with the strangler fig when a specific team, scaling or isolation problem appears. I would not split to be ready for scale."
 
 ## Failure modes
 
-**The distributed monolith.** Described above. Detect: lockstep deploys, shared tables, synchronous chains over three hops. Mitigate: move to events and data replication at the boundaries; enforce ownership.
-
-**Chatty APIs.** N+1 over the network: 100 ms pages, tens of thousands of internal calls per second for modest traffic. Detect: internal request rate vs external; traces with hundreds of spans. Mitigate: batch endpoints, data replicated into the consumer, GraphQL-style aggregation at the edge.
-
-**Retry amplification through the chain.** Each hop retries three times; a slow database at the bottom sees 27x load. Detect: request rate at the bottom far exceeding the top during an incident. Mitigate: retry at one layer, budgets, deadline propagation.
-
-**Version skew.** Service A deploys a change assuming B's new field; B's deploy is delayed; A fails. Detect: errors correlated with one service's deploy. Mitigate: backward-compatible contracts, consumers deploy before producers remove, contract tests in CI.
-
-**Entity services.** The "User service" every request touches synchronously; its 99.9% caps the product. Detect: one service in every trace. Mitigate: replicate the user data consumers need via events; cache aggressively; make the call optional with a degraded path.
-
-**Ownership drift.** After two years, three services write the orders table "just this once". Detect: database grants and query logs by application user. Mitigate: one database role per service, with no grants to others' tables, enforced.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Cascade through a synchronous chain | Unrelated endpoints fail seconds after one dependency slows | Thread or connection pools saturated upstream; Little's law says the pool needs rate × latency | Timeouts from p99, bulkheads per dependency, circuit breakers, events for non-urgent calls |
+| Chatty APIs | 100 ms pages; internal request rate tens of times external | Traces with hundreds of spans, one per item | Batch endpoints; replicate the data into the consumer |
+| Retry amplification | The bottom tier sees many times user traffic during an incident | Attempt counts per hop; retries configured at every layer | Retry at one layer with a budget; propagate deadlines |
+| Version skew | Errors correlated with one service's deploy | A consumer assumes a field the producer has not shipped, or removed | Backward-compatible contracts; contract tests in CI; consumers deploy first |
+| Entity service bottleneck | One service in every trace; its outage is everyone's | Synchronous "get user" on every request path | Replicate needed fields via events; cache; make the call optional |
+| Ownership drift | A schema change in one service breaks three others | Query logs show other services' roles on its tables | One role per service; no grants on others' tables |
+| 40 ms internal calls | Every call to one service takes about 40 ms regardless of payload | Packet capture shows the response body waiting for a delayed ACK | `TCP_NODELAY`, or one write per response |
 
 ## Interviewer follow-ups
 
-**Q: "Would you build this as microservices?"**
+**"Would you build this as microservices?"** Model answer: not at the start. One product team at a few thousand requests per second fits a modular monolith with enforced boundaries, each module owning its tables, so extraction later is a routing change and a data migration, not a rewrite. I would extract on a concrete trigger: a blocked team, a different scaling profile such as media processing, or a feature whose failures must be isolated. Common wrong answer: "yes, so each part can scale independently", when stateless copies of the monolith already scale.
 
-Not at the start. The requirements describe one product team and a few thousand requests per second; a modular monolith with enforced module boundaries and one database handles that with one deploy pipeline and one on-call. I would draw the module boundaries as if they were services (orders, catalogue, payments, notifications), with each module owning its tables, so that extraction later is a routing change and a data migration rather than a rewrite. I would extract the first service when a concrete trigger appears: a team blocked on another's deploys, a component with a different scaling profile such as media processing, or a need to isolate a risky feature's failures.
+**"Checkout calls six services in sequence. What is its availability, and what do you do?"** Model answer: $0.999^6 \approx 99.4\%$, about 4.3 hours a month, and a quarter of requests slower than any one service's p99. I ask which calls need an answer now: inventory and payment do; receipts and analytics become events. The remaining calls get timeouts from p99, one layer of retries and breakers with a degraded path (default shipping options if the rate service is down), which lifts checkout above the product of its dependencies. Common wrong answer: "make each service 99.99%", which is the most expensive way to fix a structural problem.
 
-**Q: "You have a checkout request calling six services in sequence. What is its availability and what do you do about it?"**
+**"How do you split the database when you extract a service?"** Model answer: list the tables it will own and every other reader and writer; replicate them to the service's database with CDC while it runs in shadow; backfill with per-chunk checksums; cut reads, then writes; keep the old copy until the service has run alone for a business cycle. Queries that joined across the boundary each get a decision: a replicated copy in the consumer or an API call. Common wrong answer: "both services write to both databases during the transition", which is the dual-write race.
 
-If each is 99.9%, the chain is 0.999^6 ≈ 99.4%, about 4.3 hours of downtime a month. I would first ask which of those calls need to be synchronous. Inventory reservation and payment do; sending the receipt and updating analytics do not, so they become events. That leaves three hops at 99.7%. Then I make the remaining calls resilient: timeouts from p99, one layer of retries, circuit breakers with a degraded path (checkout can proceed with default shipping options if the shipping-rate service is down), which raises the effective availability of checkout above the product of its dependencies.
+**"What do you lose going from in-process calls to RPC?"** Model answer: latency (0.4 µs to hundreds of microseconds on loopback and around a millisecond across a zone, so 50 calls cost tens of milliseconds); atomicity (a cross-module transaction becomes a saga); and simple failure (an RPC can time out with an unknown outcome, so every call needs an idempotency story). Common wrong answer: "only some latency", which misses the transaction and failure semantics.
 
-**Q: "How do you split the database when you extract a service?"**
+**"Do you need a service mesh?"** Model answer: at five services in one language, no: a shared client library with timeouts, retries, breakers and tracing is cheaper than a control plane. At fifty services in three languages the libraries drift and the mesh's uniformity wins. Either way I count the platform: discovery, tracing, per-service dashboards and pipelines. Common wrong answer: "yes, it is how microservices communicate", which treats an operational tool as a requirement.
 
-Ownership first: identify the tables the new service owns and every other reader and writer of them. Give the service its own database, replicate from the monolith via CDC while the service runs in shadow, backfill history with checksums, cut reads to the service, then cut writes with a short dual-write window driven by the outbox rather than two application writes. Foreign keys across the boundary become IDs plus eventual consistency, and I list the queries that used to join across them and decide for each whether the consumer keeps a replicated copy or calls an API. Every step has a rollback, and I do not delete the monolith's copy until the service has run alone for a full business cycle.
+## What mid-level engineers get wrong
 
-**Q: "What do you lose when you go from in-process calls to RPC?"**
+- **Splitting "for scale".** A stateless monolith scales horizontally; the split adds a millisecond per hop and a quarter of requests past the p99, and traffic was never the constraint.
+- **Drawing services around nouns.** A User or Product service called synchronously by everyone becomes everyone's availability ceiling.
+- **Sharing the database "temporarily".** Without revoked grants, temporary becomes permanent and every schema change is a coordinated release.
+- **Keeping in-process call patterns across the network.** Loops of single-item RPCs turn a 2 ms join into a 100 ms page.
+- **One shared thread pool for every route.** One slow dependency exhausts it and takes down endpoints that never call that dependency.
+- **Adding the mesh before the platform.** A mesh without tracing and per-service on-call is complexity without visibility.
 
-Three things with numbers. Latency: a microsecond becomes a millisecond, so a code path with 50 module calls goes from unnoticeable to 50 ms. Transactions: an atomic update across two modules becomes a saga or an eventually consistent pair of writes. Simplicity of failure: an in-process call fails by exception; an RPC can time out with unknown outcome, so every call needs an idempotency story. The compensation is independent deployability and failure isolation, which is worth those costs only when the organisation needs them.
+## Exercise: find the services that must deploy together
 
-**Q: "Do you need a service mesh?"**
+```exercise
+id: deploy-coupling
+title: Find ownership violations and lockstep groups from table access
+prompt: |
+  `access` lists which service touches which table: `[service, table, mode]`
+  with `mode` either `"r"` or `"w"`. Two services that touch the same table
+  (in any mode) are coupled: a schema change to that table needs both to
+  deploy together. Coupling is transitive through chains of shared tables.
 
-At five services in one language, no: a shared client library with timeouts, retries, circuit breaking and tracing is cheaper than running a control plane and paying a millisecond per hop. At fifty services in three languages, the library gets reimplemented and drifts, and the mesh's uniformity wins. I would also count the platform I need regardless of mesh: service discovery, distributed tracing, per-service dashboards and alerts, and a deploy pipeline per service. If the organisation cannot fund that platform, it cannot fund microservices.
+  Return:
+  - `multi_writer`: tables written by two or more different services,
+    sorted.
+  - `lockstep_groups`: every group of two or more services connected by
+    shared tables, each group sorted, and the list of groups sorted.
+
+  A service touching a table twice, or alone, couples it to nothing.
+languages: [python, javascript]
+entry: coupling
+starter:
+  python: |
+    def coupling(access):
+        multi_writer, lockstep_groups = [], []
+        # your code here
+        return {"multi_writer": multi_writer, "lockstep_groups": lockstep_groups}
+  javascript: |
+    function coupling(access) {
+      const multi_writer = [], lockstep_groups = [];
+      // your code here
+      return { multi_writer, lockstep_groups };
+    }
+tests:
+  - args: [[["orders", "orders_t", "w"], ["billing", "invoices", "w"]]]
+    expected: {"multi_writer": [], "lockstep_groups": []}
+    label: clean ownership
+  - args: [[["orders", "orders_t", "w"], ["billing", "orders_t", "r"], ["billing", "invoices", "w"]]]
+    expected: {"multi_writer": [], "lockstep_groups": [["billing", "orders"]]}
+    label: a reader is coupled to the owner's schema
+  - args: [[["A", "t1", "w"], ["B", "t1", "r"], ["B", "t2", "w"], ["C", "t2", "r"], ["D", "t3", "w"]]]
+    expected: {"multi_writer": [], "lockstep_groups": [["A", "B", "C"]]}
+    label: coupling is transitive
+  - args: [[["A", "t1", "w"], ["B", "t1", "w"]]]
+    expected: {"multi_writer": ["t1"], "lockstep_groups": [["A", "B"]]}
+  - args: [[]]
+    expected: {"multi_writer": [], "lockstep_groups": []}
+    label: no access at all
+  - args: [[["A", "t1", "r"], ["A", "t1", "w"]]]
+    expected: {"multi_writer": [], "lockstep_groups": []}
+    hidden: true
+  - args: [[["x", "t9", "w"], ["y", "t9", "r"], ["b", "t1", "w"], ["a", "t1", "w"], ["a", "t1", "w"]]]
+    expected: {"multi_writer": ["t1"], "lockstep_groups": [["a", "b"], ["x", "y"]]}
+    hidden: true
+hints:
+  - "Group services by table first; every table touched by several services links them."
+  - "Union-find (or a BFS over a service graph) turns those links into connected groups."
+  - "Count writers per table with a set, so one service writing twice is still one writer."
+```
 
 ## Senior signals
 
-- You say that microservices solve **organisational** scaling, not traffic scaling, and you can name the specific trigger that would make you split.
-- You define a boundary as **data ownership** and you enforce it with database roles, not documentation.
-- You do the **availability and latency arithmetic** of a call chain unprompted, and you convert synchronous hops to events where the caller does not need an answer.
-- You recognise the **distributed monolith** from its symptoms and you know which boundary decision caused each.
-- You extract with the **strangler fig** and migrate data with CDC and checksums, never a big-bang rewrite.
-- You price the **platform** (discovery, mesh, tracing, per-service on-call) as part of the decision.
+- You say microservices solve **organisational** scaling, not traffic scaling, and name the trigger that would make you split.
+- You default to a **modular monolith** and can say how its boundaries are enforced: a failing build and revoked database grants.
+- You define a boundary as **data ownership** and draw it around bounded contexts, not layers or shared nouns.
+- You quantify a hop (**a microsecond becomes a millisecond**), multiply availabilities, and know a five-hop chain puts a quarter of requests past each service's p99.
+- You recognise the **distributed monolith** from its symptoms and can trace the cascade to the pool, timeout and retry decisions behind it.
+- You extract with the **strangler fig**, migrate data with CDC and checksums, and price the **platform** as part of the decision.
 
 ## Check yourself
 
@@ -179,21 +305,27 @@ At five services in one language, no: a shared client library with timeouts, ret
   explanation: >-
     A shared database means schema changes require coordinating every service, which removes independent deployability, the one benefit that justified the split. Protocol, count and platform are neutral; ten services that deploy independently are not a monolith.
 - q: >-
-    A page fans out to 20 services in parallel, each with p99 of 50 ms and p50 of 5 ms. Roughly what fraction of page loads wait at least 50 ms?
-  options: ["18%", "5%", "50%", "1%"]
+    Each service call has a p50 of 5 ms and a p99 of 50 ms, with a skewed distribution. Five are made in sequence. In the lesson's simulation, what was the chain's p50?
+  options: ["About 35 ms, since skew makes each mean exceed its median", "Exactly 25 ms, because the medians of sequential calls add up", "About 5 ms, since sequential calls overlap in time", "About 250 ms, since every call lands in its tail"]
   answer: 0
   explanation: >-
-    The probability that none of 20 independent calls hits its p99 is 0.99^20 ≈ 0.82, so about 18% of pages see at least one tail. This is tail latency amplification, the reason for hedged requests and partial results in fan-out systems.
+    Medians do not add for skewed distributions: each call's mean is about 8.2 ms, and the sum of five behaves like the sum of means, so the simulated p50 was 35.3 ms and a quarter of requests exceeded 50 ms. Sequential calls do not overlap, and most calls are not in their tail.
+- q: >-
+    Pricing slows from 20 ms to 2 s. Checkout (200 req/s, 100 threads) calls it synchronously, and a shared gateway pool also serves browse. Why does browse fail within about two seconds?
+  options: ["Gateway threads fill up waiting on a saturated checkout", "Browse calls pricing indirectly through a shared cache layer", "The load balancer marks the whole gateway unhealthy at once", "Pricing's slow database also serves every browse request"]
+  answer: 0
+  explanation: >-
+    By Little's law checkout would need 200 × 2 = 400 threads, so its 100 fill in half a second; requests then wait in the gateway's shared pool, which fills too, leaving no thread for browse. A bulkhead per route and a timeout near pricing's p99 would have contained it.
 - q: >-
     The safest way to move the notifications module out of a monolith is:
-  options: ["Rewrite it as a service and switch all traffic over on release day", "Have the new service keep reading the monolith's tables for good", "Move traffic over gradually behind a facade, then retire the module", "Fork the monolith and delete everything except notifications"]
+  options: ["Rewrite it as a service and switch all of the traffic on release day", "Have the new service keep reading the monolith's tables for good", "Move traffic over gradually behind a facade, then retire the module", "Fork the monolith and delete everything except notifications"]
   answer: 2
   explanation: >-
     The strangler fig puts a facade in front, routes a growing share of traffic to the new service, migrates data ownership with CDC and checksums, and only then retires the module, so each step is reversible and observable. A big-bang switch has no rollback granularity; forking the monolith duplicates everything; permanently sharing tables recreates the distributed monolith.
 - q: >-
-    An in-process module call costs about 1 microsecond; a same-AZ RPC about 1 ms. A code path making 50 such calls per request moves from monolith to services. The added latency per request is roughly:
-  options: ["0.05 ms", "5 ms", "500 ms", "50 ms"]
-  answer: 3
+    Every call to one internal service takes about 40 ms, whatever the payload size, while the service's own handler time is under 1 ms. What is the likely cause?
+  options: ["Nagle's algorithm holding a second write until a delayed ACK", "TLS renegotiation on every request over a kept-alive connection", "Serialising JSON payloads on a slow single-threaded server", "Cross-zone routing that adds a fixed 40 ms to each hop"]
+  answer: 0
   explanation: >-
-    50 calls x (1 ms - 1 microsecond) ≈ 50 ms of pure overhead, before serialisation of larger payloads. This is why chatty interfaces must become batch calls or replicated data when a boundary becomes a network.
+    A response written in two small sends, with Nagle on, waits for the ACK of the first; the client's kernel delays that ACK by up to 40 ms. The lesson measured 44 ms per call on loopback. TCP_NODELAY or a single write fixes it. Serialisation scales with payload size, and cross-zone latency is on the order of a millisecond.
 ```

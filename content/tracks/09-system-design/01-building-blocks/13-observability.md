@@ -1,14 +1,14 @@
 ---
 slug: observability
 title: "Observability: metrics, logs, traces and the SLOs that decide when to page"
-description: What each signal can and cannot answer, why averages lie and cardinality explodes, how to define SLIs and SLOs with error budgets and burn-rate alerts, and what to instrument in a service on day one.
+description: What each signal can and cannot answer and what it costs, cardinality explosion worked in series and bytes, head versus tail sampling traced, histogram quantile error measured, SLIs, SLOs and error budgets, and multi-window burn-rate alerts derived and simulated against real incident shapes.
 minutes: 30
 difficulty: hard
-tags: [system-design, observability, metrics, tracing, slo, alerting]
+tags: [system-design, observability, metrics, tracing, slo, alerting, burn-rate, cardinality, sampling]
 ---
 At 03:10 the pager fires: "CPU > 80% on api-7". The engineer on call logs in, sees CPU at 82%, sees no customer impact, silences it, and goes back to sleep. At 03:40 checkout error rate has been 12% for half an hour and nobody was paged, because no alert was watching the thing customers experience. The system had dashboards for everything and observability for nothing.
 
-Observability is the ability to ask a new question of a running system without shipping new code, and to be told, reliably and early, when users are being hurt. It is built from three signals with different costs and different answers, and it is aimed by service level objectives that say what "hurt" means in numbers. The senior skill is choosing which signal answers which question, keeping the cost bounded, and alerting on symptoms rather than causes.
+Observability is the ability to ask a new question of a running system without shipping new code, and to be told, reliably and early, when users are being hurt. It is built from three signals with different costs and different answers, and aimed by service level objectives that say what "hurt" means in numbers. The senior skill is choosing which signal answers which question, keeping the cost bounded with arithmetic, and alerting on symptoms rather than causes.
 
 ## Three signals, three questions
 
@@ -16,62 +16,132 @@ Observability is the ability to ask a new question of a running system without s
 |---|---|---|---|---|
 | Metrics | How much, how fast, how often, over time | Near zero (a counter increment) | Must be bounded | Months to years, downsampled |
 | Logs | What happened in this specific case | Bytes per line, storage and indexing | Unbounded | Days to weeks |
-| Traces | Where did the time go, across services | A span per hop, sampled | Unbounded | Days |
+| Traces | Where the time went, across services | A span per hop, sampled | Unbounded | Days |
 
 ### Metrics
 
-A metric is a number aggregated over time, labelled by a small set of dimensions: `http_requests_total{service="checkout", route="/orders", status="500"}`. Three types: counters (monotonic; rate them), gauges (a level: queue depth, memory), histograms (a distribution: latency, payload size). A time series database stores each unique label combination as a separate series; a scrape every 15 seconds costs a few bytes per series per sample, so a million series is manageable and a hundred million is not.
+A metric is a number aggregated over time and labelled by a small set of dimensions: `http_requests_total{route="/orders", status="500"}`. Counters are monotonic (you query their rate), gauges are levels (queue depth, memory), histograms are distributions (latency, payload size). A time series database stores each unique label combination as a separate series.
 
-**Percentiles need histograms.** The mean latency of a service with p50 5 ms and p99 500 ms is roughly 10 ms, which describes nobody's experience. Record latency as a histogram with bucket boundaries chosen for the service (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 5000 ms), and compute percentiles from bucket counts at query time. Prometheus histograms do this; the newer native histograms adapt bucket boundaries automatically.
+**Percentiles need histograms.** A service with p50 5 ms and p99 500 ms has a mean near 10 ms that describes nobody's experience. Record latency as bucket counts and compute percentiles at query time. **You cannot average percentiles**: the mean of ten instances' p99s is not the fleet's p99, and neither is their maximum. Sum the buckets across instances first, then take the percentile. A panel showing `avg(p99)` is the most common observability mistake in design reviews. Forty-nine healthy instances and one sick one:
 
-**You cannot average percentiles.** The p99 of each of 10 instances, averaged, is not the fleet's p99. Neither is the maximum. The fleet's p99 comes from summing the histogram buckets across instances and then taking the percentile. Any dashboard showing `avg(p99)` is showing a number with no meaning; this is the single most common observability mistake in design reviews.
+```python
+import bisect, random
 
-**Cardinality is the budget.** A label with 10 values multiplies series by 10. `user_id` as a label on a request counter creates one series per user: 10 million users x 20 routes x 5 statuses is a billion series, and the metrics system falls over. Labels are for dimensions with tens or hundreds of values (route, status, region, instance); anything per-user, per-request or per-ID goes in logs or traces.
+BOUNDS = [0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]            # seconds; a +Inf bucket is implied
+
+def histogram(samples):
+    counts = [0] * (len(BOUNDS) + 1)
+    for s in samples:
+        counts[bisect.bisect_left(BOUNDS, s)] += 1        # bucket i holds BOUNDS[i-1] < s <= BOUNDS[i]
+    return counts
+
+def quantile(q, counts):                                  # the interpolation histogram_quantile does
+    rank, seen = q * sum(counts), 0
+    for i, c in enumerate(counts):
+        if c and seen + c >= rank:
+            lo = BOUNDS[i - 1] if i else 0.0
+            hi = BOUNDS[i] if i < len(BOUNDS) else BOUNDS[-1]
+            return lo + (hi - lo) * (rank - seen) / c
+        seen += c
+
+rng = random.Random(7)
+fleet = [histogram(rng.uniform(0.01, 0.2) for _ in range(10_000)) for _ in range(49)]
+fleet.append(histogram(rng.uniform(3.0, 5.0) for _ in range(10_000)))     # one sick instance
+p99s = [quantile(0.99, h) for h in fleet]
+merged = [sum(bucket) for bucket in zip(*fleet)]                            # sum buckets, then quantile
+print(f"avg of p99s {sum(p99s) / len(p99s):.2f} s")                        # looks healthy
+print(f"fleet p99   {quantile(0.99, merged):.2f} s")                        # what 1% of users get
+print(f"max of p99s {max(p99s):.2f} s")                                     # finds the sick instance
+```
+
+The average says 0.34 s. The sick instance serves 2% of requests at 3 to 5 s, so the real fleet p99 is 3.75 s, and only the merged histogram shows it.
+
+### Cardinality, worked
+
+A Prometheus histogram with the 11 default buckets produces 14 series per label combination: 12 cumulative buckets (the 11 plus `+Inf`), `_sum` and `_count`. Label `http_request_duration_seconds` by instance (200), route (40) and status code (8 distinct values observed):
+
+$$200 \times 40 \times 8 \times 14 = 896{,}000 \text{ series}$$
+
+Scraped every 15 s that is about 60,000 samples per second. The Prometheus documentation puts compressed storage at 1–2 bytes per sample, so roughly 5–10 GB a day on disk, and each active series costs on the order of kilobytes of memory in the head block, so several gigabytes of RAM. Managed vendors bill per active series; at list prices a million series is a five-figure monthly line item. That is one histogram.
+
+Now someone adds `customer_id`. Series exist only for combinations that occur, but a load balancer spreads each customer over every instance: 50,000 active customers × 5 routes each × 2 statuses × 200 instances × 14 ≈ 1.4 billion series. The TSDB runs out of memory within hours. The fixes: status as a class (`2xx`, `4xx`, `5xx`: 3 values, not 8), instance dropped by a recording rule that sums by route for long-term storage, and per-customer detail in trace attributes and exemplars, where cardinality costs nothing. A label is for dimensions with tens or hundreds of values.
 
 ### Logs
 
-A log line is a record of one event with arbitrary structure. Make it structured (JSON or key-value, not printf), with the fields that let you filter: timestamp, service, level, `request_id`, `trace_id`, `user_id`, and the specific event's data. Structured logs are queryable; "Error processing order 7781 for user 42" is grep-able only if you know the wording.
+A log line records one event. Make it structured (JSON or key-value), with `timestamp`, `service`, `level`, `request_id`, `trace_id` and the event's own fields, so you can filter rather than grep for wording.
 
-The cost is volume. 10,000 requests per second, one 1 KB log line per request: 10 MB/s, 864 GB per day, about 26 TB a month before compression and indexing, and indexing multiplies storage. At a managed logging provider's price per GB ingested, that is a five- or six-figure monthly bill for one service's access logs. So: sample the routine (keep 1% of successful request logs, 100% of errors), keep the important (every error with its context), and put counts in metrics rather than in logs that you then count.
+The cost is volume: 10,000 requests per second at one 1 KB line each is 10 MB/s, 864 GB a day, 26 TB a month before indexing, which multiplies it. At managed ingestion and indexing prices that is a five- or six-figure monthly bill for one service's access logs. Keep 100% of errors with context, sample routine successes at around 1%, and move anything you count into metrics, which cost almost nothing per event.
 
 ### Traces
 
-A trace follows one request across services: a tree of spans, each with a start time, duration, service, operation and attributes, linked by a trace ID that is propagated in headers (W3C `traceparent` is the standard, carrying trace ID, parent span ID and sampling flag). A trace answers "this request took 900 ms; 700 of them were a single database call in the inventory service", which no metric can, because metrics have lost the per-request association.
+A trace follows one request across services: a tree of spans (start, duration, service, operation, attributes) joined by a trace ID propagated in headers. The W3C `traceparent` header carries it: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01` is version, a 16-byte trace ID, the 8-byte parent span ID, and flags whose low bit means "sampled". A trace answers "this request took 900 ms, 700 of them in one inventory query", which no metric can, because metrics have discarded per-request association.
 
 ```viz
 {"type": "system", "scenario": "request-flow", "nodes": 4,
  "title": "Trace context propagating across hops", "caption": "The gateway starts a trace and sends the traceparent header downstream. Each service creates a child span and forwards the header. The collector stitches spans into one tree keyed by trace ID; a hop that drops the header breaks the tree."}
 ```
 
-Sampling decides cost. **Head sampling** decides at the first span (keep 1% of traces): cheap and simple, but it keeps 1% of the boring requests and drops 99% of the interesting ones. **Tail sampling** buffers the whole trace and decides at the end (keep every trace with an error or over 500 ms, plus 0.1% of the rest): keeps what you want, costs a buffering collector with memory proportional to traces in flight. Storage arithmetic: 10,000 requests per second, 8 spans per trace, 500 bytes per span, 1% head sampling: 400 KB/s, 35 GB a day. At 100% sampling it is 3.5 TB a day, which is why nobody does that.
+**Exemplars** join the two worlds: a histogram bucket carries a sample trace ID, so the p99 spike on a dashboard opens a trace from that bucket instead of a search by timestamp.
+
+## Head versus tail sampling, traced
+
+Five requests arrive; a 1% budget of traces is the goal:
+
+| Request | Outcome | Head sampling at 1% (decided at the gateway) | Tail sampling: all errors, all over 500 ms, 0.1% of the rest |
+|---|---|---|---|
+| r1 | 200 in 40 ms | Dropped (hash of trace ID says no) | Dropped |
+| r2 | 500 after 120 ms | Dropped: the decision was made before the error | **Kept**: error |
+| r3 | 200 in 1,900 ms | Dropped | **Kept**: slow |
+| r4 | 200 in 35 ms | **Kept**: hash says yes | Dropped, unless in the 0.1% |
+| r5 | 200 in 38 ms | Dropped | Dropped |
+
+**Head sampling** decides at the root. The gateway sets the sampled flag in `traceparent`, and every downstream SDK with a parent-based sampler obeys it, so the tree is always complete. Ratio samplers hash the trace ID, so independent services make the same decision. It is cheap, but blind: it keeps 1% of boring requests and 1% of interesting ones.
+
+**Tail sampling** decides after the trace completes. Every span goes to a collector tier, a load-balancing exporter routes all spans of one trace ID to the same collector, and that collector buffers the trace for a `decision_wait` (30 s by default in the OpenTelemetry tail-sampling processor) before applying policies. Simulated over 1,000,000 requests (seed 7) with 0.5% errors and 1% slow: head sampling at 1% kept 10,065 traces containing 57 of the 5,027 errors; tail sampling kept 16,118 traces containing all 5,027.
+
+The price is memory in flight. At 10,000 requests per second, 30 s of buffering is 300,000 traces; at 8 spans of about 1 KB each in memory, roughly 2.4 GB spread across the collector tier. The processor's `num_traces` defaults to 50,000; set below the in-flight count, it evicts traces before deciding, and you silently lose exactly the long, slow traces tail sampling exists to keep.
+
+Storage arithmetic for the kept traces: 10,000 requests per second, 8 spans, 500 bytes per span stored, 1% kept is 400 KB/s, 35 GB a day. Keeping everything is 3.5 TB a day, which is why nobody does.
 
 ```mermaid
 flowchart LR
-    A["Services (SDK)"] -->|"spans, metrics, logs"| C["Collector (sampling, batching)"]
-    C --> M[("Metrics TSDB")]
-    C --> L[("Log store")]
+    A["Services (SDK)"] -->|"spans, metrics, logs"| LB["Collector tier 1: load-balance by trace ID"]
+    LB --> C["Collector tier 2: tail sampling, batching"]
     C --> T[("Trace store")]
+    A --> M[("Metrics TSDB")]
+    A --> L[("Log store")]
     M --> AL["Alerting (SLO burn rate)"]
-    M & L & T --> D["Dashboards and query UI"]
     AL --> P["Pager"]
 ```
 
-**Exemplars** link the two worlds: a histogram bucket can carry a sample trace ID, so clicking the p99 spike on a dashboard opens a trace from that bucket. Without exemplars, you go from "p99 rose at 14:02" to searching traces by time and hoping.
+## Under the hood: how percentiles are computed from buckets
+
+Prometheus's `histogram_quantile` finds the bucket containing the requested rank and interpolates linearly between its bounds, assuming observations are spread evenly inside it. The answer is only as good as the bucket boundaries. Simulated with 200,000 lognormal latencies (median 40 ms, seed 7):
+
+| Quantile | True value | Default buckets (5 ms … 10 s, 11 bounds) | 17 buckets placed between 10 ms and 1 s |
+|---|---|---|---|
+| p50 | 40.1 ms | 41.8 ms | 40.1 ms |
+| p90 | 127.4 ms | 162.0 ms (+27%) | 128.1 ms |
+| p99 | 324.1 ms | 399.4 ms (+23%) | 334.4 ms (+3%) |
+
+The default p99 falls in the 250–500 ms bucket and is interpolated a quarter too high. An SLI of "requests under 300 ms" needs a bucket boundary *at* 300 ms, so that the SLI is an exact bucket count rather than an interpolation. Native histograms (introduced experimentally in Prometheus 2.40) use exponential buckets whose width bounds the relative error to a few percent without hand-placed boundaries.
+
+On disk, Prometheus appends samples to per-series chunks with Gorilla-style compression (delta-of-delta timestamps, XOR-encoded values), which is how regular scrapes get to 1–2 bytes per sample. Recent samples live in an in-memory head block, cut into two-hour blocks on disk and compacted later; memory tracks active series, not stored history, which is why cardinality, not retention, is what takes a Prometheus server down.
 
 ## What to instrument on day one
 
-A service that ships without these is not observable, and adding them during an incident is too late.
+1. **RED per endpoint**: rate, errors, duration. A request counter by route and status class, and a latency histogram by route with a boundary at the SLO threshold.
+2. **RED per dependency**: the same for each database, cache, downstream service and queue, so "we are slow" becomes "inventory is slow".
+3. **USE per resource**: utilisation, saturation, errors for thread and connection pools, queues and consumer lag, memory, file descriptors.
+4. **Business signals**: orders per minute, payments captured. A 30% drop in orders with every technical metric green is an outage.
+5. **Correlation**: a `request_id` from the edge on every log line, and trace context on every outbound call, including in queue message headers.
+6. **Deploy markers**: version as a label or annotation, so "p99 doubled" lines up with "v2.14 at 14:01".
 
-1. **Per endpoint: rate, errors, duration** (the RED method). A request counter labelled by route and status, and a latency histogram labelled by route. That is the dashboard and the SLI.
-2. **Per dependency: the same three.** Database, cache, each downstream service, each queue: calls, errors, latency histogram. When the service is slow, this tells you who is slow.
-3. **Saturation.** Thread or connection pool usage vs capacity, queue depth and consumer lag, memory, file descriptors (the USE method: utilisation, saturation, errors, for each resource).
-4. **Business signals.** Orders placed per minute, payments captured, signups. A 30% drop in orders with all technical metrics green is an outage.
-5. **Correlation.** A `request_id` generated at the edge and logged on every line; trace context propagated on every outbound call, including through queues (put the trace ID in the message headers).
-6. **Build and deploy markers.** Version as a label or an annotation, so that "the p99 doubled" can be lined up with "v2.14 rolled out at 14:01".
+[Observability in code](/learn/senior-craft/software-craft/observability-in-code) shows this instrumentation inside a real service.
 
 ## SLIs, SLOs and error budgets
 
-An **SLI** (service level indicator) is a measurement of user-facing behaviour: the fraction of requests that succeed within 300 ms, computed from the RED metrics. An **SLO** is a target for it over a window: 99.9% over 30 days. The **error budget** is the allowed failure: 0.1% of 30 days is 43 minutes of full outage, or equivalently 0.1% of requests over the month. A **SLA** is a contract with penalties, and it is looser than the SLO so the SLO breaks first.
+An **SLI** measures user-facing behaviour: the fraction of requests that succeed within 300 ms, computed from the RED metrics. An **SLO** is a target for it over a window: 99.9% over 30 days. The **error budget** is the allowed failure: 0.1% of requests, or 43 minutes of full outage in 30 days. An **SLA** is a contract with penalties, looser than the SLO so the SLO breaks first.
 
 | SLO | Downtime per 30 days | Per week |
 |---|---|---|
@@ -80,39 +150,47 @@ An **SLI** (service level indicator) is a measurement of user-facing behaviour: 
 | 99.95% | 22 minutes | 5 minutes |
 | 99.99% | 4.3 minutes | 1 minute |
 
-The budget is a decision tool: while budget remains, ship features and take risks; when it is exhausted, the team stops feature work and pays down reliability. That makes reliability a negotiated number rather than an argument. Choose the SLO from what users notice and what the business needs, not from what the system happens to do: a 99.99% SLO on a service whose dependency is 99.9% is a promise you cannot keep, and a 99.9% SLO on a service that has done 99.99% for a year gives you budget to spend on faster deploys.
+The budget is a decision tool: while it remains, ship and take risks; when it is spent, feature work stops for reliability work. Choose the number from what users notice and what dependencies allow: a 99.99% SLO over a 99.9% hard dependency is a promise you cannot keep without a fallback.
 
-## Alert on symptoms, with burn rates
+## Burn-rate alerts, worked
 
-The 03:10 page was a cause alert (CPU) with no user impact. The 03:40 outage had no page because nobody wrote an alert for the symptom. The fix is to page on the SLI: the rate at which the error budget is being consumed.
+**Burn rate** is the error rate divided by the budgeted rate. At 99.9%, burn rate 1 is a 0.1% error rate and spends the 30-day budget in exactly 30 days; burn rate 14.4 is 1.44% and spends it in 50 hours. The thresholds come from deciding what fraction of the monthly budget may be spent before someone is told. Spending fraction $f$ of the budget in a window of $w$ hours out of a 720-hour month means
 
-Burn rate is how fast you are spending budget relative to the SLO's allowed rate. Burn rate 1 spends exactly the monthly budget in a month. Burn rate 14.4 spends it in 50 hours; over a one-hour window, that means 2% of the monthly budget went in an hour, which is worth waking someone. The standard multi-window, multi-burn-rate configuration:
+$$\text{burn} = f \times \frac{720}{w}: \quad 0.02 \times \frac{720}{1} = 14.4, \quad 0.05 \times \frac{720}{6} = 6, \quad 0.10 \times \frac{720}{24} = 3$$
 
-| Severity | Burn rate | Long window | Short window (confirm still burning) | Budget consumed by the time it fires |
+This is the multi-window, multi-burn-rate configuration from the Google SRE Workbook's chapter on alerting on SLOs:
+
+| Severity | Burn rate | Long window | Short window | Budget spent when it fires |
 |---|---|---|---|---|
 | Page | 14.4 | 1 h | 5 min | 2% |
 | Page | 6 | 6 h | 30 min | 5% |
 | Ticket | 3 | 1 day | 2 h | 10% |
 | Ticket | 1 | 3 days | 6 h | 10% |
 
-For a 99.9% SLO, burn rate 14.4 over an hour means an error rate of 14.4 x 0.1% = 1.44% sustained for an hour. The short window prevents paging for something that already stopped. Fast burns page fast; slow burns become tickets. Cause alerts (CPU, disk, queue depth) become dashboards and tickets, not pages, unless they are leading indicators of an SLO breach with a proven correlation (disk at 95% full will become an outage; page on that).
+Both windows must exceed the threshold. The long window gives precision (a 3-minute blip cannot spend 2% of a month); the short window, a twelfth of the long one, makes the alert stop soon after the problem does. Simulated per minute at 1,000 requests per minute, after three healthy days, against a naive "5-minute error rate above 1%" page:
 
-Every page has a runbook: what this alert means, the dashboard to open, the first three things to check, and how to mitigate. A page without a runbook is a page that trains people to silence it.
+| Incident | 14.4× page | 6× page | 3× ticket | Naive 5-min > 1% |
+|---|---|---|---|---|
+| 100% errors | 1 min | 3 min | 5 min | 1 min |
+| 10% errors | 9 min (2.1% spent) | 22 min | 44 min | 1 min |
+| 2% errors | 44 min (2.0% spent) | 108 min | 216 min | 3 min |
+| 0.3% errors for 3 days | Never | Never | 24 h (10% spent) | Never |
+| 2% errors for 3 minutes | Never | Never | Never | 3 min: a page for nothing |
+
+Detection time for the fast page is $0.864 / e$ minutes at error rate $e$: 9 minutes at 10%, 44 at 2%. That is the trade: burn-rate alerts are slower on moderate incidents and never page for blips or miss slow burns. If 44 minutes at a 20× burn is too slow for your product, add a higher tier (say burn 30 over 15 minutes), not a threshold on raw error rate. Cause alerts (CPU, disk, queue depth) become dashboards and tickets, except leading indicators with a proven link to an SLO breach, such as a disk that will be full in hours. Every page links a runbook: what it means, the dashboard, the first three checks, the mitigation.
 
 ## Release verification
 
-Deploys cause most incidents. Observability's cheapest win is comparing the new version's SLIs against the old one's during a canary: route 1% of traffic to the new version, compare error rate and latency histograms with the baseline for 15 minutes, promote or roll back automatically. Netflix's Kayenta does this with statistical comparison; a simpler threshold check catches most regressions.
+Deploys cause most incidents. Compare the new version's SLIs with the old one's during a canary: 1% of traffic to the new version, error and latency histograms against the baseline for 15 minutes, promote or roll back automatically ([Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) covers the rollout side). Netflix's open-source Kayenta does this with statistical comparison; a threshold check catches most regressions. The comparison needs traffic: at 1% of 1,000 requests per second, 15 minutes is 9,000 requests, enough to see a 1% error rate and not a 0.01% one.
 
 ```viz
 {"type": "system", "scenario": "canary", "requests": 10,
  "title": "Canary compared with baseline", "caption": "A small fraction of traffic goes to the new version. Its RED metrics are compared with the old version's on the same traffic mix; a worse error rate or latency triggers an automatic rollback before the rollout continues."}
 ```
 
-Metrics for canary analysis need the version label, and the comparison needs enough traffic to be statistically meaningful: at 1% of 1,000 requests per second, 15 minutes is 9,000 requests, enough to see a 1% error rate but not a 0.01% one.
-
 ## Aggregating at scale
 
-Ten thousand instances emitting a thousand series each is ten million series and, at a 10-second interval, a million samples per second. Systems at that scale (Netflix's Atlas, Prometheus with Thanos or Mimir, Datadog) pre-aggregate at the edge (sum by route, drop instance), downsample old data (1-second resolution for a day, 1-minute for a month, 1-hour for a year), and use streaming aggregation for real-time views. The streaming pipeline is the same windowed aggregation as any stream processor: tumbling windows over event time with late-data handling.
+Ten thousand instances emitting a thousand series each is ten million series and, at a 10-second interval, a million samples per second. Systems at that scale (Netflix's Atlas, Prometheus with Thanos or Mimir, commercial vendors) pre-aggregate at the edge (sum by route, drop instance), downsample old data, and compute real-time views with the same windowed aggregation as any stream processor, with the same late-data choices ([Stream processing model](/learn/big-data/streaming/stream-processing-model), [Metrics and logging platform](/learn/system-design/case-studies/metrics-and-logging-platform)).
 
 ```viz
 {"type": "system", "scenario": "stream-windowing", "requests": 12,
@@ -121,50 +199,109 @@ Ten thousand instances emitting a thousand series each is ten million series and
 
 ## Failure modes
 
-**Averages hide the tail.** Mean latency 12 ms, p99 2 seconds, dashboard green, 1% of users furious. Detect: someone finally plots the histogram. Mitigate: histograms everywhere; dashboards show p50/p95/p99, never mean alone.
-
-**Alert fatigue.** 40 cause alerts a night; the real one is silenced with the rest. Detect: pages per week per engineer, fraction acted on. Mitigate: delete cause pages; page on burn rate only; every page has a runbook and a review.
-
-**Missing correlation IDs.** An error in the payment service cannot be matched to the request that caused it; the investigation takes hours. Detect: the first incident. Mitigate: request ID at the edge, propagated and logged everywhere, including into queue messages.
-
-**Logs as a database.** A team counts orders by grepping logs; the count is wrong after sampling starts. Detect: business numbers disagree between systems. Mitigate: counts are metrics; logs are for the specific case.
-
-**The observability stack dies with the system.** Metrics scraped over the same network that partitioned; the log cluster on the same failing storage; the dashboard behind the same auth service that is down. Detect: a blind incident. Mitigate: separate failure domains for telemetry; a minimal external probe (synthetic checks from outside) that does not depend on anything internal.
-
-**Sampling bias.** 1% head sampling never captures the rare failing request; traces show only healthy paths. Detect: "we have no traces of the errors". Mitigate: tail sampling that keeps all errors and slow traces; or 100% sampling for a specific endpoint during an investigation.
-
-**Cardinality explosion.** Someone adds `customer_id` to a label; the metrics system OOMs at 02:00. Detect: series count alert. Mitigate: cardinality limits in the collector; label allow-lists; code review for new labels.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Averages hide the tail | Dashboard green; 1% of users timing out | Plot the histogram; compare mean with p99 | Histograms everywhere; merged-bucket percentiles, never `avg(p99)` |
+| Cardinality explosion | Metrics server OOMs at 02:00 after a deploy | Series count by metric name; a new high-cardinality label | Label allow-lists and per-metric series limits in the collector |
+| Alert fatigue | 40 pages a night; the real one silenced with the rest | Pages per engineer per week; fraction acted on | Page only on burn rate; delete cause pages; review every page |
+| Sampling bias | "We have no traces of the errors" | Head sampling at 1% against a 0.5% error rate | Tail sampling that keeps errors and slow traces |
+| Tail sampler evicting | Slow traces missing though policy keeps them | Collector eviction counter; in-flight traces above `num_traces` | Raise `num_traces` from rate × `decision_wait`; scale the tier |
+| Broken propagation | Traces end at the queue or at one service | Spans without parents; a hop that drops `traceparent` | Propagate through message headers; context-passing checks in review |
+| Telemetry dies with the system | A blind incident: dashboards down with the product | Telemetry shares network, storage or auth with production | Separate failure domain; external synthetic probes |
 
 ## Interviewer follow-ups
 
-**Q: "What is the first alert you would set up for this service?"**
+**"What is the first alert you would set up?"** Model answer: a burn-rate page on the primary SLI, 14.4× over 1 hour confirmed over 5 minutes, which fires when about 2% of the monthly budget has gone; then a 6× page and slower tickets. CPU, memory and queue depth go on the runbook's dashboard. Common wrong answer: "error rate above 1%", which pages for 3-minute blips and never sees a 0.3% slow burn that spends the month's budget in ten days.
 
-A burn-rate alert on the primary SLI: the fraction of requests that fail or exceed the latency target, page when burn rate is over 14.4 across a one-hour window and still over 14.4 in the last five minutes. That fires when about 2% of the monthly error budget has gone in an hour, which is the point where a human beats waiting. I would not page on CPU, memory or queue depth; those go on the dashboard the runbook points to. The second alert is a slower burn as a ticket, so a gradual degradation is noticed in a day rather than at the end of the month.
+**"Your dashboard averages p99 across 50 instances. What is wrong?"** Model answer: percentiles do not average; one instance at 5 s and 49 at 50 ms average to 150 ms and hide the fire. Sum the buckets, then take the percentile, and add a max-of-p99 panel for single bad instances. Also check the bucket boundaries: default buckets put the p99 a quarter high in the lesson's simulation. Common wrong answer: "use the max instead", which is still not the fleet's p99.
 
-**Q: "How do you find where a slow request spent its time across nine services?"**
+**"Head or tail sampling?"** Model answer: head sampling at a low rate for baseline shape, because it is cheap and always complete; tail sampling in a collector tier to keep every error and slow trace, sized as rate × `decision_wait` traces in memory, with spans routed by trace ID. Common wrong answer: "raise the head sampling rate", which multiplies cost and still keeps 90% of nothing interesting.
 
-Distributed tracing with context propagated in the `traceparent` header on every hop, including through Kafka message headers. Tail sampling keeps every trace over the latency target, so I search traces by endpoint and duration, open one, and read the span tree: the critical path is the chain of longest child spans. Exemplars on the latency histogram take me from the p99 spike on the dashboard straight to a representative trace. Without propagation across the queue I would have two half-traces and a guess, so the propagation is a code-review requirement.
+**"An engineer wants `customer_id` on the request metrics. What do you say?"** Model answer: multiply it out: tens of thousands of customers × routes × statuses × instances × 14 series per histogram is a billion series. Put the customer in trace attributes and exemplars; if a per-customer SLI is needed, compute it in a stream job over events or logs for the top few hundred customers. Common wrong answer: "fine, the TSDB compresses labels", which confuses bytes per sample with memory per series.
 
-**Q: "Your dashboard shows average p99 across 50 instances. What is wrong?"**
+**"How do you pick the SLO number?"** Model answer: from what users notice (around 300 ms for an interactive call) and what the business accepts (43 minutes a month at 99.9%), checked against the weakest hard dependency; start slightly loose, measure a quarter, tighten with evidence. Common wrong answer: "whatever we achieved last quarter, plus a nine", which yields an SLO nobody can meet and everyone ignores.
 
-Percentiles do not average: the mean of 50 per-instance p99s is neither the fleet p99 nor anything else with a definition. One instance with a p99 of 5 seconds and 49 at 50 ms averages to 150 ms and hides an instance that is on fire. I compute fleet percentiles by summing histogram buckets across instances and taking the percentile of the merged distribution, and I add a max-of-p99 panel to catch the single bad instance.
+## What mid-level engineers get wrong
 
-**Q: "Logging every request costs too much. What do you keep?"**
+- **Paging on causes.** CPU at 80% with no user impact trains the rotation to silence pages.
+- **Averaging percentiles.** `avg(p99)` has no statistical meaning and hides the one instance on fire.
+- **Unbounded labels.** `user_id` or `request_path` with raw IDs turns one metric into millions of series.
+- **Default histogram buckets.** No boundary at the SLO threshold makes the SLI an interpolation off by tens of percent.
+- **Head sampling as the only strategy.** The rare failing request is exactly the one it drops.
+- **Counting from logs.** Business numbers go wrong the day sampling starts; counts belong in metrics.
 
-At 10,000 requests per second and 1 KB per line, full logging is close to a terabyte a day; the provider bill makes the decision for me. I keep 100% of errors and slow requests with their full context, sample successful requests at around 1%, and move anything I was counting from logs into metrics, which cost almost nothing per event. Traces cover "what happened to this request" better than logs for the cross-service case, so the logs get shorter and structured, keyed by request ID and trace ID so the three signals join.
+## Exercise: when does the burn-rate alert fire?
 
-**Q: "How do you pick the SLO number?"**
+```exercise
+id: burn-rate-alerts
+title: Evaluate multi-window burn-rate alerts over per-minute data
+prompt: |
+  `budget_ppm` is the SLO's error budget in parts per million (1000 for a
+  99.9% SLO). `minutes` is a list of `[total, errors]` request counts, one
+  per minute. Each rule is `[long, short, burn_x10]`: two window lengths in
+  minutes and the burn-rate threshold times ten (144 means 14.4).
 
-From users and dependencies, not from the current graph. What latency do users notice: for an interactive endpoint, around 300 ms is where it starts to feel slow, so the SLI is "under 300 ms". What availability does the product need: a checkout at 99.9% loses 43 minutes a month, which the business can decide is acceptable or not. Then I check feasibility: an SLO above my weakest hard dependency is a promise I cannot keep unless I add fallbacks. I start slightly loose, measure for a quarter, and tighten with evidence, because an SLO nobody can meet gets ignored.
+  A window of length `w` ending at minute `i` covers minutes `i - w + 1`
+  through `i`, and only exists if `i - w + 1 >= 0`. It is burning when its
+  total is above zero and its error ratio is at least
+  `(burn_x10 / 10) * (budget_ppm / 1,000,000)`. Use integer arithmetic:
+  `errors * 10_000_000 >= burn_x10 * budget_ppm * total`.
+
+  A rule fires at the first minute where both its long and its short window
+  are burning. Return, for each rule in order, that minute's index, or -1
+  if it never fires.
+languages: [python, javascript]
+entry: first_alerts
+starter:
+  python: |
+    def first_alerts(budget_ppm, minutes, rules):
+        result = []
+        # your code here
+        return result
+  javascript: |
+    function first_alerts(budget_ppm, minutes, rules) {
+      const result = [];
+      // your code here
+      return result;
+    }
+tests:
+  - args: [1000, [[1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0]], [[6, 2, 144]]]
+    expected: [-1]
+    label: healthy
+  - args: [1000, [[1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 0], [1000, 20], [1000, 20], [1000, 20], [1000, 20], [1000, 20]], [[6, 2, 144]]]
+    expected: [9]
+    label: a 2% error rate needs the long window to fill
+  - args: [1000, [[1000, 50], [1000, 50], [1000, 50], [1000, 50], [1000, 0], [1000, 0], [1000, 0], [1000, 0]], [[6, 2, 144]]]
+    expected: [-1]
+    label: the short window stops a page for something that ended
+  - args: [1000, [[1000, 0], [1000, 0], [1000, 0], [1000, 100], [1000, 100], [1000, 100], [1000, 100], [1000, 100], [1000, 100], [1000, 100]], [[4, 1, 144], [8, 2, 60]]]
+    expected: [3, 7]
+    label: fast and slow rules
+  - args: [1000, [[0, 0], [0, 0], [0, 0]], [[2, 1, 10]]]
+    expected: [-1]
+    label: no traffic never alerts
+  - args: [1000, [[10000, 144]], [[1, 1, 144]]]
+    expected: [0]
+    hidden: true
+    label: exactly at the threshold fires
+  - args: [1000, [[100, 100]], [[2, 1, 10]]]
+    expected: [-1]
+    hidden: true
+    label: a window longer than the data never fires
+hints:
+  - "Prefix sums of totals and errors make every window sum O(1)."
+  - "Check that the window starts at or after minute 0 before summing it."
+  - "Compare with multiplication, not division, so there is no floating-point edge at the threshold."
+```
 
 ## Senior signals
 
-- You alert on **SLO burn rate** and treat cause alerts as dashboards, and you can state the 14.4x / 6x windows and what budget they correspond to.
-- You record latency as **histograms**, compute fleet percentiles from merged buckets, and you flinch at `avg(p99)`.
-- You keep **cardinality** bounded by design, and you know why `user_id` belongs in a trace attribute, not a metric label.
-- You propagate **trace context** through every hop including queues, and you use tail sampling to keep the traces that matter.
+- You alert on **SLO burn rate**, can derive 14.4, 6 and 3 from the fraction of budget and the window, and know the fast page takes $0.864/e$ minutes at error rate $e$.
+- You record latency as **histograms** with a boundary at the SLO threshold, compute fleet percentiles from merged buckets, and flinch at `avg(p99)`.
+- You multiply out **cardinality** before adding a label, and put per-user detail in traces and exemplars.
+- You use **tail sampling** for errors and slow requests, size its buffer from rate × decision wait, and route spans by trace ID.
 - You do the **cost arithmetic** for logs and traces and choose sampling rates from it.
-- You put the telemetry stack in a **separate failure domain** and keep an external probe that depends on nothing internal.
+- You keep telemetry in a **separate failure domain** with an external probe.
 
 ## Check yourself
 
@@ -176,27 +313,33 @@ From users and dependencies, not from the current graph. What latency do users n
   explanation: >-
     The average of percentiles has no statistical meaning, and one very slow instance is hidden by it. Merge the histogram buckets first, then take the percentile; add a max panel to catch a single bad instance. A longer window does not fix averaging something that cannot be averaged.
 - q: >-
-    A service has a 99.9% availability SLO over 30 days. Its error rate has been 1.5% for the last hour. What should happen?
+    A service has a 99.9% availability SLO over 30 days. Its error rate has been 1.5% for the last hour and still is. What should happen?
   options: ["A ticket, since only about 2% of the budget is gone", "An automatic rollback of the most recent deploy", "Nothing yet; the monthly budget is not exhausted", "A page, since the budget burns about 15x too fast"]
   answer: 3
   explanation: >-
-    Burn rate = 1.5% / 0.1% = 15, above the 14.4 threshold for the 1-hour window; roughly 2% of the monthly budget went in one hour, and at that rate the whole budget is gone in about two days. Waiting for budget exhaustion means discovering the outage days later. Rollback may be the fix, but the alert is what starts the response.
+    Burn rate = 1.5% / 0.1% = 15, above the 14.4 threshold for the 1-hour window, and the 5-minute window confirms it; about 2% of the monthly budget went in one hour and the rest goes in two days. Waiting for exhaustion finds the outage days late. A rollback may be the fix, but the alert is what starts the response.
+- q: >-
+    Why is the fast page's threshold 14.4 for a 1-hour window?
+  options: ["It spends 2% of a 720-hour budget in one hour", "It is the error rate that exhausts the budget in a day", "It is 99.9% expressed as a burn multiplier per hour", "It is chosen so the page fires within five minutes"]
+  answer: 0
+  explanation: >-
+    Burn rate = fraction of budget × (window of the SLO / alert window) = 0.02 × 720 / 1 = 14.4. At that rate the whole budget lasts 50 hours, not a day. Detection time depends on the error rate: 0.864 / e minutes, so 9 minutes at 10% errors.
 - q: >-
     An engineer adds user_id as a label on the http_requests_total counter. The likely consequence is:
   options: ["Slightly higher scrape latency on each instance", "A series explosion that overloads the metrics system", "Nothing; labels are compressed away by the TSDB", "More precise per-user dashboards at almost no extra cost"]
   answer: 1
   explanation: >-
-    Each unique label combination is a separate time series: one per user per route per status. Millions of users multiplied by routes and statuses is hundreds of millions of series. Per-user detail belongs in trace attributes or sampled logs.
+    Each unique label combination is a separate time series with its own memory in the head block: one per user per route per status per instance. Compression reduces bytes per sample, not the number of series. Per-user detail belongs in trace attributes or exemplars.
 - q: >-
     You need traces of the 0.5% of requests that fail, but head sampling at 1% almost never captures them. The fix is:
   options: ["Tail sampling that keeps every error or slow trace", "Sample consistently by user ID across services", "Raise head sampling to 10% so more failures get caught", "Log the failing requests instead of tracing them"]
   answer: 0
   explanation: >-
-    Tail sampling decides after the trace completes, so it can keep exactly the interesting ones (errors, requests over the latency threshold) plus a small random sample. Raising head sampling multiplies cost while still missing most failures.
+    Tail sampling decides after the trace completes, so it keeps exactly the interesting ones; in the lesson's simulation it kept all 5,027 errors where 1% head sampling kept 57. Raising head sampling multiplies cost while still missing most failures.
 - q: >-
-    Which of these is the best candidate for a paging alert?
-  options: ["Disk usage above 60% on the checkout database", "CPU above 80% on any checkout instance for over 5 minutes", "A checkout deploy finishing outside business hours", "Checkout burn rate over 14.4 for 1 h and still over 5 min"]
-  answer: 3
+    An SLI is requests under 300 ms, measured with Prometheus's default latency buckets. What is the risk?
+  options: ["No bucket boundary at 300 ms, so the SLI is interpolated", "Default buckets overflow above 10 seconds and drop samples", "Counters reset on restart and the SLI goes negative", "Histogram series cannot be summed across instances"]
+  answer: 0
   explanation: >-
-    It measures user impact and its rate, confirms the problem is ongoing, and corresponds to a defined fraction of the error budget. CPU and disk at those levels are causes with no confirmed impact; a deploy is an annotation, not an alert.
+    Default boundaries are 250 ms and 500 ms, so the count under 300 ms is a linear interpolation inside that bucket; the lesson's simulation put the default-bucket p99 23% too high. Put a boundary exactly at the SLO threshold. Buckets sum across instances correctly, and rate() handles counter resets.
 ```

@@ -1,30 +1,39 @@
 ---
 slug: api-design-and-versioning
 title: "API design and versioning: contracts that survive their consumers"
-description: Resource modelling, error envelopes, cursor pagination with the SQL behind it, rate limits as part of the contract, and the compatibility rules that let you change an API that a thousand clients depend on.
+description: Resource modelling, idempotency keys traced, an error envelope built on RFC 9457, offset versus cursor pagination measured on a million rows, rate-limit headers and their traps, a catalogue of breaking changes including the subtle ones, and versioning strategies down to how date-pinned versions are implemented.
 minutes: 25
 difficulty: medium
-tags: [system-design, api-design, versioning, pagination, rate-limiting, backwards-compatibility]
+tags: [system-design, api-design, versioning, pagination, rate-limiting, backwards-compatibility, idempotency, error-handling]
 ---
 Your public API has 3,000 integrations. A field is misnamed, a list endpoint uses offset pagination that falls over past page 10,000, and errors are free-text strings that customers have started parsing with regular expressions. You cannot fix any of it, because every change breaks someone, and the someones do not upgrade. This is what an API is: a contract whose other party you do not control and cannot schedule.
 
-The design work is therefore front-loaded. Get the resource model, the error shape, the pagination and the compatibility rules right before the first client ships, and evolution is additive for years. Get them wrong and every improvement is a migration. This lesson is the checklist a senior engineer runs on a new API and the arithmetic that justifies each item.
+The design work is therefore front-loaded. Get the resource model, the error shape, the pagination, the retry contract and the compatibility rules right before the first client ships, and evolution is additive for years. Get them wrong and every improvement is a migration. This lesson is the checklist a senior engineer runs on a new API, with the measurements that justify each item.
 
 ## Resources, methods and the choice of style
 
-Model the API as nouns with a lifecycle, not verbs: `/orders/{id}` with `GET`, `POST /orders`, `PATCH /orders/{id}`, `POST /orders/{id}/cancel` for the one state transition that is not a plain update. Consistent naming (plural nouns, kebab or snake case chosen once, ISO 8601 timestamps in UTC, money as integer minor units with a currency code, IDs as opaque strings) removes an entire category of client bugs.
+Model the API as nouns with a lifecycle: `GET /orders/{id}`, `POST /orders`, `PATCH /orders/{id}`, and `POST /orders/{id}/cancel` for the one transition that is not a plain update. Choose conventions once: plural nouns, one case style, ISO 8601 timestamps in UTC, money as integer minor units with a currency code, IDs as opaque prefixed strings (`ord_9f2`). Each removes a category of client bugs.
 
 | Style | Best for | Cost |
 |---|---|---|
 | REST over HTTP/JSON | Public APIs, browser clients, CRUD with caching | Over- and under-fetching; verbs squeezed into nouns |
-| gRPC with Protobuf | Service-to-service, streaming, low latency, strong typing | Browser support needs a proxy; binary payloads are opaque in logs |
-| GraphQL | Clients with varied data needs (mobile vs web), aggregation over many services | Caching is harder; N+1 on the server needs dataloaders; complexity limits required |
+| gRPC with Protobuf | Service-to-service, streaming, deadlines, typed contracts | Browsers need a proxy; binary payloads are opaque in logs |
+| GraphQL | Clients with varied data needs, aggregation across services | HTTP caching is harder; server N+1 needs dataloaders; query cost limits required |
 
-The choice is per audience, not per company. A typical shape: gRPC inside, REST at the public edge, GraphQL at the product edge if the client teams want it. [API styles](/learn/networking/application-protocols/api-styles) and [gRPC and Protobuf](/learn/networking/application-protocols/grpc-and-protobuf) cover the wire-level trade-offs; this lesson is about the contract regardless of style.
+The choice is per audience: gRPC inside, REST at the public edge, GraphQL at the product edge if client teams want it. [API styles](/learn/networking/application-protocols/api-styles) and [gRPC and Protobuf](/learn/networking/application-protocols/grpc-and-protobuf) cover the wire; this lesson is the contract, whatever the style.
 
 ## Idempotency in the contract
 
-`GET`, `PUT` and `DELETE` are idempotent by specification; `POST` is not. Any `POST` that creates something a client might retry needs an `Idempotency-Key` header, documented, with the semantics from [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries): same key plus same body replays the stored response; same key plus different body is a 422; a key currently in progress is a 409. Put this in the contract on day one; adding it later means every existing client is unsafe to retry.
+`GET`, `PUT` and `DELETE` are idempotent by specification; `POST` is not. Any `POST` a client might retry needs a documented `Idempotency-Key` header with the semantics from [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries). Traced for one key:
+
+| Attempt | Key | Body | Server's record for the key | Response |
+|---|---|---|---|---|
+| 1 | `k1` | Cart A | None → in progress → done (201, `ord_1`) | Lost: the client's read timed out |
+| 2, concurrent with 1 | `k1` | Cart A | In progress | 409: retry shortly |
+| 3, the client's retry | `k1` | Cart A | Done | Replays 201 `ord_1`, byte for byte |
+| 4, a client bug | `k1` | Cart B | Done, body hash differs | 422: key reused with a different body |
+
+The server stores the key, a hash of the body and the response, and keeps them for a documented window (Stripe documents that keys may be pruned after 24 hours), which bounds how long a client may retry. Put it in the contract on day one; adding it later leaves every existing client unsafe to retry.
 
 ```viz
 {"type": "system", "scenario": "idempotency-key", "requests": 3,
@@ -33,108 +42,160 @@ The choice is per audience, not per company. A typical shape: gRPC inside, REST 
 
 ## Errors as a contract
 
-An error response is read by code more often than by humans. Give it a stable, machine-readable shape:
+An error response is read by code more often than by people. RFC 9457 (Problem Details for HTTP APIs, 2023, replacing RFC 7807) gives a standard envelope, `application/problem+json` with `type`, `title`, `status`, `detail` and `instance`, and allows extension members for the fields clients need:
 
 ```json
 {
-  "error": {
-    "code": "insufficient_funds",
-    "message": "Account balance is 12.50; 30.00 required.",
-    "retryable": false,
-    "request_id": "req_8f3a2c",
-    "details": {"balance": 1250, "required": 3000, "currency": "USD"}
-  }
+  "type": "https://api.example.com/errors/insufficient-funds",
+  "title": "Insufficient funds",
+  "status": 402,
+  "detail": "Account balance is 12.50; 30.00 required.",
+  "instance": "/payments/req_8f3a2c",
+  "code": "insufficient_funds",
+  "retryable": false,
+  "request_id": "req_8f3a2c",
+  "balance": 1250,
+  "required": 3000
 }
 ```
 
-Rules: the HTTP status carries the class (400 client error, 401 unauthenticated, 403 unauthorised, 404, 409 conflict, 422 semantically invalid, 429 rate limited, 500, 503 with `Retry-After`); the `code` is a documented enum that never changes meaning; the `message` is for humans and may change any time, and the docs say so; `retryable` tells the client what to do without parsing anything; `request_id` is the correlation key for support. A client that switches on `code` keeps working when you improve the message. A client that regexes the message breaks, and you told them not to.
+The HTTP status carries the class (400 malformed, 401 unauthenticated, 403 forbidden, 404, 409 conflict, 422 semantically invalid, 429 rate limited, 500, 503 with `Retry-After`). The `code` (or `type` URI) is a documented enum that never changes meaning. `detail` is for humans and may change at any time, and the docs say so. `retryable` tells a client what to do without a lookup table, which prevents both the client that retries validation errors forever and the one that gives up on a transient 503. `request_id` is the join key to your logs and traces.
 
-## Pagination
+## Pagination, measured
 
-Every list endpoint paginates, with a documented maximum page size (100 is common) and a default (20). The two mechanisms differ in cost by orders of magnitude.
+Every list endpoint paginates, with a documented maximum page size (100 is common) and a default (20).
 
-**Offset pagination**: `GET /orders?offset=100000&limit=100`.
-
-```sql
-SELECT * FROM orders ORDER BY created_at DESC OFFSET 100000 LIMIT 100;
-```
-
-The database must produce and discard 100,000 rows to return 100. Cost is O(offset) per page; page 1,000 at 100 per page reads 100,000 rows to return 100, and a client walking the whole collection does O(n²/page) work in total. Under concurrent writes it also skips and duplicates: an insert at the top between page 1 and page 2 shifts every row by one, so the last row of page 1 reappears as the first of page 2.
-
-**Cursor (keyset) pagination**: `GET /orders?limit=100&cursor=eyJjIjoi...`.
+**Offset**: `GET /orders?offset=100000&limit=100` runs `ORDER BY created_at DESC, id DESC LIMIT 100 OFFSET 100000`. **Cursor (keyset)**: `GET /orders?limit=100&cursor=eyJj...` runs:
 
 ```sql
-SELECT * FROM orders
+SELECT id, created_at, total_cents FROM orders
 WHERE (created_at, id) < ($cursor_created_at, $cursor_id)
 ORDER BY created_at DESC, id DESC
-LIMIT 100;
+LIMIT 101;          -- one extra row says whether a next page exists
 ```
 
-With an index on `(created_at, id)` this is O(log n + page) regardless of depth: page 1,000 costs the same as page 1. The cursor encodes the last row's sort key, opaque to the client (base64 of `{"c":"2026-09-01T10:00:00Z","i":"ord_9"}`), so you can change its contents later. The tiebreaker column `id` is mandatory: without it, two rows with the same `created_at` straddling a page boundary are skipped or repeated. Inserts at the top do not shift pages, because the cursor is a position in the sort order, not a count.
+Measured on SQLite 3.53 (in memory, one million orders, three per second so timestamps tie, an index on `(created_at DESC, id DESC)`, median of 7 runs, both queries asserted to return identical rows):
+
+| Rows skipped | Offset page | Keyset page |
+|---|---|---|
+| 0 | 0.03 ms | 0.025 ms |
+| 10,000 | 0.13 ms | 0.026 ms |
+| 100,000 | 1.14 ms | 0.026 ms |
+| 500,000 | 5.66 ms | 0.027 ms |
+| 999,000 | 11.55 ms | 0.026 ms |
+
+Offset cost is linear in depth, about 11.5 ns per skipped row here; keyset cost is flat. Walking the whole collection by keyset took 0.28 s; the first 1,000 offset pages alone took 0.58 s, and the full offset walk, whose cost sums to about $n^2 / (2 \times \text{page})$ = 5 billion row-skips, extrapolates to about a minute. A disk-resident Postgres table with wider rows skips more slowly per row; the shape is the same.
+
+Offset also lies under concurrent writes. Page 1 of the rows `(id 2, 100), (1, 100), (4, 90), (3, 90)` at two per page is ids `[2, 1]`. An order `(6, 110)` arrives. Page 2 at offset 2 is now `[1, 4]`: order 1 appears twice, and a deletion would have skipped one instead. The keyset cursor `(100, 1)` still returns `[4, 3]`, because it names a position in the sort order, not a count.
+
+The tiebreaker is mandatory. With `WHERE created_at < 100` alone, order 1 is skipped whenever order 2, with the same timestamp, ended the previous page. Encode the cursor opaquely (base64 of `{"c": 100, "i": 1}`) so its contents can change later.
+
+### Under the hood: what the database does with OFFSET
+
+In Postgres the plan is a `Limit` node over an `Index Scan`. `Limit` pulls rows from its child one at a time and throws away the first `OFFSET` of them, so the index scan still walks, and usually fetches from the heap, every skipped row. SQLite's plan reads `SCAN orders USING INDEX`. The keyset query gets an index condition instead (`SEARCH orders USING INDEX orders_created_id (created_at<?)` in SQLite, a row comparison in the `Index Cond` in Postgres), so the B-tree descends straight to the cursor: $O(\log n + \text{page})$ at any depth ([Indexes](/learn/databases/relational-fundamentals/indexes)). Some databases, older MySQL among them, do not use the index for the row-value form; `created_at < ? OR (created_at = ? AND id < ?)` is the portable spelling.
 
 | | Offset | Cursor |
 |---|---|---|
-| Cost of page k | O(k x page size) | O(log n + page size) |
-| Jump to page 50 | Yes | No (only next/previous) |
-| Stable under inserts | No | Yes |
-| Total-count header | Cheap to add (but a `COUNT(*)` on a large table is itself expensive) | Same caveat |
-| Sort by arbitrary column | Yes | Needs an index on `(sort_col, id)` per supported sort |
+| Cost of page k | O(k × page size) | O(log n + page size) |
+| Jump to page 50 | Yes | No; next and previous only |
+| Stable under inserts and deletes | No | Yes |
+| Sort orders | Any column | Each needs an index on `(sort_col, id)` |
 
-Public APIs use cursors. Admin UIs that need "page 7 of 43" can use offset with a hard cap on offset (say 10,000) and an error beyond it, which is what search engines do.
+Public APIs use cursors. Admin UIs that need "page 7 of 43" can use offset with a hard cap (say 10,000) and an error beyond it, which is what search engines do. A total count is a separate `COUNT(*)`, as expensive as the deepest offset; make it optional.
 
 ## Filtering, sorting, partial responses and batching
 
-Filtering: a fixed set of documented filter parameters, each backed by an index, rather than a generic query language that lets a client force a table scan. Sorting: an enumerated set of sort orders, each with a cursor-compatible index. Partial responses (`?fields=id,status,total`, or Protobuf field masks) reduce payload for mobile clients and reduce the server's join work if implemented properly. Batch endpoints (`POST /orders:batchGet` with up to 100 IDs) prevent the N+1 that turns a 100-item list into 100 round trips at a millisecond each.
+Offer a fixed set of documented filters, each backed by an index, rather than a query language that lets a client force a table scan, and an enumerated set of sort orders, each with a cursor-compatible index. Partial responses (`?fields=id,status,total`, or Protobuf field masks) cut payload for mobile clients. Batch endpoints (`POST /orders:batchGet` with up to 100 IDs) prevent the N+1 that turns a 100-item list into 100 round trips at a millisecond each.
 
 ## Rate limits as part of the contract
 
-A rate limit that clients discover by getting errors is a support ticket; one in the contract is a feature. Document the limit (per API key, per endpoint class, per minute), return `429 Too Many Requests` with `Retry-After` in seconds, and send `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response so well-behaved clients can pace themselves before hitting the wall.
+A limit clients discover through errors is a support ticket; one in the contract is a feature. Document it per API key and endpoint class, return `429 Too Many Requests` with `Retry-After`, and send the remaining quota on every response so good clients pace themselves. The de facto headers are `X-RateLimit-Limit`, `-Remaining` and `-Reset` (GitHub's API sends these); an IETF HTTPAPI working-group draft standardises `RateLimit-Policy` and `RateLimit` fields.
+
+`-Reset` is where clients break: some APIs send epoch seconds, others seconds remaining. A client that reads an epoch timestamp as a delay waits for decades; one that reads a delay as a timestamp retries at once. `Retry-After` is unambiguous (seconds, or an HTTP date); document which one `-Reset` is.
+
+A token bucket with capacity 2 and refill 1 per second, traced:
+
+| t (ms) | Tokens before | Result | `Remaining` | `Retry-After` |
+|---|---|---|---|---|
+| 0 | 2.0 | 200 | 1 | — |
+| 0 | 1.0 | 200 | 0 | — |
+| 0 | 0.0 | 429 | 0 | 1 (needs 1,000 ms) |
+| 500 | 0.5 | 429 | 0 | 1 (needs 500 ms, rounded up) |
+| 1,000 | 1.0 | 200 | 0 | — |
+| 3,000 | 2.0 (capped) | 200 | 1 | — |
+
+Capacity is the permitted burst and refill the sustained rate. Limit by API key, not IP: many customers share a NAT address and one customer uses many. Distributed enforcement is in [Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) and the [rate limiter](/learn/system-design/case-studies/rate-limiter) case study.
 
 ```viz
 {"type": "system", "scenario": "token-bucket", "requests": 12,
  "title": "Token bucket per API key", "caption": "Tokens refill at the sustained rate; the bucket size is the permitted burst. A client that spends its burst then sees 429 until enough tokens refill, and the headers tell it exactly when."}
 ```
 
-The token bucket is the usual algorithm: capacity is the burst (say 100), refill rate the sustained limit (say 10 per second). It permits short bursts without permitting sustained overload. Limit by API key, not IP, for authenticated APIs (many customers share an IP behind a corporate NAT; one customer uses many IPs). Distributed enforcement (a counter in Redis with a Lua script, or a local bucket per gateway node with a tolerance for slight over-admission) is covered in [Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) and the [rate limiter](/learn/system-design/case-studies/rate-limiter) case study.
+Keep the rate limit (per-client fairness, in the contract, 429) separate from load shedding (protecting the server, 503). A rate-limited client did something wrong and waits exactly `Retry-After`; a shed client did nothing wrong and backs off with jitter. State per-endpoint latency targets and the server's timeout too: a client that does not know it sets its own, and if it is shorter, every slow request is retried while the server is still working on it.
 
-Distinguish the rate limit (per-client fairness, in the contract) from load shedding (protecting the server, not in the contract, returns 503). A client that is rate limited did something wrong; a client that is shed did nothing wrong and should retry with backoff.
+## The breaking-change catalogue
 
-## Timeouts and deadlines
-
-The contract should state how long a call may take (p99 targets per endpoint) and what happens when it does not. gRPC carries deadlines natively; for HTTP, an `X-Request-Deadline` or simply a documented server-side timeout with a 504 tells clients what to expect. A client that does not know the server's timeout will set its own, and if the client's is shorter, every slow request is retried while the server is still working on it.
-
-## Backwards compatibility
-
-The rules, which apply equally to JSON, Protobuf and GraphQL:
+A change is breaking if any correct client written against the old contract behaves differently. The obvious ones:
 
 | Change | Safe? | Why |
 |---|---|---|
-| Add an optional response field | Yes | Clients ignore unknown fields (make this a documented requirement: the tolerant reader) |
+| Add an optional response field | Yes | Clients are required to ignore unknown fields (the tolerant reader) |
 | Add an optional request parameter with a default | Yes | Old clients omit it |
-| Add a new endpoint | Yes | |
-| Add a value to an enum | Risky | Clients that switch exhaustively break; document that unknown values must be handled |
+| Add an endpoint | Yes | |
 | Remove or rename a field | No | A rename is a remove |
-| Change a field's type or format | No | `"123"` to `123` breaks parsers |
-| Make an optional parameter required | No | Old clients stop working |
-| Tighten validation | No | Requests that used to succeed now fail |
-| Change an error `code`'s meaning | No | Clients switch on it |
-| Loosen validation, raise a limit | Usually | Unless a client depended on the rejection |
+| Change a field's type or format | No | `"123"` to `123`, seconds to milliseconds |
+| Make an optional parameter required | No | Old requests now fail |
+| Change an error `code`'s meaning | No | Clients branch on it |
 
-Protobuf enforces the type rules by construction (field numbers, never reuse them), and `buf breaking` checks a schema against the previous version in CI. For REST, an OpenAPI diff tool does the same. Put the check in the pull request pipeline: a breaking change should be impossible to merge by accident.
+The subtle ones, which pass a schema diff and still break clients:
+
+| Change | Why it breaks |
+|---|---|
+| Add an enum value | Exhaustive `switch` statements hit their default or throw |
+| Tighten validation (max length 255 → 100) | Requests that succeeded now fail |
+| Change the default sort order or page size | Clients that stop at "first page" or rely on order get different data |
+| Make a field nullable, or omit it instead of sending `null` | `order.total.amount` throws; absent and `null` are different in most JSON decoders |
+| Change a status code (404 → 403 for another tenant's resource) | Clients branch on status |
+| Return an error where you used to return an empty list | Callers that treated empty as normal now page someone |
+| Change rounding or precision | Reconciliation jobs stop matching |
+| Lower a rate limit, shorten the idempotency window or a timeout | Clients sized to the old numbers start failing |
+| Make a synchronous operation asynchronous (201 → 202) | The resource is not there when the client reads it back |
+
+Protobuf enforces the type rules by construction, and `buf breaking` checks a schema against the previous version; an OpenAPI diff does the same for REST. Both catch the first table and almost none of the second, which is why consumer-driven contract tests and a changelog reviewed by someone who owns clients also exist.
 
 ## Versioning strategies
 
-Versioning is what you do when a breaking change is unavoidable. Options, in rough order of preference:
+Versioning is for the breaking change you cannot avoid. In rough order of preference:
 
-**Additive evolution, no version bump.** New fields, new endpoints, deprecations. Covers the large majority of changes if the compatibility rules are followed. This is the goal.
+**Additive evolution, no version.** New fields and endpoints, deprecations. Covers most changes if the catalogue is respected.
 
-**Per-field or per-feature versioning.** A new `shipping_address_v2` structure alongside the old; clients migrate field by field. Stripe's approach is close to this: the API is versioned by date per account, and each version is a set of small transformations applied at the edge, so the core serves one shape.
+**Date-pinned versions with edge transforms.** Stripe has written publicly about its approach: each account is pinned to the API version current at its first request; the code serves one canonical shape; each breaking change ships with a small transform that converts a response back to the previous version, and the edge applies transforms newest-first until it reaches the client's pinned date.
 
-**URL versioning: `/v2/orders`.** Explicit and cacheable; clients opt in. The cost is maintaining two full surfaces, and the temptation to bundle unrelated changes into the version bump, which makes migration a large project nobody schedules. Big-bang versions are where APIs go to accumulate zombie clients.
+```python
+# Newest first: (date the change shipped, transform that undoes it for older clients)
+CHANGES = [
+    ("2026-06-01", lambda r: {**{k: v for k, v in r.items() if k != "amount"}, "total": r["amount"]}),
+    ("2025-01-15", lambda r: {k: v for k, v in r.items() if k != "shipping_notes"}),
+]
 
-**Header versioning (`Accept: application/vnd.api+json; version=2`).** Cleaner URLs; harder to test with a browser; same maintenance cost as URL versioning.
+def render(canonical, pinned_version):
+    response = dict(canonical)
+    for shipped, undo in CHANGES:
+        if pinned_version < shipped:          # ISO dates compare correctly as strings
+            response = undo(response)
+    return response
 
-Whatever the mechanism, a version needs a deprecation process: announce with a date, return a `Deprecation` and `Sunset` header on old-version responses, measure which clients still call it (by API key), contact the stragglers, brown-out (return errors for a few minutes a day, escalating) before the shutdown, then remove. A version that is never retired costs a maintenance tax forever; budget the retirement when you create the version.
+order = {"id": "ord_1", "amount": 8900, "shipping_notes": "leave at door"}
+print(render(order, "2026-07-01"))  # {'id': 'ord_1', 'amount': 8900, 'shipping_notes': 'leave at door'}
+print(render(order, "2025-06-01"))  # {'id': 'ord_1', 'shipping_notes': 'leave at door', 'total': 8900}
+print(render(order, "2024-12-01"))  # {'id': 'ord_1', 'total': 8900}
+```
+
+The cost is a transform per change forever; the benefit is that no client is ever forced to migrate and the core never branches on version.
+
+**URL versioning: `/v2/orders`.** Explicit, cacheable, easy to route. It maintains two surfaces and tempts teams to bundle unrelated changes into the bump, which turns migration into a project nobody schedules. **Header versioning** (`Accept: application/vnd.example+json; version=2`) keeps URLs clean at the same maintenance cost.
+
+A version needs a retirement plan from the day it is created: announce a date; send `Deprecation` and `Sunset` headers on old-version responses; measure callers by API key; contact the stragglers; brown out (errors for minutes a day, escalating) before shutdown; remove. [Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) works through a full deprecation timeline.
 
 ```mermaid
 flowchart LR
@@ -147,48 +208,106 @@ flowchart LR
 
 ## Failure modes
 
-**Offset pagination past page 1,000.** The `OFFSET 100000` query takes seconds, holds a connection, and a crawler walking the whole collection saturates the database. Detect: slow-query log dominated by list endpoints with large offsets. Mitigate: cursor pagination for public APIs; a hard offset cap for the rest.
-
-**Unbounded page size.** `?limit=1000000` returns the whole table into a 2 GB response. Detect: response size percentiles. Mitigate: a documented maximum, enforced.
-
-**Silent breaking change.** A field renamed in a refactor ships; 40 clients break at once; the postmortem is about process. Detect: too late, unless CI checks. Mitigate: schema diff in CI, contract tests run by consumers.
-
-**Error strings parsed by clients.** The message "Card declined" becomes "Card was declined" and a customer's retry logic stops working. Detect: customer reports after a copy change. Mitigate: machine codes, and documentation that messages are not stable.
-
-**Chatty API driving N+1.** A list of 100 orders followed by 100 customer lookups: 100 ms of round trips per page and 10,000 internal requests per second at modest traffic. Detect: internal request rate far above external; traces with hundreds of sibling spans. Mitigate: embed the customer summary in the order, or a batch endpoint.
-
-**Versions that never die.** v1 from 2019 still serves 3% of traffic and blocks a schema change. Detect: per-version traffic by key. Mitigate: sunset headers, brown-outs, a retirement date set at creation.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Deep offset pages | List endpoints dominate the slow-query log; a crawler saturates the database | Latency grows linearly with `offset` | Cursor pagination; hard offset cap for admin views |
+| Unbounded page size | Multi-gigabyte responses, memory spikes | Response-size percentiles show a few huge requests | Documented maximum, enforced |
+| Silent breaking change | 40 clients fail at once after a refactor | Schema diff between releases; errors by API key | `buf breaking` or OpenAPI diff in CI; contract tests |
+| Clients parsing messages | A copy edit breaks a customer's retry logic | Support tickets after a wording change | Stable codes; messages documented as unstable |
+| Reset-header confusion | Some clients never retry, others hammer after a 429 | Their wait equals an epoch timestamp, or zero | Document `-Reset` semantics; prefer `Retry-After` |
+| N+1 across the network | 100 ms pages; internal request rate far above external | Traces with a hundred sibling spans | Embed summaries, or a batch endpoint |
+| Versions that never die | v1 from 2019 serves 3% of traffic and blocks a schema change | Traffic per version per key | Sunset headers, brown-outs, a retirement date set at creation |
 
 ## Interviewer follow-ups
 
-**Q: "Offset or cursor pagination for the orders list, and why?"**
+**"Offset or cursor pagination for the orders list?"** Model answer: cursor. Offset makes the database walk and discard every skipped row (measured 11.5 ms at depth 999,000 against a flat 0.026 ms for keyset) and shifts pages under inserts. Keyset on `(created_at, id)` with a matching index is $O(\log n + \text{page})$ and stable; the cursor is opaque; the `id` tiebreaker stops equal timestamps being skipped. Common wrong answer: "offset with a bigger page size", which divides the page count but leaves each deep page linear and unstable.
 
-Cursor. Offset costs O(offset) per page because the database materialises and discards the skipped rows, so page 1,000 at 100 per page scans 100,000 rows; and inserts between requests shift the pages, so clients see duplicates and gaps. A keyset cursor on `(created_at, id)` with a matching index makes every page O(log n + page), stable under writes. I encode the cursor opaquely so I can change what it contains, and I include the `id` tiebreaker because equal timestamps at a page boundary would otherwise skip rows. The one thing I lose is random access to page N, which a public API does not need and an admin UI can get with a capped offset.
+**"A partner needs a field renamed. What do you ship?"** Model answer: nothing that removes the old name. Add the new field, populate both, mark the old one deprecated with a sunset date, measure readers by API key, and remove it (or add a date-pinned transform) when usage reaches zero. Common wrong answer: "a `/v2` with the rename", which forces 3,000 integrations to migrate for one field.
 
-**Q: "A partner needs a field renamed. What do you ship?"**
+**"How do rate limits interact with retries?"** Model answer: a 429 carries `Retry-After`, and the client waits exactly that; `Remaining` lets it pace itself and never see a 429. A 503 from load shedding gets jittered backoff because no exact time is known. Limit per API key with a token bucket sized for the allowed burst. Common wrong answer: "retry every error with exponential backoff", which treats a precise instruction as a guess.
 
-Nothing that removes the old name. I add the new field, populate both, mark the old one deprecated in the schema and the docs with a sunset date, and measure by API key who still reads it. Unknown fields are ignored by clients per the contract, so adding is safe. When usage of the old field reaches zero, or the sunset date passes and the remaining callers have been contacted, I remove it. The schema diff in CI would reject a straight rename, which is the point of having it.
+**"Is adding an enum value a breaking change?"** Model answer: for clients that switch exhaustively, yes, and no schema diff catches it. The contract must say unknown values are possible and must be handled, generated SDKs must map them to an `unknown` case, and a new value ships to clients' test environments first. Common wrong answer: "no, it is additive", which is true of the schema and false of the code that consumes it.
 
-**Q: "How do rate limits interact with retries?"**
+**"What is in your error response?"** Model answer: an RFC 9457 envelope with the status for the class, a stable `code`, a human `detail` documented as unstable, `retryable`, `request_id`, and structured extension members such as the failing field. Common wrong answer: "a message and the status code", which forces clients to parse prose.
 
-The 429 carries `Retry-After` and the client's retry policy honours it rather than backing off blindly; the `X-RateLimit-Remaining` header lets a good client pace itself and never hit 429 at all. I limit per API key, with a token bucket sized for the burst I want to allow, and I distinguish 429 (you exceeded your quota; wait exactly this long) from 503 (we are shedding load; back off with jitter). A client that retries a 429 immediately is a client I will eventually have to block, so the docs are explicit.
+## What mid-level engineers get wrong
 
-**Q: "Should the service-to-service APIs be REST too?"**
+- **Offset pagination on a public list.** Cost grows with depth, pages shift under writes, and cursors cannot be retrofitted without breaking clients that store offsets.
+- **Keyset without a tiebreaker.** Rows sharing a timestamp at a page boundary vanish, a bug that shows up only on busy days.
+- **Adding idempotency keys after launch.** Every existing client's retries are unsafe until it upgrades, and many never do.
+- **Trusting the schema diff.** It catches renames and type changes, not new enum values, tightened validation or changed defaults.
+- **Big-bang `/v2` for small changes.** It bundles unrelated breaks and strands clients on v1 for years.
+- **Rate limiting by IP.** Customers behind one NAT share a quota, and one customer with many addresses has none.
 
-Internally I would use gRPC: Protobuf gives typed contracts with a mechanical breaking-change check, deadlines propagate natively, streaming is built in, and the encoding is several times smaller and faster than JSON at the internal call volumes. At the public edge I keep REST/JSON because integrators expect it and browsers can call it without a proxy. The two are generated from the same Protobuf definitions where possible, so the public REST is a transcoding of the internal contract rather than a second one to keep in sync.
+## Exercise: a keyset page with a tiebreaker
 
-**Q: "What is in your error response and why?"**
+```exercise
+id: keyset-page
+title: Return one keyset page ordered by (created_at, id) descending
+prompt: |
+  `rows` is a list of `[id, created_at]` pairs in any order; ids are unique
+  integers, timestamps are integers and may repeat. The collection is sorted
+  by `created_at` descending, then `id` descending.
 
-An HTTP status for the class, a stable machine-readable `code`, a human `message` documented as unstable, a `retryable` boolean so clients do not have to know which codes are transient, a `request_id` for support, and a `details` object for structured context such as which field failed validation. The `retryable` flag is the one people skip; it prevents both the client that retries validation errors forever and the client that gives up on a transient 503.
+  `cursor` is `null` for the first page, or `[created_at, id]` of the last
+  row of the previous page; the next page starts strictly after it in the
+  sort order.
+
+  Return `{"ids": [...], "next": cursor or null}`: the ids of at most
+  `limit` rows, and the cursor for the following page, which is `null` when
+  no rows remain after this page. Decide that by looking for one row beyond
+  the page, not by comparing the page size to `limit`.
+languages: [python, javascript]
+entry: keyset_page
+starter:
+  python: |
+    def keyset_page(rows, limit, cursor):
+        ids, next_cursor = [], None
+        # your code here
+        return {"ids": ids, "next": next_cursor}
+  javascript: |
+    function keyset_page(rows, limit, cursor) {
+      const ids = [];
+      let next = null;
+      // your code here
+      return { ids, next };
+    }
+tests:
+  - args: [[[1, 100], [2, 100], [3, 90], [4, 90], [5, 80]], 2, null]
+    expected: {"ids": [2, 1], "next": [100, 1]}
+    label: first page, ties broken by id
+  - args: [[[1, 100], [2, 100], [3, 90], [4, 90], [5, 80]], 2, [100, 1]]
+    expected: {"ids": [4, 3], "next": [90, 3]}
+  - args: [[[1, 100], [2, 100], [3, 90], [4, 90], [5, 80]], 2, [90, 3]]
+    expected: {"ids": [5], "next": null}
+    label: last page
+  - args: [[[1, 100], [2, 100], [3, 90], [4, 90], [5, 80], [6, 110]], 2, [100, 1]]
+    expected: {"ids": [4, 3], "next": [90, 3]}
+    label: a new row at the top does not shift the next page
+  - args: [[], 10, null]
+    expected: {"ids": [], "next": null}
+    label: empty collection
+  - args: [[[1, 100], [2, 100], [3, 90], [4, 90], [5, 80]], 5, null]
+    expected: {"ids": [2, 1, 4, 3, 5], "next": null}
+    hidden: true
+    label: an exact fit has no next page
+  - args: [[[10, 50], [11, 50], [12, 50]], 1, [50, 12]]
+    expected: {"ids": [11], "next": [50, 11]}
+    hidden: true
+hints:
+  - "Sort by the pair (created_at, id), descending."
+  - "A row comes after the cursor when (created_at, id) is lexicographically smaller than (cursor created_at, cursor id)."
+  - "Take limit + 1 rows; if you got more than limit, there is a next page and its cursor is the last row you return."
+```
 
 ## Senior signals
 
-- You put **idempotency keys, cursor pagination, an error envelope and rate-limit headers** in the contract before the first client, because they cannot be added safely later.
-- You can write the **keyset SQL** and explain why the tiebreaker column is not optional.
-- You treat **compatibility rules** as CI checks (buf breaking, OpenAPI diff), not review comments.
-- You prefer **additive evolution** and per-field migration over big-bang versions, and you set a sunset date when you create a version.
-- You separate **429 from 503** and design the retry contract for each.
-- You design **batch endpoints** to prevent N+1 across the network, with the latency arithmetic to show why.
+- You put **idempotency keys, cursor pagination, an error envelope and rate-limit headers** in the contract before the first client, because none can be added safely later.
+- You can write the **keyset SQL**, say why the tiebreaker is mandatory, and quote what offset costs at depth.
+- You know the **subtle breaking changes** (enum values, defaults, nullability, status codes) that pass a schema diff, and add contract tests for them.
+- You prefer **additive evolution**, can explain date-pinned versions with edge transforms, and set a sunset date when you create a version.
+- You separate **429 from 503**, document `Retry-After` and reset semantics, and limit per key.
+- You design **batch endpoints** to prevent N+1 across the network.
 
 ## Check yourself
 
@@ -206,11 +325,17 @@ An HTTP status for the class, a stable machine-readable `code`, a human `message
   explanation: >-
     The cursor is a position in a total order; timestamps are not unique, so rows with equal created_at at a page boundary would otherwise be skipped or repeated. The order must be made total with a unique column. Keyset pagination still cannot jump to page N.
 - q: >-
-    Which change can be shipped without a version bump under the compatibility rules?
-  options: ["Making the currency request parameter required", "Renaming total to amount in the response body", "Changing order_id from a string to an integer", "Adding an optional shipping_notes response field"]
-  answer: 3
+    A client fetched offset page 1 (two rows per page). A new row is inserted at the top before it fetches page 2 at offset 2. What does it see?
+  options: ["The last row of page 1 again, as the first row of page 2", "The new row, since it now sorts ahead of every other row", "Exactly the rows it would have seen without the insert", "An error, because the offset no longer points at a row"]
+  answer: 0
   explanation: >-
-    Additions with defaults are backward compatible when clients are tolerant readers. Renames, type changes and tightening requirements all break existing clients.
+    Offset counts rows, so an insert above the boundary shifts everything down by one and the last row of page 1 reappears. A keyset cursor names a position in the sort order, so the insert above it does not change the next page. A deletion would skip a row instead.
+- q: >-
+    Which change passes an OpenAPI or Protobuf schema diff but can still break correct clients?
+  options: ["Adding a new value to an existing enum", "Removing a field from the response", "Changing a field from a string to an integer", "Making an optional parameter required"]
+  answer: 0
+  explanation: >-
+    A new enum value is additive to the schema, so diff tools accept it, but clients that switch exhaustively hit a default branch or throw. The other changes are exactly what diff tools reject. The contract must say unknown values can appear.
 - q: >-
     A client receives a 429 with Retry-After: 30. The correct client behaviour is:
   options: ["Wait at least 30 seconds, then retry", "Treat it as a permanent failure and stop", "Retry immediately with exponential backoff", "Switch to a different API key and retry"]
@@ -218,9 +343,9 @@ An HTTP status for the class, a stable machine-readable `code`, a human `message
   explanation: >-
     429 with Retry-After is the server telling the client exactly when its quota refills; honouring it avoids further rejections. Backoff with jitter is for 503 load shedding, where no exact time is known. Rotating keys to evade limits is abuse.
 - q: >-
-    Why should error responses carry a machine-readable code separate from the human message?
-  options: ["So clients can branch on a stable value, not on wording", "So the payload stays small when messages are long", "Because HTTP status codes are deprecated for API errors", "So that status codes can be localised for each client"]
+    An API pins each account to a dated version and serves one canonical response shape internally. How are older clients served?
+  options: ["Transforms undo newer changes, newest first, down to the pinned date", "Each dated version runs as a separate deployment of all the service code", "The database keeps one copy of each record for every version", "Clients are forced onto the newest version when they next deploy"]
   answer: 0
   explanation: >-
-    Clients that parse messages break when wording changes. A documented enum of codes is the stable surface; the message is explicitly unstable and can be improved freely. Status codes still carry the class but are too coarse for client logic.
+    Each breaking change ships with a small transform that converts a response back to the previous version, and the edge applies them newest-first until it reaches the client's date. The core never branches on version; the cost is keeping every transform. Separate deployments or copies per version are what this design avoids.
 ```

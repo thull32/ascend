@@ -1,138 +1,206 @@
 ---
 slug: capacity-planning-and-cost
 title: "Capacity planning and cost: from growth curves to machine counts to dollars per request"
-description: How to turn a traffic forecast into instance counts using honest per-instance throughput, utilisation targets and failover headroom; how to model growth and storage; how to compute cost per request and find the line item that dominates; and how to mix reserved, on-demand and spot capacity.
+description: How to turn daily users into peak requests per second, and a traffic forecast into instance counts using honest per-instance throughput, utilisation targets justified by simulated queues, and failover headroom; how to model growth and storage; how to compute cost per request and find the line item that dominates; and how to size reserved, on-demand and spot capacity, including the price of over-committing.
 minutes: 35
 difficulty: hard
-tags: [system-design, senior-skills, capacity-planning, cost, estimation, cloud]
+tags: [system-design, senior-skills, capacity-planning, cost, estimation, cloud, queueing, reserved-instances]
 ---
-Product announces a launch in a new market in eight weeks, expected to add 40% to peak traffic. Your director asks two questions: will we stay up, and what will it cost? "We autoscale" answers neither. Autoscaling reacts in minutes to load that arrives in seconds, it cannot create capacity your account's quotas or your database do not have, and it says nothing about the bill. The senior answer is a number of instances with headroom, the date the capacity must exist, the resource that runs out first, the line item that dominates the bill, and the cost per request before and after.
+Product announces a launch in a new market in eight weeks, expected to add 40% to peak traffic. Your director asks two questions: will we stay up, and what will it cost? "We autoscale" answers neither. Autoscaling reacts in minutes to load that arrives in seconds, it cannot create capacity your quotas or your database do not have, and it says nothing about the bill. The senior answer is a number of instances with headroom, the date the capacity must exist, the resource that runs out first, the line item that dominates the bill, and the cost per request before and after.
 
-That answer is arithmetic, and this lesson is the arithmetic. [Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) gave you the reference numbers; here you turn them into a plan that finance and on-call can both hold you to. Prices below are illustrative list prices of the right order of magnitude; check current price sheets before committing real money.
+That answer is arithmetic, and this lesson is the arithmetic. [Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) gave you the reference numbers; here you turn them into a plan that finance and on-call can both hold you to. Every price below is a round number of the right order of magnitude at the time of writing (2026). Real prices depend on provider, region, instance family, volume tier and commitment, so treat them as assumptions to replace, not quotes.
 
 ## The capacity model
-
-The core formula fits on one line:
 
 $$\text{instances} = \frac{\text{peak demand}}{\text{per-instance throughput at SLO} \times \text{target utilisation}} \;+\; \text{failure headroom}$$
 
 Each input has a trap:
 
-1. **Peak demand, not average.** Daily peaks for consumer products run 1.5 to 3 times the daily average, and launches, season premieres and holidays stack on top.
-2. **Throughput at the SLO, not maximum throughput.** The number that matters is the load at which p99 still meets the target, not the load at which the instance starts returning errors.
-3. **Target utilisation** below that knee, because latency explodes as you approach it (next section).
-4. **Failure headroom:** enough spare capacity to lose an instance, an availability zone, or a region, and still serve peak.
+1. **Peak demand, not average.** Launches, premieres and holidays stack on top of the daily peak.
+2. **Throughput at the SLO, not maximum throughput.** The load at which p99 still meets the target, not the load at which errors start.
+3. **Target utilisation** below that knee, because latency explodes approaching it (see the queueing section).
+4. **Failure headroom:** enough spare to lose an instance, a zone or a region and still serve peak.
 
-Take a running example: the API behind a streaming app's home screen. Users span time zones, so traffic swings from a trough of 25,000 requests per second to a peak of 50,000, averaging 37,500. A load test shows one 8-vCPU instance holds p99 under 100 ms up to 1,250 rps; beyond that p99 climbs steeply. The service runs in three availability zones.
+### From users to requests per second
 
-The naive plan stacks every buffer. A 70% utilisation target gives 875 rps per instance, so 50,000 / 875 = 58 instances; to survive losing a zone, the other two zones must hold all 58, so each zone gets 29, for 87 instances. At peak that fleet runs at 50,000 / (87 × 1,250) = 46% of its knee capacity.
+The running example is the API behind a streaming app's home screen. It has 30 million daily active users; each opens the app about four times a day, and each session makes about 27 API calls (rows, artwork, pagination, progress). That is 30 million × 108 = 3.24 billion requests a day, or 3.24 × 10⁹ / 86,400 = 37,500 requests per second on average. Because users span time zones, traffic swings only from a trough of 25,000 to a peak of 50,000, a peak-to-average ratio of 1.33; a product used mostly in one country sees 2 to 3, because everyone's evening arrives at once. The ratio is a property of the audience, so measure it rather than borrowing it.
 
-The deliberate plan asks which buffer covers which risk. The zone-loss headroom *is* a utilisation buffer, so let it do both jobs: size the fleet so that after losing a zone the survivors run at exactly the knee. That is 50,000 / 1,250 = 40 instances in two zones, 20 per zone, 60 in total. Normally, at peak, each runs at 67% of its knee; during a zone outage at peak, 100% of it, with p99 at the edge of the SLO for the duration. Sixty instances instead of 87 is 31% less fleet for a risk you have priced explicitly: a zone failure *during* the daily peak runs hot but within SLO.
+### Sizing the fleet: 60 instances, not 87
+
+A load test shows one 8-vCPU instance holds p99 under 100 ms up to 1,250 rps; beyond that p99 climbs steeply. The service runs in three availability zones.
+
+The naive plan stacks every buffer. A 70% utilisation target gives 875 rps per instance, so 50,000 / 875 = 58 instances; to survive losing a zone, the other two zones must hold all 58, so 29 per zone, 87 in total. At peak that fleet runs at 50,000 / (87 × 1,250) = 46% of its knee.
+
+The deliberate plan asks which buffer covers which risk. Zone-loss headroom *is* a utilisation buffer, so let it do both jobs: size the fleet so that after losing a zone the survivors run at exactly the knee. That is 50,000 / 1,250 = 40 instances in two zones, 20 per zone, 60 in total. Normally, at peak, each runs at 67% of its knee; during a zone outage at peak, at 100% of it, with p99 at the edge of the SLO. Sixty instead of 87 is 31% less fleet for a risk you have priced: a zone failure *during* the daily peak runs hot but within SLO.
+
+Deploys are failures you schedule, so count them. A rolling deploy that replaces 10% of instances at a time holds some out of service while they drain and warm. If a zone fails mid-deploy at peak, the 40 survivors lose 4 to the deploy batch and the remaining 36 each carry 50,000 / 36 = 1,389 rps, 11% past the knee. Either deploy off-peak or add the batch size to the fleet. The same arithmetic with regions instead of zones gives the N/(N−1) headroom rule in [designing for failure](/learn/system-design/senior-design-skills/designing-for-failure).
 
 ### Little's law sizes the pools
 
-At peak each instance serves 50,000 / 60 ≈ 833 rps. With a mean latency of 40 ms, Little's law ($L = \lambda W$) says about 833 × 0.04 ≈ 33 requests are in flight per instance at any moment. That sizes thread pools and connection pools, and it catches a classic surprise: 60 instances with a database pool of 20 connections each open 1,200 connections, far beyond what a Postgres primary handles well, which is why you need a pooler (see [connection management](/learn/databases/storage-and-scale/connection-management)). Capacity plans fail at the resource nobody counted.
+At peak each instance serves 50,000 / 60 ≈ 833 rps. With a mean latency of 40 ms, Little's law ($L = \lambda W$, derived in [latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math)) puts about 833 × 0.04 ≈ 33 requests in flight per instance. That sizes thread and connection pools, and it catches a classic surprise: 60 instances with a database pool of 20 each open 1,200 connections, far beyond what one Postgres primary handles well, which is why you need a pooler ([connection management](/learn/databases/storage-and-scale/connection-management)). Capacity plans fail at the resource nobody counted.
 
-## Why the target is 60 to 70%, not 95%
+## Under the hood: why latency bends before 100%
 
-Queueing theory explains the knee. In the simplest model of a single server with random arrivals (M/M/1), the mean time a request waits in the queue, measured in service times, is $\rho / (1 - \rho)$, where $\rho$ is utilisation:
+The knee in a load test is a queue forming. In the simplest model, one server with random (Poisson) arrivals and exponential service times (M/M/1), the mean wait in the queue, in units of mean service time, is $\rho/(1-\rho)$, and the response time is exponential, so its p99 is $\ln(100)/(1-\rho) \approx 4.6/(1-\rho)$ service times. A real instance has many workers, so the more useful model is M/M/c with c = 16. Formulas for M/M/c are messy, so the numbers below come from simulating a first-come-first-served queue: 400,000 requests per row, seed 7, times in units of the mean service time.
 
-| Utilisation | Queueing delay (× service time) |
-|---|---|
-| 50% | 1 |
-| 70% | 2.3 |
-| 80% | 4 |
-| 90% | 9 |
-| 95% | 19 |
+```python
+import heapq, random
 
-Real systems are worse than the model: garbage-collection pauses, bursty arrivals and uneven load balancing all add variance, which moves the knee to lower utilisation. And utilisation is usually measured as a one-minute average, which hides one-second bursts 20 to 50% higher. A latency-sensitive service planned at 90% average utilisation is a service that misses its p99 every busy minute. Batch systems, where latency does not matter, can run at 90% and should.
+def simulate(rho, c, burst=0.0, period=2000.0, n=400_000, seed=7):
+    """FCFS queue, c servers, Poisson arrivals, exponential service with mean 1.
+    With burst > 0 the arrival rate alternates between rho*(1+burst) and
+    rho*(1-burst) every `period` service times; the average stays rho."""
+    rng = random.Random(seed)
+    free = [0.0] * c                        # when each server is next free
+    t, waits, resp = 0.0, [], []
+    for _ in range(n):
+        high = int(t // period) % 2 == 0
+        t += rng.expovariate(rho * c * ((1 + burst) if high else (1 - burst)))
+        start = max(t, heapq.heappop(free))  # earliest-free server takes the request
+        s = rng.expovariate(1.0)
+        heapq.heappush(free, start + s)
+        waits.append(start - t)
+        resp.append(start - t + s)
+    resp.sort()
+    return sum(waits) / n, resp[int(n * 0.99)]
+
+for rho in (0.5, 0.7, 0.8, 0.9, 0.95):
+    print(rho, simulate(rho, 1), simulate(rho, 16))
+```
+
+| Utilisation | M/M/1 mean wait (formula) | M/M/1 p99 response | M/M/16 mean wait | M/M/16 p99 response |
+|---|---|---|---|---|
+| 50% | 0.99 (1.00) | 9.2 | 0.001 | 4.6 |
+| 70% | 2.32 (2.33) | 15.5 | 0.03 | 4.6 |
+| 80% | 3.93 (4.00) | 23.0 | 0.09 | 4.7 |
+| 90% | 8.88 (9.00) | 49.2 | 0.36 | 5.4 |
+| 95% | 18.2 (19.0) | 99.7 | 0.93 | 8.2 |
+
+Two lessons. With one worker, waiting doubles from 80% to 90% utilisation, which is why single-threaded hot spots (one partition, one lock, one event loop) must run cool. With sixteen workers the pool absorbs randomness and the steady-state knee moves past 90%, which is why a load test on a multi-core instance can look flat almost to saturation.
+
+So why not plan for 90%? Because real load is not steady. Utilisation is usually reported as a one-minute average, which hides bursts. The same M/M/16 queue, with the arrival rate alternating ±25% around the average every 2,000 service times:
+
+| Average utilisation | p99, steady arrivals | p99, ±25% bursts | Utilisation during bursts |
+|---|---|---|---|
+| 60% | 4.6 | 4.6 | 75% |
+| 70% | 4.6 | 4.9 | 88% |
+| 75% | 4.7 | 6.4 | 94% |
+| 80% | 4.7 | 21.7 | 100% |
+
+At 80% average the bursts reach saturation and p99 jumps more than fourfold, while the dashboard shows a healthy 80%. Garbage-collection pauses, uneven load balancing and heavy-tailed service times push the knee lower still. That is the case for 60–70% on latency-sensitive services, and for running batch fleets, where only throughput matters, at 90% without apology.
 
 ## Finding per-instance throughput honestly
 
 The per-instance number drives every other number, so it deserves the most suspicion:
 
-- **Use production-shaped load.** Replay real traffic or a recorded mix of endpoints, payload sizes and cache hit rates. A synthetic test hitting one cached endpoint overstates capacity several-fold.
-- **Step the load and find the knee.** Increase in steps, hold each for minutes, and record the step where p99 breaches the SLO. That step, not the peak rps before errors, is the capacity.
-- **Name the bottleneck.** CPU, memory, connections, a lock, a downstream dependency. The number is valid only while that bottleneck is the binding one; if the downstream database saturates first, adding instances adds nothing.
-- **Re-measure continuously.** Every release can regress performance. Some companies measure in production by shifting extra live traffic onto one instance until its latency degrades, often called a squeeze test, and track the result per build.
+- **Use production-shaped load.** Replay real traffic or a recorded mix of endpoints, payload sizes and cache hit rates. A synthetic test against one cached endpoint overstates capacity several-fold.
+- **Step the load and find the knee.** Increase in steps, hold each for minutes, and record the step where p99 breaches the SLO. That step, not the peak before errors, is the capacity.
+- **Name the bottleneck.** CPU, memory, connections, a lock, a downstream dependency. The number is valid only while that bottleneck binds; if the database saturates first, more instances add nothing.
+- **Re-measure every release.** Some companies measure in production by shifting extra live traffic onto one instance until its latency degrades, often called a squeeze test, and track the result per build.
 
 ## Modelling growth
 
-Organic growth compounds. At 5% a month, traffic doubles in about 14 months; at 8% a month it doubles in about 9 and grows 2.5× in a year. Plot the forecast, not today's number.
+Organic growth compounds. At 5% a month traffic doubles in ln 2 / ln 1.05 ≈ 14 months; at 8% a month it doubles in 9 and grows 1.08¹² ≈ 2.5× in a year. Plot the forecast, not today's number.
 
-The launch plan for the running example: two months of 5% organic growth takes peak from 50,000 to 55,125 rps, and the launch adds 40% on top: 77,175 rps. At 1,250 rps per instance with the zone-loss rule (two-thirds of the fleet must carry peak at the knee), that needs 77,175 / 833 = 93 instances, up from 60. Now the questions become concrete: can the database take 55% more connections and queries, is the account quota above 93 instances of this type in this region, and when must all of it be in place?
+The launch plan: two months of 5% organic growth takes peak from 50,000 to 55,125 rps, and the launch adds 40%: 77,175 rps. With the zone-loss rule (two zones must carry peak at the knee), that is 77,175 / 1,250 = 62 instances across two zones, 31 per zone, **93 in total**, up from 60. Now the questions are concrete: can the database take 55% more connections and queries, is the account quota above 93 instances of this type in this region, and when must it all be in place?
 
-That last question is about **lead time**. On-demand cloud capacity arrives in minutes if the quota and the regional supply exist. Quota increases take days. Reserved commitments are planned quarterly. Hardware you ship to partners, as Netflix does with its Open Connect appliances in ISP networks, has lead times of months. Your planning horizon is the lead time plus the review interval plus a safety margin, and anything with a long lead time must be forecast further out.
-
-Known events deserve special treatment. Autoscaling policies react over minutes, and new instances take minutes to boot and warm their caches, so a premiere at 8 p.m. is pre-scaled at 7 p.m. from a schedule, not discovered by a CPU alarm at 8:02.
+That last question is **lead time**. On-demand capacity arrives in minutes if quota and regional supply exist; quota increases take days; commitments are planned quarterly; hardware shipped to partners, as Netflix does with its Open Connect appliances in ISP networks, has lead times of months. The planning horizon is lead time plus review interval plus margin. Known events are pre-scaled: autoscaling reacts over minutes and new instances take minutes to boot and warm caches, so an 8 p.m. premiere is scaled at 7 p.m. from a schedule, not discovered by a CPU alarm at 8:02.
 
 ## Storage grows differently
 
-Request capacity follows traffic; storage follows the integral of traffic. A service that ingests 2 billion events a day at 100 bytes each writes 200 GB of raw data a day. Replicated three times that is 600 GB, and with index and compaction overhead around 30%, roughly 780 GB of disk a day: about 285 TB after a year, even if traffic never grows.
+Request capacity follows traffic; storage follows its integral. Say the same product also ingests 2 billion playback events a day at 100 bytes each: 200 GB of raw data a day; replicated three times, 600 GB; with about 30% index and compaction overhead, roughly 780 GB of disk a day. That is 285 TB after a year with flat traffic, and 377 TB if ingest grows 5% a month, because each month adds more than the last.
 
-The lever is retention. Keeping 90 days hot needs about 70 TB of fast storage; everything older moves to object storage at a small fraction of the price per GB, or is aggregated and the raw data deleted. Also budget free space for the storage engine itself: log-structured stores need headroom to compact, up to half the disk under some compaction strategies, so a disk at 80% full can already be a disk that cannot compact.
+The lever is retention. Keeping 90 days hot needs about 70 TB of fast storage; older data moves to object storage, typically an order of magnitude cheaper per GB-month, or is aggregated and the raw data deleted. Budget free space for the storage engine too: log-structured stores need room to compact, up to half the disk under some strategies, so a disk at 80% full may already be unable to compact.
 
 ## Cost per request
 
-Unit economics make cost discussable: total monthly cost of a service divided by the requests it served. The running example at 37,500 rps average serves about 97 billion requests a month. With every request logged at about 1 KB, responses averaging 5 KB, and services talking to their cache and database across zone boundaries:
+Unit economics make cost discussable: a service's monthly cost divided by the requests it served. The running example serves 37,500 rps × 2.59 million seconds ≈ 97 billion requests a month. Assume every request logs about 1 KB, responses average 5 KB, and services talk to caches and databases across zone boundaries:
 
-| Line item | Assumption | Monthly cost | Share |
+| Line item | Assumption (order-of-magnitude price, 2026) | Monthly cost | Share |
 |---|---|---|---|
-| Compute | 45 instances on average (autoscaled), $0.40/hour, on-demand | $13,140 | 11% |
-| Database | Primary and two replicas, $2.00/hour each, plus 6 TB of block storage | $4,980 | 4% |
-| Cache | Six nodes at $0.50/hour | $2,190 | 2% |
+| Compute | 45 instances on average (autoscaled), ~$0.40/hour on-demand | $13,140 | 11% |
+| Database | Primary and two replicas at ~$2/hour, plus 6 TB of block storage | $4,980 | 4% |
+| Cache | Six nodes at ~$0.50/hour | $2,190 | 2% |
 | Load balancing | Fixed plus per-request charges | $2,000 | 2% |
-| Internet egress | 5 KB × 97 billion = 486 TB at $0.05/GB | $24,300 | 21% |
-| Cross-zone traffic | 10 KB per request crossing zones at $0.02/GB (both directions) | $19,440 | 17% |
-| Log ingestion | 1 KB per request = 97 TB at $0.50/GB | $48,600 | 42% |
+| Internet egress | 5 KB × 97 billion = 486 TB at a few cents per GB | $24,300 | 21% |
+| Cross-zone traffic | 10 KB per request crossing zones, ~$0.01/GB each direction | $19,440 | 17% |
+| Log ingestion | 1 KB per request = 97 TB at tens of cents per GB | $48,600 | 42% |
 | **Total** | | **$114,650** | **$1.18 per million requests** |
 
-The instances everyone argues about are 11% of the bill. The dominant costs are data moving: logs, egress and traffic between zones. None of them shows up in a load test, and all of them scale linearly with requests. Four changes, none of which touches the architecture:
+The instances everyone argues about are 11% of the bill. The dominant costs are data moving: logs, egress and traffic between zones. None shows up in a load test, and all scale linearly with requests. Four changes, none touching the architecture:
 
 - **Sample success logs at 1%** and keep every error: $48,600 becomes about $490.
-- **Zone-aware routing** so services prefer a cache and replica in their own zone, halving cross-zone bytes: $19,440 becomes $9,720.
+- **Zone-aware routing**, so services prefer a cache and replica in their own zone, halving cross-zone bytes: $19,440 becomes $9,720.
 - **Compress responses** from 5 KB to 2 KB: egress becomes $9,720.
 - **Reserve the baseline fleet** (next section): compute becomes $9,210.
 
-The total falls to about $38,300, or $0.39 per million requests: two-thirds cheaper. The sentence to say in a review is "the dominant cost is X, so the design should minimise X even at the expense of Y". Here X is bytes moved, not CPU.
+The total falls to about $38,300, or $0.39 per million requests: two-thirds cheaper. The sentence for a review is "the dominant cost is X, so the design should minimise X even at the expense of Y". Here X is bytes moved, not CPU. The ratio survives price changes, because it comes from bytes per request, which you control.
+
+Know where bytes are metered, because that is where the surprises come from. Traffic between zones is typically billed on both sides of the hop, so a request and its response to a cache in another zone are metered four times: out and in, each way. NAT gateways charge per GB processed on top of their hourly price, so a service pulling container images or calling public APIs through one pays twice for the same bytes. Internet egress is tiered by monthly volume and falls further behind a CDN or private peering ([CDNs and edge](/learn/networking/application-protocols/cdns-and-edge)). Logs are billed at ingestion, again for retention and again for queries, which is why sampling at the source beats filtering in the backend ([metrics and logging platform](/learn/system-design/case-studies/metrics-and-logging-platform)).
 
 ```viz
-{"type": "network", "scenario": "cdn-cache", "title": "Egress is a cost lever, not just a latency one",
+{"type": "network", "scenario": "cdn-cache", "title": "Egress is a cost lever, not only a latency one",
  "caption": "A miss crosses the ocean to origin and is billed as origin egress; a hit is served from the edge. For byte-heavy products the CDN hit ratio is a line item on the bill: each point of hit ratio is bytes the origin never sends."}
 ```
 
 ## Reserved, on-demand and spot
 
-Cloud capacity comes in three pricing models:
+| Pricing model | Discount on on-demand (order of magnitude) | Commitment | Flexibility | Interruption | Fits |
+|---|---|---|---|---|---|
+| On-demand | None: the reference price | None | Full | None | Peaks, experiments, anything under a year |
+| Reserved instances | 30–60%+, deeper for 3 years and upfront payment | 1 or 3 years | Locked to family and region | None | The steady trough of a stable service |
+| Savings plans / committed spend | Similar, slightly less for the most flexible kinds | $ per hour for 1 or 3 years | Follows usage across families and often regions | None | A baseline you expect to migrate between instance types |
+| Spot / preemptible | 60–90% | None | Full | Reclaimed at short notice (two minutes on AWS) | Batch, encoding, CI, checkpointed training, queue workers |
 
-- **On-demand:** pay by the second or hour, no commitment. The reference price.
-- **Reserved capacity or savings plans:** commit to one or three years of usage for a discount, commonly in the range of 30 to 60% or more depending on term and payment.
-- **Spot or preemptible:** spare capacity at large discounts, often 60 to 90%, which the provider can reclaim with short notice (two minutes on AWS).
+### The break-even rule
 
-The rule for reservations is a break-even: a reservation with discount *d* pays off for any instance that would otherwise run more than (1 − d) of the hours. At a 40% discount, reserve every instance that is busy more than 60% of the time and leave the rest on-demand.
+A reservation with discount *d* costs (1 − d) of on-demand for every hour, used or not, so it pays off for any instance that would otherwise run more than (1 − d) of the hours. At 40% off, reserve every instance busy more than 60% of the time.
 
-Apply it to the running example's daily curve, 30 instances at the trough and 60 at the peak. Instances 1 to 30 run all day: reserve them. Instance 60 runs only at the very top of the evening peak: on-demand. For a smooth daily curve, instance 40 is busy about 61% of the day, right at break-even. Priced at $0.40 an hour on-demand and $0.24 reserved:
+Apply it to the running example's smooth daily curve, 30 instances at the trough and 60 at the peak. Instance 40 is busy about 61% of the day, right at break-even. At ~$0.40 an hour on-demand and ~$0.24 reserved:
 
-| Strategy | Monthly compute | Saving |
+| Reserved instances | Monthly compute | Against all on-demand |
 |---|---|---|
-| All on-demand, autoscaled | $13,140 | — |
-| Reserve the trough (30), on-demand above | $9,636 | 27% |
-| Reserve to break-even (40), on-demand above | $9,210 | 30% |
-| Reserve the peak (60) | $10,512 | 20% |
+| 0 (all on-demand, autoscaled) | $13,140 | — |
+| 30 (the trough) | $9,636 | −27% |
+| 35 | $9,309 | −29% |
+| 40 (break-even) | $9,210 | −30% |
+| 45 | $9,278 | −29% |
+| 60 (the peak) | $10,512 | −20% |
 
-Reserving the peak looks prudent and is the worst of the three commitments, because 20 reserved instances sit idle most of the day. Two more senior points: reservations lock in an instance family and region, so a planned migration to a new instance type or region makes a three-year commitment a liability; and the idle reserved capacity in the trough is free compute. Netflix has written about running encoding work on its own idle reserved instances during the daily trough, which is spot pricing without the risk of reclamation.
+The optimum is flat: five instances either side costs about 1%. Reserving the peak looks prudent and is the worst commitment of the three named ones, because 20 reserved instances sit idle most of the day. Since the curve is flat near the optimum and the downside of over-committing is steep, round down.
 
-Spot belongs where interruption is cheap: batch jobs, encoding, CI runners, model training with checkpoints, stateless workers behind a queue. It does not belong under a latency SLO unless the fleet can lose a slice of instances with two minutes' notice and not notice.
+### The price of over-committing
+
+Commitments are priced for the whole term, so the risk is using them for less. Take 40 instances on a 3-year term at 60% off (~$0.16/hour) against renewing 1-year terms at 40% off (~$0.24/hour). The 3-year term costs $168,192 over its life whatever happens. If the service migrates to a new instance family after 12 months, you paid the equivalent of $0.48 an hour for what you used, more than on-demand, and $112,128 of commitment is stranded. The break-even against 1-year terms is 36 × 0.16 / 0.24 = 24 months of use. The rule: commit for three years only to capacity you are confident will exist in the same shape for more than two, and prefer flexible commitments for anything on a migration roadmap.
+
+The idle reserved capacity in the trough is free compute. Netflix has written about running encoding work on its own idle reserved instances during the daily trough, spot pricing without the reclamation risk. Spot belongs where interruption is cheap, and checkpointing is what makes it cheap. Assume, as an order of magnitude that varies by instance type and region, that 5% of spot instances are reclaimed in any hour. An encoding job that checkpoints every 10 minutes loses about 5 minutes per reclaim, so 0.05 × 5/60 ≈ 0.4% of its compute is wasted, against a discount of 60–90%. A 12-hour job with no checkpoints is interrupted with probability 1 − 0.95¹² ≈ 46% and restarts from zero. Spot does not belong under a latency SLO unless the fleet can lose a slice of instances with two minutes' notice and not notice.
 
 ## Serverless versus instances
 
-The same arithmetic settles "should this be a function or a service?". At roughly $0.20 per million invocations plus about $0.0000167 per GB-second, a 100 ms request at 512 MB costs about $1.03 per million. The running example's instances serve about 3 million requests per instance-hour at $0.40, about $0.13 per million, eight times cheaper at sustained load. The break-even is around 110 requests per second per instance you would otherwise run: a service that averages 20 rps with occasional bursts is cheaper as functions, because instances would idle; a service at 37,500 rps is far cheaper on instances. Add the non-price factors (cold starts on the latency path, connection limits to databases) and the answer is usually functions for spiky glue and instances for steady hot paths.
+The same arithmetic settles "function or service?". At list prices of the order of $0.20 per million invocations plus about $0.0000167 per GB-second, a 100 ms request at 512 MB costs about $1.03 per million. The running example's instances serve about 3 million requests per instance-hour at ~$0.40, about $0.13 per million, eight times cheaper at sustained load. The break-even is around 110 requests per second per instance you would otherwise run: a service averaging 20 rps with occasional bursts is cheaper as functions, because instances would idle; one at 37,500 rps is far cheaper on instances. Add cold starts on the latency path and connection limits to databases, and the answer is usually functions for spiky glue and instances for steady hot paths.
+
+## The plan on one page
+
+Put the pieces together and the launch plan fits one table, each row recomputable from the rows above it:
+
+| Quantity | Today | Launch day | Derivation |
+|---|---|---|---|
+| Daily active users | 30 million | 46 million | × 1.05² organic × 1.4 launch = × 1.54 |
+| Average / peak rps | 37,500 / 50,000 | 57,900 / 77,175 | Users × 108 calls ÷ 86,400; peak = 1.33 × average |
+| Fleet (zone-loss rule) | 60 | 93 | Peak ÷ 1,250 across two zones, × 3/2 |
+| Database connections (pool of 20) | 1,200 | 1,860 | Fleet × pool: breaks first |
+| Disk written per day | 780 GB | 1.2 TB | Events × bytes × 3 replicas × 1.3 |
+| Internet egress per month | 486 TB | 750 TB | Requests × 5 KB |
+| Monthly cost, as designed | $114,650 | about $173,000 | Byte-driven lines scale with traffic; database and cache held flat |
+| Monthly cost, after the four fixes | $38,300 | about $55,000 | $0.39 → $0.37 per million as fixed costs spread |
+
+Cost per request stays nearly flat because almost every line scales with requests. Only the database and cache are held fixed, and the connection row says the database will not stay fixed for long. Track cost per request next to latency and error rate on the service's dashboard ([observability](/learn/system-design/building-blocks/observability)), so a regression in either shows the week it ships.
 
 ## Presenting capacity in an interview
 
-Three sentences, in order: the demand, the fleet, the dominant cost. "Peak is 50,000 rps, one instance holds 1,250 at our p99, and we keep a zone's worth of headroom, so 60 instances, 93 after the launch. The database connection count is the first thing that breaks, so we add a pooler. The biggest cost is not compute but log ingestion and cross-zone traffic, so I would sample logs and route within zones." That is thirty seconds, and every number in it can be challenged and defended.
+Three sentences, in order: the demand, the fleet, the dominant cost. "Peak is 50,000 rps from 30 million daily users, one instance holds 1,250 at our p99, and we keep a zone's worth of headroom, so 60 instances, 93 after the launch. The database connection count breaks first, so we add a pooler. The biggest cost is not compute but log ingestion and cross-zone traffic, so I would sample logs and route within zones." Thirty seconds, and every number can be challenged and defended.
 
-## Exercise
+## Exercises
 
 ```exercise
 id: instances-per-region
@@ -187,50 +255,109 @@ hints:
   - "Usable capacity per instance is per_instance_rps * target_pct / 100. Divide, round up with ceil, then apply the minimum of 2."
 ```
 
-## Failure modes
+```exercise
+id: reservation-planner
+title: How many instances to reserve
+prompt: |
+  `hourly` lists how many instances a service needs in each hour of a
+  typical day. An on-demand instance costs `on_demand_cents` per hour it
+  runs; a reserved instance costs `reserved_cents` per hour for every hour
+  of the day, busy or idle.
 
-**Planning on the average.** The fleet handles the daily average and melts at 9 p.m. Detect: p99 violations that correlate with the daily peak. Mitigate: plan on the peak of the forecast, including known events.
+  If you reserve `R` instances, then in each hour the first `R` instances
+  of demand run on reserved capacity and any demand above `R` runs
+  on-demand. The monthly cost is 30 times the daily cost:
+  `30 * (len(hourly) * R * reserved_cents + sum over hours of max(n - R, 0) * on_demand_cents)`.
 
-**Stacked or missing headroom.** Either every buffer is added on top of every other (a fleet at 46% of its knee capacity at peak), or headroom for a zone or region loss was never counted. Mitigate: write down which buffer covers which failure.
+  Try every `R` from 0 to the largest hourly count. Return
+  `{"reserved": R, "monthly_cents": cost}` for the cheapest plan; if several
+  `R` tie, return the smallest.
+languages: [python, javascript]
+entry: plan_reservations
+starter:
+  python: |
+    def plan_reservations(hourly, on_demand_cents, reserved_cents):
+        # your code here
+        return {"reserved": 0, "monthly_cents": 0}
+  javascript: |
+    function plan_reservations(hourly, on_demand_cents, reserved_cents) {
+      // your code here
+      return { reserved: 0, monthly_cents: 0 };
+    }
+tests:
+  - args: [[52, 49, 45, 41, 38, 34, 32, 31, 30, 31, 32, 34, 38, 41, 45, 49, 52, 56, 58, 59, 60, 59, 58, 56], 40, 24]
+    expected: {"reserved": 41, "monthly_cents": 906480}
+    label: an hourly version of the lesson's curve, where instance 41 is busy 15 of 24 hours
+  - args: [[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10], 40, 24]
+    expected: {"reserved": 10, "monthly_cents": 172800}
+    label: flat demand reserves everything
+  - args: [[52, 49, 45, 41, 38, 34, 32, 31, 30, 31, 32, 34, 38, 41, 45, 49, 52, 56, 58, 59, 60, 59, 58, 56], 40, 40]
+    expected: {"reserved": 0, "monthly_cents": 1296000}
+    label: no discount, no reason to commit
+  - args: [[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10], 40, 50]
+    expected: {"reserved": 0, "monthly_cents": 288000}
+    label: a reservation dearer than on-demand
+  - args: [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 40, 24]
+    expected: {"reserved": 0, "monthly_cents": 0}
+    label: no demand
+  - args: [[10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 100], 40, 24]
+    expected: {"reserved": 10, "monthly_cents": 280800}
+    hidden: true
+    label: a one-hour spike stays on-demand
+  - args: [[52, 49, 45, 41, 38, 34, 32, 31, 30, 31, 32, 34, 38, 41, 45, 49, 52, 56, 58, 59, 60, 59, 58, 56], 40, 8]
+    expected: {"reserved": 58, "monthly_cents": 338880}
+    hidden: true
+    label: an 80% discount reserves almost to the peak
+  - args: [[5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10], 40, 20]
+    expected: {"reserved": 5, "monthly_cents": 144000}
+    hidden: true
+    label: instances busy exactly at break-even tie, so take the smaller R
+hints:
+  - "Write cost(R) directly from the formula and loop R from 0 to max(hourly)."
+  - "Compare with strictly less than, so the first (smallest) R keeps a tie."
+  - "Check your answer with the break-even rule: instance R should be busy in more than (reserved / on-demand) of the hours, and instance R + 1 should not."
+```
 
-**The uncounted resource.** The instance count was right, but connections, file descriptors, IP addresses in the subnet, or the account's instance quota ran out first. Mitigate: list every per-instance resource and multiply by the planned fleet.
+## Production failure modes
 
-**Optimistic per-instance numbers.** Load tested against a warm cache and one endpoint; production mix delivers half the throughput. Mitigate: production-shaped load, continuous re-measurement.
-
-**Cost surprises.** Log ingestion, cross-zone traffic, NAT gateways, egress and idle reservations appear on the bill a month after the design review. Mitigate: cost per request as a tracked metric per service, with an owner and a budget alert.
-
-**Autoscaling as a capacity plan.** Scaling policies take minutes; boot and warm-up take minutes more; in a regional incident everyone else is also asking for capacity. Mitigate: pre-scale for known events, keep failover headroom running rather than promised.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Planning on the average | Fleet fine all day, p99 violations every evening | p99 breaches correlate with the daily peak; fleet sized to mean rps | Plan on the forecast peak, including known events |
+| Stacked or missing headroom | A fleet at 46% of its knee at peak, or an outage when one zone fails | No record of which buffer covers which failure | Write the buffer-to-failure mapping; size so survivors run at the knee |
+| The uncounted resource | Instance count right, yet connections, file descriptors, subnet IP addresses or instance quota run out first | Per-instance resources never multiplied by fleet size | List every per-instance resource × planned fleet; check quotas weeks ahead |
+| Optimistic per-instance numbers | Production delivers half the load-tested throughput | Test hit a warm cache and one endpoint | Production-shaped load; squeeze tests per release |
+| Hidden bursts | Dashboards show 80% CPU, p99 misses SLO for seconds at a time | One-minute averages hide bursts that reach saturation | Plan against short-window peaks; keep 60–70% average on latency-sensitive services |
+| Cost surprises | Log ingestion, cross-zone traffic, NAT gateways or idle reservations appear on the bill a month after launch | Cost never tracked per request or per line item | Cost per request as a per-service metric with an owner and a budget alert |
 
 ## Interviewer follow-ups
 
-**Q: "Traffic doubles overnight because of a viral event. What breaks first?"**
+**"Traffic doubles overnight because of a viral event. What breaks first?"** Model answer: rarely the stateless tier, which autoscales, if slowly. First to break are shared, stateful and fixed-size things: database connections and CPU on the primary, cache memory and eviction rate, per-partition throughput on a hot key, and account quotas. Shed non-critical traffic at the edge, protect the core path, and scale the stateful tier first because it takes longest. Common wrong answer: "we autoscale", which covers the one tier least likely to fail.
 
-Rarely the stateless tier, because it autoscales, if slowly. The first things to break are shared, stateful and fixed-size: database connections and CPU on the primary, cache memory and eviction rate, per-partition throughput on a hot key, and account quotas. I would shed non-critical traffic at the edge immediately, protect the core path, and scale the stateful tier, which takes longest, first.
+**"Your cost per request rose 30% this quarter with flat traffic. How do you find out why?"** Model answer: break the bill down by line item and by service, per request, quarter on quarter. Flat traffic with rising cost usually means bytes, not CPU: a field that doubled response size, a log line on a hot path, a service moved to another zone, a dependency whose calls cross regions. Then make cost per request a dashboard metric so the next rise shows the week it ships. Common wrong answer: "profile the code for CPU hotspots", which targets a line item that is 11% of the bill.
 
-**Q: "Your cost per request went up 30% this quarter with flat traffic. How do you find out why?"**
+**"Would you reserve capacity for a service you plan to rewrite next year?"** Model answer: only a 1-year term, only up to the trough, and only if the replacement runs on the same family and region or the commitment follows usage across families. A 3-year term breaks even against 1-year terms only after about 24 months of use; used for 12, it costs more than on-demand. Common wrong answer: "yes, three years, because the discount is deepest".
 
-Break the bill down by line item and by service, per request, and compare quarter on quarter. Flat traffic with rising cost usually means bytes rather than CPU: a new field that doubled response size, a log line added to a hot path, a service moved to another zone, or a new dependency whose calls cross regions. I would make cost per request a dashboard metric per service so the next increase shows up the week it ships.
+**"Why not run every instance at 90% to save money?"** Model answer: latency is a queueing curve. A 16-worker instance looks fine at 90% under steady load, but real load bursts: in simulation, ±25% bursts around an 80% average quadrupled p99 because the peaks hit saturation. I run batch at 90%; for latency-sensitive services the saving from 70% to 90% is about 22% of the fleet and it buys SLO misses every busy minute. Common wrong answer: "the load test was flat up to 90%", which measured steady arrivals.
 
-**Q: "Would you reserve capacity for a service you plan to rewrite next year?"**
+**"How much headroom do you keep, and where does the number come from?"** Model answer: from the failures I design for: enough to lose one zone at peak within SLO, and in an active-active setup enough in each region to absorb a failed region's share, which with three regions means running at two-thirds. I do not stack a separate utilisation buffer on top of the failure headroom, and I say explicitly that during a failure at peak we run at the knee. Common wrong answer: "30%, as a rule of thumb", a number with no failure attached.
 
-Only a one-year term, only up to the trough, and only if the replacement will run on the same instance family and region or the commitment is a flexible plan that follows usage across families. A three-year reservation on something you plan to retire is a bet against your own roadmap.
+## What mid-level engineers get wrong
 
-**Q: "Why not run every instance at 90% to save money?"**
-
-Because latency is a queueing curve: at 90% utilisation a request waits roughly nine service times in the queue on average and far more at p99, and any burst tips it into timeouts, retries and more load. I would run batch fleets at 90%. For latency-sensitive services the saving from 70% to 90% is about 22% of the fleet, and it buys a service that misses its SLO every busy minute.
-
-**Q: "How much headroom do you keep, and where does the number come from?"**
-
-From the failures I am designing for: enough to lose one zone at peak within SLO, and, if the service is active-active across regions, enough in each region to absorb a failed region's share, which with three regions means running at two-thirds. I avoid stacking a separate utilisation buffer on top of the failure headroom, and I say explicitly that during a failure at peak we run at the knee.
+- **Sizing to the average.** A fleet sized to 37,500 rps misses its SLO every evening at 50,000.
+- **Trusting a synthetic load test.** One cached endpoint overstates capacity several-fold, and every derived number inherits the error.
+- **Stacking buffers.** A utilisation target plus zone headroom plus a safety margin gives 87 instances where 60 meet the same risk.
+- **Treating compute as the bill.** Logs, egress and cross-zone bytes were 80% of the example; tuning CPU cannot reach them.
+- **Reserving to the peak or for three years by default.** Idle reserved hours and stranded commitments cost more than on-demand.
+- **Forgetting lead time.** Quotas, commitments and hardware take days to months; a plan that starts at launch week is too late.
 
 ## Senior signals
 
-- You plan on **peak demand and throughput at the SLO**, and you find the knee with production-shaped load rather than trusting a synthetic maximum.
-- You explain the **60 to 70% target with queueing**, and you run batch at 90% without apology.
-- You make buffers **cover named failures** instead of stacking them, and you can show the fleet size each choice implies.
+- You derive **peak rps from users and behaviour**, and plan on **peak demand and throughput at the SLO**, found with production-shaped load.
+- You explain the **60–70% target with queueing**, including why a many-worker instance looks flat until bursts push it to saturation, and you run batch at 90%.
+- You make buffers **cover named failures** instead of stacking them, and you can show the fleet each choice implies.
 - You check **the uncounted resources**: connections, quotas, IP addresses, per-partition limits, lead times.
-- You compute **cost per request by line item** and expect bytes moved (logs, egress, cross-zone traffic) to rival compute.
-- You reserve **to the break-even point**, not to the peak, and you treat idle reserved trough capacity as free compute.
+- You compute **cost per request by line item** and expect bytes moved to rival compute.
+- You reserve **to the break-even point**, round down because the optimum is flat, and price the **risk of over-committing** before choosing a term.
 
 ## Check yourself
 
@@ -242,27 +369,33 @@ From the failures I am designing for: enough to lose one zone at peak within SLO
   explanation: >-
     After losing a zone, two zones must carry 50,000 rps at up to 1,250 rps each: 40 instances, so 20 per zone and 60 in total. 40 has no zone headroom; 87 stacks a separate 70% utilisation target on top of the zone headroom.
 - q: >-
-    In the simple M/M/1 model, what happens to queueing delay when utilisation rises from 80% to 90%?
-  options: ["It stays roughly flat until utilisation nears 100%", "It falls, because a busier server batches more work", "It rises by about 12%, tracking the change in load", "It roughly doubles, from about 4 to 9 service times"]
-  answer: 3
-  explanation: >-
-    Queueing delay grows as ρ/(1−ρ): 4 at 80%, 9 at 90%, 19 at 95%. That hockey stick is why latency-sensitive services target 60 to 70%. It is not linear in load, and it rises sharply well before 100%.
-- q: >-
-    A reservation gives a 40% discount. Which instances in an autoscaled fleet should you reserve?
-  options: ["Only instances busy more than 60% of the hours", "All instances, up to the fleet's size at daily peak", "None; on-demand is always cheaper with autoscaling", "Only the instances busy less than 40% of the hours"]
+    In the M/M/1 model, what happens to mean queueing delay when utilisation rises from 80% to 90%?
+  options: ["It roughly doubles, from 4 to 9 service times", "It rises by about 12%, tracking the change in load", "It stays roughly flat until utilisation nears 100%", "It falls, because a busier server batches its work"]
   answer: 0
   explanation: >-
-    A reserved instance costs 60% of on-demand whether used or not, so it pays off only when the instance would run more than 60% of the time. Reserving to the peak pays for idle capacity most of the day.
+    Queueing delay grows as ρ/(1 − ρ): 4 at 80%, 9 at 90%, 19 at 95%, which the simulation reproduced. It is not linear in load. A single worker has no pool to absorb randomness, so single-threaded hot spots must run far below saturation.
+- q: >-
+    A 16-worker service runs at 80% average utilisation, and its arrival rate swings 25% above and below that average. In the lesson's simulation, what happened to p99 compared with steady arrivals?
+  options: ["It rose over fourfold as bursts hit saturation", "It stayed flat, since 16 workers absorb the bursts", "It rose about 25%, in line with the load swing", "It fell, since the quiet periods drain the queue"]
+  answer: 0
+  explanation: >-
+    During bursts utilisation reaches 100%, the queue grows without bound for the length of the burst, and p99 went from 4.7 to 21.7 service times. At a 70% average the bursts peaked at 88% and p99 barely moved. Quiet periods drain the queue but cannot undo the waits already suffered.
+- q: >-
+    A reservation gives a 40% discount. Which instances in an autoscaled fleet should you reserve?
+  options: ["Only instances busy more than 60% of the hours", "All instances, up to the fleet's size at daily peak", "None, since on-demand is cheaper with autoscaling", "Only the instances busy less than 40% of the hours"]
+  answer: 0
+  explanation: >-
+    A reserved instance costs 60% of on-demand for every hour, used or not, so it pays off only when the instance would run more than 60% of the time. Reserving to the peak pays for idle capacity most of the day: in the lesson it cost $10,512 against $9,210 at break-even.
+- q: >-
+    A 3-year commitment is 60% off; a 1-year commitment is 40% off. You expect to migrate the service to a new instance family after 18 months. Which plan costs least for that capacity?
+  options: ["One 1-year term, then on-demand until the move", "One 3-year term, since its discount is deepest", "Two back-to-back 1-year terms covering the move", "On-demand for all eighteen months of use"]
+  answer: 0
+  explanation: >-
+    Commitments are paid for their whole term. In on-demand-months, one 1-year term costs 12 × 0.6 = 7.2, plus 6 months on-demand, 13.2 in all. The 3-year term costs 36 × 0.4 = 14.4 whatever happens, and two 1-year terms cost 24 × 0.6 = 14.4, because the second runs six months past the move. On-demand throughout costs 18. The deepest discount loses because a third of it is never used.
 - q: >-
     A service's bill is dominated by log ingestion and cross-zone data transfer rather than compute. What is the most effective first step?
   options: ["Move to larger instances to cut per-request overhead", "Add cache nodes to reduce the load on the database", "Sample success logs and keep traffic within each zone", "Rewrite the hot paths of the service in a faster language"]
   answer: 2
   explanation: >-
-    The dominant costs scale with bytes moved, not CPU. Sampling success logs and routing requests to same-zone replicas and caches attack the largest line items directly; faster code and bigger instances reduce a line that was a small share of the bill.
-- q: >-
-    Why is autoscaling not a sufficient plan for a premiere expected to triple traffic at 8 p.m.?
-  options: ["Autoscaling only works for batch jobs, not for web traffic", "Autoscaling is too expensive at triple the normal traffic", "It lags by minutes and cannot scale quotas or the database", "Autoscaling policies cannot scale beyond two times the base"]
-  answer: 2
-  explanation: >-
-    Scaling policies react over minutes, instances need minutes to boot and warm, and quotas or stateful tiers may not scale at all, so capacity must be in place before the spike. Known events are pre-scaled on a schedule. The other options are simply false.
+    The dominant costs scale with bytes moved, not CPU. Sampling success logs and routing to same-zone replicas and caches attack the largest line items directly; faster code and bigger instances reduce a line that was a small share of the bill.
 ```
