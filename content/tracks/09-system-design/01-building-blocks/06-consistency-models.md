@@ -2,7 +2,7 @@
 slug: consistency-models
 title: "Consistency models: what a client can actually observe"
 description: Linearizable, sequential, causal and eventual consistency as rules about which histories are legal, with concrete histories judged step by step, the anomaly each model allows, session guarantees such as read-your-writes implemented with log positions, and how etcd, ZooKeeper, DynamoDB, Spanner and MongoDB implement their promises.
-minutes: 25
+minutes: 35
 difficulty: hard
 tags: [system-design, consistency, linearizability, causal-consistency, replication]
 ---

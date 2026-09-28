@@ -2,7 +2,7 @@
 slug: processes-and-threads
 title: "Processes and threads: what the scheduler is doing to your code"
 description: The task_struct behind every process and thread, the clone flags that decide what is shared, what fork copies and what copy-on-write defers, measured context-switch and fork costs, how the Linux scheduler shares a core, and what a container really is.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [operating-systems, processes, threads, scheduling, containers, context-switch]
 ---

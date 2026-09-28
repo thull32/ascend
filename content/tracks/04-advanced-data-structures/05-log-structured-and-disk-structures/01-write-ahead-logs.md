@@ -2,7 +2,7 @@
 slug: write-ahead-logs
 title: "Write-ahead logs: how a commit survives a crash"
 description: Why every database appends to a log before touching its pages, what a log record looks like byte by byte in Postgres, RocksDB and Kafka, what fsync really promises and costs, how group commit amortises it, and how redo with page LSNs and checkpoints bound recovery time.
-minutes: 32
+minutes: 50
 difficulty: medium
 tags: [wal, durability, fsync, group-commit, checkpoint, storage-engine]
 ---

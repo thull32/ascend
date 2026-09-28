@@ -2,7 +2,7 @@
 slug: time-and-ordering
 title: "Time and ordering: why clocks lie and how Lamport and vector clocks tell the truth"
 description: Clock drift and NTP's offset arithmetic worked by hand, step versus slew, monotonic versus wall time, a simulation of how often last-writer-wins keeps the older write, happens-before, Lamport and vector clocks traced message by message on three processes, version vectors in Dynamo and Riak, hybrid logical clocks in CockroachDB, TrueTime's commit-wait arithmetic, and the rule to never let a timestamp decide correctness.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [system-design, distributed-systems, clocks, lamport-clock, vector-clock, happens-before, ordering, hlc, truetime]
 ---

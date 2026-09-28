@@ -2,7 +2,7 @@
 slug: the-content-engine
 title: "The content engine: Markdown compiled into the binary"
 description: How Ascend embeds hundreds of lessons with include_dir, extracts interactive blocks, hides quiz answers, validates every reference at build time, serves from memory with ETags and searches without a search service.
-minutes: 43
+minutes: 45
 difficulty: hard
 tags: [case-study, content-as-code, caching, etag, validation, search, rust]
 ---

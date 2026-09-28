@@ -2,7 +2,7 @@
 slug: url-shortener
 title: "URL shortener: key generation, a 60k rps read path and click analytics"
 description: A senior-bar design for a link shortener at 500 million new links a month, with every estimate worked to machine counts, a create traced through a key collision, a viral link traced through three cache layers, a click traced from redirect to dashboard, and how the design changes at 10x and 100x.
-minutes: 42
+minutes: 45
 difficulty: medium
 tags: [system-design, case-study, url-shortener, base62, caching, key-generation, analytics, hot-keys]
 ---

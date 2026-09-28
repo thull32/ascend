@@ -2,7 +2,7 @@
 slug: one-dimensional-dp
 title: "One-dimensional DP: house robber, coin change, decode ways"
 description: Derive the state and transition for the classic 1-D problems, watch each table fill, and learn the loop-order rule that separates counting combinations from counting permutations.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [dynamic-programming, 1d-dp, house-robber, coin-change, decode-ways]
 problems: [house-robber, house-robber-ii, coin-change, coin-change-ii, decode-ways]

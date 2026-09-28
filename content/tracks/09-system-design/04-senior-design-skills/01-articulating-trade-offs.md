@@ -2,7 +2,7 @@
 slug: articulating-trade-offs
 title: "Articulating trade-offs: comparing options so your judgement is visible"
 description: A repeatable structure for stating a design choice with its cost, a weighted decision matrix worked end to end with the sensitivity analysis that finds the pivot, why weighted sums mislead, one-way and two-way doors priced as expected cost, and how to say what you would not build.
-minutes: 25
+minutes: 40
 difficulty: hard
 tags: [system-design, senior-skills, trade-offs, decision-making, decision-matrix, sensitivity-analysis, interviews]
 ---

@@ -2,7 +2,7 @@
 slug: count-min-sketch-and-hyperloglog
 title: "Count-min sketch and HyperLogLog: counting in kilobytes"
 description: Frequency estimation with a count-min sketch and cardinality estimation with HyperLogLog, with every cell and register traced on concrete data, the error bounds derived and checked by simulation, what Redis, BigQuery, ClickHouse, Spark and Caffeine actually run, and the ways each one fails in production.
-minutes: 40
+minutes: 45
 difficulty: hard
 tags: [count-min-sketch, hyperloglog, probabilistic, streaming, analytics, cardinality]
 ---

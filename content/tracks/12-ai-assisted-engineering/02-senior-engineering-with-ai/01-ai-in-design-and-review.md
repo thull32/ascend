@@ -2,7 +2,7 @@
 slug: ai-in-design-and-review
 title: "AI in design docs, ADRs and code review"
 description: Use AI to widen the option space and stress-test designs while keeping the decision, catch the confident errors in generated designs by hand, run a pre-mortem as a reusable command, draft ADRs without outsourcing the reasoning, know what AI code review sees and misses, tune a review bot by its acted-on rate, and manage the review burden that cheap generation creates.
-minutes: 20
+minutes: 25
 difficulty: hard
 tags: [ai-tools, design-docs, adr, code-review, system-design, leadership]
 ---

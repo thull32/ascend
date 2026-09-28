@@ -2,7 +2,7 @@
 slug: stack-heap-and-the-call-stack
 title: "Stack, heap and the call stack: where your variables actually live"
 description: What a stack frame contains, why stack allocation is nearly free and heap allocation is not, how deep recursion really fails in Python, JavaScript, Go and Rust, and when to convert recursion to an explicit stack.
-minutes: 30
+minutes: 45
 difficulty: intro
 tags: [memory, call-stack, recursion, stack-overflow, heap]
 problems: []

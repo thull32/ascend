@@ -2,7 +2,7 @@
 slug: layers-and-encapsulation
 title: "Layers and encapsulation: what a packet actually looks like"
 description: One HTTPS request taken apart byte by byte (Ethernet, IPv4, TCP, TLS record), the MTU and MSS arithmetic behind 1500, 1460, 1448 and 1388, fragmentation traced, what the Linux kernel and the NIC actually do on send and receive, and where the clean layer model leaks in production.
-minutes: 22
+minutes: 45
 difficulty: intro
 tags: [networking, osi, tcp-ip, encapsulation, mtu, mss, headers, fragmentation, pmtud]
 problems: []

@@ -2,7 +2,7 @@
 slug: sql-and-query-plans
 title: "SQL and query plans: how the optimiser turns your query into work"
 description: Read EXPLAIN (ANALYZE, BUFFERS) node by node, compute the planner's cost by hand, see seq, index and bitmap scans and all three join algorithms measured on the same data, and learn how statistics, correlation and LIMIT produce plans that are right on paper and 1,700 times too slow in production.
-minutes: 32
+minutes: 35
 difficulty: medium
 tags: [sql, explain, query-planner, joins, statistics, postgres, cost-model]
 ---

@@ -2,7 +2,7 @@
 slug: binary-heap-mechanics
 title: "Binary heap mechanics: an array that behaves like a tree"
 description: The complete-tree array layout, sift-up and sift-down traced by hand, why heapify is O(n) and not O(n log n), what CPython, Java and Rust actually do inside push and pop, and heap sort as the payoff.
-minutes: 40
+minutes: 55
 difficulty: medium
 tags: [heaps, priority-queue, heapify, heap-sort, complete-binary-tree]
 problems: [kth-largest-array, last-stone-weight, kth-largest-stream]

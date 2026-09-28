@@ -2,7 +2,7 @@
 slug: the-relational-model
 title: "The relational model: relations, keys and normal forms"
 description: What a relation is and what a row costs on a Postgres page, how keys and foreign keys are enforced and what that costs per row, the closure algorithm behind every normal form, the anomalies each form prevents, and when a senior engineer denormalises on purpose.
-minutes: 28
+minutes: 40
 difficulty: medium
 tags: [relational-model, normalisation, keys, schema-design, postgres, foreign-keys, functional-dependencies]
 ---

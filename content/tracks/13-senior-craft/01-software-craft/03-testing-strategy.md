@@ -2,7 +2,7 @@
 slug: testing-strategy
 title: "Testing strategy: the pyramid, contract and property tests, test data and flaky tests"
 description: Decide which level each behaviour should be tested at, use contract and property-based tests where examples fall short, keep test data isolated, and treat flaky tests as the production bugs they usually are.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [testing, test-pyramid, contract-testing, property-based-testing, flaky-tests, ci, senior-craft]
 ---

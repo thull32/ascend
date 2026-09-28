@@ -2,7 +2,7 @@
 slug: mapreduce
 title: "MapReduce: the shuffle made visible"
 description: How MapReduce splits a job into map, shuffle and reduce, what the sort buffer, spill files and shuffle fetches actually do, why combiners and partitioners decide the cost, how it survives failures, and why Spark replaced it.
-minutes: 28
+minutes: 45
 difficulty: medium
 tags: [big-data, mapreduce, hadoop, shuffle, combiner, partitioning, data-skew, batch-processing]
 problems: [top-k-frequent]

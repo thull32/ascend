@@ -2,7 +2,7 @@
 slug: classic-greedy-algorithms
 title: "Classic greedy algorithms: Huffman, jumps, gas and cuts"
 description: Huffman coding traced to the bit, jump game and gas station with their stays-ahead proofs, task scheduling by formula and by heap, and Dijkstra, Prim and Kruskal reread as greedy on a cut.
-minutes: 45
+minutes: 55
 difficulty: medium
 tags: [greedy, huffman, jump-game, gas-station, task-scheduling, dijkstra, mst]
 problems: [jump-game, jump-game-ii, gas-station, task-scheduler, reorganize-string, network-delay-time, min-cost-connect-points]

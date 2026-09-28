@@ -2,7 +2,7 @@
 slug: fenwick-trees
 title: "Fenwick trees: prefix sums in ten lines and n integers"
 description: How the binary indexed tree uses the lowest set bit to answer prefix sums and point updates in O(log n), with the query and update index paths listed for concrete indices, why it is 1-indexed, range updates with one and two trees, 2D trees, the bisect-style k-th element descent, AtCoder's implementation and measured costs.
-minutes: 38
+minutes: 45
 difficulty: medium
 tags: [fenwick-tree, binary-indexed-tree, prefix-sum, bit-manipulation, inversions, order-statistics]
 problems: [range-sum-query-immutable, subarray-sum-equals-k]

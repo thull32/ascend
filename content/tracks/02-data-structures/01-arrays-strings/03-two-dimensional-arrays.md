@@ -2,7 +2,7 @@
 slug: two-dimensional-arrays
 title: Two-dimensional arrays and grids
 description: Row-major layout traced to the byte, why loop order changes speed 20× (measured), the aliasing bug in `[[0]*w]*h`, grids as implicit graphs, and in-place rotation and transposition traced swap by swap.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [arrays, matrix, grid, row-major, cache, in-place, strides]
 problems: [rotate-image, spiral-matrix, set-matrix-zeroes, number-of-islands]

@@ -2,7 +2,7 @@
 slug: rust-essentials
 title: "Rust essentials: ownership, borrowing, Send/Sync and async, read through a real backend"
 description: Ownership, borrowing, lifetimes, enums, traits, Send/Sync and async Rust explained by mechanism, with real compiler errors traced, measured sizes and costs, a hand-built future and executor, and this app's Axum backend read line by line.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [rust, ownership, borrowing, lifetimes, traits, async, tokio, pin, languages]
 ---

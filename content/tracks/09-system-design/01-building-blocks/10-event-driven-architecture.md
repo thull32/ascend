@@ -2,7 +2,7 @@
 slug: event-driven-architecture
 title: "Event-driven architecture: events, outboxes, sagas and schemas that survive change"
 description: Events versus commands, event sourcing with a projection rebuilt from the log by hand, optimistic concurrency and CQRS, choreography versus orchestration, the dual write and the transactional outbox traced through a relay crash, per-key ordering, and schema compatibility as registries and wire formats actually define it.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, event-driven, event-sourcing, cqrs, outbox, cdc, schema-evolution, choreography, orchestration]
 ---

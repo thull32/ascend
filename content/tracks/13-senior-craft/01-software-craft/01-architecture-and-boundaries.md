@@ -2,7 +2,7 @@
 slug: architecture-and-boundaries
 title: "Architecture and boundaries: layers, dependency direction and hexagonal design"
 description: Where to draw boundaries so the domain stays testable and the framework replaceable, why dependencies must point inward, and how this app's core/api split and middleware stack put that into practice.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [architecture, boundaries, hexagonal-architecture, dependency-inversion, modular-monolith, middleware, senior-craft]
 ---

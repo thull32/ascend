@@ -2,7 +2,7 @@
 slug: hash-tables
 title: "Hash tables: from hash function to O(1)"
 description: How chaining and open-addressing tables actually store data, a hand trace of a probe cluster forming, the load-factor mathematics behind every runtime's resize threshold, and what CPython, Rust, Java, Go and V8 really do per entry.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [hashing, hash-map, dictionary, open-addressing, chaining, load-factor, tombstones, swisstable, cpython-dict]
 problems: [two-sum, group-anagrams]

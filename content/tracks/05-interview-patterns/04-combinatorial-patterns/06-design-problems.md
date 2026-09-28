@@ -2,7 +2,7 @@
 slug: design-problems
 title: "Design problems: compose two structures and state the invariant that binds them"
 description: Turn "implement a class supporting these operations in O(1)" into an operation table, pick one structure per requirement and bind them with an invariant, and see Insert Delete GetRandom, LRU, LFU, Min Stack, Design Twitter and a ring buffer traced with their internal structures after every operation, plus what OrderedDict, random.choice and the GIL actually do.
-minutes: 33
+minutes: 45
 difficulty: medium
 tags: [design, data-structure-design, hash-map, linked-list, ring-buffer, invariants, pattern:design]
 problems: [lru-cache, time-based-kv, min-stack, design-hashmap, design-circular-queue, insert-delete-getrandom, kth-largest-stream, design-twitter, find-median-data-stream]

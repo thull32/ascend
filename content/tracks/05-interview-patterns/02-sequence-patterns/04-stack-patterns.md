@@ -2,7 +2,7 @@
 slug: stack-patterns
 title: "Stack patterns: matching, evaluation and simulation"
 description: When a problem's structure is nested or last-in-first-out, a stack is the whole algorithm. The four stack families and the signal and near-misses that select each, Valid Parentheses, Min Stack, Evaluate RPN, Decode String and Car Fleet traced state by state, the amortised bound, and what integer division, recursion limits and string building cost in CPython and V8.
-minutes: 32
+minutes: 40
 difficulty: medium
 tags: [pattern:stack, stack, parsing, evaluation, simulation]
 problems: [valid-parentheses, min-stack, evaluate-rpn, generate-parentheses, daily-temperatures, car-fleet, largest-rectangle-histogram, decode-string]

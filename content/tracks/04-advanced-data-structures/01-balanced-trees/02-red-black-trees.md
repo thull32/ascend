@@ -2,7 +2,7 @@
 slug: red-black-trees
 title: "Red-black trees: why the standard library chose them"
 description: The five colour rules, the 2 log n height proof, the 2-3-4 tree intuition that makes insertion cases obvious, insertion and deletion traced case by case with the rules checked, the node layouts in std::map, TreeMap and the Linux kernel, and why they beat AVL for std libraries.
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [red-black-tree, balanced-bst, rotations, ordered-map, std-map, treemap]
 problems: [validate-bst, balanced-binary-tree]

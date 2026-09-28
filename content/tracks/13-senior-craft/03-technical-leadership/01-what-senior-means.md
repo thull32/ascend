@@ -2,7 +2,7 @@
 slug: what-senior-means
 title: "What senior means: scope, ambiguity, ownership and leverage"
 description: A levels rubric for scope, ambiguity, impact and influence, the same two projects done at mid-level and at senior scope side by side, how promotion packets and calibration committees actually read the evidence, and how to show the level in interviews.
-minutes: 22
+minutes: 35
 difficulty: intro
 tags: [leadership, career, levels, senior-engineer, scope, ownership, leverage, promotion]
 ---

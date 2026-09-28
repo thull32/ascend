@@ -2,7 +2,7 @@
 slug: n-ary-trees-and-serialization
 title: "N-ary trees and serialisation"
 description: How general trees are represented (children lists, parent arrays, left-child right-sibling), how to serialise any tree so it can be rebuilt exactly, and what file systems, DOMs and tries have in common.
-minutes: 35
+minutes: 45
 difficulty: medium
 tags: [trees, n-ary, serialization, deserialization, file-system]
 problems: [serialize-deserialize, subtree-of-another, same-tree]

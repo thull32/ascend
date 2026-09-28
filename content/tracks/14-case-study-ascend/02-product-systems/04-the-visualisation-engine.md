@@ -2,7 +2,7 @@
 slug: the-visualisation-engine
 title: "The visualisation engine: frames, pure generators and a DSL"
 description: How Ascend makes roughly 230 step-by-step animations scrubbable, deterministic and testable by treating each one as a pure function from input to a capped list of snapshots.
-minutes: 38
+minutes: 45
 difficulty: hard
 tags: [case-study, frontend, react, testing, property-testing, dsl, determinism]
 ---

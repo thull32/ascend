@@ -2,7 +2,7 @@
 slug: trie-pattern
 title: "Trie: the tree you build when the problem is about prefixes"
 description: Recognise prefix, wildcard and many-words-against-one-board problems, write the node-and-children trie from memory, see Implement Trie, Add and Search Words, Word Search II and Replace Words traced node by node, and know what a node costs in memory in Python and JavaScript.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [trie, prefix-tree, strings, dfs, pattern:trie]
 problems: [implement-trie, design-add-search-words, word-search-ii, replace-words]

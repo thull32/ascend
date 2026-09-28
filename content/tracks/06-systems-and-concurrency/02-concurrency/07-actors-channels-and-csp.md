@@ -2,7 +2,7 @@
 slug: actors-channels-and-csp
 title: "Actors, channels and CSP: sharing memory by communicating"
 description: Message passing as an alternative to locks, from Go's channels (hchan internals traced, costs and a goroutine leak measured) and Rust's ownership-enforced channels to Tokio's bounded mpsc and Erlang's supervised actors and mailboxes, with bounded versus unbounded queues and backpressure.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [concurrency, channels, csp, actors, go, rust, erlang, message-passing, backpressure]
 ---

@@ -2,7 +2,7 @@
 slug: aho-corasick
 title: "Aho-Corasick: matching thousands of patterns in one pass"
 description: How a trie plus KMP-style failure links matches every pattern in a dictionary against a text in O(n + m + z), traced by hand on a real pattern set; dictionary links, the full-DFA memory arithmetic, leftmost-first semantics, and what the Rust aho-corasick crate, Snort, Suricata, Hyperscan, GNU grep and ClamAV do with it.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [aho-corasick, trie, string-matching, kmp, automaton, dfa, intrusion-detection]
 problems: [implement-trie, word-search-ii]

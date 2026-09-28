@@ -2,7 +2,7 @@
 slug: cycle-detection
 title: Cycle detection
 description: Floyd's tortoise and hare with the full proof (when they meet, and why the head-to-start distance equals the meeting-point-to-start distance modulo the cycle length), per-iteration traces, Brent's faster variant with measured evaluation counts, and the same algorithm on arrays, number sequences, generators, factoring and state machines.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [linked-list, cycle-detection, floyd, brent, fast-slow, two-pointers, proof, functional-graph, pollard-rho]
 problems: [linked-list-cycle, find-duplicate-number, happy-number]

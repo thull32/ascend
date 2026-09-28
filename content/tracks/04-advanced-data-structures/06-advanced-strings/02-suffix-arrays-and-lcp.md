@@ -2,7 +2,7 @@
 slug: suffix-arrays-and-lcp
 title: "Suffix arrays and LCP: index the text once, query forever"
 description: Prefix doubling and Kasai's algorithm traced round by round on banana, binary search over suffixes with the bounds written out, what the LCP array unlocks (longest repeat, distinct substrings, LCP intervals), the FM-index arithmetic behind BWA and Bowtie, why Lucene uses none of this, and the ways suffix-array code fails in production.
-minutes: 38
+minutes: 45
 difficulty: hard
 tags: [suffix-array, lcp, kasai, prefix-doubling, sa-is, fm-index, bwt, string-matching, binary-search, genomics, full-text-search]
 problems: [longest-repeating-replacement]

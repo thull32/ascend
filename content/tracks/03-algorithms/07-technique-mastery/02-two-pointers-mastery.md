@@ -2,7 +2,7 @@
 slug: two-pointers-mastery
 title: "Two-pointer mastery: the pair-table proof, three pointers and what sorting buys"
 description: Prove that two pointers never skip the answer by picturing the table of all pairs, bound the running time with a potential argument, extend the idea to three pointers and several arrays, and know exactly when sorting beats a hash map.
-minutes: 42
+minutes: 50
 difficulty: hard
 tags: [two-pointers, invariants, proofs, sorted-array, three-pointers, partition]
 problems: [two-sum-sorted, three-sum, container-with-most-water, trapping-rain-water, valid-palindrome, remove-duplicates-sorted, move-zeroes, sort-colors, two-sum]

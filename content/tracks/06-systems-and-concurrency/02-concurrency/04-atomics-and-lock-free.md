@@ -2,7 +2,7 @@
 slug: atomics-and-lock-free
 title: "Atomics, memory ordering and lock-free code"
 description: What atomic instructions do in the cache-coherence protocol (MESI traced, contention measured), compare-and-swap loops, acquire/release ordering and why x86 hides bugs that ARM exposes (with a litmus test run on real hardware), the ABA problem traced, why hazard pointers and epochs exist, lock-free queues, false sharing, and when lock-free code is the wrong answer.
-minutes: 35
+minutes: 45
 difficulty: hard
 tags: [concurrency, atomics, cas, memory-ordering, lock-free, aba, false-sharing, memory-model]
 ---

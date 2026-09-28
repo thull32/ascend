@@ -2,7 +2,7 @@
 slug: stateful-streaming
 title: "Stateful streaming: state backends, checkpoints and rescaling"
 description: Where a stream processor keeps per-key state; a checkpoint barrier traced through source, keyed aggregation and transactional sink with the offsets and state it snapshots, aligned and unaligned; RocksDB versus heap, incremental checkpoints as SST uploads, TTL and the checkpoint arithmetic; Kafka Streams changelogs and standby replicas; two-phase-commit sinks and their interplay with Kafka transactions; rescaling through key groups.
-minutes: 29
+minutes: 30
 difficulty: expert
 tags: [big-data, streaming, flink, kafka-streams, state, checkpointing, rocksdb, exactly-once, rescaling]
 ---

@@ -2,7 +2,7 @@
 slug: queues-and-async-processing
 title: "Queues and async processing: Kafka, RabbitMQ, SQS and the guarantees they actually give"
 description: When a queue is the right tool, why utilisation decides its latency (M/M/1 and Little's law, simulated), how logs differ from brokers differ from managed queues, at-least-once redelivery traced through a crash, visibility timeouts, poison messages and DLQs, ordering and lag.
-minutes: 30
+minutes: 40
 difficulty: hard
 tags: [system-design, kafka, rabbitmq, sqs, message-queue, delivery-guarantees, dead-letter-queue, queueing-theory, littles-law, backpressure]
 ---

@@ -2,7 +2,7 @@
 slug: llm-security
 title: "LLM security: prompt injection, exfiltration and least privilege"
 description: Why prompt injection is structural rather than a bug, an indirect injection traced message by message through a tool-using email agent, the channels data leaks through and how much each carries, the lethal trifecta, defence layers and exactly which step each one stops, and the least-privilege, sandboxing and output-handling controls that contain a successful attack.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [llm, security, prompt-injection, exfiltration, sandboxing, least-privilege, ai]
 ---

@@ -2,7 +2,7 @@
 slug: two-pointers
 title: "Two pointers: ruling out pairs a whole row at a time"
 description: When two indices walking towards or alongside each other replace a nested loop, how to prove they never skip the answer, and Three Sum, Container With Most Water and Trapping Rain Water traced step by step.
-minutes: 32
+minutes: 50
 difficulty: medium
 tags: [two-pointers, arrays, sorted-input, in-place, pattern:two-pointers]
 problems: [valid-palindrome, two-sum-sorted, three-sum, container-with-most-water, trapping-rain-water, remove-duplicates-sorted, move-zeroes, sort-colors]

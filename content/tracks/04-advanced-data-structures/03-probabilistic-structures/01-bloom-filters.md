@@ -2,7 +2,7 @@
 slug: bloom-filters
 title: "Bloom filters: membership in ten bits per key"
 description: How a bit array and k hash functions answer "is this key present?" with zero false negatives, the bits traced for ten concrete keys, the false-positive formula derived and checked against the trace, how to size one from a target rate, what Guava, RocksDB (blocked Bloom and Ribbon), Cassandra and Postgres actually build, and why LSM engines and CDNs cannot live without them.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [bloom-filter, hashing, probabilistic, lsm-tree, caching]
 ---

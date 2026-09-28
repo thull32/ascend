@@ -2,7 +2,7 @@
 slug: exactly-once-semantics
 title: "Exactly-once semantics: what Kafka's guarantee covers and what your sink must do"
 description: Why exactly-once delivery is impossible and exactly-once processing is not; Kafka's idempotent producer traced batch by batch (sequence numbers, the five-batch window, OutOfOrderSequence) and its transactions traced request by request through the coordinator, markers and the last stable offset, with a zombie-fencing timeline; the end-to-end argument applied to side effects; dedupe stores sized and their races; and the sink patterns that make a payment pipeline effectively-once.
-minutes: 30
+minutes: 35
 difficulty: expert
 tags: [system-design, distributed-systems, exactly-once, kafka, idempotent-producer, transactions, deduplication]
 ---

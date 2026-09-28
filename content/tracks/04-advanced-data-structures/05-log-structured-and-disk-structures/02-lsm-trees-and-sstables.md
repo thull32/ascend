@@ -2,7 +2,7 @@
 slug: lsm-trees-and-sstables
 title: "LSM trees and SSTables: turning random writes into sequential ones"
 description: How a memtable, sorted immutable files, tombstones and background compaction make RocksDB and Cassandra absorb write-heavy workloads, with a flush-and-compaction timeline traced in megabytes, the SSTable block format, RocksDB's real constants, and what read amplification and write stalls cost you.
-minutes: 27
+minutes: 45
 difficulty: hard
 tags: [lsm-tree, sstable, compaction, memtable, rocksdb, cassandra, bloom-filter]
 ---

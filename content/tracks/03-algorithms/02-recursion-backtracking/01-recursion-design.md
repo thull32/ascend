@@ -2,7 +2,7 @@
 slug: recursion-design
 title: "Recursion design: base cases, trust, and the call stack"
 description: How to design a recursive function you can prove terminates, what each call costs on the stack, when to convert it to a loop, and why tail calls will not save you in Python or JavaScript.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [recursion, call-stack, induction, tail-calls, iteration]
 problems: [pow-x-n]

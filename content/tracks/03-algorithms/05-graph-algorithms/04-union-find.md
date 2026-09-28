@@ -2,7 +2,7 @@
 slug: union-find
 title: "Union-find: near-constant connectivity under merges"
 description: The parent-pointer forest, why union by rank bounds height at log n, what path compression does to that bound, the inverse Ackermann guarantee, and the offline-connectivity trick that turns dynamic questions into one sorted pass.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [graphs, union-find, disjoint-set, path-compression, union-by-rank, connectivity, kruskal]
 problems: [redundant-connection, accounts-merge, number-of-provinces, graph-valid-tree]

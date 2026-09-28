@@ -2,7 +2,7 @@
 slug: invariants-and-loop-reasoning
 title: "Invariants and loop reasoning: knowing your code is right before you run it"
 description: Loop invariants, preconditions and postconditions as a working tool, used to derive and prove two-pointer pair-sum and binary search code, choose a bracketing convention, and understand what asserts and compilers do with the invariants you write.
-minutes: 45
+minutes: 55
 difficulty: easy
 tags: [correctness, invariants, two-pointers, binary-search, proofs]
 problems: [two-sum-sorted, binary-search-basic, first-bad-version]

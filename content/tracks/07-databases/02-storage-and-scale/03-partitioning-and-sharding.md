@@ -2,7 +2,7 @@
 slug: partitioning-and-sharding
 title: "Partitioning and sharding: splitting a table, then splitting a database"
 description: What Postgres partition pruning actually buys (measured against a flat table), why retention is the real win, what thousands of partitions cost the planner, how to choose a shard key with hot-key arithmetic, what cross-shard queries cost at the tail, and a resharding plan with numbers.
-minutes: 32
+minutes: 30
 difficulty: hard
 tags: [partitioning, sharding, shard-key, partition-pruning, resharding, hot-keys, postgres, citus, vitess]
 ---

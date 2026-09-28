@@ -2,7 +2,7 @@
 slug: modular-arithmetic-and-hashing-math
 title: "Modular arithmetic and the math behind hashing"
 description: What mod really does (including to negative numbers in each language), how to compute without overflow, how polynomial and rolling hashes work, and why primes keep showing up in table sizes and multipliers.
-minutes: 45
+minutes: 60
 difficulty: medium
 tags: [math, modular-arithmetic, hashing, overflow, rolling-hash]
 problems: [pow-x-n, reverse-integer, happy-number]

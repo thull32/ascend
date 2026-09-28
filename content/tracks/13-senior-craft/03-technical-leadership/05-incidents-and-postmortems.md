@@ -2,7 +2,7 @@
 slug: incidents-and-postmortems
 title: "Incidents and postmortems: command, communication and blameless learning"
 description: A severity matrix, incident roles, one incident worked minute by minute from detection to resolution, a blameless postmortem written in full with five whys and contributing factors, action items tracked to done, and how on-call rotations and paging policies work underneath.
-minutes: 25
+minutes: 30
 difficulty: medium
 tags: [leadership, incidents, on-call, postmortems, incident-command, sre, reliability, error-budgets]
 ---

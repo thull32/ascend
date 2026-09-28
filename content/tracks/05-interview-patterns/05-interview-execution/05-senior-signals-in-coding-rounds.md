@@ -2,7 +2,7 @@
 slug: senior-signals-in-coding-rounds
 title: "Senior signals in coding rounds: same problem, different rating"
 description: What separates a senior rating from a mid-level one when two candidates write the same correct code, shown as two annotated, timestamped LRU Cache rounds with the interviewer's notes and the two resulting write-ups side by side, plus the follow-up ladder, measured production numbers and AI-assisted rounds.
-minutes: 19
+minutes: 30
 difficulty: medium
 tags: [interview, senior, coding-round, levelling, lru-cache, ai-assisted]
 problems: [lru-cache, merge-intervals, time-based-kv]

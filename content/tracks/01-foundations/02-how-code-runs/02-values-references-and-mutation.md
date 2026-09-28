@@ -2,7 +2,7 @@
 slug: values-references-and-mutation
 title: "Values, references and mutation: what a variable actually holds"
 description: Why the same assignment copies in Go, aliases in Python and JavaScript, and moves in Rust; the aliasing bugs that follow; and what shallow and deep copies really cost.
-minutes: 30
+minutes: 40
 difficulty: intro
 tags: [memory, references, mutation, aliasing, copying, value-semantics]
 problems: []

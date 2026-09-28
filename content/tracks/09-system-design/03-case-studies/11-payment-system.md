@@ -2,7 +2,7 @@
 slug: payment-system
 title: "Design a payment system: idempotency, double-entry ledgers and reconciliation"
 description: A subscription-scale payments platform worked end to end, with one checkout traced through authorisation, capture and the ledger, the unknown outcome of a timed-out call, idempotency at every boundary, a double-entry ledger with a measured hot-account bottleneck, and a day of reconciliation worked line by line.
-minutes: 40
+minutes: 35
 difficulty: expert
 tags: [system-design, case-study, payments, idempotency, ledger, double-entry, reconciliation, outbox, exactly-once]
 ---

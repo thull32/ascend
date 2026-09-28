@@ -2,7 +2,7 @@
 slug: sparse-tables-and-sqrt-decomposition
 title: "Sparse tables and sqrt decomposition: O(1) queries and block summaries"
 description: Why idempotent operations allow O(1) range queries on static data, with the two-window overlap proved and traced, the memory of a sparse table at a million elements, the disjoint sparse table for sums, square-root block arithmetic and Mo's query ordering traced move by move, and how block summaries run inside columnar stores.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [sparse-table, range-minimum-query, sqrt-decomposition, mo-algorithm, columnar, disjoint-sparse-table]
 problems: [sliding-window-maximum]

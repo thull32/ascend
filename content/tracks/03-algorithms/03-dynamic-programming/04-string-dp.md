@@ -2,7 +2,7 @@
 slug: string-dp
 title: "String DP: LCS, edit distance, palindromes and regex"
 description: Two-string DP with prefix states, the LCS and edit-distance tables filled cell by cell, palindromes as interval states, and the regex-matching recurrence including the star case.
-minutes: 50
+minutes: 55
 difficulty: hard
 tags: [dynamic-programming, string-dp, lcs, edit-distance, palindrome, regex]
 problems: [longest-common-subsequence, edit-distance, longest-palindromic-substring, palindromic-substrings, regular-expression-matching, interleaving-string, distinct-subsequences]

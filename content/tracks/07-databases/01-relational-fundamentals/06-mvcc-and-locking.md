@@ -2,7 +2,7 @@
 slug: mvcc-and-locking
 title: "MVCC and locking: how Postgres lets readers and writers coexist"
 description: Row versions traced through INSERT, UPDATE, HOT chains and VACUUM with pageinspect, snapshots and visibility rules, bloat from a pinned xmin horizon measured, wraparound, row and table locks, a deadlock caught in pg_locks, and a SKIP LOCKED job queue that is fifteen times faster than the naive one.
-minutes: 27
+minutes: 35
 difficulty: hard
 tags: [mvcc, vacuum, locking, deadlock, postgres, concurrency, skip-locked, hot-updates]
 problems: [time-based-kv]

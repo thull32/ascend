@@ -2,7 +2,7 @@
 slug: graphs-in-the-real-world
 title: "Graphs in the real world: modelling problems as graphs"
 description: How to recognise the graph hidden in a problem, choose vertices and edges deliberately, decide whether to build the graph or explore it implicitly, and the recurring shapes (social, dependency, state machine, bipartite) with the algorithms they unlock.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [graphs, modelling, state-machine, social-graph, dependency-graph, implicit-graph]
 problems: [word-ladder, clone-graph, accounts-merge, graph-valid-tree, alien-dictionary]

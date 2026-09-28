@@ -2,7 +2,7 @@
 slug: python-idioms-for-interviews
 title: "Python idioms for interviews: the standard library, its measured costs and its traps"
 description: The comprehensions, collections, heapq, bisect and itertools idioms that make Python the densest interview language, with the complexity and measured CPython 3.14 cost of every builtin used, how the containers are built underneath, and the traps (mutable defaults, late binding, integer caching) that turn a correct idea into a failing run.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [python, idioms, collections, heapq, bisect, itertools, interviews, languages]
 problems: [top-k-frequent, kth-largest-array, time-based-kv, group-anagrams, lru-cache]

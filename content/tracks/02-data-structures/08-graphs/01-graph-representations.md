@@ -2,7 +2,7 @@
 slug: graph-representations
 title: "Graph representations: lists, matrices and implicit graphs"
 description: Adjacency lists, adjacency matrices, edge lists and CSR with their real memory and time costs, directed and weighted variants and their bugs, what networkx, scipy and Neo4j do under the hood, and the implicit graphs (grids, states, words) you traverse without ever building.
-minutes: 35
+minutes: 50
 difficulty: easy
 tags: [graphs, adjacency-list, adjacency-matrix, representation, implicit-graph]
 problems: [clone-graph, number-of-islands, count-components]

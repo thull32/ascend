@@ -2,7 +2,7 @@
 slug: depth-first-search
 title: "Depth-first search: recursion, explicit stacks and edge types"
 description: DFS as recursion and as an explicit stack that visits in the same order, discovery and finish times traced by hand, the four edge types with the interval rule for each, the parenthesis and white-path theorems, path finding and backtracking, and the recursion-depth failure you will hit in production in Python, Java and Node.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [graphs, dfs, recursion, stack, edge-classification, backtracking]
 problems: [number-of-islands, clone-graph, pacific-atlantic, surrounded-regions, max-area-island]

@@ -2,7 +2,7 @@
 slug: lru-cache
 title: "LRU cache: hash map plus doubly linked list, O(1) everything"
 description: "The classic design question built from first principles: why neither a hash map nor a list alone works, the pointer writes of every operation traced, how CPython's OrderedDict and functools.lru_cache implement it and what a hit and an entry cost in CPython and Node, the follow-ups interviewers ask next, and how Redis, Linux, InnoDB, memcached and Caffeine approximate LRU instead of implementing it."
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [lru, cache, linked-list, hash-map, design]
 problems: [lru-cache]

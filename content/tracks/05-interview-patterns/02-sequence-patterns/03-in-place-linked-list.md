@@ -2,7 +2,7 @@
 slug: in-place-linked-list
 title: "In-place linked list rewiring: reverse, split, merge"
 description: "The pointer discipline behind every linked-list interview problem: the dummy head, save-next-before-you-rewire, the three primitives and how they compose, with k-group reversal, O(1)-space random-pointer copy, Add Two Numbers and an LRU cache traced pointer by pointer, and what the array fallback, recursion and JavaScript's Map really cost."
-minutes: 29
+minutes: 40
 difficulty: medium
 tags: [pattern:linked-list, linked-list, in-place, pointer-manipulation, dummy-head]
 problems: [reverse-linked-list, merge-two-sorted-lists, reorder-list, remove-nth-from-end, copy-random-list, add-two-numbers, lru-cache, merge-k-sorted-lists, reverse-nodes-k-group, palindrome-linked-list]

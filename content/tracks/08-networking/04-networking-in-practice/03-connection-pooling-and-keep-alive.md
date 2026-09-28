@@ -2,7 +2,7 @@
 slug: connection-pooling-and-keep-alive
 title: "Connection pooling and keep-alive"
 description: What a connection pool really is and what reuse saves (measured), how to size one with Little's law, why idle-timeout mismatches with load balancers produce the classic 502 (traced and measured), how HTTP/2 coalesces connections across origins, and the DNS, load-balancing and library-default traps that turn keep-alive into a handshake storm.
-minutes: 32
+minutes: 40
 difficulty: medium
 tags: [networking, connection-pooling, keep-alive, http, littles-law, dns, grpc, postgres, bulkhead]
 problems: []

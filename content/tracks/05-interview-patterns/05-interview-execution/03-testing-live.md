@@ -2,7 +2,7 @@
 slug: testing-live
 title: "Testing live: finding your bug before the interviewer does"
 description: The three-pass test order, reading your own code for the riskiest line, two traced sessions (four bugs in Merge Intervals and a state-corrupting LRU Cache update), measured hidden linear costs, and how testing is noted and weighed.
-minutes: 18
+minutes: 40
 difficulty: medium
 tags: [interview, testing, tracing, debugging, edge-cases]
 problems: [merge-intervals, valid-parentheses, lru-cache]

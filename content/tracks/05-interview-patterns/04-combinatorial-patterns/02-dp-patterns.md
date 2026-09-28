@@ -2,7 +2,7 @@
 slug: dp-patterns
 title: "DP patterns: six state shapes that cover the interview canon"
 description: Recognise the optimisation-or-count signal and the statements that only look like DP, classify the problem by its state shape, and see Coin Change, LCS, Word Break, House Robber II, Cooldown and Burst Balloons filled cell by cell, with the top-down and bottom-up costs measured in CPython and Node.
-minutes: 40
+minutes: 45
 difficulty: hard
 tags: [dynamic-programming, memoisation, tabulation, knapsack, lcs, state-design, pattern:dynamic-programming]
 problems: [climbing-stairs, min-cost-climbing-stairs, house-robber, house-robber-ii, longest-palindromic-substring, palindromic-substrings, decode-ways, coin-change, max-product-subarray, word-break, longest-increasing-subsequence, partition-equal-subset, unique-paths, longest-common-subsequence, best-time-cooldown, coin-change-ii, target-sum, interleaving-string, edit-distance, burst-balloons, regular-expression-matching, distinct-subsequences, longest-increasing-path]

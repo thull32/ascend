@@ -2,7 +2,7 @@
 slug: non-comparison-sorts-and-lower-bounds
 title: "Beating n log n: counting, radix, bucket, and the lower bound"
 description: Why no comparison sort can beat n log n, how counting and radix sort sidestep the proof, and what Timsort and pdqsort do inside your language's sort().
-minutes: 35
+minutes: 50
 difficulty: medium
 tags: [sorting, counting-sort, radix-sort, bucket-sort, lower-bound, timsort, pdqsort]
 problems: [sort-colors, top-k-frequent]

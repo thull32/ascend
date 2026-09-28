@@ -2,7 +2,7 @@
 slug: getting-unstuck
 title: "Getting unstuck: recognising it, diagnosing it, recovering gracefully"
 description: How to notice you are stuck within a minute, seven kinds of stuck and the move that unblocks each (each shown on a real problem), an annotated Koko Eating Bananas transcript from stuck to binary search on the answer, and how hints are recorded and weighed.
-minutes: 22
+minutes: 30
 difficulty: medium
 tags: [interview, problem-solving, hints, recovery, stuck]
 problems: [daily-temperatures, subarray-sum-equals-k, koko-eating-bananas, coin-change]

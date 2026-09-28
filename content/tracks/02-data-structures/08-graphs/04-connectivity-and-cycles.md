@@ -2,7 +2,7 @@
 slug: connectivity-and-cycles
 title: "Connectivity and cycles: components, three colours and two colours"
 description: Counting and labelling connected components, detecting cycles correctly in undirected and directed graphs (they are different problems), and checking bipartiteness by two-colouring, with the traversal each one is built on.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [graphs, connected-components, cycle-detection, bipartite, dfs, bfs]
 problems: [count-components, graph-valid-tree, number-of-provinces, redundant-connection, course-schedule]

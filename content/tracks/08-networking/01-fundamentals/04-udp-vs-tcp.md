@@ -2,7 +2,7 @@
 slug: udp-vs-tcp
 title: "UDP versus TCP: datagrams, streams and what reliability costs"
 description: What the 8-byte UDP header does and does not promise, each TCP mechanism priced in round trips and stalls, head-of-line blocking traced segment by segment, measured drops when a UDP socket buffer overflows, when UDP is the right answer, and how QUIC rebuilds TCP's guarantees per stream over UDP.
-minutes: 24
+minutes: 50
 difficulty: easy
 tags: [networking, udp, tcp, datagrams, streams, quic, transport, head-of-line-blocking]
 problems: []

@@ -2,7 +2,7 @@
 slug: load-balancing
 title: "Load balancing: L4 versus L7, algorithms, health checks and global traffic"
 description: What L4 and L7 balancers see (NAT, DSR and tunnelling; TLS termination), round robin, weighted, least-requests and power of two choices worked with numbers and a measured max-load simulation, consistent hashing and Maglev in summary, health-check detection arithmetic, draining and slow start, the long-lived connection imbalance, sticky sessions, and N-1 capacity for global failover.
-minutes: 36
+minutes: 45
 difficulty: medium
 tags: [load-balancing, l4, l7, dsr, power-of-two-choices, least-requests, health-checks, outlier-detection, consistent-hashing, maglev, envoy, sticky-sessions, global-load-balancing]
 problems: []

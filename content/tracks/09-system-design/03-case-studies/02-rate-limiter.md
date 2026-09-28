@@ -2,7 +2,7 @@
 slug: rate-limiter
 title: "Rate limiter: a million decisions a second without becoming the outage"
 description: A distributed rate limiter for an API gateway at a million requests a second, with sizing worked to Redis primaries, a request traced through a three-rule atomic check, simulated denial caching and token leasing, a Redis failover traced through fail-open, simulated multi-region overshoot, and how it changes at 10x and 100x.
-minutes: 40
+minutes: 35
 difficulty: medium
 tags: [system-design, case-study, rate-limiting, token-bucket, sliding-window, redis, api-gateway, resilience]
 ---

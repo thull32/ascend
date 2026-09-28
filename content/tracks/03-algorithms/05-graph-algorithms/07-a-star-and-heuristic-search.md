@@ -2,7 +2,7 @@
 slug: a-star-and-heuristic-search
 title: "A*: Dijkstra with a sense of direction"
 description: How an admissible heuristic lets A* skip most of the graph while staying optimal, why consistency is what lets you settle each node once, which heuristics fit which graphs, and when A* is the wrong choice.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [graphs, a-star, heuristic, admissible, consistent, shortest-path, pathfinding]
 problems: [swim-in-rising-water, word-ladder]

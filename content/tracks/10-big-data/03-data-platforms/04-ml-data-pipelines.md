@@ -2,7 +2,7 @@
 slug: ml-data-pipelines
 title: "ML data pipelines: feature stores, point-in-time joins and training/serving skew"
 description: How data flows from events to features to training sets to online predictions, why a point-in-time join prevents label leakage (traced row by row), where training/serving skew comes from with a traced example, how a feature store's write and read paths work, how to backfill features and version embeddings, how to measure drift with PSI, and the patterns Netflix has published.
-minutes: 28
+minutes: 50
 difficulty: hard
 tags: [big-data, machine-learning, feature-store, training-serving-skew, point-in-time-join, data-leakage, mlops, netflix]
 ---

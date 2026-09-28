@@ -2,7 +2,7 @@
 slug: the-faang-loop
 title: "The FAANG loop: stages, packets and how the decision is argued"
 description: The stages of a large-company senior hiring process and what each measures, the artefacts behind it (requisition, interview plan, feedback form, packet), one illustrative packet resolved under a debrief and a committee model, an application-to-offer timeline, failure modes and how to prepare for the loop as a system.
-minutes: 17
+minutes: 25
 difficulty: intro
 tags: [career, interviews, hiring-process, levelling, hiring-committee, bar-raiser, team-matching]
 ---

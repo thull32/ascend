@@ -2,7 +2,7 @@
 slug: linked-list-fundamentals
 title: Linked list fundamentals
 description: Nodes and pointers with every assignment traced, singly vs doubly linked, sentinel nodes that delete the edge cases, the measured cost of a node and of a pointer chase, and the real systems (deque, kernel lists, allocators, LRU caches) where linked lists win.
-minutes: 40
+minutes: 45
 difficulty: easy
 tags: [linked-list, pointers, sentinel, doubly-linked, lru, memory, cache, deque, intrusive-list]
 problems: [reverse-linked-list, merge-two-sorted-lists, lru-cache, palindrome-linked-list]

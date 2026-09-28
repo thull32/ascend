@@ -2,7 +2,7 @@
 slug: memory-management
 title: "Memory management: reference counting, tracing collectors and ownership"
 description: How CPython, V8, Go, the JVM and Rust each decide when memory can be reused, what that costs in pauses and throughput, and why garbage-collected programs still leak.
-minutes: 35
+minutes: 45
 difficulty: easy
 tags: [memory, garbage-collection, reference-counting, ownership, leaks, performance]
 problems: []

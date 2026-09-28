@@ -2,7 +2,7 @@
 slug: avl-trees
 title: "AVL trees: balance factors and rotations"
 description: How AVL trees keep a BST within 1.44 log n of perfect height using balance factors and four rotation cases, with insert and delete traced rotation by rotation, the node layouts real implementations use, and an honest comparison with red-black trees and B-trees.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [avl, balanced-bst, rotations, trees, ordered-map]
 problems: [validate-bst, balanced-binary-tree, kth-smallest-bst]

@@ -2,7 +2,7 @@
 slug: asymptotic-notation
 title: "Asymptotic notation: O, Ω, Θ and the growth classes that matter"
 description: What O, Ω and Θ actually claim, the growth classes you will meet from constant to exponential with concrete sizes, the intuition for logarithms, and how to read a complexity off unfamiliar code in under a minute.
-minutes: 45
+minutes: 55
 difficulty: intro
 tags: [complexity, big-o, big-theta, big-omega, growth-classes, fundamentals]
 problems: [contains-duplicate, binary-search-basic]

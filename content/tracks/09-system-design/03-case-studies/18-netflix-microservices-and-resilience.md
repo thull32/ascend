@@ -2,7 +2,7 @@
 slug: netflix-microservices-and-resilience
 title: "Netflix microservices and resilience: Zuul, Eureka, Hystrix, chaos and regional evacuation"
 description: How a streaming control plane made of hundreds of services keeps members pressing play through instance, zone, dependency and region failures, with one home page simulated under five resilience policies, retry amplification computed, a chaos experiment sized by statistics, a timed regional evacuation, and a circuit breaker to build, all grounded in Netflix's publicly described lineage.
-minutes: 45
+minutes: 35
 difficulty: expert
 tags: [system-design, case-study, netflix, microservices, resilience, circuit-breaker, bulkhead, chaos-engineering, multi-region]
 ---

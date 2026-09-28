@@ -2,7 +2,7 @@
 slug: idempotency-and-retries
 title: "Idempotency and retries: making the second attempt safe"
 description: The double-charge race traced and reproduced on Postgres, an idempotency-key table and a three-phase handler that survives a crash between charging and recording, consumer deduplication, and retry storms simulated with and without backoff, jitter, retry budgets and deadline-aware servers, with how Stripe, AWS SDKs, gRPC, Envoy and Kafka implement each piece.
-minutes: 25
+minutes: 35
 difficulty: hard
 tags: [system-design, idempotency, retries, deduplication, exactly-once, backoff]
 ---

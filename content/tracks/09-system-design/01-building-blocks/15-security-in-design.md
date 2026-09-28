@@ -2,7 +2,7 @@
 slug: security-in-design
 title: "Security in design: threat modelling, identity, secrets and the boundaries on the diagram"
 description: "How to put security into a system design rather than around it: a STRIDE threat model worked on a multi-tenant design, sessions versus JWTs with measured costs, the OAuth authorization-code flow with PKCE traced, service identity with mTLS, authorization models, multi-tenant isolation and the row-level-security pooling trap, envelope encryption traced through rotation and crypto-shredding, secrets rotation and SSRF."
-minutes: 30
+minutes: 40
 difficulty: hard
 tags: [system-design, security, authentication, authorization, oauth, oidc, secrets, threat-modelling, stride, multi-tenancy, encryption]
 ---

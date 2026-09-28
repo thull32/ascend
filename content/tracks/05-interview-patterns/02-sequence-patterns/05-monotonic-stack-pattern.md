@@ -2,7 +2,7 @@
 slug: monotonic-stack-pattern
 title: "Monotonic stack: next greater, nearest smaller, and greedy removal"
 description: The one invariant that turns every "next greater element" and "largest rectangle" problem into a linear pass, the exact 2n bound on its work, how to pick direction and tie rule from the question, Daily Temperatures with ties, circular Next Greater, Largest Rectangle with equal bars and Remove K Digits traced step by step, and the deque version with its JavaScript trap.
-minutes: 34
+minutes: 45
 difficulty: medium
 tags: [pattern:monotonic-stack, stack, monotonic-deque, sliding-window, greedy]
 problems: [next-greater-element, remove-k-digits, daily-temperatures, largest-rectangle-histogram, sliding-window-maximum]

@@ -2,7 +2,7 @@
 slug: spark
 title: "Spark: lazy plans, shuffles, partitions, joins and skew"
 description: How Spark turns RDD and DataFrame code into stages and tasks, what Tungsten, the sort-based shuffle and adaptive execution actually do, how to size partitions and shuffles with arithmetic instead of folklore, how it picks a join strategy, and how to find and fix skew.
-minutes: 20
+minutes: 45
 difficulty: hard
 tags: [big-data, spark, pyspark, shuffle, partitioning, joins, data-skew, adaptive-query-execution]
 ---

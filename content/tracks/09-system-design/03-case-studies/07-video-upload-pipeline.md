@@ -2,7 +2,7 @@
 slug: video-upload-pipeline
 title: "Design a video upload pipeline: resumable ingest to transcoding DAG"
 description: A YouTube-scale upload path worked to machine counts, with a resumed upload traced part by part, per-rung encode costs computed from pixels and frames, time to first playable traced through the transcode DAG to its real critical path, processing during upload, and the economics of expensive codecs.
-minutes: 35
+minutes: 30
 difficulty: hard
 tags: [system-design, case-study, video, object-storage, transcoding, workflow-orchestration, message-queue, resumable-upload]
 ---

@@ -2,7 +2,7 @@
 slug: retrieval-augmented-generation
 title: "Retrieval-augmented generation: chunking, hybrid search and reranking"
 description: How a RAG pipeline indexes documents and retrieves the right passages at query time, traced on concrete data - chunkers compared on one document, cosine scores and BM25 computed for real queries, reciprocal rank fusion, reranking, packing context into a token budget, and recall@k and MRR on a golden set.
-minutes: 40
+minutes: 60
 difficulty: hard
 tags: [llm, rag, embeddings, vector-search, hybrid-search, reranking, bm25, ai]
 ---

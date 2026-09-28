@@ -2,7 +2,7 @@
 slug: bridges-articulation-and-flow
 title: "Bridges, articulation points and the shape of max-flow"
 description: Low-link values on undirected graphs find every single point of failure in one DFS; then the residual-graph idea behind max-flow, the min-cut theorem, and bipartite matching as the flow problem you will actually be asked.
-minutes: 50
+minutes: 55
 difficulty: hard
 tags: [graphs, bridges, articulation-points, low-link, max-flow, min-cut, bipartite-matching, augmenting-path]
 problems: [graph-valid-tree, count-components]

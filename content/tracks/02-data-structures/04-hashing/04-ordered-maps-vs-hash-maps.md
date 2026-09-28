@@ -2,7 +2,7 @@
 slug: ordered-maps-vs-hash-maps
 title: Ordered maps vs hash maps
 description: When you need floor, ceiling, range scans or sorted iteration, a hash map cannot help; this lesson traces balanced trees, B-trees and skip lists as ordered maps, gives the honest per-node and per-lookup costs, shows what Java, Rust, Redis, RocksDB and the Linux scheduler run, and what to do in Python and JavaScript, which have none built in.
-minutes: 45
+minutes: 40
 difficulty: medium
 tags: [hashing, ordered-map, treemap, btreemap, skip-list, bisect, range-query, sortedcontainers]
 problems: [time-based-kv, meeting-rooms-ii, minimum-interval-query]

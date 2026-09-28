@@ -2,7 +2,7 @@
 slug: topological-sort-and-dags
 title: "Topological sort and DAGs: ordering what depends on what"
 description: Kahn's algorithm and the DFS finish-order algorithm, why both are O(V + E) and what each one gives you that the other does not, DAG properties that make dynamic programming over them trivial, and how build systems and package managers use all of it.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [graphs, topological-sort, dag, kahn, dependencies, build-systems]
 problems: [course-schedule, course-schedule-ii, alien-dictionary, minimum-height-trees]

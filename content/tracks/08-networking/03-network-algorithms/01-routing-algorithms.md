@@ -2,7 +2,7 @@
 slug: routing-algorithms
 title: "Routing algorithms: link-state, distance-vector and path-vector"
 description: How OSPF floods a map and runs Dijkstra, why distance-vector counts to infinity even with split horizon, how OSPF areas and BGP's attributes and decision process work, all traced on one five-router topology, plus what breaks in production.
-minutes: 28
+minutes: 40
 difficulty: medium
 tags: [routing, ospf, bgp, dijkstra, bellman-ford, distance-vector, link-state]
 problems: []

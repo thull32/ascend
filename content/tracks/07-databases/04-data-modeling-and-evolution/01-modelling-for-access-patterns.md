@@ -2,7 +2,7 @@
 slug: modelling-for-access-patterns
 title: "Modelling for access patterns: start from the queries"
 description: Write the access-pattern table before the schema, derive keys and indexes from it, and pay on the write path with summary tables, sharded counters, materialised views and CDC, with the leaderboard, hot-row contention and REFRESH locks measured in Postgres 17 and a DynamoDB single-table design worked end to end.
-minutes: 22
+minutes: 45
 difficulty: medium
 tags: [data-modelling, denormalisation, materialised-views, cqrs, dynamodb, access-patterns]
 ---

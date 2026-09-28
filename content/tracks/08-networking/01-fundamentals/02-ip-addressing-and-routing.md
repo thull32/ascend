@@ -2,7 +2,7 @@
 slug: ip-addressing-and-routing
 title: "IP addressing and routing: from CIDR math to BGP"
 description: Subnet and VLSM arithmetic worked by hand, longest-prefix match traced on a real routing table and inside the kernel's trie, a measured traceroute through three NATs, BGP's decision process traced route by route, hijacks and withdrawals that took down YouTube and Facebook, and how anycast sends one address to many places.
-minutes: 24
+minutes: 45
 difficulty: easy
 tags: [networking, ip, ipv6, cidr, subnets, routing, longest-prefix-match, bgp, anycast, ecmp]
 problems: []

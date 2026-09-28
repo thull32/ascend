@@ -2,7 +2,7 @@
 slug: agentic-coding-workflow
 title: "The agentic coding loop: plan, implement, verify"
 description: How to scope work into one reviewable diff, get a plan before code, prompt test-first, freeze the tests with a hook the harness enforces, give the agent a command that proves done, catch verification gaming (including tests that assert the bug), and know when to stop and reset, with a full illustrative session and an exercise that flags a suspicious test diff.
-minutes: 25
+minutes: 35
 difficulty: medium
 tags: [ai-tools, coding-agents, workflow, testing, code-review, git, hooks]
 ---

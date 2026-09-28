@@ -2,7 +2,7 @@
 slug: the-design-interview-method
 title: "The design interview method: a 45-minute protocol"
 description: A phase-by-phase time budget for the system design round and a full timestamped run on a URL shortener, with the interviewer's probe at each stage, measured Postgres numbers behind the estimates, the trade-offs you name, and how the round is scored.
-minutes: 25
+minutes: 20
 difficulty: medium
 tags: [system-design, interview-method, requirements, estimation, deep-dive]
 ---

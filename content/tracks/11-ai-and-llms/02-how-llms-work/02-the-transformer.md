@@ -2,7 +2,7 @@
 slug: the-transformer
 title: "The transformer: attention, MLPs and residuals, one block at a time"
 description: Self-attention computed by hand twice (three tokens in two dimensions, then three tokens in four dimensions split into two heads), the causal mask, grouped-query attention, the MLP, residuals and LayerNorm with numbers, RoPE as a rotation you can check, parameter counts that reproduce published 7B and 70B shapes, FlashAttention's online softmax, and the failures of custom implementations.
-minutes: 30
+minutes: 50
 difficulty: hard
 tags: [llm, transformer, attention, self-attention, multi-head-attention, positional-encoding]
 problems: []

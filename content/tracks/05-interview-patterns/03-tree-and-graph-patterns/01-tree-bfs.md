@@ -2,7 +2,7 @@
 slug: tree-bfs
 title: "Tree BFS: processing a tree one level at a time"
 description: When the words "level", "row", "nearest" or "width" select a queue over recursion, the level-size loop that makes per-level work trivial, and Level Order, Right Side View, Minimum Depth and Serialize traced queue by queue.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [tree, bfs, queue, level-order, pattern:tree-bfs]
 problems: [level-order-traversal, right-side-view, zigzag-level-order, min-depth, serialize-deserialize]

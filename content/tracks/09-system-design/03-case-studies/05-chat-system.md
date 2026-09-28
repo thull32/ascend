@@ -2,7 +2,7 @@
 slug: chat-system
 title: "Chat system: 100 million open connections, ordered delivery and multi-device sync"
 description: A WhatsApp/Messenger-scale chat design with estimates worked to gateways, store nodes and registry shards, a message traced from send to double tick in milliseconds, an owner failover traced through fencing, offline sync from a single per-device cursor, group fan-out and presence arithmetic, and how the design evolves at 10x and 100x.
-minutes: 38
+minutes: 40
 difficulty: hard
 tags: [system-design, case-study, chat, websockets, messaging, ordering, presence, multi-device, push-notifications]
 ---

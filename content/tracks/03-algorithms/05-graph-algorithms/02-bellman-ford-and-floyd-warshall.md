@@ -2,7 +2,7 @@
 slug: bellman-ford-and-floyd-warshall
 title: "Bellman-Ford and Floyd-Warshall: relaxation without the invariant"
 description: Why V−1 rounds of relaxation are enough, how the V-th round exposes a negative cycle, the DP behind Floyd-Warshall and the loop order that breaks it, and which algorithm to pick for which graph.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [graphs, shortest-path, bellman-ford, floyd-warshall, negative-cycle, all-pairs, dynamic-programming]
 problems: [cheapest-flights-k-stops, network-delay-time]

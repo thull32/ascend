@@ -2,7 +2,7 @@
 slug: training-llms
 title: "Training LLMs: pretraining, fine-tuning, RLHF and scaling laws"
 description: The pipeline that turns a randomly initialised transformer into an assistant, worked with numbers at every stage (6ND compute converted to GPU-hours for a 7B and a 70B run, a data mixture in epochs, a loss-masked SFT example, the Bradley–Terry and KL-shaped RLHF rewards, the DPO loss and its gradient on one preference pair, group-relative advantages), how the work is spread across thousands of GPUs, and how each stage explains a behaviour you will see in production.
-minutes: 22
+minutes: 55
 difficulty: hard
 tags: [llm, pretraining, fine-tuning, lora, rlhf, dpo, scaling-laws]
 problems: []

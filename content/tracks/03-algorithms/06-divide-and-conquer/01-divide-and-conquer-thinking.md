@@ -2,7 +2,7 @@
 slug: divide-and-conquer-thinking
 title: "Divide and conquer: the recurrence is the algorithm"
 description: How to read a recurrence off recursive code, solve it with the recursion tree and the master theorem, and see why a one-line change to merge sort's combine step counts inversions for free.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [divide-and-conquer, recurrence, master-theorem, merge-sort, inversions, recursion-tree]
 problems: [median-two-sorted, maximum-subarray]

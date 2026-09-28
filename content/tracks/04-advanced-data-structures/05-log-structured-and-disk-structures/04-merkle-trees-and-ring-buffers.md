@@ -2,7 +2,7 @@
 slug: merkle-trees-and-ring-buffers
 title: "Merkle trees and ring buffers: verifying data and moving it without locks"
 description: How hash trees let replicas find what differs in O(log n), a membership proof traced hash by hash, why Git, Cassandra and Certificate Transparency are built on them and how a missing domain separator broke Bitcoin's, and how a fixed-size ring buffer with owned indices becomes a wait-free single-producer, single-consumer queue in io_uring and NIC drivers.
-minutes: 37
+minutes: 55
 difficulty: hard
 tags: [merkle-tree, anti-entropy, hashing, ring-buffer, lock-free, spsc, cache-lines]
 ---

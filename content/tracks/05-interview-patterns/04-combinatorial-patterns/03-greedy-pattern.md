@@ -2,7 +2,7 @@
 slug: greedy-pattern
 title: "Greedy: the local rule and the one-paragraph proof that it is safe"
 description: Recognise when a problem collapses to one pass with a committed local decision, know the tempting rules that fail and their counterexample inputs, prove the safe ones with an exchange, stays-ahead or reset argument, and see Jump Game II, Gas Station, Partition Labels and Valid Parenthesis String traced step by step.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [greedy, exchange-argument, invariants, intervals, pattern:greedy]
 problems: [maximum-subarray, jump-game, jump-game-ii, gas-station, hand-of-straights, partition-labels, valid-parenthesis-string, non-overlapping-intervals, task-scheduler, reorganize-string, coin-change]

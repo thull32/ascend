@@ -2,7 +2,7 @@
 slug: math-and-geometry
 title: "Math and geometry: digit arithmetic, fast powers, exact geometry and simulation"
 description: Recognise the four shapes behind interview math problems and the statements that only look like them, then see Pow(x, n), Multiply Strings, Detect Squares and Spiral Matrix II traced step by step, with the float, JavaScript-number and Python-integer traps measured.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [math, geometry, fast-exponentiation, simulation, pattern:math]
 problems: [pow-x-n, multiply-strings, detect-squares, plus-one, spiral-matrix-ii, reverse-integer, rotate-image, happy-number, sqrt-x]

@@ -2,7 +2,7 @@
 slug: binary-search-on-the-answer
 title: "Binary search on the answer: monotone predicates"
 description: Turn minimise-the-maximum and capacity problems into a monotone yes/no question, then binary search the answer space instead of the input.
-minutes: 35
+minutes: 55
 difficulty: medium
 tags: [binary-search, monotone-predicate, optimisation, minimise-the-maximum, capacity]
 problems: [koko-eating-bananas, first-bad-version, sqrt-x, kth-smallest-sorted-matrix]

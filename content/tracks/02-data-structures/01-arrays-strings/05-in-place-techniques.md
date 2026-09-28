@@ -2,7 +2,7 @@
 slug: in-place-techniques
 title: In-place techniques
 description: The two-pointer, swap-partition (Lomuto, Hoare, Dutch national flag) and reversal tricks that answer "can you do it in O(1) extra space?", each traced step by step with the invariant that makes it correct, and what a swap actually costs.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [arrays, two-pointers, in-place, partition, dutch-national-flag, invariants, quicksort]
 problems: [move-zeroes, sort-colors, remove-duplicates-sorted, rotate-image]

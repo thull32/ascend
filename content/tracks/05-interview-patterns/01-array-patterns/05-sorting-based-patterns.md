@@ -2,7 +2,7 @@
 slug: sorting-based-patterns
 title: "Sorting-based patterns: pay O(n log n) once, then sweep"
 description: When one sort call turns a quadratic pairing problem into a linear sweep, how to choose the key (or prove a comparator) so the greedy step is forced, what Timsort, key caching and V8's typed-array sort actually cost, and when a heap, counting or quickselect beats the sort.
-minutes: 33
+minutes: 45
 difficulty: medium
 tags: [sorting, comparator, greedy-sweep, quickselect, pattern:sorting]
 problems: [three-sum, merge-intervals, meeting-rooms, kth-largest-array, hand-of-straights, k-closest-points, group-anagrams, top-k-frequent]

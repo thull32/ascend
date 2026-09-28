@@ -2,7 +2,7 @@
 slug: crdts-and-collaboration
 title: "CRDTs and collaboration: merging without coordination, OT, and how collaborative editors work"
 description: How conflict-free replicated data types converge through commutative, idempotent merges; G-Counter, PN-Counter, OR-Set and an RGA sequence traced through concurrent operations; how last-writer-wins loses updates; what state-based, op-based and delta CRDTs need from the network; metadata and interleaving costs; operational transformation traced and why it needs a server; Yjs, Automerge, Riak and Redis underneath; and the architecture of a Google Docs-style editor.
-minutes: 42
+minutes: 50
 difficulty: hard
 tags: [system-design, distributed-systems, crdt, operational-transformation, collaboration, eventual-consistency]
 ---

@@ -2,7 +2,7 @@
 slug: caching-layers
 title: "Caching layers: cache-aside, invalidation and staying honest with the database"
 description: The arithmetic that justifies a cache, cache-aside against read-through, write-through and write-behind, four invalidation races traced step by step with the fix that closes each (delete-after-commit, leases, versioned markers, CDC), stampede maths with probabilistic early refresh simulated, negative caching, warming, and the HTTP caching this app actually does.
-minutes: 30
+minutes: 50
 difficulty: hard
 tags: [caching, cache-aside, invalidation, redis, consistency, cache-stampede, cdc]
 problems: [lru-cache]

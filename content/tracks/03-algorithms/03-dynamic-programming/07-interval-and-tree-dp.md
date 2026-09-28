@@ -2,7 +2,7 @@
 slug: interval-and-tree-dp
 title: "Interval, tree and bitmask DP"
 description: States that are ranges (matrix chain, burst balloons), states that are subtrees (house robber III, rerooting), and states that are subsets (bitmask assignment), with the fill order each one needs.
-minutes: 55
+minutes: 50
 difficulty: expert
 tags: [dynamic-programming, interval-dp, tree-dp, bitmask-dp, matrix-chain, burst-balloons, rerooting]
 problems: [burst-balloons, longest-palindromic-substring, max-path-sum, diameter-binary-tree]

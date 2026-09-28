@@ -2,7 +2,7 @@
 slug: scalability-primitives
 title: "Scalability primitives: stateless services, load balancers and autoscaling"
 description: The arithmetic of vertical versus horizontal scaling, where state goes so replicas are interchangeable, a simulated load test that shows the latency knee and what routing does to it, Little's law sizing, and the Kubernetes autoscaler's control loop traced under a ramp and a step.
-minutes: 25
+minutes: 40
 difficulty: medium
 tags: [system-design, load-balancing, stateless, autoscaling, littles-law]
 ---

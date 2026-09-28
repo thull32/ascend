@@ -2,7 +2,7 @@
 slug: documentation-and-adrs
 title: "Documentation and ADRs: READMEs, decision records, runbooks and writing for future engineers"
 description: "Write the documents that let a stranger run, change and operate a system: Diátaxis applied to a real repository with measured sizes, how its four ADRs changed in their first evening and where one already disagrees with the code, a full ADR worked end to end for an open decision (migrations at boot or in a release step) with scored options and revisit triggers, a complete runbook built on real boot logs, error messages and health fields, and what make help and rustdoc do under the hood."
-minutes: 27
+minutes: 60
 difficulty: easy
 tags: [documentation, adr, runbooks, readme, technical-writing, docs-as-code, diataxis, senior-craft]
 ---

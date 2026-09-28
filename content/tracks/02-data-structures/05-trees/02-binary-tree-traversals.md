@@ -2,7 +2,7 @@
 slug: binary-tree-traversals
 title: "Binary tree traversals: four orders, three implementations"
 description: Preorder, inorder, postorder and level order, recursive and with explicit stacks, Morris traversal in O(1) space, and how to pick the traversal from the shape of the problem.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [trees, traversal, dfs, bfs, inorder, morris]
 problems: [level-order-traversal, right-side-view, zigzag-level-order, kth-smallest-bst]

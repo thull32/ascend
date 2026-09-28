@@ -2,7 +2,7 @@
 slug: hash-functions
 title: Hash functions
 description: What makes a hash function good (uniformity, avalanche, speed), polynomial, FNV and Fibonacci hashing traced bit by bit, hashing compound keys without the XOR trap, what CPython, Java, Rust and Go actually hash with, and why keyed hashes exist.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [hashing, hash-function, fnv, polynomial-hash, avalanche, hashdos, siphash, fibonacci-hashing]
 problems: [encode-decode-strings, group-anagrams]

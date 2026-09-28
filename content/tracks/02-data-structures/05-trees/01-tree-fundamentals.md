@@ -2,7 +2,7 @@
 slug: tree-fundamentals
 title: "Tree fundamentals: nodes, height and recursion"
 description: What a tree is in memory, the three ways to represent one, the difference between height and depth, and the recursive contract that every tree algorithm is built on.
-minutes: 30
+minutes: 50
 difficulty: easy
 tags: [trees, binary-tree, recursion, representation]
 problems: [max-depth-binary-tree, same-tree, invert-binary-tree]

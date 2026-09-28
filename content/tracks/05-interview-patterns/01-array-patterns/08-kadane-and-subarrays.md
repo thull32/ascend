@@ -2,7 +2,7 @@
 slug: kadane-and-subarrays
 title: "Kadane and the subarray family: best subarray ending here"
 description: One running value, "the best subarray that ends at this index", solves maximum sum, maximum product and best-time-to-trade in one online pass; how to recognise it when the statement hides it, and how the circular, at-least-L, k-concatenation and streaming follow-ups change it.
-minutes: 28
+minutes: 45
 difficulty: medium
 tags: [pattern:subarray, kadane, dynamic-programming, arrays, greedy]
 problems: [maximum-subarray, max-product-subarray, best-time-to-buy-sell, subarray-sum-equals-k]

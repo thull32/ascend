@@ -2,7 +2,7 @@
 slug: treaps-skip-lists-and-splay
 title: "Treaps, skip lists and splay trees: balance without bookkeeping"
 description: Three ways to get O(log n) ordered operations without AVL or red-black case analysis, with the treap rotations, skip-list level distribution and expected search cost, and splay zig-zig steps traced, plus why Redis sorted sets and RocksDB memtables are skip lists and what those nodes look like in memory.
-minutes: 50
+minutes: 45
 difficulty: hard
 tags: [treap, skip-list, splay-tree, randomised, redis, ordered-map, memtable]
 problems: [kth-smallest-bst, time-based-kv]

@@ -2,7 +2,7 @@
 slug: document-stores
 title: "Document stores: embedding, referencing and what MongoDB actually guarantees"
 description: The rules for when to embed and when to reference, with the 16 MB and array-growth arithmetic; how WiredTiger stores, caches and versions documents; compound and multikey indexes, the ESR rule and when it loses; reading explain; what transactions, w:1 and rollback really mean; and Postgres JSONB with GIN measured side by side.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [mongodb, document-store, jsonb, schema-design, replica-set, indexes]
 ---

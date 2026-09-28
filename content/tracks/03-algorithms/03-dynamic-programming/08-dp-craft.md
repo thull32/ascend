@@ -2,7 +2,7 @@
 slug: dp-craft
 title: "DP craft: reconstruction, memory, disguises and when DP is wrong"
 description: Recover the actual solution from a table, cut memory without losing correctness, spot DP in problems that do not announce themselves, debug a wrong table, and recognise the cases where DP is the wrong tool.
-minutes: 45
+minutes: 55
 difficulty: hard
 tags: [dynamic-programming, reconstruction, space-optimisation, debugging, word-break, catalan]
 problems: [word-break, longest-palindromic-substring, coin-change, distinct-subsequences, interleaving-string]

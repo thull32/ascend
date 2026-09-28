@@ -2,7 +2,7 @@
 slug: cache-design-considerations
 title: "Cache design: hit ratios, TTLs, stampedes and when a cache makes things worse"
 description: The arithmetic that turns a hit ratio into backend load and tail latency, how to size a cache and choose TTLs with jitter, a stampede counted request by request and stopped with coalescing, stale-while-revalidate and probabilistic early expiry (with the probabilities computed), negative caching, hot keys, invalidation races, what Redis, memcached and EVCache do underneath, and the cases where a cache hurts.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [cache, ttl, stampede, hit-ratio, thundering-herd, negative-caching, design]
 ---

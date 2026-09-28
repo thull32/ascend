@@ -2,7 +2,7 @@
 slug: intervals
 title: "Intervals: sort by the right endpoint, then sweep"
 description: The interval family (merge, insert, remove-to-fit, count rooms, answer range queries, and the problems that hide intervals) as one sort-then-sweep shape, with the rule for which endpoint to sort by, the boundary convention that decides every comparison, and measured sort costs on log-ordered data.
-minutes: 33
+minutes: 40
 difficulty: medium
 tags: [intervals, sweep-line, greedy, heap, pattern:intervals]
 problems: [insert-interval, merge-intervals, non-overlapping-intervals, meeting-rooms, meeting-rooms-ii, minimum-interval-query, partition-labels]

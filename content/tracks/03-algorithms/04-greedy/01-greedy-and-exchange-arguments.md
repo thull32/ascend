@@ -2,7 +2,7 @@
 slug: greedy-and-exchange-arguments
 title: "Greedy algorithms: when the obvious choice is safe"
 description: The greedy-choice property, the exchange argument that proves it, the counterexamples that break it, and the sixty-second procedure for deciding greedy versus DP in an interview.
-minutes: 40
+minutes: 55
 difficulty: medium
 tags: [greedy, exchange-argument, optimal-substructure, pattern:greedy]
 problems: [maximum-subarray, hand-of-straights, partition-labels, valid-parenthesis-string, coin-change]

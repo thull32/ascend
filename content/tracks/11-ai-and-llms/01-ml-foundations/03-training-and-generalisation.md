@@ -2,7 +2,7 @@
 slug: training-and-generalisation
 title: "Training and generalisation: overfitting, leakage and honest metrics"
 description: Why a model that is perfect on its training data can fail in production, bias and variance measured by simulation, regularisation's effect shown coefficient by coefficient, cross-validation worked on six points, leakage, and precision, recall, F1 and ROC-AUC computed from a confusion matrix and a ten-example ranking.
-minutes: 28
+minutes: 50
 difficulty: medium
 tags: [machine-learning, overfitting, regularisation, evaluation, metrics, data-leakage]
 problems: []

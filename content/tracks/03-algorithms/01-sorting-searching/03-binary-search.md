@@ -2,7 +2,7 @@
 slug: binary-search
 title: "Binary search: the invariant and the off-by-ones"
 description: Write binary search from an invariant so it is correct the first time, then extend it to first/last occurrence, rotated arrays and real-valued search.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [binary-search, invariants, sorted-array, rotated-array, pattern:binary-search]
 problems: [binary-search-basic, first-bad-version, search-rotated, find-min-rotated, sqrt-x, search-2d-matrix, time-based-kv]

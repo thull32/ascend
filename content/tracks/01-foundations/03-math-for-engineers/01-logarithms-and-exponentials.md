@@ -2,7 +2,7 @@
 slug: logarithms-and-exponentials
 title: "Logarithms and exponentials: halving, doubling and the powers of two"
 description: What log n actually counts, why base does not matter in Big-O, why O(log n) is effectively free, and the dozen powers of two that let you size systems in your head.
-minutes: 40
+minutes: 65
 difficulty: intro
 tags: [math, logarithms, powers-of-two, complexity, estimation]
 problems: [pow-x-n, binary-search-basic, sqrt-x]

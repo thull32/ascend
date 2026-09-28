@@ -2,7 +2,7 @@
 slug: context-windows-and-kv-cache
 title: "Context windows and the KV cache: why long context is expensive"
 description: Why attention cost grows with the square of context length, prefill and decode costed per token for a stated model and GPU, a token-by-token trace of what the KV cache saves and what it does not, the bytes-per-token formula (layers × KV heads × head size × 2 × bytes) and grouped-query attention's saving, capacity planning, prompt caching, long-context tricks, and the production failures that follow.
-minutes: 28
+minutes: 35
 difficulty: hard
 tags: [llm, context-window, kv-cache, attention, prompt-caching, inference]
 problems: []

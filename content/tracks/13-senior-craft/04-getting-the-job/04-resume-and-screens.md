@@ -2,7 +2,7 @@
 slug: resume-and-screens
 title: "Resumes, referrals and screens: getting to the loop"
 description: What happens to an application inside an applicant tracking system, what a senior resume must prove, the bullet formula with annotated before-and-after rewrites, one role rewritten and re-scored step by step, referrals, and the recruiter, hiring-manager and technical screens with annotated exchanges, scripts and follow-ups.
-minutes: 16
+minutes: 25
 difficulty: intro
 tags: [career, resume, referrals, recruiter-screen, phone-screen]
 ---

@@ -2,7 +2,7 @@
 slug: gossip-and-anti-entropy
 title: "Gossip and anti-entropy: membership by rumour, SWIM, and Merkle-tree repair"
 description: Epidemic dissemination simulated (push, pull and push-pull at fanout 1–3 for 10 to 10,000 nodes, against log₂N + ln N); SWIM traced on five nodes with suspicion and incarnation refutation; Lifeguard in memberlist, Serf and Consul; Cassandra's gossiper and phi threshold; a Merkle-tree comparison traced hash by hash; Cassandra repair, overstreaming arithmetic and resurrected deletes; and where gossip is the wrong tool.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, distributed-systems, gossip, swim, anti-entropy, merkle-tree, membership]
 ---

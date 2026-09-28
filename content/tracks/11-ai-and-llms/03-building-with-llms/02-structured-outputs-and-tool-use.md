@@ -2,7 +2,7 @@
 slug: structured-outputs-and-tool-use
 title: "Structured outputs and tool use: schemas, function calling and validation"
 description: How grammar-constrained decoding guarantees parseable output token by token, what a two-tool parallel call looks like on the wire, how errors and retries are handled at each layer, and why your harness still validates and authorises everything the model produces.
-minutes: 25
+minutes: 45
 difficulty: medium
 tags: [llm, structured-outputs, json-schema, tool-use, function-calling, ai]
 ---
@@ -137,6 +137,8 @@ The parse failure goes through `AppError::ai_upstream(public, detail)`, which lo
 
 - **The roadmap personaliser** (`roadmap.rs`) builds its schema at run time: `module` is an enum of every module slug in the loaded curriculum, and `preference` an enum of `confident` and `priority`. The grammar already makes an unknown slug impossible, and the code still drops unknown modules and duplicates, truncates to 12 suggestions, and applies nothing on the server; the learner reviews each suggestion, so a model mistake costs one click.
 - **The mock-interview grader** (`interview.rs`) declares `overall_score` as an integer, which the grammar enforces, and clamps it to 0–100 after parsing, which the schema subset cannot express.
+
+**Before and after: the serialiser chose the key order.** Point 3 above says field order is a decision you make in the schema. Ascend wrote its schemas in a sensible order and still shipped the wrong one, because `serde_json`'s default map sorts keys alphabetically. The roadmap schema reached the API as `suggestions` before `summary`; the quiz schema as `answer` before `explanation`, `options` and `q`, so the model chose the correct index before writing the question; the grader as `overall_score` and `verdict` after `dimensions` but before `summary`. The symptom surfaced as a flaky end-to-end test: about one roadmap request in four returned `{"suggestions":[],"summary":""}` after 20 output tokens, a valid parse that the page rendered as "no changes suggested". Logging the raw reply showed the empty list written first. The fix has three parts: enable `serde_json`'s `preserve_order` feature so schemas keep their written order; write each schema evidence first (the summary before the suggestions, each reason before its preference, the grade's dimension notes, strengths, improvements and summary before the score and verdict); and pin the order with unit tests, because a dependency change could silently undo it. Two related guards came with it. A well-formed but empty reply is treated as a failed generation, retried once and then reported, since the schema subset has no `minItems` or `minLength` to forbid it. And the three structured calls share a 16,000-token `max_tokens` (`STRUCTURED_MAX_TOKENS`), because adaptive thinking counts toward the cap: at the old 3,000, a retry spent every token thinking and stopped at `max_tokens`. Measured on the same learner and background afterwards, 10 of 10 requests returned suggestions.
 
 The schema guarantees the parse, the code guarantees the invariants, and an eval set tells you whether the content is any good ([Evals and observability](/learn/ai-and-llms/building-with-llms/evals-and-observability)).
 

@@ -2,7 +2,7 @@
 slug: netflix-culture-and-interviews
 title: "Netflix: the culture memo, the keeper test and what the loop looks like"
 description: Netflix's publicly documented culture (the dream team, people over process, context not control, informed captains, candour, the keeper test, top-of-personal-market pay) and what changed since the 2009 deck, how it plausibly shapes the hiring process, one story tested against the memo line by line, the loop's typical shape, failure modes and how to prepare honestly.
-minutes: 20
+minutes: 30
 difficulty: easy
 tags: [career, interviews, netflix, culture, keeper-test, behavioural]
 ---

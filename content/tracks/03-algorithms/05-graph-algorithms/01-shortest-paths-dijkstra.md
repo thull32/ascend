@@ -2,7 +2,7 @@
 slug: shortest-paths-dijkstra
 title: "Dijkstra: shortest paths by settling the nearest node first"
 description: The invariant that makes Dijkstra correct, the heap implementation with lazy deletion that everyone gets subtly wrong, why negative edges break it, and the 0-1 BFS shortcut for small weights.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [graphs, shortest-path, dijkstra, priority-queue, 0-1-bfs, relaxation]
 problems: [network-delay-time, swim-in-rising-water, cheapest-flights-k-stops]

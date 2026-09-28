@@ -2,7 +2,7 @@
 slug: pattern-recognition
 title: "Pattern recognition: the signals that select a technique"
 description: The catalogue of interview patterns, the words and constraints in a problem statement that point to each one, two problems taken from signal to traced code, and where the operations-per-second budget that decides between patterns actually comes from.
-minutes: 30
+minutes: 50
 difficulty: easy
 tags: [patterns, interview, problem-solving, catalogue]
 problems: [maximum-subarray, next-greater-element, longest-consecutive-sequence, course-schedule, daily-temperatures, subarray-sum-equals-k]

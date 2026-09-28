@@ -2,7 +2,7 @@
 slug: agents
 title: "Agents: planning, memory, tools and when not to build one"
 description: What an agent is mechanically, a loop traced call by call with its token growth and cost, how per-step reliability compounds into task success, planning versus reacting, stopping conditions, tool design, memory, MCP and guardrails, and when a plain workflow is the better design.
-minutes: 20
+minutes: 35
 difficulty: hard
 tags: [llm, agents, tool-use, mcp, guardrails, ai]
 ---

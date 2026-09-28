@@ -2,7 +2,7 @@
 slug: security-fundamentals
 title: "Security fundamentals: authentication, sessions, CSRF, headers and secrets in a real app"
 description: The OWASP risk families as a working map, and the concrete controls a senior engineer expects, from Argon2id and opaque session tokens to CSRF layers, CSP, trusted client IPs and secret handling, read through this app's code.
-minutes: 34
+minutes: 40
 difficulty: hard
 tags: [security, owasp, authentication, sessions, csrf, xss, csp, secrets, senior-craft]
 ---

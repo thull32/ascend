@@ -2,7 +2,7 @@
 slug: persistent-and-immutable-structures
 title: "Persistent and immutable structures: every version for the price of the change"
 description: How path copying keeps every old version of a tree readable with O(log n) new nodes per update, traced node by node with counts, fat nodes and node copying, 32-way persistent vectors and HAMTs with the bitmap-and-popcount lookup traced on a real hash, what Clojure, Scala and Immutable.js ship and Python does not, Git's object store as a persistent Merkle tree, and the measured memory of structural sharing.
-minutes: 40
+minutes: 45
 difficulty: hard
 tags: [persistent-data-structures, immutability, path-copying, hamt, structural-sharing, git, copy-on-write, functional]
 problems: []

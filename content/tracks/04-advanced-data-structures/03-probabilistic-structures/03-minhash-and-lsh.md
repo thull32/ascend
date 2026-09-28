@@ -2,7 +2,7 @@
 slug: minhash-and-lsh
 title: "MinHash and LSH: finding near-duplicates without comparing every pair"
 description: Jaccard similarity, shingling, MinHash signatures that estimate similarity in constant space (with the collision property proved and a signature traced), locality-sensitive hashing with the banding S-curve computed for three settings and the bucketing traced, what datasketch, Spark, Google's SimHash and LLM corpus deduplication actually run, and the bridge to vector search.
-minutes: 45
+minutes: 55
 difficulty: hard
 tags: [minhash, lsh, jaccard, similarity, deduplication, vector-search]
 ---

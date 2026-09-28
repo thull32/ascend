@@ -2,7 +2,7 @@
 slug: reliable-delivery-algorithms
 title: "Reliable delivery: sliding windows, Go-Back-N and Selective Repeat"
 description: How sequence numbers, acknowledgements, timers and a sliding window turn a lossy, reordering link into an in-order byte stream, traced frame by frame for stop-and-wait, Go-Back-N and Selective Repeat under one loss pattern, with the window-size rule proved, TCP's SACK measured, and the same algorithms one layer up.
-minutes: 31
+minutes: 50
 difficulty: medium
 tags: [networking, reliable-delivery, sliding-window, go-back-n, selective-repeat, sequence-numbers, tcp, quic]
 problems: [design-circular-queue]

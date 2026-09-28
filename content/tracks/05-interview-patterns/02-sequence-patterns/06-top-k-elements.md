@@ -2,7 +2,7 @@
 slug: top-k-elements
 title: "Top-k elements: the size-k heap and the greedy scheduler"
 description: Recognise "k largest", "k closest", "most frequent" and "repeatedly take the biggest" problems, prove why a size-k min-heap never discards an answer, trace four problems heap array by heap array, and know when quickselect, buckets or an ordered set beat it.
-minutes: 32
+minutes: 50
 difficulty: medium
 tags: [heap, priority-queue, top-k, greedy, pattern:heap]
 problems: [kth-largest-array, k-closest-points, kth-largest-stream, last-stone-weight, top-k-frequent, task-scheduler, reorganize-string, design-twitter]

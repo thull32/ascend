@@ -2,7 +2,7 @@
 slug: jvm-essentials
 title: "JVM essentials: JIT tiers, heap layout, G1 and ZGC, and concurrency in Java services"
 description: How the JVM compiles code through its JIT tiers, lays out and collects memory with G1 and ZGC, what the Java Memory Model guarantees, what the collections really cost, and which concurrency utilities to reach for, all measured on JDK 21, with why it matters in Netflix-scale Java services.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [java, jvm, jit, garbage-collection, g1, zgc, java-memory-model, concurrency, virtual-threads, languages]
 ---

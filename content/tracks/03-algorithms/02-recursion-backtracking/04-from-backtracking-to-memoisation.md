@@ -2,7 +2,7 @@
 slug: from-backtracking-to-memoisation
 title: "From backtracking to memoisation"
 description: How to spot the repeated subproblems inside an exponential search, cache them by the arguments that matter, and watch the running time collapse from 2^n to n^2; the bridge to dynamic programming.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [memoisation, recursion, overlapping-subproblems, dynamic-programming, caching]
 problems: [climbing-stairs, decode-ways, word-break, target-sum]

@@ -2,7 +2,7 @@
 slug: distributed-key-value-store
 title: "Distributed key-value store: a Dynamo-style design from ring to repair"
 description: A leaderless, always-writable key-value store for 10 billion keys and a million operations a second, sized to 48 nodes by throughput and recovery time, with a sloppy-quorum write and a read-repair read traced in milliseconds, Merkle-tree repair arithmetic, the tombstone trap, a simulation of why vnode counts fell, and how it evolves at 10x and 100x.
-minutes: 38
+minutes: 35
 difficulty: hard
 tags: [system-design, case-study, key-value-store, dynamo, consistent-hashing, quorum, replication, anti-entropy]
 problems: [time-based-kv]

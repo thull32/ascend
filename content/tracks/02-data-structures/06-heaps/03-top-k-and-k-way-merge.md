@@ -2,7 +2,7 @@
 slug: top-k-and-k-way-merge
 title: "Top-k, k-way merge and the streaming median"
 description: The three problem families a heap owns outright, why the top-k heap is the size of k and not n, how to merge a thousand sorted streams in one pass and how external sorts and LSM compactions size that merge, the two-heap trick that tracks a median online, and what breaks when you distribute any of them.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [heaps, top-k, k-way-merge, two-heaps, median, streaming]
 problems: [top-k-frequent, k-closest-points, kth-largest-array, merge-k-sorted-lists, kth-smallest-sorted-matrix, find-median-data-stream, smallest-range-k-lists]

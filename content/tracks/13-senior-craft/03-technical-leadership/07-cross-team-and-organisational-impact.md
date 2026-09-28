@@ -2,7 +2,7 @@
 slug: cross-team-and-organisational-impact
 title: "Cross-team and organisational impact: platforms, standards, product and leadership"
 description: When a shared solution pays for itself, a platform-adoption plan with its funnel metrics from RFC to full adoption, the long tail of migrations, a technical doc rewritten as a one-page executive summary, and how organisations fund and judge cross-team work behind the scenes.
-minutes: 24
+minutes: 30
 difficulty: hard
 tags: [leadership, platforms, standards, migrations, adoption, stakeholders, executive-communication, organisation]
 ---

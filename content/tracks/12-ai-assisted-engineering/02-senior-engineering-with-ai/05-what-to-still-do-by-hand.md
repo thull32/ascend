@@ -2,7 +2,7 @@
 slug: what-to-still-do-by-hand
 title: "What to still do by hand: the skills that must stay sharp"
 description: The verification paradox with the evidence behind it, the skills every AI-assisted workflow depends on and how each decays, a worked race condition traced instruction by instruction and reproduced on purpose, the fixes in three stores, a maintenance regimen, and when doing it by hand is the wrong call.
-minutes: 20
+minutes: 25
 difficulty: hard
 tags: [ai-tools, career, concurrency, debugging, fundamentals, deliberate-practice]
 ---

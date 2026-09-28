@@ -2,7 +2,7 @@
 slug: io-bound-vs-cpu-bound
 title: "I/O-bound vs CPU-bound: find the bottleneck, then scale the right thing"
 description: How to tell CPU-bound, I/O-bound and pool-bound work apart from vmstat, pidstat and pressure stall information; Little's law and Erlang C for sizing pools; measured thread pools, process pools and free-threaded CPython 3.14; measured batching of commits and syscalls; and backpressure when the bottleneck is full.
-minutes: 30
+minutes: 35
 difficulty: medium
 tags: [performance, bottlenecks, littles-law, connection-pools, batching, backpressure, scaling]
 ---

@@ -2,7 +2,7 @@
 slug: learning-without-atrophy
 title: "Learning without atrophy: using AI to get deeper, not shallower"
 description: Why answer-mode AI can stop learning (generation, retrieval and the fluency illusion, with the studies behind each), how to put a model in tutor mode with reusable prompts and a skill file, the predict-then-verify loop with a written ledger, a spaced re-solve schedule, a deliberate practice plan for busy engineers, and how to tell whether you are actually improving.
-minutes: 20
+minutes: 25
 difficulty: medium
 tags: [ai-tools, learning, deliberate-practice, career, interview-prep]
 ---

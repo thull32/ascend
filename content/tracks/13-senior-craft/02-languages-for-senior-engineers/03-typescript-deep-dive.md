@@ -2,7 +2,7 @@
 slug: typescript-deep-dive
 title: "TypeScript deep dive: structural types, narrowing, variance, discriminated unions and erasure"
 description: How TypeScript's structural type system, control-flow narrowing, generics and variance, satisfies and discriminated unions work, what erases before the code runs, where the types stop being true, and how this app's frontend uses them, with real compiler errors traced and runtime costs measured.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [typescript, javascript, type-system, generics, variance, discriminated-unions, narrowing, event-loop, languages]
 ---

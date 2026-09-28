@@ -2,7 +2,7 @@
 slug: tcp-deep-dive
 title: "TCP deep dive: sequence numbers, windows, timers and TIME_WAIT"
 description: How TCP's handshake, sequence numbers, SACK, retransmission timers (Jacobson/Karels worked with numbers and checked against a live socket), receive window, Nagle and delayed ACK (a measured 44 ms stall) and four-way close actually work, TIME_WAIT and port-exhaustion arithmetic, and the production failures each one causes.
-minutes: 44
+minutes: 50
 difficulty: medium
 tags: [networking, tcp, retransmission, sack, rto, flow-control, nagle, delayed-ack, time-wait, tcpdump, ss]
 problems: []

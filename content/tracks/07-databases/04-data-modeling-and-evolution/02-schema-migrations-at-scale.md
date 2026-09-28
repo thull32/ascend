@@ -2,7 +2,7 @@
 slug: schema-migrations-at-scale
 title: "Schema migrations at scale: changing a table nobody can stop using"
 description: The lock every common Postgres DDL takes and whether it rewrites the table, measured on PostgreSQL 17; the lock queue reproduced with three sessions and fixed with lock_timeout and retries; NOT VALID constraints, CREATE INDEX CONCURRENTLY and its INVALID leftovers; batched backfills timed with their WAL; and expand/contract with feature flags and dual-write verification.
-minutes: 24
+minutes: 45
 difficulty: hard
 tags: [migrations, ddl, expand-contract, zero-downtime, backfill, locking, postgres]
 ---

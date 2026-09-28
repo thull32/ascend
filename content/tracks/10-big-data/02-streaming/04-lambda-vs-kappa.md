@@ -2,7 +2,7 @@
 slug: lambda-vs-kappa
 title: "Lambda vs kappa: reprocessing, correctness and the stream-table duality"
 description: Why the lambda architecture ran batch and streaming side by side and how the two layers drift, traced event by event; how kappa replaces the batch layer with log replay and the retention and throughput arithmetic that decides whether replay is feasible; the stream-table duality traced through compaction and diffing; and the modern lakehouse answer with Iceberg or Delta as the serving layer.
-minutes: 15
+minutes: 30
 difficulty: hard
 tags: [big-data, streaming, lambda-architecture, kappa-architecture, reprocessing, stream-table-duality, event-sourcing, architecture]
 ---

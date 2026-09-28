@@ -2,7 +2,7 @@
 slug: backtracking-pattern
 title: "Backtracking: choose, explore, unchoose, and prune early"
 description: Recognise generate-all and find-any-valid problems from the statement and its bounds, write the one template that covers subsets, permutations and constraint search, and see Subsets II, Combination Sum, N-Queens and Word Search traced through their recursion trees with every pruned branch counted.
-minutes: 34
+minutes: 45
 difficulty: medium
 tags: [backtracking, recursion, subsets, permutations, constraint-satisfaction, pruning, pattern:backtracking]
 problems: [subsets, combination-sum, permutations, subsets-ii, combination-sum-ii, word-search, palindrome-partitioning, letter-combinations, n-queens, sudoku-solver, generate-parentheses]

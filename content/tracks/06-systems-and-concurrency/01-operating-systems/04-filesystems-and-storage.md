@@ -2,7 +2,7 @@
 slug: filesystems-and-storage
 title: "Filesystems and storage: inodes, journaling and what fsync promises"
 description: How files map to inodes and extents, what the page cache does with your writes, exactly what fsync and rename do and do not guarantee (with the write-rename-fsync recipe traced crash point by crash point), how journaling modes differ, measured fsync and group-commit costs, SSDs versus disks, and RAID.
-minutes: 35
+minutes: 50
 difficulty: medium
 tags: [operating-systems, filesystems, fsync, journaling, ssd, raid, durability, storage]
 ---

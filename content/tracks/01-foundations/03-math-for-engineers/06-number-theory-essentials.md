@@ -2,7 +2,7 @@
 slug: number-theory-essentials
 title: "Number theory essentials: GCD, primes, fast powers and modular inverses"
 description: Euclid's algorithm with its logarithmic bound and measured worst case, the extended algorithm traced forward and backward, the sieve with its real cost and memory, Miller–Rabin traced on a composite and a liar, binary exponentiation traced for numbers, residues and matrices, and the two ways to divide under a modulus with the failure of the wrong one demonstrated.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [math, number-theory, gcd, primes, sieve, modular-inverse, fast-exponentiation, miller-rabin]
 problems: [pow-x-n, plus-one, happy-number]

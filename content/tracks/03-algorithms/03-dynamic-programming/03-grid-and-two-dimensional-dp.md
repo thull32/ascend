@@ -2,7 +2,7 @@
 slug: grid-and-two-dimensional-dp
 title: "Grid and two-dimensional DP: paths, sums and obstacles"
 description: Define a state per cell, derive the transition from the two cells that can reach it, watch the grid fill row by row, and cut memory from O(mn) to O(n) with a rolling row.
-minutes: 40
+minutes: 55
 difficulty: medium
 tags: [dynamic-programming, grid-dp, 2d-dp, unique-paths, min-path-sum, space-optimisation]
 problems: [unique-paths, longest-increasing-path]

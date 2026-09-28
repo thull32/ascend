@@ -2,7 +2,7 @@
 slug: binary-search-trees
 title: "Binary search trees: the invariant and what breaks it"
 description: Search, insert and the three-case delete, why inorder is sorted, how to validate a BST without the classic bug, and why sorted input turns O(log n) into O(n).
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [trees, bst, binary-search-tree, validation, deletion]
 problems: [validate-bst, lowest-common-ancestor-bst, kth-smallest-bst]

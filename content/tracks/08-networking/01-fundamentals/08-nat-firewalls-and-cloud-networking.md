@@ -2,7 +2,7 @@
 slug: nat-firewalls-and-cloud-networking
 title: "NAT, firewalls and cloud networking: translation tables, traversal, VPCs and the egress bill"
 description: A PAT table traced packet by packet for two clients, conntrack states and timeouts, why inbound connections fail and how STUN, TURN and ICE get through (and why symmetric NAT defeats hole punching), security groups versus network ACLs with a worked evaluation, VPC and subnet CIDR arithmetic, gateways, endpoints and peering, zero trust, and egress cost as a design constraint.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [networking, nat, pat, conntrack, stun, turn, ice, webrtc, firewall, security-groups, vpc, cidr, privatelink, zero-trust, egress]
 problems: []

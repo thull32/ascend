@@ -2,7 +2,7 @@
 slug: benchmarking-pitfalls
 title: "Benchmarking pitfalls: warm-up, noise, statistics and coordinated omission"
 description: Dead-code elimination, JIT warm-up and profile pollution, timer resolution, turbo frequency, run-to-run noise and the statistics needed to trust a 3% difference, coordinated omission in load tests, and CI gates that neither cry wolf nor miss regressions, each demonstrated with a measured run.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [performance, benchmarking, statistics, jit, load-testing, coordinated-omission, ci]
 ---

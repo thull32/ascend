@@ -2,7 +2,7 @@
 slug: cpu-caches-and-memory-layout
 title: "CPU caches and memory layout: cache lines, false sharing and data-oriented design"
 description: The memory hierarchy measured on a real machine, how a cache maps addresses to sets and ways, MESI and MOESI coherence traced step by step, false sharing, struct padding, AoS versus SoA, prefetching versus pointer chasing, and why a compiler's cmov can make branch prediction vanish from your benchmark.
-minutes: 40
+minutes: 50
 difficulty: hard
 tags: [performance, cpu-cache, false-sharing, memory-layout, soa, branch-prediction, numa]
 ---

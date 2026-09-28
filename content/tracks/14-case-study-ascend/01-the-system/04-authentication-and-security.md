@@ -2,7 +2,7 @@
 slug: authentication-and-security
 title: "Authentication and security: sessions, CSRF, CSP and rate limits"
 description: Argon2id behind a semaphore, hashed opaque session tokens instead of JWTs, timing-safe login, password-confirmed account deletion, three independent CSRF layers, the CSP, rate limits keyed by IP, account and session, and secrets, each with the weakness a reviewer found.
-minutes: 49
+minutes: 45
 difficulty: hard
 tags: [case-study, security, authentication, sessions, csrf, csp, rate-limiting, argon2]
 ---

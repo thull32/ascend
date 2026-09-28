@@ -2,7 +2,7 @@
 slug: sliding-window-mastery
 title: "Sliding window mastery: monotone predicates, counting windows and the at-most-k trick"
 description: Prove when a window is allowed to slide and why it runs in O(n), count every valid subarray instead of finding one, reduce exactly-k to two at-most-k passes, and handle aggregates like max and gcd that cannot be subtracted.
-minutes: 45
+minutes: 55
 difficulty: hard
 tags: [sliding-window, two-pointers, counting, at-most-k, monotonic-deque, amortised-analysis]
 problems: [longest-substring-no-repeat, longest-repeating-replacement, permutation-in-string, minimum-window-substring, sliding-window-maximum, max-consecutive-ones-iii, subarray-sum-equals-k]

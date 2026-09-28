@@ -2,7 +2,7 @@
 slug: building-the-ai-coach
 title: "Building the AI coach: streaming, caching and budgets"
 description: How Ascend streams model replies through a channel so a closed tab cannot lose a reply or skip its bill, how its prompt caching went from one breakpoint to three blocks, and why a budget check had to become one statement.
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [case-study, llm, sse, streaming, prompt-caching, rate-limiting, cost-control]
 ---
@@ -399,7 +399,7 @@ The input limit first compared against `ai_usage.input_tokens`, the provider's *
 
 The fix changed what the limit counts, not the limit itself. `BILLED_INPUT_SQL` is `input_tokens + cache_write_tokens * 5 / 4 + cache_read_tokens / 10`, integer arithmetic in the same `WHERE` clause, and `status()` reports the same billed figure to the learner. The test `cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry` records 90,000 cache-write tokens with zero uncached input and asserts that the next reservation is refused and that the learner's usage reads 112,500. The weights are deliberately simple: the configured model bills reads at 0.05x, so counting them at 0.1x errs on the safe side. And the refusal now says when to come back: `RateLimited` carries `retry_after_secs`, set to the seconds until the next UTC midnight, which the API sends as `Retry-After`.
 
-One gap remains, and it is about what a pre-call check can know. **Token overshoot:** the conditions are checked before the call, so a user at 119,999 of 120,000 output tokens can still start a call with `max_tokens` 4,000 (the coach) or 6,000 (quiz generation), and a handful of concurrent calls multiply that. Reserving `max_tokens` up front and refunding the unused part when the call settles, the way a card authorisation hold works, closes it. Budgeting in money rather than weighted tokens would go one step further and survive a change of model or price.
+One gap remains, and it is about what a pre-call check can know. **Token overshoot:** the conditions are checked before the call, so a user at 119,999 of 120,000 output tokens can still start a call with `max_tokens` 4,000 (the coach) or 16,000 (quiz generation, roadmap suggestions and grading, which share `STRUCTURED_MAX_TOKENS` so adaptive thinking has room), and a handful of concurrent calls multiply that. Reserving `max_tokens` up front and refunding the unused part when the call settles, the way a card authorisation hold works, closes it. Budgeting in money rather than weighted tokens would go one step further and survive a change of model or price.
 
 **Rejected alternatives:** counting in process memory (lost on every deploy, and wrong the moment there is a second replica); Redis (a second stateful dependency for a single-instance app, when Postgres already has the row and the atomic upsert); relying only on a spend limit at the provider (it protects the company's card, not fairness between users, and it fails everyone at once). **Failure mode prevented:** one looping client exhausting the shared key. **At 100x:** the table stays correct across replicas because the state is already in Postgres; reserving `max_tokens` and budgeting in money are what remain, and the final module's cost lesson prices why.
 

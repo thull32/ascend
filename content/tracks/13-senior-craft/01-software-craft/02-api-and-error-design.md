@@ -2,7 +2,7 @@
 slug: api-and-error-design
 title: "API and error design: contracts, error taxonomies, pagination and versioning"
 description: Design APIs whose errors tell callers what to do next, map domain errors to HTTP in exactly one place without leaking internals, and evolve contracts with idempotency, cursors and compatible changes.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [api-design, error-handling, http, idempotency, pagination, versioning, senior-craft]
 ---

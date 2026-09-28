@@ -2,7 +2,7 @@
 slug: breadth-first-search
 title: "Breadth-first search: levels, shortest paths and multiple sources"
 description: The queue mechanics of BFS traced by hand, why it finds shortest paths in unweighted graphs and exactly when it does not, level-by-level processing, multi-source BFS, grid BFS, 0-1 BFS, bidirectional BFS, and what deque, ArrayDeque and direction-optimising BFS do underneath.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [graphs, bfs, shortest-path, queue, grid, multi-source]
 problems: [rotting-oranges, walls-and-gates, word-ladder, min-depth]

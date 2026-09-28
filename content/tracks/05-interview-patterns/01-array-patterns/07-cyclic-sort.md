@@ -2,7 +2,7 @@
 slug: cyclic-sort
 title: "Cyclic sort: when the values are their own indices"
 description: Recognise the bounded-range signal, place every value at the index it names in one linear pass and O(1) space, avoid the one-line swap that corrupts the array, and know when XOR, a sum or Floyd's cycle detection is the better answer.
-minutes: 28
+minutes: 50
 difficulty: medium
 tags: [pattern:cyclic-sort, arrays, in-place, missing-number, duplicates]
 problems: [missing-number, first-missing-positive, find-duplicate-number]

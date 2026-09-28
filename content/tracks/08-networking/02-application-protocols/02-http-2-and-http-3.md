@@ -2,7 +2,7 @@
 slug: http-2-and-http-3
 title: "HTTP/2 and HTTP/3: multiplexing, HPACK and moving the transport into user space"
 description: HTTP/2 read from a real connection frame by frame (preface, SETTINGS, WINDOW_UPDATE, HEADERS), HPACK decoded byte by byte as a 31-byte header block shrinks to 6, stream states and flow-control window arithmetic, why push died, TCP head-of-line blocking quantified, HTTP/3 over QUIC with QPACK, 0-RTT and connection migration, discovery through ALPN, Alt-Svc and HTTPS records, and when to adopt each.
-minutes: 24
+minutes: 45
 difficulty: hard
 tags: [http2, http3, quic, hpack, qpack, multiplexing, flow-control, head-of-line-blocking, alpn]
 problems: []

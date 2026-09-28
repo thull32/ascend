@@ -2,7 +2,7 @@
 slug: comparison-sorts
 title: "Comparison sorts: insertion, merge, quick and heap"
 description: How the four comparison sorts move data, why quicksort beats merge sort on real hardware despite the worse worst case, and what stability and memory really cost.
-minutes: 40
+minutes: 55
 difficulty: medium
 tags: [sorting, quicksort, merge-sort, heap-sort, insertion-sort, stability, partition]
 problems: [sort-colors, kth-largest-array]

@@ -2,7 +2,7 @@
 slug: lfu-and-modern-policies
 title: "LFU and modern eviction: frequency, aging, ARC and TinyLFU"
 description: "An O(1) LFU cache built two ways, min_freq buckets and the original frequency-node list, traced operation by operation and measured in CPython; why naive frequency counting never forgets and how halving fixes it; ARC's adaptive target traced through ghost hits; and the policies real caches run with the constants read from their source (Caffeine's W-TinyLFU sizes, Redis's sampled logarithmic LFU, Postgres's clock sweep)."
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [lfu, cache, eviction, tinylfu, arc, redis, caffeine, design]
 ---

@@ -2,7 +2,7 @@
 slug: consensus-raft
 title: "Consensus with Raft: election, log replication, safety and what etcd actually does"
 description: Why a quorum alone cannot agree on a log; a Raft election traced term by term through a split vote, with a simulation of election time and split-vote rates; the commit index advancing entry by entry; log matching and a divergent follower repaired probe by probe; the Figure 8 rule that a leader commits only its own term's entries; membership changes, ReadIndex and lease reads; and the fsync-bound numbers behind etcd.
-minutes: 35
+minutes: 40
 difficulty: expert
 tags: [system-design, distributed-systems, raft, consensus, leader-election, etcd, log-replication]
 ---

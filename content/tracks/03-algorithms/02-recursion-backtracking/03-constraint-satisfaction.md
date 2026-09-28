@@ -2,7 +2,7 @@
 slug: constraint-satisfaction
 title: "Constraint satisfaction: N-queens, sudoku and word search"
 description: How pruning, choice ordering and compact state turn an exponential search into one that finishes, worked on N-queens with bitmasks, sudoku with most-constrained-first, and grid DFS with in-place marking.
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [backtracking, pruning, n-queens, sudoku, word-search, bitmask, csp]
 problems: [n-queens, sudoku-solver, word-search, palindrome-partitioning]

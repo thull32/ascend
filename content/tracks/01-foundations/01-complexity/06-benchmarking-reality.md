@@ -2,7 +2,7 @@
 slug: benchmarking-reality
 title: "Benchmarking reality: when the asymptotic answer is wrong"
 description: Constant factors that decide real performance, the measured input sizes where O(n²) beats O(n log n), a benchmark harness that survives warm-up, JIT tiers, dead-code elimination and noise, what to report, and the profile-before-optimising discipline that separates senior engineers from fast typists.
-minutes: 40
+minutes: 55
 difficulty: easy
 tags: [complexity, benchmarking, profiling, constant-factors, performance, jit]
 problems: [kth-largest-array, top-k-frequent]

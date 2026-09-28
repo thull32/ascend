@@ -2,7 +2,7 @@
 slug: counting-and-combinatorics
 title: "Counting and combinatorics: sizing the search space"
 description: Permutations, combinations, subsets, lattice paths and stars-and-bars derived from two rules and traced by hand, pigeonhole and inclusion-exclusion applied to hash tables, analytics and derangements, the overflow-safe binomial with its exactness proof, and how counting sizes test matrices, replica placement and brute-force budgets.
-minutes: 45
+minutes: 55
 difficulty: medium
 tags: [math, combinatorics, counting, permutations, combinations, inclusion-exclusion, pigeonhole]
 problems: [subsets, permutations, unique-paths, combination-sum]

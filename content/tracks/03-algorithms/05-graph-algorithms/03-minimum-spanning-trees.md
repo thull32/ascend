@@ -2,7 +2,7 @@
 slug: minimum-spanning-trees
 title: "Minimum spanning trees: Prim, Kruskal and the cut property"
 description: Why a greedy choice across any cut is always safe, how Prim grows one tree with a heap and Kruskal merges a forest with union-find, which one to use on which graph, and the MST variants interviewers reach for.
-minutes: 45
+minutes: 55
 difficulty: medium
 tags: [graphs, minimum-spanning-tree, prim, kruskal, cut-property, union-find, greedy]
 problems: [min-cost-connect-points, graph-valid-tree]

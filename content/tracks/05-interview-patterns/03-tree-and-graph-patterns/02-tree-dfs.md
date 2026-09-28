@@ -2,7 +2,7 @@
 slug: tree-dfs
 title: "Tree DFS: what to pass down and what to return up"
 description: Recognise subtree questions, choose between top-down parameters and bottom-up return values, and see Diameter, Validate BST, Max Path Sum and Kth Smallest traced call by call.
-minutes: 34
+minutes: 40
 difficulty: medium
 tags: [tree, dfs, recursion, post-order, in-order, pattern:tree-dfs]
 problems: [invert-binary-tree, max-depth-binary-tree, diameter-binary-tree, balanced-binary-tree, same-tree, subtree-of-another, lowest-common-ancestor-bst, validate-bst, kth-smallest-bst, construct-from-preorder-inorder, max-path-sum, path-sum-ii, count-good-nodes]

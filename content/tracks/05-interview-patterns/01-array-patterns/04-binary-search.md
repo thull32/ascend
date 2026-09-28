@@ -2,7 +2,7 @@
 slug: binary-search
 title: "Binary search: find the boundary, not the value"
 description: One template, the first-true boundary, that solves exact lookup, rotated arrays, versioned stores, the median partition and every "minimum speed such that" problem; how to recognise the predicate when there is no array, and what bisect and the cache do per probe.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [binary-search, monotone-predicate, search-on-the-answer, pattern:binary-search]
 problems: [binary-search-basic, search-2d-matrix, koko-eating-bananas, find-min-rotated, search-rotated, time-based-kv, median-two-sorted, first-bad-version, sqrt-x]

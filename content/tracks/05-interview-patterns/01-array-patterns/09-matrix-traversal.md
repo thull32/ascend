@@ -2,7 +2,7 @@
 slug: matrix-traversal
 title: "Matrix traversal: index discipline, shrinking boundaries and in-place tricks"
 description: Walk, rotate and rewrite two-dimensional arrays without off-by-one errors, using direction vectors, boundary shrinking, transpose-and-reverse, first-row flag storage and the grid-as-graph view, with measured loop-order costs in Python and JavaScript.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [pattern:matrix, arrays, two-dimensional, in-place, grids]
 problems: [rotate-image, spiral-matrix, set-matrix-zeroes, spiral-matrix-ii, search-2d-matrix, number-of-islands]

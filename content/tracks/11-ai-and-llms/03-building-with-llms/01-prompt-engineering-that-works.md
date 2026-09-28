@@ -2,7 +2,7 @@
 slug: prompt-engineering-that-works
 title: "Prompt engineering that works: structure, examples and constraints"
 description: One triage task prompted five ways with the failure each change removes, where instructions go and how a chat request becomes one token sequence, how to select and pay for few-shot examples, a support conversation priced turn by turn with and without prompt caching, and which popular tricks do nothing.
-minutes: 20
+minutes: 40
 difficulty: medium
 tags: [llm, prompt-engineering, few-shot, system-prompts, prompt-caching, chat-templates, ai]
 ---

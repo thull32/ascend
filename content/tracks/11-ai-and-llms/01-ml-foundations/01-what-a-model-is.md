@@ -2,7 +2,7 @@
 slug: what-a-model-is
 title: "What a model is: parameters, loss and gradient descent"
 description: A model is a function with adjustable numbers, a loss that scores it and an optimiser that tunes it. Worked by hand on a four-point linear regression through three full gradient steps, with the conditioning that makes training slow, the learning rate that makes it diverge, what Adam and mixed precision do under the hood, and how it fails in production.
-minutes: 31
+minutes: 45
 difficulty: easy
 tags: [machine-learning, linear-regression, gradient-descent, loss-functions, optimisation]
 problems: []

@@ -2,7 +2,7 @@
 slug: strings-in-depth
 title: Strings in depth
 description: Why strings are immutable, what concatenation in a loop really costs and when CPython makes it linear anyway, how CPython (PEP 393), V8, Java, Go and Rust lay out text in memory byte by byte, and the Unicode pitfalls that break "simple" string code.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [strings, unicode, immutability, string-builder, utf-8, pep-393, v8]
 problems: [valid-anagram, valid-palindrome, encode-decode-strings]

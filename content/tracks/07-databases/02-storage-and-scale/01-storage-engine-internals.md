@@ -2,7 +2,7 @@
 slug: storage-engine-internals
 title: "Storage engine internals: pages, the buffer pool, WAL and recovery"
 description: How Postgres lays rows out in 8 KiB pages and why InnoDB clusters them instead, which pages the buffer pool keeps and how a sequential scan avoids flushing it, what full-page writes cost after a checkpoint, and how crash recovery replays from the REDO point, with each mechanism measured.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [storage-engine, pages, buffer-pool, wal, checkpoints, crash-recovery, innodb, postgres]
 ---

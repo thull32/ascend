@@ -2,7 +2,7 @@
 slug: stream-processing-model
 title: "The stream processing model: event time, windows, watermarks and late data"
 description: Why streams must be computed in event time; tumbling, sliding and session windows traced event by event with out-of-order and late data; how a bounded-out-of-orderness watermark advances, propagates through a keyed operator as the minimum of its inputs and stalls on an idle partition; what allowed lateness, triggers and accumulation modes do in Beam, Flink, Spark and Kafka Streams.
-minutes: 28
+minutes: 30
 difficulty: hard
 tags: [big-data, streaming, event-time, windowing, watermarks, late-data, flink, spark-structured-streaming]
 ---

@@ -2,7 +2,7 @@
 slug: virtual-memory
 title: "Virtual memory: page tables, the TLB, page faults and the OOM killer"
 description: How every pointer is translated through a four-level page table (traced for a real address), what the TLB and huge pages buy you, what minor and major page faults cost on a real machine, how mmap works, and why a container is OOM-killed while its heap looks half empty.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [operating-systems, virtual-memory, paging, tlb, page-faults, mmap, oom]
 problems: [lru-cache]

@@ -2,7 +2,7 @@
 slug: llm-system-design
 title: "LLM system design: latency, cost, caching and budgets"
 description: An LLM feature designed end to end with this app's AI coach as the worked example - requirements, a cost model per request, prompt layout and a stepped history window for caching, effort and model routing, streaming over SSE, fallbacks, per-session rate limits and billed-token daily budgets, observability - then how a docs chatbot and a coding copilot differ.
-minutes: 25
+minutes: 45
 difficulty: hard
 tags: [llm, system-design, prompt-caching, streaming, sse, rate-limiting, cost, ai]
 ---

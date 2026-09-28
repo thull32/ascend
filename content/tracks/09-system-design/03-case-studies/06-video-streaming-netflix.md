@@ -2,7 +2,7 @@
 slug: video-streaming-netflix
 title: "Video streaming at Netflix scale: encoding ladders, Open Connect and adaptive bitrate"
 description: A design built from what Netflix has publicly described, with every estimate worked to appliance and node counts, placement hit ratios computed, a cold start traced to the first frame, adaptive bitrate simulated segment by segment through a bandwidth drop, and the telemetry and personalisation loops that tune it.
-minutes: 45
+minutes: 35
 difficulty: expert
 tags: [system-design, case-study, netflix, video-streaming, cdn, open-connect, adaptive-bitrate, encoding, vmaf, telemetry]
 ---

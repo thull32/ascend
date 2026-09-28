@@ -2,7 +2,7 @@
 slug: prefix-sum
 title: "Prefix sums: precompute once, answer every range in O(1)"
 description: How to spot a prefix-sum problem (including the ones that need a transform first), choose between the array, count-map and first-index forms, and execute Range Sum Query, Find Pivot Index, Subarray Sum Equals K and Product of Array Except Self with full traces.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [prefix-sum, arrays, range-queries, hash-map, pattern:prefix-sum]
 problems: [subarray-sum-equals-k, range-sum-query-immutable, find-pivot-index, product-except-self]

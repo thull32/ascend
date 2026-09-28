@@ -2,7 +2,7 @@
 slug: notification-system
 title: "Design a notification system: push, email and SMS without spam or silence"
 description: A multi-channel notification platform for a billion messages a day, worked to machine counts, with a duplicate traced from a retried upstream event through three layers of dedupe, one user's day traced through quiet hours, caps and a digest, priority lanes isolating login codes from campaigns, and delivery semantics chosen per category.
-minutes: 35
+minutes: 30
 difficulty: hard
 tags: [system-design, case-study, notifications, push, kafka, rate-limiting, idempotency, fan-out]
 ---

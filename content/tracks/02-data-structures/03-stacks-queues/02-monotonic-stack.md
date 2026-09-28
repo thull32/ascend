@@ -2,7 +2,7 @@
 slug: monotonic-stack
 title: Monotonic stack
 description: The single invariant behind next-greater-element, stock span, sum of subarray minimums and largest rectangle in a histogram, with hand traces of each, the four variants and their tie rules, a proof that the whole thing is O(n), what it costs in a real runtime, and where it hides in compilers and suffix structures.
-minutes: 45
+minutes: 40
 difficulty: medium
 tags: [stack, monotonic-stack, next-greater-element, histogram, amortized, cartesian-tree]
 problems: [daily-temperatures, next-greater-element, largest-rectangle-histogram, remove-k-digits, car-fleet]

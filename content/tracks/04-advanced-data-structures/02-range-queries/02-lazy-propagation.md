@@ -2,7 +2,7 @@
 slug: lazy-propagation
 title: "Lazy propagation: range updates without touching every element"
 description: How a segment tree defers range updates as pending tags, traced tag by tag on an eight-element tree through two overlapping updates and a query, the push-down order bug reproduced node by node, composing range assign with range add, AtCoder's lazy_segtree internals, measured costs, and the bugs that break most lazy trees.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [segment-tree, lazy-propagation, range-update, range-query, atcoder-library]
 problems: [range-sum-query-immutable]

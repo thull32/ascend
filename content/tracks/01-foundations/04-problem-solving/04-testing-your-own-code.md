@@ -2,7 +2,7 @@
 slug: testing-your-own-code
 title: "Testing your own code: edge cases, hand traces and reading errors"
 description: An edge-case taxonomy applied row by row to two real problems, with what each plausible bug actually returns; the hand-trace table that catches off-by-ones on a whiteboard; how the test harness compares your answer and how property-based tools shrink a failure; and how to read an error message instead of guessing.
-minutes: 45
+minutes: 50
 difficulty: easy
 tags: [testing, edge-cases, debugging, tracing, interview]
 problems: [merge-intervals, valid-palindrome, valid-parentheses]

@@ -2,7 +2,7 @@
 slug: classic-divide-and-conquer
 title: "Classic divide and conquer: exponentiation, Karatsuba, closest pair, majority"
 description: Five algorithms where the recurrence explains the win, from squaring your way to a^n in log n steps to the three-multiplication trick that beats schoolbook multiplication, the strip argument in closest pair, and why Strassen's seven products matter.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [divide-and-conquer, fast-exponentiation, karatsuba, closest-pair, majority-element, strassen, recurrence]
 problems: [pow-x-n, kth-largest-array, median-two-sorted]

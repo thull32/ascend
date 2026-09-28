@@ -2,7 +2,7 @@
 slug: evals-and-observability
 title: "Evals and observability: measuring LLM features"
 description: How to build and label a golden set, write binary rubrics, measure an LLM judge's position, length and self-preference biases, calibrate it against humans, gate prompt changes per slice with an exact paired test, and trace LLM calls with span timings, percentiles, cost per request and cache hit rate.
-minutes: 30
+minutes: 50
 difficulty: hard
 tags: [llm, evals, llm-as-judge, golden-sets, regression-testing, observability, tracing, opentelemetry, ai]
 ---

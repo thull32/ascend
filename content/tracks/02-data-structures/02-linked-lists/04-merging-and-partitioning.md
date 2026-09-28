@@ -2,7 +2,7 @@
 slug: merging-and-partitioning
 title: Merging and partitioning
 description: Merge two sorted lists with a sentinel and a full trace, k-way merge three ways with measured costs (sequential O(nk) against a heap of heads at O(n log k)), stable partition around a value with two sentinel lists, the reorder problem step by step, and the same merges inside heapq, Timsort, the Linux kernel, external sorting and LSM compaction.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [linked-list, merge, k-way-merge, partition, merge-sort, sentinel, heap, lsm, external-sort, timsort]
 problems: [merge-two-sorted-lists, merge-k-sorted-lists, reorder-list, add-two-numbers]

@@ -2,7 +2,7 @@
 slug: kafka-internals
 title: "Kafka internals: partitions, replication, consumer groups and exactly-once"
 description: How Kafka's partitioned, replicated log works on disk and over the wire; a produce, a broker failure and a transaction traced offset by offset; which settings (acks, min.insync.replicas, leader epochs, retention, rebalance protocol, transactions) decide whether you lose or duplicate data; and the arithmetic for partitions, disks and throughput.
-minutes: 33
+minutes: 40
 difficulty: hard
 tags: [big-data, streaming, kafka, replication, consumer-groups, delivery-guarantees, exactly-once, partitioning]
 ---

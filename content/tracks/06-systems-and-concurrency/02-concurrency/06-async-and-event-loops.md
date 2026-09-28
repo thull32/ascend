@@ -2,7 +2,7 @@
 slug: async-and-event-loops
 title: "Async and event loops: one thread, ten thousand connections"
 description: How Node, asyncio and Tokio run thousands of tasks on few threads, the asyncio loop and Node's libuv phases traced iteration by iteration, what await compiles to, what blocks the loop (measured, including why to_thread does not help with json.dumps), and the async pitfalls that show up in code review.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [concurrency, async, event-loop, nodejs, asyncio, tokio, cooperative-scheduling, futures]
 ---

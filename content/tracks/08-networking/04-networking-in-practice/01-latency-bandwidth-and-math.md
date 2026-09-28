@@ -2,7 +2,7 @@
 slug: latency-bandwidth-and-math
 title: "Latency, bandwidth and the math of a round trip"
 description: "Where the milliseconds in a request go: propagation versus serialisation, RTT budgets, the bandwidth-delay product measured on a 50 ms link, slow start counted in round trips, reading ss -ti, fan-out tail math with a simulation, queueing and Little's law, with every number worked."
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [latency, bandwidth, rtt, bandwidth-delay-product, tail-latency, littles-law, estimation, slow-start, fan-out]
 problems: []

@@ -2,7 +2,7 @@
 slug: timeouts-retries-and-backoff
 title: "Timeouts, retries and backoff"
 description: "Which timeout you are actually setting, what Linux does with a connect that never answers, how deadlines cross process boundaries, backoff and jitter measured on a simulated herd, retry budgets traced token by token, hedged requests, and why naive retries turn a blip into an outage."
-minutes: 32
+minutes: 40
 difficulty: medium
 tags: [timeouts, retries, backoff, jitter, deadlines, idempotency, retry-storm, circuit-breaker, retry-budget, hedging]
 problems: []

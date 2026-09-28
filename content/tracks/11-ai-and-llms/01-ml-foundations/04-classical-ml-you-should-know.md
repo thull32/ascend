@@ -2,7 +2,7 @@
 slug: classical-ml-you-should-know
 title: Classical ML you should know (and when not to use deep learning)
 description: Logistic regression trained by hand through three gradient steps, a decision-tree split scored with Gini and entropy, random forests' variance formula, boosting rounds traced to the leaf-value formula XGBoost uses, k-NN ties, k-means iterations and the outlier that steals a cluster, how the libraries make these fast, and a decision table for when a 50-line baseline beats a neural network.
-minutes: 18
+minutes: 40
 difficulty: medium
 tags: [machine-learning, logistic-regression, decision-trees, gradient-boosting, knn, k-means, clustering]
 problems: []

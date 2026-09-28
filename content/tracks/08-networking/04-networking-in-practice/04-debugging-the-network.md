@@ -2,7 +2,7 @@
 slug: debugging-the-network
 title: "Debugging the network: curl, dig, mtr, ss and tcpdump"
 description: "A phase-by-phase method for turning \"the network is slow\" into a named cause, worked on real output from one machine: reading curl timings, checking what your process actually resolves, reading mtr without being fooled by ICMP, triaging sockets with ss and nstat, and reading captured SYN, SYN-ACK, FIN and RST traces."
-minutes: 31
+minutes: 35
 difficulty: medium
 tags: [networking, debugging, curl, dig, mtr, traceroute, tcpdump, ss, wireshark, observability]
 problems: []

@@ -2,7 +2,7 @@
 slug: the-problem-solving-loop
 title: "The problem-solving loop: from unfamiliar problem to tested code"
 description: The six-step protocol (understand, examples, brute force, optimise, code, test) that every lesson and problem on Ascend uses, walked end to end on two real interview problems with measured costs, plus what the runtime does with the code it produces.
-minutes: 35
+minutes: 55
 difficulty: intro
 tags: [problem-solving, protocol, interview, sliding-window, brute-force, hash-map]
 problems: [longest-substring-no-repeat, two-sum, contains-duplicate]

@@ -2,7 +2,7 @@
 slug: the-first-90-days
 title: "The first 90 days: landing as a senior engineer"
 description: How new senior hires are evaluated behind the scenes, a week-by-week plan with checkpoints, the artefacts that carry it (30/60/90 plan, listening-tour notes and synthesis, a corrected system map, a scored fresh-eyes log, weekly notes, the first proposal, a 90-day retrospective), two new seniors compared week by week, failure modes and the questions managers ask at 30, 60 and 90 days.
-minutes: 17
+minutes: 25
 difficulty: easy
 tags: [career, onboarding, leadership, trust, first-90-days]
 ---

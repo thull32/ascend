@@ -2,7 +2,7 @@
 slug: profiling-and-measurement
 title: "Profiling and measurement: flame graphs, p99 thinking and Amdahl's law"
 description: Why the mean lies, how tail latency compounds under fan-out, how histograms bucket and merge percentiles, on-CPU versus off-CPU time, sampling versus instrumenting profilers with measured overhead, a real py-spy session read as a flame graph, and how Amdahl's law bounds what an optimisation can buy.
-minutes: 40
+minutes: 50
 difficulty: medium
 tags: [performance, profiling, flame-graphs, latency, percentiles, amdahl, perf]
 ---

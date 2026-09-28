@@ -2,7 +2,7 @@
 slug: designing-mock-interviews
 title: "Designing mock interviews: roles, transcripts and rubrics"
 description: How Ascend runs solo and AI-assisted mock interviews with three separate model roles over one transcript, grades them with a JSON-schema rubric, and how a read-modify-write on JSONB lost data until it became one SQL append.
-minutes: 42
+minutes: 50
 difficulty: hard
 tags: [case-study, llm, structured-outputs, prompt-design, postgres, jsonb, race-condition]
 ---
@@ -217,29 +217,36 @@ Notice also who holds the assistant's chat history: the client, which sends it i
 Grading is one non-streaming call per interview, with `effort: High` (turns use `Medium`, because turn latency is felt and a grade is not), and a JSON schema passed as `output_config.format`:
 
 ```rust
-// crates/core/src/ai/interview.rs — eval_schema
+// crates/core/src/ai/interview.rs — eval_schema (evidence first, verdict last)
 serde_json::json!({
     "type": "object",
     "additionalProperties": false,
-    "required": ["overall_score", "verdict", "summary", "strengths", "improvements", "dimensions", "next_steps"],
+    "required": ["dimensions", "strengths", "improvements", "summary", "overall_score", "verdict", "next_steps"],
     "properties": {
-        "overall_score": {"type": "integer"},
-        "verdict": {"type": "string", "enum": ["strong_hire", "hire", "lean_hire", "lean_no_hire", "no_hire"]},
-        "summary": {"type": "string"},
-        "strengths": {"type": "array", "items": {"type": "string"}},
-        "improvements": {"type": "array", "items": {"type": "string"}},
         "dimensions": {
             "type": "array",
             "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["name", "score", "notes"],
-                // ... name: string, score: integer, notes: string; then next_steps
+                "required": ["name", "notes", "score"],
+                // ... name: string, notes: string, score: integer
+            }
+        },
+        "strengths": {"type": "array", "items": {"type": "string"}},
+        "improvements": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"},
+        "overall_score": {"type": "integer"},
+        "verdict": {"type": "string", "enum": ["strong_hire", "hire", "lean_hire", "lean_no_hire", "no_hire"]},
+        "next_steps": {"type": "array", "items": {"type": "string"}}
+    }
+})
 ```
+
+The order is the point. Constrained decoding writes keys in schema order, so this grader scores each dimension with notes, lists strengths and improvements and writes the summary before it commits to a number and a verdict. It did not always: until `989636a` the schema was written verdict-first, and `serde_json` sorted the keys anyway, so what reached the API was whatever the alphabet decided. The fix was the `preserve_order` feature, an evidence-first schema and a unit test that pins the order ([Structured outputs and tool use](/learn/ai-and-llms/building-with-llms/structured-outputs-and-tool-use) tells how a flaky roadmap test exposed it). An evaluation that parses but is empty (no summary, no dimensions) is now an error, so the interview reopens instead of completing with nothing.
 
 Constrained decoding guarantees the response parses into `Evaluation`, so there is no "please return valid JSON" retry loop (ADR 0004). The server still validates what the schema cannot express: `eval.overall_score.clamp(0, 100)`, because the schema says "integer", not "integer between 0 and 100". This is the general rule for structured outputs: **a schema guarantees shape, not semantics.**
 
-Read it critically and two gaps show. Dimension scores are meant to be 1–5 but are not clamped, so a 7/5 would render as-is. And the dimension *set* is specified in the prompt ("Dimensions: Problem understanding & clarification; ...") rather than in the schema, so the model could merge, rename or drop one and the schema would accept it. Replacing the `dimensions` array with an object whose properties are the fixed dimension names, each `{score, notes}` and all required, would make the rubric structural. For assisted rounds that object would include the AI-direction dimension; the schema can be built per mode, the way the prompt already is.
+Read it critically and two gaps show. Dimension scores are meant to be 1–5 but are not clamped, so a 7/5 would render as-is. And the dimension *set* is specified in the prompt ("Dimensions: Problem understanding & clarification; ...") rather than in the schema, so the model could merge, rename or drop one and the schema would accept it. Replacing the `dimensions` array with an object whose properties are the fixed dimension names, each `{notes, score}` and all required, would make the rubric structural. For assisted rounds that object would include the AI-direction dimension; the schema can be built per mode, the way the prompt already is.
 
 **Rejected alternatives:** free-text feedback (unrenderable as a report, uncomparable across attempts); asking for JSON in the prompt and parsing with retries (latency, cost, and a failure mode on the most important call of the session); a numeric score only (no evidence, nothing actionable). **Failure mode prevented:** a grading call that succeeds but produces something the report page cannot render.
 

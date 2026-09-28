@@ -2,7 +2,7 @@
 slug: news-feed
 title: "News feed: fan-out, the celebrity problem and a 200 ms read path"
 description: A home-feed design for 200 million daily users, with estimates worked to cache nodes and fan-out workers, a simulation showing why average follower counts understate fan-out by up to 30x, a push/pull threshold derived from the lag target, a post traced from write to follower feed, a 200 ms read path, and how the design changes at 10x and 100x.
-minutes: 36
+minutes: 35
 difficulty: hard
 tags: [system-design, case-study, news-feed, fan-out, timeline, caching, ranking, snowflake-ids]
 problems: [design-twitter, merge-k-sorted-lists]

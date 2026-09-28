@@ -2,7 +2,7 @@
 slug: error-detection
 title: "Error detection: parity, the Internet checksum, CRCs and cryptographic hashes"
 description: How parity, the 16-bit Internet checksum, CRC-32 and cryptographic MACs detect corruption, computed by hand on a captured packet and a traced CRC, what each provably catches and measurably misses, what they cost per gigabyte, and which layer of the stack actually verifies your bytes.
-minutes: 44
+minutes: 50
 difficulty: medium
 tags: [networking, error-detection, checksum, crc, crc32, hashing, hmac, tls, end-to-end]
 problems: []

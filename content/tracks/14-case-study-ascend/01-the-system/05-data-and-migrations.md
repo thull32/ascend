@@ -2,7 +2,7 @@
 slug: data-and-migrations
 title: "Data and migrations: twelve tables, no curriculum, and where races hide"
 description: Ascend's schema table by table, why content is referenced by slug instead of foreign key, composite keys with single-statement upserts, the check-then-act races that were found and closed, cascades, and append-only migrations that run while the old version still serves.
-minutes: 46
+minutes: 45
 difficulty: hard
 tags: [case-study, postgres, schema-design, upsert, migrations, idempotency, concurrency]
 ---

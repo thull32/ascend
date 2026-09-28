@@ -2,7 +2,7 @@
 slug: dns
 title: "DNS: resolution, caching, and the failover that did not happen"
 description: A query built and decoded byte by byte, recursive resolution traced with real data from the root to Cloudflare's servers, what TTLs and negative caching really control (including the caches DNS knows nothing about), record types, DNSSEC and DNS over HTTPS in brief, the outages DNS has caused, and how to diagnose a name that does not work.
-minutes: 24
+minutes: 40
 difficulty: easy
 tags: [networking, dns, ttl, caching, negative-caching, dnssec, doh, geodns, resolver, failover]
 problems: []

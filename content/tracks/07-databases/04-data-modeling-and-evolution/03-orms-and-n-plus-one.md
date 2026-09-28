@@ -2,7 +2,7 @@
 slug: orms-and-n-plus-one
 title: "ORMs and N+1: what your data layer actually sends to the database"
 description: How lazy loading turns one page into hundreds of queries, measured on PostgreSQL 17 for 10, 100 and 1,000 rows and modelled at real network round trips; the three fixes (joins, batch loading, shaping in SQL) and when the join loses; lazy versus eager loading across ORMs; detecting N+1 with and without pg_stat_statements; and a close reading of how this app's SeaORM code avoids it.
-minutes: 41
+minutes: 55
 difficulty: medium
 tags: [orm, n-plus-one, seaorm, sql, performance, dataloader, postgres]
 ---

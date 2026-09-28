@@ -2,7 +2,7 @@
 slug: designing-for-failure
 title: "Designing for failure: taxonomy, blast radius, graceful degradation and multi-region"
 description: Failure as a design input. A taxonomy of what breaks, availability arithmetic for serial, parallel, quorum and shared dependencies checked by simulation, an FMEA of a playback path, blast-radius techniques from bulkheads to shuffle sharding, DR tiers with RPO and RTO, active-active versus active-passive traced down to lost writes and conflicts, and a regional evacuation second by second.
-minutes: 26
+minutes: 35
 difficulty: hard
 tags: [system-design, senior-skills, reliability, availability, fmea, disaster-recovery, multi-region, blast-radius]
 ---

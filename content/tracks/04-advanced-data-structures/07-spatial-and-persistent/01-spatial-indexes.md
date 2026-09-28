@@ -2,7 +2,7 @@
 slug: spatial-indexes
 title: "Spatial indexes: quadtrees, k-d trees, R-trees and geocells"
 description: How maps and ride-sharing systems answer range and nearest-neighbour queries on locations, with a quadtree split, a k-d tree nearest-neighbour search and an R-tree quadratic split traced, a real latitude and longitude encoded into a geohash bit by bit, the edge-of-cell problem, S2 and H3 cells, and what Redis GEO and PostGIS actually store.
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [spatial-index, quadtree, k-d-tree, r-tree, geohash, s2, h3, nearest-neighbour, redis, postgis]
 problems: []

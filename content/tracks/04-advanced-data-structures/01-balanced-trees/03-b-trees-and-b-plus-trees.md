@@ -2,7 +2,7 @@
 slug: b-trees-and-b-plus-trees
 title: "B-trees and B+ trees: the index inside every database"
 description: Why one disk page per node turns a 30-level binary tree into a 4-level B+ tree, the fan-out computed from a 4 KiB page and 8-byte keys, splits and merges traced node by node, and what Postgres, InnoDB and SQLite actually do with page layout, fill factor, UUID keys and covering indexes.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [b-tree, b-plus-tree, index, postgres, innodb, disk, page]
 problems: [kth-smallest-bst, time-based-kv]

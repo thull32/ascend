@@ -2,7 +2,7 @@
 slug: priority-queues-in-practice
 title: "Priority queues in practice: APIs, stability and schedulers"
 description: What the standard libraries actually give you, how to make a heap stable and comparable for arbitrary objects, what runtimes chose for timers and why, and the three production workloads that are a priority queue in disguise.
-minutes: 35
+minutes: 50
 difficulty: medium
 tags: [heaps, priority-queue, scheduling, event-simulation, stability, heapq]
 problems: [task-scheduler, design-twitter, reorganize-string]

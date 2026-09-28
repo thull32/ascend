@@ -2,7 +2,7 @@
 slug: condition-variables-and-semaphores
 title: "Condition variables and semaphores: waiting correctly"
 description: How to make a thread sleep until state changes without burning CPU or missing the wake-up, how condition variables are built on futexes and per-waiter locks, why the wait goes in a while loop (measured), when notify_one is wrong, what a thundering herd costs, and what semaphores count.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [concurrency, condition-variable, semaphore, bounded-buffer, producer-consumer, spurious-wakeup, lost-wakeup]
 problems: [design-circular-queue]

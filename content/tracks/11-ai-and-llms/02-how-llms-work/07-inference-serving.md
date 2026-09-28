@@ -2,7 +2,7 @@
 slug: inference-serving
 title: "Inference serving: batching, quantisation, speculative decoding and cost"
 description: Why decode is memory-bandwidth-bound and prefill is compute-bound (arithmetic intensity computed against the GPU's ridge point), static versus continuous batching traced slot by slot, paged KV memory and its fragmentation arithmetic, quantisation memory for 7B and 70B models, speculative decoding's acceptance rule traced token by token, the batch-size curve from latency to cost per million tokens, and how to engineer cost whether you self-host or call an API.
-minutes: 20
+minutes: 50
 difficulty: hard
 tags: [llm, inference, batching, quantisation, speculative-decoding, latency, cost]
 problems: []

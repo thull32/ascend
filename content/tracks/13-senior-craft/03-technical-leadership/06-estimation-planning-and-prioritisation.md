@@ -2,7 +2,7 @@
 slug: estimation-planning-and-prioritisation
 title: "Estimation, planning and prioritisation: ranges, risk and saying no"
 description: Estimates as distributions, worked end to end on one project. Three-point estimates and variance addition, seeded Monte Carlo schedules with correlated risk, the cone of uncertainty, throughput forecasts, RICE against cost of delay and WSJF on one backlog, saying no to a fixed date, and how planning cycles run.
-minutes: 26
+minutes: 45
 difficulty: medium
 tags: [leadership, estimation, planning, prioritisation, roadmaps, risk, monte-carlo, cost-of-delay]
 ---

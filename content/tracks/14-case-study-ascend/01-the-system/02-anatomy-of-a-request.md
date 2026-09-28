@@ -2,7 +2,7 @@
 slug: anatomy-of-a-request
 title: "Anatomy of a request: from the edge to AppError"
 description: Follow one PUT through Ascend's middleware stack in the order Axum actually applies it, through lazy per-request authentication, a thin route and a single place where domain errors become HTTP.
-minutes: 43
+minutes: 35
 difficulty: hard
 tags: [case-study, axum, middleware, http, error-handling, extractors, request-lifecycle]
 ---

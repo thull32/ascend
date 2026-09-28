@@ -2,7 +2,7 @@
 slug: wide-column-stores
 title: "Wide-column stores: Cassandra, DynamoDB and the price of linear write scaling"
 description: How partition and clustering keys, LSM storage and tunable consistency let Cassandra and DynamoDB take writes at any scale, with the quorum arithmetic for N = 3, N = 5 and two datacentres, read repair, hinted handoff and Merkle-tree repair traced, tombstone resurrection, Paxos LWTs, RCU and WCU arithmetic, and the anti-patterns that turn the promise into an outage.
-minutes: 30
+minutes: 50
 difficulty: hard
 tags: [cassandra, dynamodb, wide-column, lsm-tree, quorum, partitioning]
 ---

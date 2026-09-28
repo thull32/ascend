@@ -2,7 +2,7 @@
 slug: segment-trees
 title: "Segment trees: range queries on data that keeps changing"
 description: How a segment tree stores interval summaries in an array, with build, point update and range query traced node by node on a concrete tree, the iterative 2n layout and its parity walk, non-commutative operations, memory and cache numbers, the AtCoder Library implementation, and where interval summaries run in production.
-minutes: 32
+minutes: 50
 difficulty: medium
 tags: [segment-tree, range-query, prefix-sum, trees, iterative-segment-tree, atcoder-library]
 problems: [range-sum-query-immutable, sliding-window-maximum]

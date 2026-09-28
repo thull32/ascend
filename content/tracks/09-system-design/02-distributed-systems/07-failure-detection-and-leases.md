@@ -2,7 +2,7 @@
 slug: failure-detection-and-leases
 title: "Failure detection and leases: heartbeats, phi-accrual, lease clocks and fencing tokens"
 description: Why crashed, slow and partitioned look identical; a simulation of false suspicions against detection time for fixed timeouts and phi-accrual detectors; phi computed by hand under the normal, Akka and Cassandra models; lease arithmetic under clock drift; a GC pause and a VM freeze traced past expiry; fencing tokens traced to the storage check; and the lease settings of Raft, Chubby, Spanner, Kubernetes and etcd.
-minutes: 30
+minutes: 55
 difficulty: expert
 tags: [system-design, distributed-systems, failure-detection, leases, fencing-tokens, heartbeats, gc-pause, phi-accrual]
 ---

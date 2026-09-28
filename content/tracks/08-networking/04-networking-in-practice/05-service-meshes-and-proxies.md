@@ -2,7 +2,7 @@
 slug: service-meshes-and-proxies
 title: "Service meshes and proxies: what a sidecar does to every request"
 description: How reverse proxies and L7 load balancers work, one request traced through Envoy's listener, filter chain, route, cluster and endpoint, how xDS delivers configuration with ACK and NACK, how iptables interception and SPIFFE mTLS work, sidecar versus ambient versus proxyless, what an extra hop costs (measured), and how to read a mesh's failures.
-minutes: 23
+minutes: 30
 difficulty: medium
 tags: [networking, service-mesh, proxies, envoy, sidecar, mtls, observability, retries, istio, linkerd, xds, spiffe, ambient]
 problems: []

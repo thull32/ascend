@@ -2,7 +2,7 @@
 slug: data-quality-lineage-and-governance
 title: "Data quality, lineage and governance: trusting data at scale"
 description: Why data incidents are silent, how schema registry compatibility modes decide which changes break which readers, which tests block a pipeline and which only warn, how column-level lineage finds an incident's blast radius, how write-audit-publish stops bad data before readers see it, and how a deletion request is honoured in an immutable lake.
-minutes: 27
+minutes: 40
 difficulty: hard
 tags: [big-data, data-quality, data-contracts, lineage, governance, privacy, gdpr, write-audit-publish, iceberg]
 ---

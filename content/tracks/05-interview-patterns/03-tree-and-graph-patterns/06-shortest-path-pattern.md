@@ -2,7 +2,7 @@
 slug: shortest-path-pattern
 title: "Shortest path: Dijkstra, k-round Bellman-Ford, 0-1 BFS and the minimax variant"
 description: Recognise weighted-distance problems and pick the cheapest correct relaxation algorithm, with Network Delay Time, Cheapest Flights Within K Stops and Swim in Rising Water traced heap pop by heap pop, a 0-1 BFS deque trace, and the stale-entry costs measured.
-minutes: 36
+minutes: 45
 difficulty: hard
 tags: [graph, dijkstra, bellman-ford, shortest-path, heap, minimax, 0-1-bfs, pattern:shortest-path]
 problems: [network-delay-time, cheapest-flights-k-stops, min-cost-connect-points, swim-in-rising-water, reconstruct-itinerary]

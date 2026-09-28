@@ -2,7 +2,7 @@
 slug: presenting-a-design
 title: "Presenting a design: driving 45 minutes so the panel sees senior judgement"
 description: What a design panel scores and how written feedback is calibrated, a minute-by-minute plan with checkpoints tested on a simulated clock, a board layout, pushback handled exchange by exchange, recovering from mistakes, and a condensed transcript of a strong candidate driving a Netflix-scale design.
-minutes: 32
+minutes: 25
 difficulty: hard
 tags: [system-design, senior-skills, interviews, communication, whiteboard, time-management]
 ---

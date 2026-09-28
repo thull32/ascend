@@ -2,7 +2,7 @@
 slug: sliding-window
 title: "Sliding window: the contiguous segment that never rescans"
 description: How to recognise a sliding window (including the ones a statement hides), make the four decisions that decide the round, and execute Longest Substring Without Repeats, Longest Repeating Replacement, Permutation in String and Minimum Window Substring with full traces.
-minutes: 33
+minutes: 50
 difficulty: medium
 tags: [sliding-window, subarray, substring, frequency-map, pattern:sliding-window]
 problems: [best-time-to-buy-sell, longest-substring-no-repeat, longest-repeating-replacement, permutation-in-string, minimum-window-substring, sliding-window-maximum, max-consecutive-ones-iii]

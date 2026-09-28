@@ -2,7 +2,7 @@
 slug: search-autocomplete
 title: "Design search autocomplete: top-k suggestions inside a keystroke"
 description: A typeahead service for a billion searches a day, worked to machine counts, with trie memory measured on a 300,000-query log and extrapolated to 100 million, precomputed top-k built in one pass, a keystroke traced through an out-of-order response, a trending query traced from spike to suggestion, and the privacy rule most designs miss.
-minutes: 35
+minutes: 30
 difficulty: hard
 tags: [system-design, case-study, autocomplete, typeahead, trie, top-k, caching, stream-processing]
 problems: [implement-trie, top-k-frequent]

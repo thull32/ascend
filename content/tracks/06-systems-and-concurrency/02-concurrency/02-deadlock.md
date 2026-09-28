@@ -2,7 +2,7 @@
 slug: deadlock
 title: "Deadlock, livelock and starvation"
 description: The four Coffman conditions, a deadlock traced step by step and measured, why a global lock order fixes most of them, how lockdep finds deadlocks before they happen, how databases detect cycles in a wait-for graph, and the retry loops that turn deadlock into livelock.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [concurrency, deadlock, lock-ordering, livelock, starvation, wait-for-graph, coffman-conditions]
 ---

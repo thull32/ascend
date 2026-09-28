@@ -2,7 +2,7 @@
 slug: capacity-planning-and-cost
 title: "Capacity planning and cost: from growth curves to machine counts to dollars per request"
 description: How to turn daily users into peak requests per second, and a traffic forecast into instance counts using honest per-instance throughput, utilisation targets justified by simulated queues, and failover headroom; how to model growth and storage; how to compute cost per request and find the line item that dominates; and how to size reserved, on-demand and spot capacity, including the price of over-committing.
-minutes: 35
+minutes: 50
 difficulty: hard
 tags: [system-design, senior-skills, capacity-planning, cost, estimation, cloud, queueing, reserved-instances]
 ---

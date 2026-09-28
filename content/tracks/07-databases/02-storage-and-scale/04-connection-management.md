@@ -2,7 +2,7 @@
 slug: connection-management
 title: "Connection management: pools, PgBouncer and the max_connections arithmetic"
 description: What a Postgres connection costs, how an application pool queues work (with this app's SeaORM pool as the worked example), how to size pools with Little's law and the max_connections budget, what PgBouncer's pool modes break, and how to layer timeouts.
-minutes: 31
+minutes: 35
 difficulty: medium
 tags: [connection-pooling, pgbouncer, postgres, timeouts, capacity-planning, sqlx, seaorm]
 ---

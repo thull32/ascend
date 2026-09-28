@@ -2,7 +2,7 @@
 slug: interval-problems
 title: "Interval problems: the sort key is the algorithm"
 description: Merge, insert, maximum non-overlapping, minimum arrows, meeting rooms and sweep lines, organised by the one decision that matters, which endpoint you sort by.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [greedy, intervals, sweep-line, heap, pattern:intervals]
 problems: [merge-intervals, insert-interval, non-overlapping-intervals, meeting-rooms, meeting-rooms-ii, minimum-interval-query]

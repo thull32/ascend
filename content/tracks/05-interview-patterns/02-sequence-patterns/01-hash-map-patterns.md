@@ -2,7 +2,7 @@
 slug: hash-map-patterns
 title: "Hash-map patterns: complement, count, group, seen"
 description: The four hash-map moves that turn an O(n²) inner loop into O(n), the signal and near-misses that select each one, the key design that is the real answer, Two Sum, Valid Sudoku, Longest Consecutive Sequence and Top K Frequent traced step by step, and what the lookup actually costs in CPython and V8.
-minutes: 32
+minutes: 50
 difficulty: medium
 tags: [pattern:hash-map, hashing, frequency-count, grouping, complement-lookup]
 problems: [two-sum, contains-duplicate, valid-anagram, group-anagrams, top-k-frequent, encode-decode-strings, product-except-self, longest-consecutive-sequence, valid-sudoku, first-missing-positive]

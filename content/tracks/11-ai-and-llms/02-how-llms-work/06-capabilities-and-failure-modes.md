@@ -2,7 +2,7 @@
 slug: capabilities-and-failure-modes
 title: "Capabilities and failure modes: hallucination, reasoning, tools and what to trust"
 description: A field guide to what LLMs do reliably and where they fail by mechanism, with the numbers behind each (why a softmax has no "I don't know", calibration and entropy, what chain-of-thought costs, 0.95^n error compounding, majority-vote accuracy from a binomial sum, eval noise), reproducible probes labelled as illustrative, the biases of LLM judges, and how to decide what to trust.
-minutes: 18
+minutes: 35
 difficulty: medium
 tags: [llm, hallucination, reasoning, tool-use, evaluation, reliability]
 problems: []

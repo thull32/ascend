@@ -2,7 +2,7 @@
 slug: migrations-and-evolution
 title: "Migrations and evolution: changing a system while it serves traffic"
 description: How to move traffic, data and contracts from an old system to a new one without downtime or data loss - strangler fig routing traced request by request, the dual-write race on concrete rows, CDC and the outbox, how a watermark-based snapshot joins the log, backfills throttled from a lag budget and checked by simulation, verification with checksums and shadow reads, cutover with a rollback path, and deprecations gated by metrics.
-minutes: 25
+minutes: 40
 difficulty: hard
 tags: [system-design, senior-skills, migrations, strangler-fig, dual-writes, cdc, outbox, backfill, schema-evolution, deprecation]
 ---

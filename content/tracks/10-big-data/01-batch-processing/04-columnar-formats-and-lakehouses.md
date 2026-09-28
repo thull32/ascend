@@ -2,7 +2,7 @@
 slug: columnar-formats-and-lakehouses
 title: "Columnar formats and lakehouses: Parquet, Iceberg and table formats"
 description: Why columnar files make analytical scans orders of magnitude cheaper, what a Parquet row group, column chunk, page and footer look like in bytes, how statistics and Bloom filters enable predicate pushdown, and how table formats like Iceberg and Delta add atomic commits, snapshots and schema evolution to files in object storage.
-minutes: 28
+minutes: 40
 difficulty: hard
 tags: [big-data, parquet, orc, columnar-storage, predicate-pushdown, iceberg, delta-lake, lakehouse, table-formats]
 ---

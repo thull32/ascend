@@ -2,7 +2,7 @@
 slug: fft-intuition
 title: "FFT intuition: multiplying polynomials in n log n"
 description: Why coefficient multiplication is a convolution, why evaluating at roots of unity turns it into pointwise products, how the even/odd split gives the n log n recurrence, and where the FFT is hiding in systems you already use.
-minutes: 40
+minutes: 50
 difficulty: hard
 tags: [divide-and-conquer, fft, convolution, polynomial-multiplication, roots-of-unity, signal-processing]
 problems: [multiply-strings]

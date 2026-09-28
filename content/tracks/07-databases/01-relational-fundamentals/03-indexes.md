@@ -2,7 +2,7 @@
 slug: indexes
 title: "Indexes: from B-tree pages to index-only scans"
 description: What a Postgres B-tree looks like page by page, why random keys cost three times the WAL of ordered ones, how composite column order, covering and partial indexes change the buffers a query touches, why index-only scans depend on vacuum, and what each index costs every write, all measured.
-minutes: 34
+minutes: 35
 difficulty: medium
 tags: [indexes, b-tree, gin, brin, covering-index, postgres, query-planner, hot-updates]
 ---

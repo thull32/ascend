@@ -2,7 +2,7 @@
 slug: what-we-would-change-at-scale
 title: "What we would change at scale: a design review of Ascend"
 description: A candid design review of this codebase at 10k and 100k daily users, covering multi-replica rate limiting, the real AI cost model, table growth and retention, observability and SLOs, server-verified submissions, content hot-reload, what the review's fixes closed, and a ranked list of what is still open.
-minutes: 45
+minutes: 40
 difficulty: expert
 tags: [case-study, design-review, scalability, cost-modelling, observability, slo, rate-limiting, data-retention]
 ---

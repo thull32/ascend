@@ -2,7 +2,7 @@
 slug: database-scaling
 title: "Database scaling: replicas, pooling, shard keys, hot keys and cross-shard indexes"
 description: The ordered steps before sharding with measured Postgres numbers, connection pooling sized by Little's law, replication lag traced through read-your-writes and an asynchronous failover, synchronous_commit levels, shard-key choice with arithmetic, cross-shard indexes, resharding, and a worked capacity plan ending in a node count.
-minutes: 30
+minutes: 25
 difficulty: hard
 tags: [system-design, sharding, replication, shard-key, secondary-indexes, resharding, connection-pooling]
 ---

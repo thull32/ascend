@@ -2,7 +2,7 @@
 slug: the-landscape
 title: "The AI coding tool landscape: completion, agents and background workers"
 description: What Claude Code, OpenAI Codex, GitHub Copilot, Cursor and Gemini CLI actually are, sorted into the three harness categories that matter, one agent iteration traced by hand, a working harness in sixty lines, the version-honest facts about each tool's instruction files, permission model and sandbox, and how to choose and evaluate them on real work.
-minutes: 25
+minutes: 30
 difficulty: easy
 tags: [ai-tools, coding-agents, claude-code, codex, copilot, cursor, gemini-cli]
 ---

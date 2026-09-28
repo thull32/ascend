@@ -2,7 +2,7 @@
 slug: io-and-syscalls
 title: "I/O and system calls: from blocking read to epoll and io_uring"
 description: What a system call costs and what the kernel does inside one, how file descriptors work, why thread-per-connection stops scaling, how epoll reports readiness (traced event by event), why disk files break that model, and how io_uring's rings and sendfile remove syscalls and copies, with measured numbers.
-minutes: 35
+minutes: 50
 difficulty: medium
 tags: [operating-systems, syscalls, epoll, io-uring, non-blocking-io, file-descriptors, zero-copy]
 problems: [design-circular-queue]

@@ -2,7 +2,7 @@
 slug: ai-tool-security-and-policy
 title: "AI tool security and policy: secrets, data handling and licensing"
 description: Where prompts and code go when you use AI tools (including the transcripts on your own disk), how secrets leak into an agent's context and which layer stops which kind of read, what never to paste, injection through repository content with a finder for invisible characters, licensing and provenance as the terms stand at the time of writing, and a team policy you can adopt.
-minutes: 35
+minutes: 30
 difficulty: medium
 tags: [ai-tools, security, secrets, data-handling, licensing, policy, sandboxing]
 ---

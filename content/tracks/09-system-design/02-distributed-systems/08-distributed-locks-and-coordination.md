@@ -2,7 +2,7 @@
 slug: distributed-locks-and-coordination
 title: "Distributed locks and coordination: Redlock, ZooKeeper, etcd and the single-writer patterns"
 description: Efficiency locks versus correctness locks; the single-Redis lock traced through expiry and failover; Redlock's validity arithmetic and the Kleppmann–antirez debate as two timelines (a pause past validity, a clock jump on one of five nodes) with a precise verdict; ZooKeeper's sequential-znode lock traced through a waiter's session expiry; etcd's lease-and-revision lock; Kubernetes, etcd and Curator leader election; and the lock-free alternatives compared.
-minutes: 30
+minutes: 50
 difficulty: expert
 tags: [system-design, distributed-systems, distributed-locks, redlock, zookeeper, etcd, leader-election, fencing-tokens]
 ---

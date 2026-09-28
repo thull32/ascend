@@ -2,7 +2,7 @@
 slug: grpc-and-protobuf
 title: "gRPC and protobuf: binary encoding, streaming, deadlines and versioning"
 description: Protobuf encoded and decoded byte by byte (tags, varints, ZigZag, strings, nested and packed fields, 42 bytes against 136 of JSON), gRPC's frames on HTTP/2 (5-byte message prefix, trailers, grpc-status), deadline budgets traced across hops, status codes and throttled retries, safe schema evolution, the L4 load-balancing trap, and when REST is the better choice.
-minutes: 38
+minutes: 50
 difficulty: medium
 tags: [grpc, protobuf, http2, rpc, varint, zigzag, deadlines, retries, schema-evolution, load-balancing, serialization]
 problems: []

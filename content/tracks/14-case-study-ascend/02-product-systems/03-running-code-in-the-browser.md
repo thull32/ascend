@@ -2,7 +2,7 @@
 slug: running-code-in-the-browser
 title: "Running code in the browser: workers, Pyodide and trust"
 description: How Ascend runs learner JavaScript, TypeScript and Python in Web Workers with time limits enforced by termination, one comparison rule shared by three harnesses, and an explicit trust model instead of a server-side judge.
-minutes: 40
+minutes: 35
 difficulty: hard
 tags: [case-study, web-workers, webassembly, pyodide, sandboxing, trust-model, testing]
 ---

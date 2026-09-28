@@ -2,7 +2,7 @@
 slug: prefix-sums-and-hashing-tricks
 title: "Prefix sums and hashing tricks: inverses, remainder buckets and parity masks"
 description: Turn "count or find the subarray whose aggregate equals X" into a hash lookup over prefixes, understand why it needs an inverse, plug remainders, XOR and parity bitmasks into the same six lines, and recognise when an inequality forces an ordered structure instead.
-minutes: 42
+minutes: 45
 difficulty: hard
 tags: [prefix-sum, hash-map, modular-arithmetic, xor, bitmask, counting]
 problems: [subarray-sum-equals-k, range-sum-query-immutable, find-pivot-index, product-except-self]

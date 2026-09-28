@@ -2,7 +2,7 @@
 slug: k-way-merge
 title: "K-way merge: one heap, one head per sorted input"
 description: Merge k sorted lists, rows or streams in O(N log k) by keeping only the current head of each input in a heap, prove the root is always the global minimum, trace merge, sorted-matrix and smallest-range problems heap array by heap array, and know when concatenate-and-sort or binary search on the value beats the heap.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [heap, merge, sorted-lists, matrix, pattern:k-way-merge]
 problems: [merge-k-sorted-lists, kth-smallest-sorted-matrix, smallest-range-k-lists, design-twitter]

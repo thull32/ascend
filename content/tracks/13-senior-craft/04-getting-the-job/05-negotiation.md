@@ -2,7 +2,7 @@
 slug: negotiation
 title: "Negotiation: levelling, compensation structures and the offer"
 description: How levels and bands set your range before any negotiation starts, how each component really pays (bonus payout, RSU conversion, cliffs and vesting shapes, refreshers stacking into layers, tax at vest, startup options and preferences), how an offer is built and approved, the order of conversations, a verified year-by-year offer comparison, scripts and an email template.
-minutes: 17
+minutes: 40
 difficulty: easy
 tags: [career, negotiation, compensation, equity, levelling, offers]
 ---

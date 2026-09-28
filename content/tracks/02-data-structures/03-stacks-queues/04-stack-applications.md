@@ -2,7 +2,7 @@
 slug: stack-applications
 title: Stack applications
 description: Bracket matching, postfix evaluation and shunting-yard parsing, nested decoding, undo/redo, DFS with an explicit stack and the min-stack design, each traced step by step, plus what the call stack does for you, what a frame costs in CPython, the JVM, V8 and native code, and what actually happens when it overflows.
-minutes: 45
+minutes: 40
 difficulty: medium
 tags: [stack, parsing, expression-evaluation, dfs, call-stack, undo, min-stack, stack-machine]
 problems: [valid-parentheses, evaluate-rpn, decode-string, min-stack, generate-parentheses]

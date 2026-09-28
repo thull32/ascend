@@ -2,7 +2,7 @@
 slug: space-complexity-and-memory-hierarchy
 title: "Space complexity and the memory hierarchy"
 description: How to count the memory an algorithm uses (auxiliary versus total, and the stack you forgot), and why the cache hierarchy makes two O(n) algorithms differ by 50× in practice, with arrays beating linked lists as the standing example.
-minutes: 45
+minutes: 50
 difficulty: easy
 tags: [complexity, space-complexity, memory-hierarchy, cache, locality, arrays-vs-linked-lists]
 problems: [reverse-linked-list, move-zeroes]

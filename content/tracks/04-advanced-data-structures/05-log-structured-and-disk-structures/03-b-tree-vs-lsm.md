@@ -2,7 +2,7 @@
 slug: b-tree-vs-lsm
 title: "B-tree versus LSM tree: read, write and space amplification"
 description: The RUM trade-off with real numbers, a workload computed end to end for both engines including SSD endurance, how to measure each amplification in RocksDB, InnoDB and Postgres, why Postgres and InnoDB chose B-trees while RocksDB, Cassandra and MyRocks chose LSM trees, and how to pick a storage engine from the workload rather than the brand.
-minutes: 27
+minutes: 35
 difficulty: hard
 tags: [b-tree, lsm-tree, write-amplification, read-amplification, storage-engine, rocksdb, postgres]
 ---

@@ -2,7 +2,7 @@
 slug: sweep-line-and-geometry
 title: "Sweep line and geometry: event sweeps, orientation tests, convex hulls and closest pair"
 description: Turn interval, skyline and closest-pair problems into a sorted stream of events with a small status structure, test orientation exactly with integer cross products, build a convex hull with monotone chain, and know exactly when floating point will lie to you.
-minutes: 45
+minutes: 55
 difficulty: hard
 tags: [sweep-line, geometry, convex-hull, intervals, closest-pair, floating-point, cross-product]
 problems: [meeting-rooms-ii, merge-intervals, meeting-rooms]

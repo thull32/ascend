@@ -2,7 +2,7 @@
 slug: go-essentials
 title: "Go essentials: goroutines, the scheduler, channels, interfaces and the GC"
 description: How Go's G-M-P scheduler, channels, implicit interfaces, escape analysis and garbage-collector pacer actually work, measured and traced, the production bugs each one causes, and when Go is the right tool.
-minutes: 28
+minutes: 35
 difficulty: medium
 tags: [go, golang, goroutines, scheduler, channels, interfaces, escape-analysis, garbage-collection, languages]
 ---

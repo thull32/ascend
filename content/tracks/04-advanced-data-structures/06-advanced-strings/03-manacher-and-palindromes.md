@@ -2,7 +2,7 @@
 slug: manacher-and-palindromes
 title: "Manacher's algorithm: every palindrome in linear time"
 description: Why expand-around-centre is O(n²) and by how much (measured), the separator-transformed string and the mirror rule traced position by position, the amortised argument, everything the radius array answers, when the quadratic version is still the right interview answer, what UTF-16 and combining characters do to naive palindrome checks, the eertree, and why DNA "palindromes" are a different thing.
-minutes: 28
+minutes: 45
 difficulty: hard
 tags: [manacher, palindrome, string, expand-around-center, linear-time, eertree, unicode]
 problems: [longest-palindromic-substring, palindromic-substrings]

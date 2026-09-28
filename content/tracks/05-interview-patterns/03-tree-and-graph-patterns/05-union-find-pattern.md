@@ -2,7 +2,7 @@
 slug: union-find-pattern
 title: "Union-find: answering 'same group?' without traversing"
 description: Recognise equivalence-class and incremental-connectivity problems, write the path-compressed union-find from memory, and see Redundant Connection, Accounts Merge and Number of Provinces traced with the parent and rank arrays at every union.
-minutes: 30
+minutes: 45
 difficulty: medium
 tags: [graph, union-find, disjoint-set, connectivity, path-compression, pattern:union-find]
 problems: [redundant-connection, accounts-merge, number-of-provinces]

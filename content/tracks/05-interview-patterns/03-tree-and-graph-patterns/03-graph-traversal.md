@@ -2,7 +2,7 @@
 slug: graph-traversal
 title: "Graph traversal: BFS, DFS and the visited set on grids and implicit graphs"
 description: Recognise when a grid, a word list or a set of accounts is really a graph, choose BFS or DFS by what the question asks, and see Number of Islands, Rotting Oranges, Pacific Atlantic and Word Ladder traced with the frontier written out.
-minutes: 36
+minutes: 45
 difficulty: medium
 tags: [graph, bfs, dfs, grid, multi-source-bfs, flood-fill, pattern:graph]
 problems: [number-of-islands, clone-graph, max-area-island, pacific-atlantic, surrounded-regions, rotting-oranges, walls-and-gates, graph-valid-tree, count-components, word-ladder]

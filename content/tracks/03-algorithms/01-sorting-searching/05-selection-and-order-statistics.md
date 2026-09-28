@@ -2,7 +2,7 @@
 slug: selection-and-order-statistics
 title: "Selection: the k-th element without sorting"
 description: Quickselect in expected linear time, why median of medians guarantees it and is still rarely used, and when a heap beats both for k-th largest.
-minutes: 35
+minutes: 50
 difficulty: medium
 tags: [selection, quickselect, median, order-statistics, top-k, partition]
 problems: [kth-largest-array, k-closest-points, top-k-frequent, median-two-sorted]

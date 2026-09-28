@@ -2,7 +2,7 @@
 slug: bit-tricks-in-algorithms
 title: "Bit tricks in algorithms: masks as sets, submask loops, Gray codes and bitsets"
 description: Use integers as sets to enumerate subsets, submasks and fixed-size combinations, run DP over subsets, walk a Fenwick tree with lowbit, step through Gray codes one bit at a time, and get a 64x speed-up from bitsets.
-minutes: 38
+minutes: 50
 difficulty: hard
 tags: [bit-manipulation, bitmask, bitmask-dp, bitset, gray-code, lowbit]
 problems: [subsets, partition-equal-subset, n-queens, sudoku-solver, counting-bits, single-number]

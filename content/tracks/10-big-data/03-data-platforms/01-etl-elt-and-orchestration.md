@@ -2,7 +2,7 @@
 slug: etl-elt-and-orchestration
 title: "ETL, ELT and orchestration: idempotent pipelines and safe backfills"
 description: Why modern platforms load raw data first and transform in the warehouse, what Airflow's scheduler, executors and task states actually do, why every task must own one partition per logical date, how a backfill double-counts row by row and how the idempotent version does not, and what a year-long backfill costs.
-minutes: 25
+minutes: 55
 difficulty: medium
 tags: [big-data, data-engineering, etl, elt, airflow, dagster, orchestration, idempotency, backfills]
 ---

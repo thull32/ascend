@@ -2,7 +2,7 @@
 slug: neural-networks
 title: "Neural networks: neurons, layers and backpropagation by hand"
 description: Why stacking linear layers needs a non-linearity, what a forward pass computes, a two-neuron warm-up and then a complete forward and backward pass through a 2-2-1 network with every intermediate value, what autograd records, how initialisation decides whether signals survive ten layers, and the failure modes that show up in real training runs.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [machine-learning, neural-networks, backpropagation, activation-functions, chain-rule]
 problems: []

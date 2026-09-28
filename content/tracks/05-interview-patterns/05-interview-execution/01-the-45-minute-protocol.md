@@ -2,7 +2,7 @@
 slug: the-45-minute-protocol
 title: "The 45-minute protocol: a minute-by-minute plan for the coding round"
 description: A time budget for every phase of a 45-minute coding interview, the checkpoints that tell you to change course, and the exact sentences that move you from one phase to the next.
-minutes: 22
+minutes: 40
 difficulty: medium
 tags: [interview, coding-round, time-management, protocol, communication]
 problems: [merge-intervals, insert-interval, top-k-frequent]

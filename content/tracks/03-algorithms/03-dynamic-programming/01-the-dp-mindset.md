@@ -2,7 +2,7 @@
 slug: the-dp-mindset
 title: "The DP mindset: state, transition, order, answer"
 description: Why naive recursion explodes, the two properties that make a problem dynamic programming, and the four-step procedure (state, transition, order, answer) that produces every DP solution.
-minutes: 40
+minutes: 55
 difficulty: medium
 tags: [dynamic-programming, memoisation, tabulation, recursion, pattern:dynamic-programming]
 problems: [climbing-stairs, min-cost-climbing-stairs]

@@ -2,7 +2,7 @@
 slug: bit-manipulation-pattern
 title: "Bit manipulation: the six tricks and when a problem is secretly asking for them"
 description: Recognise the constraints that point at XOR, masks and bit counting, execute the six identities without the width bugs that differ between Python and JavaScript, and see Single Number, Counting Bits, Sum of Two Integers, Reverse Bits and Single Number III traced bit by bit, with the costs measured.
-minutes: 28
+minutes: 50
 difficulty: medium
 tags: [bit-manipulation, xor, bitmask, twos-complement, pattern:bit-manipulation]
 problems: [single-number, number-of-1-bits, counting-bits, reverse-bits, missing-number, sum-of-two-integers, reverse-integer, find-duplicate-number]

@@ -2,7 +2,7 @@
 slug: embeddings-and-similarity
 title: "Embeddings and similarity: meaning as geometry"
 description: How items become dense vectors whose distances mean something, a contrastive training step computed on a three-pair batch (loss, temperature and why hard negatives carry the gradient), dot product versus cosine versus Euclidean with worked numbers, normalisation, what an embedding model does between text and vector, storage precision, and the production failures of embedding search.
-minutes: 26
+minutes: 45
 difficulty: medium
 tags: [machine-learning, embeddings, cosine-similarity, vector-search, nearest-neighbours, semantic-search]
 problems: []

@@ -2,7 +2,7 @@
 slug: two-heaps
 title: "Two heaps: the running median and other split-the-stream problems"
 description: Keep a stream partitioned into a lower half and an upper half with a max-heap and a min-heap, prove the median is always at a top, add lazy deletion for sliding windows without letting stale entries eat your memory, and know when a sorted list, a count array or a sketch is the better answer.
-minutes: 30
+minutes: 45
 difficulty: hard
 tags: [heap, median, streaming, lazy-deletion, pattern:two-heaps]
 problems: [find-median-data-stream, sliding-window-median, kth-largest-stream]

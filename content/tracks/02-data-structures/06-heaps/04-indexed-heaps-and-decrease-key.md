@@ -2,7 +2,7 @@
 slug: indexed-heaps-and-decrease-key
 title: "Indexed heaps, decrease-key and lazy deletion"
 description: The one operation a plain binary heap cannot do, the two ways to get it (stale entries you skip, or a position map you maintain) traced by hand, who ships each in production, what Fibonacci heaps promise and why nobody uses them, and when a balanced tree is the honest answer.
-minutes: 40
+minutes: 45
 difficulty: hard
 tags: [heaps, decrease-key, indexed-heap, lazy-deletion, dijkstra, priority-queue]
 problems: [network-delay-time, sliding-window-median, task-scheduler]

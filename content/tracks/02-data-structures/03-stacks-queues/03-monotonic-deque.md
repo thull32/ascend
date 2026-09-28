@@ -2,7 +2,7 @@
 slug: monotonic-deque
 title: Monotonic deque
 description: Sliding window maximum in O(n) with a deque that evicts from both ends, the invariant traced on count-based, expiry-only, time-based and two-deque windows, why it beats a heap and when the heap is required, the prefix-sum extension to shortest subarray with sum at least k, and where the same idea runs inside the Linux TCP stack.
-minutes: 45
+minutes: 40
 difficulty: medium
 tags: [deque, monotonic-deque, sliding-window, sliding-window-maximum, heap, prefix-sum, time-window]
 problems: [sliding-window-maximum, max-consecutive-ones-iii]

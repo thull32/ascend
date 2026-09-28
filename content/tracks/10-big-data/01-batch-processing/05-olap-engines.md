@@ -2,7 +2,7 @@
 slug: olap-engines
 title: "OLAP engines: how ClickHouse, BigQuery and Trino answer in seconds"
 description: The two architectures behind interactive analytics (storage-coupled engines like ClickHouse and Druid, disaggregated engines like BigQuery and Trino), what a vectorised batch and a sparse primary index actually do, how MergeTree parts and merges work, pre-aggregation, and how to choose between them.
-minutes: 17
+minutes: 40
 difficulty: hard
 tags: [big-data, olap, clickhouse, bigquery, trino, presto, druid, vectorised-execution, columnar-storage]
 ---

@@ -2,7 +2,7 @@
 slug: fast-slow-pointers
 title: "Fast and slow pointers: cycles, middles and implicit lists"
 description: "Floyd's runner technique as an interview pattern: the signal and its near-misses, the meeting-point proof and why resetting to the head finds the entry, the off-by-one traps in start positions and loop guards, Linked List Cycle, Middle, Find the Duplicate and Happy Number traced step by step, and what pointer chasing costs on real hardware."
-minutes: 31
+minutes: 45
 difficulty: medium
 tags: [pattern:fast-slow-pointers, linked-list, cycle-detection, floyd, runner-technique]
 problems: [linked-list-cycle, find-duplicate-number, middle-of-linked-list, happy-number]

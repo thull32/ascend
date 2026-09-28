@@ -2,7 +2,7 @@
 slug: consistent-hashing-and-routing
 title: "Consistent hashing, rendezvous hashing and request routing"
 description: Why hash-mod-N collapses a cache tier when you add a server, how the hash ring, virtual nodes, rendezvous hashing, jump hash and Maglev each fix it (traced by hand and measured), how bounded loads cap a hot node, and how load balancers and meshes use them to route requests by key.
-minutes: 41
+minutes: 45
 difficulty: hard
 tags: [networking, consistent-hashing, rendezvous-hashing, virtual-nodes, maglev, load-balancing, sharding, caching]
 problems: []

@@ -2,7 +2,7 @@
 slug: numbers-strings-unicode
 title: "Numbers, strings and Unicode: the representations behind the bugs"
 description: Integer widths and overflow across languages (each behaviour actually run), the IEEE 754 bit layout with a rounding trace of 0.1 + 0.2, what string building really costs in CPython and V8, the four lengths of one string in UTF-8 and UTF-16 bytes, and why the length of an emoji depends on which language you ask.
-minutes: 45
+minutes: 55
 difficulty: easy
 tags: [integers, overflow, floating-point, ieee-754, strings, unicode, utf-8, utf-16]
 problems: [reverse-integer, sum-of-two-integers]

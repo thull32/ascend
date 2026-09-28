@@ -2,7 +2,7 @@
 slug: topological-sort-pattern
 title: "Topological sort: ordering by dependencies and detecting the cycle that breaks it"
 description: Recognise "must come before" as a DAG problem, run Kahn's algorithm and three-colour DFS from memory, and see Course Schedule II, Alien Dictionary and Minimum Height Trees traced with the in-degree table and queue at every step.
-minutes: 32
+minutes: 45
 difficulty: medium
 tags: [graph, topological-sort, kahn, dag, cycle-detection, in-degree, pattern:topological-sort]
 problems: [course-schedule, course-schedule-ii, alien-dictionary, minimum-height-trees]

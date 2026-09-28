@@ -2,7 +2,7 @@
 slug: design-docs-and-rfcs
 title: "Design docs and RFCs: making mistakes while they are cheap"
 description: When to write a design doc, a full short RFC worked end to end (context, goals and non-goals, options with numbers, decision, rollout, risks), how review meetings run, the document's lifecycle, a decision from this app's streaming design, and how design review works at scale.
-minutes: 24
+minutes: 30
 difficulty: medium
 tags: [leadership, design-docs, rfc, adr, architecture, writing, decision-making]
 ---

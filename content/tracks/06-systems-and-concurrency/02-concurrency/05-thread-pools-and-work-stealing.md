@@ -2,7 +2,7 @@
 slug: thread-pools-and-work-stealing
 title: "Thread pools, queues and work stealing"
 description: How to size a pool from the work it does and the resources behind it, why the queue bound and rejection policy matter more than the thread count (with simulated queueing curves), how pools deadlock themselves, and how work stealing works inside ForkJoinPool, Go's scheduler, Tokio and Rayon, traced deque operation by deque operation.
-minutes: 30
+minutes: 40
 difficulty: medium
 tags: [concurrency, thread-pool, executor, work-stealing, backpressure, littles-law, bulkhead, queueing]
 ---

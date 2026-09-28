@@ -2,7 +2,7 @@
 slug: observability-in-code
 title: "Observability in code: structured logs, request IDs, metrics and traces"
 description: "Instrument a service so any user report leads to its log lines: a real Ascend JSON log line taken apart field by field, level filters and the prefix rule that hides lines, what a log call costs (measured), request IDs carried into spawned tasks, the four metric types with a percentile computed from buckets by hand, why summaries cannot be merged, cardinality counted on a real API, a traceparent header decoded and followed across three hops, and head versus tail sampling with arithmetic."
-minutes: 27
+minutes: 55
 difficulty: medium
 tags: [observability, logging, structured-logging, metrics, tracing, opentelemetry, request-id, prometheus, trace-context, sampling, senior-craft]
 ---

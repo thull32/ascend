@@ -2,7 +2,7 @@
 slug: why-big-o
 title: "The cost model: why we count operations and drop constants"
 description: The RAM model behind every complexity claim, how to count the operations in a piece of code, why constants get dropped, and the concrete situations where that simplification misleads you.
-minutes: 40
+minutes: 55
 difficulty: intro
 tags: [complexity, big-o, cost-model, ram-model, fundamentals]
 problems: [contains-duplicate, two-sum]

@@ -2,7 +2,7 @@
 slug: dimensional-modelling
 title: "Dimensional modelling: facts, dimensions and slowly changing history"
 description: How star schemas organise analytical data around a declared grain, why summing a balance goes wrong, how a Type 2 dimension is maintained through three changes row by row and joined to facts for point-in-time correctness, what a fact table costs at scale, and how columnar engines change the star-versus-snowflake trade-off.
-minutes: 26
+minutes: 45
 difficulty: medium
 tags: [big-data, data-modelling, dimensional-modelling, star-schema, slowly-changing-dimensions, data-warehouse, sql]
 ---

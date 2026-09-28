@@ -2,7 +2,7 @@
 slug: probability-for-engineers
 title: "Probability for engineers: expectation, birthdays, sampling and load"
 description: Expected value and linearity applied to hash collisions, retries and randomised quicksort, the birthday bound derived and checked against simulation, reservoir sampling with the full proof for any k, the balls-into-bins result behind load balancing and why two random choices beat one exponentially, and the tail arithmetic of fan-out and hedged requests.
-minutes: 50
+minutes: 60
 difficulty: medium
 tags: [math, probability, expected-value, birthday-paradox, reservoir-sampling, load-balancing, power-of-two-choices]
 problems: [insert-delete-getrandom, kth-largest-array]

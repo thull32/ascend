@@ -2,7 +2,7 @@
 slug: containers-and-infrastructure-as-code
 title: "Containers and infrastructure as code: images, Kubernetes basics, Terraform and GitOps"
 description: What a container and an image really are (namespaces, cgroups, content-addressed layers, overlayfs), BuildKit's cache keys traced through four real builds of this app, multi-stage and distroless images with measured layer sizes, PID 1 and signals, a Kubernetes rolling update traced step by step including the rollout that never becomes ready, and Terraform plans, drift and state locking compared with this app's state-free Railway IaC.
-minutes: 28
+minutes: 50
 difficulty: medium
 tags: [containers, docker, kubernetes, infrastructure-as-code, terraform, gitops, deployment, senior-craft]
 ---

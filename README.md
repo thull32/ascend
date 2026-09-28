@@ -16,7 +16,7 @@ an AI coach that hints instead of answering, and mock interviews with and withou
 
 | | |
 |---|---|
-| **Curriculum** | 343 lessons in 14 tracks and 6 phases: foundations, data structures, algorithms, advanced data structures, interview patterns, operating systems and concurrency, databases, networking, system design, big data, AI and LLMs, AI-assisted engineering, senior craft, and a case study of this codebase. Each lesson goes one level deeper than the usual explainer and ends with "senior signals" and a quiz (1,756 questions in all). |
+| **Curriculum** | 349 lessons in 14 tracks and 6 phases: foundations, data structures, algorithms, advanced data structures, interview patterns, operating systems and concurrency, databases, networking, system design, big data, AI and LLMs, AI-assisted engineering, senior craft, and a case study of this codebase. Each lesson goes one level deeper than the usual explainer and traces every mechanism on concrete data, measures what it claims, and ends with interviewer follow-ups, "senior signals" and a quiz (535 hands-on exercises and 2,094 quiz questions in all). |
 | **Visualisations** | 17 families and 229 steppable animations (sorting, graphs, DP tables, trees, heaps, TCP, DNS, TLS, Raft, consistent hashing, MVCC, LSM trees, attention, RAG pipelines, …). Every frame carries a sentence explaining the step. Scrub backwards, change the input. |
 | **Live coding** | Python (CPython 3.14 via Pyodide/WebAssembly) and JavaScript/TypeScript run in sandboxed Web Workers with hard time limits. Lesson exercises and 180 practice problems (the "Ascend 150" plus a "Core 75" subset) are graded against visible and hidden tests. |
 | **AI coach** | Grounded in the lesson you are reading, the problem you are solving and the code in your editor. It asks the next question; it does not hand over solutions. Also generates fresh quizzes. |
@@ -38,7 +38,7 @@ Start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), then the decision rec
 - **Backend:** Rust 2024, [Axum 0.8](https://github.com/tokio-rs/axum), [SeaORM 2](https://www.sea-ql.org/SeaORM/) on PostgreSQL 17, Tokio
 - **AI:** Anthropic Messages API over a small typed client (streaming SSE, JSON-schema outputs, prompt caching)
 - **Frontend:** React 19, TypeScript (strict), Vite, Tailwind 4, TanStack Query, CodeMirror 6, Pyodide, Mermaid, KaTeX
-- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (1,000+ tests, including every visualisation embedded in the curriculum); Playwright end-to-end on desktop and mobile, plus opt-in live-AI and full-content crawl suites; a validator that executes every problem's reference solution against its tests
+- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (2,000+ tests, including every visualisation in the curriculum rendered and checked for frames that change after they are recorded); Playwright end-to-end on desktop and mobile, plus opt-in live-AI and full-content crawl suites; a validator that executes every problem's reference solution against its tests
 - **Deploy:** one ~85 MB distroless image on [Railway](https://railway.com), migrations on boot, health-checked rollouts
 
 ## Run it locally

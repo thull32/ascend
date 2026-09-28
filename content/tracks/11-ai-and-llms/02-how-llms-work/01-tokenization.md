@@ -2,7 +2,7 @@
 slug: tokenization
 title: "Tokenization: BPE, vocabularies and why tokens matter"
 description: How byte-pair encoding turns text into token IDs, worked merge by merge and replayed on unseen words, byte-level fallback down to the UTF-8 bytes, a measured experiment on why languages the tokenizer rarely saw cost several times more, the cost arithmetic, what production tokenizers do under the hood, and the failures that are really tokenization.
-minutes: 25
+minutes: 45
 difficulty: medium
 tags: [llm, tokenization, bpe, vocabulary, cost]
 problems: []

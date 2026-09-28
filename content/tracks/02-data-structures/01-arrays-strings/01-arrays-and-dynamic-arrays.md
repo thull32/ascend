@@ -2,7 +2,7 @@
 slug: arrays-and-dynamic-arrays
 title: Arrays and dynamic arrays
 description: How an index becomes a memory address, why append is O(1) only on average, what CPython lists, V8 arrays, Rust Vecs, Go slices and Java ArrayLists actually allocate, and what one insert(0) costs in bytes.
-minutes: 35
+minutes: 45
 difficulty: easy
 tags: [arrays, dynamic-array, amortized, memory, cache, cpython, v8]
 problems: [remove-duplicates-sorted, move-zeroes]

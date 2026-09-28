@@ -2,7 +2,7 @@
 slug: hashing-at-scale
 title: Hashing at scale
 description: Why key mod n falls apart when n changes, consistent hashing traced on a real ring with virtual nodes, rendezvous, jump and Maglev hashing traced as alternatives, Bloom filters with the arithmetic, what Cassandra, Redis Cluster, Kafka, memcached and Envoy actually do, and how to choose a sharding key.
-minutes: 50
+minutes: 45
 difficulty: hard
 tags: [hashing, consistent-hashing, rendezvous-hashing, jump-hash, maglev, bloom-filter, sharding, distributed-systems]
 problems: [design-hashmap, lru-cache]

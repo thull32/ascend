@@ -2,7 +2,7 @@
 slug: back-of-envelope-estimation
 title: "Back-of-envelope estimation: the numbers that decide the design"
 description: A reference table of latencies and throughputs with where each number comes from (including fsync, commit and lookup rates measured on Postgres 17), the four-step derivation, and three estimates worked to a final count of servers, storage and bandwidth.
-minutes: 25
+minutes: 35
 difficulty: medium
 tags: [system-design, estimation, latency-numbers, capacity, qps]
 ---

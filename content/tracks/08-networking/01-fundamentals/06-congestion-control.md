@@ -2,7 +2,7 @@
 slug: congestion-control
 title: "Congestion control: slow start, AIMD, Cubic, BBR and bufferbloat"
 description: How a TCP sender guesses a bottleneck it cannot see, slow start and AIMD traced per round trip and on a measured upload (HyStart exit, Cubic's 0.7 cut, rate-halving), why AIMD converges to fairness, Cubic's window function computed, the Mathis limit on long fat paths, what BBR models instead of loss, and how to read bufferbloat in latency graphs.
-minutes: 34
+minutes: 50
 difficulty: hard
 tags: [networking, tcp, congestion-control, slow-start, aimd, cubic, bbr, bufferbloat]
 problems: []

@@ -2,7 +2,7 @@
 slug: meet-in-the-middle-and-randomisation
 title: "Meet in the middle and randomisation: halving exponents and outwitting adversaries"
 description: Split an exponential search into two halves that meet in a sorted list or hash map, then use randomness deliberately, with random pivots, seeded hashes no adversary can target, mergeable samples and Monte Carlo verification.
-minutes: 40
+minutes: 55
 difficulty: hard
 tags: [meet-in-the-middle, randomisation, hashing, subset-sum, reservoir-sampling, monte-carlo]
 problems: [two-sum, target-sum, kth-largest-array, insert-delete-getrandom, word-ladder]

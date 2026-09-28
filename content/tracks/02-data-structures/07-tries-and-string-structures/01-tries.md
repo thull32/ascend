@@ -2,7 +2,7 @@
 slug: tries
 title: "Tries: the prefix tree"
 description: How a trie stores a set of strings so that prefix queries cost O(length of the prefix), what each node really costs in memory (measured) and the four ways to shrink it, how radix trees, double-array tries, HAMTs and FSTs run in routers, web frameworks and search engines, and how autocomplete is actually served.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [trie, prefix-tree, radix-tree, autocomplete, strings]
 problems: [implement-trie, design-add-search-words, word-search-ii, replace-words]

@@ -2,7 +2,7 @@
 slug: races-mutexes-and-invariants
 title: "Races, mutexes and invariants"
 description: Why counter += 1 loses updates (traced register by register and measured), how a data race differs from a race condition, what a mutex does in hardware and in the kernel (the futex fast and slow paths), what contention really costs, and why a lock protects an invariant rather than a variable.
-minutes: 35
+minutes: 45
 difficulty: medium
 tags: [concurrency, race-condition, data-race, mutex, invariants, gil, send-sync, lock-granularity]
 ---

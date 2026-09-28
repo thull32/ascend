@@ -2,7 +2,7 @@
 slug: generation-and-sampling
 title: "Generation and sampling: temperature, top-p, beam search and stopping"
 description: How a probability distribution becomes text, one token at a time. Softmax and temperature worked with numbers, top-k, top-p and min-p applied to one concrete logit vector, the uniform draw that picks a token, beam search and its length bias, repetition penalties, stopping, constrained decoding, what the sampler does under the hood, and why temperature 0 is still not reproducible.
-minutes: 37
+minutes: 45
 difficulty: medium
 tags: [llm, sampling, temperature, top-p, beam-search, decoding]
 problems: []

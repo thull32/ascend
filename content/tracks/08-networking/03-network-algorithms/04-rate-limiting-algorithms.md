@@ -2,7 +2,7 @@
 slug: rate-limiting-algorithms
 title: "Rate limiting: token buckets, leaky buckets, sliding windows and GCRA"
 description: How fixed windows, sliding logs, sliding counters, token buckets, leaky buckets and GCRA decide which requests to admit, traced on one request timeline; GCRA derived from the token bucket; limiting across a fleet with Redis, Lua and one clock; and how Ascend's own per-IP, per-account and per-session limits and daily AI budgets use them.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [networking, rate-limiting, token-bucket, leaky-bucket, sliding-window, gcra, redis, api-design]
 problems: []

@@ -2,7 +2,7 @@
 slug: mcp-and-integrations
 title: "MCP and integrations: connecting agents to your systems safely"
 description: How the Model Context Protocol works on the wire in its current stateless revision, how to configure servers in each tool, how remote servers authorise with OAuth 2.1, which layers of the permission model actually enforce anything, a prompt-injection attack traced message by message, a hook that runs before the tool, and a checklist for connecting agents to real infrastructure.
-minutes: 25
+minutes: 30
 difficulty: hard
 tags: [ai-tools, mcp, permissions, prompt-injection, least-privilege, integrations, hooks, oauth]
 ---

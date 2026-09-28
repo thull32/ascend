@@ -2,7 +2,7 @@
 slug: tls-and-pki
 title: "TLS and PKI: the one-round-trip handshake, certificate chains and mTLS"
 description: The TLS 1.3 handshake message by message with the real record bytes and which key encrypts each one, a real four-certificate chain validated step by step, OCSP, CRLs and Certificate Transparency, resumption and the 0-RTT replay risk, mTLS for service identity, the chain and expiry failures that page you, and measured reasons HTTPS is no longer slow.
-minutes: 34
+minutes: 40
 difficulty: medium
 tags: [networking, tls, pki, certificates, mtls, https, openssl, security, certificate-transparency, ocsp, 0-rtt]
 problems: []

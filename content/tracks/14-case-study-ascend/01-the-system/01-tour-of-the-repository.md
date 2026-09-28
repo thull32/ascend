@@ -2,7 +2,7 @@
 slug: tour-of-the-repository
 title: "Tour of the repository: reading Ascend in an hour"
 description: Ascend's layout, the core/api boundary that organises the backend, and a repeatable one-hour protocol for reading any unfamiliar codebase critically.
-minutes: 45
+minutes: 40
 difficulty: medium
 tags: [case-study, architecture, codebase-reading, rust, monolith, boundaries]
 ---
