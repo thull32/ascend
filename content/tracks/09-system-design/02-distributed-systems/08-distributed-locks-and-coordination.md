@@ -183,7 +183,7 @@ sequenceDiagram
     Z-->>B: watch fired
     B->>Z: list children
     Z-->>B: 0000000043 is lowest: held
-    Note over A,B: A may still believe it holds the lock; the resource rejects 42 after seeing 43
+    Note over A,B: A may still believe it holds the lock, so the resource rejects 42 after seeing 43
 ```
 
 ## etcd locks

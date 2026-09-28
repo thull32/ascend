@@ -221,12 +221,45 @@ fn validate_exercise(file: &str, spec: &ExerciseSpec) -> Result<(), BlockError> 
 
 static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"!?\[([^\]]*)\]\([^)]*\)").expect("static regex"));
 
-/// Heading text as the browser renders it: Markdown link targets, emphasis
-/// markers and code backticks removed. Inline maths keeps its TeX source,
-/// which is also what `rehype-slug` sees (it runs before KaTeX).
+/// A code span; its contents render verbatim.
+static CODE_SPAN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"`([^`]*)`").expect("static regex"));
+/// Underscore emphasis only counts when the delimiters are not inside a word
+/// (CommonMark's flanking rule), so `snake_case` and an unclosed
+/// `__consumer_offsets` stay literal while `__strong__` and `_em_` do not.
+static UNDERSCORE_EMPHASIS: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(^|[^\p{L}\p{N}_])(__|_)(\S(?:.*?\S)?)(?:__|_)($|[^\p{L}\p{N}_])").expect("static regex"));
+
+/// Heading text as the browser renders it: link targets, emphasis delimiters
+/// and code backticks removed, code-span contents kept verbatim. Inline maths
+/// keeps its TeX source, which is also what `rehype-slug` sees (it runs
+/// before KaTeX).
 pub fn plain_heading_text(raw: &str) -> String {
     let no_links = LINK.replace_all(raw, "$1");
-    no_links.replace("**", "").replace("__", "").replace(['`', '*', '$'], "").trim().to_string()
+    let mut out = String::new();
+    let mut last = 0;
+    for m in CODE_SPAN.captures_iter(&no_links) {
+        let whole = m.get(0).expect("group 0");
+        out.push_str(&strip_emphasis(&no_links[last..whole.start()]));
+        out.push_str(&m[1]);
+        last = whole.end();
+    }
+    out.push_str(&strip_emphasis(&no_links[last..]));
+    out.trim().to_string()
+}
+
+fn strip_emphasis(text: &str) -> String {
+    // Asterisks are emphasis wherever they pair up and are rare as literal
+    // heading text; `$` delimits maths.
+    let text = text.replace(['*', '$'], "");
+    // Apply until stable: one pass cannot see matches that share a boundary.
+    let mut current = text;
+    loop {
+        let next = UNDERSCORE_EMPHASIS.replace_all(&current, "$1$3$4").into_owned();
+        if next == current {
+            return next;
+        }
+        current = next;
+    }
 }
 
 /// Extract h2/h3 headings for a table of contents. Ids are generated exactly
@@ -378,6 +411,20 @@ mod tests {
         assert_eq!(slugify("Two  spaces"), "two--spaces");
         assert_eq!(slugify("snake_case & more"), "snake_case--more");
         assert_eq!(slugify("Déjà vu"), "déjà-vu");
+    }
+
+    #[test]
+    fn emphasis_is_stripped_only_where_markdown_renders_it() {
+        // Expected ids verified in the browser by the site crawl.
+        assert_eq!(
+            slugify(&plain_heading_text("Consumer groups, rebalances and __consumer_offsets")),
+            "consumer-groups-rebalances-and-__consumer_offsets"
+        );
+        assert_eq!(plain_heading_text("The **bold** and __strong__ words"), "The bold and strong words");
+        assert_eq!(plain_heading_text("An _emphasised_ word"), "An emphasised word");
+        assert_eq!(plain_heading_text("`__init__` is special"), "__init__ is special");
+        assert_eq!(plain_heading_text("snake_case_name stays"), "snake_case_name stays");
+        assert_eq!(plain_heading_text("[Linked `code`](/x) here"), "Linked code here");
     }
 
     #[test]
