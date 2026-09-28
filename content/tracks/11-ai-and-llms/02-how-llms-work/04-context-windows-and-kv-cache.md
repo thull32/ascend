@@ -1,7 +1,7 @@
 ---
 slug: context-windows-and-kv-cache
 title: "Context windows and the KV cache: why long context is expensive"
-description: Why attention cost grows with the square of context length, how prefill and decode differ, how the KV cache turns generation from quadratic to linear work at the price of memory, how to size that memory, and what prompt caching and long-context tricks really buy.
+description: Why attention cost grows with the square of context length, prefill and decode costed per token for a stated model and GPU, a token-by-token trace of what the KV cache saves and what it does not, the bytes-per-token formula (layers × KV heads × head size × 2 × bytes) and grouped-query attention's saving, capacity planning, prompt caching, long-context tricks, and the production failures that follow.
 minutes: 28
 difficulty: hard
 tags: [llm, context-window, kv-cache, attention, prompt-caching, inference]
@@ -25,7 +25,7 @@ In [The transformer](/learn/ai-and-llms/how-llms-work/the-transformer), attentio
 | 32,768 | 1.07 billion | 1.1 trillion |
 | 131,072 | 17.2 billion | 17.6 trillion |
 
-Multiplying the context by 32 (4k to 128k) multiplies the attention work by 1,024.
+Multiplying the context by 32 (4k to 128k) multiplies the attention work by 1,024. (The causal mask means only about half of each matrix is needed, which halves the constant, not the growth.)
 
 Compare that with the rest of the model. The weight matrix multiplications in one layer cost about $24 n d^2$ FLOPs for $n$ tokens (the $12d^2$ parameters, times 2 FLOPs each, per token), which grows linearly. Attention's scores and weighted sums cost about $4 n^2 d$. The two are equal when $n = 6d$: for a 7B-class model with $d = 4{,}096$, at about **25,000 tokens**. Below that, a request's cost is dominated by the weights and grows roughly linearly with length; above it, attention takes over and cost grows with the square.
 
@@ -35,7 +35,7 @@ Memory is the other half. Materialising the attention matrix for 128k tokens in 
 
 Serving a request has two phases with completely different performance characteristics.
 
-**Prefill** processes the whole prompt in one parallel forward pass. Every prompt token goes through every layer at once as large matrix multiplications, which keeps the GPU's arithmetic units busy: prefill is **compute-bound**. It determines **time to first token** (TTFT), and it grows with prompt length, faster than linearly once attention dominates. A 70B-class model needs about $2 \times 70 \times 10^9 = 140$ GFLOPs per prompt token for the weights alone, so a 100,000-token prompt is about $1.4 \times 10^{16}$ FLOPs before attention, several seconds even spread across a server of GPUs. That was the six-second first word.
+**Prefill** processes the whole prompt in one parallel forward pass. Every prompt token goes through every layer at once as large matrix multiplications, which keeps the GPU's arithmetic units busy: prefill is **compute-bound**. It determines **time to first token** (TTFT), and it grows with prompt length, faster than linearly once attention dominates. A 70B-class model needs about $2 \times 70 \times 10^9 = 140$ GFLOPs per prompt token for the weights alone, so a 100,000-token prompt is about $1.4 \times 10^{16}$ FLOPs before attention, several seconds even spread across a server of GPUs. That was the six-second first word. For a 7B-class model, assuming a GPU sustains $4 \times 10^{14}$ FLOP/s (about 40% of a current data-centre accelerator's dense 16-bit peak, an assumption that varies with kernel and batch), prefill takes about 0.03 s for a 1,000-token prompt, 0.4 s for 10,000 and 10 s for 100,000; at 100,000 tokens the causal attention term ($32$ layers $\times\, 2n^2 d \approx 2.6 \times 10^{15}$ FLOPs) is already twice the weights' $1.35 \times 10^{15}$.
 
 **Decode** then generates tokens one at a time, as in [Generation and sampling](/learn/ai-and-llms/how-llms-work/generation-and-sampling). Each step does very little arithmetic (one token's worth) but must read every weight of the model, plus the stored keys and values of every previous token, from GPU memory. Decode is **memory-bandwidth-bound**. It determines the time between output tokens, and it is where the KV cache lives.
 
@@ -56,7 +56,16 @@ sequenceDiagram
 
 When the model generates token $t$, attention at every layer needs the keys and values of all tokens $1 \ldots t-1$. Because of the causal mask, those keys and values never change once computed: a token's representation at layer $\ell$ depends only on tokens at or before it. So the server computes them once and keeps them. Each decode step computes $q$, $k$ and $v$ for the new token only, appends $k$ and $v$ to the cache, and attends over the cache.
 
-Without the cache, step $t$ would recompute keys and values for all $t$ tokens, and generating $n$ tokens would cost $1 + 2 + \dots + n = O(n^2)$ key/value computations. With it, the cost is $O(n)$. Watch the two counters diverge:
+Without the cache, step $t$ would recompute keys and values for all $t$ tokens, and generating $n$ tokens would cost $1 + 2 + \dots + n = O(n^2)$ key/value computations. With it, the cost is $O(n)$. Trace a 3-token prompt, "The cat sat", generating "on the mat":
+
+| Step | Emits | Tokens in context | K and V computed, no cache | K and V computed, with cache | Attention scores computed (per head, per layer) |
+|---|---|---|---|---|---|
+| Prefill | " on" | 3 | 3 | 3 | $1 + 2 + 3 = 6$ (causal) |
+| Decode 1 | " the" | 4 | 4 | 1 | 4 |
+| Decode 2 | " mat" | 5 | 5 | 1 | 5 |
+| **Total** | | | **12** | **5** | **15 either way** |
+
+The last column is the part people miss. The cache removes the *recomputation* of keys and values (and of every layer's work for old tokens), but each decode step still attends over every cached token, so the per-token cost of decode grows with the context. Watch the two counters diverge:
 
 ```viz
 {"type": "ml", "algorithm": "kv-cache", "text": "The cat sat",
@@ -66,7 +75,7 @@ Without the cache, step $t$ would recompute keys and values for all $t$ tokens, 
 
 The cache trades compute for memory, and the memory is large.
 
-### How big is the KV cache?
+## How big is the KV cache?
 
 For every token, every layer stores one key and one value vector per key/value head:
 
@@ -81,9 +90,9 @@ $$\text{bytes per token} = 2 \times \text{layers} \times \text{kv\_heads} \times
 
 Work the first row: $2 \times 32 \times 32 \times 128 \times 2 = 524{,}288$ bytes, half a mebibyte, for *every token of every active sequence*. A single 128k-token conversation on that model needs more cache than the model's own weights (about 13 GiB). The last row is why large models use **grouped-query attention**: sharing each key/value head across 8 query heads cuts the cache by 8× with little quality loss. Without it, long context on a 70B-class model would be impractical.
 
-### Capacity planning: memory decides concurrency
+## Capacity planning: memory decides concurrency
 
-GPU memory holds the weights, the KV cache and some working space. Whatever remains after the weights is shared by the caches of all sequences being decoded together, so **KV-cache size decides how many requests one GPU can serve at once**, and concurrency is what makes serving affordable (the next lesson explains why batching is nearly free during decode).
+GPU memory holds the weights, the KV cache and some working space. Whatever remains after the weights is shared by the caches of all sequences being decoded together, so **KV-cache size decides how many requests one GPU can serve at once**, and concurrency is what makes serving affordable (the next section shows why batching is nearly free during decode).
 
 Take one 80 GiB GPU serving the 7B-class model, with 14 GiB of weights, so 66 GiB for cache:
 
@@ -92,9 +101,22 @@ Take one 80 GiB GPU serving the 7B-class model, with 14 GiB of weights, so 66 Gi
 - With GQA and an 8-bit cache: 264.
 - With GQA but 128k-token sequences (16 GiB each): 4.
 
-That last line explains the fleet that topped out at 600 users instead of 2,000: the conversations were longer than the capacity model assumed. Per-request context length is a capacity parameter, not just a product feature.
+That last line explains the fleet that topped out at 600 users instead of 2,000: the conversations were longer than the capacity model assumed. Per-request context length is a capacity parameter as much as a product feature.
 
-Serving stacks manage this memory aggressively. **Paged attention**, popularised by the vLLM project, allocates the cache in fixed-size blocks, like pages of virtual memory, instead of reserving one contiguous buffer per request sized for the maximum length, which eliminates most fragmentation and lets requests with a common prefix share blocks. **KV-cache quantisation** stores keys and values in 8 bits (or fewer) instead of 16. Idle conversations' caches can be evicted or moved to CPU memory and restored later.
+## What a decode step costs
+
+Every decode step reads all the weights once (shared by every sequence in the batch) plus each sequence's whole KV cache. Assume a GPU with 2 TB/s of memory bandwidth (the order of current data-centre accelerators) and the 7B-class model's 13.5 GB of fp16 weights, batch size 1:
+
+| KV heads | Context | Cache read per step | Time per output token | Tokens per second |
+|---|---|---|---|---|
+| 32 | 4,096 | 2.1 GB | 7.8 ms | 128 |
+| 32 | 32,768 | 17.2 GB | 15.3 ms | 65 |
+| 32 | 131,072 | 68.7 GB | 41.1 ms | 24 |
+| 8 (GQA) | 4,096 | 0.5 GB | 7.0 ms | 143 |
+| 8 (GQA) | 32,768 | 4.3 GB | 8.9 ms | 112 |
+| 8 (GQA) | 131,072 | 17.2 GB | 15.3 ms | 65 |
+
+Two lessons. Long context slows **decode**, not only prefill: without GQA, generation at 128k tokens runs at a fifth of the 4k speed, because every step streams the whole cache. And the weights dominate at short context but are shared: 32 sequences of 4k tokens with GQA read $13.5 + 32 \times 0.54 = 30.7$ GB per step, 15.3 ms for 32 tokens, about 2,100 tokens per second against 143 for one sequence. That is why batching is nearly free during decode, which [Inference serving](/learn/ai-and-llms/how-llms-work/inference-serving) builds on.
 
 ## Prompt caching: reusing prefill across requests
 
@@ -106,6 +128,13 @@ The mechanism dictates how you must structure prompts:
 - So put **static content first** (system prompt, tool definitions, reference documents, few-shot examples) and variable content last (the user's message).
 - Classic ways to defeat it: a timestamp or request ID at the top of the system prompt, tool definitions serialised in a non-deterministic order, per-user personalisation in the first paragraph.
 - Caches expire after a period of inactivity (minutes, typically), and providers differ on whether caching is automatic or needs explicit markers and a minimum prefix length. Check the usage fields in responses to confirm you are actually getting cache hits.
+
+## Under the hood: how servers hold the cache
+
+- **Layout.** The cache is one tensor per layer holding keys and values, indexed by KV head, token position and head dimension. A serving engine does not reserve one contiguous buffer per request sized for the maximum length; with **paged attention**, popularised by the vLLM project, it allocates fixed-size blocks (16 tokens is a common size) and keeps a per-request block table mapping positions to blocks, like a page table. [Inference serving](/learn/ai-and-llms/how-llms-work/inference-serving) computes the fragmentation this removes.
+- **Prefix caching.** Blocks are identified by a hash of their tokens chained with the hash of the preceding block, so two requests whose prompts share the first 6,000 tokens map to the same physical blocks, and a later request finds them by hashing its own prefix. That chaining is why one changed token near the start invalidates every block after it.
+- **Running out.** When a burst of long requests fills the cache, the engine must preempt some sequences: either drop their blocks and recompute them later (a second prefill) or swap them to CPU memory. Both show up as latency spikes rather than errors.
+- **Smaller entries.** KV-cache quantisation stores keys and values in 8 bits instead of 16, doubling capacity at a small quality cost; some engines go lower.
 
 ## Long context: what the tricks buy
 
@@ -129,6 +158,29 @@ Practical rules that follow from the mechanism:
 - **Trim tool output.** A tool that returns 8,000 tokens of JSON when the model needs three fields pays for those tokens on every later turn.
 - **Place critical instructions where they are used best**: at the start, and repeated briefly near the end of very long inputs.
 - **Keep the prefix stable** so prompt caching works.
+
+## Reducing KV memory: the options
+
+| Technique | Cache saving | Quality risk | Cost or complexity | Who decides |
+|---|---|---|---|---|
+| Grouped-query attention (8 of 32 heads) | 4× | small | none at serving time | the model's architecture |
+| Multi-query attention (1 KV head) | 32× | measurable on some tasks | none at serving time | the model's architecture |
+| 8-bit KV cache | 2× | small | a serving flag; slight compute overhead | you |
+| Sliding-window layers | caps those layers at the window | loses direct long-range access | architecture | the model |
+| Offload or evict idle caches | frees GPU memory | none | recompute or copy-back latency | you |
+| Shorter context (retrieval, compaction) | proportional | depends on retrieval quality | pipeline work | you |
+
+## Failure modes in production
+
+**Time to first token climbs with conversation length.** *Symptom:* turn 30 of a chat takes seconds before the first word. *Diagnosis:* the whole history is re-prefilled each turn and prefix caching is missing or failing (check cached-token counts in the usage data). *Fix:* stable prefixes so caching hits, compaction of old turns, and a cap on history.
+
+**Concurrency collapses in production.** *Symptom:* a fleet sized for 2,000 users saturates at 600, with the GPUs showing memory full and low arithmetic utilisation. *Diagnosis:* real contexts are longer than the capacity model assumed, so each sequence's cache is several times bigger. *Fix:* plan capacity from the context-length distribution (p50 and p99), quantise the cache, cap context per request, and prefer models with GQA.
+
+**Latency spikes under bursts, with no errors.** *Symptom:* p99 jumps when several long documents arrive together. *Diagnosis:* the cache filled and the engine preempted sequences, which were recomputed or swapped back. *Fix:* admission control on total tokens in flight, separate pools for long-context traffic, and alerts on preemption counts.
+
+**The answer ignores material that is in the context.** *Symptom:* a clause on page 47 of a pasted contract is missed. *Diagnosis:* effective context is shorter than the advertised window, and the middle of long inputs is used least reliably. *Fix:* retrieve the relevant passages, put key instructions at the start and end, and evaluate on your own long documents.
+
+**Prompt-cache hit rate near zero.** *Symptom:* cached-token counts stay at zero and input bills do not drop. *Diagnosis:* something volatile (a timestamp, a request ID, non-deterministic tool ordering) sits before the static content. *Fix:* static content first, volatile content last, deterministic serialisation, and a test that two requests produce byte-identical prefixes.
 
 ## Exercise
 
@@ -190,10 +242,29 @@ hints:
   - "Use integer floor division (`//` in Python, `Math.floor` in JavaScript) and guard against the weights exceeding GPU memory."
 ```
 
+## Interviewer follow-ups
+
+**"How much KV cache does a 70B-class model need per token, and why does GQA matter?"** *Model answer:* $2 \times 80$ layers $\times\, 8$ KV heads $\times\, 128 \times 2$ bytes $= 320$ KiB per token, 10 GiB at 32k tokens; with 64 KV heads it would be 2.5 MiB per token and 80 GiB at 32k, more than a GPU holds, so without GQA long context on that model would be impractical. *Common wrong answer:* quoting the parameter count or forgetting the factor of 2 for keys and values.
+
+**"Does the KV cache make decoding cost independent of context length?"** *Model answer:* no. It removes recomputation of past keys and values, but every step still reads the whole cache and computes one attention score per cached token, so time per output token grows with context (7.8 ms at 4k to 41 ms at 128k in the batch-1 table without GQA). *Common wrong answer:* "yes, each step only processes one token".
+
+**"Users say the first word is slow but streaming is fast. Where do you look?"** *Model answer:* prefill: prompt length, prefix-cache hit rate, and whether long prompts are queued behind others; fixes are caching, shorter prompts and chunked prefill. Decode settings will not help. *Common wrong answer:* "lower max_tokens".
+
+**"How would you size a GPU fleet for a chat product?"** *Model answer:* from the distribution of context lengths: KV bytes per token times tokens in flight per GPU, after weights, gives concurrent sequences; decode time per token at that batch size gives throughput; then add headroom for bursts and preemption. *Common wrong answer:* dividing requests per second by a benchmark's tokens per second measured at short context.
+
+## What mid-level engineers get wrong
+
+- **Treating the context window as free space.** Every token is prefilled, cached and attended over on every call.
+- **Planning capacity at the demo's context length.** Production conversations are longer, and cache size scales with them.
+- **Putting a timestamp at the top of the system prompt.** It defeats prefix caching for everything after it.
+- **Assuming the cache makes long context cheap to decode.** It removes recomputation, not the per-step read of the whole cache.
+- **Trusting the advertised window.** Effective context is an empirical property of the model on your data.
+- **Resending full tool outputs every turn.** They are paid for again on every later call.
+
 ## Senior signals
 
 - You separate **prefill (compute-bound, sets time to first token)** from **decode (memory-bandwidth-bound, sets time per output token)** and know which one a given latency complaint is about.
-- You can compute **KV-cache bytes per token** from a model's shape and turn it into **concurrent sequences per GPU**, and you treat context length as a capacity-planning input.
+- You can compute **KV-cache bytes per token** from a model's shape ($2 \times$ layers $\times$ KV heads $\times$ head dimension $\times$ bytes), turn it into **concurrent sequences per GPU** and **time per output token**, and you treat context length as a capacity-planning input.
 - You know attention's cost overtakes the weights' at around **$n = 6d$ tokens**, and that FlashAttention fixes memory, not the quadratic compute.
 - You structure prompts for **prefix caching**: static first, variable last, nothing volatile at the top, and you verify hits in the usage data.
 - You distinguish **advertised from effective context**, test long-context features on your own data, and prefer retrieval and compaction to stuffing.
@@ -232,4 +303,10 @@ hints:
   answer: 2
   explanation: >-
     GQA shares each key/value head across several query heads, so the cache stores a quarter as many key and value vectors. That multiplies how many concurrent sequences fit alongside the weights, which drives throughput. Query-side compute, and so prefill FLOPs, is largely unchanged, and vocabulary and training context length are separate properties.
+- q: >-
+    With a KV cache, a 7B-class model without GQA generates 128 tokens per second at a 4k-token context and about 24 at 128k, on the same GPU and batch size. What explains the slowdown?
+  options: ["Each step reads the whole cache, which grows with the context", "The cache is recomputed for every new token at long context", "Sampling over the vocabulary takes longer as the context grows", "The weights must be reloaded from disk for long prompts"]
+  answer: 0
+  explanation: >-
+    Decode is memory-bandwidth-bound: every step streams the weights (13.5 GB) plus the sequence's entire KV cache, which is 2.1 GB at 4k tokens and 68.7 GB at 128k without GQA. The cache prevents recomputation, but not the read. Sampling cost depends on the vocabulary, not the context, and the weights stay in GPU memory.
 ```

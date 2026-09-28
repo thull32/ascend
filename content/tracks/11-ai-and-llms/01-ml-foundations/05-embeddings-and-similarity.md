@@ -1,7 +1,7 @@
 ---
 slug: embeddings-and-similarity
 title: "Embeddings and similarity: meaning as geometry"
-description: How items become dense vectors whose distances mean something, how those vectors are learned, dot product versus cosine versus Euclidean with worked numbers, and what nearest-neighbour search costs at scale.
+description: How items become dense vectors whose distances mean something, a contrastive training step computed on a three-pair batch (loss, temperature and why hard negatives carry the gradient), dot product versus cosine versus Euclidean with worked numbers, normalisation, what an embedding model does between text and vector, storage precision, and the production failures of embedding search.
 minutes: 26
 difficulty: medium
 tags: [machine-learning, embeddings, cosine-similarity, vector-search, nearest-neighbours, semantic-search]
@@ -9,7 +9,7 @@ problems: []
 ---
 A customer types "how do I stop being charged every month" into your help centre. The article that answers it is titled "Cancel your subscription". Keyword search finds no word in common with the title, and the article body shares only words like "how" and "do", which also appear in 4,000 other articles. The customer opens a ticket. Every search box, recommendation row, duplicate detector and retrieval-augmented chatbot runs into the same wall: computers compare strings exactly, and people mean things approximately.
 
-**Embeddings** get around the wall by turning each item (a word, a sentence, a product, a user) into a list of numbers such that items with similar meaning end up close together. "Similar" stops being a question about characters and becomes a question about geometry, which you can answer with a dot product. This lesson covers how that works, how the vectors are learned, which distance to use, and what it costs to search a hundred million of them.
+**Embeddings** get around the wall by turning each item (a word, a sentence, a product, a user) into a list of numbers such that items with similar meaning end up close together. "Similar" stops being a question about characters and becomes a question about geometry, which you can answer with a dot product. This lesson covers how that works, how training shapes the space (computed on a batch small enough to check by hand), which distance to use, and what goes wrong in production.
 
 ## One-hot vectors and why they fail
 
@@ -23,17 +23,62 @@ A **dense embedding** instead represents each item with a few hundred to a few t
  "caption": "Rows compare each word with every other. Related words point in similar directions; king − man + woman lands nearest queen."}
 ```
 
-The famous analogy (king − man + woman ≈ queen) shows that *directions* can encode relationships, not just closeness. Treat it as an illustration rather than a law: published analogy results are selected examples, and many analogies fail.
+The famous analogy (king − man + woman ≈ queen) shows that *directions* can encode relationships, not only closeness. Treat it as an illustration rather than a law: published analogy results are selected examples, and many analogies fail.
 
 ## Where embeddings come from
 
-An embedding table is nothing exotic. It is the first weight matrix of a network: a matrix with one row per vocabulary item, and "looking up" a word's embedding is multiplying its one-hot vector by that matrix, which just selects a row. The rows start random and are shaped by whatever training objective the network has.
+An embedding table is the first weight matrix of a network: a matrix with one row per vocabulary item, and "looking up" a word's embedding is multiplying its one-hot vector by that matrix, which selects one row. The rows start random and are shaped by whatever training objective the network has.
 
 - **Predict the context.** Word2vec-style models learn word vectors by predicting which words appear near which. Words used in similar contexts ("cancel", "terminate", "stop") receive similar gradients and drift together. This is the **distributional hypothesis**: a word is characterised by the company it keeps.
-- **Contrastive training.** Modern sentence and document embedding models are transformer encoders trained on pairs that should match: a question and the passage that answers it, a title and its article, two paraphrases. For a batch of pairs, the loss pulls each query towards its own passage and pushes it away from the other passages in the batch (the **in-batch negatives**). Formally it is a softmax cross-entropy over similarity scores in which the correct answer is the matching passage. The model is being trained *directly* to make cosine similarity mean relevance.
-- **Two-tower recommenders.** A user tower turns viewing history into a vector, an item tower turns each title into a vector, and training makes the dot product predict what the user watches. At serving time you precompute every item vector and retrieve the few hundred closest to the user's vector as candidates for a heavier ranking model. Large streaming and video platforms use this shape for candidate generation.
+- **Contrastive training.** Modern sentence and document embedding models are transformer encoders trained on pairs that should match: a question and the passage that answers it, a title and its article, two paraphrases. The loss pulls each query towards its own passage and pushes it away from the other passages in the batch (the **in-batch negatives**). The next section computes one step of it.
+- **Two-tower recommenders.** A user tower turns viewing history into a vector, an item tower turns each title into a vector, and training makes the dot product predict what the user watches. At serving time you precompute every item vector and retrieve the few hundred closest to the user's vector as candidates for a heavier ranking model. Large streaming and video platforms have described this shape publicly for candidate generation.
 
 Language models are built from the same idea: their first layer is a token embedding table, and every layer after it refines those vectors, as you will see in [The transformer](/learn/ai-and-llms/how-llms-work/the-transformer).
+
+## Contrastive training, one batch by hand
+
+Take a batch of three query–passage pairs and suppose the current model gives these cosine similarities (row $i$ is query $i$; column $j$ is passage $j$; the diagonal holds the true pairs):
+
+| | $p_1$ "Cancel your plan" | $p_2$ "Change payment method" | $p_3$ "Refunds within 30 days" |
+|---|---|---|---|
+| $q_1$ "cancel subscription" | **0.80** | 0.30 | 0.55 |
+| $q_2$ "update card" | 0.25 | **0.70** | 0.20 |
+| $q_3$ "refund policy" | 0.50 | 0.15 | **0.75** |
+
+The standard loss (called InfoNCE) treats each row as a classification problem over the batch: divide the similarities by a **temperature** $\tau$, apply a softmax, and take the cross-entropy against the diagonal:
+
+$$\ell_i = -\ln \frac{e^{s_{ii}/\tau}}{\sum_j e^{s_{ij}/\tau}}, \qquad \frac{\partial \ell_i}{\partial s_{ij}} = \frac{p_{ij} - [i = j]}{\tau}$$
+
+Work row 1 with $\tau = 0.1$. The logits are 8.0, 3.0 and 5.5. Subtract the largest for stability and exponentiate: $1$, $e^{-5} = 0.0067$, $e^{-2.5} = 0.0821$. The softmax is 0.918, 0.006 and 0.075, so $\ell_1 = -\ln 0.918 = 0.085$. The gradient on the three similarities is $(0.918 - 1)/0.1 = -0.82$ for the true passage (raise it), $+0.75$ for the refunds passage, and $+0.06$ for the payment passage.
+
+That last pair of numbers is the whole story of contrastive learning. The refunds passage (0.55) is a **hard negative**: topically close to "cancel subscription" (both about money leaving) but wrong. It receives twelve times the push of the easy negative. Over millions of batches, the space is carved by exactly these pushes: related-but-wrong items are moved apart, and unrelated items are left alone because they are already far.
+
+The temperature decides how sharply the loss focuses on hard negatives:
+
+| $\tau$ | Mean loss over the batch | Row 1: push on hard negative | Row 1: push on easy negative | Ratio |
+|---|---|---|---|---|
+| 1.0 | 0.841 | +0.33 | +0.25 | 1.3× |
+| 0.1 | 0.061 | +0.75 | +0.06 | 12× |
+| 0.05 | 0.005 | +0.13 | +0.00 | all on the hard one |
+
+At $\tau = 1$ the softmax is nearly uniform and every negative is pushed about equally, so training wastes effort on pairs that are already separated. At $\tau = 0.05$ this batch is already solved and contributes almost nothing; the model only learns from batches that contain harder negatives, which is why embedding models are trained with large batches (a batch of $B$ pairs gives every query $B - 1$ negatives for free) and with deliberately **mined hard negatives** (passages a keyword search ranks high that are not the answer). The same mechanism explains a known pitfall: if the batch accidentally contains a second valid answer for a query (a duplicate passage), the loss pushes that correct passage away, a **false negative**.
+
+```python
+import math
+
+def info_nce_loss(sims, tau):
+    """Mean InfoNCE loss; sims[i][j] is the similarity of query i and passage j."""
+    total = 0.0
+    for i, row in enumerate(sims):
+        z = [s / tau for s in row]
+        m = max(z)                                             # subtract the max before exp
+        log_sum_exp = m + math.log(sum(math.exp(v - m) for v in z))
+        total += log_sum_exp - z[i]                            # -log softmax at the true pair
+    return total / len(sims)
+
+sims = [[0.80, 0.30, 0.55], [0.25, 0.70, 0.20], [0.50, 0.15, 0.75]]
+print(round(info_nce_loss(sims, 0.1), 4))   # 0.0613
+```
 
 ## Measuring similarity: dot product, cosine, Euclidean
 
@@ -63,9 +108,11 @@ All three documents:
 | $d_2$ "update payment card" | 0.30 | 0.339 | 1.08 |
 | $d_3$ (2 × $q$) | **1.72** | **1.000** | 0.93 |
 
-The dot product ranks $d_3$ far above $d_1$ purely because $d_3$ is longer. Cosine says $d_3$ points in exactly the query's direction. Euclidean distance says $d_1$ is nearest and $d_3$ is quite far. Which is right depends on what vector length means in your model. For most text embedding models, length is an artefact (longer or more repetitive inputs can produce larger norms), and the models are trained with cosine similarity.
+The dot product ranks $d_3$ far above $d_1$ purely because $d_3$ is longer. Cosine says $d_3$ points in exactly the query's direction. Euclidean distance says $d_1$ is nearest and $d_3$ is quite far. Which is right depends on what vector length means in your model. For most text embedding models, length is an artefact (longer or more repetitive inputs can produce larger norms), and the models are trained with cosine similarity, as in the contrastive loss above.
 
-The practical rule: **normalise every vector to length 1 when you store it**. For unit vectors, $\cos(a, b) = a \cdot b$, and $\|a - b\|^2 = 2 - 2\cos(a, b)$, so dot product, cosine and Euclidean distance all produce the same ranking and you can use whichever your index computes fastest. The exception is a model deliberately trained with raw dot products (some recommenders use the item norm to encode popularity); there you must not normalise. Use the metric the model was trained with.
+## Normalise once, then every metric agrees
+
+**Normalise every vector to length 1 when you store it.** For unit vectors, $\cos(a, b) = a \cdot b$, and $\|a - b\|^2 = 2 - 2\cos(a, b)$, so dot product, cosine and Euclidean distance all produce the same ranking and you can use whichever your index computes fastest (usually the dot product, one fused multiply-add per dimension). Check it on $d_1$: normalised, $\|q - d_1\|^2 = 2 - 2(0.984) = 0.031$. The exception is a model deliberately trained with raw dot products (some recommenders use the item norm to encode popularity); there you must not normalise. Use the metric the model was trained with.
 
 ```python
 import numpy as np
@@ -85,31 +132,49 @@ top = np.argpartition(-scores, k - 1)[:k]        # the k best, unordered, in O(n
 top = top[np.argsort(-scores[top])]              # sort only the winners: [2, 0]
 ```
 
-## What goes wrong with embeddings in production
+`argpartition` is the non-obvious line: a full sort of a million scores is $O(n \log n)$, while selecting the top $k$ is $O(n)$ and sorting only those $k$ is $O(k \log k)$.
 
-- **Spaces are model-specific.** Vectors from two different embedding models, or two versions of the same model, live in unrelated coordinate systems. Comparing them produces confident nonsense. Upgrading the model means re-embedding the entire corpus: 100 million documents of about 500 tokens is 50 billion tokens of embedding work, plus a migration in which you dual-write, backfill, and switch queries only when the new index is complete. Store the model name and version next to every vector.
-- **Absolute thresholds do not transfer.** Some models produce similarities that all sit in a narrow band (unrelated pairs at 0.7, related at 0.85), others spread them across the full range. "Cosine above 0.8 means relevant" is a property of one model, not a universal constant. Calibrate thresholds on labelled pairs, and re-calibrate when the model changes.
-- **Similar is not the same as relevant or correct.** "How do I cancel my subscription" and "How do I *not* cancel my subscription" embed very close together. Embeddings capture topic and phrasing well and negation, numbers and exact identifiers (error codes, SKUs) poorly. That is why production search usually combines embeddings with keyword search (**hybrid search**) and a reranker, covered in [Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation).
-- **Bias.** Embeddings absorb the associations in their training text, including ones about occupations, gender and ethnicity. If similarity feeds a decision about people, audit it.
-- **Storage adds up.** A 768-dimensional float32 vector is 3 KB. Ten million documents is 30 GB of vectors before any index overhead; a hundred million is 300 GB. Float16 halves that; int8 quantisation quarters it with a small recall loss; product quantisation (below) compresses to tens of bytes per vector.
+## Under the hood: from text to a vector
 
-## Nearest-neighbour search at scale
+A sentence embedding model runs four steps, and each has a production consequence.
 
-Finding the top-$k$ most similar vectors by brute force means one dot product per stored vector: $n \times d$ multiply-adds per query. For one million 768-dimensional float32 vectors that is about 1.5 billion floating-point operations over 3 GB of data. Memory bandwidth dominates, so expect tens of milliseconds per query on a multi-core server, and far less on a GPU or with 16-bit vectors. That is perfectly reasonable for a corpus of a few hundred thousand documents, and it has perfect recall, so do not build an index you do not need. At 100 million vectors and a thousand queries per second it is out of the question.
+1. **Tokenise and truncate.** The text becomes token IDs ([Tokenization](/learn/ai-and-llms/how-llms-work/tokenization)), and anything beyond the model's maximum input length is cut off or rejected. Limits range from a few hundred tokens for small open models to several thousand for hosted APIs at the time of writing; a 5,000-token document embedded by a 512-token model is represented by its first tenth.
+2. **Encode.** A transformer produces one vector per token, each already mixed with its context by attention.
+3. **Pool.** The per-token vectors become one vector, usually by averaging them (mean pooling) or by taking the output at a special summary token. Averaging is why a long document's embedding is a blur of its topics: a chunk about three things sits between all three.
+4. **Normalise.** Many models return unit vectors already; check before normalising twice or not at all.
 
-**Approximate nearest neighbour** (ANN) indexes give up a little recall for orders of magnitude of speed:
+Two properties of trained spaces explain surprises. **Anisotropy**: vectors from some models occupy a narrow cone, so even unrelated texts score 0.6 or more and all the useful signal lives in a thin band; subtracting the corpus mean before normalising spreads them out. **Truncatable dimensions**: some recent models are trained so that the first 256 of 1,024 dimensions already form a usable embedding (often called Matryoshka embeddings), letting you trade recall for storage without re-embedding.
 
-| Index family | Idea | Trade-off |
-|---|---|---|
-| **IVF** (inverted file) | Run k-means to split vectors into, say, 4,096 partitions; at query time search only the closest few partitions | Fast and compact; recall depends on how many partitions you probe |
-| **HNSW** (hierarchical navigable small world) | A layered graph linking each vector to its near neighbours; a query walks greedily from a coarse top layer down to the dense bottom layer | Excellent recall and latency; the graph links cost significant extra memory; inserts are slower |
-| **PQ** (product quantisation) | Split each vector into chunks and replace each chunk with the id of its nearest centroid from a small codebook | Huge compression; distances become approximate, so rerank the top candidates with full vectors |
+## Storage and precision
 
-Real systems combine them (IVF with PQ-compressed vectors, HNSW over quantised vectors). Every one of them has a knob, such as the number of partitions probed or the width of the graph search, that trades recall for latency. You measure **recall@k**: for a sample of queries, what fraction of the true top-$k$ (found by brute force) the index returned. An index at 0.95 recall@10 misses one true neighbour in twenty, which may or may not matter for your product.
+Vectors are the dominant storage cost of semantic search. For 768 dimensions:
 
-One trap catches almost everyone: **filtering**. If you ask for the 10 nearest vectors and then drop those that belong to other tenants, a tenant with 0.1% of the data will usually get zero results. Filters must be applied inside the search (pre-filtering or filter-aware traversal), which vector databases support to varying degrees. Ask about it before choosing one; [Graph, time-series and vector databases](/learn/databases/nosql-and-specialised/graph-time-series-and-vector-databases) compares the options, and [MinHash and LSH](/learn/advanced-data-structures/probabilistic-structures/minhash-and-lsh) covers the hashing-based alternative for near-duplicate detection.
+| Precision | Bytes per vector | 10 million vectors | Distance computation | Effect on ranking |
+|---|---|---|---|---|
+| float32 | 3,072 | 30.7 GB | float multiply-add | reference |
+| float16 / bfloat16 | 1,536 | 15.4 GB | half-precision multiply-add | negligible for ranking |
+| int8 (scalar quantised) | 768 | 7.7 GB | integer multiply-add | small recall loss, recovered by rescoring |
+| binary (1 bit per dimension) | 96 | 0.96 GB | XOR and population count | large loss alone; used as a first pass before rescoring |
 
-## Exercise
+Product quantisation compresses further, to tens of bytes per vector, and together with the index structures that avoid scanning everything it is the subject of [Vector search internals](/learn/ai-and-llms/ml-foundations/vector-search-internals).
+
+## Nearest-neighbour search, in brief
+
+Finding the top-$k$ most similar vectors by brute force means one dot product per stored vector: $n \times d$ multiply-adds per query. For one million 768-dimensional float32 vectors that is about 1.5 billion floating-point operations over 3 GB of data; memory bandwidth dominates, so expect tens of milliseconds per query on a multi-core server. Brute force has perfect recall and no index to tune, so it is the right answer for a few hundred thousand vectors. Beyond that, **approximate nearest neighbour** (ANN) indexes such as IVF, HNSW and product quantisation give up a little recall for orders of magnitude of speed; you measure them by **recall@k** against brute force, and they have a trap around filtering. The next lesson opens each of them up.
+
+## Failure modes in production
+
+**Mixed model versions.** *Symptom:* after an embedding model upgrade, relevance drops sharply for old documents while new ones look fine. *Diagnosis:* queries embedded with the new model are compared against vectors from the old one, an unrelated coordinate system with the same dimension. *Fix:* store the model name and version with every vector, re-embed the corpus into a new index (100 million documents of 500 tokens is 50 billion tokens of embedding work), and switch queries only when the backfill is complete.
+
+**A threshold that stopped meaning anything.** *Symptom:* a "cosine above 0.8 is a duplicate" rule floods reviewers after a model change, or never fires. *Diagnosis:* absolute similarity levels are a property of one model (anisotropy shifts the whole distribution). *Fix:* calibrate thresholds on labelled pairs per model version, and alert on the distribution of top-1 scores.
+
+**Similar but wrong.** *Symptom:* "how do I cancel" and "how do I *not* cancel" retrieve the same article; a search for error code `E1043` returns articles about `E1034`. *Diagnosis:* embeddings capture topic and phrasing well and negation, numbers and exact identifiers poorly. *Fix:* hybrid search (keyword plus vector) and a reranker, covered in [Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation).
+
+**The end of every document is invisible.** *Symptom:* questions answered in the second half of long documents never retrieve them. *Diagnosis:* the embedding model truncated each document at its maximum input length. *Fix:* chunk documents below the limit before embedding, with some overlap, and log the token count of every embedded input.
+
+**Bias in the space.** *Symptom:* similarity-driven recommendations or matches skew by gender or ethnicity. *Diagnosis:* embeddings absorb the associations in their training text. *Fix:* audit with paired probes before similarity feeds a decision about people.
+
+## Exercises
 
 ```exercise
 id: cosine-similarity
@@ -164,13 +229,87 @@ hints:
   - "Check for a zero norm before dividing; `math.sqrt` / `Math.sqrt` of the squared norms gives the lengths."
 ```
 
+```exercise
+id: info-nce-loss
+title: The contrastive (InfoNCE) loss
+prompt: |
+  `sims` is a square matrix (a list of equal-length lists): `sims[i][j]` is
+  the similarity between query `i` and passage `j`, and passage `i` is the
+  correct match for query `i`. `tau` is the temperature (> 0).
+
+  For each row, divide every entry by `tau`, take the softmax, and compute
+  `-ln(softmax[i])` at the diagonal entry. Return the mean over rows.
+
+  Make it numerically stable: subtract the row's largest scaled value before
+  exponentiating (one hidden test has scaled values of 1,000). Results are
+  compared to 6 decimal places.
+languages: [python, javascript]
+entry: info_nce_loss
+starter:
+  python: |
+    import math
+
+    def info_nce_loss(sims, tau):
+        # your code here
+        return 0.0
+  javascript: |
+    function info_nce_loss(sims, tau) {
+      // your code here
+      return 0;
+    }
+tests:
+  - args: [[[0.8, 0.3, 0.55], [0.25, 0.7, 0.2], [0.5, 0.15, 0.75]], 0.1]
+    expected: 0.061322
+    label: the worked batch at temperature 0.1
+  - args: [[[0.8, 0.3, 0.55], [0.25, 0.7, 0.2], [0.5, 0.15, 0.75]], 1.0]
+    expected: 0.840837
+    label: the same batch at temperature 1
+  - args: [[[0, 0, 0], [0, 0, 0], [0, 0, 0]], 1.0]
+    expected: 1.098612
+    label: all similarities equal gives ln(3)
+  - args: [[[0.2, 0.9], [0.9, 0.2]], 0.5]
+    expected: 1.620417
+    label: every negative beats its positive
+  - args: [[[0.9]], 0.05]
+    expected: 0
+    hidden: true
+    label: a batch of one has no negatives
+  - args: [[[10, 0], [0, 10]], 0.01]
+    expected: 0
+    hidden: true
+    label: large logits must not overflow
+hints:
+  - "For row i, let z = [s / tau for s in row] and m = max(z); the log of the softmax denominator is m + ln(sum(exp(z_j - m)))."
+  - "The row's loss is that log-sum-exp minus z[i]; average the rows."
+```
+
+## Interviewer follow-ups
+
+**"How does contrastive training decide what 'similar' means?"** *Model answer:* the training pairs define it. The InfoNCE loss is a softmax over the batch in which the positive is the correct class, so the gradient raises the positive's similarity and lowers each negative's in proportion to its softmax probability; hard negatives get most of the push (12 times the easy one in the worked batch at $\tau = 0.1$). A model trained on question–answer pairs learns "answers this", which is different from "paraphrases this". *Common wrong answer:* "it learns the meaning of words", with no mention of the objective.
+
+**"Cosine or dot product?"** *Model answer:* whichever the model was trained with; for normalised vectors they are identical, so normalise at write time and use the dot product. Keep raw dot products only for models that deliberately encode something (such as popularity) in the norm. *Common wrong answer:* "cosine is always more accurate".
+
+**"You are upgrading the embedding model for 100 million documents. What is the plan?"** *Model answer:* build a new index alongside the old one, backfill by re-embedding everything (budget the tokens and the rate limits), dual-write new documents to both, evaluate recall and relevance on a labelled query set, switch reads, then retire the old index; never mix versions in one index. *Common wrong answer:* "embed new documents with the new model and let the old ones age out".
+
+**"Why do embedding models need large batches?"** *Model answer:* in-batch negatives mean a batch of $B$ pairs gives each query $B - 1$ negatives; more negatives make it likelier that some are hard, and hard negatives carry the gradient. Low temperature sharpens the focus further, and mined hard negatives add what random batches lack. *Common wrong answer:* "for GPU efficiency", which is true of all training and misses the objective.
+
+## What mid-level engineers get wrong
+
+- **Comparing vectors from different models or versions.** Same dimension, unrelated coordinates.
+- **Hard-coding a similarity threshold.** Levels shift between models; calibrate on labelled pairs.
+- **Embedding whole long documents.** Truncation silently drops the end, and pooling blurs the rest.
+- **Trusting embeddings with identifiers, numbers and negation.** Pair them with keyword search.
+- **Building an ANN index for 200,000 vectors.** Brute force is exact and fast enough; measure first.
+- **Forgetting that the training objective defines similarity.** A model trained for question–answer retrieval is not a paraphrase detector.
+
 ## Senior signals
 
-- You explain embeddings as **learned coordinates where distance tracks the training objective**, and you ask what objective a model was trained on before trusting its similarities for your task.
+- You explain embeddings as **learned coordinates where distance tracks the training objective**, and you can compute a contrastive loss step and say why hard negatives and temperature matter.
 - You **normalise at write time** and know that for unit vectors dot product, cosine and Euclidean rankings coincide, except for models trained to use the norm.
 - You treat the embedding model as a **versioned dependency**: vectors are stored with their model version, never mixed across versions, and a model upgrade is planned as a re-embedding migration.
-- You start with **brute force** when the corpus is small, and when you adopt ANN you measure **recall@k** against brute force and design **filtering** into the search.
-- You know embeddings are weak on **negation, numbers and exact identifiers**, and you pair them with keyword search and reranking.
+- You know what the model does to your text (**truncation and pooling**) and chunk accordingly.
+- You choose **storage precision** by arithmetic (3 KB per float32 768-dimension vector, 96 bytes binary) and rescore compressed candidates with full vectors.
+- You start with **brute force** when the corpus is small, and you pair embeddings with keyword search and reranking because they are weak on **negation, numbers and exact identifiers**.
 
 ## Check yourself
 
@@ -181,6 +320,12 @@ hints:
   answer: 2
   explanation: >-
     The dot product is the cosine multiplied by both lengths, so a longer vector in the same direction scores higher even though B adds no information. Equal direction would give equal scores only under cosine similarity; cosine, or normalising vectors before a dot product, removes the length effect and scores A and B equally.
+- q: >-
+    In the worked contrastive batch at temperature 0.1, query 1 has similarity 0.55 to a wrong passage about refunds and 0.30 to a wrong passage about payment cards. Which receives the larger push away?
+  options: ["The payment passage, since it is the least similar and most wrong", "Both equally, since in-batch negatives share the gradient evenly", "Neither, since only the correct passage's similarity is updated", "The refunds passage, since its softmax probability is far higher"]
+  answer: 3
+  explanation: >-
+    The gradient on each negative's similarity is its softmax probability divided by the temperature: 0.075/0.1 = 0.75 for the refunds passage against 0.006/0.1 = 0.06 for the payment passage. Hard negatives carry the learning signal; easy ones are already far away. An equal split happens only at high temperature, where the softmax is nearly uniform.
 - q: >-
     Your team upgrades to a better embedding model and embeds new documents with it, while the 50 million existing documents keep their old vectors. What happens to search quality?
   options: ["It improves gradually as more documents get the better model's vectors", "Vectors from two unrelated spaces are compared, so results degrade", "Only the similarity threshold needs re-tuning for the new model", "Nothing changes, because both models output the same dimension"]
@@ -194,11 +339,11 @@ hints:
   explanation: >-
     With norms of 1, the cosine formula's denominator is 1, so the dot product equals the cosine, and expanding the squared distance gives 1 + 1 − 2·(a·b) = 2 − 2·cosine. The three measures are monotonic transformations of each other, so they cannot disagree on ranking. Equal lengths say nothing about direction, so cosine is not always 1, and the dot product of unit vectors can be negative, down to −1.
 - q: >-
-    A multi-tenant app retrieves the 10 nearest vectors from a shared ANN index, then removes those that belong to other tenants. What goes wrong for a small tenant?
-  options: ["Its vectors are evicted from the index by larger tenants' vectors", "Nothing, because ANN results are exact once the filter is applied", "Its results are often empty, since the top 10 mostly belong to others", "Its queries run slower, because the filter scans every tenant's vectors"]
-  answer: 2
+    Answers that appear late in long product manuals are never retrieved, although short documents work well. What is the most likely cause?
+  options: ["The embedding model truncated each manual at its input limit", "Cosine similarity penalises long documents for their larger norm", "The ANN index drops vectors from documents above a set size", "Long documents need a lower similarity threshold to match"]
+  answer: 0
   explanation: >-
-    Post-filtering keeps only the survivors of a global top-10, and a tenant with a tiny share of the data rarely has any vectors in it, so its results are often empty or poor. The filter must be applied during the search (pre-filtering, filter-aware traversal, or per-tenant indexes). Latency is not the problem; the filter runs over just 10 results.
+    Embedding models accept a bounded number of tokens and cut off or reject the rest, so the end of a long manual never reaches the vector; chunking below the limit fixes it. Cosine ignores norm by construction, ANN indexes store whatever vector they are given, and a threshold cannot recover text that was never embedded.
 - q: >-
     You need semantic search over 200,000 help-centre passages at 20 queries per second. What is the simplest sound design for the search step?
   options: ["Keyword search only, since embeddings stop scaling past 100,000 documents", "An HNSW index, since approximate search is required at any real scale", "Brute-force dot products over normalised vectors held in memory", "k-means with k = 200,000, searching by the nearest centroid first"]
