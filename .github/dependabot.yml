@@ -1,7 +1,9 @@
 # Actions and base images are pinned to immutable SHAs and digests (a moved
 # tag cannot change what CI or the image runs). Dependabot keeps those pins
 # current and proposes dependency upgrades as reviewable PRs, grouped so a
-# week's updates arrive as a handful of PRs rather than dozens.
+# week's updates arrive as a handful of PRs rather than dozens. Non-major
+# updates merge themselves once CI passes (workflows/dependabot-automerge.yml);
+# majors wait for review.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -15,6 +17,11 @@ updates:
     schedule: { interval: weekly }
     groups:
       base-images: { patterns: ["*"] }
+    ignore:
+      # New Node majors are adopted when they enter LTS, together with CI's
+      # node-version, not as soon as they are released.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: cargo
     directory: /
