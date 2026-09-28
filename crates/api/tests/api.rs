@@ -469,32 +469,91 @@ async fn ai_budget_reservation_cannot_be_overshot_by_concurrency() {
     // The test config allows 10 requests per day. Fire 30 at once.
     let attempts = (0..30).map(|_| {
         let b = budget.clone();
-        tokio::spawn(async move { b.check_and_reserve(user_id).await.is_ok() })
+        tokio::spawn(async move { b.reserve(user_id, &mut tiny_request(50)).await.ok() })
     });
-    let mut granted = 0;
+    let mut holds = Vec::new();
     for h in attempts {
-        if h.await.unwrap() {
-            granted += 1;
+        if let Some(hold) = h.await.unwrap() {
+            holds.push(hold);
         }
     }
-    assert_eq!(granted, 10, "exactly the daily limit may be reserved");
-    let status = budget.status(user_id).await.unwrap();
-    assert_eq!(status.requests_used, 10);
+    assert_eq!(holds.len(), 10, "exactly the daily limit may be reserved");
+    assert_eq!(budget.status(user_id).await.unwrap().requests_used, 10);
 
-    // Recording usage accumulates, including prompt-cache tokens.
+    // Settling records actual usage, including prompt-cache tokens.
     let usage = ascend_core::ai::Usage {
         input_tokens: 1200,
         output_tokens: 300,
         cache_read_input_tokens: 5000,
         cache_creation_input_tokens: 0,
     };
-    budget.record(user_id, usage).await.unwrap();
-    budget.record(user_id, usage).await.unwrap();
+    holds.pop().unwrap().settle(usage).await.unwrap();
+    holds.pop().unwrap().settle(usage).await.unwrap();
     let status = budget.status(user_id).await.unwrap();
     // Billed input: 2 × 1,200 uncached + 10,000 cache reads at a tenth.
     assert_eq!(status.input_tokens_used, 3400);
     assert_eq!(status.output_tokens_used, 600);
     assert_eq!(status.cache_read_tokens, 10_000);
+}
+
+fn tiny_request(max_tokens: u32) -> ascend_core::ai::anthropic::Request {
+    ascend_core::ai::anthropic::Request {
+        model: "test-model".into(),
+        system: "s".into(),
+        context: None,
+        cache_conversation: false,
+        messages: vec![ascend_core::ai::ChatMessage { role: ascend_core::ai::Role::User, content: "hi".into() }],
+        max_tokens,
+        effort: ascend_core::ai::anthropic::Effort::Low,
+        json_schema: None,
+    }
+}
+
+async fn reserved_output(app: &TestApp, id: uuid::Uuid) -> i64 {
+    let rows = app
+        .db
+        .query_all_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT COALESCE(SUM(reserved_output_tokens), 0)::bigint AS n FROM ai_usage WHERE user_id = $1",
+            [id.into()],
+        ))
+        .await
+        .unwrap();
+    rows[0].try_get("", "n").unwrap()
+}
+
+#[tokio::test]
+async fn a_budget_hold_caps_the_call_at_what_is_left_and_releases_itself() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let budget = app.state.coach.budget();
+    // The test config allows 1,000 output tokens a day.
+    let mut first = tiny_request(800);
+    let held = budget.reserve(id, &mut first).await.unwrap();
+    assert_eq!(held.output_hold(), 800);
+
+    // 200 left is under a quarter of an 800-token call: refused rather than
+    // letting a reply be cut off, or the day's budget be overshot.
+    assert!(matches!(budget.reserve(id, &mut tiny_request(800)).await, Err(ascend_core::AppError::RateLimited { .. })));
+
+    // The first call used 300; 700 are left, and the next call is capped there.
+    held.settle(ascend_core::ai::Usage { output_tokens: 300, ..Default::default() }).await.unwrap();
+    let mut third = tiny_request(800);
+    let capped = budget.reserve(id, &mut third).await.unwrap();
+    assert_eq!(third.max_tokens, 700, "the request itself cannot outspend the day");
+    assert_eq!(reserved_output(&app, id).await, 700);
+
+    // An early return drops the hold unsettled: it is released, not leaked.
+    drop(capped);
+    for _ in 0..50 {
+        if reserved_output(&app, id).await == 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(reserved_output(&app, id).await, 0);
+    assert_eq!(budget.status(id).await.unwrap().output_tokens_used, 300);
 }
 
 #[tokio::test]
@@ -751,12 +810,12 @@ async fn cache_writes_count_against_the_input_budget_and_the_refusal_says_when_t
     let (cookie, _) = app.register().await;
     let id = user_id(&app, &cookie).await;
     let budget = app.state.coach.budget();
-    budget.check_and_reserve(id).await.unwrap();
+    let hold = budget.reserve(id, &mut tiny_request(50)).await.unwrap();
     // 90k cache-write tokens bill as 112.5k input tokens: over the 100k test limit
     // even though "uncached input" is zero.
     let usage = ascend_core::ai::Usage { cache_creation_input_tokens: 90_000, output_tokens: 10, ..Default::default() };
-    budget.record(id, usage).await.unwrap();
-    match budget.check_and_reserve(id).await {
+    hold.settle(usage).await.unwrap();
+    match budget.reserve(id, &mut tiny_request(50)).await {
         Err(ascend_core::AppError::RateLimited { retry_after_secs: Some(secs), .. }) => {
             assert!((1..=86_400).contains(&secs), "retry at the next UTC midnight, got {secs}")
         }

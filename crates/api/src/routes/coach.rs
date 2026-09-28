@@ -98,7 +98,8 @@ async fn send(
     ensure_coach_unlocked(&state, user.id).await?;
     let (conv, _) = state.coach.get_conversation(user.id, id).await?;
     let progress = state.progress.summary(user.id).await.ok();
-    let request = state.coach.prepare_turn(user.id, &conv, input, progress.as_ref()).await?;
+    let (request, hold) = state.coach.prepare_turn(user.id, &conv, input, progress.as_ref()).await?;
+    // A failure to start the stream drops `hold`, which releases it.
     let upstream = client.stream(&request).await?;
 
     let (tx, rx) = sse::channel();
@@ -120,7 +121,7 @@ async fn send(
                 cache_write_tokens = usage.cache_creation_input_tokens,
                 "coach turn complete"
             );
-            if let Err(e) = coach.finish_turn(user.id, conv.id, reply, usage).await {
+            if let Err(e) = coach.finish_turn(conv.id, reply, usage, hold).await {
                 tracing::error!(error = %e, "failed to persist coach reply");
             }
         }

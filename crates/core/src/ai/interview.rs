@@ -145,7 +145,6 @@ pub fn eval_schema() -> serde_json::Value {
 
 pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::Model) -> AppResult<Evaluation> {
     let client = coach.client()?;
-    coach.budget().check_and_reserve(user_id).await?;
     let transcript = InterviewService::transcript(model);
     let kind = InterviewKind::parse(&model.kind).unwrap_or(InterviewKind::Coding);
     let dims = match kind {
@@ -189,7 +188,7 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
         convo.chars().take(60_000).collect::<String>(),
         model.final_code.as_deref().unwrap_or("(none)").chars().take(12_000).collect::<String>()
     );
-    let req = Request {
+    let mut req = Request {
         model: coach.model().to_string(),
         system,
         context: None,
@@ -199,8 +198,9 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
         effort: Effort::High,
         json_schema: Some(eval_schema()),
     };
+    let hold = coach.budget().reserve(user_id, &mut req).await?;
     let completion = client.complete(&req).await?;
-    coach.budget().record(user_id, completion.usage).await?;
+    hold.settle(completion.usage).await?;
     let mut eval: Evaluation = serde_json::from_str(&completion.text)
         .map_err(|e| AppError::ai_upstream("the evaluation could not be produced; try again", e))?;
     // Well-formed but empty (no summary or no rubric dimensions) is a failed

@@ -21,6 +21,7 @@ mod m0004_community;
 mod m0005_interviews;
 mod m0006_ai_usage_cache_tokens;
 mod m0007_integrity;
+mod m0008_budget_holds;
 
 pub struct Migrator;
 
@@ -35,6 +36,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0005_interviews::Migration),
             Box::new(m0006_ai_usage_cache_tokens::Migration),
             Box::new(m0007_integrity::Migration),
+            Box::new(m0008_budget_holds::Migration),
         ]
     }
 }

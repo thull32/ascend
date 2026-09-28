@@ -52,7 +52,6 @@ pub async fn generate(
 ) -> AppResult<GeneratedQuiz> {
     let client = coach.client()?;
     let curriculum_lesson = coach_lesson(coach, lesson_slug)?;
-    coach.budget().check_and_reserve(user_id).await?;
 
     let count = count.clamp(3, 10);
     let system = "You write rigorous, senior-level multiple-choice quizzes for software engineers preparing for FAANG interviews.\n\
@@ -66,7 +65,7 @@ pub async fn generate(
         curriculum_lesson.summary.description,
         curriculum_lesson.body.chars().take(30_000).collect::<String>()
     );
-    let req = Request {
+    let mut req = Request {
         model: coach.model().to_string(),
         system,
         context: None,
@@ -76,8 +75,9 @@ pub async fn generate(
         effort: Effort::Medium,
         json_schema: Some(schema()),
     };
+    let hold = coach.budget().reserve(user_id, &mut req).await?;
     let completion = client.complete(&req).await?;
-    coach.budget().record(user_id, completion.usage).await?;
+    hold.settle(completion.usage).await?;
     let mut quiz: GeneratedQuiz = serde_json::from_str(&completion.text)
         .map_err(|e| AppError::ai_upstream("the quiz could not be generated; try again", e))?;
     quiz.questions.retain(|q| q.options.len() >= 2 && q.answer < q.options.len());

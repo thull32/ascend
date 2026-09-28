@@ -57,6 +57,20 @@ pub struct Request {
     pub json_schema: Option<serde_json::Value>,
 }
 
+impl Request {
+    /// Upper-leaning estimate of this request's billed input, for budget
+    /// holds: one token per three bytes (English prose averages nearer four
+    /// characters per token), plus framing per message, all weighted as cache
+    /// writes (1.25x), the most expensive way input is billed.
+    pub fn estimated_billed_input(&self) -> i64 {
+        let bytes = self.system.len()
+            + self.context.as_deref().map_or(0, str::len)
+            + self.messages.iter().map(|m| m.content.len()).sum::<usize>();
+        let tokens = i64::try_from(bytes.div_ceil(3)).unwrap_or(i64::MAX / 2) + 16 * self.messages.len() as i64;
+        tokens.saturating_mul(5) / 4
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, Deserialize)]
 pub struct Usage {
     #[serde(default)]

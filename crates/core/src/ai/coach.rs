@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::anthropic::{AnthropicClient, ChatMessage, Effort, Request, Role, Usage};
-use super::budget::BudgetService;
+use super::budget::{BudgetService, Reservation};
 use crate::content::Curriculum;
 use crate::entities::prelude::*;
 use crate::entities::{conversations, messages};
@@ -177,7 +177,7 @@ impl CoachService {
         conv: &conversations::Model,
         input: SendMessageInput,
         progress: Option<&ProgressSummary>,
-    ) -> AppResult<Request> {
+    ) -> AppResult<(Request, Reservation)> {
         let content = input.content.trim().to_string();
         if content.is_empty() {
             return Err(AppError::validation("message is empty"));
@@ -185,23 +185,12 @@ impl CoachService {
         if content.chars().count() > MAX_MESSAGE_CHARS {
             return Err(AppError::validation("message is too long (8000 characters max)"));
         }
-        self.budget.check_and_reserve(user_id).await?;
-
-        let now = Utc::now();
-        messages::ActiveModel {
-            id: Set(Uuid::now_v7()),
-            conversation_id: Set(conv.id),
-            role: Set("user".into()),
-            content: Set(content.clone()),
-            input_tokens: Set(0),
-            output_tokens: Set(0),
-            created_at: Set(now),
-        }
-        .insert(&self.db)
-        .await?;
-
+        // Build the request in memory first, reserve budget for it, and only
+        // then store the learner's message: a refused request leaves nothing
+        // behind, and the hold is sized from the real request.
         let in_conversation = Messages::find().filter(messages::Column::ConversationId.eq(conv.id));
-        let total = in_conversation.clone().count(&self.db).await?;
+        let stored = in_conversation.clone().count(&self.db).await?;
+        let total = stored + 1;
         let history = in_conversation
             .order_by_asc(messages::Column::CreatedAt)
             .offset(history_start(total))
@@ -215,6 +204,7 @@ impl CoachService {
                 content: m.content,
             })
             .collect();
+        msgs.push(ChatMessage { role: Role::User, content: content.clone() });
         // The API requires alternating roles starting with `user`; collapse
         // any accidental doubles (e.g. a failed assistant turn).
         msgs = collapse_roles(msgs);
@@ -226,7 +216,7 @@ impl CoachService {
             kind: input.context.kind.or(context.kind),
             slug: input.context.slug.or(context.slug),
         };
-        Ok(Request {
+        let mut request = Request {
             model: self.model.clone(),
             system: self.stable_prompt(),
             context: Some(self.context_prompt(&context, progress)),
@@ -235,10 +225,26 @@ impl CoachService {
             max_tokens: 4000,
             effort: Effort::Medium,
             json_schema: None,
-        })
+        };
+        let hold = self.budget.reserve(user_id, &mut request).await?;
+
+        messages::ActiveModel {
+            id: Set(Uuid::now_v7()),
+            conversation_id: Set(conv.id),
+            role: Set("user".into()),
+            content: Set(content),
+            input_tokens: Set(0),
+            output_tokens: Set(0),
+            created_at: Set(Utc::now()),
+        }
+        .insert(&self.db)
+        .await?;
+        Ok((request, hold))
     }
 
-    pub async fn finish_turn(&self, user_id: Uuid, conv_id: Uuid, reply: String, usage: Usage) -> AppResult<()> {
+    pub async fn finish_turn(&self, conv_id: Uuid, reply: String, usage: Usage, hold: Reservation) -> AppResult<()> {
+        // Settle first: the usage is real whether or not the reply persists.
+        hold.settle(usage).await?;
         let now = Utc::now();
         if !reply.trim().is_empty() {
             messages::ActiveModel {
@@ -258,7 +264,7 @@ impl CoachService {
             .filter(conversations::Column::Id.eq(conv_id))
             .exec(&self.db)
             .await?;
-        self.budget.record(user_id, usage).await
+        Ok(())
     }
 
     /// Stable for every learner and every turn: persona and curriculum map.

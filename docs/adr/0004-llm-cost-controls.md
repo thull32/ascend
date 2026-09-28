@@ -27,8 +27,10 @@ cheap as possible without degrading quality.
 
 ## Consequences
 
-- The worst-case daily cost is bounded by (active users) x (daily token budget).
-- Budgets are configuration (`AI_DAILY_REQUESTS`, `AI_DAILY_OUTPUT_TOKENS`), tunable without a deploy of code.
+- The worst-case daily cost is bounded by (active users) x (daily budgets): requests, billed input tokens
+  and output tokens, each checked before a call.
+- Budgets are configuration (`AI_DAILY_REQUESTS`, `AI_DAILY_INPUT_TOKENS`, `AI_DAILY_OUTPUT_TOKENS`),
+  tunable without a deploy of code. A spent budget answers 429 with `Retry-After` until the next UTC midnight.
 
 ## Revisit when
 

@@ -3,6 +3,7 @@
 //! Flow: `POST /interviews` → `POST /interviews/{id}/turns` (SSE, repeated)
 //! → optional `POST /interviews/{id}/assistant` (SSE, assisted mode only)
 //! → `POST /interviews/{id}/finish` (JSON evaluation).
+use ascend_core::ai::budget::Reservation;
 use ascend_core::ai::interview;
 use ascend_core::ai::{ChatMessage, Role};
 use ascend_core::entities::interviews::Model;
@@ -97,18 +98,19 @@ async fn turn(
     if content.is_empty() || content.chars().count() > 6000 {
         return Err(bad_request("message must be 1–6000 characters"));
     }
-    state.coach.budget().check_and_reserve(user.id).await?;
-    let model = state
-        .interviews
-        .append_transcript(model, vec![TranscriptEntry { role: "candidate".into(), content, at: now() }], body.code)
-        .await?;
-    let transcript = InterviewService::transcript(&model);
-    let request = interview::turn_request(&state.coach, &model, &transcript);
+    // Build the request with the candidate's message in memory, reserve
+    // budget for it, then store the message: a refused turn leaves the
+    // transcript untouched.
+    let entry = TranscriptEntry { role: "candidate".into(), content, at: now() };
+    let mut transcript = InterviewService::transcript(&model);
+    transcript.push(entry.clone());
+    let mut request = interview::turn_request(&state.coach, &model, &transcript);
+    let hold = state.coach.budget().reserve(user.id, &mut request).await?;
+    let model = state.interviews.append_transcript(model, vec![entry], body.code).await?;
     let upstream = client.stream(&request).await?;
 
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
-    let coach = state.coach.clone();
     state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
@@ -117,7 +119,7 @@ async fn turn(
                 tracing::warn!(error = %e, interview = %model.id, "interviewer stream error");
             }
             persist_reply(&interviews, model, "interviewer", reply).await;
-            record_usage(&coach, user.id, usage).await;
+            settle(hold, usage).await;
         }
         .instrument(tracing::Span::current()),
     );
@@ -150,8 +152,9 @@ async fn assistant(
     if body.messages.len() > 60 || body.messages.iter().any(|m| m.content.chars().count() > 12_000) {
         return Err(bad_request("assistant history too long"));
     }
-    state.coach.budget().check_and_reserve(user.id).await?;
     let prompt = last.content.clone();
+    let mut request = interview::assistant_request(&state.coach, &model, body.messages);
+    let hold = state.coach.budget().reserve(user.id, &mut request).await?;
     let model = state
         .interviews
         .append_transcript(
@@ -160,12 +163,10 @@ async fn assistant(
             None,
         )
         .await?;
-    let request = interview::assistant_request(&state.coach, &model, body.messages);
     let upstream = client.stream(&request).await?;
 
     let (tx, rx) = sse::channel();
     let interviews = state.interviews.clone();
-    let coach = state.coach.clone();
     state.tasks.spawn(
         async move {
             futures::pin_mut!(upstream);
@@ -174,7 +175,7 @@ async fn assistant(
                 tracing::warn!(error = %e, interview = %model.id, "assistant stream error");
             }
             persist_reply(&interviews, model, "assistant", reply).await;
-            record_usage(&coach, user.id, usage).await;
+            settle(hold, usage).await;
         }
         .instrument(tracing::Span::current()),
     );
@@ -199,8 +200,8 @@ async fn persist_reply(interviews: &InterviewService, model: Model, role: &str, 
     }
 }
 
-async fn record_usage(coach: &ascend_core::ai::coach::CoachService, user_id: Uuid, usage: ascend_core::ai::Usage) {
-    if let Err(e) = coach.budget().record(user_id, usage).await {
+async fn settle(hold: Reservation, usage: ascend_core::ai::Usage) {
+    if let Err(e) = hold.settle(usage).await {
         tracing::error!(error = %e, "failed to record AI usage");
     }
 }

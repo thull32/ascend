@@ -14,6 +14,9 @@ pub struct Model {
     pub requests: i32,
     pub cache_read_tokens: i64,
     pub cache_write_tokens: i64,
+    /// Held for calls in flight (see `ai::budget::Reservation`).
+    pub reserved_input_tokens: i64,
+    pub reserved_output_tokens: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

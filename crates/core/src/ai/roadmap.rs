@@ -69,7 +69,6 @@ pub async fn suggest(
         return Err(AppError::validation("background is too long (4000 characters max)"));
     }
     let client = coach.client()?;
-    coach.budget().check_and_reserve(user_id).await?;
 
     let curriculum = coach.curriculum();
     let modules: Vec<(String, String, String)> = curriculum
@@ -117,12 +116,15 @@ pub async fn suggest(
     // schema allows it, and it happens rarely enough to look like "your
     // roadmap is already right" rather than a failure. Treat it as a failed
     // generation, log why the model stopped, and try once more (a second
-    // request slot, so the budget stays honest).
+    // reservation, so the budget stays honest).
     let mut attempt = 0;
     let mut out: RoadmapSuggestions = loop {
         attempt += 1;
-        let completion = client.complete(&req).await?;
-        coach.budget().record(user_id, completion.usage).await?;
+        // A fresh hold per attempt: the retry is a second request.
+        let mut attempt_req = req.clone();
+        let hold = coach.budget().reserve(user_id, &mut attempt_req).await?;
+        let completion = client.complete(&attempt_req).await?;
+        hold.settle(completion.usage).await?;
         let parsed: RoadmapSuggestions = serde_json::from_str(&completion.text)
             .map_err(|e| AppError::ai_upstream("the coach could not produce suggestions; try again", e))?;
         if !parsed.summary.trim().is_empty() {
@@ -132,7 +134,6 @@ pub async fn suggest(
         if attempt == 2 {
             return Err(AppError::AiUpstream("the coach could not produce suggestions; try again".into()));
         }
-        coach.budget().check_and_reserve(user_id).await?;
     };
     // Defence in depth: the schema constrains values, but never trust model
     // output as input to state changes. Drop unknown modules and duplicates.
