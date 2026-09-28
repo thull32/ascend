@@ -27,6 +27,14 @@ pub enum AppError {
     },
     #[error("AI features are not configured on this deployment")]
     AiDisabled,
+    /// A capacity or configuration problem on our side; the request itself
+    /// was fine.
+    #[error("{message}")]
+    Unavailable {
+        message: String,
+        /// When a retry can succeed, if known; sent as `Retry-After`.
+        retry_after_secs: Option<u64>,
+    },
     #[error("upstream AI provider error: {0}")]
     AiUpstream(String),
     #[error("database error")]
@@ -59,6 +67,7 @@ impl AppError {
             Self::Conflict(_) => "conflict",
             Self::RateLimited { .. } => "rate_limited",
             Self::AiDisabled => "ai_disabled",
+            Self::Unavailable { .. } => "unavailable",
             Self::AiUpstream(_) => "ai_upstream",
             Self::Database(_) => "database_error",
             Self::Internal(_) => "internal_error",

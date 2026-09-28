@@ -19,12 +19,17 @@ title: Add
 prompt: |
   Add two numbers.
 entry: add
+languages: [python, javascript, typescript]
 starter:
   python: |
     def add(a, b):
         return 0
   javascript: |
     function add(a, b) {
+      return 0;
+    }
+  typescript: |
+    function add(a: number, b: number): number {
       return 0;
     }
 tests:

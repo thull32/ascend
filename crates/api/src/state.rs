@@ -88,8 +88,37 @@ pub fn redact_credentials(text: &str) -> String {
     out
 }
 
+/// Loads and compiles the grader's runtimes (a second or two of CPU). In
+/// production a missing grader is fatal: without it no attempt can be
+/// recorded. In development it is a warning, so the site runs before
+/// `make grader`.
+pub async fn load_grader(config: &Config) -> anyhow::Result<Option<ascend_grader::Grader>> {
+    let dir = config.grader_dir.clone();
+    let mut options = ascend_grader::Options::default();
+    if let Some(slots) = config.grader_slots {
+        options.slots = slots;
+    }
+    let slots = options.slots;
+    match tokio::task::spawn_blocking(move || ascend_grader::Grader::load(&dir, options)).await? {
+        Ok(grader) => {
+            tracing::info!(dir = %config.grader_dir.display(), slots, "grader ready");
+            Ok(Some(grader))
+        }
+        Err(e) if config.is_production() => Err(anyhow::anyhow!("grader: {e}")),
+        Err(e) => {
+            tracing::warn!(error = %e, "grader unavailable: attempts cannot be recorded until `make grader`");
+            Ok(None)
+        }
+    }
+}
+
 impl AppState {
-    pub fn build(config: Arc<Config>, db: DatabaseConnection, curriculum: Arc<Curriculum>) -> anyhow::Result<Self> {
+    pub fn build(
+        config: Arc<Config>,
+        db: DatabaseConnection,
+        curriculum: Arc<Curriculum>,
+        grader: Option<ascend_grader::Grader>,
+    ) -> anyhow::Result<Self> {
         let client = match &config.ai.api_key {
             Some(key) => {
                 Some(AnthropicClient::new(key.clone(), config.ai.base_url.clone(), config.ai.request_timeout)?)
@@ -112,7 +141,7 @@ impl AppState {
             auth: AuthService::new(db.clone(), config.session_ttl, config.session_idle),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
-            submissions: SubmissionService::new(db.clone(), curriculum.clone()),
+            submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),
             comments: CommentService::new(db.clone(), curriculum.clone()),
             roadmap: Arc::new(RoadmapService::new(curriculum.clone())),
             interviews: InterviewService::new(db.clone(), curriculum.clone()),

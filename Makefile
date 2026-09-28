@@ -12,10 +12,14 @@ db: ## Start local Postgres 17 on :5433 (docker)
 web: ## Build the SPA into web/dist (embedded by the server at compile time)
 	cd web && pnpm install --frozen-lockfile && pnpm build
 
+grader: ## Fetch the grader's WebAssembly runtimes (CPython, QuickJS) into runtimes/grader
+	bash scripts/grader-runtimes.sh runtimes/grader
+	cargo run -q -p ascend-api -- --prepare-grader runtimes/grader
+
 build: web ## Build the server (debug)
 	cargo build -p ascend-api
 
-run: db build ## Build everything and run the server on :8080
+run: db build ## Build everything and run the server on :8080 (run `make grader` once first)
 	CONTENT_DIR=./content cargo run -p ascend-api
 
 dev: db ## Run API (:8080) and Vite dev server (:5173) with hot reload
@@ -49,4 +53,4 @@ e2e: ## Run Playwright against a running server on :8080 (uses the Playwright do
 image: ## Build the production image
 	docker build -t ascend:local .
 
-.PHONY: help db web build run dev check content quizzes minutes e2e image
+.PHONY: help db web grader build run dev check content quizzes minutes e2e image

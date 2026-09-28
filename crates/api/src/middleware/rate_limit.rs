@@ -1,8 +1,8 @@
 //! Rate limiting in two tiers.
 //!
 //! **Shared (Postgres), for everything security-relevant.** Sign-up and
-//! login per IP, password attempts per account (or per known device), and
-//! model calls per session live in `ascend_core::services::rate_limit`, so
+//! login per IP, password attempts per account (or per known device), model
+//! calls and graded submissions per session live in `ascend_core::services::rate_limit`, so
 //! every replica charges the same allowance. With in-process state, two
 //! replicas would have doubled each of these.
 //!
@@ -44,6 +44,9 @@ pub const PASSWORD_ATTEMPTS: SharedQuota = SharedQuota::per_minute(10);
 /// Model-calling routes: 20 per minute per session (IP when there is no
 /// session cookie). The daily budget is enforced separately.
 pub const AI_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
+/// Graded submissions: 20 per minute per session. Each can hold a grading
+/// slot for its whole time budget.
+pub const GRADE_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
 
 pub struct Limiters {
     /// Everything else: 1,200 per minute per IP, per replica.
@@ -130,6 +133,7 @@ pub enum Bucket {
     Auth,
     General,
     Ai,
+    Grade,
 }
 
 /// Resolves the client IP. Behind a proxy, only a header the proxy itself
@@ -157,6 +161,10 @@ pub async fn limit(bucket: Bucket, State(state): State<AppState>, req: Request<B
         Bucket::Ai => {
             let key = session_key(&req).map_or_else(|| format!("ai:ip:{ip}"), |s| format!("ai:session:{s}"));
             limiters.charge(&key, AI_PER_SESSION).await
+        }
+        Bucket::Grade => {
+            let key = session_key(&req).map_or_else(|| format!("grade:ip:{ip}"), |s| format!("grade:session:{s}"));
+            limiters.charge(&key, GRADE_PER_SESSION).await
         }
     };
     match refused {

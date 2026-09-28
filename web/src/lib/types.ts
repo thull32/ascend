@@ -234,6 +234,12 @@ export interface Submission {
   created_at: string;
 }
 
+/** POST /api/submissions: the server ran the code; this is its verdict. */
+export interface GradedSubmission extends Submission {
+  compile_error: string | null;
+  tests: { index: number; passed: boolean; error: string | null; ms: number | null }[];
+}
+
 export interface CommentView {
   id: string;
   parent_id: string | null;

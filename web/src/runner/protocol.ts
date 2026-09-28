@@ -40,6 +40,9 @@ export interface RunResponse {
   results: TestResult[];
   compileError?: string;
   totalMs: number;
+  /** JavaScript runner: the code after TypeScript stripping, which is what
+   *  the server grades for a TypeScript submission. */
+  compiled?: string;
 }
 
 export interface EvalResponse {

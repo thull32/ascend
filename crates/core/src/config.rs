@@ -24,6 +24,11 @@ pub struct Config {
     /// IP (Railway: `x-real-ip`). `None` means use the socket address. Never
     /// trust `X-Forwarded-For` blindly: its first entry is client-controlled.
     pub client_ip_header: Option<String>,
+    /// Where the grader's WebAssembly runtimes live (`GRADER_DIR`; the image
+    /// sets `/opt/ascend/grader`, `make grader` fills `runtimes/grader`).
+    pub grader_dir: std::path::PathBuf,
+    /// Grading runs at once (`GRADER_SLOTS`); default half the cores, 1–4.
+    pub grader_slots: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +116,10 @@ impl Config {
                 .ok()
                 .map(|h| h.trim().to_ascii_lowercase())
                 .filter(|h| !h.is_empty()),
+            grader_dir: var_or("GRADER_DIR", "runtimes/grader").into(),
+            grader_slots: std::env::var("GRADER_SLOTS").ok().map(|v| v.parse()).transpose().map_err(|_| {
+                ConfigError::Invalid { name: "GRADER_SLOTS", reason: "must be a positive integer".into() }
+            })?,
         };
         cfg.validate()?;
         Ok(cfg)

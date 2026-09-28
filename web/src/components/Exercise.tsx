@@ -3,10 +3,10 @@
 // submission when signed in, and can hand the code to the coach.
 import { CheckCircle2, ChevronDown, Lightbulb, Play, RotateCcw, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useInvalidateProgress } from "../lib/queries";
-import type { ExerciseSpec, TestCase } from "../lib/types";
+import type { ExerciseSpec, GradedSubmission, TestCase } from "../lib/types";
 import { cn } from "../lib/utils";
 import { onRunnerStatus, runTests, warmRunner } from "../runner";
 import type { RunResponse, TestResult } from "../runner/protocol";
@@ -93,7 +93,7 @@ export function CodeRunner(props: CodeRunnerProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [hintsShown, setHintsShown] = useState(0);
   const [showHidden, setShowHidden] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved] = useState<Verdict | null>(null);
   const runId = useRef(0);
 
   useEffect(() => {
@@ -130,21 +130,29 @@ export function CodeRunner(props: CodeRunnerProps) {
       setResult(res);
       const passedCount = res.results.filter((r) => r.passed).length;
       if (user && !res.compileError && props.persist !== false) {
+        // The server runs the code itself and records its own verdict; what
+        // the browser computed is only for instant feedback.
+        setSaved({ text: "Checking on the server…", tone: "muted" });
         try {
-          await api.post("/submissions", {
+          const graded = await api.post<GradedSubmission>("/submissions", {
             target_kind: props.targetKind,
             target_slug: props.targetSlug,
             language,
             code,
-            passed_count: passedCount,
-            total_count: props.tests.length,
-            runtime_ms: Math.round(res.totalMs),
-            results: res.results.map((r) => ({ i: r.index, p: r.passed, e: r.error ?? null })),
+            compiled: language === "typescript" ? res.compiled : undefined,
           });
-          setSaved(passedCount === props.tests.length ? "Solved and saved to your progress." : "Attempt saved.");
+          if (id !== runId.current) return;
+          setSaved(serverVerdict(graded, passedCount === props.tests.length));
           invalidate();
-        } catch {
-          setSaved("Could not save this attempt.");
+        } catch (e) {
+          if (id !== runId.current) return;
+          setSaved({
+            text:
+              e instanceof ApiError && e.status === 503
+                ? "The server's check is busy, so this attempt was not recorded. Run again in a moment."
+                : "Could not record this attempt.",
+            tone: "warn",
+          });
         }
       }
       if (passedCount === props.tests.length && res.results.length > 0) props.onPassed?.();
@@ -197,7 +205,11 @@ export function CodeRunner(props: CodeRunnerProps) {
                   {passed} / {total} passed
                 </span>
                 <span className="text-xs text-muted">{Math.round(result.totalMs)} ms</span>
-                {saved && <span className="text-xs text-muted">{saved}</span>}
+                {saved && (
+                  <span data-testid="server-verdict" className={cn("text-xs", saved.tone === "ok" ? "text-success" : saved.tone === "warn" ? "text-warn" : "text-muted")}>
+                    {saved.text}
+                  </span>
+                )}
                 {!user && <span className="text-xs text-muted">Sign in to save attempts.</span>}
               </div>
               <ul className="space-y-1.5">
@@ -243,6 +255,25 @@ export function CodeRunner(props: CodeRunnerProps) {
       )}
     </div>
   );
+}
+
+interface Verdict {
+  text: string;
+  tone: "ok" | "warn" | "muted";
+}
+
+/** What to say about the server's result, especially when it disagrees
+ *  with the browser's (a time limit hit only there, say). */
+function serverVerdict(graded: GradedSubmission, passedLocally: boolean): Verdict {
+  const total = graded.total_count;
+  const lastLine = (text: string) => text.trim().split("\n").pop() ?? text;
+  if (graded.passed) return { text: `Solved: the server's check passed all ${total} tests. Saved to your progress.`, tone: "ok" };
+  if (graded.compile_error) return { text: `Saved, but the server could not load this code: ${lastLine(graded.compile_error)}`, tone: "warn" };
+  const failed = graded.tests.find((t) => !t.passed);
+  const detail = failed ? ` Test ${failed.index + 1} failed there${failed.error ? `: ${lastLine(failed.error)}` : " with a different answer"}.` : "";
+  return passedLocally
+    ? { text: `Saved, but the server's check passed ${graded.passed_count} / ${total}.${detail}`, tone: "warn" }
+    : { text: `Attempt saved (server check: ${graded.passed_count} / ${total} passed).`, tone: "muted" };
 }
 
 function load(slug: string, lang: string, starter: Record<string, string>): string {

@@ -1,22 +1,27 @@
 use std::sync::Arc;
 
 use ascend_core::content::{Problem, ProblemSummary};
-use ascend_core::services::submissions::SubmissionInput;
+use ascend_core::services::submissions::{GradedSubmission, SubmissionInput};
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::{Json, Router, middleware};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ApiError, ApiResult};
 use crate::extractors::{AppJson, CurrentUser};
+use crate::middleware::rate_limit::{Bucket, limit};
 use crate::state::AppState;
 
-pub fn router() -> Router<AppState> {
+pub fn router(state: AppState) -> Router<AppState> {
+    // Each submission runs code on the server, so it has its own allowance.
+    let grading = Router::new()
+        .route("/submissions", post(submit))
+        .layer(middleware::from_fn_with_state(state, |s, r, n| limit(Bucket::Grade, s, r, n)));
     Router::new()
         .route("/problems", get(list))
         .route("/problems/{slug}", get(detail))
         .route("/problems/{slug}/solution", get(solution))
-        .route("/submissions", post(submit))
+        .merge(grading)
         .route("/submissions/{target}", get(list_submissions))
 }
 
@@ -71,11 +76,12 @@ async fn solution(
     Ok(Json(SolutionResponse { slug: p.slug.clone(), solution: p.solution.clone() }))
 }
 
+/// Runs the code in the grader and records the server's verdict.
 async fn submit(
     State(state): State<AppState>,
     CurrentUser(user): CurrentUser,
     AppJson(input): AppJson<SubmissionInput>,
-) -> ApiResult<Json<ascend_core::entities::submissions::Model>> {
+) -> ApiResult<Json<GradedSubmission>> {
     Ok(Json(state.submissions.record(user.id, input).await?))
 }
 

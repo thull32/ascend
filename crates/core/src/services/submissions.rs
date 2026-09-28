@@ -1,70 +1,153 @@
 use std::sync::Arc;
+use std::time::Duration;
 
+use ascend_grader::compare::matches;
+use ascend_grader::{GradeError, Grader, Job, Language, Outcome};
 use chrono::Utc;
 use sea_orm::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::content::Curriculum;
+use crate::content::{Curriculum, Lesson, Problem, TestCase};
 use crate::entities::prelude::*;
 use crate::entities::submissions;
 use crate::error::{AppError, AppResult};
 
-/// Results are computed in the learner's browser (Pyodide / a JS worker) and
-/// reported here. This is a learning product, not a judge: we trust the
-/// client, cap payload sizes, and validate the referenced target exists.
+/// A learner's attempt. The server runs the code and decides the result:
+/// results the browser computed are never trusted, so "solved" (and the XP
+/// and progress built on it) means the server saw every test pass. See
+/// `ascend-grader` for the sandbox.
 #[derive(Debug, Deserialize)]
 pub struct SubmissionInput {
     pub target_kind: String, // "problem" | "exercise"
     pub target_slug: String,
     pub language: String,
     pub code: String,
-    pub passed_count: u16,
-    pub total_count: u16,
-    pub runtime_ms: Option<u32>,
-    pub results: serde_json::Value,
+    /// TypeScript only: the browser's type-stripped JavaScript, which is
+    /// what runs. Trusting it costs nothing: a learner who sends JavaScript
+    /// unrelated to their TypeScript could equally have submitted it as
+    /// JavaScript.
+    #[serde(default)]
+    pub compiled: Option<String>,
+}
+
+/// The server's verdict on one test. Hidden tests' inputs and expected
+/// values are in the page already; only the outcome is returned.
+#[derive(Debug, Clone, Serialize)]
+pub struct TestVerdict {
+    pub index: usize,
+    pub passed: bool,
+    pub error: Option<String>,
+    pub ms: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GradedSubmission {
+    #[serde(flatten)]
+    pub submission: submissions::Model,
+    pub compile_error: Option<String>,
+    pub tests: Vec<TestVerdict>,
 }
 
 #[derive(Clone)]
 pub struct SubmissionService {
     db: DatabaseConnection,
     curriculum: Arc<Curriculum>,
+    grader: Option<Grader>,
 }
 
 const MAX_CODE_BYTES: usize = 64 * 1024;
 
+/// What a submission is graded against.
+struct Target<'a> {
+    entry: &'a str,
+    tests: &'a [TestCase],
+    time_limit_ms: u32,
+}
+
 impl SubmissionService {
-    pub fn new(db: DatabaseConnection, curriculum: Arc<Curriculum>) -> Self {
-        Self { db, curriculum }
+    pub fn new(db: DatabaseConnection, curriculum: Arc<Curriculum>, grader: Option<Grader>) -> Self {
+        Self { db, curriculum, grader }
     }
 
-    pub async fn record(&self, user_id: Uuid, input: SubmissionInput) -> AppResult<submissions::Model> {
-        if input.code.len() > MAX_CODE_BYTES {
+    fn target<'a>(
+        &self,
+        kind: &str,
+        slug: &str,
+        language: &str,
+        problem: &'a Option<Arc<Problem>>,
+        lesson: &'a Option<Arc<Lesson>>,
+    ) -> AppResult<Target<'a>> {
+        let unavailable = || AppError::validation(format!("{language} is not offered for this {kind}"));
+        match kind {
+            "problem" => {
+                let p = problem.as_ref().ok_or(AppError::NotFound("problem"))?;
+                let sig = p.signatures.get(language).ok_or_else(unavailable)?;
+                Ok(Target { entry: &sig.name, tests: &p.tests, time_limit_ms: p.time_limit_ms })
+            }
+            "exercise" => {
+                let (_, id) = slug.split_once('#').ok_or(AppError::NotFound("exercise"))?;
+                let ex = lesson
+                    .as_ref()
+                    .and_then(|l| l.exercises.iter().find(|e| e.id == id))
+                    .ok_or(AppError::NotFound("exercise"))?;
+                if !ex.languages.iter().any(|l| l == language) {
+                    return Err(unavailable());
+                }
+                Ok(Target { entry: &ex.entry, tests: &ex.tests, time_limit_ms: ex.time_limit_ms })
+            }
+            _ => Err(AppError::validation("target_kind must be problem or exercise")),
+        }
+    }
+
+    pub async fn record(&self, user_id: Uuid, input: SubmissionInput) -> AppResult<GradedSubmission> {
+        if input.code.len() > MAX_CODE_BYTES || input.compiled.as_ref().is_some_and(|c| c.len() > 2 * MAX_CODE_BYTES) {
             return Err(AppError::validation("code exceeds 64 KiB"));
         }
-        if !["python", "javascript", "typescript"].contains(&input.language.as_str()) {
-            return Err(AppError::validation("unsupported language"));
-        }
-        let expected_total = match input.target_kind.as_str() {
-            "problem" => self.curriculum.problem(&input.target_slug).map(|p| p.tests.len()),
-            "exercise" => {
-                // "lesson-slug#exercise-id"
-                let (lesson, ex) = input.target_slug.split_once('#').ok_or(AppError::NotFound("exercise"))?;
-                self.curriculum
-                    .lesson(lesson)
-                    .and_then(|l| l.exercises.iter().find(|e| e.id == ex).map(|e| e.tests.len()))
-            }
-            _ => return Err(AppError::validation("target_kind must be problem or exercise")),
-        }
-        .ok_or(AppError::NotFound("target"))?;
-        if input.total_count as usize != expected_total || input.passed_count > input.total_count {
-            return Err(AppError::validation("test counts do not match the target"));
-        }
-        let results_len = serde_json::to_vec(&input.results).map(|v| v.len()).unwrap_or(0);
-        if results_len > 128 * 1024 {
-            return Err(AppError::validation("results payload too large"));
-        }
-        let passed = input.passed_count == input.total_count;
+        let (language, runnable) = match input.language.as_str() {
+            "python" => (Language::Python, input.code.clone()),
+            "javascript" => (Language::JavaScript, input.code.clone()),
+            "typescript" => (
+                Language::JavaScript,
+                input
+                    .compiled
+                    .clone()
+                    .ok_or_else(|| AppError::validation("typescript needs its compiled JavaScript"))?,
+            ),
+            _ => return Err(AppError::validation("unsupported language")),
+        };
+        // Resolve before grading so an unknown target is a cheap 404.
+        let problem = (input.target_kind == "problem").then(|| self.curriculum.problem(&input.target_slug)).flatten();
+        let lesson = (input.target_kind == "exercise")
+            .then(|| input.target_slug.split_once('#').and_then(|(l, _)| self.curriculum.lesson(l)))
+            .flatten();
+        let target = self.target(&input.target_kind, &input.target_slug, &input.language, &problem, &lesson)?;
+
+        let grader = self.grader.as_ref().ok_or_else(|| AppError::Unavailable {
+            message: "code grading is not set up on this server".into(),
+            retry_after_secs: None,
+        })?;
+        let job = Job {
+            language,
+            code: runnable,
+            entry: target.entry.to_string(),
+            cases: target.tests.iter().map(|t| t.args.clone()).collect(),
+            time_limit: Duration::from_millis(u64::from(target.time_limit_ms)),
+        };
+        let outcome = grader.run(job).await.map_err(|e| match e {
+            GradeError::Busy => AppError::Unavailable {
+                message: "every code runner is busy; try again in a few seconds".into(),
+                retry_after_secs: Some(5),
+            },
+            other => AppError::internal(other),
+        })?;
+
+        let tests = verdicts(target.tests, &outcome);
+        let passed_count = tests.iter().filter(|t| t.passed).count();
+        let total = target.tests.len();
+        let results = serde_json::json!(
+            tests.iter().map(|t| serde_json::json!({"i": t.index, "p": t.passed, "e": t.error})).collect::<Vec<_>>()
+        );
         let model = submissions::ActiveModel {
             id: Set(Uuid::now_v7()),
             user_id: Set(user_id),
@@ -72,16 +155,16 @@ impl SubmissionService {
             target_slug: Set(input.target_slug),
             language: Set(input.language),
             code: Set(input.code),
-            passed: Set(passed),
-            passed_count: Set(input.passed_count as i16),
-            total_count: Set(input.total_count as i16),
-            runtime_ms: Set(input.runtime_ms.map(|r| i32::try_from(r).unwrap_or(i32::MAX))),
-            results: Set(input.results),
+            passed: Set(total > 0 && passed_count == total),
+            passed_count: Set(i16::try_from(passed_count).unwrap_or(i16::MAX)),
+            total_count: Set(i16::try_from(total).unwrap_or(i16::MAX)),
+            runtime_ms: Set(Some(i32::try_from(outcome.elapsed.as_millis()).unwrap_or(i32::MAX))),
+            results: Set(results),
             created_at: Set(Utc::now()),
         };
         let saved = model.insert(&self.db).await?;
         super::activity::record(&self.db, user_id).await?;
-        Ok(saved)
+        Ok(GradedSubmission { submission: saved, compile_error: outcome.compile_error, tests })
     }
 
     pub async fn list_for_target(
@@ -108,4 +191,35 @@ impl SubmissionService {
             .one(&self.db)
             .await?)
     }
+}
+
+/// Compares each case's returned value with the expected one. A case the run
+/// never reached fails with the reason the run stopped.
+fn verdicts(tests: &[TestCase], outcome: &Outcome) -> Vec<TestVerdict> {
+    tests
+        .iter()
+        .enumerate()
+        .map(|(index, test)| {
+            if let Some(e) = &outcome.compile_error {
+                return TestVerdict { index, passed: false, error: Some(e.clone()), ms: None };
+            }
+            match outcome.cases.get(index).and_then(Option::as_ref) {
+                Some(run) => TestVerdict {
+                    index,
+                    passed: run.error.is_none() && matches(&test.expected, &run.actual, test.any_order),
+                    error: run.error.clone(),
+                    ms: Some(run.ms),
+                },
+                None => TestVerdict {
+                    index,
+                    passed: false,
+                    error: Some(outcome.stopped.as_ref().map_or_else(
+                        || "no result was reported for this test".to_string(),
+                        |s| s.message(outcome.budget),
+                    )),
+                    ms: None,
+                },
+            }
+        })
+        .collect()
 }

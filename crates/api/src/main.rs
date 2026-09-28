@@ -39,6 +39,13 @@ async fn main() -> anyhow::Result<()> {
         );
         return Ok(());
     }
+    // `ascend-api --prepare-grader DIR` precompiles the grader's Python
+    // standard library (after scripts/grader-runtimes.sh fetched it).
+    if let Some(dir) = std::env::args().skip_while(|a| a != "--prepare-grader").nth(1) {
+        ascend_grader::precompile_stdlib(std::path::Path::new(&dir))?;
+        println!("grader ready in {dir}");
+        return Ok(());
+    }
     dotenvy::dotenv().ok();
     let config = Config::from_env().map_err(|e| anyhow::anyhow!("configuration: {e}"))?;
     telemetry::init(config.log_json);
@@ -67,7 +74,8 @@ async fn main() -> anyhow::Result<()> {
         "curriculum loaded"
     );
 
-    let state = state::AppState::build(Arc::new(config.clone()), db, curriculum)?;
+    let grader = state::load_grader(&config).await?;
+    let state = state::AppState::build(Arc::new(config.clone()), db, curriculum, grader)?;
     ascend_core::auth::password::warm_up().await;
     let app = app::build(state.clone());
 

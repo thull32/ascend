@@ -103,6 +103,32 @@ test.describe("authenticated flows", () => {
     await expect(page.locator("dd").first()).toContainText(/^1 \//);
   });
 
+  test("a solve is graded on the server, and a claimed result is not trusted", async ({ page }) => {
+    await register(page);
+    await page.goto("/practice/two-sum");
+    await page.getByRole("button", { name: "JavaScript" }).click();
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Delete");
+    await page.keyboard.insertText(
+      "function two_sum(nums, target) {\n  const seen = new Map();\n  for (let i = 0; i < nums.length; i++) {\n    if (seen.has(target - nums[i])) return [seen.get(target - nums[i]), i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n",
+    );
+    await page.getByTestId("run-tests").click();
+    await expect(page.getByTestId("server-verdict")).toContainText("Solved: the server's check passed all", { timeout: 60_000 });
+    await page.goto("/dashboard");
+    await expect(page.locator("dt", { hasText: "Problems solved" }).locator("xpath=../dd")).toContainText(/^1 \//);
+
+    // A request that claims a pass for wrong code is graded as what it is.
+    const res = await page.request.post("/api/submissions", {
+      data: { target_kind: "problem", target_slug: "valid-anagram", language: "python", code: "def is_anagram(s, t):\n    return True\n", passed_count: 99, total_count: 99 },
+      headers: { "content-type": "application/json", "x-requested-with": "fetch" },
+    });
+    expect(res.status()).toBe(200);
+    const graded = await res.json();
+    expect(graded.passed).toBe(false);
+    expect(graded.tests.length).toBe(graded.total_count);
+  });
+
   test("quiz grading and comments", async ({ page }) => {
     await register(page);
     await page.goto("/learn/data-structures/hashing/hash-tables");

@@ -53,7 +53,31 @@ fn config(url: &str) -> Config {
         log_json: false,
         env: Environment::Development,
         client_ip_header: Some("x-test-client-ip".into()),
+        grader_dir: grader_dir(),
+        grader_slots: None,
     }
+}
+
+fn grader_dir() -> std::path::PathBuf {
+    std::env::var("GRADER_DIR")
+        .map(Into::into)
+        .unwrap_or_else(|_| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtimes/grader"))
+}
+
+/// One grader for every test: compiling the runtimes takes a second.
+/// Absent runtimes skip the grading tests locally; CI sets GRADER_REQUIRED.
+fn grader() -> Option<ascend_grader::Grader> {
+    static GRADER: std::sync::OnceLock<Option<ascend_grader::Grader>> = std::sync::OnceLock::new();
+    GRADER
+        .get_or_init(|| match ascend_grader::Grader::load(&grader_dir(), ascend_grader::Options::default()) {
+            Ok(g) => Some(g),
+            Err(e) if std::env::var_os("GRADER_REQUIRED").is_none() => {
+                eprintln!("grader unavailable ({e}); grading tests skip");
+                None
+            }
+            Err(e) => panic!("{e}"),
+        })
+        .clone()
 }
 
 async fn test_app() -> Option<TestApp> {
@@ -73,7 +97,7 @@ async fn test_app() -> Option<TestApp> {
     let db = state::connect_db(&cfg).await.expect("connect");
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/content");
     let curriculum = load_curriculum(&ContentSource::Disk(fixtures)).expect("fixture content loads");
-    let st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum).expect("state");
+    let st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum, grader()).expect("state");
     let id = uuid::Uuid::now_v7().as_u128();
     let client_ip = format!("fd00::{:x}:{:x}", (id >> 16) & 0xffff, id & 0xffff);
     Some(TestApp { router: app::build(st.clone()), db, state: st, client_ip })
@@ -343,32 +367,77 @@ async fn lesson_payload_hides_quiz_answers() {
 }
 
 #[tokio::test]
-async fn submissions_validate_counts_and_track_solved() {
+async fn submissions_are_graded_on_the_server() {
     let Some(app) = test_app().await else { return };
+    if grader().is_none() {
+        return;
+    }
     let (cookie, _) = app.register().await;
-    let bad = app
-        .call(
-            "POST",
-            "/api/submissions",
-            Some(json!({"target_kind": "problem", "target_slug": "add-two", "language": "python", "code": "x", "passed_count": 5, "total_count": 5, "results": []})),
-            Some(&cookie),
-            true,
-        )
-        .await;
-    assert_eq!(bad.status, StatusCode::UNPROCESSABLE_ENTITY, "test count must match the problem");
-    let ok = app
-        .call(
-            "POST",
-            "/api/submissions",
-            Some(json!({"target_kind": "problem", "target_slug": "add-two", "language": "python", "code": "def add_two(a,b): return a+b", "passed_count": 2, "total_count": 2, "results": []})),
-            Some(&cookie),
-            true,
-        )
-        .await;
-    assert_eq!(ok.status, StatusCode::OK);
-    assert_eq!(ok.body["passed"], true);
+    let submit = |body: Value| app.call("POST", "/api/submissions", Some(body), Some(&cookie), true);
+
+    // What the browser claims is ignored; the server runs the code.
+    let wrong = submit(json!({"target_kind": "problem", "target_slug": "add-two", "language": "python",
+        "code": "def add_two(a, b):\n    return a - b\n", "passed_count": 2, "total_count": 2, "results": []}))
+    .await;
+    assert_eq!(wrong.status, StatusCode::OK, "{:?}", wrong.body);
+    assert_eq!(wrong.body["passed"], false);
+    assert_eq!(wrong.body["passed_count"], 0);
+    assert_eq!(wrong.body["tests"].as_array().unwrap().len(), 2, "hidden tests are graded too");
+    let summary = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
+    assert_eq!(summary.body["problems_solved"], 0);
+
+    let right = submit(json!({"target_kind": "problem", "target_slug": "add-two", "language": "python",
+        "code": "def add_two(a, b):\n    return a + b\n"}))
+    .await;
+    assert_eq!(right.body["passed"], true, "{:?}", right.body);
+    assert_eq!(right.body["passed_count"], 2);
+    assert_eq!(right.body["compile_error"], Value::Null);
     let summary = app.call("GET", "/api/progress", None, Some(&cookie), false).await;
     assert_eq!(summary.body["problems_solved"], 1);
+
+    let broken = submit(json!({"target_kind": "problem", "target_slug": "add-two", "language": "python",
+        "code": "def add_two(a, b:\n"}))
+    .await;
+    assert_eq!(broken.body["passed"], false);
+    assert!(broken.body["compile_error"].as_str().unwrap().contains("SyntaxError"), "{:?}", broken.body);
+
+    // Exercises, in each language the exercise offers.
+    let exercise = "basics/intro/hello#add";
+    let js = submit(json!({"target_kind": "exercise", "target_slug": exercise, "language": "javascript",
+        "code": "function add(a, b) { return a + b; }"}))
+    .await;
+    assert_eq!(js.body["passed"], true, "{:?}", js.body);
+    // TypeScript runs as the browser's stripped JavaScript.
+    let ts = submit(json!({"target_kind": "exercise", "target_slug": exercise, "language": "typescript",
+        "code": "function add(a: number, b: number): number { return a + b; }"}))
+    .await;
+    assert_eq!(ts.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(ts.body["message"].as_str().unwrap().contains("compiled"), "{:?}", ts.body);
+    let ts = submit(json!({"target_kind": "exercise", "target_slug": exercise, "language": "typescript",
+        "code": "function add(a: number, b: number): number { return a + b; }",
+        "compiled": "function add(a, b) { return a + b; }"}))
+    .await;
+    assert_eq!(ts.body["passed"], true, "{:?}", ts.body);
+    assert_eq!(ts.body["language"], "typescript");
+
+    for (body, why) in [
+        (
+            json!({"target_kind": "problem", "target_slug": "add-two", "language": "javascript", "code": "x"}),
+            "not offered",
+        ),
+        (json!({"target_kind": "problem", "target_slug": "add-two", "language": "cobol", "code": "x"}), "unsupported"),
+        (
+            json!({"target_kind": "exercise", "target_slug": "basics/intro/hello#nope", "language": "python", "code": "x"}),
+            "no such exercise",
+        ),
+    ] {
+        let r = submit(body).await;
+        assert!(
+            r.status == StatusCode::UNPROCESSABLE_ENTITY || r.status == StatusCode::NOT_FOUND,
+            "{why}: {:?}",
+            r.status
+        );
+    }
     let solution = app.call("GET", "/api/problems/add-two/solution", None, None, false).await;
     assert_eq!(solution.status, StatusCode::UNAUTHORIZED, "editorial requires login");
 }

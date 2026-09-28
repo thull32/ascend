@@ -33,6 +33,8 @@ jobs:
           --health-cmd "pg_isready -U ascend" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://ascend:ascend@localhost:5432/ascend_test
+      # Grading tests must run here, not skip for want of the runtimes.
+      GRADER_REQUIRED: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -43,6 +45,18 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # The server embeds web/dist at compile time; a placeholder is enough for Rust CI.
       - run: mkdir -p web/dist && echo '<!doctype html><title>ci</title>' > web/dist/index.html
+      # CPython and QuickJS for WASI, which the grader runs learner code in.
+      # The script pins them by digest, so its hash is the cache key.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        id: grader
+        with:
+          path: runtimes/grader
+          key: grader-${{ hashFiles('scripts/grader-runtimes.sh') }}
+      - name: Fetch and prepare the grader runtimes
+        if: steps.grader.outputs.cache-hit != 'true'
+        run: |
+          bash scripts/grader-runtimes.sh runtimes/grader
+          cargo run -q -p ascend-api -- --prepare-grader runtimes/grader
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace

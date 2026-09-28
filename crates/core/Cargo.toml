@@ -7,6 +7,7 @@ publish = false
 description = "Domain layer for Ascend: content engine, auth, AI coach, progress services."
 
 [dependencies]
+ascend-grader = { path = "../grader" }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -40,7 +40,7 @@ impl IntoResponse for ApiError {
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
-            AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
+            AppError::AiDisabled | AppError::Unavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
             AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -57,7 +57,9 @@ impl IntoResponse for ApiError {
             other => other.to_string(),
         };
         let mut res = (status, Json(ErrorBody { code: e.code(), message })).into_response();
-        if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+        if let AppError::RateLimited { retry_after_secs: Some(secs), .. }
+        | AppError::Unavailable { retry_after_secs: Some(secs), .. } = e
+        {
             res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
         }
         res

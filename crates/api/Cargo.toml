@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 ascend-core = { path = "../core" }
+ascend-grader = { path = "../grader" }
 migration = { path = "../../migration" }
 axum = { workspace = true }
 axum-extra = { workspace = true }

@@ -1,6 +1,6 @@
 # 0003. Run learner code in the browser, not on the server
 
-- Status: accepted
+- Status: amended by [0005](0005-server-side-grading.md) (results are now graded on the server; the browser still runs code for instant feedback)
 - Date: 2026-09-26
 
 ## Context

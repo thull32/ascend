@@ -1,12 +1,12 @@
 [workspace]
-members = ["crates/core", "crates/api", "migration"]
+members = ["crates/core", "crates/api", "crates/grader", "migration"]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-rust-version = "1.88"
+rust-version = "1.96"
 repository = "https://github.com/thull32/ascend"
 
 [workspace.dependencies]
@@ -64,6 +64,12 @@ regex = "1"
 # --- http client / ai ---
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
 eventsource-stream = "0.2"
+
+# --- code grading ---
+# Only what the grader needs: the Cranelift compiler and the runtime. No
+# component model, GC or threads, which learner programs never use.
+wasmtime = { version = "49", default-features = false, features = ["cranelift", "runtime", "std", "parallel-compilation"] }
+wasmtime-wasi = { version = "49", default-features = false, features = ["p1"] }
 
 # --- caching ---
 

@@ -148,7 +148,7 @@ function encode(v: unknown, depth = 0): unknown {
   return v;
 }
 
-function compile(code: string): { fn: (entry: string) => unknown; error?: string } {
+function compile(code: string): { fn: (entry: string) => unknown; error?: string; js?: string } {
   let js = code;
   try {
     js = transform(code, { transforms: ["typescript"], disableESTransforms: true }).code;
@@ -167,14 +167,14 @@ function compile(code: string): { fn: (entry: string) => unknown; error?: string
     };
     const resolver = factory(fakeConsole);
     (self as unknown as { __logs: string[] }).__logs = logs;
-    return { fn: (name) => resolver(name) };
+    return { fn: (name) => resolver(name), js };
   } catch (e) {
     return { fn: () => undefined, error: `${e instanceof Error ? e.name : "Error"}: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 
-function runTests(code: string, entry: string, tests: TestCase[]) {
-  const { fn, error } = compile(code);
+function runTests(code: string, entry: string, tests: TestCase[]): { results: TestResult[]; compileError?: string; compiled?: string } {
+  const { fn, error, js } = compile(code);
   if (error) return { results: [], compileError: error };
   const target = fn(entry);
   if (target === undefined) return { results: [], compileError: `Could not find \`${entry}\`. Define a function or class with exactly that name.` };
@@ -229,15 +229,15 @@ function runTests(code: string, entry: string, tests: TestCase[]) {
       ms,
     });
   }
-  return { results };
+  return { results, compiled: js };
 }
 
 self.onmessage = (ev: MessageEvent<RunnerRequest>) => {
   const req = ev.data;
   const start = performance.now();
   if (req.kind === "run") {
-    const { results, compileError } = runTests(req.code, req.entry, req.tests);
-    const res: RunnerResponse = { id: req.id, kind: "run", results, compileError, totalMs: performance.now() - start };
+    const { results, compileError, compiled } = runTests(req.code, req.entry, req.tests);
+    const res: RunnerResponse = { id: req.id, kind: "run", results, compileError, compiled, totalMs: performance.now() - start };
     self.postMessage(res);
   } else {
     const { fn, error } = compile(req.code);

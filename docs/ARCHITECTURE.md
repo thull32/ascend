@@ -34,10 +34,12 @@ flowchart LR
 ```
 crates/core      domain layer: config, errors, entities, content engine, auth, AI, services (no HTTP)
 crates/api       HTTP adapter: router, middleware, extractors, routes, static hosting (lib + bin)
+crates/grader    server-side grading: learner code in a WebAssembly sandbox (Wasmtime, CPython, QuickJS)
 migration        SeaORM migrations, append-only
 content          curriculum (tracks/modules/lessons) and practice problems, Markdown + YAML
 web              React SPA, code runners (Web Workers), visualisation engine
-scripts          problem validator, dev helpers
+scripts          problem validator, grader runtime fetcher, dev helpers
+runtimes         (gitignored) the grader's WebAssembly runtimes, from `make grader`
 docs             this file and architecture decision records
 ```
 
@@ -49,7 +51,7 @@ docs             this file and architecture decision records
    response), tracing span, 240 s timeout, Brotli/gzip compression, security headers (CSP, HSTS, frame
    denial). Under `/api` only: a 512 KiB body limit, a loose per-IP rate limit, and CSRF enforcement.
    Tighter buckets sit on the expensive routes: sign-up and login per IP, password attempts per account,
-   and model calls per session, so learners sharing one NAT address do not throttle each other. A 429
+   and model calls and graded submissions per session, so learners sharing one NAT address do not throttle each other. A 429
    always carries `Retry-After`, and the client's retry policy honours it.
 3. **Extractors** resolve the session cookie once per request and cache the user in request extensions
    (`crates/api/src/extractors.rs`). `CurrentUser` rejects with 401; `MaybeUser` never fails.
@@ -119,11 +121,14 @@ the browser disconnects; the HTTP response is only a consumer of a channel. See
 
 ## Code execution
 
-Learner code never runs on the server. `web/src/runner` runs JavaScript/TypeScript (TypeScript stripped by
-Sucrase) and Python (Pyodide) in dedicated Web Workers with network APIs removed, and enforces wall-clock
-limits by terminating the worker. Results are reported to `/api/submissions`, which validates that the test
-counts match the target (the server trusts the learner, since this is practice, not a contest). See
-[ADR 0003](adr/0003-client-side-code-execution.md).
+Learner code runs twice. The browser runs it for instant feedback: `web/src/runner` runs
+JavaScript/TypeScript (TypeScript stripped by Sucrase) and Python (Pyodide) in dedicated Web Workers with
+network APIs removed, and enforces wall-clock limits by terminating the worker. For a signed-in learner the
+code also goes to `/api/submissions`, and the server grades it itself in a WebAssembly sandbox
+(`crates/grader`: CPython and QuickJS compiled to WASI, run by Wasmtime with time, memory, stack and
+concurrency limits, and compared with the expected values on the host). Only the server's verdict is
+recorded. See [ADR 0003](adr/0003-client-side-code-execution.md) and
+[ADR 0005](adr/0005-server-side-grading.md).
 
 ## Visualisations
 
