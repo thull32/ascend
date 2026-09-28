@@ -53,8 +53,39 @@ pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
         // a round trip per request while still catching dead sockets.
         .test_before_acquire_if_idle_for(Duration::from_secs(60))
         .sqlx_logging(false);
-    let db = Database::connect(opts).await?;
-    Ok(db)
+    // A connect error can quote the URL it failed to use, password included;
+    // it goes to logs, so strip the credentials first.
+    Database::connect(opts)
+        .await
+        .map_err(|e| anyhow::anyhow!("database connect: {}", redact_credentials(&e.to_string())))
+}
+
+/// Replaces the password in any `scheme://user:password@host` in `text`.
+pub fn redact_credentials(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(scheme_end) = rest.find("://") {
+        let (head, tail) = rest.split_at(scheme_end + 3);
+        out.push_str(head);
+        let authority_end = tail.find(|c: char| c == '/' || c.is_whitespace()).unwrap_or(tail.len());
+        match tail[..authority_end].rfind('@') {
+            Some(at) => {
+                let userinfo = &tail[..at];
+                match userinfo.find(':') {
+                    Some(colon) => {
+                        out.push_str(&userinfo[..colon]);
+                        out.push_str(":***");
+                    }
+                    None => out.push_str(userinfo),
+                }
+                out.push('@');
+                rest = &tail[at + 1..];
+            }
+            None => rest = tail,
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 impl AppState {
@@ -93,5 +124,21 @@ impl AppState {
             db,
             curriculum,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_credentials;
+
+    #[test]
+    fn connect_errors_never_carry_the_password() {
+        assert_eq!(
+            redact_credentials("error with configuration: postgres://ascend:s3cr3t@db:5432/ascend is invalid"),
+            "error with configuration: postgres://ascend:***@db:5432/ascend is invalid"
+        );
+        assert_eq!(redact_credentials("postgres://u:p%40ss@h/db"), "postgres://u:***@h/db");
+        assert_eq!(redact_credentials("postgres://host/db"), "postgres://host/db");
+        assert_eq!(redact_credentials("no url here"), "no url here");
     }
 }

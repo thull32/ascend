@@ -305,7 +305,7 @@ impl AnthropicClient {
                         }
                         Ok(SseEvent::Error { error }) => {
                             // Log the provider's words; show the learner ours.
-                            tracing::warn!(kind = %error.kind, message = %error.message, "anthropic stream error event");
+                            tracing::warn!(kind = %error.kind, provider_message = %error.message, "anthropic stream error event");
                             finished = true;
                             yield StreamEvent::Error(interrupted_message(&error.kind).into());
                             break;

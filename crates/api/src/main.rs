@@ -3,15 +3,23 @@
 //!
 //! Boot order matters: migrations run before the server binds so a healthy
 //! `/readyz` means "schema is current". If migrations fail the process exits
-//! non-zero and the platform keeps the previous deployment serving.
+//! non-zero and the platform keeps the previous deployment serving. See
+//! `migrate.rs` for the advisory lock and the rollback case.
+//!
+//! Shutdown is bounded end to end so it fits inside the platform's drain
+//! window (`RAILWAY_DEPLOYMENT_DRAINING_SECONDS`, set to 60 in
+//! `.railway/railway.ts`): up to 25 s for open connections to finish, then up
+//! to 30 s for background tasks that persist streamed replies.
 use std::sync::Arc;
 use std::time::Duration;
 
 use ascend_core::Config;
-use sea_orm_migration::MigratorTrait;
 use tokio::signal;
 
-use ascend_api::{app, state, telemetry};
+use ascend_api::{app, migrate, state, telemetry};
+
+/// How long open connections get to finish after SIGTERM.
+const DRAIN_TIMEOUT: Duration = Duration::from_secs(25);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -36,8 +44,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(env = ?config.env, addr = %config.bind_addr, "booting ascend-api");
 
     let db = state::connect_db(&config).await?;
-    tracing::info!("running migrations");
-    migration::Migrator::up(&db, None).await?;
+    match ascend_api::migrate::run(&db).await? {
+        migrate::Plan::Apply(applied) => tracing::info!(?applied, "migrations applied"),
+        migrate::Plan::SchemaAhead(unknown) => {
+            tracing::warn!(?unknown, "database schema is ahead of this build (a rollback?); starting without migrating")
+        }
+        _ => tracing::info!("schema up to date"),
+    }
 
     let content_source = match std::env::var("CONTENT_DIR") {
         Ok(dir) => ascend_core::content::ContentSource::Disk(dir.into()),
@@ -77,9 +90,26 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     tracing::info!(addr = %config.bind_addr, "listening");
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    // Graceful shutdown stops accepting, then waits for open connections. A
+    // client that never finishes reading (a stalled stream) would hold it
+    // forever, so the drain is bounded.
+    let (draining_tx, mut draining) = tokio::sync::watch::channel(false);
+    let server = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            let _ = draining_tx.send(true);
+        });
+    let drain_deadline = async move {
+        if draining.wait_for(|started| *started).await.is_ok() {
+            tokio::time::sleep(DRAIN_TIMEOUT).await;
+        } else {
+            std::future::pending::<()>().await;
+        }
+    };
+    tokio::select! {
+        result = server.into_future() => result?,
+        () = drain_deadline => tracing::warn!("connections still open after the drain timeout; shutting down anyway"),
+    }
     // Connections are drained; now let in-flight AI replies finish persisting
     // (bounded, so a hung upstream cannot block the deploy).
     state.tasks.close();

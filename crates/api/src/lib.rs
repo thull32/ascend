@@ -8,6 +8,7 @@ pub mod build_info;
 pub mod error;
 pub mod extractors;
 pub mod middleware;
+pub mod migrate;
 pub mod routes;
 pub mod state;
 pub mod telemetry;

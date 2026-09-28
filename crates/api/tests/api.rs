@@ -435,6 +435,29 @@ async fn spa_fallback_serves_index_for_client_routes() {
     assert_eq!(res.status(), StatusCode::OK);
     assert!(res.headers()[header::CONTENT_TYPE].to_str().unwrap().starts_with("text/html"));
     assert_eq!(res.headers()[header::CACHE_CONTROL], "no-cache");
+
+    // A chunk from a previous build is a 404, not the SPA shell served as JS.
+    let req = Request::builder().uri("/assets/index-OLDBUILD.js").body(Body::empty()).unwrap();
+    let res = app.router.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    assert_eq!(res.headers()[header::CACHE_CONTROL], "no-store");
+}
+
+#[tokio::test]
+async fn boot_migrations_are_locked_and_tolerate_a_newer_schema() {
+    let Some(app) = test_app().await else { return };
+    // Two replicas booting at once: both succeed, neither re-applies anything.
+    let (a, b) = tokio::join!(ascend_api::migrate::run(&app.db), ascend_api::migrate::run(&app.db));
+    assert_eq!(a.unwrap(), ascend_api::migrate::Plan::UpToDate);
+    assert_eq!(b.unwrap(), ascend_api::migrate::Plan::UpToDate);
+
+    // A rollback: the database knows a migration this build does not. The
+    // row is removed again before any assertion can fail.
+    let exec = |sql: &'static str| app.db.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql));
+    exec("INSERT INTO seaql_migrations (version, applied_at) VALUES ('m9999_from_the_future', 0)").await.unwrap();
+    let plan = ascend_api::migrate::run(&app.db).await;
+    exec("DELETE FROM seaql_migrations WHERE version = 'm9999_from_the_future'").await.unwrap();
+    assert_eq!(plan.unwrap(), ascend_api::migrate::Plan::SchemaAhead(vec!["m9999_from_the_future".into()]));
 }
 
 #[tokio::test]

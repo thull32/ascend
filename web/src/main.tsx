@@ -10,6 +10,27 @@ import "./styles.css";
 
 applyTheme(loadTheme());
 
+// After a deploy, a tab still running the previous build asks for code-split
+// chunks that no longer exist (the server answers 404). Reload once into the
+// new build; the session flag stops a loop if the new build is broken too.
+window.addEventListener("vite:preloadError", (event) => {
+  try {
+    if (sessionStorage.getItem("ascend:reloaded-for-chunk")) return;
+    sessionStorage.setItem("ascend:reloaded-for-chunk", "1");
+  } catch {
+    return;
+  }
+  event.preventDefault();
+  window.location.reload();
+});
+window.addEventListener("load", () => {
+  try {
+    sessionStorage.removeItem("ascend:reloaded-for-chunk");
+  } catch {
+    /* storage unavailable: nothing to clear */
+  }
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

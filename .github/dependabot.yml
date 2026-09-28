@@ -1,0 +1,31 @@
+# Actions and base images are pinned to immutable SHAs and digests (a moved
+# tag cannot change what CI or the image runs). Dependabot keeps those pins
+# current and proposes dependency upgrades as reviewable PRs, grouped so a
+# week's updates arrive as a handful of PRs rather than dozens.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      base-images: { patterns: ["*"] }
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      rust-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly }
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]

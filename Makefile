@@ -4,7 +4,7 @@ SHELL := bash
 PG_CONTAINER ?= ascend-pg
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 db: ## Start local Postgres 17 on :5433 (docker)
 	@docker start $(PG_CONTAINER) 2>/dev/null || docker run -d --name $(PG_CONTAINER) -e POSTGRES_USER=ascend -e POSTGRES_PASSWORD=ascend -e POSTGRES_DB=ascend -p 5433:5432 postgres:17-alpine

@@ -35,6 +35,10 @@ export default defineRailway(() => {
       ANTHROPIC_API_KEY: preserve(),
       // Strict: a dangling cross-reference or malformed block fails the build.
       CONTENT_LENIENT: "0",
+      // Time between SIGTERM and SIGKILL for a replaced deployment. The
+      // server's own shutdown is bounded to fit inside it: 25 s for open
+      // connections, then 30 s for replies still being persisted.
+      RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60",
     },
   });
 

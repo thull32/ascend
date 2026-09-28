@@ -84,10 +84,24 @@ async fn api_not_found() -> Response {
 
 /// Serves the SPA. Hashed assets under `/assets/` are immutable; everything
 /// else falls back to `index.html` (client-side routing) with no-cache.
+///
+/// A missing `/assets/` file is a 404, never `index.html`: after a deploy, a
+/// tab still running the previous build asks for chunks that no longer
+/// exist, and HTML served as JavaScript fails with a syntax error the app
+/// cannot recognise. A clean 404 lets the client's stale-chunk handler (in
+/// `web/src/main.tsx`) reload into the new build.
 async fn static_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
     if let Some(file) = WEB_DIST.get_file(path) {
         return file_response(path, file.contents(), path.starts_with("assets/"));
+    }
+    if path.starts_with("assets/") {
+        return (
+            StatusCode::NOT_FOUND,
+            [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))],
+            "no such asset",
+        )
+            .into_response();
     }
     match WEB_DIST.get_file("index.html") {
         Some(index) => file_response("index.html", index.contents(), false),
