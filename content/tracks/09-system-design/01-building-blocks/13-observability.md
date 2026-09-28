@@ -314,13 +314,13 @@ hints:
     The average of percentiles has no statistical meaning, and one very slow instance is hidden by it. Merge the histogram buckets first, then take the percentile; add a max panel to catch a single bad instance. A longer window does not fix averaging something that cannot be averaged.
 - q: >-
     A service has a 99.9% availability SLO over 30 days. Its error rate has been 1.5% for the last hour and still is. What should happen?
-  options: ["A ticket, since only about 2% of the budget is gone", "An automatic rollback of the most recent deploy", "Nothing yet; the monthly budget is not exhausted", "A page, since the budget burns about 15x too fast"]
-  answer: 3
+  options: ["A ticket, since only about 2% of the budget is gone", "A page, since the budget burns about 15x too fast", "Nothing yet; the monthly budget is not exhausted", "An automatic rollback of the most recent deploy"]
+  answer: 1
   explanation: >-
     Burn rate = 1.5% / 0.1% = 15, above the 14.4 threshold for the 1-hour window, and the 5-minute window confirms it; about 2% of the monthly budget went in one hour and the rest goes in two days. Waiting for exhaustion finds the outage days late. A rollback may be the fix, but the alert is what starts the response.
 - q: >-
     Why is the fast page's threshold 14.4 for a 1-hour window?
-  options: ["It spends 2% of a 720-hour budget in one hour", "It is the error rate that exhausts the budget in a day", "It is 99.9% expressed as a burn multiplier per hour", "It is chosen so the page fires within five minutes"]
+  options: ["It spends 2% of a 720-hour budget in one hour", "It is 99.9% expressed as a burn multiplier per hour", "It is the error rate that exhausts the budget in a day", "It is chosen so the page fires within five minutes"]
   answer: 0
   explanation: >-
     Burn rate = fraction of budget × (window of the SLO / alert window) = 0.02 × 720 / 1 = 14.4. At that rate the whole budget lasts 50 hours, not a day. Detection time depends on the error rate: 0.864 / e minutes, so 9 minutes at 10% errors.
@@ -338,8 +338,8 @@ hints:
     Tail sampling decides after the trace completes, so it keeps exactly the interesting ones; in the lesson's simulation it kept all 5,027 errors where 1% head sampling kept 57. Raising head sampling multiplies cost while still missing most failures.
 - q: >-
     An SLI is requests under 300 ms, measured with Prometheus's default latency buckets. What is the risk?
-  options: ["No bucket boundary at 300 ms, so the SLI is interpolated", "Default buckets overflow above 10 seconds and drop samples", "Counters reset on restart and the SLI goes negative", "Histogram series cannot be summed across instances"]
-  answer: 0
+  options: ["Counters reset on restart and the SLI goes negative", "Default buckets overflow above 10 seconds and drop samples", "No bucket boundary at 300 ms, so the SLI is interpolated", "Histogram series cannot be summed across instances"]
+  answer: 2
   explanation: >-
     Default boundaries are 250 ms and 500 ms, so the count under 300 ms is a linear interpolation inside that bucket; the lesson's simulation put the default-bucket p99 23% too high. Put a boundary exactly at the SLO threshold. Buckets sum across instances correctly, and rate() handles counter resets.
 ```

@@ -404,8 +404,8 @@ From the application side, export pool metrics: current size, idle count and, mo
     Outer timeouts shorter than inner ones create work nobody wants. Requests keep waiting up to 10 seconds for a connection after their callers have gone, and slow queries run to completion with no one reading the results, so load stays high. The acquire timeout bounds waiting for a connection, not query runtime. It should sit well inside the request deadline, and statement_timeout should cancel queries whose callers cannot use the result.
 - q: >-
     A serverless function opens a new Postgres connection over TCP with SCRAM for each request and runs one 0.16 ms query. Measured setup is about 4.7 ms. What is the most effective change?
-  options: ["Raise max_connections so that each function instance can keep its own connection", "Switch SCRAM for md5 authentication, which removes the cost of connecting", "Put a pooler such as PgBouncer or RDS Proxy between the functions and Postgres", "Cache query results in the function's memory so that fewer queries are needed"]
-  answer: 2
+  options: ["Switch SCRAM for md5 authentication, which removes the cost of connecting", "Cache query results in the function's memory so that fewer queries are needed", "Raise max_connections so that each function instance can keep its own connection", "Put a pooler such as PgBouncer or RDS Proxy between the functions and Postgres"]
+  answer: 3
   explanation: >-
     Connection setup is about 30 times the query itself, so each request pays mostly for the fork, the handshake and authentication. A pooler keeps server connections open and hands them out per transaction, so the per-request cost becomes a cheap client connection to the pooler. More max_connections makes the database slower under concurrency, md5 is weaker and still pays for the fork and TCP setup, and a per-instance cache does not survive short-lived function instances.
 ```

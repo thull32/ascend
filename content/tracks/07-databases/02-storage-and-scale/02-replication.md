@@ -295,32 +295,32 @@ hints:
 ```quiz
 - q: >-
     A user updates their display name, is redirected, and sees the old name; a refresh shows the new one. Which fix has the least cost on the write path?
-  options: ["Set synchronous_commit = remote_apply for every transaction", "Add replicas so that read load, and therefore lag, is spread out", "Switch to logical replication so that row changes apply faster", "Route the user's reads by their write LSN, or to the primary"]
-  answer: 3
+  options: ["Route the user's reads by their write LSN, or to the primary", "Add replicas so that read load, and therefore lag, is spread out", "Set synchronous_commit = remote_apply for every transaction", "Switch to logical replication so that row changes apply faster"]
+  answer: 0
   explanation: >-
     Routing by LSN (or pinning briefly to the primary) affects only the user who wrote and adds nothing to commits. remote_apply fixes it by making every commit wait for replay. More replicas do not reduce lag, and logical replication applies changes more slowly, not faster.
 - q: >-
     pg_stat_replication shows almost nothing unflushed but 112 MB unreplayed. The primary writes 5 MB/s and the replica can replay 20 MB/s. What is happening, and how long until it catches up?
-  options: ["The network is saturated; it catches up once the link frees", "The WAL arrived but replay is behind; about 7.5 seconds", "The slot was invalidated; it cannot catch up without a rebuild", "The replica's disk is slow; about 22 seconds at the flush rate"]
-  answer: 1
+  options: ["The replica's disk is slow; about 22 seconds at the flush rate", "The slot was invalidated; it cannot catch up without a rebuild", "The WAL arrived but replay is behind; about 7.5 seconds", "The network is saturated; it catches up once the link frees"]
+  answer: 2
   explanation: >-
     Flushed but not replayed means the bytes are on the replica and the startup process is behind. It gains 20 - 5 = 15 MB/s, so 112 MB takes about 7.5 s. If replay capacity were below the WAL rate, lag would grow without bound. Network or disk problems would show as unsent or unflushed bytes.
 - q: >-
     With the streaming client stopped, an inactive slot's retained WAL grew from 767 kB to 30 MB in 6 seconds. What is the danger, and the guard?
-  options: ["Commits slow down as the slot grows; add a second standby to share it", "The slot is dropped after a timeout; raise wal_keep_size to protect it", "WAL piles up until disk fills; cap it with max_slot_wal_keep_size", "Replicas stop streaming at once; restart the walsender to release it"]
-  answer: 2
+  options: ["Replicas stop streaming at once; restart the walsender to release it", "WAL piles up until disk fills; cap it with max_slot_wal_keep_size", "The slot is dropped after a timeout; raise wal_keep_size to protect it", "Commits slow down as the slot grows; add a second standby to share it"]
+  answer: 1
   explanation: >-
     A slot promises to keep WAL until its consumer confirms, and an absent consumer never does: at this rate about 18 GB an hour. Postgres never drops idle slots by itself. max_slot_wal_keep_size invalidates the slot past a limit, turning a disk-full outage into a rebuild of one consumer.
 - q: >-
     You configure synchronous_standby_names = 'replica_a' with synchronous_commit = on, and replica_a reboots. What happens to writes on the primary?
-  options: ["They hang until replica_a returns or the setting is changed", "They fail at once with an error that no standby is available", "They continue asynchronously until replica_a reconnects", "They commit locally and queue in the slot for replica_a"]
-  answer: 0
+  options: ["They fail at once with an error that no standby is available", "They commit locally and queue in the slot for replica_a", "They hang until replica_a returns or the setting is changed", "They continue asynchronously until replica_a reconnects"]
+  answer: 2
   explanation: >-
     The primary will not acknowledge without the confirmation it was told to wait for, and it does not silently downgrade durability. That is why one synchronous standby reduces write availability, and why production lists several candidates with ANY 1 so any one of them can confirm.
 - q: >-
     The replica is 4 MB behind the primary. In one case the primary is writing a steady 5 MB/s; in the other a 4 MB burst ended a second ago and nothing has been written since. Which statement about replay_lag is right?
-  options: ["Both are 0.8 seconds, because lag in seconds is bytes divided by write rate", "Neither can be known; replay_lag is only measured when the replica is idle", "Both are zero, because replay_lag only counts commits the primary has not sent", "About 0.8 seconds in the steady case and over a second after the burst"]
-  answer: 3
+  options: ["About 0.8 seconds in the steady case and over a second after the burst", "Both are 0.8 seconds, because lag in seconds is bytes divided by write rate", "Both are zero, because replay_lag only counts commits the primary has not sent", "Neither can be known; replay_lag is only measured when the replica is idle"]
+  answer: 0
   explanation: >-
     replay_lag interpolates when the primary was at the replayed LSN from time-stamped samples. In the steady stream, 4 MB of WAL covered 0.8 seconds; after the burst, the primary passed that LSN more than a second ago, so the lag in time is larger even though the bytes are equal. That is why bytes and seconds are both worth watching.
 - q: >-

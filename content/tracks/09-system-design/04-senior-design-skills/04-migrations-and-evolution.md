@@ -433,8 +433,8 @@ hints:
     Without a shared order, the stores can apply the same two writes in different sequences and end with different final values, permanently and silently. Receiving both writes is not enough; order matters. Feeding the new store from the old store's commit log fixes the order.
 - q: >-
     CDC applies a delete of row R at version 7. The backfill then delivers its copy of R, read earlier at version 5. With version-checked writes, what must the new store have kept so that R does not reappear?
-  options: ["A tombstone for R recording version 7", "Nothing, because R is already deleted", "A copy of R's last value at version 5", "A lock on R until the backfill ends"]
-  answer: 0
+  options: ["A lock on R until the backfill ends", "A copy of R's last value at version 5", "Nothing, because R is already deleted", "A tombstone for R recording version 7"]
+  answer: 3
   explanation: >-
     The version check compares against the stored version. If the delete removed R entirely, the store has nothing to compare with and the version-5 copy is applied as a new row. A tombstone remembers version 7, so the stale copy is rejected. A lock would stall live writes and still not tell the store the copy is stale.
 - q: >-
@@ -445,20 +445,20 @@ hints:
     Without it, the old store freezes at cutover and a rollback would discard everything written since, turning the cutover into a one-way door. With it, the old store stays current and rollback remains a flag flip.
 - q: >-
     In a watermark-based snapshot, a chunk read between the low and high watermarks contains key 2, and a log event for key 2 also falls between the watermarks. What happens to the chunk's copy of key 2?
-  options: ["It is dropped; the log event carries the value", "It is emitted after the log event, replacing it", "It is emitted first, and the log event follows it", "The chunk is discarded and read again from scratch"]
-  answer: 0
+  options: ["The chunk is discarded and read again from scratch", "It is dropped; the log event carries the value", "It is emitted first, and the log event follows it", "It is emitted after the log event, replacing it"]
+  answer: 1
   explanation: >-
     Any key changed between the watermarks is removed from the in-memory chunk, because the log event is at least as new as whatever the select saw. The remaining chunk rows are emitted when the high watermark reaches the log. Emitting the chunk copy after the event would overwrite newer data; re-reading the chunk would never finish on a busy table.
 - q: >-
     The new store absorbs 50,000 rows a second at its SLO, and live writes peak at 20,000 a second. What happened in the lesson's simulation when the backfill ran at a fixed 40,000 rows a second?
-  options: ["The CDC stream fell hours behind the live writes", "It finished in about 21 hours with no effect on users", "The store rejected the excess backfill writes with errors", "It slowed itself automatically as the store saturated"]
+  options: ["The CDC stream fell hours behind the live writes", "It slowed itself automatically as the store saturated", "The store rejected the excess backfill writes with errors", "It finished in about 21 hours with no effect on users"]
   answer: 0
   explanation: >-
     At peak the demand is 60,000 rows a second against 50,000 of capacity, so the live stream absorbed the shortfall and its lag reached about 7.6 hours. The backfill did finish in about 21 hours, but at the cost of stale history for every user. Nothing in a fixed-rate loop slows down on its own; a budget with lag feedback does.
 - q: >-
     Shadow reads have compared 30,000 responses from the old and new stores with zero mismatches. What can you claim?
-  options: ["The mismatch rate is below about 0.01% at 95% confidence", "The new store is identical to the old store for every key", "The mismatch rate is below 0.0033% with certainty", "Nothing, until at least a million reads have been compared"]
-  answer: 0
+  options: ["The new store is identical to the old store for every key", "The mismatch rate is below about 0.01% at 95% confidence", "The mismatch rate is below 0.0033% with certainty", "Nothing, until at least a million reads have been compared"]
+  answer: 1
   explanation: >-
     With zero failures in n trials, the 95% upper bound on the rate is about 3/n, the rule of three: 3 / 30,000 = 0.01%. A sample cannot prove every key identical, and 1/n is the observed-rate intuition without confidence. Volume is rarely the limit; covering a full weekly cycle of traffic patterns is.
 ```

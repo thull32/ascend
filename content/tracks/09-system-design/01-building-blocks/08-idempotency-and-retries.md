@@ -67,6 +67,19 @@ Every column answers a failure. **`account_id` in the key:** two tenants both se
 
 **Size.** Measured on Postgres 17 with a 150-byte JSON response, a row costs 283 bytes of heap plus 88 bytes of primary-key index: about 370 bytes. At 2,000 payments a second kept 24 hours, $2{,}000 \times 86{,}400 \times 370\,B \approx 64$ GB of live keys, which is why the window is a day and not a month, and why keys are pruned by a job (or daily partitions dropped) rather than by `DELETE` storms.
 
+### Where the key comes from
+
+A key dedupes exactly the retries that reuse it, so where it is minted decides which duplicates it catches:
+
+| Key minted | Catches | Misses | Consequence |
+|---|---|---|---|
+| Per HTTP attempt, by the client library | Nothing | Every retry | A key in name only |
+| When the user taps Pay, kept until the outcome is known | Network retries, app restarts if persisted to disk | A second tab or device submitting the same cart | Two orders from a double submit across tabs |
+| When the checkout page loads | Double taps on one page | A reload, which renders a new key | Reload-and-resubmit charges twice |
+| Derived from the intent: `hash(user, cart_id, cart_version)` | Retries, double taps, other tabs and devices submitting the same cart | Nothing for that cart version | A real second purchase must change the cart version first |
+
+The intent-derived key is the strongest because two submissions of the same intent collide wherever they come from; its risk is the opposite error, treating two genuine intents as one, which is why the version must change whenever the user edits what they are buying. The saga in [Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) uses the same idea for internal steps: its keys are derived from the saga ID and the step, never generated per attempt.
+
 ## The handler: three phases and a crash
 
 The external charge cannot sit inside the database transaction: holding a transaction and a connection open across a two-second network call starves the pool, and the processor would not roll back with it anyway. So the handler runs in phases, each atomic, and the processor gets the same key so it deduplicates too:
@@ -158,6 +171,22 @@ print("charges:", processor.charges)                               # exactly one
 ```
 
 It prints the crash, then 409 while the dead attempt's lease runs, then 201 with `ch_1` when the retry re-drives the charge (the processor recognises the key and returns the original charge), a 200 replay, a 422 for the changed amount, and one charge in total. The pieces that make it work: the claim is atomic, the key reaches the processor, and phase 3 records the payment and the response in one transaction. A sweeper that re-drives keys stuck `in_progress` past their lease closes the case where the client never retries.
+### When the lease expires under a live attempt
+
+A lease is a promise about time, and a slow attempt can outlive it. The processor call hangs for 35 s under a 30 s lease:
+
+| t (s) | Attempt 1 | Attempt 2 (retry) | Key row | Processor |
+|---|---|---|---|---|
+| 0 | Claims the key with lease token `a1`, valid to 30 | | in progress, `a1` | |
+| 1 | Calls the processor; the response is slow | | | Charge `ch_1` created |
+| 31 | | Lease expired: takes over with token `a2`, valid to 61 | in progress, `a2` | |
+| 31.2 | | Calls the processor with the same key | | Returns `ch_1` |
+| 31.3 | | Records the payment and marks the key done `WHERE lease_token = 'a2'`: 1 row | done, `ch_1` | |
+| 35 | Response `ch_1` arrives | | | |
+| 35.1 | Tries to record `WHERE lease_token = 'a1'`: 0 rows, so it has lost the key; returns the stored response | | done | |
+
+Here both attempts saw the same charge, so a late write would have been harmless. It is not harmless when the attempts see different outcomes: had attempt 2 received "a request with this key is in progress" from the processor and recorded a failure, attempt 1's late success would have to win, and a blind `UPDATE` lets whichever finishes last decide. Two rules close it: phase 3 updates only while holding its own token (a `lease_token` column written at claim and at takeover), the fencing check from [Failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases); and the lease is longer than the side effect's own timeout (a 25 s client timeout under a 30 s lease), so a live attempt normally finishes or gives up before anyone can take over.
+
 
 ```viz
 {"type": "system", "scenario": "idempotency-key", "requests": 3,
@@ -247,6 +276,37 @@ Whatever holds the IDs, the window must exceed the longest possible redelivery: 
  "title": "Bloom filter as a dedupe pre-check", "caption": "A miss in the filter means the ID was never seen, so the consumer skips the exact lookup. A hit might be a false positive, so it is confirmed against the dedupe store before the message is dropped."}
 ```
 
+## Across a queue and a database, crash by crash
+
+An order-created event arrives on a queue; the consumer must reserve stock in its own Postgres and announce `StockReserved`. It runs one transaction per message, holding the dedupe record, the effect and the outgoing event together, and acknowledges only after the commit:
+
+```sql
+BEGIN;
+INSERT INTO processed_events (event_id) VALUES ($1) ON CONFLICT DO NOTHING;  -- 0 rows: duplicate, skip to COMMIT
+UPDATE stock SET reserved = reserved + $qty WHERE sku = $sku AND on_hand - reserved >= $qty;
+INSERT INTO outbox (event_id, type, payload) VALUES (gen_random_uuid(), 'StockReserved', $payload);
+COMMIT;
+-- then acknowledge the message (commit the Kafka offset, delete the SQS message)
+```
+
+| Crash point | State after restart | What redelivery does | Outcome |
+|---|---|---|---|
+| After receiving, before `BEGIN` | Nothing written | Processes normally | Once |
+| Inside the transaction | Rolled back | Processes normally | Once |
+| After `COMMIT`, before the ack | Effect, dedupe row and outbox row committed | The insert finds the event ID: skip, then ack | Once |
+| After the ack | Everything done | No redelivery | Once |
+| Relay publishes `StockReserved`, crashes before marking it | Outbox row still unpublished | The relay publishes it again | Twice on the wire; the next consumer dedupes on the outbox row's ID |
+
+Every row ends at exactly one reservation because the only step outside the transaction is the acknowledgement, and losing it causes a redelivery the dedupe row absorbs. The chain holds hop after hop as long as each consumer does the same: dedupe, effect and outgoing event in one local transaction ([Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) traces the outbox). It breaks the moment an effect lives elsewhere, such as an email or a card charge, and then the event ID travels as that call's idempotency key, as in the three-phase handler.
+
+### Offsets stored with the effect
+
+For a Kafka consumer the dedupe table can be replaced by the offset itself: store `(topic, partition, offset)` in the same transaction as the effect, and on startup, and on every partition reassignment, seek to the stored offset plus one instead of trusting the broker's committed offset. Within a partition, offsets are the order, so "have I applied this?" is one comparison. The default is weaker than it looks: with `enable.auto.commit` the Java consumer commits the offsets of records returned by the previous `poll()` every 5 s (`auto.commit.interval.ms`), so a consumer that hands records to a thread pool can commit past records still in flight, and a crash loses them; at 2,000 records a second the window holds up to 10,000.
+
+### Versions instead of windows
+
+When events carry a per-entity version, a consumer needs no dedupe store and no expiry. For events that carry full state ("order 7781 is now `shipped`, version 5"), apply an event only if its version is higher than the stored one: delivered as 1, 2, 2, 4, 3, 5, the consumer applies 1, 2 and 4, skips the second 2 and the late 3 as older, and applies 5. For deltas ("add 3 to stock") the version must be exactly the stored one plus one, and an early event waits for the gap to fill, which the projection exercise in [Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) implements. One integer per entity replaces a 24-hour table of IDs, and a dead-letter replay three days later is recognised as old.
+
 ## Retry storms, simulated
 
 **Scenario A, a stall.** A dependency serves 1,000 requests a second (FIFO, 1 ms each) and stalls for 10 s at t = 10 s. Clients send 800 new requests a second, give up on an attempt after 1 s, and retry up to 3 times. Unless it is deadline-aware, the server keeps working on requests whose client has already left. Two minutes simulated:
@@ -279,6 +339,20 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
  "title": "Backoff with and without jitter", "caption": "Synchronised retries arrive as a second spike on a dependency that has just failed. Jitter spreads them out so the dependency sees a smooth ramp rather than a wave."}
 ```
 
+## What a retry buys, and what it costs
+
+With up to three retries and an independent failure probability p per attempt, a request succeeds with probability $1 - p^4$ and costs $(1 - p^4) / (1 - p)$ attempts on average:
+
+| Failure rate per attempt | Success, no retries | Success, 3 retries | Attempts per request |
+|---|---|---|---|
+| 1% | 99% | 99.999999% | 1.01 |
+| 10% | 90% | 99.99% | 1.11 |
+| 50% | 50% | 93.8% | 1.88 |
+| 90% | 10% | 34.4% | 3.44 |
+| 100% | 0% | 0% | 4.00 |
+
+Retries are nearly free exactly when they help, for rare independent failures such as a dropped packet or a replica restarting, and they approach 4× load exactly when they cannot help, because the dependency is down or overloaded. And at high failure rates the independence assumption is false: the extra attempts are what keeps an overloaded dependency overloaded, so the 34% in the 90% row is optimistic. A retry budget encodes this table: allowing retries up to 10% of requests keeps the 1% and 10% rows intact and caps the bottom rows at 1.1 attempts per request.
+
 ## Retry design
 
 - **Retry in one layer per hop.** Client, gateway and service each retrying 3 times is $4^3 = 64$ attempts per user action on a dead dependency (27 if each layer makes three attempts in total). The service retries its own dependencies; the gateway passes failures through.
@@ -310,6 +384,8 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
 | Stuck `in_progress` keys | Retries get 409 forever after a crash | The process died between the side effect and the record | Leases plus a sweeper that re-drives or reconciles with the provider |
 | Metastable retry storm | Load stays at 3–4× after the trigger ends | Offered load far above user activity; server busy with requests whose clients left | Retry budgets, deadline propagation, load shedding |
 | Idempotent in name only | Three confirmation emails for one order | A side effect outside the idempotent boundary | Key every side effect; the mail service dedupes on the same key |
+| Consumer offsets auto-committed ahead of work | Events silently missing after a consumer restart; no duplicates, no errors | Auto-commit on while records are processed on other threads; gaps between committed offsets and applied effects | Commit offsets after processing, or store them in the effect's transaction and seek to them on assignment |
+| Dedupe window shorter than a replay | A dead-letter replay applies effects a second time | Replayed IDs older than the dedupe store's TTL | Version high-water marks per entity, or upserts keyed by event ID, which need no window |
 
 ## Interviewer follow-ups
 
@@ -321,6 +397,10 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
 
 **"How big is the key store, and what if it is unavailable?"** Model answer: about 370 bytes a key measured on Postgres, so 2,000 payments a second for 24 hours is ~64 GB live. If it is down, fail closed for payments (a retryable 503), because a duplicate charge is worse than a delayed one; fail open and log for cheap, re-doable work. Common wrong answer: "fall back to executing without the check".
 
+**"A consumer reserves stock and emits an event. Walk me through a crash after the commit but before the acknowledgement."** Model answer: the message is redelivered, the transaction's first statement inserts the event ID into `processed_events` and finds it, and the consumer skips the effect and acknowledges. That works because the dedupe row, the stock update and the outbox row commit together; the only thing outside the transaction is the acknowledgement. If the effect were an email or a charge, the event ID would travel as that call's idempotency key. Common wrong answer: "acknowledge first, then process, so it is never redelivered", which turns every crash into a lost message.
+
+**"Can you avoid a dedupe table entirely?"** Model answer: yes, when the stream gives an order. A Kafka consumer can store its partition offsets in the same transaction as its effects and seek to them on every assignment; a consumer of versioned state events keeps one version per entity and ignores anything not newer, which also rejects a replay from last week that a 24-hour table would have let through. Common wrong answer: "no, exactly-once needs a table of every ID ever seen".
+
 ## What mid-level engineers get wrong
 
 - Deduplicating with a `SELECT` before the `INSERT`.
@@ -330,6 +410,8 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
 - Retrying 400s, or retrying at every layer.
 - Believing jitter fixes every retry storm; without budgets and deadlines a stall can become permanent.
 - A dedupe window shorter than the dead-letter queue's replay delay.
+- Minting the key per page load or per click, so a reload or a second tab submits the same purchase with a new key.
+- Leaving consumer auto-commit on while processing records on a thread pool, which commits offsets for work that has not happened.
 
 ## Senior signals
 
@@ -337,6 +419,8 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
 - You claim keys with a unique constraint, scope them by caller, fingerprint the body, and lease in-progress keys.
 - You split the handler into atomic phases around the external call and pass the key downstream.
 - You say "exactly once" only as at-least-once plus idempotent processing.
+- You can walk a message through a queue and a database crash point by crash point, and replace dedupe windows with offsets stored alongside the effect or per-entity versions where the stream allows.
+
 - You retry in one layer with jitter, a budget and propagated deadlines, and can explain a metastable retry storm with numbers.
 - You size key stores and dedupe windows from rate × window × bytes, with the window longer than any redelivery. The [payment system case study](/learn/system-design/case-studies/payment-system) puts these together.
 
@@ -351,13 +435,13 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
     The atomic claim makes the second attempt find an in-progress record, so it returns 409 (with Retry-After) or waits. Executing it would create two orders; there is no stored response yet; and reusing a key on retry is exactly what keys are for.
 - q: >-
     Two sessions each run SELECT to check for an existing payment with key K, find none, and then insert and charge. What prevents the double charge?
-  options: ["Running both sessions at the default read-committed isolation level", "Adding a short sleep between the SELECT and the INSERT", "A unique index on the key, claimed by the INSERT itself", "Retrying the SELECT until it returns the same count twice"]
-  answer: 2
+  options: ["A unique index on the key, claimed by the INSERT itself", "Retrying the SELECT until it returns the same count twice", "Running both sessions at the default read-committed isolation level", "Adding a short sleep between the SELECT and the INSERT"]
+  answer: 0
   explanation: >-
     Check-then-act is a race: both SELECTs can run before either INSERT, which the Postgres experiment reproduced. A unique index makes the claim atomic; the second INSERT waits for the first transaction and then fails or returns no row. Sleeps and repeated SELECTs only move the window.
 - q: >-
     A payment handler charges the processor, then crashes before recording the result. The client retries with the same key after the lease expires. What prevents a second charge?
-  options: ["The processor dedupes on the same key and returns the original charge", "The database transaction around the charge is rolled back on the crash", "The lease blocks the retry permanently until someone intervenes", "The retry sees state done and replays the stored response"]
+  options: ["The processor dedupes on the same key and returns the original charge", "The retry sees state done and replays the stored response", "The lease blocks the retry permanently until someone intervenes", "The database transaction around the charge is rolled back on the crash"]
   answer: 0
   explanation: >-
     The side effect happened outside any transaction, so nothing rolled it back and our table still says in progress. Passing the idempotency key to the processor makes the re-driven charge return the original charge. The lease only delays the retry; the state is not yet done.
@@ -369,14 +453,14 @@ Without jitter the 2,000 clients stay in lockstep forever: every retry wave arri
     The server kept processing requests whose 1 s deadline had passed, so every response was late, every attempt timed out and was retried, and offered load stayed near four times capacity: a metastable failure. Dropping expired requests at the server let fresh requests through immediately. Jitter made no difference because the failures were not synchronised.
 - q: >-
     2,000 clients are disconnected at the same instant and retry with exponential backoff but no jitter against a server that admits 1,000 requests a second. What happens?
-  options: ["They stay in lockstep, so each wave mostly fails again", "They finish in about 2 s, the capacity limit", "They finish faster than with jitter, since delays are shorter", "They spread out naturally after the first retry"]
-  answer: 0
+  options: ["They finish in about 2 s, the capacity limit", "They stay in lockstep, so each wave mostly fails again", "They spread out naturally after the first retry", "They finish faster than with jitter, since delays are shorter"]
+  answer: 1
   explanation: >-
     Identical deterministic delays keep every client synchronised, so each retry wave lands in the same instant and only the capacity of that instant succeeds; in the simulation it took 971 s and about 100 attempts per client. Any jitter broke the lockstep and finished in 4–6 s.
 - q: >-
-    A consumer's dedupe store keeps event IDs for 24 hours. The dead-letter queue can replay a message after 3 days. What is the risk?
-  options: ["None; the dead-letter queue deduplicates replays on its own", "The dedupe store fills up because replays extend the window", "The consumer rejects the replay as expired and drops it", "The replay looks new and its effect is applied twice"]
+    A consumer handles each message in one transaction that inserts the event ID into processed_events, applies the effect and writes an outbox row, and it acknowledges after COMMIT. It crashes after COMMIT and before the acknowledgement. What happens?
+  options: ["The effect runs twice, since the ack never reached the broker", "The transaction rolls back, since the ack was part of it", "It is lost, since the broker never saw an acknowledgement", "It is redelivered, finds its event ID and is skipped"]
   answer: 3
   explanation: >-
-    Once the ID has expired, the consumer has no memory of it and treats the replay as new. The window must exceed the longest possible redelivery delay, or the effect must be idempotent by construction (an upsert on event ID), which needs no window.
+    The broker redelivers anything unacknowledged, and the dedupe row committed together with the effect, so the redelivery finds it, skips the effect and acknowledges. The acknowledgement is the only step outside the transaction; it cannot roll anything back, and losing it causes a redelivery rather than a loss.
 ```

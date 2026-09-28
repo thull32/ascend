@@ -360,8 +360,8 @@ hints:
     Pricing is per token, and tokenizers learn fewer merges for languages that were less represented in their training mix, so the same content costs more input and output tokens; in the toy experiment the Japanese sentence cost 4.4 times the English one. Answers may also be longer, but the tokenization effect is systematic; per-token rates do not depend on language.
 - q: >-
     Traffic grows 30% when a new market launches, and the total bill doubles. If the old requests are unchanged, how many times the tokens of an old request must each new request use?
-  options: ["About 1.3 times", "About 2 times", "About 3.3 times", "About 6.7 times"]
-  answer: 2
+  options: ["About 1.3 times", "About 6.7 times", "About 2 times", "About 3.3 times"]
+  answer: 3
   explanation: >-
     Total cost is 1 + 0.3r in units of the old bill, and setting it equal to 2 gives r = 1/0.3 ≈ 3.3. Doubling the bill with 30% more requests needs each new request to be far more expensive, which points at the tokenizer ratio for that market's language rather than at request volume.
 - q: >-
@@ -372,8 +372,8 @@ hints:
     Hex-and-hyphen strings fragment into many tokens with little training signal, which costs a lot of context, and reproducing long sequences of them exactly is where models slip. Give the model short handles and map them back to IDs in code. The tokenizer never drops the text; it encodes it expensively.
 - q: >-
     A streaming chat UI shows a replacement character that flickers and then turns into the right emoji. What is happening?
-  options: ["The model first sampled a wrong token and then corrected it", "A token ended mid-character, and the client decoded the partial bytes", "The emoji is a special token that the server escapes while streaming", "The font lacks the emoji until the whole response has been received"]
-  answer: 1
+  options: ["A token ended mid-character, and the client decoded the partial bytes", "The model first sampled a wrong token and then corrected it", "The emoji is a special token that the server escapes while streaming", "The font lacks the emoji until the whole response has been received"]
+  answer: 0
   explanation: >-
     With byte-level tokens, one emoji can span several tokens (four to eighteen UTF-8 bytes), so the first token carries an incomplete byte sequence that decodes to a replacement character. The client should buffer until the bytes form complete UTF-8 sequences. Sampled tokens are never revised, and emoji are ordinary bytes, not special tokens.
 - q: >-

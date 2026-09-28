@@ -354,38 +354,38 @@ hints:
 ```quiz
 - q: >-
     A candidate says: I would use Cassandra because it is highly scalable and battle-tested. What is the most important thing missing?
-  options: ["A comparison with at least five other candidate databases", "A diagram of the ring showing replication across nodes", "The Cassandra version and the consistency level chosen", "The requirement served, the cost, and when it flips"]
+  options: ["The Cassandra version and the consistency level chosen", "A diagram of the ring showing replication across nodes", "A comparison with at least five other candidate databases", "The requirement served, the cost, and when it flips"]
   answer: 3
   explanation: >-
     Scalable and battle-tested apply to every serious option, so they carry no information. A trade-off statement ties the choice to a requirement, names what it costs, and says the condition under which another option would be better. Listing more databases without that structure is still preference.
 - q: >-
     DynamoDB leads Cassandra 43 to 41. They differ only on ops burden (5 against 2, weight 2) and cost (2 against 4, weight 2). Which single one-point weight change makes Cassandra strictly win?
-  options: ["Lowering the ops weight from 2 to 1", "Raising the cost weight from 2 to 3", "Raising the throughput weight from 3 to 4", "Lowering the query weight from 1 to 0"]
-  answer: 0
+  options: ["Raising the cost weight from 2 to 3", "Raising the throughput weight from 3 to 4", "Lowering the ops weight from 2 to 1", "Lowering the query weight from 1 to 0"]
+  answer: 2
   explanation: >-
     Lowering the ops weight by one removes 5 points from DynamoDB and 2 from Cassandra, closing the gap by 3: Cassandra 39, DynamoDB 38. Raising the cost weight by one closes the gap by 2, which only ties them at 45. Throughput and query scores are equal for the two, so those weights cannot change their order.
 - q: >-
     A one-week spike would cut the chance of choosing wrong from 30% to 10%. Reversing the decision later would cost about 2 engineer-weeks. Should you run the spike?
-  options: ["No: it saves about 0.4 weeks for 1 spent", "Yes: any reduction in risk is worth a week", "Yes: it saves about 8 weeks for 1 spent", "No: spikes rarely change the final decision"]
+  options: ["No: it saves about 0.4 weeks for 1 spent", "No: spikes rarely change the final decision", "Yes: it saves about 8 weeks for 1 spent", "Yes: any reduction in risk is worth a week"]
   answer: 0
   explanation: >-
     The expected saving is the drop in probability times the reversal cost, 0.2 × 2 = 0.4 engineer-weeks, less than the week the spike costs. This is a two-way door: decide now and name the trigger. The 8-week figure applies to a decision that costs about 40 engineer-weeks to reverse, such as a partition key.
 - q: >-
     Sharding now costs 36 engineer-weeks over two years. Waiting costs 46 engineer-weeks, but only if growth forces it. Above roughly what probability of needing it should you shard now?
-  options: ["About 78%", "About 50%", "About 22%", "About 95%"]
+  options: ["About 78%", "About 95%", "About 22%", "About 50%"]
   answer: 0
   explanation: >-
     Waiting costs 46p in expectation, sharding now costs 36 for certain, so sharding now wins only when 46p exceeds 36, at p above 36/46, about 78%. Waiting is more expensive per event; it wins because you pay it only when it happens. 50% and 22% shard far too early, and 95% waits past the point where the expected costs cross.
 - q: >-
     You scored options by min-max normalising their raw cost and latency. Adding a third option that nobody would choose changed which of the other two wins. Why?
-  options: ["Normalisation rescaled the other options' scores", "The third option split the stronger option's votes", "The weights are re-derived whenever options change", "The winner was already inside rounding noise"]
-  answer: 0
+  options: ["The winner was already inside rounding noise", "The third option split the stronger option's votes", "Normalisation rescaled the other options' scores", "The weights are re-derived whenever options change"]
+  answer: 2
   explanation: >-
     Min-max scores depend on the range of the options present. An expensive newcomer stretched the cost range, so the pricier of the original two now looked closer to the best and overtook the other. Anchoring scores to requirement thresholds makes each score independent of the other options.
 - q: >-
     Why should hard constraints filter options before a weighted matrix rather than being included as heavily weighted criteria?
-  options: ["A weighted sum lets high scores buy back a failed must-have", "Hard constraints get the top weight, so they dominate anyway", "A matrix cannot represent a yes-or-no criterion at all", "Filtering first makes the arithmetic quicker to do aloud"]
-  answer: 0
+  options: ["Hard constraints get the top weight, so they dominate anyway", "Filtering first makes the arithmetic quicker to do aloud", "A matrix cannot represent a yes-or-no criterion at all", "A weighted sum lets high scores buy back a failed must-have"]
+  answer: 3
   explanation: >-
     A weighted sum is compensatory: in the lesson, sharded Postgres fails multi-region writes yet wins if the query-flexibility weight rises to 7. A must-have cannot be traded, so it belongs in a filter. A matrix can hold a 0/1 criterion, but a heavy weight still only makes failure expensive, not disqualifying.
 ```

@@ -345,32 +345,32 @@ Every hop is at-least-once and every effect is idempotent on an id minted at the
     Committing before the effect means no replay ever happens for that offset, so the effect is lost; nothing rolls a committed offset back. Process-then-commit gives at-least-once, and storing the offset in the same database transaction as the effect removes the window entirely.
 - q: >-
     Kafka's idempotent producer prevents which duplicate?
-  options: ["A restarted producer resending its last batch", "An external sink rewriting a consumer's replay", "The client resending a batch after a lost ack", "The application calling send twice for one event"]
-  answer: 2
+  options: ["The application calling send twice for one event", "A restarted producer resending its last batch", "An external sink rewriting a consumer's replay", "The client resending a batch after a lost ack"]
+  answer: 3
   explanation: >-
     The partition leader recognises a resent batch by (producer id, epoch, sequence) within one producer session. A restarted producer has a new producer id, so its resend is new; a second send call is a new record with a new sequence; sinks downstream of Kafka are out of scope.
 - q: >-
     With idempotence enabled, why must max.in.flight.requests.per.connection stay at or below 5?
-  options: ["Sequence numbers are four bits wide and wrap after five", "The leader caches five batches, so older retries go unrecognised", "The coordinator fences producers that have six open requests", "Brokers throttle any client with more than five open requests"]
-  answer: 1
+  options: ["The leader caches five batches, so older retries go unrecognised", "The coordinator fences producers that have six open requests", "Brokers throttle any client with more than five open requests", "Sequence numbers are four bits wide and wrap after five"]
+  answer: 0
   explanation: >-
     A retry is answered as a duplicate only if its batch is still among the last five the leader cached for that producer and partition. With six in flight the oldest could be evicted before its retry arrives, and the leader would reject it as out of order rather than acknowledging it. Ordering itself is protected by the sequence check, whatever the limit.
 - q: >-
     After a rebalance, a paused old instance wakes and produces to the output topic with the same transactional.id as its replacement. What rejects its writes?
-  options: ["Its expired session, which stops it producing", "The group protocol revoking its input partitions", "The epoch its replacement bumped at initialisation", "The output partition moving to a new leader broker"]
-  answer: 2
+  options: ["The group protocol revoking its input partitions", "The epoch its replacement bumped at initialisation", "The output partition moving to a new leader broker", "Its expired session, which stops it producing"]
+  answer: 1
   explanation: >-
     The replacement's InitProducerId made the coordinator bump the epoch and abort the open transaction, writing markers under the new epoch. The broker and coordinator then refuse the old epoch with ProducerFenced. The zombie never has to notice the rebalance, which is the point: a paused process has not noticed anything.
 - q: >-
     Two consumers dedupe a card capture with GET key, then capture, then SET key, and customers are occasionally charged twice. What is the fix?
-  options: ["Lower the key TTL so stale entries expire before replays arrive", "Claim the key with an atomic insert-unique before capturing", "Move the GET and SET into one pipeline to cut the latency", "Replace the key store with a Bloom filter checked in memory"]
-  answer: 1
+  options: ["Lower the key TTL so stale entries expire before replays arrive", "Move the GET and SET into one pipeline to cut the latency", "Replace the key store with a Bloom filter checked in memory", "Claim the key with an atomic insert-unique before capturing"]
+  answer: 3
   explanation: >-
     Check-then-act lets both consumers see a miss and both act. An atomic SET NX or INSERT ... ON CONFLICT DO NOTHING lets the store decide one winner before any effect. The claim still needs a lease and, ideally, the event id as the processor's idempotency key, because a crash after capturing and before marking done would otherwise charge again on retry. Pipelining does not make two commands atomic.
 - q: >-
     A processor with Kafka transactions enabled calls a payment API, produces a receipt and commits. After a crash the customer is charged twice but only one receipt exists. Why?
-  options: ["The API call was outside anything the transaction could undo", "The receipt consumer used read_uncommitted isolation", "The idempotent producer lost its sequence on restart", "The transaction timeout was shorter than the API call"]
-  answer: 0
+  options: ["The idempotent producer lost its sequence on restart", "The transaction timeout was shorter than the API call", "The API call was outside anything the transaction could undo", "The receipt consumer used read_uncommitted isolation"]
+  answer: 2
   explanation: >-
     Kafka made the receipt and the offset commit exactly-once, as promised, but the capture happened between poll and commit and cannot be rolled back by an abort. By the end-to-end argument the endpoint performing the effect must deduplicate it: pass the event id as the processor's idempotency key. Reader isolation only affects which Kafka records are visible.
 ```

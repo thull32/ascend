@@ -238,14 +238,14 @@ You can make even a one-way door cheaper. Keep data access behind a narrow layer
 ```quiz
 - q: >-
     A team proposes MongoDB for a new orders service because requirements are still changing. Orders have line items, reserve inventory and must never be double-charged. What is the strongest counter-argument?
-  options: ["MongoDB cannot nest line items in an order, so reads need extra lookups", "MongoDB is always slower than Postgres on writes, so charges would lag", "Changing requirements suit a graph database better than a document store", "Invariants need transactions and constraints; jsonb gives flexibility"]
-  answer: 3
+  options: ["Invariants need transactions and constraints; jsonb gives flexibility", "MongoDB cannot nest line items in an order, so reads need extra lookups", "Changing requirements suit a graph database better than a document store", "MongoDB is always slower than Postgres on writes, so charges would lag"]
+  answer: 0
   explanation: >-
     Schema flexibility is available in Postgres through jsonb, while multi-entity invariants such as reservations and payments are what relational transactions and constraints are for. Nesting line items is something MongoDB does well, so that is not the objection, and MongoDB has multi-document transactions; they are the exception in its model rather than the default.
 - q: >-
     Which requirement, stated with numbers, most directly argues for a wide-column store such as Cassandra?
-  options: ["We have 200 GB of data, growing 5 GB a month, and most is rarely read", "We need strictly consistent balance transfers at 3,000 a second", "Known-key, time-ordered appends at 60,000 a second in three regions", "Ad hoc reporting that filters on any of 40 attributes over 2B rows"]
-  answer: 2
+  options: ["Known-key, time-ordered appends at 60,000 a second in three regions", "We need strictly consistent balance transfers at 3,000 a second", "Ad hoc reporting that filters on any of 40 attributes over 2B rows", "We have 200 GB of data, growing 5 GB a month, and most is rarely read"]
+  answer: 0
   explanation: >-
     Known-key access, very high write rates and multi-region writes are the wide-column sweet spot. Ad hoc reporting points to a columnar warehouse, strong multi-row consistency to a relational store, and 200 GB fits comfortably on one relational node.
 - q: >-
@@ -262,14 +262,14 @@ You can make even a one-way door cheaper. Keep data access behind a narrow layer
     Eventual consistency without a bound and a named anomaly is not a requirement. The anomaly to name first is usually a user not seeing their own new post: read-your-writes for a user's own actions is usually required even when global staleness is fine, and it changes the design. Consistency is a property of how reads and writes are routed, not of the vendor or the storage format.
 - q: >-
     This app runs one instance with an in-process rate limiter and one Postgres. Which change would force a second datastore or a redesign of rate limiting?
-  options: ["Adding many more lessons, since each lesson adds rows to serve", "Running several API replicas, since each keeps its own counters", "Adding an index on comments, since each index slows writes to the table", "Enabling pgvector, since vector search needs its own dedicated store"]
-  answer: 1
+  options: ["Running several API replicas, since each keeps its own counters", "Enabling pgvector, since vector search needs its own dedicated store", "Adding an index on comments, since each index slows writes to the table", "Adding many more lessons, since each lesson adds rows to serve"]
+  answer: 0
   explanation: >-
     In-process limiters are correct for one process and silently wrong for several: each replica counts separately, so the effective limit multiplies by the replica count. The architecture notes plan to move rate limiting to Redis behind the Limiters type. Curriculum growth does not touch the database at all, because content is embedded in the binary and served from memory.
 - q: >-
     Which of these decisions is cheapest to reverse a year later?
-  options: ["Adding Elasticsearch as a CDC-fed index derived from Postgres", "Moving the orders source of truth from Postgres to DynamoDB", "Adopting single-table DynamoDB design for every entity type", "Sharding the orders table by customer across 16 Postgres nodes"]
-  answer: 0
+  options: ["Adopting single-table DynamoDB design for every entity type", "Moving the orders source of truth from Postgres to DynamoDB", "Sharding the orders table by customer across 16 Postgres nodes", "Adding Elasticsearch as a CDC-fed index derived from Postgres"]
+  answer: 3
   explanation: >-
     A derived store fed by CDC is a two-way door: the source of truth never changed, so dropping the index loses nothing and the application falls back to Postgres queries. Moving or reshaping the source of truth changes every query and every invariant, and walking it back needs a full migration with backfill, CDC and shadow reads.
 ```

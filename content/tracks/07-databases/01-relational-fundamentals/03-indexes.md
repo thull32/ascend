@@ -339,31 +339,31 @@ hints:
 ```quiz
 - q: >-
     A 1-million-row bigint primary key has 367 entries per leaf and three levels. How many buffers does a point lookup touch, and why?
-  options: ["About 20, one per level of a balanced binary tree", "Four: root, internal, leaf, then the heap page", "One, because the whole index is cached in the root", "Two: the leaf found by hashing, then the heap page"]
-  answer: 1
+  options: ["Four: root, internal, leaf, then the heap page", "Two: the leaf found by hashing, then the heap page", "About 20, one per level of a balanced binary tree", "One, because the whole index is cached in the root"]
+  answer: 0
   explanation: >-
     A B-tree lookup reads one page per level and then the heap page the TID points at, which EXPLAIN reports as four buffers. The fan-out of several hundred keeps the tree shallow; a binary tree would need about 20 levels. The root holds only separators, and B-trees do not hash.
 - q: >-
     An index on (created_at, account_id) serves WHERE account_id = $1 AND created_at > now() - interval '7 days'. Both columns appear under Index Cond, but 30,000 buffers are read for 12 rows. What fixes it?
-  options: ["Adding a separate single-column index on account_id", "Moving account_id into an INCLUDE clause on the index", "Running CLUSTER so the heap follows created_at order", "Reordering the index to (account_id, created_at)"]
-  answer: 3
+  options: ["Adding a separate single-column index on account_id", "Reordering the index to (account_id, created_at)", "Running CLUSTER so the heap follows created_at order", "Moving account_id into an INCLUDE clause on the index"]
+  answer: 1
   explanation: >-
     Only the leading range column bounds the scan, so every entry from the last week for every account is walked and filtered. Equality first, then range, makes the matching entries one contiguous slice, as the measured 2,300 buffers against 8 showed. The wasted reads are index pages, so clustering the heap cannot help, and INCLUDE columns are never used to bound a scan.
 - q: >-
     An index-only scan reports Heap Fetches: 22,201 for 20,239 rows and is slower than a plain bitmap scan. What happened?
-  options: ["Writes cleared visibility-map bits and vacuum has not reset them", "The index lacks an INCLUDE column, so values come from the heap", "The query uses SELECT *, which forces every row to the heap", "The planner picked a stale index, so every row had to be rechecked"]
+  options: ["Writes cleared visibility-map bits and vacuum has not reset them", "The index lacks an INCLUDE column, so values come from the heap", "The planner picked a stale index, so every row had to be rechecked", "The query uses SELECT *, which forces every row to the heap"]
   answer: 0
   explanation: >-
     Index entries carry no visibility information, so the executor may skip the heap only for pages marked all-visible. Updating 10% of rows cleared the bit on every page; after VACUUM the same scan took 160 buffers and 1.4 ms. A missing column or SELECT * would prevent an index-only plan entirely, and this plan is one.
 - q: >-
     After switching primary keys from a sequence to UUIDv4, WAL volume per insert roughly triples. What is the main mechanism?
-  options: ["UUIDs are 16 bytes, so each index entry needs twice the WAL space", "Random keys hit most leaves, each logged in full after a checkpoint", "UUID generation is logged as its own WAL record for every inserted row", "UUID indexes cannot use deduplication, so each entry is logged twice"]
-  answer: 1
+  options: ["Random keys hit most leaves, each logged in full after a checkpoint", "UUIDs are 16 bytes, so each index entry needs twice the WAL space", "UUID indexes cannot use deduplication, so each entry is logged twice", "UUID generation is logged as its own WAL record for every inserted row"]
+  answer: 0
   explanation: >-
     The measurement showed 32 MB of full-page images for 100,000 random inserts against 5 KB for time-ordered keys of the same width, plus mid-page splits. Width adds a little; randomness adds the page images. UUID generation writes no WAL, and deduplication is irrelevant for unique keys.
 - q: >-
     A users table is updated on every request to set last_seen_at. Someone adds an index on last_seen_at for an admin report. What is the most important side effect?
-  options: ["None; an index costs nothing until a query actually reads it", "The report's scans lock the table against those frequent updates", "Every lookup by id now misses cache because the index is so large", "Those updates lose HOT and now write every index on the table"]
+  options: ["Every lookup by id now misses cache because the index is so large", "The report's scans lock the table against those frequent updates", "None; an index costs nothing until a query actually reads it", "Those updates lose HOT and now write every index on the table"]
   answer: 3
   explanation: >-
     A HOT update requires that no indexed column changes. Indexing last_seen_at took HOT from 97.6% to 0% in the lab, so the busiest write now inserts into every index and generates the matching WAL and bloat. Index scans take no locks that block updates, and the cost is paid on writes whether or not the report runs.

@@ -42,6 +42,22 @@ Three etcd members, n1 (leader), n2, n3, with the defaults: heartbeats every 100
 
 Majority-side clients lost about 1–2 s to the election; minority-side clients lost the whole partition. That is what CP means: refuse on the side that cannot reach a quorum, never acknowledge what might be lost. Pre-vote keeps n1 from disrupting the cluster with a higher term when it rejoins.
 
+## When the partition is partial
+
+Real partitions are often partial: a failing switch drops traffic between two members while both still reach the third. Three etcd members, n1 leading term 5; the n1–n3 link fails, n1–n2 and n2–n3 still work. Traced first with plain Raft, no pre-vote and no CheckQuorum:
+
+| t | Event | Terms (n1, n2, n3) | Leader |
+|---|---|---|---|
+| 0 | n1–n3 link fails | 5, 5, 5 | n1 |
+| ~1.5 s | n3 hears no heartbeat, times out, campaigns in term 6; n2 grants (the logs are equal) | 5, 6, 6 | n3 wins with n2's vote |
+| ~1.5 s | n2 rejects n1's next `AppendEntries` as stale; n1 sees term 6 and steps down | 6, 6, 6 | n3 |
+| ~1.5 s | n3 commits a term-6 no-op on n3 and n2 | | n3 |
+| ~3 s | n1, cut off from n3, times out and campaigns in term 7; n2 refuses the vote (n1's log is older) but adopts term 7 | 7, 7, 6 | none: n2 now rejects n3's term-6 messages |
+| ~4.5 s | n3 times out, campaigns in term 8, wins with n2 | 8, 8, 8 | n3 again |
+| and so on | Each time n1 times out it bumps the term and knocks n3 out | climbing | a new election every few seconds |
+
+No committed write is lost, but writes stall for an election every few seconds for as long as the switch misbehaves. With **pre-vote**, a would-be candidate first asks whether it could win without touching its term, and with **CheckQuorum** a follower that has heard from a live leader within the election timeout refuses such requests. Replayed with both on (etcd's configuration): at 1.5 s n3's pre-vote reaches n2, which heard from n1 moments ago and refuses; n3 never raises its term, n1 keeps leading with n2, and only n3's own clients fail. One member lost instead of the whole cluster flapping. Cloudflare's 2020 write-up "A Byzantine failure in the real world" describes this class of failure in production: a partially failed switch, repeated etcd leader elections, and an outage in the systems that depended on that etcd.
+
 ## A partition, traced through an AP store: Cassandra
 
 Three replicas of a key, A and B in region 1 and C in region 2, clients reading and writing at consistency level `ONE`. At t = 0 the inter-region link fails:
@@ -70,9 +86,23 @@ A CP store is unavailable only to clients that can reach nothing but the minorit
 Put numbers on the worst row: a region holding a third of the users, isolated for 30 minutes a year, costs a CP design 30 minutes of writes for those users, 99.994% write availability for them over the year; it costs an AP design 30 minutes of writes that may conflict. Place quorums so that the common events never cost a quorum: three replicas in three zones survive any single-zone loss.
 
 ```viz
-{"type": "system", "scenario": "quorum", "replicas": 3,
- "title": "A write during a partition", "caption": "With N=3 and W=2, the side of the partition holding two replicas can still commit; the side with one replica cannot reach a quorum and must either reject the write (C) or accept it locally and reconcile later (A)."}
+{"type": "system", "scenario": "quorum", "replicas": 3, "title": "A write during a partition", "caption": "With N=3 and W=2, the side of the partition holding two replicas can still commit; the side with one replica cannot reach a quorum and must either reject the write (C) or accept it locally and reconcile later (A)."}
 ```
+
+## Harvest and yield: availability is not binary
+
+Fox and Brewer (1999) split availability in two. **Yield** is the fraction of requests answered; **harvest** is the fraction of the data reflected in each answer. CAP's binary choice assumes an answer must be complete; many operations do not need that.
+
+A search spans 100 index shards, each unreachable 0.1% of the time, independently. Requiring every shard (full harvest) answers only when all 100 are up: $0.999^{100} = 90.5\%$ of the time. Answering with whatever responded keeps yield near 100% while the average harvest stays at 99.9%, and a missing shard costs a few results nobody can tell are absent. Even at 99.99% per shard, full harvest gives 99.0%, two orders of magnitude worse than the shards themselves.
+
+| Operation | Degrade harvest? | What the partial answer looks like |
+|---|---|---|
+| Search, recommendations, feeds | Yes | Results from the shards that answered |
+| Dashboards and analytics | Yes, labelled | "Data from 97 of 100 partitions" |
+| Account balance, order total | No | A partial sum is a wrong number: refuse or serve a labelled stale value |
+| Uniqueness checks, reservations | No | Must see every relevant shard, so refuse |
+
+Designing for harvest means deciding per operation, in advance, what a partial answer is and how the client is told: a flag in the response, a count of partitions answered, and a timeout per shard short enough that one slow shard cannot hold the whole answer hostage.
 
 ## PACELC: the latency you pay every day
 
@@ -111,6 +141,20 @@ for label, bases in (("3 AZs", (1.0, 1.6, 2.1)), ("3 regions", (1.0, 65.0, 75.0)
 | All three | 2.1 / 261 ms | 76.2 / 309 ms |
 
 Two readings. Across regions a consistent write costs about 65× a local one at the median, every time, which is why Spanner-style systems keep a row's quorum inside the region that writes it. And a majority hides one slow replica while waiting for all three exposes you to every stall, so with any non-trivial stall rate a 2-of-3 quorum can have a better tail than a single node; the exact p99s depend on the stall assumption, the shape does not.
+
+## Two regions, priced
+
+A common real brief: users write in US East, a second region (US West, 65 ms away) exists for disaster recovery, and the business asks for "no data loss if a region goes down". Rerunning the simulation above for writes coordinated in US East, with the same jitter and stall model and assumed round trips of 1.0 and 1.6 ms to the two local replicas, 65–66 ms to US West, 75 ms to EU West and 25 ms to US Central:
+
+| Placement | Write p50 / p99 | US East lost: data lost? | Writes during an East–West partition |
+|---|---|---|---|
+| A: one replica, asynchronous copy in US West | 1.0 / 179 ms | Up to lag × write rate: 1,000 writes at 5,000/s and 200 ms of lag | Continue in the East (PA/EL) |
+| B: one replica per region, both must acknowledge | 65 / 271 ms | None | Stop everywhere: every write needs both regions |
+| C: two in US East, one in US West, majority | 1.6 / 70 ms | Whatever US West had not received | Continue in the East; the West cannot write |
+| D: two East, two West, one EU West witness, majority of 5 | 62 / 75 ms | None | Continue on whichever side holds 3 of 5 |
+| E: as D with the witness in US Central | 25 / 67 ms | None | As D |
+
+Read it as a menu of guarantees. C is the everyday answer when region loss may cost a few seconds of writes: in-region latency, and its p99 of 70 ms shows the one catch, that a stall on either local replica sends the write across the country. B buys zero loss at the worst price: every write pays the cross-country round trip and any inter-region blip stops all writes. D and E buy zero loss and survive losing any single region, because every majority of five includes a replica outside US East; placing the tie-breaking witness close to the writer (E) cuts the median from 62 to 25 ms, which is why multi-region configurations of Spanner-style databases pair two read-write regions with a witness region. The asynchronous option's loss is the number to put in front of the business: rate × lag, and lag spikes to seconds during exactly the incidents that cause failovers.
 
 ## Real systems, classified, with caveats
 
@@ -153,12 +197,26 @@ flowchart TD
 ```
 
 The bottom-right box is the senior move: remove the coordination instead of paying for it. Ticket sales can give each region a pre-allocated block of seats (escrow); rate limits can tolerate a few per cent of overshoot; ID generation can pre-allocate ranges per node.
+### Escrow, traced
+
+A concert has 1,000 seats and buyers in three regions. Coordinating every sale through one leader costs each buyer outside its region a 65–150 ms round trip and fails them all during a partition. Escrow splits the invariant "sold ≤ 1,000" into local invariants: US, EU and APAC each hold 300 seats, and 100 stay in a reserve owned by the US leader. Each region sells from its own block with a local conditional decrement, never oversells, and asks the reserve for a batch of 50 when its block falls to 25:
+
+| t | Event | US | EU | APAC | Reserve |
+|---|---|---|---|---|---|
+| 0 | On sale | 300 | 300 | 300 | 100 |
+| 60 s | Local sales | 120 | 40 | 80 | 100 |
+| 61 s | EU falls to 25, requests a batch; granted | 120 | 75 | 80 | 50 |
+| 62 s | APAC is partitioned from the others | 120 | 75 | 80 | 50 |
+| 62–140 s | All three keep selling from their own blocks | 60 | 30 | 0 | 50 |
+| 140 s | APAC's block is empty; its batch request cannot reach the reserve, so APAC buyers see "sold out here, retry shortly" | 60 | 30 | 0 | 50 |
+| 300 s | Partition heals; APAC receives a batch | 40 | 30 | 50 | 0 |
+
+At every row the seats still held plus the seats sold equal 1,000, so no seat was sold twice, and APAC stayed available for 78 seconds of the partition, becoming unavailable only at the margin, when its local share ran out. Coordination fell from 1,000 cross-region decrements to two granted batch requests. The cost is stranding: seats held by a region with no demand look sold out elsewhere until they are rebalanced, so blocks are sized to each region's expected demand and returned to the reserve as the event nears.
 
 ## Multi-leader: the honest AP design
 
 ```viz
-{"type": "system", "scenario": "replication-multi-leader", "nodes": 2,
- "title": "Two leaders accept writes to the same key", "caption": "Each region commits locally in about a millisecond and ships the write asynchronously. When the same key is written on both sides, the system needs a merge rule; last-writer-wins silently discards one of them."}
+{"type": "system", "scenario": "replication-multi-leader", "nodes": 2, "title": "Two leaders accept writes to the same key", "caption": "Each region commits locally in about a millisecond and ships the write asynchronously. When the same key is written on both sides, the system needs a merge rule; last-writer-wins silently discards one of them."}
 ```
 
 Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses data, and clock skew picks which, as the Cassandra trace showed; [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering)); keep both versions as siblings and let the application merge (Riak, the original Dynamo); a data type whose merge is defined (CRDTs); or give each key a home region and forward writes to it, which is AP only for keys whose home is reachable. Choosing AP without naming one of these is the gap interviewers look for.
@@ -179,6 +237,9 @@ Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses dat
 | Timeouts that make CP "neither" | Services that never touched the partitioned store run out of threads | 30-second client timeouts hold threads during a partition | Short timeouts and circuit breakers ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)) |
 | Partitions assumed rare | A GC pause triggers an election and a burst of failed writes | Failure detector timeouts shorter than real pauses | Tune detection to observed pauses; game-day the partition behaviour |
 | Zombie data after repair lapses | Deleted rows reappear | Repair not run within `gc_grace_seconds` after a long partition | Scheduled repair shorter than the grace period |
+| Partial partition flapping | A new leader every few seconds, terms climbing, while every member looks healthy | Term-change metric rising; one pair of members cannot reach each other while both reach a third | Pre-vote and CheckQuorum on; fix or fence the link; alert on term changes per hour |
+| "No data loss" that loses data | A region failover drops the last seconds of writes despite a cross-region replica | The write majority sits inside one region; the remote replica lags | A majority that spans regions (two plus two plus a witness), or state the loss as rate × lag |
+| All-or-nothing fan-out | A query over 100 shards fails about 10% of the time, although each shard is up 99.9% | Full-harvest requirement on a fan-out read | Return partial results with a completeness flag where the operation allows it; per-shard timeouts |
 
 ## Interviewer follow-ups
 
@@ -190,6 +251,10 @@ Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses dat
 
 **"Can a system be CA?"** Model answer: only a single node, whose availability is one machine's. With two nodes and a network, the partition behaviour is C or A whether chosen or not; "CA" usually means "undecided". Common wrong answer: "yes, a single-region relational database".
 
+**"We have two regions and need zero data loss if one burns down. Where do the replicas go?"** Model answer: a majority must always include a replica outside the writing region, so two regions alone force every write to wait for the other one and stop writes on any partition between them (65 ms p50 in the simulation). Add a witness in a third region: two replicas in each main region plus a witness gives a five-member majority that survives any single region, and a witness close to the writer brought the simulated median to 25 ms. If the business can accept seconds of loss, keep the majority local and quote the loss as write rate × lag. Common wrong answer: "synchronous replication to the second region", without noticing that it makes a cross-region partition an outage for both.
+
+**"A switch half-fails: n1 cannot reach n3, but both reach n2. What does Raft do?"** Model answer: without pre-vote, n3 times out and wins with n2's vote, then n1, now cut off from the leader, times out and bumps the term, knocking the leader out, and the cluster flaps between elections. With pre-vote and CheckQuorum, n2 refuses to help anyone campaign while it hears a live leader, so n1 keeps leading with n2 and only n3 is lost. Common wrong answer: "Raft tolerates one failure, so nothing happens", treating a partial partition as a crashed node.
+
 ## What mid-level engineers get wrong
 
 - Answering "CP or AP" with two letters for a whole system.
@@ -198,6 +263,8 @@ Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses dat
 - Assuming CP means the whole system is down during a partition, rather than the minority side.
 - Ignoring PACELC: putting cross-region quorums on every write "for safety" and paying 65 ms each time.
 - Letting long client timeouts turn a CP refusal into a cascading outage.
+- Claiming zero data loss across regions with a write majority that lives in one region.
+- Requiring every shard to answer a fan-out read, so availability falls as the shard count grows, when a partial answer with a completeness flag would do.
 
 ## Senior signals
 
@@ -207,6 +274,7 @@ Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses dat
 - You attach numbers: election time, partition durations, in-region versus cross-region quorum latency.
 - When you choose AP you name the merge rule and refuse last-writer-wins for anything users care about.
 - You look for ways to remove coordination from the hot path: escrow, pre-allocation, idempotent appends.
+- You price replica placements across regions (latency, loss on region failure, behaviour under partition), treat availability as harvest and yield, and know why pre-vote exists.
 
 ## Check yourself
 
@@ -218,32 +286,32 @@ Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses dat
   explanation: >-
     The majority side keeps a quorum and serves reads and writes after at most an election. The isolated replica cannot reach a quorum and refuses. Linearizable reads on the minority side must also refuse, or they could return stale data.
 - q: >-
-    An etcd leader is cut off from both followers. What does it do, given etcd's defaults?
-  options: ["Keeps accepting and committing writes until the partition heals", "Steps down after an election timeout with no majority contact", "Forces a new election by raising its term on every heartbeat", "Promotes itself to a single-node cluster to stay available"]
-  answer: 1
+    Writes originate in US East, and the business wants no data loss if US East is lost. Which placement delivers that with the lowest everyday write latency?
+  options: ["One replica in each region, with every write waiting for both", "Asynchronous replication to West, with an alert on replica lag", "Two replicas each in East and West, plus a nearby witness region", "Two replicas in East and one in West, writing to a majority"]
+  answer: 2
   explanation: >-
-    With CheckQuorum, a leader that has not heard from a majority for an election timeout steps down, so it stops appearing available for writes it can never commit. Its uncommitted entries are truncated when it rejoins, and pre-vote stops it disrupting the cluster with a higher term.
+    A majority of five that always includes a replica outside US East survives its loss with nothing missing, and a witness near the writer kept the simulated median at 25 ms. Two East plus one West commits without the West replica, so it can lose writes; one per region is lossless but pays 65 ms per write and stops on any partition; asynchronous replication loses rate x lag.
 - q: >-
     During a partition, two Cassandra replicas accept different values for the same cell. The later write came from a node whose clock ran 5 ms slow. After the partition heals, what is stored?
-  options: ["Both values, kept as siblings for the application to merge", "The later write, since hinted handoff replays in arrival order", "An error, since reconciliation detects the conflicting writes", "The earlier write, since its timestamp is higher"]
-  answer: 3
+  options: ["The earlier write, since its timestamp is higher", "The later write, since hinted handoff replays in arrival order", "Both values, kept as siblings for the application to merge", "An error, since reconciliation detects the conflicting writes"]
+  answer: 0
   explanation: >-
     Cassandra reconciles per cell by write timestamp, highest wins. The slow clock gave the later write a lower timestamp, so it silently loses. Siblings are a Riak-style design; Cassandra reports no conflict.
 - q: >-
     Why does a strongly consistent write in a three-region deployment cost around 65 times the median latency of a local acknowledgement?
-  options: ["Each cross-region hop needs a fresh TLS handshake per write", "Cross-region links have far lower bandwidth than local ones", "It waits for a majority, which needs a cross-region round trip", "It must fsync to disk three times, once in each region"]
-  answer: 2
+  options: ["Each cross-region hop needs a fresh TLS handshake per write", "It must fsync to disk three times, once in each region", "Cross-region links have far lower bandwidth than local ones", "It waits for a majority, which needs a cross-region round trip"]
+  answer: 3
   explanation: >-
     A majority of three waits for the second-fastest acknowledgement; with replicas in other regions that is a 60–80 ms round trip versus about 1 ms locally. A small write is latency-bound, not bandwidth-bound, and each replica fsyncs in parallel.
 - q: >-
     In the simulation, waiting for 2 of 3 replicas had a far better p99 than waiting for all 3. Why?
-  options: ["A majority write sends less data to each replica", "Waiting for any two hides a single stalled replica", "Majority writes skip the fsync on the slowest replica", "Waiting for all three adds extra round trips per write"]
-  answer: 1
+  options: ["Majority writes skip the fsync on the slowest replica", "A majority write sends less data to each replica", "Waiting for all three adds extra round trips per write", "Waiting for any two hides a single stalled replica"]
+  answer: 3
   explanation: >-
     The write completes at the second-fastest acknowledgement, so one replica stalling (a GC pause, a disk hiccup) does not delay it; waiting for all three makes every replica's stall your stall. The exact p99 depends on the stall rate assumed, but the shape holds for any non-trivial rate.
 - q: >-
     A team chooses AP for user settings with default last-writer-wins. What is the most likely consequence after a 20-minute partition?
-  options: ["Both sides' writes conflict on heal and the merge step deadlocks", "Some writes are silently discarded, with clock skew picking which", "Nothing; LWW guarantees convergence to the truly newest value", "Settings are unavailable on the minority side during the partition"]
+  options: ["Settings are unavailable on the minority side during the partition", "Some writes are silently discarded, with clock skew picking which", "Both sides' writes conflict on heal and the merge step deadlocks", "Nothing; LWW guarantees convergence to the truly newest value"]
   answer: 1
   explanation: >-
     Last-writer-wins converges, but to the highest timestamp, which under skew may be the older write, and no error is raised. AP requires a merge rule that preserves both sides' intent. Unavailability on the minority side is the CP outcome, not this one.

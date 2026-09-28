@@ -355,20 +355,20 @@ The rates, gaps and percentages in this lesson are illustrative assumptions, not
     Processing-time windows assign events by when the job sees them, so twenty minutes of clicks land in the recovery minute: a false spike, with empty minutes before it. Nothing is dropped; it is misattributed. Event-time windows assign each click to the minute it happened.
 - q: >-
     The watermark policy is max event time seen minus 30 seconds. When does the window [10:00, 10:01) get its final firing?
-  options: ["At 10:01:00 on the wall clock of the job's host", "Only once the allowed-lateness period has expired", "When 1,000 events for that window have arrived", "Once an event stamped 10:01:30 or later is seen"]
+  options: ["When 1,000 events for that window have arrived", "Only once the allowed-lateness period has expired", "At 10:01:00 on the wall clock of the job's host", "Once an event stamped 10:01:30 or later is seen"]
   answer: 3
   explanation: >-
     The watermark is derived from event times, not wall-clock time. It reaches 10:01:00 once the maximum event time is 10:01:30. Allowed lateness governs corrections after the final firing, not the firing itself.
 - q: >-
     The job checkpoints at 10:00:30 after emitting 202, emits 278 at 10:00:40, crashes, and replays from the checkpoint. The window's true count is 412. What does an increment sink end up showing?
-  options: ["412, because the checkpoint restores the job's state", "488: the 76 clicks after the checkpoint count twice", "278, because output after the crash is discarded", "202, because the sink rolls back to the checkpoint"]
+  options: ["278, because output after the crash is discarded", "488: the 76 clicks after the checkpoint count twice", "412, because the checkpoint restores the job's state", "202, because the sink rolls back to the checkpoint"]
   answer: 1
   explanation: >-
     The restored job believes it has emitted 202, so it re-emits the delta for clicks it already reported: 76 of them. The sink is outside the checkpoint and keeps everything written. An upsert of the absolute count rewrites the same key and ends at 412.
 - q: >-
     With a 30-second watermark bound, a click at 10:00:01 would first appear on dashboards at 10:01:30. How does the design meet a 30-second freshness target?
-  options: ["Shrink the bound to 1 s so windows close almost at once", "Emit partials every 10 s and a final on the watermark", "Switch windows to processing time for the dashboard only", "Have dashboards read the raw Kafka topic directly"]
-  answer: 1
+  options: ["Shrink the bound to 1 s so windows close almost at once", "Have dashboards read the raw Kafka topic directly", "Emit partials every 10 s and a final on the watermark", "Switch windows to processing time for the dashboard only"]
+  answer: 2
   explanation: >-
     Early firings on a processing-time trigger publish the running count while the window is open, and the watermark firing marks it final. A 1-second bound would divert every click delayed by more than a second; processing-time windows misplace clicks after any delay.
 - q: >-

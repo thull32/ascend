@@ -385,20 +385,20 @@ hints:
     With unit-variance components, a dot product over d terms has standard deviation of about the square root of d, and large scores saturate the softmax into near one-hot weights with vanishing gradients. Scaling keeps scores near unit size so the softmax stays soft and trainable. It changes neither symmetry nor memory, and values are not normalised by it.
 - q: >-
     A custom transformer's training loss falls to almost zero within hours, but its generated text is gibberish. What is the most likely bug?
-  options: ["The learning rate is far too high for a model of this size", "The causal mask lets each position see the token it predicts", "The vocabulary is too small for the training corpus", "The residual connections were removed from each block"]
-  answer: 1
+  options: ["The vocabulary is too small for the training corpus", "The learning rate is far too high for a model of this size", "The residual connections were removed from each block", "The causal mask lets each position see the token it predicts"]
+  answer: 3
   explanation: >-
     Without a correct causal mask, position i can attend to token i + 1 and copy it, so the training loss collapses while nothing useful is learned; at generation time there is no future token to copy. A high learning rate makes the loss unstable rather than near zero, and missing residuals make deep models hard to train, not suspiciously easy.
 - q: >-
     A model has 64 query heads and 8 key/value heads (grouped-query attention). Compared with full multi-head attention, what shrinks by 8 times?
-  options: ["The attention FLOPs for every query head", "The number of query heads the model evaluates", "The key/value cache and the W_K, W_V matrices", "The MLP width and the model dimension d"]
-  answer: 2
+  options: ["The MLP width and the model dimension d", "The key/value cache and the W_K, W_V matrices", "The attention FLOPs for every query head", "The number of query heads the model evaluates"]
+  answer: 1
   explanation: >-
     Each key/value head serves a group of 8 query heads, so only 8 heads' keys and values are projected and cached per token: the cache and the W_K, W_V parameters fall by 64/8 = 8. All 64 query heads still compute their scores, so query-side FLOPs are essentially unchanged, and the MLP and d are unaffected.
 - q: >-
     With RoPE, a query at position 3 and a key at position 1 give a score of −0.127. What score does the same query and key content give at positions 10 and 8?
-  options: ["−0.127, since only the offset of 2 matters", "0.700, since rotation cancels out at larger positions", "A different value, since absolute position shifts the angle", "0.883, since the rotation direction reverses after position 8"]
-  answer: 0
+  options: ["0.883, since the rotation direction reverses after position 8", "A different value, since absolute position shifts the angle", "−0.127, since only the offset of 2 matters", "0.700, since rotation cancels out at larger positions"]
+  answer: 2
   explanation: >-
     RoPE rotates the query by mθ and the key by nθ, so their dot product depends on (m − n)θ only; positions (3, 1) and (10, 8) share the offset 2 and give the same score. 0.700 is the unrotated (offset 0) score, and 0.883 is the score at offset −2, where the key comes after the query.
 - q: >-

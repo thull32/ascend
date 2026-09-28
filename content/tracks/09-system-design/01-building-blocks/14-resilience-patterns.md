@@ -314,8 +314,8 @@ hints:
     Error rate over a window needs a minimum number of samples before it is evaluated, or one failure out of one call is a 100% error rate. Cool-down and half-open settings affect recovery, not the initial trip, and the fallback runs after the trip.
 - q: >-
     A dependency's latency rises to 5 s but only 30% of calls fail outright. The breaker's threshold is 50% failures and slow calls are not counted. What happens to the caller?
-  options: ["It stays closed while slow calls fill the caller's pool", "The breaker opens at once, since latency is above the timeout", "The load balancer removes the dependency from rotation", "Nothing, because 70% of the calls still succeed"]
-  answer: 0
+  options: ["The load balancer removes the dependency from rotation", "The breaker opens at once, since latency is above the timeout", "Nothing, because 70% of the calls still succeed", "It stays closed while slow calls fill the caller's pool"]
+  answer: 3
   explanation: >-
     Failures stay under the threshold, so the breaker never opens, yet each call holds a thread for 5 s and Little's law fills the pool. Counting slow calls as failures, and a bulkhead that caps the dependency's share of threads, both catch it.
 - q: >-
@@ -326,8 +326,8 @@ hints:
     Timeouts must nest so the inner worst case fits inside the outer timeout. A longer inner timeout means the caller abandons and retries while the original attempt still consumes capacity, multiplying load for no benefit; deadline propagation prevents starting work that cannot finish in time.
 - q: >-
     In the lesson's simulation, capacity halves while offered load stays at 1,200 requests per second. Why did the server with no concurrency limit deliver only 39 good responses per second?
-  options: ["Its queue grew until every wait exceeded the deadline", "It rejected most arrivals once its sixteen workers were busy", "The workers crashed from memory pressure as the queue grew", "Retries from clients tripled the load it had to serve"]
-  answer: 0
+  options: ["It rejected most arrivals once its sixteen workers were busy", "Its queue grew until every wait exceeded the deadline", "Retries from clients tripled the load it had to serve", "The workers crashed from memory pressure as the queue grew"]
+  answer: 1
   explanation: >-
     The queue grew by 400 requests per second, so waits quickly exceeded the 500 ms deadline and the server spent nearly all its capacity finishing requests nobody was waiting for. There were no rejections and no retries in the model. A limit near capacity kept goodput at 666 to 800 per second.
 - q: >-

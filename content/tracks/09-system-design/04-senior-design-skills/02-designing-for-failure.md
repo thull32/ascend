@@ -351,20 +351,20 @@ The calculator assumes independence, which is the assumption this lesson warns a
 ```quiz
 - q: >-
     Two regions are each 99.9% available, but a tenth of each region's downtime comes from a global config push that takes both down together. What is the pair's availability?
-  options: ["About 99.99%, set by the shared cause", "About 99.9999%, since the regions are redundant", "About 99.8%, since the availabilities multiply", "About 99.9%, since one region is the limit"]
-  answer: 0
+  options: ["About 99.8%, since the availabilities multiply", "About 99.9999%, since the regions are redundant", "About 99.9%, since one region is the limit", "About 99.99%, set by the shared cause"]
+  answer: 3
   explanation: >-
     Model the config push as a serial term of 0.01% unavailability; the independent part of each region is 0.09%, and both failing independently adds only 0.00008%. The total is about 0.01%, so 99.99%. Six nines assumes independence the shared cause breaks, and multiplying availabilities is the rule for serial dependencies, not redundant ones.
 - q: >-
     An active-passive database replicates asynchronously at 20,000 writes a second, normally 200 ms behind. The inter-region link degraded for 60 seconds before the primary region died. Roughly how many acknowledged writes are lost on failover?
-  options: ["About 1.2 million", "About 4,000", "About 20,000", "About 72 million"]
-  answer: 0
+  options: ["About 72 million", "About 1.2 million", "About 20,000", "About 4,000"]
+  answer: 1
   explanation: >-
     Lost writes are rate × lag at the moment of failure, and the lag had grown to about 60 seconds: 20,000 × 60 = 1.2 million. 4,000 uses the normal 200 ms lag, which is not the lag at failure; 20,000 is one second of writes; 72 million treats the lag as an hour. Acknowledgement by an asynchronous primary does not mean the replica has the write.
 - q: >-
     A quorum needs any 2 of 3 replicas, each 99.9% available and failing independently. What is its availability?
-  options: ["About 99.9997%", "About 99.7%", "About 99.9999999%", "About 99.9%"]
-  answer: 0
+  options: ["About 99.9%", "About 99.9997%", "About 99.7%", "About 99.9999999%"]
+  answer: 1
   explanation: >-
     The quorum fails when two or three replicas are down: 3q²(1 - q) + q³ ≈ 3 × 10⁻⁶ for q = 0.001, so about 99.9997%, or 8 seconds a month. It is worse than a plain redundant pair (10⁻⁶) because any two of three failing is enough. 99.7% treats the replicas as serial.
 - q: >-
@@ -375,14 +375,14 @@ The calculator assumes independence, which is the assumption this lesson warns a
     Replication copies the corruption everywhere within milliseconds, so failover and extra replicas hold the same bad data. Only a copy from before the corruption (point-in-time recovery, a replica applying changes an hour behind, an immutable log) gets you back.
 - q: >-
     An active-active service resolves conflicts by last-writer-wins. A downloads-remaining counter is decremented in two regions within the replication lag. What happens?
-  options: ["One decrement is silently lost", "Both apply, since both were acknowledged", "The later write is rejected as a conflict", "The regions stay permanently divergent"]
+  options: ["One decrement is silently lost", "The later write is rejected as a conflict", "Both apply, since both were acknowledged", "The regions stay permanently divergent"]
   answer: 0
   explanation: >-
     Each region writes a new absolute value; after replication both regions keep the one with the later timestamp, so they converge on a value that reflects only one decrement. Nothing errors and nothing stays divergent. Counters need a CRDT that merges per-region counts, or a home region that owns the writes.
 - q: >-
     A service targets 99.99% availability. Its incidents take about 30 minutes to resolve when a human is paged. What does the target imply?
-  options: ["About one such incident every seven months", "About one such incident a month fits the budget", "The target holds provided the incidents are short", "The target is met if the service is multi-region"]
-  answer: 0
+  options: ["The target holds provided the incidents are short", "About one such incident a month fits the budget", "The target is met if the service is multi-region", "About one such incident every seven months"]
+  answer: 3
   explanation: >-
     99.99% allows about 4.3 minutes a month, 52 minutes a year, so 30-minute incidents fit roughly once every seven months. Meeting the target with normal incident rates needs recovery measured in a minute or two, which means automated detection and rollback. Multi-region helps only if the failover itself is automatic and the regions share no cause.
 ```

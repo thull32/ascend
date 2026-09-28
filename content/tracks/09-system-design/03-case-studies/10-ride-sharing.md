@@ -469,26 +469,26 @@ Uber open-sourced H3 and has written about using hexagons for marketplace work s
     The state is tiny and the rate is huge. An in-memory index, kept as soft state and sharded for write rate rather than size, handles it and rebuilds from the stream in seconds after a crash. The bandwidth is 37.5 MB/s, not GB/s, and the data is worthless after a few seconds, so synchronous replication would be waste.
 - q: >-
     Two matcher threads both see driver 17 as available and both run UPDATE driver_state SET state = 'offered' ... WHERE driver_id = 17 AND state = 'available'. What happens?
-  options: ["Both succeed, and the later offer replaces the earlier one", "The second blocks on the row lock, re-checks, updates 0 rows", "Both fail with a serialization error and must retry the claim", "The one with the older index snapshot is rejected by version"]
-  answer: 1
+  options: ["The second blocks on the row lock, re-checks, updates 0 rows", "The one with the older index snapshot is rejected by version", "Both fail with a serialization error and must retry the claim", "Both succeed, and the later offer replaces the earlier one"]
+  answer: 0
   explanation: >-
     The second UPDATE blocks on the first's row lock and, after the first commits, re-evaluates its WHERE clause against the new row, which is now offered, so it matches nothing and the matcher moves to the next candidate. Check and write are one statement, so there is no window between them; no retry loop or version from the index is involved.
 - q: >-
     In the simulation, batched matching cut mean pickup time by 14% with 11 drivers for 10 riders but only 4.5% with 30 drivers. What should you conclude?
-  options: ["Batching always pays, so every zone should batch requests", "Batching pays most when supply is tight; tune the window per zone", "Greedy matching is optimal once there are more drivers than riders", "The batch should grow until every rider gets the nearest driver"]
-  answer: 1
+  options: ["Batching pays most when supply is tight; tune the window per zone", "The batch should grow until every rider gets the nearest driver", "Greedy matching is optimal once there are more drivers than riders", "Batching always pays, so every zone should batch requests"]
+  answer: 0
   explanation: >-
     With plentiful drivers, greedy choices rarely conflict, so the optimal assignment gains little while the batch window still adds delay. With scarce supply, one greedy choice often steals the only good driver for the next rider. Greedy is not optimal even with surplus drivers, and no assignment guarantees each rider their individually nearest driver.
 - q: >-
     Postgres sustained 89,400 position updates a second with synchronous_commit off, and its GiST index grew from 6.5 MB to 178 MB in 30 seconds. What does the growth show?
-  options: ["GiST indexes store every historical position by design", "Async commit turns off the page-level compression of the index", "Each update leaves a dead tuple and index entry for vacuum", "The index was rebuilt from scratch on every committed update"]
+  options: ["GiST indexes store every historical position by design", "The index was rebuilt from scratch on every committed update", "Each update leaves a dead tuple and index entry for vacuum", "Async commit turns off the page-level compression of the index"]
   answer: 2
   explanation: >-
     Under MVCC an UPDATE creates a new row version, and because the indexed column changed it cannot be a HOT update, so each update also inserts a new GiST entry. The old versions and entries remain until vacuum removes them, and at this rate vacuum falls behind. That churn, not query speed, is why live positions do not belong in a relational table.
 - q: >-
     The matcher needs driving times from 14 nearby drivers to one pickup. What is the efficient way to get them from plain Dijkstra?
-  options: ["Run Dijkstra once from each driver to the pickup", "Run Dijkstra from the pickup on the reversed graph", "Run Floyd-Warshall once over the whole city graph", "Use straight-line distance and skip the road graph"]
-  answer: 1
+  options: ["Use straight-line distance and skip the road graph", "Run Dijkstra once from each driver to the pickup", "Run Dijkstra from the pickup on the reversed graph", "Run Floyd-Warshall once over the whole city graph"]
+  answer: 2
   explanation: >-
     One search from the pickup over reversed edges gives every driver's time to the pickup, and it can stop once all 14 are settled, about 2,000 nodes in the grid measurement. Fourteen separate searches cost fourteen times as much; Floyd-Warshall is cubic in a million nodes; straight-line distance ranks the car across the river first.
 ```

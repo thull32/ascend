@@ -45,6 +45,7 @@ Every social product has the same screen: recent posts from the people you follo
 | Post storage | $10^8$ × 1 KB a day | 100 GB/day; 110 TB/year with three replicas |
 | Candidate features | 120,000 loads × 300 candidates | 36 million key lookups/s, batched |
 | Egress | 120,000 × 30 KB of JSON | 3.6 GB/s, ~29 Gbit/s before media (CDN) |
+| Social graph | $5 \times 10^8$ users × 300 follows = $1.5 \times 10^{11}$ edges, stored in both directions at ~16 B | 4.8 TB raw; ~22 TB with LSM overhead (×1.5) and three replicas |
 
 | Tier | Sizing | Count |
 |---|---|---|
@@ -180,6 +181,21 @@ This is [Merge k Sorted Lists](/practice/merge-k-sorted-lists) in production, an
  "caption": "Post IDs sort by time, so a timeline and a celebrity list merge like two sorted lists: compare heads, take one, advance. The feed merges several such streams at once with a heap."}
 ```
 
+### The hybrid's cost, swept
+
+The threshold moves work between the write path and the read path, so price both sides. Rerun of the fan-out model (tail exponent 1.3, seven independent samples of a million accounts, medians reported), with accounts above the threshold counted from the fitted tail at 500 million accounts, 3,000 posts a second at peak and half of followers active:
+
+| Pull above | Accounts pulled | Push inserts/s at peak | Pulled streams merged per load | Their lists (50 IDs × 16 B) |
+|---|---|---|---|---|
+| Never (pure push) | 0 | 1.23M; 1.13M to 2.48M across samples | 0 | 0 |
+| 450,000 followers | ~5,500 | 922,000; 850,000 to 980,000 | 14 | 4.4 MB, in every feed process |
+| 100,000 | ~39,000 | 771,000 | 27 | 31 MB, in every process |
+| 10,000 | ~780,000 | 528,000 | 61 | 620 MB: must move to a shared cache |
+
+The merge itself is cheap: measured in CPython 3.14 on this lesson's workstation, `home_candidates` took a median 51 µs with 14 pulled streams and 65 µs with 61, because it stops after 300 IDs and extra streams only deepen the heap. At 120,000 loads a second that is 6–8 cores, next to 600 for the rest of the feed service. The real boundary is where the lists live. Down to about 100,000 followers the whole celebrity set replicates into every process; at 10,000 it is 620 MB per process, so it moves to a shared cache and every load becomes 61 network reads, 7.3 million key reads a second, a new tier to buy.
+
+Two readings. Lowering the threshold from 450,000 to 100,000 removes only another 16% of push work for a sevenfold larger celebrity set. And the threshold's biggest effect is on predictability, not the median: across samples of the same distribution, pure push needed between 1.13 and 2.48 million inserts a second depending on how large the largest few accounts happened to be, while push with the threshold stayed between 850,000 and 980,000. A threshold caps what one account can cost, which is what makes the fan-out fleet sizeable at all. The same volatility explains the earlier table's 54%: the share of work that pulling removes swung from 19% to 66% between samples, while fan-out per pushed post stayed near 600.
+
 ## Deep dive 2: one post, traced from write to feed
 
 An author with 3,000 followers (1,500 active) posts; a second author with 300,000 (150,000 active) posts at the same moment. Graph page reads take ~5 ms; a pipelined batch of `LPUSH` + `LTRIM` to the affected Redis shards takes ~10 ms of wall time.
@@ -216,6 +232,21 @@ Three edge cases fall out of the trace. **The author's own feed**: the author re
 
 **Deletes are filtered at read time, not fanned out.** Set `deleted = true`, invalidate the post cache, and hydration drops the post; a small synchronous denylist covers legal takedowns faster than any cache TTL. **Blocks and unfollows** are filtered the same way from the viewer's cached sets; stale IDs age out of the 800 cap. **Rank a snapshot**: take ~300 candidates, rank, return 20, and store the ranked order under a snapshot ID for about 30 minutes, which the cursor references, so page 2 continues the same list. The **new-posts pill** compares the live timeline and celebrity heads with the snapshot: one Redis call, no counters. **Every dependency has a fallback**: ranker late, serve reverse-chronological; post cache miss, batch-read the store; one post fails to hydrate, drop the post, not the page.
 
+## Deep dive 4: a live event, when fan-out falls behind
+
+A final goes in at a quiet hour: the post rate jumps from the 1,000/s average to 10,000/s for five minutes. At the 450,000 threshold each post costs about 307 timeline inserts on average (922,000 inserts/s ÷ 3,000 posts/s), and the fan-out fleet can do 1.0 million a second, 10% above the planned peak:
+
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Insert demand during the spike | 10,000 × 307 | 3.07 million/s, three times capacity |
+| Backlog after 5 minutes | (3.07M − 1.0M) × 300 s | 622 million inserts |
+| Lag for a post made at the end of the spike | 622M ÷ 1.0M/s, first in first out | ~10 minutes |
+| Time to drain after the spike | 622M ÷ (1.0M − 307,000 of normal demand) | ~15 minutes |
+
+A goal posted at minute five reaches followers' feeds at minute fifteen, when everyone watching has moved on. Adding workers does not help within the event: a fleet three times larger costs three times as much all year for five minutes of it, and new workers take minutes to start. The fix is to choose which inserts matter. **Online first**: split fan-out into two lanes by whether the follower has been active in the last five minutes. If a quarter of active followers are online during the event (an assumption to replace with your own telemetry), the priority lane needs 768,000 inserts/s, inside capacity, so people watching see posts within seconds. The other lane gets the 232,000/s left over, and better still is skipped: mark those timelines stale and let the rebuild-on-open path from the dormant-user follow-up assemble them when each user returns, spread over hours instead of concentrated in minutes.
+
+Monitor fan-out lag as the SLO it is (p99 under 5 s), per lane, measured from post creation to the timeline write, not consumer-group offset lag, which says how many events are waiting but not how old the oldest one is.
+
 ## Failure modes
 
 | Failure | Symptom | Diagnosis | Fix |
@@ -228,6 +259,8 @@ Three edge cases fall out of the trace. **The author's own feed**: the author re
 | Deleted content reappears | Takedown visible again | A lost cache invalidation; TTL is the backstop | Synchronous denylist at hydration, checked every page |
 | Social graph slow | Fan-out stalls; follows queue; reads unaffected | Graph read latency on fan-out workers | Reads never touch the graph synchronously except the viewer's cached following set; fan-out catches up on recovery |
 | Region loss | Readers fail over; their timelines are cold in the new region | Timeline cache is regional | Serve degraded feeds from replicated `user_posts` and celebrity lists; rebuild timelines rate-limited |
+| Pull threshold set too low | Feed-service memory climbs and a new shared cache appears on the read path | Celebrity set grows past what fits in every process (620 MB at 10,000 followers) | Raise the threshold; push work saved below 100,000 followers is small |
+| Live-event fan-out lag | Posts from the moment reach feeds ten minutes late while the event is on | Insert demand above fleet capacity; lag measured per lane from post creation | Online-first lane; skip offline followers and rebuild on open; alert on lag age, not queue length |
 
 ## Trade-offs: what was rejected
 
@@ -263,6 +296,10 @@ Three edge cases fall out of the trace. **The author's own feed**: the author re
 
 **"How do you add ML ranking without breaking pagination and the new-posts pill?"** Model answer: rank a snapshot of ~300 candidates, store it for 30 minutes under an ID in the cursor, read later pages from the snapshot, compare the live head with it for the pill, and build a new snapshot on pull-to-refresh. Common wrong answer: re-rank on every page, which repeats and skips items.
 
+**"Why not lower the pull threshold to 10,000 followers and save push work?"** Model answer: because the saving is small and the cost moves somewhere worse. In the sweep, going from 450,000 to 100,000 removed only another 16% of inserts, and at 10,000 the celebrity set is about 780,000 accounts, 620 MB of lists that no longer fit in every feed process, so every load makes about 61 network reads, 7.3 million a second into a new cache tier. The threshold should be as high as the lag target allows. Common wrong answer: "pulling is free because the merge is cheap", which is true of the merge and false of where the lists live.
+
+**"A World Cup goal: the post rate goes to 10× for five minutes. What do feeds look like?"** Model answer: at three times fan-out capacity the backlog reaches about 600 million inserts, the last posts of the spike land ten minutes late, and the queue takes another quarter of an hour to drain. So fan-out runs in lanes: followers online in the last few minutes first, which fits in capacity, and offline followers are skipped and rebuilt when they open the app. Lag is alerted on its age per lane. Common wrong answer: "autoscale the workers", which arrives after the moment has passed and sizes the fleet for five minutes a year.
+
 ## What mid-level engineers get wrong
 
 - Sizing fan-out from the average follower count; the per-post fan-out can be 30× larger.
@@ -272,6 +309,8 @@ Three edge cases fall out of the trace. **The author's own feed**: the author re
 - Offset pagination on a feed whose head moves every second.
 - Waiting for fan-out to show authors their own post.
 - Maintaining timelines for users who have not opened the app in weeks.
+- Lowering the pull threshold to save push work, then discovering the celebrity lists no longer fit in the feed processes.
+- Treating fan-out as one queue during a live event, so the followers who are watching wait behind millions of inserts for people who are not.
 
 ## Exercise
 
@@ -340,6 +379,7 @@ hints:
 - You name the timeline cache as the dominant cost and give the levers, in order, for cutting it.
 - You guarantee read-your-own-posts by merging at read time, not by waiting for fan-out.
 - Every dependency on the read path has a fallback, and the degraded feed is thinner, never empty.
+- You price both sides of the threshold (push inserts against pulled streams and where their lists live), know the threshold's main effect is bounding the tail, and run fan-out in lanes by attention during spikes.
 
 ## Check yourself
 
@@ -352,8 +392,8 @@ hints:
     The average hides the tail. One post from the largest account is 100 million inserts, about 111 seconds of the entire fan-out capacity, which blows the lag target for everyone else. That is why accounts above a derived threshold are pulled at read time. Storing 3,000 posts/s is the easy part.
 - q: >-
     Every follow edge is one follower and one followee, so average followers equals average following, 300. Why can fan-out per post still be far above 300?
-  options: ["Fan-out counts each follower twice, once for the post and once for the reply", "Accounts with large audiences post more, so each post's reach is weighted up", "Inactive followers are counted in fan-out even though their feeds are skipped", "The equality only holds for undirected graphs, not for directed follow graphs"]
-  answer: 1
+  options: ["Inactive followers are counted in fan-out even though their feeds are skipped", "The equality only holds for undirected graphs, not for directed follow graphs", "Accounts with large audiences post more, so each post's reach is weighted up", "Fan-out counts each follower twice, once for the post and once for the reply"]
+  answer: 2
   explanation: >-
     Fan-out is paid per post, so the relevant average weights each account by how often it posts, and heavy posters skew toward big audiences. In the simulation the per-post fan-out ranged from 1.7x to 31x the average depending on the tail. The equality itself holds in directed graphs, and skipping inactive followers reduces fan-out rather than inflating it.
 - q: >-
@@ -370,14 +410,14 @@ hints:
     Filtering at hydration is one write plus a cache invalidation, and a small synchronous denylist covers urgent takedowns. Removing an ID from millions of timelines is fan-out for every delete, and it races with the original fan-out. Ageing out alone would show deleted content for days.
 - q: >-
     A user posts and refreshes 7 ms later, before fan-out has run. How does the design guarantee they see their own post?
-  options: ["Fan-out writes to the author's own timeline synchronously before 201", "The feed service merges the viewer's own recent posts into every load", "It can't; with async fan-out the user must wait for the lag to pass", "The client caches the post locally and prepends it until fan-out lands"]
+  options: ["The client caches the post locally and prepends it until fan-out lands", "The feed service merges the viewer's own recent posts into every load", "Fan-out writes to the author's own timeline synchronously before 201", "It can't; with async fan-out the user must wait for the lag to pass"]
   answer: 1
   explanation: >-
     Merging your own recent posts from user_posts at read time makes read-your-writes hold by construction, for one extra small partition read. A synchronous self-insert is a second write path that can fail independently, and client-only caching breaks across devices.
 - q: >-
-    Feed pagination uses ?page=2 with 20 items per page. Seven new posts arrive between page 1 and page 2. What does the user see, and what is the fix?
-  options: ["Page 2 shows the seven new posts first; re-rank each page separately", "Seven page-1 items repeat on page 2; use a cursor over a ranked snapshot", "Nothing, because the offset is taken against the timeline at page 1", "Seven older items are skipped on page 2; fetch them with a larger page size"]
-  answer: 1
+    During a live event the post rate rises tenfold and fan-out demand reaches three times capacity for five minutes. Which change keeps feeds fresh for the people watching?
+  options: ["Fan out first to followers who were online in the last few minutes", "Lower the pull threshold so that fewer accounts are pushed at all", "Raise the partition count of the post topic to add parallelism", "Add fan-out workers when consumer lag crosses an alert threshold"]
+  answer: 0
   explanation: >-
-    Offsets are relative to a list that changed underneath them, so the new items push old ones down and the last seven items of page 1 reappear at the top of page 2. Nothing is skipped; items repeat. A cursor over a stored ranked snapshot continues after a specific item and stays stable as the head grows.
+    One queue builds about 600 million inserts of backlog, so posts land ten minutes late. A priority lane for followers online now fits inside capacity, and offline followers can be rebuilt when they open the app. New workers arrive after the moment and size the fleet for five minutes a year; lowering the threshold to 100,000 saved only 16% in the sweep; partitions add parallelism, not insert capacity.
 ```

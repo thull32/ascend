@@ -406,7 +406,7 @@ hints:
 ```quiz
 - q: >-
     A team wants a graph database for a feature that shows each user's friends and friend-of-friend suggestions ranked by mutual friends. What is the best response?
-  options: ["Use a vector database to find users with similar friend lists", "Adopt a graph database, since friendships are a graph at any depth", "Stay relational; a composite index serves two hops in milliseconds", "Use a document store and embed each user's friends in their record"]
+  options: ["Adopt a graph database, since friendships are a graph at any depth", "Use a vector database to find users with similar friend lists", "Stay relational; a composite index serves two hops in milliseconds", "Use a document store and embed each user's friends in their record"]
   answer: 2
   explanation: >-
     Two fixed hops over a primary-key index on (user_id, friend_id) measured about 1 ms for 2,500 two-hop rows on a 5-million-edge graph, transactional and with no second system. Index-free adjacency pays off as traversals get deeper and branchier; a supernode would hurt either store equally.
@@ -418,20 +418,20 @@ hints:
     Every distinct label combination is a separate series with its own index entries and in-memory head chunk, so a high-cardinality label multiplies series count by the number of customers. Series cardinality, not sample size or scrape volume, drives TSDB memory. Unbounded identifiers belong in logs or traces.
 - q: >-
     In Gorilla's value encoding, a gauge reads 24.0 and then 24.0 again. How many bits does the second value cost, and why?
-  options: ["64 bits, since every value is stored as a raw double", "1 bit, since its XOR with the previous value is zero", "9 bits, since the delta falls in the smallest range", "14 bits, since a new window of meaningful bits is needed"]
-  answer: 1
+  options: ["64 bits, since every value is stored as a raw double", "14 bits, since a new window of meaningful bits is needed", "9 bits, since the delta falls in the smallest range", "1 bit, since its XOR with the previous value is zero"]
+  answer: 3
   explanation: >-
     Gorilla XORs each double with the previous one; identical values give zero, encoded as a single 0 bit. A value that differs in a few bits costs a control prefix plus the meaningful bits, and only the first value is stored raw. The 9-bit range code belongs to timestamps, not values.
 - q: >-
     A BRIN index on ts served one-hour queries in about 1 ms. After a backfill that loaded historical data one series at a time, the same queries read the whole table. What happened?
-  options: ["BRIN only indexes the newest partition, so older rows are skipped", "The backfill filled BRIN's 24 kB limit, so new ranges are unindexed", "Rows no longer follow time order, so every range spans the period", "BRIN needs ANALYZE after every insert, or its summaries go stale"]
+  options: ["BRIN only indexes the newest partition, so older rows are skipped", "BRIN needs ANALYZE after every insert, or its summaries go stale", "Rows no longer follow time order, so every range spans the period", "The backfill filled BRIN's 24 kB limit, so new ranges are unindexed"]
   answer: 2
   explanation: >-
     BRIN stores only the minimum and maximum ts of each 128-page range. When rows arrive in time order the ranges are narrow and a one-hour query reads about 128 pages; loading series by series makes every range cover the whole backfill period, so every range matches. Measured, a shuffled copy took 94 ms against 1.1 ms. Reload in time order or use a B-tree.
 - q: >-
     A pgvector query with WHERE tenant_id = 7 ORDER BY embedding <=> $1 LIMIT 10 returns only 3 rows, although the tenant has thousands of chunks. Tenant 7 holds 1% of rows and hnsw.ef_search is 40. What is happening?
-  options: ["Cosine distance ignores WHERE clauses, so matching rows are dropped", "HNSW yields 40 candidates and the filter keeps about 1% of them", "The LIMIT is applied before ORDER BY, so rows are cut off too early", "The HNSW index is corrupt and silently skips parts of the graph"]
-  answer: 1
+  options: ["HNSW yields 40 candidates and the filter keeps about 1% of them", "The HNSW index is corrupt and silently skips parts of the graph", "The LIMIT is applied before ORDER BY, so rows are cut off too early", "Cosine distance ignores WHERE clauses, so matching rows are dropped"]
+  answer: 0
   explanation: >-
     The index returns ef_search candidates in similarity order and the filter is applied afterwards; at 1% selectivity, 40 candidates leave well under one survivor on average. Iterative scans (pgvector 0.8.0+), a beam near k divided by selectivity, per-tenant partitions or partial indexes, or exact search over the tenant's 50,000 vectors fix it.
 - q: >-

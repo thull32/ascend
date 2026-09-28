@@ -66,6 +66,22 @@ A balancer presents one address for many replicas, picks a replica per request o
  "caption": "A replica whose requests take three times longer accumulates in-flight requests and stops receiving new ones. Round robin would keep feeding it its full share."}
 ```
 
+## Affinity without sticky sessions
+
+Statelessness has a price you can measure: every replica's in-process cache sees the whole key space. Route requests by a hash of the key instead, and each replica caches only its share, so the fleet's caches add up instead of duplicating each other. Simulated with 20 replicas, each holding an LRU cache of 10,000 entries, 1.5 million requests over a million keys drawn from a Zipf distribution, hit ratios measured after a 20% warm-up:
+
+| Routing | Hit ratio, Zipf s = 1.0 | Busiest replica ÷ average | Hit ratio, Zipf s = 0.8 | Busiest ÷ average |
+|---|---|---|---|---|
+| Random (or round robin) | 58% | 1.01 | 23% | 1.01 |
+| `hash(key) mod 20` | 83% | 2.21 | 61% | 1.24 |
+| Consistent hash, 100 virtual nodes per replica | 83% | 2.51 | 60% | 1.32 |
+| Consistent hash with bounded load, ε = 0.25 | 81% | 1.25 | 60% | 1.25 |
+| Consistent hash with bounded load, ε = 0.1 | 80% | 1.10 | 59% | 1.10 |
+
+Hash routing cut misses from 42% to 17% at s = 1.0 and from 77% to 39% at s = 0.8: the flatter the popularity curve, the more affinity pays. The price is load skew. At s = 1.0 the most popular key alone is 6.9% of all requests, and pure hashing sends all of it, plus that replica's ordinary 5% share, to one replica. **Consistent hashing with bounded loads** (Mirrokni, Thorup and Zadimoghaddam, 2016) caps each replica at $(1 + \varepsilon)$ times the average and walks clockwise on the ring when the owner is full, so the hottest keys spill onto a neighbour, which caches them too. At ε = 0.25 it kept 81% of the hit ratio with the busiest replica at 1.25× average. HAProxy exposes it as `hash-balance-factor`.
+
+This is not a sticky session. Affinity here is an optimisation: when a replica dies, its keys move to their next owner, which serves them from the shared cache or the database, slower for a minute and never wrong. A sticky session that holds the only copy of a cart is state; a key-affine cache is not. Use affinity when a local cache or a per-key batching buffer is worth it, and keep every replica able to serve every request.
+
 ## A load test, simulated
 
 Where is the knee? A discrete-event simulation of 10 replicas, each with 8 worker threads and a service time of 15 ms plus an exponential tail averaging 5 ms (20 ms mean, so the fleet's capacity is 4,000 rps), fed by Poisson arrivals, 120,000 requests per point, discarding the first 10% as warm-up:
@@ -133,6 +149,33 @@ The step trace shows why it took two rounds. At 6,000 rps, 8 pods can only repor
 ## Deploys are capacity events
 
 A rolling deploy removes replicas from service on purpose. A Kubernetes Deployment defaults to `maxUnavailable: 25%` and `maxSurge: 25%`: up to a quarter of the desired pods may be down at once, while up to a quarter extra may be created. On a 20-pod fleet at 70% utilisation, the worst moment of a rollout leaves 15 serving pods, which is 93% utilisation, past the knee in the load test above; if new pods also start cold, the p99 of every deploy shows it. Two fixes: `maxUnavailable: 0` with a surge, so capacity never drops below 100% (the rollout needs spare cluster capacity instead), or a utilisation target that already allows for a quarter of the fleet being away. Deploy fifty times a day and this is not an edge case; it is the fleet's normal state for hours.
+
+## Draining a replica without dropping requests
+
+Every scale-in and every rolling deploy removes replicas, and the removal races with routing. When a pod is deleted, Kubernetes does two things in parallel: the kubelet runs the pod's `preStop` hook and then sends `SIGTERM`, while the endpoints machinery marks the pod as terminating and every router learns about it in its own time. Traced for an application that exits as soon as `SIGTERM` arrives:
+
+| t | Control plane and routers | The pod | Traffic |
+|---|---|---|---|
+| 0 | API server marks the pod terminating | | |
+| ~0.1 s | EndpointSlice updated: endpoint not ready | No `preStop`: `SIGTERM` arrives; the server finishes 2 in-flight requests and exits at 0.3 s | |
+| 0.3 s to ~2 s | kube-proxy on each node rewrites its iptables or IPVS rules as the update reaches it | Gone | Connections through nodes not yet updated are refused |
+| up to several seconds | Ingress controllers, mesh sidecars and cloud load balancers that target pod IPs update their upstream lists | Gone | 502s from each of them until it catches up |
+
+The lags are typically sub-second to a few seconds and grow with cluster size and controller load, so measure yours. The cost adds up: 20 pods serving 1,000 requests a second (50 each), 50 deploys a day, is 1,000 pod terminations; a 2-second window of misrouted traffic per termination is $1{,}000 \times 50 \times 2 = 100{,}000$ failed requests a day, 0.12% of the 86.4 million served, more than a 99.9% availability target's entire error budget, spent on deploys alone.
+
+The fix is an ordering, not a bigger fleet:
+
+1. **`preStop`: wait.** Sleep 5–15 s, longer than the slowest router's update lag, while still serving normally. Recent Kubernetes versions offer a built-in sleep action for this hook; older ones run `sleep` in the container.
+2. **On `SIGTERM`: stop accepting, finish what is in flight.** Close idle keep-alive connections (`Connection: close` on the next HTTP/1.1 response, `GOAWAY` on HTTP/2) so clients reconnect elsewhere instead of reusing a socket that is about to close.
+3. **Exit before `terminationGracePeriodSeconds`** (30 s by default), after which the kubelet sends `SIGKILL`. The sleep plus the longest request must fit inside it; long-running requests need a longer grace period or a design that lets them resume.
+
+A cloud balancer adds its own drain: an AWS target group keeps in-flight requests on a deregistering target for `deregistration_delay` (300 s by default) but sends it no new ones. The failure is never the drain itself; it is exiting before every router has stopped sending.
+
+## Long-lived connections do not rebalance themselves
+
+Request-level balancing spreads load the moment a replica joins. Connection-level load does not: WebSockets, gRPC streams and database connections stay where they were opened. Add 5 replicas to 10 that hold 50,000 WebSocket connections each and the new ones start at zero; only reconnections land on them. If 2% of connections close and reconnect every minute (mobile churn), the old replicas decay towards the new average of 33,333 and take $\ln(50{,}000 / 36{,}667) / 0.02 \approx 15.5$ minutes to come within 10% of it; at 0.2% a minute (desktop clients on stable networks) it takes 155 minutes.
+
+Two consequences. An autoscaler that scales on CPU adds replicas that receive almost nothing, sees the old replicas still hot, and adds more: an overshoot that ends at the maximum replica count. And the fix is active: old replicas ask a controlled fraction of their clients to reconnect (a close frame with a "reconnect elsewhere" code, or a gRPC `GOAWAY` after a maximum connection age), paced so the new replicas' TLS handshakes stay within their capacity. The [chat system case study](/learn/system-design/case-studies/chat-system) runs this at 200,000 connections per gateway.
 
 ## Under the hood: the Kubernetes Horizontal Pod Autoscaler
 
@@ -235,6 +278,9 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
 | Cold-start herd | p99 rises on every scale-out; new replicas fail right after joining | Least-requests sends zero-in-flight replicas a burst before JIT and caches warm | Readiness that warms first; slow start over 30–60 s |
 | Saturated metric | Autoscaler adds too few pods during a spike | CPU pinned at 100% hides true demand | Scale on concurrency or queue depth; step policies; headroom |
 | Shared dependency saturates | Adding replicas makes latency worse | Database connections and CPU climb with fleet size | The ordered list above; diagnose [I/O-bound versus CPU-bound](/learn/systems/performance-engineering/io-bound-vs-cpu-bound) before scaling |
+| 502s on every deploy | Error spikes lasting a few seconds that line up with rollouts and scale-ins | Errors from the ingress or balancer naming pods that no longer exist; the app exits on `SIGTERM` at once | `preStop` sleep longer than the routers' update lag, then drain in-flight work and close keep-alives |
+| New replicas idle after scale-out | Old replicas stay hot while new ones sit near zero; the autoscaler keeps adding pods | Per-replica connection counts; long-lived WebSocket or gRPC connections | Paced reconnect requests from overloaded replicas; maximum connection age; scale on connections, not CPU |
+| Hot key under affinity routing | One replica at 2–3× the others' load after switching to hash routing | Per-replica request rates; the top keys by request count | Bounded-load consistent hashing; replicate or locally cache the hottest keys |
 
 ## Interviewer follow-ups
 
@@ -246,6 +292,10 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
 
 **"40 replicas with 20-connection pools, and `max_connections` is 500. Now what?"** Model answer: 800 wanted, 500 available. Little's law says what is needed: 2,000 rps × 5 ms is 10 concurrent queries, so the pools are 80× oversized. PgBouncer in transaction mode with a server pool of 50–100, per-replica pools of about 5 to cover bursts and the query p99, and a pool-acquire timeout so a slow database fails requests instead of stacking threads. Common wrong answer: raising `max_connections` to 1,000, which adds processes and memory to a database that needed fewer connections, not more.
 
+**"Every deploy causes a burst of 502s for a few seconds. Why, and what do you change?"** Model answer: pod termination and endpoint removal run in parallel, so the pod gets `SIGTERM` and exits while kube-proxy, the ingress and the cloud balancer are still sending it traffic. Add a `preStop` sleep longer than the slowest router's update lag, stop accepting on `SIGTERM` while finishing in-flight requests, close keep-alive connections, and keep the whole sequence inside the grace period. With 1,000 terminations a day at 50 rps a pod, a 2-second window costs 100,000 failed requests, more than a 99.9% target's budget. Common wrong answer: "add retries at the client", which hides the bug and adds load during every deploy.
+
+**"Would you route requests by user ID so each replica's cache stays warm?"** Model answer: yes, if the hit-ratio gain is worth it and correctness never depends on it: in the simulation hashing lifted a 58% local hit ratio to 83%. Use consistent hashing with bounded loads, because pure hashing put 2.5× the average load on the replica that owned the hottest keys, and keep every replica able to serve any user from shared state when ownership moves. Common wrong answer: "that is sticky sessions, so no", or "yes" with plain `hash mod N`, which remaps almost every key when N changes.
+
 ## What mid-level engineers get wrong
 
 - Keeping sessions or carts in process memory and adding sticky sessions to hide it.
@@ -256,6 +306,8 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
 - Deep health checks against shared dependencies, turning a database blip into a fleet-wide ejection.
 - Rolling deploys with the default 25% unavailable on a fleet already near its knee.
 - Scaling the stateless tier when the database is the bottleneck.
+- Exiting on `SIGTERM` immediately, so every deploy sends a few seconds of traffic to a pod that no longer listens.
+- Scaling long-lived-connection services on CPU, and expecting new replicas to receive connections that are already open elsewhere.
 
 ## Senior signals
 
@@ -264,6 +316,7 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
 - You know the latency knee (p99 doubling from 80% to 95% with independent queues) and size utilisation targets for N-1.
 - You size pools and fleets with Little's law and say what happens to in-flight work when a dependency's latency triples.
 - You describe autoscaling as a control loop with delays and a saturating sensor, and you know the HPA's 15 s loop, 10% tolerance and 5-minute scale-down window.
+- You treat every replica removal as a drain with an ordering (`preStop` wait, stop accepting, finish in flight, exit inside the grace period) and use key affinity with bounded loads as an optimisation, never as state.
 - You walk the ordered list before sharding, with the number that triggers each step.
 
 ## Check yourself
@@ -277,14 +330,14 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
     Little's law: L = λW = 3,000 x 0.04 = 120. That is the number of threads or connections the fleet needs before requests queue; 12 forgets the unit conversion and 1,200 would be a 400 ms latency.
 - q: >-
     In the simulated load test, random routing's p99 went from 49 ms at 80% utilisation to 127 ms at 95%, while least-of-two-choices stayed near 43 ms. Why the difference?
-  options: ["Two-choice routing sends fewer requests to the fleet as a whole", "Random routing leaves one replica's queue full while others idle", "Two-choice routing gives every replica extra worker threads", "Random routing forces requests to retry more often under load"]
-  answer: 1
+  options: ["Random routing forces requests to retry more often under load", "Two-choice routing gives every replica extra worker threads", "Random routing leaves one replica's queue full while others idle", "Two-choice routing sends fewer requests to the fleet as a whole"]
+  answer: 2
   explanation: >-
     With random routing each replica is an independent queue, so one can be backed up while its neighbours are idle. Picking the less loaded of two pools the queues and the fleet behaves more like one large server, which keeps queueing low until close to 100%. Total load and thread counts are the same in both runs.
 - q: >-
     During a sudden 3x traffic step, a CPU-based autoscaler with a 60% target and 8 saturated pods first asks for only 14 pods, although 25 are needed. Why?
-  options: ["The autoscaler caps any single step at 14 pods by default", "The pods report more CPU than they are really using", "Saturated pods report 100% CPU, hiding the real demand", "The 10% tolerance suppresses most of the increase"]
-  answer: 2
+  options: ["Saturated pods report 100% CPU, hiding the real demand", "The 10% tolerance suppresses most of the increase", "The pods report more CPU than they are really using", "The autoscaler caps any single step at 14 pods by default"]
+  answer: 0
   explanation: >-
     CPU cannot exceed 100%, so eight saturated pods look like 8 x 1.0 / 0.6 = 14 pods of demand. Only after those pods boot does the metric reveal more. Scaling on concurrency or queue depth, step policies, or headroom avoid this. The default scale-up limit here is the larger of doubling or 4 pods, which allows 16.
 - q: >-
@@ -295,14 +348,14 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
     A deep check shares a failure domain: a dependency blip fails every check at once and the balancer ejects everything. Use shallow liveness and local readiness for the balancer. The balancer knows nothing about the database; it only sees replicas failing.
 - q: >-
     A service must survive losing one replica at peak, and replicas keep a good p99 up to about 80% utilisation. With 3 replicas, what is the highest safe peak utilisation per replica?
-  options: ["About 27%", "About 72%", "About 80%", "About 53%"]
+  options: ["About 72%", "About 80%", "About 27%", "About 53%"]
   answer: 3
   explanation: >-
     After losing one of three, the other two carry the load, so each normal utilisation is scaled by 3/2; to stay at or below 80% it must be at most 80% x 2/3 = 53%. Ten replicas allow 72%, which is why small fleets pay the most for redundancy.
 - q: >-
-    You double the number of stateless replicas and p99 latency gets worse. The most likely explanation is:
-  options: ["A too-short autoscaling cooldown is now churning the replicas", "The new replicas are running a different, slower code version", "The load balancer's per-replica bookkeeping now dominates latency", "The shared database was the real bottleneck and is now overloaded"]
-  answer: 3
+    Your pods exit as soon as they receive SIGTERM, and every rolling deploy produces a few seconds of 502s. What is the cause?
+  options: ["Routers keep sending to the pod until they see its removal", "The liveness probe fails the moment SIGTERM arrives", "New pods pass readiness before their caches are warm", "maxSurge schedules more new pods than the nodes can hold"]
+  answer: 0
   explanation: >-
-    Horizontal scaling of the stateless tier moves the bottleneck to shared components: the added connections and cold-cache misses push the database past its limit. If adding capacity does not help, the constraint is downstream. Balancer overhead per replica is negligible at this scale.
+    Kubernetes sends SIGTERM and updates endpoints in parallel, and kube-proxy, ingress controllers and cloud balancers each learn of the removal seconds later, so a pod that exits at once receives traffic it can no longer serve. A preStop sleep longer than that lag, then draining in-flight work, removes the errors. Cold caches raise latency rather than causing 502s, and liveness probes play no part in a deletion.
 ```

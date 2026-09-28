@@ -15,7 +15,9 @@ const families: Record<string, Family<never, unknown>> = {
 };
 
 export function getFamily(type: string): Family<never, unknown> | undefined {
-  return families[type];
+  // Own keys only: `families` is a plain object, so "constructor" or
+  // "toString" would otherwise resolve to Object.prototype members.
+  return Object.hasOwn(families, type) ? families[type] : undefined;
 }
 
 export function catalogue(): { type: string; family: Family<never, unknown>; algorithms: string[] }[] {

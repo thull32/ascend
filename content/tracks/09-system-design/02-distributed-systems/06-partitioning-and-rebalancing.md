@@ -260,38 +260,38 @@ hints:
 ```quiz
 - q: >-
     A cluster places keys with hash(key) mod N. Growing N from 20 to 21 moves approximately what fraction of keys?
-  options: ["About 0%, since existing keys keep their nodes", "About 5%, the new node's fair share of keys", "About 95%, since both remainders rarely agree", "About 50%, half the keys on average per node"]
-  answer: 2
+  options: ["About 5%, the new node's fair share of keys", "About 0%, since existing keys keep their nodes", "About 50%, half the keys on average per node", "About 95%, since both remainders rarely agree"]
+  answer: 3
   explanation: >-
     A key stays only if its hash mod 20 equals its hash mod 21, which happens for about 1 key in 21, so about 95% move, and every node both sends and receives. Consistent hashing or fixed partitions bring movement down to about 1/21.
 - q: >-
     Why do consistent-hashing systems give each node many tokens on the ring?
-  options: ["To shrink the routing table each client holds", "To even out arcs and spread a failed node's load", "To enlarge the hash space so collisions are rarer", "To keep adjacent keys together for range scans"]
-  answer: 1
+  options: ["To shrink the routing table each client holds", "To keep adjacent keys together for range scans", "To enlarge the hash space so collisions are rarer", "To even out arcs and spread a failed node's load"]
+  answer: 3
   explanation: >-
     In the simulation, one token per node left the largest node with 3.6 times the mean share and a failure increased one survivor's load by over 600%; 256 tokens brought that to 1.12 times and 10%. The routing table grows rather than shrinks, and range scans are unaffected.
 - q: >-
     Four nodes grow to five. With one token per node, where does the moved data come from?
-  options: ["Evenly from all four existing nodes", "From one existing node, a random-sized arc", "From no node, since new keys go to the new node", "From every node, which also receive data back"]
-  answer: 1
+  options: ["From no node, since new keys go to the new node", "From every node, which also receive data back", "From one existing node, a random-sized arc", "Evenly from all four existing nodes"]
+  answer: 2
   explanation: >-
     The new token splits one existing arc, so everything moves from the node that owned it, and the amount is the random arc size (58% and 40% in two simulated runs). Many tokens or fixed partitions draw roughly equal amounts from every node. Sending and receiving everywhere is the mod N pattern.
 - q: >-
     Sensor readings keyed by timestamp in a range-partitioned store overload one node. Which fix works?
-  options: ["Lead the key with a hash bucket or the sensor_id", "Add more nodes so the ranges spread more thinly", "Switch to synchronous replication to share writes", "Split the hot range in half and move one half away"]
-  answer: 0
+  options: ["Add more nodes so the ranges spread more thinly", "Lead the key with a hash bucket or the sensor_id", "Split the hot range in half and move one half away", "Switch to synchronous replication to share writes"]
+  answer: 1
   explanation: >-
     New timestamps are always larger than existing keys, so they go to the last range whatever the node count or splits. Breaking the sort order with a salt or a natural leading dimension spreads new writes across ranges.
 - q: >-
     During a Redis Cluster slot migration, a client asks the source node for a key that has already moved. What does the source reply, and what does the client do?
-  options: ["MOVED; the client rewrites its slot map, then retries there", "ASK; the client retries once at the target with ASKING", "An error; the client waits for the migration to finish", "The stale value, which the target will later overwrite"]
-  answer: 1
+  options: ["ASK; the client retries once at the target with ASKING", "MOVED; the client rewrites its slot map, then retries there", "The stale value, which the target will later overwrite", "An error; the client waits for the migration to finish"]
+  answer: 0
   explanation: >-
     While a slot is split between two nodes, the source answers ASK for keys it no longer holds, and the client makes a one-off request to the target preceded by ASKING without changing its map. Only after the slot's ownership is reassigned does the source answer MOVED, and the client updates its map.
 - q: >-
     Keys follow a Zipf distribution with exponent 1.2 and one key carries 19% of traffic on a 32-node cluster. What helps most?
-  options: ["Raising the partition count from 1,024 to 8,192", "Adding more nodes so that each one owns fewer keys", "Switching the hash function to spread keys better", "Caching that key near the callers with a short TTL"]
-  answer: 3
+  options: ["Adding more nodes so that each one owns fewer keys", "Caching that key near the callers with a short TTL", "Raising the partition count from 1,024 to 8,192", "Switching the hash function to spread keys better"]
+  answer: 1
   explanation: >-
     One key lives in one partition whatever the hash or partition count, so its node carries at least 19% of traffic against a fair share of about 3%. Absorbing its reads in a nearby cache (or splitting it, for writes) is the fix. More nodes or partitions only lower the load of the nodes that were not the problem.
 ```

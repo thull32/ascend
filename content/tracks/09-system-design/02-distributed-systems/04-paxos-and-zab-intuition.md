@@ -240,26 +240,26 @@ hints:
 ```quiz
 - q: >-
     A Paxos proposer holds promises from a majority for proposal 7. One promise reports accepted (3, X), another reports accepted (5, Z). The proposer wants Y. What must it propose?
-  options: ["Y, because its number 7 beats both reported proposals", "X, because it was the first value that any acceptor accepted", "Z, from the highest-numbered accepted proposal reported", "Nothing, until it finds out which value was chosen"]
-  answer: 2
+  options: ["Z, from the highest-numbered accepted proposal reported", "Y, because its number 7 beats both reported proposals", "Nothing, until it finds out which value was chosen", "X, because it was the first value that any acceptor accepted"]
+  answer: 0
   explanation: >-
     The rule is to adopt the value of the highest-numbered accepted proposal among the promises: if any value could have been chosen, it is carried by the latest such proposal. Its own number only entitles it to run phase 2. The proposer never needs to know whether a value was chosen; the rule preserves it either way.
 - q: >-
     P's accept(1, X) reaches one acceptor of three, then Q's prepare(2) reaches all three. Why can Q not propose its own value Y?
-  options: ["One of its promises reports 1:X, which may have been chosen", "Its proposal number 2 is too small to override a proposal of 1", "X has already been chosen by a majority of acceptors", "Acceptors refuse to promise anything once they accept X"]
-  answer: 0
+  options: ["Its proposal number 2 is too small to override a proposal of 1", "X has already been chosen by a majority of acceptors", "One of its promises reports 1:X, which may have been chosen", "Acceptors refuse to promise anything once they accept X"]
+  answer: 2
   explanation: >-
     X was on only one acceptor, so it was not chosen, but Q cannot distinguish that from a majority it did not hear from, so the rule makes it adopt X. Acceptors still promise higher numbers after accepting. Had Q's prepare arrived before P's accept, its promises would be empty and Y could be chosen.
 - q: >-
     In the simulation, two proposers retrying immediately still always reached a decision. What did duelling cost?
-  options: ["Safety: a few runs chose two different values", "Nothing measurable compared with a single proposer", "A higher median but an unchanged tail latency", "Tail latency: p99 about 2.5 times the single proposer"]
-  answer: 3
+  options: ["Nothing measurable compared with a single proposer", "Tail latency: p99 about 2.5 times the single proposer", "A higher median but an unchanged tail latency", "Safety: a few runs chose two different values"]
+  answer: 1
   explanation: >-
     With random message delays duels end, but runs that collide need several rounds: p99 was 5.4 RTT against 2.2 RTT with one proposer, and random backoff brought it back to about 2.7. Safety is never at risk from duels, which is why the remedy is a stable leader rather than a stronger check.
 - q: >-
     A ZooKeeper leader proposed zxid 1:5 to one follower of five and crashed. That follower becomes the new leader. What happens to 1:5?
-  options: ["It is discarded, because it never reached a quorum", "It is committed when the new leader syncs a quorum", "It is re-proposed with a new epoch-2 zxid instead", "It waits until the old leader restarts and commits it"]
-  answer: 1
+  options: ["It is committed when the new leader syncs a quorum", "It is re-proposed with a new epoch-2 zxid instead", "It waits until the old leader restarts and commits it", "It is discarded, because it never reached a quorum"]
+  answer: 0
   explanation: >-
     Synchronisation brings a quorum up to the new leader's history before any new proposal, so 1:5 becomes committed with its original zxid. Entries only the old leader held, like 1:6 in the lesson's trace, are truncated when it rejoins. A client whose request timed out may therefore find that its write took effect.
 - q: >-
@@ -270,8 +270,8 @@ hints:
     Followers answer reads from local memory and may lag, so clients get sequential consistency (a growing prefix of history) rather than linearizable reads. A quorum acknowledgement does not mean every server has applied the write. sync() makes the follower catch up with the leader before the read, at the cost of a round trip.
 - q: >-
     With Flexible Paxos on five acceptors, commits use any 2 acceptors. How many must a leader change reach?
-  options: ["3, a plain majority of the five acceptors", "2, the same number as the commit quorum", "5, every acceptor, to be certain of safety", "4, so the two quorums always intersect"]
-  answer: 3
+  options: ["2, the same number as the commit quorum", "3, a plain majority of the five acceptors", "4, so the two quorums always intersect", "5, every acceptor, to be certain of safety"]
+  answer: 2
   explanation: >-
     Safety only requires every phase-1 quorum to intersect every phase-2 quorum: Q1 + Q2 > N, so Q1 must be at least 4 when Q2 is 2. Steady-state commits get faster, and leader changes need four of five alive. A majority of 3 could miss both acceptors that accepted a committed value.
 ```

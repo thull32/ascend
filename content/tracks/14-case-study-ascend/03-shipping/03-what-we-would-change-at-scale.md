@@ -159,6 +159,9 @@ Every item below was found by reading the code for this track, and most of the f
 | A reply could still land during the seconds of grading | `services/interviews.rs`, `routes/interviews.rs` | `begin_grading` sets `grading` with the final code before the grader runs; a failed grade reopens (`c4c5de7`) |
 | The SSE parser split lines on `\n` only, so a CR in a reply showed a stray `data:` | `web/src/lib/sse.ts` | CRLF, LF and lone CR are line ends, a trailing CR waits for the next chunk; tested with axum's own bytes (`527d3d1`) |
 | The first unknown-email login after boot was slower | `auth/password.rs`, `main.rs` | The dummy hash is computed at boot, inside the semaphore |
+| An orphaned `grading` row left the room on a spinner forever | `InterviewRoom.tsx` | After five minutes the page offers "Grade again" (`7066802`) |
+| Two generators changed their frames after recording them; a malformed viz block could blank the page | `families/array.tsx`, `families/graph.tsx`, `VizBlock.tsx` | Copies per frame and `frames-immutable.test.ts`; the normaliser inside the `try`, an error boundary per player (`7066802`) |
+| The solo-lock expiry and the five-minute regrade had no test | `crates/api/tests/api.rs` | A test that backdates the rows (`7066802`) |
 
 What is still open, ranked, with the symptom each would show and how you would find it:
 
@@ -167,13 +170,12 @@ What is still open, ranked, with the symptom each would show and how you would f
 | 1 | Limits are checked before a call, not reserved (`ai/budget.rs`) | A learner's day ends above the output cap | `ai_usage.output_tokens` over the limit by up to one `max_tokens` per call in flight | Reserve `max_tokens`, refund on settle |
 | 2 | No global spend cap | The monthly bill arrives far above the typical-day model | Nothing aggregates priced usage across users | A spend breaker into the existing `AiDisabled` path |
 | 3 | Smoke tests run against a debug build, and Railway builds its own image (`ci.yml`) | Production fails in a way CI never saw | The running image's digest matches nothing CI tested | Smoke the built image, push it, deploy that digest |
-| 4 | An orphaned `grading` row has no way out in the UI (`InterviewRoom.tsx`) | "Grading your interview…" never ends | `status = 'grading'` older than five minutes | A "grade again" action; the server already allows it |
-| 5 | Three documented guarantees have no test: shutdown drain, solo-lock expiry, the five-minute regrade | A regression ships green | Ask which test would fail; none does | Tests that shut down mid-stream and backdate rows |
-| 6 | Per-account password limits charge successes (`middleware/rate_limit.rs`) | A learner is refused their own correct password for up to a minute, repeatedly | Many 422s for one email from several addresses | Charge failures only; trust known devices |
-| 7 | In-process limiter | Limits multiply with replicas | 429 rate per client falls as replicas are added | Redis with key expiry, degrading to local shares |
-| 8 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
-| 9 | Streaks count UTC days (`services/activity.rs`) | Evening learners west of UTC lose streaks | Activity rows dated a day after the learner's local date | A stored time zone per learner |
-| 10 | Results self-reported | Acceptable for practice | By design, ADR 0003 | Server-side checks if results gain value |
+| 4 | The shutdown drain has no test (the solo-lock expiry and the regrade got theirs in `7066802`) | A regression ships green | Ask which test would fail; none does | A test that sends SIGTERM mid-stream and checks the reply was persisted |
+| 5 | Per-account password limits charge successes (`middleware/rate_limit.rs`) | A learner is refused their own correct password for up to a minute, repeatedly | Many 422s for one email from several addresses | Charge failures only; trust known devices |
+| 6 | In-process limiter | Limits multiply with replicas | 429 rate per client falls as replicas are added | Redis with key expiry, degrading to local shares |
+| 7 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
+| 8 | Streaks count UTC days (`services/activity.rs`) | Evening learners west of UTC lose streaks | Activity rows dated a day after the learner's local date | A stored time zone per learner |
+| 9 | Results self-reported | Acceptable for practice | By design, ADR 0003 | Server-side checks if results gain value |
 
 ## The plan, in order
 
@@ -189,7 +191,7 @@ Notice what is *not* on the list: splitting the monolith, sharding Postgres, mov
 - **Load-test the streaming path**: a thousand concurrent streams on one instance, measuring memory per stream, time to first token, and what the platform's proxy does to long-lived responses.
 - **Chaos on persistence**: kill the database connection mid-stream and verify the reply is retried or at least counted as lost in a metric; today `finish_turn` failing is a log line.
 - **Rollback compatibility**: run the *previous* release's API integration tests against the *new* schema before deploying. It is a direct, automatic check of expand/contract discipline.
-- **Crash in the middle of a grade.** Kill the process while the grader runs, then check that the row can be graded again after five minutes and that the room offers a way to do it; today only the first half holds.
+- **Crash in the middle of a grade, end to end.** The integration test backdates the row and the room offers "Grade again"; killing a real process mid-grade in a browser test would check the two together.
 
 ## Interviewer follow-ups
 

@@ -341,32 +341,32 @@ hints:
     Backlog grows at 10,000 - 2,000 = 8,000/s for 600 s: 4.8 million. After arrivals stop it drains at 2,000/s: 4.8M / 2,000 = 2,400 s = 40 minutes.
 - q: >-
     A consumer takes 10 ms per message on average. Traffic grows from 50 to 90 messages per second. Under the M/M/1 model, what happens to the mean time a message spends in the system?
-  options: ["It rises from 20 ms to 100 ms, five times", "It rises from 20 ms to 36 ms, in line with load", "It stays near 10 ms until the consumer is full", "It doubles from 20 ms to 40 ms as the load nearly doubles"]
+  options: ["It rises from 20 ms to 100 ms, five times", "It rises from 20 ms to 36 ms, in line with load", "It doubles from 20 ms to 40 ms as the load nearly doubles", "It stays near 10 ms until the consumer is full"]
   answer: 0
   explanation: >-
     W = 1 / (mu - lambda): 1 / (100 - 50) = 20 ms and 1 / (100 - 90) = 100 ms. Latency grows with 1 / (1 - rho), not with load, which is why consumers are provisioned for 60-70% at peak; the lesson's simulation measured 19.9 ms and 95 ms.
 - q: >-
     An SQS consumer takes 45 s to process a message with the default 30 s visibility timeout, then calls DeleteMessage. What happens?
-  options: ["It is redelivered at 30 s and the late delete may not remove it", "SQS extends the lease automatically while the first consumer is still working", "The first consumer gets an error at 30 s and has to restart its work", "SQS deletes the message at 30 s because the lease has expired"]
-  answer: 0
+  options: ["The first consumer gets an error at 30 s and has to restart its work", "SQS deletes the message at 30 s because the lease has expired", "SQS extends the lease automatically while the first consumer is still working", "It is redelivered at 30 s and the late delete may not remove it"]
+  answer: 3
   explanation: >-
     The visibility timeout is a lease. When it expires the message is delivered again with a new receipt handle, so two consumers process it; the first consumer's delete uses a stale handle, which the documentation warns may not delete it. Extend visibility explicitly and make processing idempotent.
 - q: >-
     A Kafka consumer uses enable.auto.commit=true and hands each polled batch to a thread pool, returning to poll() immediately. What delivery guarantee does it have?
-  options: ["At-most-once: a crash can lose handed-off records", "At-least-once: offsets are committed after processing", "Exactly-once: Kafka commits and processes atomically", "At-least-once: the thread pool retries on failure"]
+  options: ["At-most-once: a crash can lose handed-off records", "At-least-once: the thread pool retries on failure", "At-least-once: offsets are committed after processing", "Exactly-once: Kafka commits and processes atomically"]
   answer: 0
   explanation: >-
     Auto-commit commits the offsets returned by the previous poll during the next poll. With processing on another thread, the next poll arrives before processing finishes, so offsets run ahead of work and a crash loses those records. Synchronous processing in the poll loop would give at-least-once.
 - q: >-
     Four consumers each handle 100 messages/s; total load is 320/s. Why did four Kafka partitions measure a p99 of 227 ms while one shared SQS-style queue measured 68 ms?
-  options: ["Each partition queues alone while other consumers sit idle", "Kafka adds broker latency on every fetch that SQS avoids", "The shared queue drops slow messages to protect its p99", "Partitions process messages in order, which doubles service time"]
-  answer: 0
+  options: ["Kafka adds broker latency on every fetch that SQS avoids", "The shared queue drops slow messages to protect its p99", "Each partition queues alone while other consumers sit idle", "Partitions process messages in order, which doubles service time"]
+  answer: 2
   explanation: >-
     A consumer group gives each partition to one consumer, making four M/M/1 queues; a shared queue lets any idle consumer take the next message (M/M/4). Pooling removes waiting behind a busy consumer while another is idle. Service time is the same in both; ordering costs pooling, not per-message work.
 - q: >-
     A standard SQS queue retains messages for 4 days and its DLQ also retains for 4 days. A message fails for 3 days before moving to the DLQ. When is it deleted?
-  options: ["About 1 day after it reaches the DLQ", "About 4 days after it reaches the DLQ", "About 7 days after it was first sent", "Never, since DLQ messages do not expire"]
-  answer: 0
+  options: ["About 7 days after it was first sent", "About 1 day after it reaches the DLQ", "About 4 days after it reaches the DLQ", "Never, since DLQ messages do not expire"]
+  answer: 1
   explanation: >-
     For standard queues the enqueue timestamp is unchanged when a message moves to the DLQ, so its expiry is still 4 days after it was first sent: about 1 day after arriving in the DLQ. Set DLQ retention longer than the source's, up to the 14-day maximum.
 ```

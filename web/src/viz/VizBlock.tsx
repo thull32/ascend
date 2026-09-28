@@ -26,11 +26,11 @@ export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unkno
   const family = getFamily(spec.type) as Family<Record<string, unknown>, unknown> | undefined;
   const algo = algorithmOf(spec);
   if (!family) return { error: `Unknown visualisation type "${spec.type}".` };
-  const gen = family.algorithms[algo];
+  const gen = Object.hasOwn(family.algorithms, algo) ? family.algorithms[algo] : undefined;
   if (!gen) return { error: `Unknown ${spec.type} algorithm "${algo}". Known: ${Object.keys(family.algorithms).join(", ")}.` };
   const { type: _t, algorithm: _a, scenario: _s, title: _ti, caption: _c, ...rest } = spec;
   void _t; void _a; void _s; void _ti; void _c;
-  const base = family.examples[algo] ?? {};
+  const base = (Object.hasOwn(family.examples, algo) ? family.examples[algo] : undefined) ?? {};
   const raw = { ...base, ...rest };
   // Normalising runs inside the try too: it reads author-supplied fields, and
   // an unexpected shape must become a warning box, not an exception that

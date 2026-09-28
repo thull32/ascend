@@ -489,8 +489,8 @@ hints:
     The schema is compiled into a grammar that masks illegal next tokens before sampling, the same mask-and-renormalise step as top-p, so invalid continuations have zero probability. Nothing is repaired after the fact and no retries are needed for structure, but the model now picks the most probable valid value, which can still be wrong.
 - q: >-
     At the enum step, the model's probabilities are 0.44 for an illegal token, 0.27 for hire and 0.16 for no. After the grammar mask, what is the probability of hire?
-  options: ["About 0.27, because masking removes illegal tokens without rescaling the rest", "About 0.62, because the legal tokens are renormalised in proportion", "About 0.71, because the illegal token's mass is added to the top legal token", "About 0.50, because the mask makes every legal continuation equally likely"]
-  answer: 1
+  options: ["About 0.50, because the mask makes every legal continuation equally likely", "About 0.71, because the illegal token's mass is added to the top legal token", "About 0.27, because masking removes illegal tokens without rescaling the rest", "About 0.62, because the legal tokens are renormalised in proportion"]
+  answer: 3
   explanation: >-
     The mask zeroes the illegal tokens and renormalises the survivors in proportion to the model's own preferences: 0.27 / (0.27 + 0.16) is about 0.62. That is why a schema without an honest escape value turns uncertainty into a confident-looking answer; the mass the model put on the illegal option is redistributed, not reported.
 - q: >-
@@ -507,13 +507,13 @@ hints:
     The model's arguments are untrusted input: an injected or confused model can ask for another user's invoices. Deriving the user from the authenticated session makes cross-tenant reads impossible regardless of what text the model has read; checking a model-supplied user_id against itself checks nothing. Typing invoice_id as an integer changes its format, not whose invoice it is.
 - q: >-
     The model returns one assistant message with three tool_use blocks, and one of the three tools times out. How do you continue?
-  options: ["Send one user message with all three tool_result blocks, the timeout marked is_error", "Retry the timed-out tool until it succeeds, then send all three results together", "Send the two successful results now and the third in a later user message", "Drop the failed call from the assistant message and send the two results"]
-  answer: 0
+  options: ["Drop the failed call from the assistant message and send the two results", "Send one user message with all three tool_result blocks, the timeout marked is_error", "Retry the timed-out tool until it succeeds, then send all three results together", "Send the two successful results now and the third in a later user message"]
+  answer: 1
   explanation: >-
     Every tool_use id needs a tool_result in the next user message, so the failure is reported as an is_error result the model can act on: retry, ask the user or answer without it. Retrying indefinitely stalls the loop, splitting results breaks the pairing, and editing the assistant message rewrites history the model produced.
 - q: >-
     During a provider overload, half of all calls fail. Your code retries each failure up to three times. Roughly how much traffic does it send per user request?
-  options: ["About 1.0 times, since retries only replace requests that already failed", "About 1.9 times, since each failure spawns a retry until the cap", "About 4.0 times, since every request is sent four times in the worst case", "About 1.5 times, since later retries rarely happen at all"]
+  options: ["About 4.0 times, since every request is sent four times in the worst case", "About 1.9 times, since each failure spawns a retry until the cap", "About 1.5 times, since later retries rarely happen at all", "About 1.0 times, since retries only replace requests that already failed"]
   answer: 1
   explanation: >-
     With failure probability 0.5 and three retries the expected attempts are 1 + 0.5 + 0.25 + 0.125, about 1.9, sent to a provider that is already refusing work. Backoff with jitter, a small cap, a service-wide retry budget and awareness of the SDK's own retries keep a slowdown from becoming an outage. Four times is the worst case for one request, not the average.

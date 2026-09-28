@@ -101,10 +101,27 @@ pub async fn suggest(
         effort: Effort::Medium,
         json_schema: Some(schema),
     };
-    let completion = client.complete(&req).await?;
-    coach.budget().record(user_id, completion.usage).await?;
-    let mut out: RoadmapSuggestions = serde_json::from_str(&completion.text)
-        .map_err(|e| AppError::ai_upstream("the coach could not produce suggestions; try again", e))?;
+    // A reply can be well-formed but empty (no summary, no suggestions): the
+    // schema allows it, and it happens rarely enough to look like "your
+    // roadmap is already right" rather than a failure. Treat it as a failed
+    // generation, log why the model stopped, and try once more (a second
+    // request slot, so the budget stays honest).
+    let mut attempt = 0;
+    let mut out: RoadmapSuggestions = loop {
+        attempt += 1;
+        let completion = client.complete(&req).await?;
+        coach.budget().record(user_id, completion.usage).await?;
+        let parsed: RoadmapSuggestions = serde_json::from_str(&completion.text)
+            .map_err(|e| AppError::ai_upstream("the coach could not produce suggestions; try again", e))?;
+        if !parsed.summary.trim().is_empty() {
+            break parsed;
+        }
+        tracing::warn!(attempt, stop_reason = ?completion.stop_reason, "roadmap suggestions came back empty");
+        if attempt == 2 {
+            return Err(AppError::AiUpstream("the coach could not produce suggestions; try again".into()));
+        }
+        coach.budget().check_and_reserve(user_id).await?;
+    };
     // Defence in depth: the schema constrains values, but never trust model
     // output as input to state changes. Drop unknown modules and duplicates.
     let mut seen = std::collections::HashSet::new();

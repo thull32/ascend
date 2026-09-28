@@ -490,37 +490,37 @@ hints:
 ```quiz
 - q: >-
     A leaderboard query LEFT JOINs users to lesson_progress (23 rows per user) and to submissions (37 rows per user), then uses count(DISTINCT ...). It returns the right numbers but takes 34 seconds. What is the mechanism?
-  options: ["The DISTINCT forces a sort of every row in the two child tables", "Each user yields 23 × 37 joined rows, and DISTINCT only hides it", "The planner picked merge joins where hash joins would be far faster", "The LIMIT 100 is applied before the joins, so each join is repeated"]
+  options: ["The DISTINCT forces a sort of every row in the two child tables", "Each user yields 23 × 37 joined rows, and DISTINCT only hides it", "The LIMIT 100 is applied before the joins, so each join is repeated", "The planner picked merge joins where hash joins would be far faster"]
   answer: 1
   explanation: >-
     Two independent one-to-many joins from the same parent multiply: 851 rows per user and 85 million in total, which count(DISTINCT) collapses back to the right answer. Aggregating each child table in its own subquery and joining one row per user took 749 ms. The join algorithm was not the problem, and LIMIT applies after aggregation.
 - q: >-
     Sixteen clients insert comments on one popular lesson and each transaction also increments that lesson's counter row. Throughput stays near 400 per second and latency is 40 ms, with the database mostly idle. What sets the ceiling?
-  options: ["Autovacuum cannot keep up with the dead versions of the counter row", "The connection pool is too small for sixteen concurrent writers", "The counter's row lock is held until commit, WAL flush included", "The primary key index on lesson_stats is locked by each update"]
-  answer: 2
+  options: ["The counter's row lock is held until commit, WAL flush included", "The connection pool is too small for sixteen concurrent writers", "The primary key index on lesson_stats is locked by each update", "Autovacuum cannot keep up with the dead versions of the counter row"]
+  answer: 0
   explanation: >-
     Each updater waits on the previous transaction's ID until it commits, and a commit includes flushing WAL (about 2.5 ms in the lab), so one row sustains about one over the hold time whatever the client count; extra clients only queue. Sharding the counter over 16 rows raised throughput sixfold. The updates were 97% HOT, so vacuum and index locks were not the issue.
 - q: >-
     Users read a materialised view continuously, and a plain REFRESH every five minutes causes half-second timeouts. What does switching to REFRESH ... CONCURRENTLY change?
-  options: ["It takes an EXCLUSIVE lock readers pass, but takes twice as long", "It refreshes only the rows whose base data changed since the last run", "It needs no extra index, because the view is diffed on every column", "It swaps in a new file atomically, so no dead tuples are produced"]
-  answer: 0
+  options: ["It needs no extra index, because the view is diffed on every column", "It refreshes only the rows whose base data changed since the last run", "It swaps in a new file atomically, so no dead tuples are produced", "It takes an EXCLUSIVE lock readers pass, but takes twice as long"]
+  answer: 3
   explanation: >-
     The concurrent form takes EXCLUSIVE instead of ACCESS EXCLUSIVE, so SELECTs proceed, but it reruns the whole query and diffs it against the view using a required unique index, applying deletes and inserts: 909 ms against 456 ms in the lab even with nothing changed, and dead tuples for every changed row. The plain refresh is the one that swaps files.
 - q: >-
     A DynamoDB Query returns 50 comments of about 600 bytes each, eventually consistent. How many read units does it consume, and why?
-  options: ["25, because each item is rounded up to 4 KB and then halved", "50, because every item returned costs one full read unit", "4, because sizes are summed, rounded to 4 KB units, then halved", "15, because 30,000 bytes is about 30 KB and each 2 KB is a unit"]
-  answer: 2
+  options: ["25, because each item is rounded up to 4 KB and then halved", "15, because 30,000 bytes is about 30 KB and each 2 KB is a unit", "50, because every item returned costs one full read unit", "4, because sizes are summed, rounded to 4 KB units, then halved"]
+  answer: 3
   explanation: >-
     A Query sums the returned sizes (30,000 bytes), rounds up to 4 KB units (8) and halves for eventual consistency (4). Per-item rounding applies to GetItem and BatchGetItem, which is why fetching the same items by key costs 25 units. At 4 units per page, one partition's 3,000 RCU caps that lesson at about 750 page loads per second.
 - q: >-
     A per-user dashboard aggregates about 70 rows through indexes that lead with user_id, measured at 0.26 ms, and runs 200 times a second. What should you do about it?
-  options: ["Add a summary row per user maintained in the same transaction", "Keep computing it on read, since frequency × cost is tiny", "Create a materialised view of all dashboards, refreshed each minute", "Move the dashboard counts into a Redis hash kept in sync by CDC"]
-  answer: 1
+  options: ["Keep computing it on read, since frequency × cost is tiny", "Move the dashboard counts into a Redis hash kept in sync by CDC", "Add a summary row per user maintained in the same transaction", "Create a materialised view of all dashboards, refreshed each minute"]
+  answer: 0
   explanation: >-
     200 × 0.26 ms is about 0.05 CPU-seconds per second, and the cost does not grow with the number of users, only with one user's history. Every alternative adds a copy and a consistency mechanism to save almost nothing. Denormalise queries whose rows touched dwarf rows returned, such as a global leaderboard at 749 ms per call.
 - q: >-
     Which copy of data should be kept in sync by CDC rather than by the same database transaction?
-  options: ["A generated column computing xp from three counter columns", "A redundant author_name column on the comments table", "A comment_count column kept in the same Postgres database", "A Redis sorted set that serves the leaderboard to readers"]
+  options: ["A comment_count column kept in the same Postgres database", "A generated column computing xp from three counter columns", "A redundant author_name column on the comments table", "A Redis sorted set that serves the leaderboard to readers"]
   answer: 3
   explanation: >-
     A transaction can only make copies inside the same database atomic. Redis is outside it, so the update must be eventual, and CDC from the WAL or an outbox is the reliable way to deliver it. The other copies live in Postgres and belong in the same transaction or in a generated column.

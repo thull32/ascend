@@ -350,14 +350,14 @@ hints:
     Up-to-dateness compares the last entry's term first, then its index. Term 6 beats term 5 regardless of index, so the voter's log is more up to date and it refuses. The candidate's term 7 only entitles it to ask; not having voted yet is necessary but not sufficient.
 - q: >-
     Two followers time out 2 ms apart, both become candidates in term 2, and each collects one other vote in a five-server cluster with the leader down. What happens next?
-  options: ["The candidate with the higher server id takes over the term", "Both become leaders of term 2 until the next heartbeat", "Their timers re-arm randomly and one wins a later term", "The remaining follower breaks the tie by voting again"]
-  answer: 2
+  options: ["The candidate with the higher server id takes over the term", "Both become leaders of term 2 until the next heartbeat", "The remaining follower breaks the tie by voting again", "Their timers re-arm randomly and one wins a later term"]
+  answer: 3
   explanation: >-
     With two votes each and three needed, term 2 has no leader. Each candidate re-arms with a fresh random timeout, and the one that fires first starts term 3 and usually wins. Servers vote once per term, so nobody votes again in term 2, and election safety forbids two leaders in one term.
 - q: >-
     A five-server leader's match indexes are leader 9, and followers 9, 6, 7, 5. All entries are from the current term. What is the commit index?
-  options: ["9, because the leader and one follower have it", "7, the third highest of the five match indexes", "6, the median of the four follower indexes", "5, the lowest index held by every server"]
-  answer: 1
+  options: ["5, the lowest index held by every server", "6, the median of the four follower indexes", "9, because the leader and one follower have it", "7, the third highest of the five match indexes"]
+  answer: 3
   explanation: >-
     Sorted, the match indexes are 9, 9, 7, 6, 5. A majority of five is three servers, and three of them hold index 7 or more, so 7 is committed. Waiting for every server would let the slowest follower set the pace.
 - q: >-
@@ -368,14 +368,14 @@ hints:
     A leader may not commit an earlier-term entry by counting replicas, because a server with a higher last term could still win and overwrite it (Figure 8). Committing a current-term entry makes the prefix safe through log matching. Heartbeats, not the no-op, reset election timers.
 - q: >-
     A new leader probes a follower at prevLogIndex 9 / term 6 and is rejected. The follower's log is [1, 1, 1, 2, 2, 2, 3, 3]. What does the follower hold after repair?
-  options: ["Its 8 entries, plus the leader's entry 9 appended", "Nothing, because it must receive a full snapshot", "Entries 1–3 kept, then the leader's entries 4–9", "Entries 1–6 kept, then the leader's entries 7–9"]
-  answer: 2
+  options: ["Its 8 entries, plus the leader's entry 9 appended", "Entries 1–3 kept, then the leader's entries 4–9", "Nothing, because it must receive a full snapshot", "Entries 1–6 kept, then the leader's entries 7–9"]
+  answer: 1
   explanation: >-
     The leader backs off until prevLogIndex 3 / term 1 matches; log matching then proves entries 1–3 are identical. The follower deletes its entries 4–8, which were never committed, and appends the leader's 4–9. A snapshot is needed only when the leader has discarded the entries the follower lacks.
 - q: >-
     An etcd cluster's write latency jumps and leader elections become frequent. What is the most likely cause?
-  options: ["Slow WAL fsync delaying appends and heartbeats alike", "Too many clients holding watches open on the leader", "Clock skew between nodes corrupting election timers", "An even number of members splitting every vote"]
-  answer: 0
+  options: ["Too many clients holding watches open on the leader", "Clock skew between nodes corrupting election timers", "An even number of members splitting every vote", "Slow WAL fsync delaying appends and heartbeats alike"]
+  answer: 3
   explanation: >-
     Commits wait for fsync on the leader and a majority, and heartbeats share the WAL path, so a stalling disk delays heartbeats, followers time out and elect. Election timers are local monotonic durations, so skew does not affect them. Fix the disk (fsync p99 under 10 ms) before raising timeouts.
 ```

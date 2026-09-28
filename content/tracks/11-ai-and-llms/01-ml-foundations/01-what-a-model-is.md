@@ -383,8 +383,8 @@ hints:
     A good fit inside the data range says nothing about behaviour far outside it; effects such as disk spill never appeared in training. The right move is to detect out-of-range inputs and fall back or flag them, and to collect data in that range. The learning rate and the parameter count are irrelevant to missing evidence.
 - q: >-
     You plan to train a 7-billion-parameter model with Adam in mixed precision. Roughly how much memory do the weights, gradients and optimiser state need, before activations?
-  options: ["About 14 GB, the size of the 16-bit weights", "About 28 GB, the weights plus their gradients", "About 112 GB, around 16 bytes per parameter", "About 56 GB, the 32-bit weights plus gradients"]
-  answer: 2
+  options: ["About 14 GB, the size of the 16-bit weights", "About 28 GB, the weights plus their gradients", "About 56 GB, the 32-bit weights plus gradients", "About 112 GB, around 16 bytes per parameter"]
+  answer: 3
   explanation: >-
     Mixed-precision Adam holds 16-bit weights and gradients (4 bytes per parameter) plus a 32-bit master copy and the two moment estimates m and v (12 bytes), about 16 bytes per parameter or 112 GB for 7 billion. The 14 GB figure is what serving the 16-bit weights needs, which is why training needs several accelerators when inference fits on one.
 ```

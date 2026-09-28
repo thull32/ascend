@@ -357,8 +357,8 @@ hints:
 ```quiz
 - q: >-
     An order service's consumer crashes after the notification API accepted its request but before committing its Kafka offset. On restart it sends the same request. What stops a second notification?
-  options: ["The recipient-scoped dedupe key, claimed with SET NX", "Kafka's idempotent producer, which removes the duplicate request", "The planner, which drops a request it has seen within the last hour", "The provider, which refuses a second push with the same payload"]
-  answer: 0
+  options: ["The provider, which refuses a second push with the same payload", "Kafka's idempotent producer, which removes the duplicate request", "The planner, which drops a request it has seen within the last hour", "The recipient-scoped dedupe key, claimed with SET NX"]
+  answer: 3
   explanation: >-
     The replay is a new HTTP request, so broker-level idempotence does not apply. The dedupe key is derived from the domain event and claimed atomically, so the second request finds it and gets the original notification ID back without enqueuing anything. Providers do not compare payloads.
 - q: >-
@@ -369,26 +369,26 @@ hints:
     The provider hop cannot be exactly-once, so you choose the failure you prefer per category. For marketing a duplicate is worse than a miss, so record the ambiguous send as sent. Providers cannot say whether a message was displayed, and SMS fallback for marketing costs real money.
 - q: >-
     Security codes and a 50-million-recipient campaign share one queue, and codes take 30 minutes to arrive. What fixes this?
-  options: ["Add a priority field so codes are picked ahead of campaign messages", "Send codes synchronously from the producer, bypassing the platform", "Add partitions to the shared topic so that the backlog drains faster", "Give critical messages their own topic, senders and provider quota"]
-  answer: 3
+  options: ["Add a priority field so codes are picked ahead of campaign messages", "Give critical messages their own topic, senders and provider quota", "Add partitions to the shared topic so that the backlog drains faster", "Send codes synchronously from the producer, bypassing the platform"]
+  answer: 1
   explanation: >-
     Isolation needs separate lanes and a guaranteed share of the provider's rate limit. A priority field does not let a message jump a backlog already ahead of it in a log, and more partitions spread the same backlog. Bypassing the platform loses preferences, auditing and fallback.
 - q: >-
     Thirty planners share user traffic without keying, and a marketing cap of 3 a day is sometimes exceeded. What is the most direct structural fix?
-  options: ["Partition requests by user_id so one planner owns each user's count", "Lower the cap to 2 so overshoots still stay within the product limit", "Cache each user's count in the planner for a minute to cut reads", "Check the cap again in the sender right before calling the provider"]
-  answer: 0
+  options: ["Check the cap again in the sender right before calling the provider", "Partition requests by user_id so one planner owns each user's count", "Cache each user's count in the planner for a minute to cut reads", "Lower the cap to 2 so overshoots still stay within the product limit"]
+  answer: 1
   explanation: >-
     Two planners can read 2 sent, both send and make it 4: a read-modify-write race. Keying by user makes one planner the single owner of that state, so the check and the increment happen in one thread. A cache widens the race, and a second check in the sender has the same race.
 - q: >-
     A campaign arrives at 22:30 in the user's time zone, inside quiet hours that end at 08:00, and its expires_at is 18:00 local the next day. What should happen?
-  options: ["Drop it, since it arrived inside the user's quiet hours", "Send it now, since campaigns are paced and already approved", "Schedule it for 08:00 local and re-check preferences then", "Send it at 08:00 UTC, since the scheduler works in UTC time"]
-  answer: 2
+  options: ["Schedule it for 08:00 local and re-check preferences then", "Send it at 08:00 UTC, since the scheduler works in UTC time", "Drop it, since it arrived inside the user's quiet hours", "Send it now, since campaigns are paced and already approved"]
+  answer: 0
   explanation: >-
     Quiet hours are a delay, not a drop, as long as expires_at is later than the next allowed time. The planner hands the message to the scheduler for 08:00 in the device's time zone and re-reads preferences when it comes due, so an unsubscribe overnight still wins. UTC is the wrong clock for a local rule.
 - q: >-
     A marketing campaign draws many bounces and spam complaints, and password-reset emails start landing in spam. What design choice would have prevented this?
-  options: ["Retrying bounced emails with backoff so they are eventually delivered", "Using a larger email provider whose IP reputation absorbs the damage", "Rate-limiting the campaign so bounces arrive more slowly across the day", "Separate subdomains and IP pools for marketing and transactional mail"]
-  answer: 3
+  options: ["Rate-limiting the campaign so bounces arrive more slowly across the day", "Retrying bounced emails with backoff so they are eventually delivered", "Separate subdomains and IP pools for marketing and transactional mail", "Using a larger email provider whose IP reputation absorbs the damage"]
+  answer: 2
   explanation: >-
     Mailbox providers judge reputation per sending domain and IP, so sharing them lets a bad campaign bury critical mail; bounces and complaints should also feed the suppression list. Retrying bounces worsens reputation, pacing does not change the bounce rate, and a different provider does not change how mailboxes judge your domain.
 ```

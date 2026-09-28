@@ -423,26 +423,26 @@ hints:
     At 5 MiB a 50 GB file needs about 10,000 parts, right at the limit. At 256 MiB or 1 GiB a dropped connection on a phone wastes minutes of transfer. 16 MiB leaves ample headroom under the limit and loses about 9 seconds of a 15 Mbps uplink per failed part.
 - q: >-
     A transcode worker is preempted after uploading its output but before reporting success, and the task is redelivered. What makes this safe?
-  options: ["A deterministic output key makes the retry rewrite identical bytes", "The worker holds a distributed lock on the video until it reports back", "The queue deduplicates the redelivery, so the task runs only once", "The orchestrator deletes the partial output before it retries"]
-  answer: 0
+  options: ["The queue deduplicates the redelivery, so the task runs only once", "The worker holds a distributed lock on the video until it reports back", "The orchestrator deletes the partial output before it retries", "A deterministic output key makes the retry rewrite identical bytes"]
+  answer: 3
   explanation: >-
     Queues deliver at least once, so safety comes from idempotent tasks. The output key is derived from the input hash, chunk, rendition and encoder version, so the retry overwrites the same object with the same content. A lock does not help when the lock holder is the process that died.
 - q: >-
     After an outage, 500,000 catalogue re-encode tasks are queued and new uploads wait 40 minutes to become playable. What is the structural fix?
-  options: ["Autoscale the worker fleet on CPU utilisation until it drains", "Reject new uploads with 503 until the re-encode backlog drains", "Split queues by priority, scaling each on oldest-message age", "Add a priority field to each message in the shared FIFO queue"]
-  answer: 2
+  options: ["Add a priority field to each message in the shared FIFO queue", "Reject new uploads with 503 until the re-encode backlog drains", "Autoscale the worker fleet on CPU utilisation until it drains", "Split queues by priority, scaling each on oldest-message age"]
+  answer: 3
   explanation: >-
     Separate queues with reserved capacity for first-playable work isolate the classes, and queue age maps onto the latency target. A priority field does not let new work jump a backlog already ahead of it, and CPU is always saturated on an encoding fleet.
 - q: >-
     Time to first playable is 35 s. The low rungs are packaged at 24 s and the copyright scan finishes at 34 s. A team proposes GPU encoders that halve encode time. What happens to first playable?
-  options: ["It stays at 35 s, since the scan is the critical path", "It falls to about 29 s, since encoding is half the path", "It falls to about 12 s, since the GPUs parallelise chunks", "It rises, since GPU queues are shared with other teams' jobs"]
+  options: ["It stays at 35 s, since the scan is the critical path", "It falls to about 29 s, since encoding is half the path", "It rises, since GPU queues are shared with other teams' jobs", "It falls to about 12 s, since the GPUs parallelise chunks"]
   answer: 0
   explanation: >-
     The video becomes playable when both the encode path and the checks finish, so it waits for the longer one: probe, copyright scan, gate. The encode path already has 10 s of slack, and shortening it changes nothing. Running the fingerprint per chunk, or during upload, is what moves the number.
 - q: >-
     Encode cost is modelled as pixels times frames. Roughly what share of a 240p-to-1080p H.264 ladder's compute goes to the 1080p rung?
-  options: ["About 55%, since it has more pixels than the rest combined", "About 20%, since the ladder's five rungs share the work equally", "About 90%, since lower rungs are nearly free to encode at all", "About 35%, since 720p and 1080p split the high end between them"]
-  answer: 0
+  options: ["About 90%, since lower rungs are nearly free to encode at all", "About 20%, since the ladder's five rungs share the work equally", "About 55%, since it has more pixels than the rest combined", "About 35%, since 720p and 1080p split the high end between them"]
+  answer: 2
   explanation: >-
     1080p has 2.07 million pixels per frame against 1.66 million for 240p, 360p, 480p and 720p together, so it takes 55.5% of the ladder and the ladder costs 1.8 times the 1080p rung alone. The low rungs needed for first playable are under 9%, which is why reserving capacity for them is cheap.
 - q: >-

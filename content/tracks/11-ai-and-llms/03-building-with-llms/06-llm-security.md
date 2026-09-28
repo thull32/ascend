@@ -380,14 +380,14 @@ hints:
     Parameterised queries work because the database never parses the data channel as code. An LLM has only tokens, interpreted by one learned function, so there is no separate channel the data cannot cross; delimiters and spotlighting are signals the model usually respects, not a boundary it must respect. Models see tags perfectly well, which is why they help at all.
 - q: >-
     An email assistant's send tool only allows the user's contacts, and the chat UI renders Markdown images from any origin. An injected email asks for a reset link. How can it still leave?
-  options: ["It cannot, because the allowlist blocks every route the data could take", "Through the provider's logs, which the attacker can request from the vendor", "Through an image URL in the reply that the browser fetches with no click", "Through the tool's error message, which the harness forwards to the sender"]
+  options: ["Through the provider's logs, which the attacker can request from the vendor", "It cannot, because the allowlist blocks every route the data could take", "Through an image URL in the reply that the browser fetches with no click", "Through the tool's error message, which the harness forwards to the sender"]
   answer: 2
   explanation: >-
     The renderer is a channel that is not a tool: a reply containing an image whose URL carries the link makes the user's browser request it from the attacker's server. That is configuration B in the traced attack. A Content-Security-Policy restricting img-src, an image proxy or stripping images closes it; the tool allowlist never saw it.
 - q: >-
     An injection classifier catches 99% of attempts, and an attacker can try 100 variants. Roughly how likely is at least one to get through?
-  options: ["About 1%, since each attempt succeeds with probability 0.01", "About 37%, since the attempts partly overlap in what they try", "About 63%, since 1 minus 0.99 to the 100th power is about 0.63", "About 99%, since a determined attacker always gets through eventually"]
-  answer: 2
+  options: ["About 63%, since 1 minus 0.99 to the 100th power is about 0.63", "About 37%, since the attempts partly overlap in what they try", "About 1%, since each attempt succeeds with probability 0.01", "About 99%, since a determined attacker always gets through eventually"]
+  answer: 0
   explanation: >-
     Independent attempts compound: 1 - 0.99^100 is about 0.634. At 99.9% the same 100 attempts still succeed about 9.5% of the time. That is why classifiers are telemetry and rate reducers, and the controls that decide outcomes are deterministic: credentials, allowlists, taint-gated egress and sandboxes.
 - q: >-
@@ -404,7 +404,7 @@ hints:
     Least privilege means the model's reach equals the user's reach. Any successful injection, or any confusion about which customer is asking, can read other customers' data through a service account. With user-scoped credentials an injection gains nothing the user did not already have, so reading the customer's own orders is fine.
 - q: >-
     This app runs learner code in Web Workers under a CSP that limits network destinations. Why is that adequate here but not for running one user's code in another user's browser?
-  options: ["Here the code only runs in its author's session; another user's would give it a victim", "Workers can be terminated on a timeout here, which another browser would not allow", "Only the Python worker is a real sandbox; the JavaScript one merely hides globals", "Browsers block all network access from workers, so only the page itself is at risk"]
+  options: ["Here the code only runs in its author's session; another user's would give it a victim", "Browsers block all network access from workers, so only the page itself is at risk", "Only the Python worker is a real sandbox; the JavaScript one merely hides globals", "Workers can be terminated on a timeout here, which another browser would not allow"]
   answer: 0
   explanation: >-
     Sandbox adequacy depends on the threat model. Locked globals and the CSP are defence in depth rather than a proof, and the Python worker removes no globals; that is acceptable because self-executed code in one's own session can do nothing its author could not do from the console. Code crossing between users needs a real boundary such as a separate origin or a server-side sandbox.

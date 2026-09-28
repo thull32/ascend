@@ -376,38 +376,38 @@ The [time-based key-value store](/practice/time-based-kv) problem is the same id
 ```quiz
 - q: >-
     A 168 kB queue table has grown to 17 MB. VACUUM VERBOSE reports 200,000 tuples that are dead but not yet removable. What should you check first?
-  options: ["Whether autovacuum is disabled or throttled too hard to keep up", "What pins the xmin horizon, e.g. an idle transaction", "Whether the table is missing an index on its run_at column", "Whether the disk is too full for vacuum to compact the file"]
-  answer: 1
+  options: ["Whether autovacuum is disabled or throttled too hard to keep up", "Whether the disk is too full for vacuum to compact the file", "Whether the table is missing an index on its run_at column", "What pins the xmin horizon, e.g. an idle transaction"]
+  answer: 3
   explanation: >-
     Vacuum ran and found the tuples, so it is not disabled; it refused to remove them because some snapshot might still need them. Look in pg_stat_activity for old backend_xmin values, then replication slots and prepared transactions. In the lab, ending one idle session let the next vacuum remove all 200,000.
 - q: >-
     After the culprit session is ended and VACUUM runs, the 17 MB table still occupies 17 MB. Why?
-  options: ["Vacuum makes space reusable; only a rewrite returns it", "The dead tuples are still needed by the next autovacuum cycle", "The visibility map must be rebuilt before any space is freed", "Freed space is only returned to the OS at the next checkpoint"]
-  answer: 0
+  options: ["The visibility map must be rebuilt before any space is freed", "The dead tuples are still needed by the next autovacuum cycle", "Freed space is only returned to the OS at the next checkpoint", "Vacuum makes space reusable; only a rewrite returns it"]
+  answer: 3
   explanation: >-
     Plain VACUUM frees line pointers and space inside pages for future inserts, and only truncates empty pages at the very end of the file. The measured file was 98.7% free space and a sequential scan still read all 2,188 pages. VACUUM FULL or pg_repack rewrites the table, which returned it to 168 kB.
 - q: >-
     An UPDATE of an unindexed column on a page with free space leaves the primary-key index unchanged. How does a lookup by id still find the new version?
-  options: ["The index entry is rewritten lazily by the next index scan", "Postgres updates the row in place when no index column changes", "The lookup lands on the old version and follows the HOT chain", "Vacuum adds the new entry to the index before any read occurs"]
-  answer: 2
+  options: ["Postgres updates the row in place when no index column changes", "The index entry is rewritten lazily by the next index scan", "Vacuum adds the new entry to the index before any read occurs", "The lookup lands on the old version and follows the HOT chain"]
+  answer: 3
   explanation: >-
     A HOT update writes the new version on the same page, flags it heap-only and points the old version's t_ctid at it. The index still points at the root line pointer, and readers follow the chain; after vacuum the root becomes a redirect. Postgres never updates in place, and no index entry is added for heap-only tuples.
 - q: >-
     In pg_locks during a lock wait, session A holds ExclusiveLock on transaction 1516001 and waits for ShareLock on transaction 1516002, while B holds 1516002 and waits for 1516001. What is happening?
-  options: ["A lock escalation from row locks to a table lock is in progress", "Both sessions are waiting on I/O and the locks are only bookkeeping", "Two readers are blocked behind a single writer on one busy row", "A deadlock: each waits for the other's transaction to end"]
-  answer: 3
+  options: ["A deadlock: each waits for the other's transaction to end", "Two readers are blocked behind a single writer on one busy row", "Both sessions are waiting on I/O and the locks are only bookkeeping", "A lock escalation from row locks to a table lock is in progress"]
+  answer: 0
   explanation: >-
     Row-lock waits appear as a ShareLock request on the holder's transaction ID, and every writing transaction holds an ExclusiveLock on its own ID. Each session waits for the other's, which is a cycle; after deadlock_timeout one backend runs the detector and aborts itself with 40P01. Postgres never escalates row locks.
 - q: >-
     Twenty workers run SELECT id FROM jobs ... ORDER BY run_at LIMIT 1 FOR UPDATE, process the job and delete it. Throughput equals one worker's. Why, and what fixes it?
-  options: ["All workers pick the same oldest row and queue on it; add SKIP LOCKED", "FOR UPDATE takes a table lock, so workers run one by one; use FOR SHARE", "Without an index on run_at every worker scans the table; add one", "Postgres limits concurrent writers per table; partition the jobs table"]
-  answer: 0
+  options: ["Postgres limits concurrent writers per table; partition the jobs table", "FOR UPDATE takes a table lock, so workers run one by one; use FOR SHARE", "Without an index on run_at every worker scans the table; add one", "All workers pick the same oldest row and queue on it; add SKIP LOCKED"]
+  answer: 3
   explanation: >-
     Every worker's query finds the same row first, so all but one wait on its row lock; the lab measured 390 jobs per second with 16 workers against 5,807 with SKIP LOCKED. FOR UPDATE locks rows, not tables, and there is no per-table writer limit. A lease column covers workers that crash mid-job.
 - q: >-
     A cron job uses pg_try_advisory_lock(key) and pg_advisory_unlock(key) through PgBouncer in transaction mode. Sometimes two instances run, and sometimes the lock seems stuck. Why?
-  options: ["Advisory locks are released at the end of each statement that takes them", "Session locks stay on one server connection; transactions may move", "PgBouncer strips advisory lock calls so they never reach the server", "hashtext collisions map different job names onto one advisory lock key"]
-  answer: 1
+  options: ["Session locks stay on one server connection; transactions may move", "Advisory locks are released at the end of each statement that takes them", "PgBouncer strips advisory lock calls so they never reach the server", "hashtext collisions map different job names onto one advisory lock key"]
+  answer: 0
   explanation: >-
     In transaction mode a client owns a server connection only for the duration of a transaction. A session lock taken in one transaction stays with that server connection after the client moves on, so the unlock may go to a connection that does not hold it while other clients reuse the one that does. A collision could make a lock look stuck but cannot let two instances run. Use pg_advisory_xact_lock inside one transaction.
 ```

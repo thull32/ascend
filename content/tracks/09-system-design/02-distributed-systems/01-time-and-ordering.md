@@ -431,38 +431,38 @@ hints:
 ```quiz
 - q: >-
     In the lesson's timeline, event b on P2 has Lamport value 1 and event d on P1 has Lamport value 3. What can you conclude?
-  options: ["b happened before d, because 1 is less than 3", "d did not happen before b; they may be concurrent", "b and d are causally related, direction unknown", "b and d are concurrent, as Lamport values differ"]
-  answer: 1
+  options: ["b happened before d, because 1 is less than 3", "b and d are causally related, direction unknown", "b and d are concurrent, as Lamport values differ", "d did not happen before b; they may be concurrent"]
+  answer: 3
   explanation: >-
     Lamport clocks are consistent with happens-before (causal order implies increasing values) but do not characterise it, so a smaller value only rules out the reverse direction. Here the vectors [0,1,0] and [3,0,0] are incomparable, so b and d are in fact concurrent; with other histories the same values could belong to causally related events.
 - q: >-
     Two events have vector clocks [3,0,0] and [2,3,2]. What is their relation?
-  options: ["The second happened before the first, having the larger sum", "Concurrent, since each is larger in some entry", "The first happened before the second, as P1 moved first", "Equal, because both have seen at least two P1 events"]
-  answer: 1
+  options: ["The second happened before the first, having the larger sum", "The first happened before the second, as P1 moved first", "Concurrent, since each is larger in some entry", "Equal, because both have seen at least two P1 events"]
+  answer: 2
   explanation: >-
     Neither vector is less than or equal to the other in every entry: the first is larger in P1's entry, the second in P2's and P3's. So no causal path connects them. Sums and single entries never decide order; only the entry-wise comparison does.
 - q: >-
     NTP measures t1 = 0, t2 = 30, t3 = 31 and t4 = 12 (ms). What offset does it estimate and how far off can that estimate be?
-  options: ["24.5 ms, off by at most 5.5 ms", "30 ms, off by at most 12 ms", "24.5 ms, off by at most 1 ms", "19 ms, off by at most 11 ms"]
-  answer: 0
+  options: ["24.5 ms, off by at most 1 ms", "24.5 ms, off by at most 5.5 ms", "30 ms, off by at most 12 ms", "19 ms, off by at most 11 ms"]
+  answer: 1
   explanation: >-
     The offset is ((t2 − t1) + (t3 − t4)) / 2 = (30 + 19) / 2 = 24.5 ms and the round-trip delay is (t4 − t1) − (t3 − t2) = 11 ms. NTP assumes equal one-way delays, so an asymmetric path can make the estimate wrong by up to half the delay, 5.5 ms. The 1 ms server processing time is not the error bound.
 - q: >-
     Replica clocks have independent offsets of up to ±50 ms. A user's two writes land on different replicas 10 ms apart. Roughly how often does last-writer-wins keep the older write?
-  options: ["Never, since NTP keeps the clocks within 50 ms", "About 1% of the time, only in rare clock steps", "About 40% of the time, close to a coin flip", "Always, since the older write carries more skew"]
+  options: ["Never, since NTP keeps the clocks within 50 ms", "Always, since the older write carries more skew", "About 40% of the time, close to a coin flip", "About 1% of the time, only in rare clock steps"]
   answer: 2
   explanation: >-
     With uniform offsets the loss probability is (2E − g)² / 8E² = 90² / 20,000 ≈ 0.40, which the simulation reproduced. When writes are closer together than the skew, their timestamp order is mostly noise. A tighter clock bound lowers the rate but never reaches zero for close writes.
 - q: >-
     Node A's clock is 80 ms fast. B receives a message stamped with HLC (181, 0) when its own physical clock reads 105, and its last stamp was (103, 0). What does B stamp the receive?
-  options: ["(105, 0), since B trusts its own physical clock", "(181, 1), taking the message's l and c + 1", "(182, 0), one millisecond past the sender", "(103, 1), since B's own l is unchanged"]
-  answer: 1
+  options: ["(182, 0), one millisecond past the sender", "(103, 1), since B's own l is unchanged", "(181, 1), taking the message's l and c + 1", "(105, 0), since B trusts its own physical clock"]
+  answer: 2
   explanation: >-
     The new l is max(103, 181, 105) = 181, which equals only the message's l, so c becomes the message's c plus 1. Stamping 105 would order B's receive before A's send and violate causality; the HLC never invents physical time it has not seen.
 - q: >-
     With TrueTime uncertainty ε = 4 ms, a Spanner transaction takes s = TT.now().latest at true time 1000. When may it release its locks, and why wait?
-  options: ["At once, since Paxos replication already orders the writes", "After 4 ms, when s equals true time on the coordinator", "After 30 s, when the time daemons next poll the masters", "After about 8 ms, once s is past on every correct clock"]
-  answer: 3
+  options: ["At once, since Paxos replication already orders the writes", "After 30 s, when the time daemons next poll the masters", "After about 8 ms, once s is past on every correct clock", "After 4 ms, when s equals true time on the coordinator"]
+  answer: 2
   explanation: >-
     s = 1004. The transaction waits until TT.now().earliest > 1004, at true time 1008, about 2ε. After that, any transaction that starts later gets a latest bound above true time and therefore above 1004, so timestamp order matches real-time order. Releasing at once lets a later transaction on a precise clock take a smaller timestamp, and a snapshot read can see it without the earlier one.
 ```

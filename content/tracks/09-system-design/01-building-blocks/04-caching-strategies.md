@@ -362,31 +362,31 @@ hints:
 ```quiz
 - q: >-
     A cache-fronted read path has 1 ms hits and 25 ms database reads. Raising the hit ratio from 96% to 99% mostly changes which of these?
-  options: ["The p99 latency, which falls from 25 ms to 1 ms", "Neither load nor latency; both rates are high", "The p50 latency, which falls by about 20 ms", "The database load, which falls by about 4x"]
+  options: ["The p50 latency, which falls by about 20 ms", "The p99 latency, which falls from 25 ms to 1 ms", "Neither load nor latency; both rates are high", "The database load, which falls by about 4x"]
   answer: 3
   explanation: >-
     Database load is proportional to the miss rate: 4% to 1% is a 4x reduction. The mean drops only from about 1.96 ms to 1.24 ms. The p99 is still a miss at 96% and sits at the boundary at 99%; the p50 was already a hit.
 - q: >-
     In cache-aside, a writer updates the database and then deletes the key. Which interleaving leaves the cache serving stale data until the TTL?
-  options: ["A slow reader fetches the old row and sets it after the delete", "Two readers miss together and both set the freshly written row", "Two writers update the row and both delete the key at once", "A reader hits the cache while the writer is updating the database"]
-  answer: 0
+  options: ["Two readers miss together and both set the freshly written row", "A reader hits the cache while the writer is updating the database", "Two writers update the row and both delete the key at once", "A slow reader fetches the old row and sets it after the delete"]
+  answer: 3
   explanation: >-
     The reader misses and reads the old row before the update; its delayed set lands after the delete and installs the pre-write value, which nothing removes until the TTL or the next write. Concurrent deletes are harmless, and a hit during the update returns the old value once, which is expected.
 - q: >-
     Two writers use write-through without per-key locking. Writer A caches 11 then writes the database; writer B caches 12 and writes the database in between. What is the end state?
-  options: ["Cache 12 and database 12, since the last cache write wins", "Cache 11 and database 11, since A finished last", "Cache 12 and database 11, which now disagree", "An error, since write-through detects the conflict"]
-  answer: 2
+  options: ["Cache 11 and database 11, since A finished last", "An error, since write-through detects the conflict", "Cache 12 and database 12, since the last cache write wins", "Cache 12 and database 11, which now disagree"]
+  answer: 3
   explanation: >-
     The cache saw A then B, so it holds 12; the database saw B then A, so it holds 11. Nothing detects the disagreement, which lasts until the TTL. Write-through needs one writer per key or per-key ordering to stay consistent.
 - q: >-
     A key read 10,000 times a second across 50 replicas expires; the recompute takes 50 ms. With per-replica single-flight, roughly how many identical database queries does the expiry cause?
-  options: ["About 500, one per request in the window", "Exactly one for the whole fleet", "About 50, one per replica", "About 10, one per database worker"]
-  answer: 2
+  options: ["About 50, one per replica", "About 10, one per database worker", "About 500, one per request in the window", "Exactly one for the whole fleet"]
+  answer: 0
   explanation: >-
     Single-flight coalesces within a process, so each replica that sees a miss during the window starts one load: about 50, matching the simulation. A fleet-wide lock or leases reduce it to one; with no defence it is about 10,000 x 0.05 = 500.
 - q: >-
     A nightly batch job reads a million rarely used keys through an LRU cache, and the daytime hit ratio takes an hour to recover. What fixes it most directly?
-  options: ["Admit new keys only if seen more often than the victim", "Double the cache size so the scan fits beside the hot set", "Lower every TTL so scanned keys expire more quickly", "Switch the eviction policy to random replacement"]
+  options: ["Admit new keys only if seen more often than the victim", "Double the cache size so the scan fits beside the hot set", "Switch the eviction policy to random replacement", "Lower every TTL so scanned keys expire more quickly"]
   answer: 0
   explanation: >-
     A scan evicts the hot set because LRU admits every miss. Frequency-based admission (TinyLFU-style) refuses keys seen once, so the hot set survives; in the simulation it kept a 71% hit ratio through scans while LRU fell to 38%. Doubling the cache still would not hold a million-key scan, and TTLs do not stop admission.

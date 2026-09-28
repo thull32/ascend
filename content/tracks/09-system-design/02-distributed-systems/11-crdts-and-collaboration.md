@@ -432,20 +432,20 @@ Clients batch keystrokes every 50 to 100 ms, so a typist sends at most 10 to 20 
     Idempotence means merge(a, a) = a, so applying the same state twice changes nothing. Commutativity handles reordering and associativity handles relaying and batching; neither says anything about applying the same input twice. Monotonic reads is a session guarantee, not a merge property.
 - q: >-
     An op-based OR-Set replica receives remove(tags a1) for milk before it receives the add of milk with tag a1. With no tombstones kept, what happens?
-  options: ["Milk stays on this replica forever while others lack it", "The replica rejects the remove and asks for a resend", "Milk is removed once the add arrives, as on the others", "The replicas converge at the next anti-entropy round"]
-  answer: 0
+  options: ["Milk is removed once the add arrives, as on the others", "Milk stays on this replica forever while others lack it", "The replicas converge at the next anti-entropy round", "The replica rejects the remove and asks for a resend"]
+  answer: 1
   explanation: >-
     The remove finds no tag to remove and is dropped; when the add arrives, milk appears and nothing will ever remove it, so this replica diverges permanently. Op-based CRDTs need causal delivery: buffer an operation until its dependencies have arrived. Op-based designs ship operations, not states, so there is no later state merge to repair it.
 - q: >-
     Bob reads Alice's new title and then changes it, but his clock is 500 ms behind hers. Under a wall-clock LWW register, what is the final title?
-  options: ["Alice's, because Bob's later edit carries an older timestamp", "Bob's, because his edit happened later in real time", "Both, kept as siblings for a person to resolve later", "Whichever replica's state reaches the other one last"]
-  answer: 0
+  options: ["Both, kept as siblings for a person to resolve later", "Whichever replica's state reaches the other one last", "Bob's, because his edit happened later in real time", "Alice's, because Bob's later edit carries an older timestamp"]
+  answer: 3
   explanation: >-
     LWW compares timestamps, and Bob's clock stamped his causally later write lower than Alice's, so his edit is discarded without an error. A hybrid logical clock would advance Bob's clock past Alice's timestamp on receipt and let his edit win; siblings are the MV-register's behaviour, not LWW's.
 - q: >-
     In RGA, the document is A B. Alice inserts X with id (3, alice) after A while Bob concurrently inserts Y with id (3, bob) after A. What do both replicas show?
-  options: ["A Y X B, because (3, bob) is the greater id", "A X Y B, because alice sorts before bob", "A X B Y, because later inserts go at the end", "Either order, depending on which arrives first"]
-  answer: 0
+  options: ["Either order, depending on which arrives first", "A X Y B, because alice sorts before bob", "A Y X B, because (3, bob) is the greater id", "A X B Y, because later inserts go at the end"]
+  answer: 2
   explanation: >-
     Integration starts after the anchor A and skips elements with a greater id. Counters tie at 3, so the replica name decides and (3, bob) is greater: on Alice's replica Y stops before X, and on Bob's replica X skips over Y. The result is independent of arrival order, which is the point of the deterministic tie-break.
 - q: >-

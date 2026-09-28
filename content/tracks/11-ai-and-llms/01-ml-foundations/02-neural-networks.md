@@ -379,8 +379,8 @@ hints:
     W2(W1 x + b1) + b2 simplifies to a single W'x + b', and the same holds for any number of layers. Without non-linearities the network can only represent linear functions, however deep it is. Vanishing gradients come from small activation derivatives multiplied together, and this network has no activations at all; overfitting and optimiser choice are separate concerns.
 - q: >-
     In the 2-2-1 example, hidden unit 2 has output weight −0.5. Why do its incoming weights decrease after the update, while hidden unit 1's increase?
-  options: ["Because unit 2 has the larger activation, so it is penalised more", "Because the error reaches unit 2 through a negative weight, flipping its sign", "Because unit 2's sigmoid slope is smaller, which reverses its gradient", "Because the bias of unit 2 is negative, so its weights must shrink too"]
-  answer: 1
+  options: ["Because unit 2's sigmoid slope is smaller, which reverses its gradient", "Because unit 2 has the larger activation, so it is penalised more", "Because the bias of unit 2 is negative, so its weights must shrink too", "Because the error reaches unit 2 through a negative weight, flipping its sign"]
+  answer: 3
   explanation: >-
     Both hidden units receive the same output error −0.4482, multiplied by their own output weight. Through v1 = 0.7 it stays negative (so the weights rise); through v2 = −0.5 it becomes +0.2241 (so the weights fall). The sigmoid slope is always positive and only scales the gradient; it cannot change its sign.
 - q: >-
@@ -391,7 +391,7 @@ hints:
     ReLU's derivative is 0 (not negative) for negative inputs, so the gradient reaching its weights is multiplied by 0 on every example and the unit never recovers. This is the dead ReLU problem; leaky ReLU and GELU keep a small slope for negative inputs to avoid it. (Weight decay could shrink them, but it cannot bring the unit back to life.)
 - q: >-
     A 10-layer ReLU network of width 128 is initialised with weights of standard deviation 1.0. What happens on the first forward pass?
-  options: ["Activations stay near 1, since ReLU discards the negative half", "Activations shrink toward 0, since ReLU zeroes half of every layer", "Activations grow about 8 times per layer, near 10^9 by layer 10", "Activations oscillate in sign, since the weights are symmetric"]
+  options: ["Activations stay near 1, since ReLU discards the negative half", "Activations oscillate in sign, since the weights are symmetric", "Activations grow about 8 times per layer, near 10^9 by layer 10", "Activations shrink toward 0, since ReLU zeroes half of every layer"]
   answer: 2
   explanation: >-
     Each layer scales the activation size by about s × sqrt(n/2) = 1 × sqrt(64) = 8, so ten layers give roughly 8^10 ≈ 10^9 (measured 1.2 × 10^9). Halving by ReLU is already inside the sqrt(n/2) factor; He initialisation, s = sqrt(2/128), makes the factor 1. ReLU outputs are non-negative, so they cannot oscillate in sign.

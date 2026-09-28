@@ -293,37 +293,37 @@ hints:
 ```quiz
 - q: >-
     A node shows rows=1 estimated and rows=228,338 actual inside a nested loop, yet the query is only 636 ms with everything cached. Why should you still fix it?
-  options: ["The plan wins only while pages stay cached; cold, its reads cost seconds", "Nested loops are never correct above 1,000 outer rows, so the plan is invalid", "A misestimate stops autovacuum from analysing the table until it is fixed", "The planner will keep this plan forever, even after the data changes again"]
-  answer: 0
+  options: ["A misestimate stops autovacuum from analysing the table until it is fixed", "The planner will keep this plan forever, even after the data changes again", "The plan wins only while pages stay cached; cold, its reads cost seconds", "Nested loops are never correct above 1,000 outer rows, so the plan is invalid"]
+  answer: 2
   explanation: >-
     With every page cached, 1.77 million buffer hits cost about 0.3 microseconds each. The same plan issued 58,632 reads, which at roughly 0.1 ms per cold NVMe read is several seconds, and worse on network storage. Fixing the estimate with ANALYZE or extended statistics lets the planner choose on real sizes. Nested loops are fine for small outer inputs, and plans are recomputed as statistics change.
 - q: >-
     The planner chose a hash join costing 3,403 over a nested loop costing 6,209, but the loop ran in 5 ms against 14.7 ms. What most plausibly explains it?
-  options: ["The statistics for users were stale, so the hash join looked cheaper", "random_page_cost = 4 overprices index probes on cached or SSD data", "Hash joins are always estimated wrongly when the build side is large", "The nested loop only won because its 2,880 probes were served by JIT"]
-  answer: 1
+  options: ["random_page_cost = 4 overprices index probes on cached or SSD data", "The statistics for users were stale, so the hash join looked cheaper", "Hash joins are always estimated wrongly when the build side is large", "The nested loop only won because its 2,880 probes were served by JIT"]
+  answer: 0
   explanation: >-
     The loop's cost is dominated by 2,880 index probes charged as random page reads at 4.0 each. With the data in memory those reads are nearly free, and setting random_page_cost to 1.1 made the planner pick the nested loop itself. The estimates were accurate, so this is a cost-constant problem, not a statistics problem.
 - q: >-
     At 20% selectivity on an uncorrelated column, a forced index scan took 126 ms, a bitmap scan 53 ms and a sequential scan 65 ms. Why does the index scan lose?
-  options: ["The index is larger than the table at this selectivity, so it reads more", "Index scans cannot use shared buffers, so every access goes to disk", "It fetches a heap page per matching row, about 400,000 times", "It must sort the 400,000 matches before returning any of them"]
-  answer: 2
+  options: ["It fetches a heap page per matching row, about 400,000 times", "The index is larger than the table at this selectivity, so it reads more", "It must sort the 400,000 matches before returning any of them", "Index scans cannot use shared buffers, so every access goes to disk"]
+  answer: 0
   explanation: >-
     With no correlation between index order and physical order, each match costs its own heap page access, about 400,000 buffer accesses for pages that the bitmap scan visits once each in physical order. The sequential scan reads 16,667 pages regardless. Index scans do use shared buffers, and they return rows in index order without sorting.
 - q: >-
     WHERE country = 'JP' AND currency = 'JPY' is estimated at 965 rows but returns 10,000. What is wrong and what fixes it?
-  options: ["The histogram is too coarse; raise the statistics target on country", "It assumed the columns independent; create extended statistics", "The MCV list is stale; run VACUUM FULL so ANALYZE sees every row", "Both columns need a composite index before any estimate can be made"]
-  answer: 1
+  options: ["The MCV list is stale; run VACUUM FULL so ANALYZE sees every row", "Both columns need a composite index before any estimate can be made", "The histogram is too coarse; raise the statistics target on country", "It assumed the columns independent; create extended statistics"]
+  answer: 3
   explanation: >-
     The planner multiplied 0.1 by 0.1 because it assumes the columns are independent, but currency is determined by country. CREATE STATISTICS with dependencies and mcv lets it know that, and the estimate became 10,193. Indexes do not change row estimates, and neither a larger histogram nor a table rewrite captures a cross-column dependency.
 - q: >-
     WHERE status = 'pending' ORDER BY placed_at DESC LIMIT 10 walks an index on placed_at and takes 185 ms, removing 1,980,000 rows by filter. The statistics correctly say 1% are pending. What is the best fix?
-  options: ["Run ANALYZE so the planner sees that 1% of the rows are pending", "Raise work_mem so the filter can be applied inside the index", "Replace LIMIT with OFFSET 0 so the planner stops expecting early exit", "Index (status, placed_at) so the scan starts at the pending rows"]
-  answer: 3
+  options: ["Index (status, placed_at) so the scan starts at the pending rows", "Replace LIMIT with OFFSET 0 so the planner stops expecting early exit", "Run ANALYZE so the planner sees that 1% of the rows are pending", "Raise work_mem so the filter can be applied inside the index"]
+  answer: 0
   explanation: >-
     The count is right; the assumption that pending rows are spread evenly along placed_at is wrong, because they all sit at the old end. A composite index with status first makes the scan read only pending entries in placed_at order: 5 buffers and 0.17 ms. ANALYZE would confirm the same 1%, and work_mem has nothing to do with filtering during an index walk.
 - q: >-
     A hash join shows Batches: 16 and 163 MB of temp I/O, yet it is no slower than with work_mem large enough for one batch. What is the most likely reason?
-  options: ["The temp files stayed in the OS page cache and never hit disk", "Postgres ignored work_mem because hash_mem_multiplier overrode it", "The batches ran in parallel workers, hiding the extra I/O cost", "Batches only affect the probe side, which was already read from disk"]
+  options: ["The temp files stayed in the OS page cache and never hit disk", "Batches only affect the probe side, which was already read from disk", "The batches ran in parallel workers, hiding the extra I/O cost", "Postgres ignored work_mem because hash_mem_multiplier overrode it"]
   answer: 0
   explanation: >-
     Temp files are ordinary files; on a machine with plenty of free memory they are written to and read back from the page cache. Under memory pressure the same spill goes to disk and costs real time, so Batches greater than 1 is a signal to check temp I/O, not proof of a problem. Parallelism was disabled for the measurement, and hash_mem_multiplier only raises the in-memory limit.

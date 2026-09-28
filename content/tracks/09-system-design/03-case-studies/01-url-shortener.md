@@ -522,14 +522,14 @@ hints:
     Conditional puts are only linearizable within a region. Two regions can generate the same key in the same second, both local puts succeed, and LWW replication resolves the conflict by discarding one write, which re-points a link a user has already shared. Partitioning the key space by region makes the collision impossible instead of merely unlikely.
 - q: >-
     Why does the design pre-aggregate clicks per instance and partition the clicks topic by producer, instead of keying raw events by short link?
-  options: ["Keying by link drops events whenever a partition's leader fails over", "Kafka cannot use a string such as the short key as its partition key", "Counting needs no ordering, and keying puts a viral link on one partition", "Pre-aggregating by producer makes the counts exact, which keyed events cannot"]
+  options: ["Kafka cannot use a string such as the short key as its partition key", "Pre-aggregating by producer makes the counts exact, which keyed events cannot", "Counting needs no ordering, and keying puts a viral link on one partition", "Keying by link drops events whenever a partition's leader fails over"]
   answer: 2
   explanation: >-
     Counting is commutative, so keyed partitioning buys per-key ordering you do not need and concentrates a viral link's entire load on one partition and one consumer. Pre-aggregation turns 30,000 events a second into one message per instance per second. It does not make counts exact; the design accepts losing up to one second of one instance's counts per crash.
 - q: >-
     Volume grows 10x, so the 7-character space will be 8.5% full by year five. What is the right response?
-  options: ["Nothing; an 8.5% retry rate costs one extra put per twelve creates", "Mint new keys with 8 characters; old 7-character keys keep working", "Rehash every existing link into an 8-character key during a migration", "Switch to a global counter, since random keys no longer scale at 10x"]
-  answer: 1
+  options: ["Mint new keys with 8 characters; old 7-character keys keep working", "Switch to a global counter, since random keys no longer scale at 10x", "Nothing; an 8.5% retry rate costs one extra put per twelve creates", "Rehash every existing link into an 8-character key during a migration"]
+  answer: 0
   explanation: >-
     Lookups are by exact key, so lengths can coexist: new 8-character keys put the space at 0.14% used while every printed 7-character link keeps resolving. Tolerating 8.5% density keeps creation cheap but makes guessing easier: roughly one random guess in twelve hits a live link. Rewriting existing keys breaks every link already shared, and a global counter reintroduces enumeration.
 ```

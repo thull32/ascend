@@ -531,32 +531,32 @@ hints:
 ```quiz
 - q: >-
     A lock is taken with SET NX PX on a Redis primary that replicates asynchronously. The primary crashes and a replica is promoted. What can happen?
-  options: ["The replica lacks the key, so a second client acquires it", "The lock survives, because replicas copy every key at once", "Redis refuses to promote a replica while any lock is held", "All clients disconnect and the lock is released safely"]
+  options: ["The replica lacks the key, so a second client acquires it", "All clients disconnect and the lock is released safely", "The lock survives, because replicas copy every key at once", "Redis refuses to promote a replica while any lock is held"]
   answer: 0
   explanation: >-
     The primary acknowledged the SET before replicating it, so the promoted replica may never have seen the key, and a second client acquires the lock while the first still works. WAIT narrows the window but does not make Redis strongly consistent. That makes a single-node Redis lock an efficiency lock.
 - q: >-
     Client 1 locks Redis nodes R1, R2 and R3 of five. NTP then steps R3's clock forward 20 s, expiring its key. Client 2 locks R3, R4 and R5. What is the outcome?
-  options: ["Both clients hold the lock at the same time", "Client 2 fails, since R3 still counts client 1", "Client 1's lock moves over to R4 and R5", "Redis refuses to apply the forward clock step"]
+  options: ["Both clients hold the lock at the same time", "Redis refuses to apply the forward clock step", "Client 2 fails, since R3 still counts client 1", "Client 1's lock moves over to R4 and R5"]
   answer: 0
   explanation: >-
     Redis compares a key's absolute expiry with the wall clock, so the step expires client 1's key on R3 early. Each client then has a majority of three, and both believe they hold the lock. This is Kleppmann's second timeline; the same happens if R3 restarts without persistence.
 - q: >-
     Why can Redlock not provide fencing tokens?
-  options: ["Its values are random and its masters share no counter", "Its Lua release script is not atomic across all nodes", "Its keys expire on wall-clock time, not monotonic time", "Its tokens would need five round trips per acquisition"]
-  answer: 0
+  options: ["Its keys expire on wall-clock time, not monotonic time", "Its tokens would need five round trips per acquisition", "Its values are random and its masters share no counter", "Its Lua release script is not atomic across all nodes"]
+  answer: 2
   explanation: >-
     A fencing token must increase with every grant. A random value is unique but unordered, and five independent masters have no shared counter; producing one would need them to agree on the order of grants, which is consensus. etcd revisions and ZooKeeper sequence numbers are such counters. Wall-clock expiry is a separate weakness.
 - q: >-
     Waiters B, C and D queue behind holder A in a ZooKeeper lock, each watching its predecessor. C's session expires. What should D do?
-  options: ["Re-list the children, find B ahead, and watch B", "Take the lock, since its predecessor has gone", "Watch A's znode, because A is the current holder", "Nothing, since its watch was set on the parent"]
-  answer: 0
+  options: ["Nothing, since its watch was set on the parent", "Watch A's znode, because A is the current holder", "Take the lock, since its predecessor has gone", "Re-list the children, find B ahead, and watch B"]
+  answer: 3
   explanation: >-
     D's watch fires because C's znode was deleted, but a notification means re-check, not granted. D lists the children, sees A and B still ahead, and watches B, its new predecessor. Taking the lock would give two holders; watching A or the parent brings back the herd effect.
 - q: >-
     Kubernetes leader election uses a 15 s lease, 10 s renew deadline and 2 s retry. The leader's last renewal succeeds at t = 20 s, then it loses the API server. When does it stop, and when can a candidate take over?
-  options: ["It stops at 30 s; takeover from about 35 s", "It stops at 35 s; takeover from about 30 s", "It stops at 22 s; takeover from about 24 s", "It stops at 30 s; takeover from about 30 s"]
-  answer: 0
+  options: ["It stops at 30 s; takeover from about 30 s", "It stops at 22 s; takeover from about 24 s", "It stops at 30 s; takeover from about 35 s", "It stops at 35 s; takeover from about 30 s"]
+  answer: 2
   explanation: >-
     The leader gives up when it has not renewed within the 10 s renew deadline, at 30 s. A candidate treats the lease as expired 15 s after it last observed a change, at 35 s, and acquires on its next retry. The 5 s gap is the safety margin; overlapping them would allow two leaders even without pauses.
 - q: >-

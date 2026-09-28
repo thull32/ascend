@@ -64,6 +64,22 @@ The mechanism that pays for it is coordination on every operation: a single lead
  "title": "Quorum reads and writes (W=2, R=2, N=3)", "caption": "R + W > N guarantees the read set overlaps the write set, so some replica in every read has the latest write. Step through and notice that overlap alone does not fix the moment when a write has reached one replica but not two: a read can still return the old value, which is why quorums are not automatically linearizable."}
 ```
 
+### Why a quorum is not linearizable, traced
+
+Three replicas hold `x = 0` at version 0; writes need W = 2 acknowledgements and reads query R = 2 replicas and return the highest version they see:
+
+| t (ms) | Event | R1 | R2 | R3 | Returned |
+|---|---|---|---|---|---|
+| 0 | A starts `w(1)`: the coordinator sends version 1 to all three | 0 | 0 | 0 | |
+| 1 | R1 applies it; the messages to R2 and R3 are delayed | 1 | 0 | 0 | |
+| 2–3 | B reads R1 and R2, sees versions 1 and 0, returns the newer | 1 | 0 | 0 | B: 1 |
+| 4–5 | C reads R2 and R3, both at version 0 | 1 | 0 | 0 | C: 0 |
+| 6 | R2 applies version 1: two acknowledgements, A's write returns | 1 | 1 | 0 | A: ok |
+
+The history is `A: w(1) [0, 6]`, `B: r → 1 [2, 3]`, `C: r → 0 [4, 5]`: H3b again. The write had not been acknowledged, but B's read fixed its moment before t = 3, and C began after that. R + W > N guarantees that a read overlaps the last *completed* write, not one in flight.
+
+The fix is the second phase of the ABD algorithm (Attiya, Bar-Noy and Dolev, 1995): a reader that sees replicas disagree writes the newest value back to a write quorum before returning. B writes version 1 to R2, waits for two acknowledgements, and returns at about t = 4; C's quorum then contains R2 and sees 1. The price is a second round trip on every read that finds a disagreement. Cassandra repairs mismatches it finds during quorum reads before answering (its `read_repair` table option, blocking by default), which removes this inversion, yet its quorum operations are still not linearizable: a write that reached fewer than W replicas and was reported as failed can surface later through repair, and concurrent writes are ordered by client-supplied timestamps.
+
 ## Sequential consistency: one order, not real time
 
 **History H4** (writes reordered against the clock):
@@ -98,6 +114,25 @@ Carol: r(post) → (nothing)         [80, 90]
 
 The mechanism is dependency tracking: each write carries the versions it depended on (a vector clock, or a session's "I have seen up to here" token), and a replica delays applying a write until its dependencies are applied. That metadata and the held-back writes are why few systems offer full causal consistency; MongoDB's causally consistent sessions do it per session by tagging reads with `afterClusterTime`, so a secondary waits until it has applied everything the session has seen. [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering) covers vector clocks.
 
+### Causal but not sequential: H7
+
+Two clients write concurrently, and two observers see the writes in opposite orders:
+
+```text
+A: w(1)   [0, 10]
+B: w(2)   [0, 10]
+C: r → 1  [20, 30]
+D: r → 2  [20, 30]
+C: r → 2  [40, 50]
+D: r → 1  [40, 50]
+```
+
+1. Neither writer read the other's value, so `w(1)` and `w(2)` are concurrent: no happens-before edge between them.
+2. Causal? Each observer's view must respect happens-before, and there is none between the writes, so C may apply 1 then 2 and D may apply 2 then 1. **Causal.**
+3. Sequential? One total order must explain both observers. C's reads force `w(1)` before `w(2)`; D's force `w(2)` before `w(1)`. **Not sequential**, and so not linearizable.
+
+This is the anomaly of multi-leader replication: two regions each apply their local write first and ship it to the other. Plain causal consistency allows the history forever; systems that also promise convergence (COPS called it causal+) add a conflict rule. With last-writer-wins, the replica that already holds the write with the higher timestamp ignores the other one when it arrives, so one of the two observers never sees the flip; with siblings, both observers eventually read `{1, 2}` and the application merges. Either way the observers disagreed for a while, which is the price of accepting writes without coordinating them ([CAP and PACELC](/learn/system-design/building-blocks/cap-and-pacelc) traces the multi-leader case).
+
 ## Eventual consistency: convergence, sometime
 
 Eventual consistency promises only that replicas converge if writes stop. The honest description of "eventually" is a number:
@@ -115,6 +150,16 @@ Eventual consistency promises only that replicas converge if writes stop. The ho
 | Cassandra read at `ONE` | Milliseconds | Until repair, possibly hours, for a write a replica missed |
 
 It is right for view counts, recommendations, search indexes and dashboards, and a bug for anything a user just changed and is about to look at.
+**How stale, how often.** Bailis and colleagues called the answer probabilistically bounded staleness (PBS, 2012): the probability that a read issued t milliseconds after a write was acknowledged misses it. Simulated for three replicas, each applying a write 0.5 ms plus an exponential delay averaging 2 ms after it is sent, with 1% of deliveries stalled an extra 50 ms (a GC pause or a busy disk), read requests taking 0.5 ms on average to arrive, and 200,000 trials per cell:
+
+| Read and write quorums | t = 0 | 1 ms | 5 ms | 10 ms | 50 ms |
+|---|---|---|---|---|---|
+| R = 1, W = 1 | 53% | 33% | 5.3% | 1.3% | 0.55% |
+| R = 1, W = 2 | 27% | 17% | 3.1% | 1.2% | 0.27% |
+| R = 2, W = 1 | 21% | 8.1% | 0.20% | 0.015% | 0.002% |
+| R = 2, W = 2 (R + W > N) | 0 | 0 | 0 | 0 | 0 |
+
+Three readings. Immediately after a write, a single-replica read is stale about half the time, so read-your-writes cannot be left to luck. Staleness decays fast, 5% after 5 ms, and then hits a floor set by the stall rate, not the average delay: after 50 ms the only stale reads left are those that landed on a stalled replica. And reading two replicas buys more freshness than writing to two, because a read that sees any fresh copy wins while a write that waits for two still leaves the third behind. With stalls a hundred times rarer the floor drops accordingly; the shape, a fast decay onto a tail set by pauses, is what to expect from any real store.
 
 ## Session guarantees: the ones you implement
 
@@ -180,6 +225,25 @@ sequenceDiagram
     R->>P: forward read
     P-->>C: fresh profile
 ```
+
+**Sessions span devices.** A token held by the client gives read-your-writes per session, not per user: the user edits their profile on a phone, opens a laptop, and the laptop's session has no token. When the product promises "your change shows everywhere you are signed in", keep the user's last write position on the server, in a small key-value entry (`user:42:lsn`) that expires after the longest lag you tolerate, and check it on every read for that user. Almost every read finds no entry and goes to a replica at no cost.
+
+## Caches are replicas too
+
+Clients observe the whole path, not the database. A linearizable primary behind a cache-aside layer gives users whatever the cache says, and the classic race leaves the cache stale until its TTL:
+
+| t | Reader R | Writer W | Database | Cache |
+|---|---|---|---|---|
+| 0 | `GET k`: miss | | v1 | – |
+| 1 | Reads the database: v1 | | v1 | – |
+| 2 | Pauses (GC, a slow network) | `UPDATE k = v2`; commit | v2 | – |
+| 3 | | `DELETE k` from the cache | v2 | – |
+| 4 | `SET k = v1` | | v2 | **v1** |
+| 4 to TTL | Every reader gets v1 | | v2 | v1 |
+
+The writer did everything right; the reader wrote back a value it had read before the invalidation. Facebook's memcache paper (2013) describes the fix it used, **leases**: a miss hands the reader a token, a delete invalidates outstanding tokens, and a `SET` carrying an invalidated token is refused. A version-conditional set ("store only if newer than what is cached") achieves the same, and a TTL bounds the damage when both fail. [Caching strategies](/learn/system-design/building-blocks/caching-strategies) covers the patterns.
+
+HTTP caches are replicas with no invalidation at all. `Cache-Control: max-age=60` on a profile page means the browser and any CDN serve the old profile for up to a minute after the user edits it, however consistent the database is. Resources a user can change get `no-cache` with an ETag (revalidate every time, and receive a cheap 304 when nothing changed), or a version in the URL that changes when the content does.
 
 ## Which anomalies each model allows
 
@@ -292,6 +356,9 @@ Interviewers conflate them on purpose. Isolation (the I in ACID) is about concur
 | Lost update via replica read | Counters and stock levels drift below reality | Read-modify-write computed from a replica value | Atomic `UPDATE ... SET n = n - 1` or a conditional write on the primary |
 | Stale reads after failover | Previously read data "un-happens" | Asynchronous replica promoted while behind | Synchronous standby for data that must survive; alert on lag before failover |
 | Linearizability everywhere | Leader saturated at ~10,000 queries/s while replicas idle | Every read pinned to the leader "to be safe" | Classify reads; only the ones that feed decisions need the leader |
+| Cache holds a pre-update value | A changed price or profile stays wrong for exactly the cache TTL, then fixes itself | Cache value older than the database row; a slow reader's `SET` after the writer's delete in traces | Leases or version-conditional sets; TTLs short enough to bound the damage |
+| Edit invisible on another device | "I changed it on my phone and my laptop still shows the old one" | Read-your-writes token held per session, not per user | Last-write position per user on the server, checked on reads |
+| Quorum read inversion | A value appears, then disappears for another client moments later, during writes | Quorum reads without write-back; histories with an in-flight write | Blocking read repair (write back to a quorum before returning), or a leader for operations that need it |
 
 ## Interviewer follow-ups
 
@@ -305,6 +372,10 @@ Interviewers conflate them on purpose. Isolation (the I in ACID) is about concur
 
 **"DynamoDB strongly consistent reads cost twice as much. When are they worth it?"** Model answer: when the read feeds a decision that writes: reading a cart before applying a coupon, reading an item's version before a conditional update. The extra read unit is trivial next to a wrong decision. Display reads stay eventual, and anything served through a global secondary index is eventual whatever the flag says. Common wrong answer: "always, to be safe", which doubles the read bill for pages nobody can tell are a second stale.
 
+**"N = 3, W = 2, R = 2. Is it linearizable?"** Model answer: no. Overlap guarantees a read sees the last *completed* write; during a write in flight, one read can see the new value on the single replica that has it and a later read can miss it on the other two, which is a real-time inversion. Making it linearizable takes a write-back phase: a reader that sees disagreement writes the newest value to a quorum before returning (ABD), paying a second round trip on those reads, plus a total order for concurrent writes that is not wall-clock timestamps. Common wrong answer: "yes, because R + W > N".
+
+**"The database is linearizable, yet a user sees their old display name after changing it. Where do you look?"** Model answer: at every copy between the database and the screen: the replica that served the read, the cache-aside layer (the race where a slow reader writes back a pre-update value after the invalidation), a CDN or browser cache honouring `max-age`, and the client's own state store. Clients observe the path, not the primary; log which layer served each response. Common wrong answer: "the database must have a bug".
+
 ## What mid-level engineers get wrong
 
 - Adding read replicas and not noticing that the application's consistency model changed.
@@ -313,6 +384,8 @@ Interviewers conflate them on purpose. Isolation (the I in ACID) is about concur
 - Believing `QUORUM` reads and writes are linearizable.
 - Confusing isolation levels with replication consistency.
 - Pinning every read to the leader instead of classifying reads.
+- Guaranteeing read-your-writes per session and then promising it across a user's devices.
+- Forgetting that caches, CDNs and browsers are replicas, so a consistent database still serves stale pages.
 
 ## Senior signals
 
@@ -322,32 +395,33 @@ Interviewers conflate them on purpose. Isolation (the I in ACID) is about concur
 - You choose consistency per operation and name the two or three operations that need linearizability.
 - You quote lag as a number with a distribution, and know failover can break a guarantee the healthy system keeps.
 - You can explain how etcd, ZooKeeper, DynamoDB and Spanner pay for their guarantees.
+- You treat staleness as a distribution (fast decay onto a tail set by pauses), know why quorum overlap is not linearizability, and count caches as replicas.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     A write of x = 1 returns at t = 20 ms. A different client starts a read at t = 50 ms and receives 0. Which models permit this history?
-  options: ["Only eventual consistency, since the others forbid stale reads", "None, because an acknowledged write must be visible to all", "Sequential, causal and eventual, but not linearizable", "All of them, because reads overlapping writes may return either value"]
-  answer: 2
+  options: ["Only eventual consistency, since the others forbid stale reads", "Sequential, causal and eventual, but not linearizable", "All of them, because reads overlapping writes may return either value", "None, because an acknowledged write must be visible to all"]
+  answer: 1
   explanation: >-
     Linearizability orders operations by real time, so a read that begins after the write returned must see it. Sequential and causal consistency only need an order consistent with each client's program order, and the read can be placed before the write. The read does not overlap the write, so the "either value" rule does not apply.
 - q: >-
-    A writes 1 during [0, 30]. B reads 1 during [10, 20]. C reads 0 during [15, 25]. Is the history linearizable?
-  options: ["No, because B has already seen 1 before C's read", "No, because C's read ended after B's read ended", "Yes: C's read, then the write, then B's read", "Yes, but only if C's read began before the write"]
-  answer: 2
+    N = 3, W = 2, R = 2. A write has reached one replica so far. Client B reads replicas 1 and 2 and gets the new value; after B returns, client C reads replicas 2 and 3 and gets the old one. Which statement is right?
+  options: ["It violates only read-your-writes, since C never wrote anything", "It is linearizable, since the write had not yet been acknowledged", "It cannot happen, since R + W > N guarantees the quorums overlap", "It violates linearizability; B's read fixed the write's moment"]
+  answer: 3
   explanation: >-
-    No operation finished before another began, so real time imposes no order; choosing C's instant at 15, the write at 16 and B at 17 gives a legal order. If C had started after B returned (say at 25), C would have to see 1 and the history would not be linearizable.
+    Once B returned the new value, the write must take effect before B's response, and C began afterwards, so C must see it too. Quorum overlap covers the last completed write, not one in flight. A write-back phase, where a reader that sees disagreement writes the newest value to a quorum before returning, removes the inversion at the cost of a second round trip.
 - q: >-
     Client C reads a reply to a post, then reads the post and finds nothing. Which is the weakest model that forbids this?
-  options: ["Causal consistency", "Linearizability", "Eventual consistency", "Read-your-writes"]
-  answer: 0
+  options: ["Read-your-writes", "Causal consistency", "Eventual consistency", "Linearizability"]
+  answer: 1
   explanation: >-
     The reply was written by someone who had read the post, so the post happens before the reply; causal consistency requires anyone who sees the reply to see the post. Linearizability also forbids it but is stronger than needed. Read-your-writes covers only a client's own writes, and eventual consistency allows it.
 - q: >-
     A user sees a new profile value on one request and the old one on the next, as the balancer alternates between two replicas with different lag. Which guarantee is missing, and what is the cheap fix?
-  options: ["Linearizability; route all reads through the leader", "Read-your-writes; add more replicas to cut the lag", "Monotonic reads; carry the highest log position seen", "Monotonic writes; number every write in the session"]
-  answer: 2
+  options: ["Read-your-writes; add more replicas to cut the lag", "Monotonic writes; number every write in the session", "Linearizability; route all reads through the leader", "Monotonic reads; carry the highest log position seen"]
+  answer: 3
   explanation: >-
     Seeing a newer state and then an older one violates monotonic reads. Carrying the highest position seen and refusing replicas behind it (or pinning the session to one replica) fixes it with one token. The user did not write anything, so read-your-writes and monotonic writes are not the issue; routing everything to the leader works but gives up the replicas.
 - q: >-
@@ -358,8 +432,8 @@ Interviewers conflate them on purpose. Isolation (the I in ACID) is about concur
     The replica value may lag the primary; writing a value computed from it overwrites decrements the replica had not seen. An atomic UPDATE on the primary or a conditional write (WHERE version = expected) prevents it. No locks span the two nodes, so there is nothing to deadlock.
 - q: >-
     How does etcd serve a linearizable read without writing to its log?
-  options: ["The follower that receives it answers from its locally applied state", "The client reads from a majority and takes the newest value", "The read waits for the next log compaction to finish", "The leader confirms it still leads, then waits for its commit index"]
-  answer: 3
+  options: ["The read waits for the next log compaction to finish", "The follower that receives it answers from its locally applied state", "The leader confirms it still leads, then waits for its commit index", "The client reads from a majority and takes the newest value"]
+  answer: 2
   explanation: >-
     ReadIndex: the leader records its commit index, confirms with a heartbeat round that a majority still follows it (so no newer leader has committed anything), waits until its state machine has applied that index, and answers. A follower answering locally is etcd's serializable read, which may be stale.
 ```

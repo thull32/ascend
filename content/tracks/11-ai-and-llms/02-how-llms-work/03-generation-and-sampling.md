@@ -329,8 +329,8 @@ hints:
     Keeping however many tokens are needed to reach mass p means a peaked distribution keeps one or two tokens and a flat one keeps many: three tokens for the France example at temperature 1, four at 1.5. A fixed k is too permissive when one answer dominates and too restrictive when many continuations are fine. Top-p still needs sorted probabilities and does drop the tail.
 - q: >-
     The top-p nucleus after renormalising is (0.830, 0.102, 0.068) and the sampler draws u = 0.85. Which token is chosen?
-  options: ["The first, since it holds most of the probability", "The second, since the cumulative sum first passes u there", "The third, since u is closest to the end of the distribution", "None, since u is above the top token's probability"]
-  answer: 1
+  options: ["None, since u is above the top token's probability", "The first, since it holds most of the probability", "The second, since the cumulative sum first passes u there", "The third, since u is closest to the end of the distribution"]
+  answer: 2
   explanation: >-
     Inverse-CDF sampling walks the cumulative sums, 0.830 then 0.932, and returns the first token whose cumulative sum exceeds u; 0.830 does not exceed 0.85, 0.932 does. Any u below 0.830 would have chosen the first token, which is how it gets its 83% share.
 - q: >-
@@ -347,7 +347,7 @@ hints:
     Floating-point addition is not associative, and batch composition changes kernel and reduction order, so logits differ in their last bits. When two candidates are nearly tied, the argmax flips and every later token can differ. Temperature 0 is greedy, not random, and tokenization is deterministic. Tests should assert structure or meaning, not exact strings.
 - q: >-
     Beam search prefers a two-token reply with probability 0.27 over a six-token answer with probability 0.26 whose every token has probability 0.8. What fixes the bias?
-  options: ["A wider beam, so the longer answer stays among the candidates", "A higher temperature, so short replies become less likely", "Dividing each candidate's log-probability by its length", "Adding a stop sequence, so the short reply cannot end early"]
+  options: ["A higher temperature, so short replies become less likely", "Adding a stop sequence, so the short reply cannot end early", "Dividing each candidate's log-probability by its length", "A wider beam, so the longer answer stays among the candidates"]
   answer: 2
   explanation: >-
     Every extra token multiplies in a probability below 1, so raw sequence probability favours short outputs regardless of beam width. Length normalisation compares average log-probability per token: −1.31/2 = −0.65 against −1.34/6 = −0.22, and the longer answer wins. Temperature and stop sequences do not change how beams are scored.

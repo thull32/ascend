@@ -256,8 +256,8 @@ At most large companies the interviewer fills in a structured form within hours,
     The deep dive is where the senior signal lives and it needs about a third of the time. Saying "that is the high level" and choosing the deep-dive targets yourself demonstrates driving; asking the interviewer to choose is acceptable but weaker. A complete diagram with no depth is the most common failing pattern, and restarting spends the time you need for depth.
 - q: >-
     Your estimate comes out at 120 writes/s and 20,000 reads/s at peak with 3 TB of data after five years. Which design does the arithmetic justify?
-  options: ["A single replicated Postgres with a cache in front of it", "An in-memory store with periodic snapshots to object storage", "A sharded Cassandra cluster with a Kafka ingestion pipeline", "Multi-region active-active databases with a global router"]
-  answer: 0
+  options: ["An in-memory store with periodic snapshots to object storage", "Multi-region active-active databases with a global router", "A single replicated Postgres with a cache in front of it", "A sharded Cassandra cluster with a Kafka ingestion pipeline"]
+  answer: 2
   explanation: >-
     One primary handles these write rates with room to spare, the cache and a replica absorb the reads, and 3 TB fits one node. Sharding or a queue invites the question "what is that for?" with no numeric answer. Multi-region is driven by the availability requirement, not by this throughput.
 - q: >-
@@ -274,8 +274,8 @@ At most large companies the interviewer fills in a structured form within hours,
     A permanent redirect is cacheable by default, so later clicks never reach your servers: lower load, but no click events, no destination changes and slow takedowns of malicious links. 302 and 307 both route every click through you; their difference (method preservation) does not matter for a GET shortener and has nothing to do with open redirects.
 - q: >-
     Two app servers generate the same random short key at the same moment. With a primary-key constraint on short_key in Postgres, what happens?
-  options: ["Both inserts succeed and the later row overwrites the earlier one", "The second insert waits for the first to commit, then fails", "Both inserts fail, because the unique index detects the conflict", "The database silently appends a suffix so both keys are unique"]
-  answer: 1
+  options: ["The database silently appends a suffix so both keys are unique", "Both inserts succeed and the later row overwrites the earlier one", "Both inserts fail, because the unique index detects the conflict", "The second insert waits for the first to commit, then fails"]
+  answer: 3
   explanation: >-
     The unique index makes the second insert wait on the first transaction; when it commits, the second fails with a unique violation (or returns no row under ON CONFLICT DO NOTHING) and the application generates a new key. A SELECT-before-INSERT check would not prevent this, because both SELECTs can run before either INSERT.
 - q: >-

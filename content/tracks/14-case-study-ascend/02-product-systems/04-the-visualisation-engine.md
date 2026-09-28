@@ -139,14 +139,16 @@ function make(values: number[], bars = false) {
 
 The `Frames` builder takes a snapshot *function*, and every family supplies one that copies each nested array and object it mutates. Leave out `tones: [...s.tones]` and the outer `...s` copies only the reference: every frame shares one `tones` array, `clearTones` refills it in place, and after the run every frame shows the final colours. Scrubbing appears to do nothing. It is the most common bug in this style, and it is silent; the exercise has you build a builder that avoids it.
 
-### Measured: two generators with the bug today
+### Before and after: two generators that rewrote their own past
 
-The suites check aliasing by reference: `system-a.test.ts` asserts that the first and last frames' `state` and `state.nodes` are different objects, and `memory.test.ts` compares two frames' `heap`. That proves the top level was copied, nothing beneath it. A stronger detector wraps `Frames.prototype.push`, records each frame's JSON when pushed, and compares it with the same frame after the run. Over all 229 algorithms and 725 blocks it flags two generators, used by six lesson blocks:
+The suites check aliasing by reference: `system-a.test.ts` asserts that the first and last frames' `state` and `state.nodes` are different objects, and `memory.test.ts` compares two frames' `heap`. That proves the top level was copied, nothing beneath it. A stronger detector wraps `Frames.prototype.push`, records each frame's JSON when pushed, and compares it with the same frame after the run. Run over all 229 algorithms and 725 blocks while this lesson was being written, it flagged two generators, used by six lesson blocks:
 
 - `array/monotonic-stack-next-greater` sets `s.vars = { answer: ans }` and keeps filling `ans`.
 - `graph/dfs` sets `s.vars = { stackDepth: depth, discovered: disc }` and keeps adding to `disc`.
 
-`vars: { ...s.vars }` copies one level, so every frame's `vars.answer` is the same array. On the gallery example `[2, 1, 5, 6, 2, 3]`, frame 1 ("Push 0") was recorded with six nulls and displays `[5, 5, 6, null, 3, null]`, the final result; DFS's frame 1 ("Enter A") displays discovery times for all six nodes. Neither family has a test file. The fix is one copy at the assignment (`answer: [...ans]`), or the engine's exported `clone` (`structuredClone`) on `vars` in the snapshot.
+`vars: { ...s.vars }` copies one level, so every frame's `vars.answer` was the same array. On the gallery example `[2, 1, 5, 6, 2, 3]`, frame 1 ("Push 0") was recorded with six nulls and displayed `[5, 5, 6, null, 3, null]`, the final result; DFS's frame 1 ("Enter A") displayed discovery times for all six nodes. Neither family has a test file, which is how both survived.
+
+Commit `7066802` fixed each with one copy at the assignment (`answer: [...ans]`, `discovered: { ...disc }`) and, more importantly, turned the detector into a test. `web/src/viz/frames-immutable.test.ts` wraps `push` in `beforeAll`, restores it in `afterAll`, and runs one case per catalogue algorithm and one per curriculum block (954 cases when it landed). With the two old lines restored, the same check flags eight of them: the two algorithms and the six blocks that use them. The fix without the test would have protected two generators; the test protects the next one.
 
 ## From a fenced block to frames: runSpec
 
@@ -156,6 +158,7 @@ The Rust loader parses each `viz` block as JSON and re-emits it compactly ([The 
 // web/src/viz/VizBlock.tsx
 /** Resolves a spec to frames exactly as the page does (shared with tests). */
 export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unknown } | { error: string } {
+  if (typeof spec.type !== "string") return { error: "Visualisation block has no \"type\"." };
   const family = getFamily(spec.type) as Family<Record<string, unknown>, unknown> | undefined;
   const algo = algorithmOf(spec);
   if (!family) return { error: `Unknown visualisation type "${spec.type}".` };
@@ -165,8 +168,11 @@ export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unkno
   void _t; void _a; void _s; void _ti; void _c;
   const base = family.examples[algo] ?? {};
   const raw = { ...base, ...rest };
-  const input = family.normalise ? family.normalise(raw) : raw;
+  // Normalising runs inside the try too: it reads author-supplied fields, and
+  // an unexpected shape must become a warning box, not an exception that
+  // takes the page down.
   try {
+    const input = family.normalise ? family.normalise(raw) : raw;
     const frames = gen(input);
     if (frames.length === 0) return { error: "Visualisation produced no steps." };
     return { frames, input };
@@ -178,20 +184,20 @@ export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unkno
 export function VizFromSpec({ spec, compact }: { spec: VizSpec; compact?: boolean }) {
   // ...
   const result = useMemo(() => runSpec(spec), [spec]);
-  // ... a warning box on error, otherwise the player
+  // ... a warning box on error, otherwise the player inside a VizErrorBoundary
 }
 ```
 
 The lines that are not what they look like:
 
-1. `getFamily(spec.type)` indexes a plain object, so `"type": "constructor"` finds `Object.prototype.constructor` and the next lookup throws outside any `try`. `"algorithm": "constructor"` returns the input object as "frames"; its `length` is undefined, the zero-frames check passes it, and the player draws nothing. Both fail the content scan; `Object.hasOwn` or a `Map` would close them.
+1. `getFamily(spec.type)` indexes a plain object, so `"type": "constructor"` finds `Object.prototype.constructor`, and `family.algorithms[algo]` then throws before the `try` (measured: "Cannot read properties of undefined"). `"algorithm": "constructor"` returns the input object as "frames"; its `length` is undefined and the zero-frames check passes it. Both fail the content scan, and both are still open: `Object.hasOwn` or a `Map` would close them.
 2. `algorithmOf` reads `algorithm`, then `scenario` (common in `system` and `network` blocks), then `""`. The error lists valid names, so the warning box carries the fix.
 3. The destructuring strips the five keys the engine owns; the `void` line only satisfies `noUnusedLocals`.
 4. `{ ...base, ...rest }` is a shallow merge where the author's keys win: the `target: 15` surprise. The tree family's `normalise` compares `raw.values` by reference with its own examples to tell them apart.
-5. `normalise` runs *before* the `try`. `{"type": "graph", "algorithm": "bfs", "edges": [null]}` makes it throw "Cannot read properties of null (reading 'from')" straight out of `runSpec`. Nothing under `web/src` defines a React error boundary, and since React 16 an uncaught render error unmounts the whole tree: a blank page. The content scan stops such a lesson; the gallery's editable JSON box can still do it.
-6. Only `gen(input)` is inside the `try`, and zero frames is an error because the player needs one frame to draw.
+5. `normalise` used to run *before* the `try`, so `{"type": "graph", "algorithm": "bfs", "edges": [null]}` threw "Cannot read properties of null (reading 'from')" straight out of `runSpec`; with no React error boundary anywhere, and React unmounting the whole tree on an uncaught render error since version 16, the gallery's editable JSON box could blank the page. Since `7066802` the normaliser runs inside the `try` and that input becomes a warning; `parseSpec` rejects JSON that is not an object; a missing `type` is reported; and a `VizErrorBoundary` wraps each `VizPlayer`, so a renderer that throws shows a warning in place. `VizBlock.test.ts` feeds hostile specs and asserts `runSpec` never throws.
+6. Zero frames is an error because the player needs one frame to draw. Note what the boundary does *not* cover: `runSpec` runs in `VizFromSpec`'s `useMemo`, outside it, so the `"type": "constructor"` throw in item 1 still escapes.
 
-So the three layers of defence are each narrower than they look: example defaults fill missing fields (sometimes wrongly), `normalise` coerces and clamps (the array family drops non-finite `values` and keeps 40, but only parses `target`), and a throwing generator becomes a warning box.
+So the defences are each narrower than they look: example defaults fill missing fields (sometimes wrongly), `normalise` coerces and clamps (the array family drops non-finite `values` and keeps 40, but only parses `target`), a throwing normaliser or generator becomes a warning box, and a throwing renderer is caught by the boundary.
 
 ## The frame cap, and why it is not enough
 
@@ -339,19 +345,19 @@ The file starts with `// @vitest-environment node`, and each test is named "rend
 ### What nobody is watching
 
 - Ten family test files cover twelve families (one covers tree, heap and trie). `array`, `graph`, `network`, `ml`, `concurrency` and the second system pack have none: a `kruskal` with plausible frames and the wrong spanning tree would pass.
-- The content scan does not look for `NaN` in notes (the `target: "six"` block passes), check purity, or detect aliasing (six blocks, measured above). Copying the `undefined` substring check over would misfire: the only three blocks with "undefined" in a note use the memory family's correct sentence about "undefined behaviour".
+- The content scan does not look for `NaN` in notes (the `target: "six"` block passes) or check purity. Copying the `undefined` substring check over would misfire: the only three blocks with "undefined" in a note use the memory family's correct sentence about "undefined behaviour". Aliasing, the third gap, now has its own test.
 
-The fixes are cheap: the aliasing detector, a purity check and a `NaN` check in the content scan, a catalogue test, and a semantic test file for every new family. [Testing the system](/learn/case-study-ascend/shipping/testing-the-system) has you write the invariant checker.
+The remaining fixes are cheap: a purity check and a `NaN` check in the content scan, a catalogue test, and a semantic test file for every new family. [Testing the system](/learn/case-study-ascend/shipping/testing-the-system) has you write the invariant checker.
 
 ## Failure modes
 
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
 | Unknown algorithm in content (`"dijkstraa"`) | A warning box: `Unknown graph algorithm "dijkstraa". Known: bfs, dfs, …` | The content scan fails with the same message and names `file.md#index` | Fix the name; the failed check blocks the deploy |
-| A snapshot aliases a nested array | Colours scrub, but the variables panel shows final values on early frames | A frame's JSON at push time differs from its JSON at the end (`monotonic-stack-next-greater`, `dfs`) | Copy at the assignment or `clone` in the snapshot; run the detector in the content scan |
+| A snapshot aliases a nested array | Colours scrub, but the variables panel shows final values on early frames | A frame's JSON at push time differs from its JSON at the end | Copy at the assignment or `clone` in the snapshot; `frames-immutable.test.ts` now fails on it (both known cases fixed in `7066802`) |
 | A loop never terminates for one input | The tab freezes when the lesson opens | A profile shows the time in a generator under `useMemo`; the block through `runSpec` in Node never returns | `f.full` checks in loops, inputs bounded in `normalise`; a worker with a timeout for untrusted generators |
 | A legitimate input exceeds the cap | The animation ends at 601/601 on "Stopped: frame limit reached" | 601 frames and the limit note, not the tag alone | A smaller input, or coarser steps such as one frame per pass |
-| `normalise` throws on malformed JSON | A blank gallery page | The stack trace points into `normalise`, which runs before `runSpec`'s `try` | Move `normalise` inside the `try`; an error boundary around `VizBlock` |
+| A lookup throws before the `try` | A blank gallery page for `"type": "constructor"` (before `7066802`, for any input that broke a normaliser) | The stack trace points into `runSpec`, which runs outside the error boundary | Own-key lookups (`Object.hasOwn` or a `Map`); the normaliser is already inside the `try` |
 | A missing field is filled from the example | A plausible animation about a value nobody wrote | Compare `runSpec`'s returned `input` with the block | Required fields per algorithm in `normalise` |
 
 ## At 100x
@@ -362,7 +368,7 @@ The engine's cost does not grow with users: generators run on learners' devices,
 
 **"Why store full snapshots rather than diffs?"** Model answer: the consumers need random access: the slider jumps to any index, the renderer is a pure function of one frame, tests assert on plain data. The cost is measured and bounded: a median 9 KB of JSON per embedded animation, about 270 KB for an array animation at the cap. Diffs save memory nobody is short of and add an inverse operation, and a test, per diff kind. Common wrong answer: "diffs, because they are smaller", with no number for snapshots.
 
-**"How do you know 229 animations still work after a refactor?"** Model answer: three layers, each with a blind spot. The content scan runs all 725 blocks through the page's own `runSpec` in CI, which gates deploys; ten family test files add hostile inputs and semantics for twelve families; Playwright renders one algorithm per family. None checks aliasing, which is how two aliasing bugs survived until a push-time detector found them. Common wrong answer: "the gallery test renders them all", when it renders 17 of 229.
+**"How do you know 229 animations still work after a refactor?"** Model answer: three layers, each with a blind spot. The content scan runs all 725 blocks through the page's own `runSpec` in CI, which gates deploys; ten family test files add hostile inputs and semantics for twelve families; Playwright renders one algorithm per family. None checked aliasing, which is how two aliasing bugs survived until a push-time detector found them; that detector is now a fourth layer, `frames-immutable.test.ts`, run on every catalogue algorithm and curriculum block. Common wrong answer: "the gallery test renders them all", when it renders 17 of 229.
 
 **"A generator hangs the page for one input. Why didn't the cap save you?"** Model answer: `push` stops recording at 601 frames but cannot stop the loop calling it, which runs synchronously in `useMemo` on the main thread. Termination comes from `f.full` checks and bounded inputs; the structural fix is a worker with a timeout, at the cost of an asynchronous first frame everywhere. Common wrong answer: "the cap stops it at 600 frames".
 
@@ -374,7 +380,7 @@ The engine's cost does not grow with users: generators run on learners' devices,
 
 - **Trusting a shallow copy because a reference test passes.** `first.state !== last.state` held while `vars: { ...s.vars }` shared one array across every frame of two generators.
 - **Treating the frame cap as a timeout.** It bounds memory; a loop without an `f.full` check still freezes the tab.
-- **Assuming the `try` in `runSpec` covers everything.** The registry lookup and `normalise` run before it, and with no error boundary a throw there blanks the page.
+- **Assuming a `try` or an error boundary covers everything.** The registry lookup still runs before `runSpec`'s `try`, and `runSpec` runs outside the boundary, so a prototype key such as `constructor` still escapes both.
 - **Leaning on example defaults.** They merge under the author's fields, so a forgotten `target` silently becomes 15.
 - **Reading a test's name as its behaviour.** The content scan's tests are called "renders" and never render.
 - **Detecting the cap by tag.** A scenario already uses `limit` as an ordinary tag; count 601 frames or match the note.
@@ -512,7 +518,7 @@ hints:
   options: ["The final answers, because every frame's answer is the same array", "A warning box, because runSpec detects the mutated frame and fails", "The answers at frame 1, because the spread copied the vars object", "Nothing, because the frame cap drops arrays nested inside vars"]
   answer: 0
   explanation: >-
-    The spread copies one level: each frame gets a new vars object whose answer field points at the one ans array, which the generator keeps mutating. This is the live bug in the monotonic-stack and DFS generators. A test that the first and last states are different objects passes; comparing each frame's JSON at push time with its JSON at the end catches it.
+    The spread copies one level: each frame gets a new vars object whose answer field points at the one ans array, which the generator keeps mutating. This was the bug in the monotonic-stack and DFS generators until commit 7066802. A test that the first and last states are different objects passes; comparing each frame's JSON at push time with its JSON at the end catches it.
 - q: >-
     A lesson embeds a binary-search block with values [2, 4, 6] and no target. The family's example for binary-search has target 15, and the generator's parameter default is target = 0. What does the learner see?
   options: ["A search for 0 that ends with the target reported absent", "A search for NaN, with NaN printed in every step's note", "A search for 15 that ends with the target reported absent", "A warning box saying the target field is required here"]

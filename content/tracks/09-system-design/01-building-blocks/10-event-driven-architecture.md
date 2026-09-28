@@ -39,8 +39,7 @@ An event-sourced account stores no balance. Stream `acc-42` holds its facts, and
 Loading `acc-42` reads the snapshot and then only events after version 4: two applies instead of six. Snapshots are a cache: they carry the projection code's version, and changing the fold means discarding and rebuilding them.
 
 ```viz
-{"type": "system", "scenario": "event-sourcing", "requests": 6,
- "title": "State as a fold over events", "caption": "The current balance is not stored; it is computed by replaying every event. A snapshot every N events bounds the replay cost so a hot entity does not replay a year of history on each load."}
+{"type": "system", "scenario": "event-sourcing", "requests": 6, "title": "State as a fold over events", "caption": "The current balance is not stored; it is computed by replaying every event. A snapshot every N events bounds the replay cost so a hot entity does not replay a year of history on each load."}
 ```
 
 **Rebuilding a projection.** A read model such as `balances(account, balance, version)` is built by a projector that reads the store's global log in order and records a checkpoint. Two accounts, interleaved, with a crash:
@@ -164,8 +163,7 @@ The saga's persisted state is what makes it recoverable. Order 7781, where payme
 Step 3 works only because the key is derived from the saga and the step, not generated per attempt, so the payment service can return the first attempt's outcome instead of charging again.
 
 ```viz
-{"type": "system", "scenario": "saga", "nodes": 3,
- "title": "Orchestrated saga with compensation", "caption": "Each step is a local transaction. When payment fails, the orchestrator runs the compensations for completed steps in reverse order; inventory is released, the order is marked failed."}
+{"type": "system", "scenario": "saga", "nodes": 3, "title": "Orchestrated saga with compensation", "caption": "Each step is a local transaction. When payment fails, the orchestrator runs the compensations for completed steps in reverse order; inventory is released, the order is marked failed."}
 ```
 
 ## The dual write and the outbox
@@ -186,8 +184,7 @@ The database commit and the broker publish are two systems with no transaction s
 If step 2 fails, there is no event; if the relay is down, the event waits. Delivery is at least once, so the outbox row's ID is the event ID consumers dedupe on. Kafka's idempotent producer does not save step 6: the restarted relay is a new producer with a new producer ID.
 
 ```viz
-{"type": "system", "scenario": "outbox", "requests": 4,
- "title": "Transactional outbox", "caption": "Business row and outbox row commit atomically. The relay publishes from the outbox and marks rows sent; a crash between publish and mark causes a redelivery, which the consumer's event-ID dedupe absorbs."}
+{"type": "system", "scenario": "outbox", "requests": 4, "title": "Transactional outbox", "caption": "Business row and outbox row commit atomically. The relay publishes from the outbox and marks rows sent; a crash between publish and mark causes a redelivery, which the consumer's event-ID dedupe absorbs."}
 ```
 
 The same trace, runnable with SQLite standing in for the database and a list for the topic:
@@ -244,8 +241,7 @@ The consumer's dedupe works because `shipments` and `processed` live in the same
 **CDC relay.** Debezium tails the write-ahead log and routes outbox inserts to topics (its outbox event router), in commit order, with tens of milliseconds of latency. The outbox table can be deleted from right after insert, because the connector reads the log, not the table. [Change data capture](/learn/big-data/streaming/change-data-capture) covers the mechanics.
 
 ```viz
-{"type": "system", "scenario": "cdc", "requests": 4,
- "title": "CDC tailing the write-ahead log", "caption": "Every committed change appears in the log in commit order. The connector reads it once and publishes; the database is unaware. Latency is bounded by log shipping, typically tens of milliseconds."}
+{"type": "system", "scenario": "cdc", "requests": 4, "title": "CDC tailing the write-ahead log", "caption": "Every committed change appears in the log in commit order. The connector reads it once and publishes; the database is unaware. Latency is bounded by log shipping, typically tens of milliseconds."}
 ```
 
 ## Schema evolution
@@ -279,11 +275,50 @@ Had `currency` no default, every v1 message would fail to decode on the v2 consu
 
 The consumer's half is the **tolerant reader**: read only the fields you need, ignore the rest, map unknown enum values to "unknown". A consumer that deserialises the whole payload into a strict class fails on any addition. When a break is unavoidable, publish to `orders.v2` alongside `orders.v1` for a migration window and retire v1 when its consumer groups stop committing.
 
+## A schema change, traced through three consumers
+
+The `orders` topic runs in FULL mode with Avro. Version 1 is `{order_id: long, total: double}`, and `total` has always meant US dollars. The business adds other currencies. Three consumers read the topic: **fraud**, a Java service using classes generated from v1; **receipts**, a Node service that reads only the fields it knows; and **analytics**, a monthly Spark job that replays the archive with the newest schema.
+
+| Step | Registered change | Fraud (strict, v1 classes) | Receipts (tolerant) | Analytics (replays everything) |
+|---|---|---|---|---|
+| v2 | Add `amount_minor: ["null", "long"] = null` and `currency: string = "USD"`; the producer writes both, with `total` converted to dollars | Avro skips the new fields; still correct, because `total` is still dollars | Renders `amount_minor` and `currency` when present | Reads v1 records as `amount_minor = null`, `currency = "USD"`: true of every v1 record |
+| Fraud upgrades | None | Deploys a v2 reader and scores `amount_minor` at its own exchange rate | | |
+| v3 | Give `total` a default of `0.0` | Unaffected: `total` is still written | Unaffected | Unaffected |
+| v4 | Delete `total` | Correct because it upgraded. A build on v3 classes that still read `total` would get `0.0` for every order, silently; one on v1 classes would fail to decode, since its schema has no default | Unaffected | Must keep replaying with the v3 schema: under v4 every v1 record decodes with no amount at all, `total` skipped and `amount_minor` null |
+
+Three lessons sit in that table. **A default is a claim about old data**: `"USD"` is true of every v1 record and `null` honestly means "absent", while `amount_minor = 0` would have turned years of history into free orders on the next replay. **FULL compatibility guarantees decoding, not meaning**: the registry accepted v4 because `total` now had a default, and a consumer compiled against v3 that still used `total` would have scored every order as $0 without a single error (one still on v1 classes would at least fail loudly). Gate a delete on evidence that no consumer still reads the field (each consumer group reporting its reader schema version at startup, for instance), not on the registry's green light. And **transitive modes forbid the delete outright**: under FULL_TRANSITIVE, v4 must be readable by v1 readers, which require `total`, so a field that was ever required is written forever or the topic moves to `orders.v2`. The tolerant reader was the only consumer that needed nothing at any step, which is the argument for writing consumers that way.
+
 ## Ordering, causality and replay
 
 Events for one aggregate must be consumed in order (`OrderCancelled` before `OrderPlaced` is a bug), so partition by aggregate ID, as in [Queues and async processing](/learn/system-design/building-blocks/queues-and-async-processing), and carry the stream version so a consumer can detect a gap or a duplicate. Across aggregates and topics nothing is ordered: `PaymentCaptured` can arrive before `OrderPlaced`. Treat that as a temporary state (buffer the payment until its order appears), not an error.
 
 Replay needs retention longer than your worst detection time (days to weeks on Kafka, indefinitely with an archive to object storage) and idempotent consumers, so a replay overwrites rather than duplicates. Decide the archive on day one; the first 90-day replay is the wrong time to learn retention was 7.
+
+## The envelope: IDs that make a flow traceable
+
+Whatever the payload, every event carries the same envelope, and each field answers an operational question:
+
+| Field | Example | Answers |
+|---|---|---|
+| `event_id` | `e-7f3a…` (UUID) | Is this a duplicate? The key consumers dedupe on |
+| `type`, `schema_version` | `OrderPlaced`, 2 | Which reader to use and which upcaster to run |
+| `aggregate_id`, `sequence` | `order-7781`, 4 | Order within the entity; a gap or a repeat is detectable |
+| `occurred_at` | producer's clock | When it happened, for humans and windows; never for ordering |
+| `correlation_id` | `req-51c0` | Which user request or saga this belongs to; identical on every event in the flow |
+| `causation_id` | the `event_id` that triggered it | Which event directly caused this one, so the flow is a tree you can walk |
+
+CloudEvents, the CNCF specification, standardises the first few (`id`, `source`, `type`, `time`, `subject`) and carries the others as extensions. The two IDs at the bottom turn a feedback loop into something a consumer can see. Traced, for services A and B that each copy the other's customer data:
+
+| Event | Emitted by | Caused by | Correlation | Depth |
+|---|---|---|---|---|
+| e1 `CustomerUpdated` | A, for a user's edit | request r1 | r1 | 1 |
+| e2 `CustomerSynced` | B, applying e1 | e1 | r1 | 2 |
+| e3 `CustomerUpdated` | A, applying e2 | e2 | r1 | 3 |
+| e4 … | B, applying e3 | e3 | r1 | 4, and climbing |
+
+Two guards stop it. A consumer never emits an event for an update that changed nothing, which ends this loop at e3, because applying e2 leaves A's row as it was. And a depth counter copied from the causing event plus one, with a ceiling around ten, catches the loops the first rule misses (a timestamp that changes on every write defeats the no-op check): past the ceiling the event is parked on a dead-letter topic with an alert naming the correlation ID.
+
+**Large payloads go by reference.** Kafka's brokers and producers default to a maximum message of about 1 MB. An order event with a 5 MB invoice PDF at 500 orders a second would be 2.5 GB/s into the brokers and 7.5 GB/s of replicated disk writes; the **claim check** pattern stores the PDF in object storage and sends a 300-byte event with its location, size and SHA-256. The stored object must outlive the topic's retention and any replay, so its lifecycle rule is set from the archive's, not the topic's.
 
 ## Failure modes
 
@@ -296,6 +331,8 @@ Replay needs retention longer than your worst detection time (days to weeks on K
 | Breaking schema ships | Deserialisation errors across consumers right after a producer deploy | Registry mode NONE, or the check not in CI | FULL compatibility checked in the pull request; tolerant readers |
 | Unbounded outbox | Relay latency rises with table size | The polling query scans hundreds of millions of rows | Delete or partition-and-drop published rows; with CDC, delete at once |
 | Stale read after write | The user's new order is missing for two seconds | Order page reads a lagging projection | Read-your-writes for the writer ([Consistency models](/learn/system-design/building-blocks/consistency-models)) |
+| Silent semantic break | A consumer's numbers go wrong (every order scored as $0) with no decode errors | A field deleted after gaining a default; the consumer still reads it | Gate deletes on reader telemetry per consumer group; defaults that are true of old data |
+| Oversized events | Producer errors on a few large messages, or brokers' disk and network saturate | Payload size percentiles; messages near the 1 MB default limit | Claim check: store the blob, send a reference with size and hash |
 
 ## Interviewer follow-ups
 
@@ -309,6 +346,10 @@ Replay needs retention longer than your worst detection time (days to weeks on K
 
 **"Rebuild the search index from scratch."** Model answer: a new consumer group from the earliest offset (or the archive) with idempotent upserts keyed by order ID, while the old index serves; cut reads over at zero lag. At 500 million events and 20,000 per second per consumer that is about 7 hours, so 20 consumers over 60 partitions finish in under an hour. Common wrong answer: "dump the database into the index", which misses deletes that happen during the dump.
 
+**"The registry accepted the change, so it is safe to deploy, right?"** Model answer: the registry checks that bytes decode, not that they mean what readers assume. Deleting a field that gained a default passes FULL, and a consumer still using the field reads the default without an error; a default that is false for old data corrupts every replay. Before a delete, I want each consumer group's reader schema version, and I choose defaults that are true of every old record or explicitly mean "absent". Common wrong answer: "yes, FULL compatibility means nobody breaks".
+
+**"Two services keep syncing the same record back and forth. How do you find and stop it?"** Model answer: find it by correlation ID: every event in the loop shares one, and the causation chain shows A and B alternating with depth climbing. Stop it with two guards: never emit for an update that changed nothing, and cap depth (copied from the causing event plus one) with a dead-letter topic past the cap. Common wrong answer: "add a delay between syncs", which slows the loop without ending it.
+
 ## What mid-level engineers get wrong
 
 - **Publishing after commit and calling it reliable.** A process crash between the two loses the event with no error anywhere.
@@ -317,6 +358,8 @@ Replay needs retention longer than your worst detection time (days to weeks on K
 - **Emitting commands disguised as events.** `SendWelcomeEmail` as an "event" has one consumer and an expected outcome; it is an RPC with worse error handling.
 - **Event-sourcing for fashion.** Upcasters and projections are forever; CRUD plus CDC delivers most of the benefit.
 - **Assuming cross-topic order.** A payment can arrive before its order; a consumer that errors on that drops real data.
+- **Trusting the registry for meaning.** A default that is false for old data, or a delete that a stale consumer silently reads as the default, passes every compatibility check.
+- **Events without correlation and causation IDs.** A loop or a stuck saga then has to be reconstructed from timestamps across five services' logs.
 
 ## Exercise: rebuild a projection from an event log
 
@@ -398,6 +441,7 @@ hints:
 - You know projections are **at-least-once consumers** and that auto-increment positions commit out of order.
 - You pick **orchestration for sagas** and choreography for independent side consumers.
 - You can say what BACKWARD, FORWARD and FULL mean in a registry, which side deploys first, and why many-consumer topics run **FULL**.
+- You treat a schema change as a migration across named consumers (strict, tolerant, replaying), choose defaults that are true of old data, and gate deletes on reader telemetry rather than the registry's verdict.
 
 ## Check yourself
 
@@ -410,32 +454,32 @@ hints:
     The commit already succeeded; the publish is a separate system with no shared transaction, so nothing rolls back. Nothing retries it unless the application does, and a crash loses even that. The transactional outbox makes the event part of the commit.
 - q: >-
     An outbox relay produces event e1, the broker acks, and the relay crashes before marking e1 published. What happens next?
-  options: ["The restarted relay publishes e1 again; consumers dedupe by ID", "Kafka's idempotent producer drops the second copy automatically", "The outbox row is rolled back, so e1 is never delivered", "The broker returns the offset of e1, so the relay skips it"]
-  answer: 0
+  options: ["The outbox row is rolled back, so e1 is never delivered", "The broker returns the offset of e1, so the relay skips it", "Kafka's idempotent producer drops the second copy automatically", "The restarted relay publishes e1 again; consumers dedupe by ID"]
+  answer: 3
   explanation: >-
     The row is still unpublished, so the next relay run produces it again and the topic holds two copies. The idempotent producer only dedupes retries within one producer session; the restarted relay has a new producer ID. Consumers must dedupe on the outbox row's ID.
 - q: >-
     A projector reads events WHERE position > checkpoint, where position is a bigserial and many transactions append concurrently. What can go wrong?
-  options: ["It can skip an event committed after a higher position was read", "It can apply an event twice because bigserial values repeat", "It can read uncommitted events from in-progress transactions", "Nothing, since bigserial values are always assigned in commit order"]
-  answer: 0
+  options: ["Nothing, since bigserial values are always assigned in commit order", "It can apply an event twice because bigserial values repeat", "It can skip an event committed after a higher position was read", "It can read uncommitted events from in-progress transactions"]
+  answer: 2
   explanation: >-
     Sequence values are allocated at insert, not commit. If position 101 commits before 100, the projector advances its checkpoint past 100 and never sees it. Reading below the oldest in-progress transaction, serialising appends, or tailing the WAL avoids it. Sequences do not repeat, and uncommitted rows are invisible.
 - q: >-
     Two handlers both load account acc-42 at version 6 and each appends a withdrawal at version 7. The store has UNIQUE (stream_id, version). What happens?
-  options: ["One succeeds; the other fails, reloads and rechecks the command", "Both appends succeed, and the projection merges them in order later", "Both appends fail, and the account is locked until a retry", "The later append overwrites the earlier one at version 7"]
-  answer: 0
+  options: ["Both appends succeed, and the projection merges them in order later", "The later append overwrites the earlier one at version 7", "Both appends fail, and the account is locked until a retry", "One succeeds; the other fails, reloads and rechecks the command"]
+  answer: 3
   explanation: >-
     The unique constraint admits one row at version 7. The loser gets a violation, reloads at version 7 and re-validates the command against the new balance, which may now reject it. That is optimistic concurrency: the conflict is the invariant being enforced.
 - q: >-
     Your topic's registry runs in Confluent's BACKWARD mode. Which statement is true?
-  options: ["Consumers on the new schema can read data written with the old", "Consumers on the old schema can read data written with the new", "Every change must be readable in both directions, all the way back", "Only renames are rejected, since fields are matched by name"]
-  answer: 0
+  options: ["Only renames are rejected, since fields are matched by name", "Consumers on the old schema can read data written with the new", "Every change must be readable in both directions, all the way back", "Consumers on the new schema can read data written with the old"]
+  answer: 3
   explanation: >-
     BACKWARD means new readers can read old data, so consumers upgrade first, and it permits deleting a field that old consumers may still read. FORWARD is the old-reader guarantee; FULL is both; transitive modes check every earlier version.
 - q: >-
-    Service A emits an event on every update; service B updates its copy and emits an event; A subscribes to B and updates. What is the failure and its fix?
-  options: ["Head-of-line blocking; add more partitions to spread the load", "A feedback loop; use causation IDs and skip echoed changes", "Schema drift between A and B; enforce a schema registry", "A distributed deadlock; add timeouts to each handler"]
-  answer: 1
+    A field that consumers read is first given a default and then deleted, and the registry in FULL mode accepts both changes. A consumer built against the schema with the default still reads the field. What happens?
+  options: ["It silently reads the default value for every new event", "It receives the last value the producer wrote for the field", "The registry blocks it from consuming until it upgrades", "It fails to decode new events and stops consuming them"]
+  answer: 0
   explanation: >-
-    Each event triggers another indefinitely with no traffic driving it. Causation IDs let a consumer recognise its own echo and not re-emit for changes it did not originate. Nothing is waiting on a lock, so it is not a deadlock: the services are busy, not stuck.
+    Avro fills a field the writer no longer sends with the reader's default, so decoding succeeds and the value is wrong, with no error anywhere. A reader whose schema has no default would fail loudly instead. Registries check schemas against schemas, not which consumers still read a field, so deletes need reader telemetry.
 ```

@@ -305,32 +305,32 @@ hints:
     Every miss in shared_buffers costs a system call and a copy, about 3.6 microseconds per page here because the OS still had the pages cached; from an NVMe drive it would be around 100 microseconds each and the query would take over a second. Planning takes well under a millisecond, and the plan and page count were identical.
 - q: >-
     Why does Postgres log the whole 8 KiB page the first time it is modified after a checkpoint?
-  options: ["A crash can tear a page write, and a small redo record cannot repair a torn page", "Full images compress better than deltas, so the WAL ends up smaller overall", "The buffer pool does not track which bytes of a page changed since the last read", "Replicas can only apply whole pages, never byte-level changes from the primary"]
-  answer: 0
+  options: ["The buffer pool does not track which bytes of a page changed since the last read", "A crash can tear a page write, and a small redo record cannot repair a torn page", "Full images compress better than deltas, so the WAL ends up smaller overall", "Replicas can only apply whole pages, never byte-level changes from the primary"]
+  answer: 1
   explanation: >-
     Devices do not guarantee atomic 8 KiB writes. If a crash tears a page, recovery restores the logged image and then replays later deltas. The cost is real: 56 MB of WAL against 2.3 MB for the same updates without a preceding checkpoint. Replicas apply the same records recovery does, deltas included.
 - q: >-
     After SELECT count(*) FROM order_lines reads all 28,649 pages of a 224 MB table, pg_buffercache shows only 32 of its pages cached. Why?
-  options: ["The table is TOASTed, so only its pointer pages are kept in shared_buffers", "Clock sweep evicted the pages at once because each had a usage count of zero", "Big sequential scans use a 32-buffer ring to protect the working set", "The scan ran in parallel workers, and their buffers are freed when they exit"]
-  answer: 2
+  options: ["Clock sweep evicted the pages at once because each had a usage count of zero", "The table is TOASTed, so only its pointer pages are kept in shared_buffers", "The scan ran in parallel workers, and their buffers are freed when they exit", "Big sequential scans use a 32-buffer ring to protect the working set"]
+  answer: 3
   explanation: >-
     A sequential scan of a table larger than a quarter of shared_buffers uses a private ring of 256 kB and recycles it, so a one-off scan cannot evict everyone else's hot pages. Index scans do not use the ring. The table has no large values, and parallelism was not involved.
 - q: >-
     You raise checkpoint_timeout from 5 minutes to 60 minutes and max_wal_size accordingly on a write-heavy database. What should you expect?
-  options: ["Commits become less durable, because pages reach disk less often", "Fewer full-page images and smoother I/O, but longer crash recovery", "More WAL, because each page is logged in full more often than before", "A lower buffer hit ratio, because dirty pages crowd out clean ones"]
-  answer: 1
+  options: ["Fewer full-page images and smoother I/O, but longer crash recovery", "A lower buffer hit ratio, because dirty pages crowd out clean ones", "More WAL, because each page is logged in full more often than before", "Commits become less durable, because pages reach disk less often"]
+  answer: 0
   explanation: >-
     Durability comes from the WAL flush at commit, not from checkpoints. Fewer checkpoints mean fewer first-touch full-page images and less bursty I/O, but recovery must replay everything since the REDO point, which can now be many gigabytes. The hit ratio is unaffected.
 - q: >-
     A lookup by a secondary index returns one row from a 100-million-row table. Which statement compares the engines correctly?
-  options: ["Both engines read the same pages, since secondary indexes store heap addresses", "Postgres reads the index then one heap page; InnoDB descends a second B-tree", "InnoDB reads fewer pages, since its secondary index entries contain full rows", "Postgres must descend the primary-key index as well, since it holds the rows"]
-  answer: 1
+  options: ["Postgres reads the index then one heap page; InnoDB descends a second B-tree", "InnoDB reads fewer pages, since its secondary index entries contain full rows", "Postgres must descend the primary-key index as well, since it holds the rows", "Both engines read the same pages, since secondary indexes store heap addresses"]
+  answer: 0
   explanation: >-
     Postgres index entries hold a TID pointing at a heap page. InnoDB secondary entries hold the primary key, so the lookup continues through the clustered primary-key B+tree to the leaf with the row. InnoDB secondary indexes do not hold full rows, and Postgres heaps are not organised by primary key.
 - q: >-
     After a crash, how does Postgres decide whether a WAL record still needs to be applied to a page?
-  options: ["It compares the page's LSN with the record's and skips if newer", "It replays every record unconditionally, since redo is idempotent", "It checks pg_xact and replays only committed transactions' records", "It reads the checkpoint record, which lists every flushed page"]
-  answer: 0
+  options: ["It reads the checkpoint record, which lists every flushed page", "It checks pg_xact and replays only committed transactions' records", "It replays every record unconditionally, since redo is idempotent", "It compares the page's LSN with the record's and skips if newer"]
+  answer: 3
   explanation: >-
     Each page header stores the LSN of the last record applied to it. If the page on disk already reflects the record, the page LSN is at or beyond it and the record is skipped. Records from uncommitted transactions are replayed too; MVCC makes their tuples invisible. The checkpoint record holds the REDO position, not a list of pages.
 ```

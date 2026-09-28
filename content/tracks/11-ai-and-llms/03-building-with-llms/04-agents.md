@@ -375,7 +375,7 @@ hints:
     0.97 to the 15th power is about 0.63. Per-step reliability that looks excellent in isolation compounds into a task that fails more than a third of the time, which is why long runs need checkpoints such as tests or validators.
 - q: >-
     A check catches 80% of wrong steps, and a caught step is redone with the same 95% success. What happens to a 20-step task's success rate?
-  options: ["It stays near 36%, since a check cannot change the per-step success rate", "It rises to about 78%, since each step now succeeds 98.8% of the time", "It rises to 100%, since every wrong step is eventually caught and corrected", "It rises to about 45%, since only a single retry is allowed for each step"]
+  options: ["It rises to about 45%, since only a single retry is allowed for each step", "It rises to about 78%, since each step now succeeds 98.8% of the time", "It rises to 100%, since every wrong step is eventually caught and corrected", "It stays near 36%, since a check cannot change the per-step success rate"]
   answer: 1
   explanation: >-
     Per-step success becomes 0.95 + 0.05 x 0.8 x 0.95, about 0.988, and 0.988 to the 20th power is about 0.785, against 0.358 without the check. Checkpoints change the base of the exponent, which is why tests and validators matter more than a slightly better model. The 20% of errors the check misses keep it below 100%.
@@ -387,8 +387,8 @@ hints:
     Call i sends everything from the calls before it, so total input is the sum of a growing series. Billing is per token at a flat rate; the quadratic comes from resending, not from attention compute. Caching lowers the price of the repeated prefix, but the tokens are still processed on every call.
 - q: >-
     In a traced run, one tool returns 2,400 tokens of raw JSON on call 3 of 6. What does trimming it to 400 tokens save?
-  options: ["2,000 input tokens once, because the result is sent to the model only a single time", "About 6,000 input tokens, since the result is resent on the three later calls", "Nothing, because prompt caching makes all previously seen tokens free to resend", "About 12,000 input tokens, because both the call and its result are resent twice"]
-  answer: 1
+  options: ["About 6,000 input tokens, since the result is resent on the three later calls", "Nothing, because prompt caching makes all previously seen tokens free to resend", "2,000 input tokens once, because the result is sent to the model only a single time", "About 12,000 input tokens, because both the call and its result are resent twice"]
+  answer: 0
   explanation: >-
     The result joins the transcript and is resent on calls 4, 5 and 6, so each of those sends 2,000 fewer tokens: 6,000 in total, 13% of the run's input. Caching bills those resent tokens at about a tenth, which is cheaper but not free, and they still occupy the context the model attends over.
 - q: >-
@@ -399,8 +399,8 @@ hints:
     Retries are unavoidable in distributed systems; side effects must be safe to repeat. An idempotency key tied to the operation (the dispute being credited) makes the second call a no-op, whether the harness retried it or the model issued it again. A step cap limits loops but does not stop one duplicated call, and a longer timeout only makes the retry rarer.
 - q: >-
     The model ends its turn saying the dispute is resolved. What should the harness do before reporting success?
-  options: ["Report success, since end_turn means the model finished the task", "Ask the model to confirm it is sure, then report its second answer", "Run a second model on the transcript to judge whether it looks resolved", "Check the outcome itself, such as the ledger showing one credit, first"]
-  answer: 3
+  options: ["Report success, since end_turn means the model finished the task", "Check the outcome itself, such as the ledger showing one credit, first", "Run a second model on the transcript to judge whether it looks resolved", "Ask the model to confirm it is sure, then report its second answer"]
+  answer: 1
   explanation: >-
     end_turn is the model's claim that it is done. Where the task has a checkable outcome, the harness verifies it (one credit issued, the balance reconciles) and feeds a failed check back into the loop within the step cap. Asking the same model again, or a judge reading the transcript, checks the story rather than the state of the world.
 ```

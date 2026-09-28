@@ -402,13 +402,13 @@ hints:
 ```quiz
 - q: >-
     A table stores sensor readings with PRIMARY KEY (device_id, ts). After six months, reads for busy devices time out and compaction falls behind. What is the fix?
-  options: ["Add a secondary index on ts so time-range reads skip old rows", "Raise the replication factor so each partition has more readers", "Add a time bucket such as day to the partition key to bound it", "Switch reads to QUORUM so slow replicas stop holding reads back"]
+  options: ["Raise the replication factor so each partition has more readers", "Add a secondary index on ts so time-range reads skip old rows", "Add a time bucket such as day to the partition key to bound it", "Switch reads to QUORUM so slow replicas stop holding reads back"]
   answer: 2
   explanation: >-
     A partition keyed only by device grows forever: at one reading a second it passes 100 MB within weeks and reaches about 1 GB a year, and every read, compaction and repair of it degrades. Bucketing by day bounds it at about 86,400 rows. Consistency level and replication factor do not change partition size, and a secondary index on the clustering column adds nothing.
 - q: >-
     With replication factor 3, a service writes at ONE and reads at ONE. Users occasionally see their update disappear and reappear. Why?
-  options: ["The commit log was not fsynced, so the replica lost the write", "R + W = 2 is not above N = 3, so a read can miss the write", "Tombstones from earlier deletes are hiding the row on some reads", "Hinted handoff is disabled, so the write never reaches a replica"]
+  options: ["Tombstones from earlier deletes are hiding the row on some reads", "R + W = 2 is not above N = 3, so a read can miss the write", "The commit log was not fsynced, so the replica lost the write", "Hinted handoff is disabled, so the write never reaches a replica"]
   answer: 1
   explanation: >-
     Reads and writes at ONE have a guaranteed overlap of 1 + 1 - 3 = 0 replicas, so a read served by a replica the write has not reached returns the old value until hints, read repair or repair catch it up. QUORUM on both sides (2 + 2 > 3) forces an overlap of at least one replica.
@@ -420,8 +420,8 @@ hints:
     A tombstone must survive until every replica has been repaired. With a one-hour grace and weekly repair, a replica that missed the delete keeps the row; once compaction purges the tombstone elsewhere, repair treats the old copy as live data and streams it back. The rule is that repair must complete more often than gc_grace_seconds.
 - q: >-
     Two regions each have RF 3. Writes use LOCAL_QUORUM in Europe; a US service reads the same row at LOCAL_QUORUM a few milliseconds later. Is the read guaranteed to see the write?
-  options: ["Yes, because 2 + 2 is greater than 3 in each of the regions", "Yes, because QUORUM and LOCAL_QUORUM give the same guarantee", "No, because the guaranteed overlap across regions is zero", "No, because LOCAL_QUORUM reads are always served by one node"]
-  answer: 2
+  options: ["Yes, because 2 + 2 is greater than 3 in each of the regions", "No, because LOCAL_QUORUM reads are always served by one node", "Yes, because QUORUM and LOCAL_QUORUM give the same guarantee", "No, because the guaranteed overlap across regions is zero"]
+  answer: 3
   explanation: >-
     The write is guaranteed only on two European replicas and the read hears only from US replicas, so the sets need not share any replica; the US copies receive the write asynchronously. EACH_QUORUM writes, or routing the user's reads to the region they wrote in, restore the guarantee. R + W > N holds within one region only.
 - q: >-
@@ -432,8 +432,8 @@ hints:
     Deletes are tombstone writes kept for gc_grace_seconds, so an insert-delete queue leaves partitions that are mostly tombstones and every read scans through them, hitting the 1,000 warning and 100,000 failure thresholds. The other three are what the partition-plus-clustering model and the LSM engine are built for.
 - q: >-
     A DynamoDB table is provisioned at 10,000 write units, but writes of 1 KB items to one popular product key throttle at about 1,000 per second. Why, and what fixes it?
-  options: ["One key lives in one partition with a 1,000 WCU cap; add a key suffix", "The table's per-second limit was exceeded; provision more write units", "Eventually consistent writes throttle hot keys; make the writes strong", "GSIs are consuming the write capacity; drop the indexes not in use"]
-  answer: 0
+  options: ["Eventually consistent writes throttle hot keys; make the writes strong", "GSIs are consuming the write capacity; drop the indexes not in use", "The table's per-second limit was exceeded; provision more write units", "One key lives in one partition with a 1,000 WCU cap; add a key suffix"]
+  answer: 3
   explanation: >-
     Capacity is enforced per physical partition, 1,000 WCU and 3,000 RCU, and one partition key lives in one partition. Adaptive capacity moves unused throughput to that partition but cannot raise the ceiling, and more table capacity does not help. Write sharding (suffix 0 to N-1, read all N) spreads the key across partitions.
 ```

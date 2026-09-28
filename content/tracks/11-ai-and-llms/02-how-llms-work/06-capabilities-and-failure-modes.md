@@ -319,8 +319,8 @@ hints:
     Each token gets one fixed forward pass of computation, so the model cannot do unlimited serial computation inside one token. Writing intermediate results lets later tokens build on earlier ones, at the price of more tokens (60 times the compute for 300 tokens instead of 5). There is no hidden calculator, and temperature is unchanged.
 - q: >-
     Each sample of a model is independently correct with probability 0.6. What does a majority vote over five samples give, and when does voting hurt?
-  options: ["About 0.68; it hurts when per-sample accuracy is below one half", "About 0.60; voting cannot beat the accuracy of a single sample", "About 0.92; it only hurts when the samples are too few to vote", "About 0.78; it hurts when the samples use a high temperature"]
-  answer: 0
+  options: ["About 0.78; it hurts when the samples use a high temperature", "About 0.68; it hurts when per-sample accuracy is below one half", "About 0.60; voting cannot beat the accuracy of a single sample", "About 0.92; it only hurts when the samples are too few to vote"]
+  answer: 1
   explanation: >-
     The majority is right when at least 3 of 5 are right: 0.3456 + 0.2592 + 0.0778 ≈ 0.683. Voting amplifies whichever answer is usually produced, so at p = 0.4 the same vote falls to 0.317. Correlated samples shrink the gain further, and five votes cost five times the tokens.
 - q: >-
@@ -337,8 +337,8 @@ hints:
     LLM judges show position bias and verbosity bias, so a modest win can be an artefact: if A wins only 46% when shown second, the order-averaged rate is 55%. Swapping positions and calibrating against human judgements tells you whether the preference is real. Public benchmarks do not measure your task, and averaging noisy runs does not remove a systematic bias.
 - q: >-
     An agent completes tasks of 20 steps, and each step succeeds independently 95% of the time. Roughly how often does a whole task succeed, and what raises it most?
-  options: ["About 95%; per-step reliability carries over to the whole task", "About 36%; checking and retrying each step lifts it to about 90%", "About 50%; a larger model is the only way to raise it much further", "About 5%; the task is too long to be made reliable at any cost"]
-  answer: 1
+  options: ["About 36%; checking and retrying each step lifts it to about 90%", "About 5%; the task is too long to be made reliable at any cost", "About 50%; a larger model is the only way to raise it much further", "About 95%; per-step reliability carries over to the whole task"]
+  answer: 0
   explanation: >-
     Independent steps multiply: 0.95^20 ≈ 0.358. If a check catches 90% of step errors and the step is retried, a step fails only with probability 0.05 × 0.1 = 0.005, and 0.995^20 ≈ 0.905. Verification per step changes the arithmetic far more than a slightly better model does.
 ```

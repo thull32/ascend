@@ -425,38 +425,38 @@ hints:
 ```quiz
 - q: >-
     A migration runs ALTER TABLE orders ADD COLUMN note text (nullable, no default). It should take milliseconds, yet reads on orders stop for four minutes. What is the most likely cause?
-  options: ["The ALTER waited behind an open transaction, and reads queued behind it", "Adding the column rewrote every row of the table under an exclusive lock", "Adding a text column writes an empty TOAST pointer into each existing row", "The connection pool was too small for the migration and the API together"]
-  answer: 0
+  options: ["Adding a text column writes an empty TOAST pointer into each existing row", "The connection pool was too small for the migration and the API together", "Adding the column rewrote every row of the table under an exclusive lock", "The ALTER waited behind an open transaction, and reads queued behind it"]
+  answer: 3
   explanation: >-
     Adding a nullable column is catalog-only. The ALTER needs ACCESS EXCLUSIVE, waits for an existing ACCESS SHARE holder, and because a new request must not conflict with waiting requests either, every later SELECT queues behind the ALTER. The lab showed readers blocked by the migration, not by the report. lock_timeout with retries capped reader latency at 200 ms.
 - q: >-
     Which of these statements rewrites the whole table on Postgres 17?
-  options: ["ADD COLUMN created timestamptz DEFAULT now()", "ADD COLUMN id2 uuid DEFAULT gen_random_uuid()", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "ALTER COLUMN code TYPE varchar(40) from varchar(20)"]
-  answer: 1
+  options: ["ADD COLUMN status text NOT NULL DEFAULT 'new'", "ALTER COLUMN code TYPE varchar(40) from varchar(20)", "ADD COLUMN created timestamptz DEFAULT now()", "ADD COLUMN id2 uuid DEFAULT gen_random_uuid()"]
+  answer: 3
   explanation: >-
     gen_random_uuid() is volatile, so each row needs its own value and the table is rewritten (2.7 s and a new relfilenode in the lab). now() is stable, evaluated once and stored as the missing value, so every old row gets the same timestamp without a rewrite; constant defaults are catalog-only since Postgres 11; widening a varchar needs no data change.
 - q: >-
     CREATE INDEX CONCURRENTLY was cancelled by lock_timeout while in the waiting for old snapshots phase. What does pg_index show, and what does it cost?
-  options: ["Nothing: a failed concurrent build is rolled back like any transaction", "A valid index that the planner will use once ANALYZE has been run", "indisvalid false, indisready true: writes maintain it, queries skip it", "indisvalid false and indisready false: a harmless empty catalog entry"]
-  answer: 2
+  options: ["indisvalid false, indisready true: writes maintain it, queries skip it", "Nothing: a failed concurrent build is rolled back like any transaction", "indisvalid false and indisready false: a harmless empty catalog entry", "A valid index that the planner will use once ANALYZE has been run"]
+  answer: 0
   explanation: >-
     By that phase the index was built and marked ready, so every insert and update maintains it (200,000 inserts went from 356 ms to 504 ms in the lab), but it was never marked valid, so the planner ignores it. A build that fails earlier, such as on a duplicate key, leaves an empty unready entry instead. Drop it concurrently or REINDEX CONCURRENTLY.
 - q: >-
     You must add NOT NULL to a column of a 2 TB table on Postgres 17 without blocking traffic. Which sequence works?
-  options: ["SET NOT NULL directly, since Postgres 12 no longer scans for nulls", "Add CHECK (c IS NOT NULL) NOT VALID, VALIDATE it, then SET NOT NULL", "Add a NOT NULL column with a default, then drop the original column", "Create a unique index CONCURRENTLY on c, which rejects NULL values"]
-  answer: 1
+  options: ["SET NOT NULL directly, since Postgres 12 no longer scans for nulls", "Add a NOT NULL column with a default, then drop the original column", "Add CHECK (c IS NOT NULL) NOT VALID, VALIDATE it, then SET NOT NULL", "Create a unique index CONCURRENTLY on c, which rejects NULL values"]
+  answer: 2
   explanation: >-
     The NOT VALID check is instant, VALIDATE scans under SHARE UPDATE EXCLUSIVE while reads and writes continue, and SET NOT NULL then uses the validated check to skip its own scan, as the DEBUG message in the lab confirmed. A bare SET NOT NULL scans under ACCESS EXCLUSIVE, and unique indexes allow multiple NULLs.
 - q: >-
     A backfill updates 2 million rows in one UPDATE statement. It finishes in 4.4 s, about as fast as batches. What is the main cost of doing it that way?
-  options: ["It writes several times more WAL than 10,000-row batches in total", "It takes an ACCESS EXCLUSIVE lock on the table for the whole run", "Every updated row stays locked until the end, stalling app writes", "It prevents HOT updates, which small batches would have allowed"]
-  answer: 2
+  options: ["Every updated row stays locked until the end, stalling app writes", "It writes several times more WAL than 10,000-row batches in total", "It prevents HOT updates, which small batches would have allowed", "It takes an ACCESS EXCLUSIVE lock on the table for the whole run"]
+  answer: 0
   explanation: >-
     Total WAL was similar in every run (about 300 bytes per row), and an UPDATE takes only ROW EXCLUSIVE on the table. But its row locks last until commit: concurrent single-row application updates waited a mean of 1.2 s and up to 4.2 s, against about 80 ms with 10,000-row batches, and the 690 MB of WAL arrived as one transaction for replicas and CDC.
 - q: >-
     In expand/contract, why does the code start writing the new columns before it starts reading them?
-  options: ["So rows written after that deploy are already right and the backfill covers only older rows", "Because Postgres will not build an index on a column until at least one row holds a value", "Because reads are more expensive than writes, so the cheaper change should always ship first", "So the backfill can run inside the migration transaction without holding any row locks"]
-  answer: 0
+  options: ["Because reads are more expensive than writes, so the cheaper change should always ship first", "Because Postgres will not build an index on a column until at least one row holds a value", "So the backfill can run inside the migration transaction without holding any row locks", "So rows written after that deploy are already right and the backfill covers only older rows"]
+  answer: 3
   explanation: >-
     Once every write fills both shapes, only rows older than that deploy need the backfill, and the read switch can then be verified against a complete data set. Reading first would return NULLs for every row not yet backfilled. The backfill belongs in a batched job, not the migration transaction.
 ```

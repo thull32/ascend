@@ -300,19 +300,19 @@ hints:
     Yes votes are promises, not a decision; the coordinator may still abort if another vote is missing. The logged decision is the commit point: after it, recovery always drives participants to commit. Participants commit and the client learns of it afterwards.
 - q: >-
     The coordinator crashes after all participants voted yes but before it logged a decision, and restarts ten minutes later. Using presumed abort, what happened in between and what is the outcome?
-  options: ["Participants waited with locks held; the transaction aborts", "Participants timed out and committed, since all voted yes", "Participants elected a new coordinator, which committed", "Participants aborted at once; the restart finds nothing"]
+  options: ["Participants waited with locks held; the transaction aborts", "Participants aborted at once; the restart finds nothing", "Participants elected a new coordinator, which committed", "Participants timed out and committed, since all voted yes"]
   answer: 0
   explanation: >-
     A participant that voted yes is in doubt: it cannot commit (a vote could have been missing) or abort (the coordinator could have committed), so it holds its locks for the whole outage. On restart the coordinator finds no decision record, which under presumed abort means abort.
 - q: >-
     Two participants are in regions 70 ms apart. Roughly how many transactions per second can update one hot row under 2PC?
-  options: ["About 1,000, since fsync dominates the commit time", "About 330, as with participants in one region", "About 7, since locks span two cross-region trips", "Unlimited, since each participant commits on its own"]
-  answer: 2
+  options: ["About 1,000, since fsync dominates the commit time", "Unlimited, since each participant commits on its own", "About 330, as with participants in one region", "About 7, since locks span two cross-region trips"]
+  answer: 3
   explanation: >-
     Locks are held from prepare until the commit arrives: about 2 × 70 ms plus fsyncs, roughly 142 ms, so a contended row manages about 7 transactions per second. In one region the same arithmetic gives a few milliseconds and hundreds per second.
 - q: >-
     Under three-phase commit, a partition separates one pre-committed participant from two that are only prepared, and the coordinator crashes. What happens?
-  options: ["All three block until the coordinator comes back", "All three commit, because everyone had voted yes", "The pre-committed one commits; the other two abort", "All three abort, because the coordinator is missing"]
+  options: ["All three block until the coordinator comes back", "All three abort, because the coordinator is missing", "The pre-committed one commits; the other two abort", "All three commit, because everyone had voted yes"]
   answer: 2
   explanation: >-
     3PC's rules assume a timeout means a crash. The isolated participant times out after pre-commit and commits; the other two find nobody pre-committed among themselves and abort. The outcome diverges, which is why systems replicate the coordinator's decision instead of running 3PC.
@@ -324,8 +324,8 @@ hints:
     A timeout is an unknown outcome: the hotel may have booked. Compensating could cancel something that succeeded or leave a room nobody pays for; proceeding could build on nothing. An idempotent retry returns the original result if it did succeed. Only a definite failure before the pivot triggers compensation.
 - q: >-
     A Percolator transaction's client dies after committing the primary row and before committing a secondary. What does a later reader of the secondary do?
-  options: ["It blocks until the dead client restarts and finishes", "It finds the primary committed and rolls itself forward", "It rolls the whole transaction back, since it is unfinished", "It reads the secondary's uncommitted data value directly"]
-  answer: 1
+  options: ["It reads the secondary's uncommitted data value directly", "It blocks until the dead client restarts and finishes", "It rolls the whole transaction back, since it is unfinished", "It finds the primary committed and rolls itself forward"]
+  answer: 3
   explanation: >-
     The secondary's lock points at the primary, whose single-row commit is the transaction's commit point. Finding a commit record there, the reader completes the secondary itself. Had the primary still been locked by a dead client, the reader would roll back instead, so nothing waits on the client.
 ```

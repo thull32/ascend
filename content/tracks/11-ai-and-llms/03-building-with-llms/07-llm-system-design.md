@@ -377,8 +377,8 @@ hints:
     Caching is an exact prefix match in render order, system then messages. The explicit breakpoint after the stable block still matches, so that part is read. The automatic breakpoint on the last message covers the context block too, so a code edit changes that prefix and everything after the stable block is written again at the write premium. Moving the editor snapshot into the latest user turn would keep the history prefix stable.
 - q: >-
     The coach keeps at most 30 past messages and moves the window's start in steps of 10 instead of dropping one exchange per turn. Why?
-  options: ["So the history's first message changes rarely and most turns reuse the cached prefix", "So the model always sees exactly 30 messages, which keeps its answers consistent", "So the database query can use an index on message number instead of timestamps", "So old messages are summarised in batches of 10, which saves output tokens"]
-  answer: 0
+  options: ["So the database query can use an index on message number instead of timestamps", "So old messages are summarised in batches of 10, which saves output tokens", "So the model always sees exactly 30 messages, which keeps its answers consistent", "So the history's first message changes rarely and most turns reuse the cached prefix"]
+  answer: 3
   explanation: >-
     A sliding window changes the first message of the history every turn, so everything after the context block misses the cache on every turn. Stepping keeps the start fixed for five turns, so four in five read the prefix and write only the newest exchange; in the lesson's simulation that cut billed input per turn about four-fold. The window holds between 21 and 30 messages, not always 30, and nothing is summarised.
 - q: >-
@@ -401,8 +401,8 @@ hints:
     input_tokens counts only uncached input; the API reports cache writes and reads separately, and with caching on nearly all of a chat's input moves into those two counters. The fix counts billed input in the reservation: cache writes weighted 1.25 and reads 0.1. Output was always a condition in the WHERE clause, and thinking tokens bill as output, not input.
 - q: >-
     The provider is overloaded, and you add a fallback to a second model for coach turns. What cost should you expect on the first fallback turn of a long conversation?
-  options: ["The same as a warm turn, because the prompt cache is shared across a provider's models", "Lower than a warm turn, because the fallback model is smaller and so reads cache faster", "A full cache write of the whole prompt, because caches are per model and start cold", "Nothing extra, because failed turns on the primary model already paid for the prefix"]
-  answer: 2
+  options: ["Nothing extra, because failed turns on the primary model already paid for the prefix", "The same as a warm turn, because the prompt cache is shared across a provider's models", "Lower than a warm turn, because the fallback model is smaller and so reads cache faster", "A full cache write of the whole prompt, because caches are per model and start cold"]
+  answer: 3
   explanation: >-
     Cached prefixes belong to one model, so the fallback reads nothing and writes the entire prompt at the write premium: about $0.069 of input for an 11,000-token turn against about $0.010 for a warm follow-up on the primary. Keep a conversation on the fallback once it moves, rather than alternating, or every switch pays the write again.
 ```

@@ -53,8 +53,7 @@ Transaction mode is the usual choice: 600 client connections from 60 pods become
 A replica receives the primary's write-ahead log over a streaming connection (a `walsender` on the primary, a `walreceiver` and a replay process on the standby) and replays it. Every single-row insert in the measurements above generated roughly 300–400 bytes of WAL including index and commit records, so 2,000 such writes a second ship under 1 MB/s to each replica: bandwidth is rarely the problem, replay is. `pg_stat_replication` reports `write_lag`, `flush_lag` and `replay_lag` separately. Same-region lag is milliseconds when healthy and seconds to minutes under a bulk load, a long transaction or a replica query holding back replay.
 
 ```viz
-{"type": "system", "scenario": "replication-leader-follower", "replicas": 2, "title": "Leader-follower replication and the lag window",
- "caption": "Writes go to the leader, which streams its log to followers. A read routed to a follower before the log applies returns the old value; the lag is the window in which the two answers differ."}
+{"type": "system", "scenario": "replication-leader-follower", "replicas": 2, "title": "Leader-follower replication and the lag window", "caption": "Writes go to the leader, which streams its log to followers. A read routed to a follower before the log applies returns the old value; the lag is the window in which the two answers differ."}
 ```
 
 ### Read-your-writes, traced
@@ -119,13 +118,11 @@ Sharding partitions rows across nodes by a shard key; each shard is itself a rep
 | Directory | A lookup table per key or tenant | Depends | Update the table, copy data | The directory is on every request's path |
 
 ```viz
-{"type": "system", "scenario": "sharding-range", "title": "Range sharding and the hot tail",
- "caption": "Keys are assigned by range. Range scans stay on one shard, but monotonically increasing keys pile every insert onto the last range while the others sit idle."}
+{"type": "system", "scenario": "sharding-range", "title": "Range sharding and the hot tail", "caption": "Keys are assigned by range. Range scans stay on one shard, but monotonically increasing keys pile every insert onto the last range while the others sit idle."}
 ```
 
 ```viz
-{"type": "system", "scenario": "sharding-hash", "title": "Hash sharding spreads writes uniformly",
- "caption": "The hash scrambles adjacent keys onto different shards, so an increasing key no longer creates a hot tail. A query for a range of keys must now ask every shard."}
+{"type": "system", "scenario": "sharding-hash", "title": "Hash sharding spreads writes uniformly", "caption": "The hash scrambles adjacent keys onto different shards, so an increasing key no longer creates a hot tail. A query for a range of keys must now ask every shard."}
 ```
 
 ### Choosing the shard key
@@ -143,6 +140,20 @@ Three tests: every hot query includes it (otherwise scatter-gather); it distribu
 
 **Hot keys.** A flash sale, a celebrity or a tenant that is 30% of the business still lands on one shard. Salt only the hot values (`merchant_42#0` … `#15`, spreading writes over 16 shards at the price of a 16-way read), fed by a hot-key detector, or move the tenant to its own shard under a directory scheme. [Wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores) covers the same problem as partition sizing.
 
+### Hot keys, quantified
+
+"The top merchant is 5% of orders" understates the problem, because shards hold several large tenants at once. Computed for 2,000 orders a second from 200,000 merchants whose order shares follow a Zipf curve fitted so the largest is 5% (the top 10 then hold 16% and the top 100 hold 30%), placed by `hash(merchant_id) mod 32`:
+
+| Scenario | Busiest shard ÷ average | Busiest shard's orders/s |
+|---|---|---|
+| Normal day, no salting | 2.41 | 150 (average 62) |
+| Normal day, top merchant salted 16 ways | 2.31 | 145 |
+| Normal day, top 10 merchants salted 16 ways | 1.31 | 82 |
+| Flash sale (top merchant ×10), no salting | 11.6 | 1,057 of 2,906: over a third of all orders |
+| Flash sale, top merchant salted 16 ways | 2.65 | 241 |
+
+Two readings. On a normal day the hot shard is not one tenant but several large ones that hashed together, so salting only the largest barely helps; salting the top 10 does. In the flash sale one merchant dominates, and 16 salts cut the busiest shard from 11.6× to 2.65× (16 salts over 32 shards still collide). Keyed by `user_id` instead (simulated with 5 million buyers whose activity is heavy-tailed, lognormal with σ = 2), the busiest of 32 shards ran 4% above average, because the largest buyer was 0.06% of orders. Salting has a read-side price: the merchant's dashboard now reads 16 shards. Keep the salted set small, driven by a detector that samples top keys per shard every minute, and record which keys are salted in a table the router reads.
+
 ## Secondary indexes across shards
 
 Orders are sharded by `user_id` and the dashboard asks `WHERE merchant_id = ?`.
@@ -155,6 +166,45 @@ Orders are sharded by `user_id` and the dashboard asks `WHERE merchant_id = ?`.
 
 A sharded system serves one access pattern natively; each other one is a scatter-gather, an asynchronous copy or a distributed transaction, chosen per query. Joins across different keys are avoided by denormalising; transactions are kept single-shard by the key choice, with sagas for the rest ([Distributed transactions](/learn/system-design/distributed-systems/distributed-transactions)).
 
+### Uniqueness across shards
+
+Users are sharded by `user_id`, and email must be unique. A unique index on each shard enforces nothing across shards, so uniqueness gets its own table, `user_emails (email PRIMARY KEY, user_id, state, reserved_at)`, sharded by `hash(email)`, where the primary key is the lock. Sign-up, with two people racing for the same address:
+
+| Step | Alice (user 71) | Bob (user 94) | `user_emails` row for `a@x.io` |
+|---|---|---|---|
+| 1 | `INSERT ... ('a@x.io', 71, 'reserved') ON CONFLICT DO NOTHING`: 1 row | | reserved by 71 |
+| 2 | | Same insert for 94: 0 rows, so "address taken" | reserved by 71 |
+| 3 | Insert user 71 on shard(71) | | reserved by 71 |
+| 4 | `UPDATE ... SET state = 'active'` | | active, 71 |
+
+Order the steps so every crash leaves something a sweeper can finish. A crash after step 1 leaves a reservation with no user: a job deletes reservations older than 15 minutes whose user row does not exist. A crash after step 3 leaves a user whose reservation still says `reserved`: the same job finds the user and marks it active. Changing an address reserves the new one first and releases the old one last, so no crash leaves a user with no address or two users with one. DynamoDB users write the uniqueness item and the user item in one `TransactWriteItems` call instead; the design is the same with the sweeper replaced by a transaction.
+
+## IDs that know their shard
+
+An order ID arrives in a webhook, a support ticket or a URL, with no user ID beside it. If the ID carries its partition, the router needs no directory lookup. Instagram described its scheme in 2012: 41 bits of milliseconds since a custom epoch (69.7 years of range), 13 bits of logical shard (8,192), and 10 bits of per-shard sequence (1,024 IDs per millisecond per shard). Put the owning user's logical partition in every ID that user creates:
+
+```python
+EPOCH_MS = 1_704_067_200_000            # custom epoch: 2024-01-01T00:00:00Z
+
+def make_id(now_ms, logical_shard, seq):
+    assert 0 <= logical_shard < 8192 and 0 <= seq < 1024
+    return ((now_ms - EPOCH_MS) << 23) | (logical_shard << 10) | seq
+
+def logical_shard_of(order_id):
+    return (order_id >> 10) & 0x1FFF      # the 13 bits above the sequence
+
+def created_ms(order_id):
+    return (order_id >> 23) + EPOCH_MS
+
+user_id = 48_213_907
+logical = user_id % 8192                 # every row this user owns lives in this partition
+order_id = make_id(1_767_225_600_123, logical, 7)
+print(order_id, logical_shard_of(order_id), created_ms(order_id))
+# 529811060543081479 3987 1767225600123
+```
+
+The ID sorts by creation time, fits a signed 64-bit column, and names logical partition 3987, which a small, cached map turns into a physical shard. Resharding moves logical partitions, so IDs never change. The one-time decision is the bit budget: 13 bits caps you at 8,192 partitions, and 10 bits of sequence caps each partition at about a million IDs a second, which is plenty; running out of the 41-bit time range in 70 years is the next team's problem.
+
 ## Resharding
 
 From 8 shards to 16 with the application running:
@@ -165,10 +215,19 @@ From 8 shards to 16 with the application running:
 4. **Flip the router per range**, able to flip back in seconds; delete moved rows a week later.
 
 Prefer stream replay to dual writes: a write that succeeds on one side and fails on the other leaves them divergent with no record of it.
+How evenly a ring spreads keys depends on the number of virtual nodes per server. Simulated for 10 servers with randomly placed tokens, 500 rings per row:
+
+| Virtual nodes per server | Largest server's share ÷ average, median ring | Same, 95th percentile ring | Smallest ÷ average, median |
+|---|---|---|---|
+| 1 | 2.84 | 4.67 | 0.07 |
+| 16 | 1.41 | 1.66 | 0.65 |
+| 64 | 1.19 | 1.33 | 0.82 |
+| 256 | 1.10 | 1.16 | 0.91 |
+
+With one token per server, the unluckiest server holds nearly three times its share while another holds almost none. Random tokens need hundreds per server to come within 10%, which is why Cassandra defaulted to 256 `num_tokens` for years; Cassandra 4.0 lowered the default to 16 and pairs it with an allocation algorithm that places tokens to balance load for the keyspace's replication factor rather than at random. More tokens also cost something: repair and streaming work per token range, and more ranges to reason about when a node is added.
 
 ```viz
-{"type": "system", "scenario": "consistent-hashing", "nodes": 4, "keys": 12, "title": "Adding a shard moves one Nth of the keys",
- "caption": "Keys and shards share a hash ring. When a fifth shard joins, only the keys between it and its predecessor move; with modulo hashing almost all of them would."}
+{"type": "system", "scenario": "consistent-hashing", "nodes": 4, "keys": 12, "title": "Adding a shard moves one Nth of the keys", "caption": "Keys and shards share a hash ring. When a fifth shard joins, only the keys between it and its predecessor move; with modulo hashing almost all of them would."}
 ```
 
 ## A worked capacity plan
@@ -205,6 +264,9 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
 | Standby query cancellations | Analytics on the replica fail with "canceling statement due to conflict with recovery" | Replay conflicts past `max_standby_streaming_delay` | A dedicated delayed replica, `hot_standby_feedback` with bloat monitoring |
 | Unbounded scatter-gather | Shard QPS far above application QPS | A new endpoint without the shard key | A global index or derived copy; a fan-out budget in the router |
 | Backfill gap in resharding | Rows updated during the copy are stale on the new shard | Stream position recorded after the snapshot began | Record the position first; replay idempotently; checksum before cutover |
+| Large tenants colliding | One shard at 2–3× the others with no single dominant key | Per-shard top-tenant report shows several large tenants on one shard | Salt the top tens of tenants, or move them to dedicated shards through a directory |
+| Orphaned uniqueness reservations | "Email already taken" for addresses nobody can log in with | `user_emails` rows in `reserved` state older than minutes with no user row | A sweeper that completes or deletes stale reservations; reserve-first, release-last ordering |
+| Uneven ring | One node fills its disk while others are half empty | Token ownership per node; few or randomly placed virtual nodes | More virtual nodes, or allocated rather than random tokens; move logical partitions |
 
 ## Interviewer follow-ups
 
@@ -218,6 +280,10 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
 
 **"When would you move to Cassandra or DynamoDB, and what would you lose?"** Model answer: when resharding becomes the team's main job or multi-region active-active writes are required. I would lose ad-hoc queries, joins and cross-partition transactions and gain linear scaling and simpler operations for the access patterns I enumerated; the risk is next quarter's query, so I would keep a relational or analytical copy for the ones nobody predicted ([Choosing a database](/learn/databases/nosql-and-specialised/choosing-a-database)). Common wrong answer: "when we reach a billion rows", which Postgres handles.
 
+**"Users are sharded by user_id. How do you keep email addresses unique?"** Model answer: a separate `user_emails` table sharded by the email, whose primary key is the lock: reserve the address with an insert that fails on conflict, create the user on its own shard, then mark the reservation active, with a sweeper that finishes or deletes reservations stuck after a crash. Login by email reads that table first, which it needs anyway to find the user's shard. Common wrong answer: "a unique index on email", which each shard enforces only for its own rows.
+
+**"A support agent pastes an order ID. How does the system find the shard?"** Model answer: the ID carries it. Order IDs embed the owning user's logical partition next to a millisecond timestamp and a sequence, so the router extracts 13 bits and looks up the partition's current physical shard in a small cached map; resharding changes the map, never the IDs. Common wrong answer: "scatter-gather the lookup across every shard", or a global directory from order ID to shard that every read must consult.
+
 ## What mid-level engineers get wrong
 
 - Answering "shard it" before fixing queries, pooling, caching and trying a bigger primary.
@@ -227,6 +293,8 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
 - Sharding by a time-ordered key and putting every insert on one shard.
 - Shipping an endpoint without the shard key and scatter-gathering on a hot path.
 - `hash mod N`, then discovering that growing N moves nearly every row.
+- Salting only the single largest tenant, when the hot shard is several large tenants that hashed together.
+- Enforcing uniqueness with a per-shard unique index on a column that is not the shard key.
 
 ## Senior signals
 
@@ -236,32 +304,33 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
 - You evaluate shard keys against hot queries, write skew and co-location, and build the second access path explicitly.
 - You quantify scatter-gather's tail and throughput cost and choose among scatter-gather, async copy and distributed transaction per query.
 - You design the partitioning scheme for the resharding you will do in two years, and you can turn requirements into a node count.
+- You put the partition in the ID, give uniqueness constraints on non-key columns their own table, and quantify skew from the tenant distribution before choosing what to salt.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     An orders table is hash-sharded across 32 nodes by user_id. A merchant query is served by scatter-gather, and each shard has a 1% chance of a 200 ms stall per query. Roughly what fraction of merchant queries take 200 ms or more?
-  options: ["About 50%", "About 1%", "About 27%", "About 3%"]
-  answer: 2
+  options: ["About 50%", "About 27%", "About 3%", "About 1%"]
+  answer: 1
   explanation: >-
     The query waits for the slowest shard, so it stalls if any of the 32 does: 1 - 0.99^32 ≈ 0.27. Tail amplification is the core cost of scatter-gather and a reason to build a merchant-keyed copy for hot cross-shard patterns.
 - q: >-
-    Postgres served 53,000 point reads/s at 32 connections and 69,000/s at 90, with average latency rising from 0.6 ms to 1.3 ms. What does this imply for pool sizing?
-  options: ["Pools should grow until throughput stops rising, then stop", "Pools should have about 90 connections per app instance", "More connections past the core count mostly add queueing", "Latency rises because each connection has a smaller cache"]
+    Orders are sharded by merchant over 32 shards. The largest merchant is 5% of orders, and a flash sale multiplies its orders tenfold. What happens to the busiest shard?
+  options: ["It takes about twice the average, as with any hash imbalance", "It takes about 5% more load, since the merchant is 5% of orders", "It takes about a third of all orders, 11x the average shard", "It stays near average, because hashing spreads each merchant"]
   answer: 2
   explanation: >-
-    Past roughly one active connection per core the CPU is saturated, so extra connections wait in line: throughput grew 30% while latency doubled. Pools should be sized from Little's law (rate x time in the database), which is usually far below default pool sizes multiplied by the number of app instances.
+    One merchant's orders all hash to one shard, so its tenfold surge lands there: in the computed example the busiest shard took 1,057 of 2,906 orders a second, 11.6x the average. Hashing spreads merchants, not one merchant's orders. Salting that merchant over 16 shards cut it to 2.65x, at the price of a 16-way read for its dashboard.
 - q: >-
     A user updates their name and the reload, served by a replica, shows the old one. Which fix keeps most reads on replicas and guarantees the user sees their write?
-  options: ["Add more replicas so that each one has less lag to work through", "Send the user's reads to a replica past their write's position", "Route every read to the primary so that no read is ever stale", "Add a cache in front of the replicas with a short TTL on each key"]
+  options: ["Route every read to the primary so that no read is ever stale", "Send the user's reads to a replica past their write's position", "Add more replicas so that each one has less lag to work through", "Add a cache in front of the replicas with a short TTL on each key"]
   answer: 1
   explanation: >-
     Return the commit's LSN and serve that user's reads only from a replica whose replayed LSN has reached it, forwarding otherwise. Only the reads that need freshness wait. Routing everything to the primary forfeits read scaling; more replicas do not reduce lag; a cache adds another stale copy.
 - q: >-
     With asynchronous replication, the primary acknowledges an order, then its host dies before the replica receives the WAL, and the replica is promoted. What happens?
-  options: ["The order is lost although the client was told it committed", "The replica fetches the missing WAL from the dead primary's disk", "The promotion waits until every acknowledged commit is present", "The order is replayed from the client's retry automatically"]
-  answer: 0
+  options: ["The replica fetches the missing WAL from the dead primary's disk", "The promotion waits until every acknowledged commit is present", "The order is replayed from the client's retry automatically", "The order is lost although the client was told it committed"]
+  answer: 3
   explanation: >-
     Asynchronous commit acknowledges after the local flush only, so the promoted replica never saw the order. synchronous_commit = on with a synchronous standby makes the commit wait for the standby's flush, at the cost of about a cross-AZ round trip per commit. Nothing recovers the WAL from a dead host automatically.
 - q: >-
@@ -272,8 +341,8 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
     An index partitioned differently from the table is updated either in a distributed transaction or asynchronously; DynamoDB chose asynchronous, so the query may not see the item for a moment. Reading the base table by key is the consistent path. Nothing blocks or rejects the write.
 - q: >-
     You are choosing a sharding scheme for a system that starts on 4 nodes and might grow to 64. Which choice makes future growth cheapest?
-  options: ["Fixed logical partitions (say 1,024) mapped onto physical nodes", "Range sharding on a sequential primary key across the nodes", "One shard per customer, created on demand as customers sign up", "hash(key) mod N, and re-hash all keys whenever N changes"]
-  answer: 0
+  options: ["hash(key) mod N, and re-hash all keys whenever N changes", "Fixed logical partitions (say 1,024) mapped onto physical nodes", "One shard per customer, created on demand as customers sign up", "Range sharding on a sequential primary key across the nodes"]
+  answer: 1
   explanation: >-
     With fixed logical partitions a key's partition never changes; growth reassigns whole partitions to nodes and copies them. Modulo hashing remaps almost every key on each resize, sequential range keys concentrate writes on the newest range, and one shard per customer does not distribute the long tail.
 ```

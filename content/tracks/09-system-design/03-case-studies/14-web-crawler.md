@@ -366,8 +366,8 @@ The numbers in this lesson are assumptions for a 5-billion-page-a-month crawl, n
 ```quiz
 - q: >-
     Fetch times average 0.69 s and each host waits max(1 s, 10 × fetch time) between requests. Roughly how many hosts with queued work does 2,000 pages a second need?
-  options: ["About 2,000, one fetch per host per second", "About 15,000, since each host's cycle is ~7.6 s", "About 1,400, the number of fetches in flight", "About 200, if each host is fetched ten times a second"]
-  answer: 1
+  options: ["About 2,000, one fetch per host per second", "About 1,400, the number of fetches in flight", "About 200, if each host is fetched ten times a second", "About 15,000, since each host's cycle is ~7.6 s"]
+  answer: 3
   explanation: >-
     Each host yields one page per fetch-plus-gap cycle, 7.6 s on average in the simulation, so about 0.13 pages a second; 2,000 divided by 0.13 is about 15,000. The 1,400 figure is fetches in flight from Little's law, which is a different quantity; fetching a host ten times a second breaks politeness.
 - q: >-
@@ -378,14 +378,14 @@ The numbers in this lesson are assumptions for a 5-billion-page-a-month crawl, n
     A host is returned by the heap only when its delay has expired and it is not in flight, so it cannot be fetched early and never has two fetches at once. Priority is handled separately by the front queues, and the seen set is a separate component.
 - q: >-
     A Bloom filter for 10 billion URLs targets a 1% false-positive rate. What does it need, and what does a false positive do?
-  options: ["About 80 GB and 1 hash; a new URL is fetched twice", "About 1.2 GB and 3 hashes; the filter must be rebuilt", "About 12 GB and 7 hashes; a new URL is skipped", "About 12 GB and 7 hashes; a seen URL is fetched again"]
-  answer: 2
+  options: ["About 12 GB and 7 hashes; a new URL is skipped", "About 1.2 GB and 3 hashes; the filter must be rebuilt", "About 12 GB and 7 hashes; a seen URL is fetched again", "About 80 GB and 1 hash; a new URL is fetched twice"]
+  answer: 0
   explanation: >-
     m = -n ln p / (ln 2)^2 is about 9.6 bits per URL, 12 GB, and k = (m/n) ln 2 is 6.6, so 7. A false positive says maybe-seen for a URL that is new, so trusting it skips the URL; a seen URL never gets a no. That is why high-priority URLs confirm maybes against the URL table.
 - q: >-
     Near-duplicate detection must find fingerprints within 3 bits among 8 billion 64-bit SimHashes. Why use 20 tables on ~32-bit keys rather than 4 tables on 16-bit keys?
-  options: ["16-bit keys miss pairs that differ in exactly 3 bits", "20 tables use less memory because the keys are longer", "A 16-bit key returns ~122,000 candidates per probe", "32-bit keys let the check skip the Hamming distance step"]
-  answer: 2
+  options: ["32-bit keys let the check skip the Hamming distance step", "A 16-bit key returns ~122,000 candidates per probe", "16-bit keys miss pairs that differ in exactly 3 bits", "20 tables use less memory because the keys are longer"]
+  answer: 1
   explanation: >-
     Both layouts guarantee a match on at least one key by the pigeonhole principle, so neither misses pairs. The difference is selectivity: 8 billion divided by 2^16 is about 122,000 candidates to check per probe, against about 2 for a 32-bit key. The price is 20 copies of the fingerprints, not less memory.
 - q: >-

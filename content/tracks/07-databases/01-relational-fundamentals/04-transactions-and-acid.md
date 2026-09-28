@@ -335,20 +335,20 @@ hints:
 ```quiz
 - q: >-
     A Postgres transaction updates 2 million rows in 16 seconds and then rolls back in 0.2 ms. Where did the cost of undoing it go?
-  options: ["To WAL replay, which reverts the pages during the next checkpoint", "To an undo log that background threads apply after the rollback returns", "To vacuum, which must later remove 2 million dead row versions", "Nowhere; the new versions were only in memory and are discarded"]
+  options: ["Nowhere; the new versions were only in memory and are discarded", "To WAL replay, which reverts the pages during the next checkpoint", "To vacuum, which must later remove 2 million dead row versions", "To an undo log that background threads apply after the rollback returns"]
   answer: 2
   explanation: >-
     The rollback only marks the transaction aborted in pg_xact, which makes every version it wrote invisible. Those versions remain on the pages as dead tuples (the table grew from 143 MB to 260 MB) until vacuum reclaims them. Postgres has no undo log, and the versions were already written to shared buffers and partly to disk.
 - q: >-
     A two-row transfer writes 296 bytes of WAL at steady state but about 33 KB immediately after a checkpoint. Why?
-  options: ["Checkpoints disable HOT updates until the next autovacuum finishes", "Each page's first change after a checkpoint logs a full image", "The commit record carries every modified row after a checkpoint", "WAL compression is only applied between checkpoints, not after them"]
-  answer: 1
+  options: ["Each page's first change after a checkpoint logs a full image", "Checkpoints disable HOT updates until the next autovacuum finishes", "The commit record carries every modified row after a checkpoint", "WAL compression is only applied between checkpoints, not after them"]
+  answer: 0
   explanation: >-
     With full_page_writes on, the first modification of a page after a checkpoint includes an image of the whole page, so recovery can repair a page torn by a crash mid-write. Later changes to the same page log only the change. In the traced case the full pages also forced non-HOT updates and index inserts, but the images account for most of the bytes.
 - q: >-
     With synchronous_commit = on and one client, a laptop does 623 commits per second. With 16 clients it does 7,749. What explains the scaling?
-  options: ["Each client uses its own WAL file, so the flushes run in parallel", "Postgres switches to asynchronous commit once there are many clients", "Group commit: one flush makes all queued commit records durable", "Commits from different clients do not need a flush once the first has one"]
-  answer: 2
+  options: ["Each client uses its own WAL file, so the flushes run in parallel", "Commits from different clients do not need a flush once the first has one", "Postgres switches to asynchronous commit once there are many clients", "Group commit: one flush makes all queued commit records durable"]
+  answer: 3
   explanation: >-
     There is one WAL stream. A flush writes everything up to a position, so commit records appended while a flush is in progress are covered by the next one; the lab measured 7.9 commits per flush with 16 clients. Every commit still waits for a flush that includes its record; nothing switches to asynchronous mode.
 - q: >-
@@ -359,13 +359,13 @@ hints:
     Under read committed nothing stops both transactions reading the same value; the second UPDATE waits for the first's row lock, then overwrites its result. There is no serialisation error at this level and no deadlock with a single row. Compute in SQL (balance = balance - 40), lock with SELECT ... FOR UPDATE, or run at a stricter level with retries.
 - q: >-
     Your client sends COMMIT for a money transfer and the TCP connection resets before any reply. What is the safe handling?
-  options: ["Store an idempotency key under a unique constraint and retry", "Assume it committed, because COMMIT is only sent after every write", "Assume it failed and retry, since unacknowledged commits roll back", "Reconnect and check pg_stat_activity to see how the session ended"]
-  answer: 0
+  options: ["Assume it committed, because COMMIT is only sent after every write", "Store an idempotency key under a unique constraint and retry", "Assume it failed and retry, since unacknowledged commits roll back", "Reconnect and check pg_stat_activity to see how the session ended"]
+  answer: 1
   explanation: >-
     The outcome is unknown to the client: the commit record may or may not have been flushed. Blind retries risk a double transfer and assuming success risks a lost one; the old session is gone from pg_stat_activity either way. A key in the same transaction turns the retry into a detectable duplicate if the first attempt committed.
 - q: >-
     A service sets synchronous_commit = off for its page_views inserts. What is the real risk?
-  options: ["Other sessions may read page views before their transactions commit", "A server crash can lose up to about 600 ms of acknowledged inserts", "Inserts may become durable in a different order than they committed", "A crash can leave data pages corrupted because WAL was never flushed"]
+  options: ["Inserts may become durable in a different order than they committed", "A server crash can lose up to about 600 ms of acknowledged inserts", "Other sessions may read page views before their transactions commit", "A crash can leave data pages corrupted because WAL was never flushed"]
   answer: 1
   explanation: >-
     COMMIT returns before the WAL flush, and the WAL writer flushes every wal_writer_delay (200 ms), so a crash can lose up to three times that of acknowledged transactions. Ordering and visibility rules are unchanged, and nothing is corrupted because WAL-before-data still holds. Corruption is the risk of fsync = off, a different setting.

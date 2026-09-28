@@ -370,14 +370,14 @@ hints:
     After losing a zone, two zones must carry 50,000 rps at up to 1,250 rps each: 40 instances, so 20 per zone and 60 in total. 40 has no zone headroom; 87 stacks a separate 70% utilisation target on top of the zone headroom.
 - q: >-
     In the M/M/1 model, what happens to mean queueing delay when utilisation rises from 80% to 90%?
-  options: ["It roughly doubles, from 4 to 9 service times", "It rises by about 12%, tracking the change in load", "It stays roughly flat until utilisation nears 100%", "It falls, because a busier server batches its work"]
-  answer: 0
+  options: ["It rises by about 12%, tracking the change in load", "It stays roughly flat until utilisation nears 100%", "It roughly doubles, from 4 to 9 service times", "It falls, because a busier server batches its work"]
+  answer: 2
   explanation: >-
     Queueing delay grows as ρ/(1 − ρ): 4 at 80%, 9 at 90%, 19 at 95%, which the simulation reproduced. It is not linear in load. A single worker has no pool to absorb randomness, so single-threaded hot spots must run far below saturation.
 - q: >-
     A 16-worker service runs at 80% average utilisation, and its arrival rate swings 25% above and below that average. In the lesson's simulation, what happened to p99 compared with steady arrivals?
-  options: ["It rose over fourfold as bursts hit saturation", "It stayed flat, since 16 workers absorb the bursts", "It rose about 25%, in line with the load swing", "It fell, since the quiet periods drain the queue"]
-  answer: 0
+  options: ["It rose about 25%, in line with the load swing", "It stayed flat, since 16 workers absorb the bursts", "It fell, since the quiet periods drain the queue", "It rose over fourfold as bursts hit saturation"]
+  answer: 3
   explanation: >-
     During bursts utilisation reaches 100%, the queue grows without bound for the length of the burst, and p99 went from 4.7 to 21.7 service times. At a 70% average the bursts peaked at 88% and p99 barely moved. Quiet periods drain the queue but cannot undo the waits already suffered.
 - q: >-
@@ -388,8 +388,8 @@ hints:
     A reserved instance costs 60% of on-demand for every hour, used or not, so it pays off only when the instance would run more than 60% of the time. Reserving to the peak pays for idle capacity most of the day: in the lesson it cost $10,512 against $9,210 at break-even.
 - q: >-
     A 3-year commitment is 60% off; a 1-year commitment is 40% off. You expect to migrate the service to a new instance family after 18 months. Which plan costs least for that capacity?
-  options: ["One 1-year term, then on-demand until the move", "One 3-year term, since its discount is deepest", "Two back-to-back 1-year terms covering the move", "On-demand for all eighteen months of use"]
-  answer: 0
+  options: ["Two back-to-back 1-year terms covering the move", "One 1-year term, then on-demand until the move", "One 3-year term, since its discount is deepest", "On-demand for all eighteen months of use"]
+  answer: 1
   explanation: >-
     Commitments are paid for their whole term. In on-demand-months, one 1-year term costs 12 × 0.6 = 7.2, plus 6 months on-demand, 13.2 in all. The 3-year term costs 36 × 0.4 = 14.4 whatever happens, and two 1-year terms cost 24 × 0.6 = 14.4, because the second runs six months past the move. On-demand throughout costs 18. The deepest discount loses because a third of it is never used.
 - q: >-

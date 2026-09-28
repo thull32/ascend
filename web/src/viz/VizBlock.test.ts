@@ -14,6 +14,14 @@ describe("malformed visualisation blocks become warnings, not crashes", () => {
     expect("error" in runSpec({ type: "nope", algorithm: "x" })).toBe(true);
   });
 
+  it("never resolves names through Object.prototype", () => {
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(runSpec({ type: name, algorithm: "x" })).toEqual({ error: `Unknown visualisation type "${name}".` });
+      const result = runSpec({ type: "array", algorithm: name });
+      expect("error" in result && result.error.startsWith(`Unknown array algorithm "${name}"`)).toBe(true);
+    }
+  });
+
   it("turns inputs that break a family's normaliser or generator into an error", () => {
     const hostile = [
       { type: "array", algorithm: "binary-search", values: "not an array", target: { nested: true } },

@@ -386,7 +386,7 @@ Google has publicly described Google Docs as using operational transformation wi
     Alice's insert at position 1 shifts every later character right, so the c that Bob meant is now at index 3. Applying delete-at-2 literally removes b and the replicas diverge. Alice's insert, transformed against Bob's delete, is unchanged because it is before the deleted position.
 - q: >-
     In a sequence CRDT, Alice inserts X with ID (4,A) and Bob inserts Y with ID (4,B), both after the character with ID (1,0). Siblings are ordered by descending ID. What do both replicas show for "abc"?
-  options: ["aXYbc on Alice's replica, aYXbc on Bob's", "aYXbc on both replicas, whatever the order", "aXYbc on both, because Alice's op was sent first", "Whichever insert arrives last at each replica wins"]
+  options: ["Whichever insert arrives last at each replica wins", "aYXbc on both replicas, whatever the order", "aXYbc on Alice's replica, aYXbc on Bob's", "aXYbc on both, because Alice's op was sent first"]
   answer: 1
   explanation: >-
     The position of each character is decided by its ID relative to its siblings, not by arrival order, so every replica places (4,B) before (4,A) and reads aYXbc. That the tie rule is arbitrary does not matter; that every replica applies the same one is what guarantees convergence.
@@ -410,7 +410,7 @@ Google has publicly described Google Docs as using operational transformation wi
     Insert operations are not idempotent: applying one twice inserts the text twice. Client sequence numbers act as idempotency keys, so the server recognises the resend and re-acknowledges it with the original version. TCP deduplication does not span a dropped connection, and waiting for the ack would destroy local echo.
 - q: >-
     A user returns from three hours offline with 5,000 pending ops; 7,792 ops were committed meanwhile. Why does this favour a CRDT over server-ordered OT?
-  options: ["OT must transform each pending op against each missed op", "OT cannot merge offline edits at all and must drop them", "A CRDT has no per-character metadata to transfer back", "A CRDT resolves the conflicts by keeping the newest edit"]
+  options: ["OT must transform each pending op against each missed op", "A CRDT resolves the conflicts by keeping the newest edit", "A CRDT has no per-character metadata to transfer back", "OT cannot merge offline edits at all and must drop them"]
   answer: 0
   explanation: >-
     Server-ordered OT rewrites each of the 5,000 ops against each of the 7,792 it missed, about 39 million pairwise transforms, and long divergent histories are where its merges look strangest. A CRDT integrates the 12,792 operations by ID. OT can merge them; it is just expensive. CRDTs do carry per-character metadata, and they converge by ID order, not by newest-wins.

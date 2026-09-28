@@ -346,8 +346,8 @@ hints:
     The loss is −ln σ(0.6 − 1.8) = −ln σ(−1.2) = −ln 0.231 ≈ 1.46, large because the ranking is wrong. Its gradient pushes the preferred response's score up and the rejected one's down. 0.263 is the loss when the ranking is correct (1.8 versus 0.6), and the loss is a function of the score difference, not the difference itself.
 - q: >-
     In DPO with β = 0.1, the policy gives the chosen response log-probability −12 (reference −13) and the rejected one −15 (reference −14). What is the implicit reward margin and the loss?
-  options: ["Margin 0.2, loss about 0.60, and training widens the margin further", "Margin 3.0, loss about 0.05, since the policy already prefers the chosen one", "Margin 0, loss about 0.69, since the two log-ratios cancel each other out", "Margin −0.2, loss about 0.80, since the chosen response is less likely"]
-  answer: 0
+  options: ["Margin 3.0, loss about 0.05, since the policy already prefers the chosen one", "Margin 0.2, loss about 0.60, and training widens the margin further", "Margin −0.2, loss about 0.80, since the chosen response is less likely", "Margin 0, loss about 0.69, since the two log-ratios cancel each other out"]
+  answer: 1
   explanation: >-
     The log-ratios are +1 for the chosen response and −1 for the rejected one, so the margin is 0.1 × (1 − (−1)) = 0.2 and the loss is −ln σ(0.2) ≈ 0.598; the gradient raises the chosen log-probability and lowers the rejected one. A margin of 3.0 uses the raw policy gap and forgets both the reference and β; the log-ratios have opposite signs, so they add rather than cancel.
 - q: >-

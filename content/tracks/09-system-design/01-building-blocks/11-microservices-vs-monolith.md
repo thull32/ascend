@@ -306,13 +306,13 @@ hints:
     A shared database means schema changes require coordinating every service, which removes independent deployability, the one benefit that justified the split. Protocol, count and platform are neutral; ten services that deploy independently are not a monolith.
 - q: >-
     Each service call has a p50 of 5 ms and a p99 of 50 ms, with a skewed distribution. Five are made in sequence. In the lesson's simulation, what was the chain's p50?
-  options: ["About 35 ms, since skew makes each mean exceed its median", "Exactly 25 ms, because the medians of sequential calls add up", "About 5 ms, since sequential calls overlap in time", "About 250 ms, since every call lands in its tail"]
-  answer: 0
+  options: ["About 250 ms, since every call lands in its tail", "Exactly 25 ms, because the medians of sequential calls add up", "About 5 ms, since sequential calls overlap in time", "About 35 ms, since skew makes each mean exceed its median"]
+  answer: 3
   explanation: >-
     Medians do not add for skewed distributions: each call's mean is about 8.2 ms, and the sum of five behaves like the sum of means, so the simulated p50 was 35.3 ms and a quarter of requests exceeded 50 ms. Sequential calls do not overlap, and most calls are not in their tail.
 - q: >-
     Pricing slows from 20 ms to 2 s. Checkout (200 req/s, 100 threads) calls it synchronously, and a shared gateway pool also serves browse. Why does browse fail within about two seconds?
-  options: ["Gateway threads fill up waiting on a saturated checkout", "Browse calls pricing indirectly through a shared cache layer", "The load balancer marks the whole gateway unhealthy at once", "Pricing's slow database also serves every browse request"]
+  options: ["Gateway threads fill up waiting on a saturated checkout", "Browse calls pricing indirectly through a shared cache layer", "Pricing's slow database also serves every browse request", "The load balancer marks the whole gateway unhealthy at once"]
   answer: 0
   explanation: >-
     By Little's law checkout would need 200 × 2 = 400 threads, so its 100 fill in half a second; requests then wait in the gateway's shared pool, which fills too, leaving no thread for browse. A bulkhead per route and a timeout near pricing's p99 would have contained it.
@@ -324,7 +324,7 @@ hints:
     The strangler fig puts a facade in front, routes a growing share of traffic to the new service, migrates data ownership with CDC and checksums, and only then retires the module, so each step is reversible and observable. A big-bang switch has no rollback granularity; forking the monolith duplicates everything; permanently sharing tables recreates the distributed monolith.
 - q: >-
     Every call to one internal service takes about 40 ms, whatever the payload size, while the service's own handler time is under 1 ms. What is the likely cause?
-  options: ["Nagle's algorithm holding a second write until a delayed ACK", "TLS renegotiation on every request over a kept-alive connection", "Serialising JSON payloads on a slow single-threaded server", "Cross-zone routing that adds a fixed 40 ms to each hop"]
+  options: ["Nagle's algorithm holding a second write until a delayed ACK", "Cross-zone routing that adds a fixed 40 ms to each hop", "TLS renegotiation on every request over a kept-alive connection", "Serialising JSON payloads on a slow single-threaded server"]
   answer: 0
   explanation: >-
     A response written in two small sends, with Nagle on, waits for the ACK of the first; the client's kernel delays that ACK by up to 40 ms. The lesson measured 44 ms per call on loopback. TCP_NODELAY or a single write fixes it. Serialisation scales with payload size, and cross-zone latency is on the order of a millisecond.

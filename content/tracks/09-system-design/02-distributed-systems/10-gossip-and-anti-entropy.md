@@ -333,32 +333,32 @@ Gossip is the wrong tool when the answer must be agreed: leader election, owners
 ```quiz
 - q: >-
     In the lesson's simulation, push-pull gossip with fanout 3 reached every one of 1,000 nodes in how many rounds, and how does that grow?
-  options: ["About 5, adding 1–2 rounds per tenfold growth in N", "About 30, growing linearly as N divided by 33", "About 330, since N / 3 nodes are reached each round", "About 1,000, since every node needs a round of its own"]
+  options: ["About 5, adding 1–2 rounds per tenfold growth in N", "About 330, since N / 3 nodes are reached each round", "About 1,000, since every node needs a round of its own", "About 30, growing linearly as N divided by 33"]
   answer: 0
   explanation: >-
     Informed nodes multiply each round, so the count grows logarithmically: the simulated mean was 5.1 rounds at 1,000 nodes and 6.7 at 10,000. Linear answers assume one informer at a time; in gossip every informed node spreads in parallel.
 - q: >-
     In SWIM, why does a prober ask three other members to ping the target before suspecting it?
-  options: ["To elect a leader that decides whether the target is dead", "To average round-trip latency measured from several places", "To spread the probing load more evenly across all members", "So a bad link to the target is not mistaken for its death"]
-  answer: 3
+  options: ["To elect a leader that decides whether the target is dead", "To average round-trip latency measured from several places", "So a bad link to the target is not mistaken for its death", "To spread the probing load more evenly across all members"]
+  answer: 2
   explanation: >-
     If any indirect prober gets an ack, the target is alive and the problem was the path from the original prober. This removes the single-bad-link false positive without a coordinator. The indirect probes add traffic rather than spreading it, and no leader is involved.
 - q: >-
     Node E learns from a piggybacked message that it is suspected with incarnation 4. What does it do so the cluster keeps it alive?
-  options: ["It gossips Alive with incarnation 5, which overrides Suspect 4", "It pings the accuser directly so the accuser cancels its timer", "It waits until its heartbeat version passes the suspicion's", "It asks a majority of members to vote that it is still alive"]
-  answer: 0
+  options: ["It waits until its heartbeat version passes the suspicion's", "It gossips Alive with incarnation 5, which overrides Suspect 4", "It pings the accuser directly so the accuser cancels its timer", "It asks a majority of members to vote that it is still alive"]
+  answer: 1
   explanation: >-
     Only E increments its own incarnation, and Alive(E, i) replaces Suspect(E, j) whenever i is greater than j, so Alive 5 overrides every copy of Suspect 4 as it spreads. Other members' timers are cancelled by that update, not by a direct message, and SWIM has no vote.
 - q: >-
     Two replicas compare Merkle trees level by level. The trees have 2^15 leaves and exactly one leaf differs. How many hash comparisons does the walk make?
-  options: ["31 comparisons, two per level below the root", "15 comparisons, one for each level of the tree", "32,768 comparisons, one for every leaf hash", "65,535 comparisons, one for every tree node"]
+  options: ["31 comparisons, two per level below the root", "15 comparisons, one for each level of the tree", "65,535 comparisons, one for every tree node", "32,768 comparisons, one for every leaf hash"]
   answer: 0
   explanation: >-
     The roots are compared once; at each of the 15 levels below, only the children of the one differing node are compared, two hashes per level: 1 + 2 × 15 = 31. Equal subtrees are never entered, which is the point of the tree. Comparing every leaf or node is what the tree avoids.
 - q: >-
     A Cassandra repair streams 27 GB to fix about 1 GB of scattered differences. What is the most likely cause?
-  options: ["Each differing leaf streams every partition it covers", "Every replica streams its full copy of each changed row", "Tombstones are streamed alongside every row they shadow", "Repair streaming always sends data without compression"]
-  answer: 0
+  options: ["Repair streaming always sends data without compression", "Tombstones are streamed alongside every row they shadow", "Each differing leaf streams every partition it covers", "Every replica streams its full copy of each changed row"]
+  answer: 2
   explanation: >-
     With about 30 partitions per leaf, a single differing partition makes its whole leaf stream, so scattered differences inflate the transfer about 26 to 30 times. Smaller subranges or incremental repair make leaves finer or the data smaller; throttling would only slow the same transfer.
 - q: >-

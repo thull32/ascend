@@ -455,37 +455,37 @@ hints:
 ```quiz
 - q: >-
     A service's p99 latency to Redis jumps from 0.3 ms to 40 ms every night at 02:00. CPU on the Redis host is low. What is the most likely cause?
-  options: ["An RDB snapshot filling the disk, so each write waits for space", "The backup job saturating the network between clients and Redis", "A scheduled job running one O(n) command, such as KEYS or SMEMBERS", "The client connection pool being exhausted by nightly batch traffic"]
-  answer: 2
+  options: ["A scheduled job running one O(n) command, such as KEYS or SMEMBERS", "The client connection pool being exhausted by nightly batch traffic", "An RDB snapshot filling the disk, so each write waits for space", "The backup job saturating the network between clients and Redis"]
+  answer: 0
   explanation: >-
     Redis executes commands serially on one thread; one slow command blocks the event loop and delays everyone behind it, and one busy core barely registers as host CPU. SLOWLOG names the command. Pool exhaustion would appear as client-side timeouts, not a server-side stall that lines up with a job.
 - q: >-
     Redis runs with appendonly yes and appendfsync everysec. The OOM killer terminates the process; the host and its disk are fine. After restart, what has been lost?
-  options: ["Roughly the last second of acknowledged writes, as fsync is per second", "Every write made since the last completed RDB snapshot was written", "Nothing acknowledged, since replies are sent after the AOF write", "Only the keys that carried a TTL at the moment the process was killed"]
+  options: ["Only the keys that carried a TTL at the moment the process was killed", "Roughly the last second of acknowledged writes, as fsync is per second", "Nothing acknowledged, since replies are sent after the AOF write", "Every write made since the last completed RDB snapshot was written"]
   answer: 2
   explanation: >-
     Redis writes the AOF buffer to the file before sending replies, so every acknowledged write is at least in the kernel page cache, which survives a process crash. fsync only matters when the kernel or the power fails; then everysec loses about a second. The RDB is irrelevant when the AOF is newer.
 - q: >-
     A nightly report reads every product key once. The next morning the hit rate for hot product pages has collapsed. Which change fixes this with the least effort?
-  options: ["Point the report at Postgres directly so that it bypasses the cache", "Increase maxmemory so the report's keys fit alongside the hot ones", "Switch maxmemory-policy from allkeys-lru to volatile-ttl instead", "Switch maxmemory-policy from allkeys-lru to allkeys-lfu instead"]
-  answer: 3
+  options: ["Switch maxmemory-policy from allkeys-lru to allkeys-lfu instead", "Point the report at Postgres directly so that it bypasses the cache", "Switch maxmemory-policy from allkeys-lru to volatile-ttl instead", "Increase maxmemory so the report's keys fit alongside the hot ones"]
+  answer: 0
   explanation: >-
     Under LRU each key the scan touched becomes more recent than the hot keys, so the hot keys are evicted. LFU's logarithmic counter moves a cold key from 5 to 6 on one touch while hot keys sit at 18 or more, so they survive. Moving the report also works but is a bigger change; more memory only delays the effect; volatile-ttl evicts by expiry, not by use.
 - q: >-
     In Redis Cluster, a MULTI block touching order:1 and order:2 for customer 42 fails with CROSSSLOT. Which key design fixes it without creating a hot spot?
-  options: ["Rename them {orders}:1 and {orders}:2 so all orders share a slot", "Rename them {cust:42}:order:1 and {cust:42}:order:2", "Wrap the two commands in a Lua script, which runs atomically", "Retry the MULTI block on each node until one of them accepts it"]
-  answer: 1
+  options: ["Retry the MULTI block on each node until one of them accepts it", "Rename them {orders}:1 and {orders}:2 so all orders share a slot", "Rename them {cust:42}:order:1 and {cust:42}:order:2", "Wrap the two commands in a Lua script, which runs atomically"]
+  answer: 2
   explanation: >-
     Only the text inside the first braces is hashed, so tagging by customer puts one customer's keys in one slot while different customers still spread across the cluster. Tagging by type puts every order in the system in slot 105 on one node. A Lua script has the same single-slot rule, and no node accepts keys it does not own.
 - q: >-
     A hash grows from 128 to 129 short fields and its MEMORY USAGE jumps about fivefold. Deleting 120 fields later does not bring it back down. Why?
-  options: ["Deleted fields become tombstones until the next RDB snapshot is taken", "Jemalloc keeps the freed pages reserved for this key until a restart", "It crossed hash-max-listpack-entries and became a one-way hashtable", "Field names became raw strings once the hash passed 128 entries"]
-  answer: 2
+  options: ["It crossed hash-max-listpack-entries and became a one-way hashtable", "Field names became raw strings once the hash passed 128 entries", "Deleted fields become tombstones until the next RDB snapshot is taken", "Jemalloc keeps the freed pages reserved for this key until a restart"]
+  answer: 0
   explanation: >-
     At 129 fields the listpack (one contiguous block, about 13 bytes per short field) converts to a hashtable (an entry and two strings per field, roughly 70 bytes). Hashes do not convert back while the server runs; a restart re-encodes values that fit when the RDB is loaded. Redis has no tombstones for hash fields.
 - q: >-
     A 30 GiB Redis on a host with 48 GiB is OOM-killed during BGSAVE under steady random writes. Transparent huge pages are enabled. What is happening?
-  options: ["Copy-on-write copies 2 MiB pages, so nearly all 30 GiB is duplicated", "The child process loads a second full copy of the dataset before writing", "RDB compression buffers the entire snapshot in memory before writing it", "fork() copies all memory up front, so the snapshot always needs 2x RAM"]
+  options: ["Copy-on-write copies 2 MiB pages, so nearly all 30 GiB is duplicated", "fork() copies all memory up front, so the snapshot always needs 2x RAM", "RDB compression buffers the entire snapshot in memory before writing it", "The child process loads a second full copy of the dataset before writing"]
   answer: 0
   explanation: >-
     fork() copies page tables, not data; pages are copied only when the parent writes to them. With 4 KiB pages, 2 million random writes touch about 1.8 million of 7.9 million pages, roughly 7 GiB. With 2 MiB huge pages there are only 15,360 pages and the same writes touch all of them, so the copy approaches the whole dataset. Disable THP and keep headroom.

@@ -442,20 +442,20 @@ Stripe's API documentation describes idempotency keys that save the first respon
     The capture debits the receivable 1599; the fee credits it 76; the settlement credits it 1523. 1599 - 76 - 1523 = 0. A zero receivable after settlement is exactly the fact reconciliation checks for each charge; a nonzero one points at a missing or wrong entry.
 - q: >-
     A running balance row for the PSP receivable is updated in every payment transaction. Measured, throughput stayed near 360 per second at both 8 and 32 connections. Why?
-  options: ["Each transaction holds the row lock until its WAL flush", "Postgres limits each table to one writer at a time", "The postings index is rebuilt on every committed insert", "32 connections exceed the database's connection limit"]
-  answer: 0
+  options: ["The postings index is rebuilt on every committed insert", "Postgres limits each table to one writer at a time", "32 connections exceed the database's connection limit", "Each transaction holds the row lock until its WAL flush"]
+  answer: 3
   explanation: >-
     Every transaction updates the same row and keeps its lock until commit, and commit waits for the WAL flush, about 2.8 ms here, so transactions on that row run one at a time whatever the connection count. Append-only postings do not contend and reached 7,600 per second; splitting the account into 16 sub-accounts reached 3,030.
 - q: >-
     Checkout authorises the card, then grants the plan, then captures. Provisioning fails after the authorisation succeeded. What should happen?
-  options: ["Capture anyway and refund the customer later", "Void the authorisation so no money is taken", "Retry the authorisation with a new idempotency key", "Let reconciliation capture the authorisation later"]
-  answer: 1
+  options: ["Void the authorisation so no money is taken", "Capture anyway and refund the customer later", "Let reconciliation capture the authorisation later", "Retry the authorisation with a new idempotency key"]
+  answer: 0
   explanation: >-
     An authorisation reserves funds without moving them, so voiding it means the customer is never charged, which is cleaner than a refund that shows on the statement for days. A new authorisation key would reserve the funds twice, and reconciliation reports breaks; it does not capture payments.
 - q: >-
     Reconciliation finds a PSP charge with no successful payment in your database, on an invoice already paid by another charge. What is it, and what should happen?
-  options: ["A double charge; refund it automatically and alert", "A timing difference; it will match in tomorrow's file", "A fee mismatch; raise a claim against the PSP's fee", "Card fraud; block the customer's account and card"]
-  answer: 0
+  options: ["Card fraud; block the customer's account and card", "A timing difference; it will match in tomorrow's file", "A double charge; refund it automatically and alert", "A fee mismatch; raise a claim against the PSP's fee"]
+  answer: 2
   explanation: >-
     A charge the PSP holds that you never recorded, on an invoice already paid, means the customer paid twice, probably from an unresolved unknown outcome. The playbook refunds it and alerts so the resolver bug can be fixed. Timing windows explain a charge that appears a day late, not a second charge on a paid invoice.
 ```

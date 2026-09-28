@@ -199,6 +199,13 @@ pub async fn evaluate(coach: &CoachService, user_id: Uuid, model: &interviews::M
     coach.budget().record(user_id, completion.usage).await?;
     let mut eval: Evaluation = serde_json::from_str(&completion.text)
         .map_err(|e| AppError::ai_upstream("the evaluation could not be produced; try again", e))?;
+    // Well-formed but empty (no summary or no rubric dimensions) is a failed
+    // generation, not a grade: storing it would mark the interview completed
+    // with nothing to show. The caller reopens the interview on error.
+    if eval.summary.trim().is_empty() || eval.dimensions.is_empty() {
+        tracing::warn!(stop_reason = ?completion.stop_reason, "interview evaluation came back empty");
+        return Err(AppError::AiUpstream("the evaluation could not be produced; try again".into()));
+    }
     eval.overall_score = eval.overall_score.clamp(0, 100);
     Ok(eval)
 }

@@ -394,26 +394,26 @@ Beyond Netflix's own writing, Amazon's Builders' Library articles describe timeo
     0.9999^30 is about 0.997, so the page fails about 0.3% of the time even when every dependency meets its SLO. At high volume that is a constant stream of failed pages, so most dependency failures must become degraded success. Tightening every SLO helps less and costs far more.
 - q: >-
     In the simulation, adding 1-second timeouts still left 72% of requests rejected, including playback requests that never call the slow dependency. Why?
-  options: ["700 home pages/s × 1 s needs ~700 threads; the pool has 200", "Timeouts add retries, which double the load on the pool", "Playback shares the slow dependency's database connection", "The breaker opened and rejected every request at the edge"]
+  options: ["700 home pages/s × 1 s needs ~700 threads; the pool has 200", "Playback shares the slow dependency's database connection", "The breaker opened and rejected every request at the edge", "Timeouts add retries, which double the load on the pool"]
   answer: 0
   explanation: >-
     By Little's law, threads in use equal arrival rate times time held. Each home page now holds its thread for the full 1 s timeout, so about 715 threads are wanted against 200, and every other request, playback included, finds the pool full. A bulkhead sized from normal concurrency caps what the slow dependency can hold.
 - q: >-
     The dependency fails at t = 10 s, but the Hystrix-style breaker (10 s window, 20 requests, 50% errors) opens only at about t = 15 s. Why the delay?
-  options: ["The breaker waits one sleep window of 5 s before it may open", "Its window held 5 s of successes, so errors hit 50% late", "The volume threshold of 20 requests takes 5 s to accumulate", "Timeouts are not counted as failures until the call is retried"]
-  answer: 1
+  options: ["Timeouts are not counted as failures until the call is retried", "The breaker waits one sleep window of 5 s before it may open", "The volume threshold of 20 requests takes 5 s to accumulate", "Its window held 5 s of successes, so errors hit 50% late"]
+  answer: 3
   explanation: >-
     The error percentage is computed over the whole rolling window. At 700 calls a second, 20 requests arrive in milliseconds, but the window also holds the healthy calls from before the incident, so failures reach half of it only when about half the window is post-incident. The sleep window applies after opening, not before.
 - q: >-
     The API, a mid-tier service and a client library each make up to three attempts. The bottom dependency is fully down. How many attempts reach it per home page?
-  options: ["3, one set of retries for the whole request", "9, three attempts at each of the top two layers", "27, three at each of three nested layers", "About 2, because retries mostly succeed"]
-  answer: 2
+  options: ["3, one set of retries for the whole request", "27, three at each of three nested layers", "9, three attempts at each of the top two layers", "About 2, because retries mostly succeed"]
+  answer: 1
   explanation: >-
     Each attempt at a layer triggers the full retry sequence of the layer below, so attempts multiply: 3 × 3 × 3 = 27. At a 50% failure rate the same policy gives about 2 because upper layers mostly see success, which is why amplification peaks exactly when the dependency is down. One retrying layer with a 10% budget caps it at 1.1.
 - q: >-
     A chaos experiment uses 1% of traffic each for control and experiment groups at 5,000 stream starts per second. What does one minute of data let you detect at 3 sigma?
-  options: ["Any drop at all, because the groups are large", "A drop of about 8% or more in experiment starts", "Only a complete outage of the experiment group", "A drop of about 0.5%, the natural noise in SPS"]
-  answer: 1
+  options: ["A drop of about 0.5%, the natural noise in SPS", "Any drop at all, because the groups are large", "A drop of about 8% or more in experiment starts", "Only a complete outage of the experiment group"]
+  answer: 2
   explanation: >-
     Each group sees about 3,000 starts in a minute; the standard deviation of the difference is the square root of 6,000, about 77, so 3 sigma is about 232 starts, 7.7% of 3,000. After ten minutes the same threshold resolves about 2.4%. The metric's volume sets how small a blast radius can still detect harm quickly.
 - q: >-

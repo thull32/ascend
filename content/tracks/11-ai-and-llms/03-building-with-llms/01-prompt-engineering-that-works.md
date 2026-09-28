@@ -545,26 +545,26 @@ hints:
 ```quiz
 - q: >-
     A support chat uses automatic prompt caching with the default lifetime. The customer reads a long reply and answers 12 minutes later. What happens to the input cost of that turn?
-  options: ["It matches the previous turn, since the cache lasts for the whole conversation", "The whole prefix is written to the cache again at 1.25 times the input price", "It is free of extra cost, since each hit extends the entry for another hour", "The prefix is billed at full price, and caching stays off for the rest of the chat"]
-  answer: 1
+  options: ["The prefix is billed at full price, and caching stays off for the rest of the chat", "It matches the previous turn, since the cache lasts for the whole conversation", "It is free of extra cost, since each hit extends the entry for another hour", "The whole prefix is written to the cache again at 1.25 times the input price"]
+  answer: 3
   explanation: >-
     The default entry lives 5 minutes from the start of the last request that read or wrote it, so after 12 minutes it is gone and the turn rewrites its whole input: in the traced conversation, 6,937.5 billed-equivalent tokens instead of 1,015. Later turns are cached again. Hits refresh the 5-minute lifetime, not an hour; the 1-hour option exists at twice the input price for writes.
 - q: >-
     You replace 1,500 tokens of static examples with 900 tokens of examples retrieved per request, at a million requests a day. Why can the bill rise although the prompt got shorter?
-  options: ["They change per request, so they sit after the breakpoint at full price", "They make outputs longer, since the model copies the length of real tickets", "The embedding lookup per request costs more than the tokens it replaces", "Short prompts disable caching, because the minimum prefix is 1,500 tokens"]
-  answer: 0
+  options: ["They make outputs longer, since the model copies the length of real tickets", "They change per request, so they sit after the breakpoint at full price", "The embedding lookup per request costs more than the tokens it replaces", "Short prompts disable caching, because the minimum prefix is 1,500 tokens"]
+  answer: 1
   explanation: >-
     The static set was read from cache at a tenth of the price, $750 a day; 900 uncached tokens cost $4,500 a day. The switch pays only if the eval shows an accuracy gain worth $3,750 a day. An embedding call is cheap next to the uncached input, and the minimum cacheable prefix depends on the model, from 512 to 4,096 tokens at the time of writing.
 - q: >-
     A cached prompt must include the current time to the second. Where should it go?
-  options: ["At the top of the system prompt, so the model reads it before the rules", "After the last cache breakpoint, in the user turn or a trailing block", "Inside each few-shot example, so the examples appear to be current", "Nowhere, because models know the time from their training data cut-off"]
-  answer: 1
+  options: ["Inside each few-shot example, so the examples appear to be current", "At the top of the system prompt, so the model reads it before the rules", "After the last cache breakpoint, in the user turn or a trailing block", "Nowhere, because models know the time from their training data cut-off"]
+  answer: 2
   explanation: >-
     Caching matches byte-identical prefixes, so a value that changes on every request, placed at the top or inside the examples, makes every request a unique prefix and every byte after it a miss. After the last breakpoint it costs only its own tokens. A model knows the time only if the prompt tells it; its training data ends at some earlier point.
 - q: >-
     How does a chat model tell your system prompt apart from a ticket that says to ignore all previous instructions?
-  options: ["The API sends the system prompt on a channel that ticket text cannot reach", "Role tokens in one sequence, plus a trained deference to the system turn", "It discards imperative sentences that appear after the user role marker", "Tags around the ticket escape its contents, so instructions become inert"]
-  answer: 1
+  options: ["Tags around the ticket escape its contents, so instructions become inert", "It discards imperative sentences that appear after the user role marker", "Role tokens in one sequence, plus a trained deference to the system turn", "The API sends the system prompt on a channel that ticket text cannot reach"]
+  answer: 2
   explanation: >-
     The chat template renders every turn into one token sequence separated by special role tokens, and post-training teaches the instruction hierarchy: prefer the system turn over the user turn over tool results. It is a learned tendency, so injections sometimes win, as one in twelve did against the best prompt. Tags are formatting, not escaping; a customer can type a closing tag.
 - q: >-
@@ -575,8 +575,8 @@ hints:
     Asked for four keys with no way to say absent, the model wrote something: N/A, none or a plausible id. The null path, with its reason, gives it a value to choose; that was the v3 to v4 change. A schema constrains shape, not whether a string appears in the ticket, and the examples arrived in v5, after the drop. Temperature cannot add an option the prompt never offered.
 - q: >-
     Your example selector takes the best example of each label before filling by similarity, and places the most similar example last. What does each part do?
-  options: ["Coverage stops one label being copied; last place uses the recency pull", "Coverage cuts tokens per request; last place lets the cache reuse that example", "Coverage replaces the eval set; last place hides the example from the model", "Coverage fixes class imbalance in training; last place lowers the temperature"]
-  answer: 0
+  options: ["Coverage fixes class imbalance in training; last place lowers the temperature", "Coverage stops one label being copied; last place uses the recency pull", "Coverage cuts tokens per request; last place lets the cache reuse that example", "Coverage replaces the eval set; last place hides the example from the model"]
+  answer: 1
   explanation: >-
     Pure nearest-neighbour selection often returns several examples with the same label, and the model copies the label; taking one per label first shows the alternatives. The most similar example goes last because examples nearest the input pull hardest, the same recency effect that skews static sets. Dynamic examples change per request, so no ordering makes them cacheable.
 ```

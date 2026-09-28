@@ -371,13 +371,13 @@ hints:
     Hints expire long before 12 days, and after the grace period A and B have compacted away the tombstone along with the value. Repair cannot tell a deleted value from a missed write, so it copies C's old value back to every replica. Full repair must complete more often than the grace period.
 - q: >-
     A QUORUM read finds that one replica's digest does not match the coordinator's data. What happens before the client gets its answer?
-  options: ["The coordinator returns its own value at once and repairs later", "The client receives both versions and must merge them itself", "The coordinator fetches full data, writes the newest back, then replies", "The read fails, and the driver retries it on a different coordinator node"]
-  answer: 2
+  options: ["The coordinator fetches full data, writes the newest back, then replies", "The read fails, and the driver retries it on a different coordinator node", "The client receives both versions and must merge them itself", "The coordinator returns its own value at once and repairs later"]
+  answer: 0
   explanation: >-
     On a digest mismatch the coordinator reads full data from the replicas, picks the newest version and, with blocking read repair, writes it to the stale replica before replying, so a later QUORUM read cannot return the older value. That costs extra round trips, roughly tripling the read's latency in the trace. Returning siblings to the client happens only with version vectors, and LWW data has one winner.
 - q: >-
     A 48-node, three-zone cluster uses 256 tokens per node. Two nodes in different zones fail at the same time. What happens?
-  options: ["Almost surely some key range loses QUORUM, since the pair shares a range", "Nothing, because zone-aware placement always leaves two replicas of each key", "Data is lost for the keys whose replicas were on both of the failed nodes", "Only the keys on the two nodes' primary arcs lose QUORUM, about 4% of data"]
+  options: ["Almost surely some key range loses QUORUM, since the pair shares a range", "Nothing, because zone-aware placement always leaves two replicas of each key", "Only the keys on the two nodes' primary arcs lose QUORUM, about 4% of data", "Data is lost for the keys whose replicas were on both of the failed nodes"]
   answer: 0
   explanation: >-
     With 256 tokens each, every cross-zone pair of nodes shares at least one replica set (100% in the simulation), and that range is left with one replica, below a QUORUM of two. No data is lost while one copy remains. Zone-aware placement protects against losing one zone, not two nodes in two zones. Fewer tokens per node make this far less likely, which is why Cassandra 4.0 lowered the default to 16.

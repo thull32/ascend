@@ -275,38 +275,38 @@ hints:
 ```quiz
 - q: >-
     Two sessions at Postgres REPEATABLE READ each count bookings for room 3 on a day (0) and then insert a booking for it. What happens?
-  options: ["Both commit, since the inserts share no row; the room is double-booked", "The second INSERT blocks on the first's row lock, then fails at commit", "The second COMMIT fails with 40001 because both read one predicate", "The second count sees the first insert, so it never inserts at all"]
-  answer: 0
+  options: ["The second COMMIT fails with 40001 because both read one predicate", "Both commit, since the inserts share no row; the room is double-booked", "The second count sees the first insert, so it never inserts at all", "The second INSERT blocks on the first's row lock, then fails at commit"]
+  answer: 1
   explanation: >-
     This is write skew through phantoms, reproduced in the lab with welcome credits: both snapshots legitimately show zero, and the writes are new rows, so first-updater-wins has no write-write conflict to detect. Aborting on a shared read predicate is what SERIALIZABLE adds. A unique or exclusion constraint rejects the second insert at any level.
 - q: >-
     Why does UPDATE items SET stock = stock - 1 WHERE id = 7 end at 8 after two concurrent runs at READ COMMITTED, while SELECT then UPDATE ... SET stock = 9 ends at 9?
-  options: ["Single statements are silently promoted to SERIALIZABLE by Postgres", "The atomic form takes a table lock, so the two runs cannot overlap", "A blocked UPDATE re-reads the committed row, recomputing stock - 1", "Neither is safe; the atomic form only happened to win the race"]
-  answer: 2
+  options: ["Single statements are silently promoted to SERIALIZABLE by Postgres", "The atomic form takes a table lock, so the two runs cannot overlap", "Neither is safe; the atomic form only happened to win the race", "A blocked UPDATE re-reads the committed row, recomputing stock - 1"]
+  answer: 3
   explanation: >-
     When the second UPDATE finds the row locked, it waits, then fetches the newly committed version, re-evaluates WHERE and computes SET from it (EvalPlanQual), returning 8. In the two-statement form the value 9 was computed from a read that is stale by the time it is written. Only a row lock is taken, and no promotion happens.
 - q: >-
     A nightly job sums balances with one SELECT per batch of 10,000 accounts, inside one READ COMMITTED transaction, while transfers run. Totals are occasionally wrong. What is the fix?
-  options: ["Read each batch with SELECT ... FOR UPDATE to block the transfers", "Run the job at REPEATABLE READ so every batch shares one snapshot", "Add an index so each batch is bounded and phantoms cannot appear", "Run the job at READ UNCOMMITTED so it sees transfers in progress"]
-  answer: 1
+  options: ["Run the job at REPEATABLE READ so every batch shares one snapshot", "Add an index so each batch is bounded and phantoms cannot appear", "Run the job at READ UNCOMMITTED so it sees transfers in progress", "Read each batch with SELECT ... FOR UPDATE to block the transfers"]
+  answer: 0
   explanation: >-
     Read committed takes a snapshot per statement, so a transfer committed between batches is counted on one side only: read skew, reproduced in the lab as 10,000 plus 4,000. One snapshot for the whole job fixes it without blocking writers. Locking every row would stall transfers, and Postgres treats read uncommitted as read committed anyway.
 - q: >-
     An application moves from MySQL to Postgres, both at REPEATABLE READ, and starts seeing could not serialize access due to concurrent update. What does that tell you?
-  options: ["Postgres detects write skew at repeatable read, which InnoDB permits", "Postgres takes gap locks that InnoDB avoids, so inserts now conflict", "The migration switched the default to SERIALIZABLE for all sessions", "Read-modify-writes that InnoDB overwrote silently now abort"]
-  answer: 3
+  options: ["Read-modify-writes that InnoDB overwrote silently now abort", "The migration switched the default to SERIALIZABLE for all sessions", "Postgres takes gap locks that InnoDB avoids, so inserts now conflict", "Postgres detects write skew at repeatable read, which InnoDB permits"]
+  answer: 0
   explanation: >-
     InnoDB's repeatable read lets UPDATE act on the latest committed version, so a stale read followed by a write overwrites the other transaction's change without error. Postgres's first-updater-wins rule aborts the second writer instead. The errors reveal lost updates the old system was committing. Write skew still commits at Postgres repeatable read, and next-key gap locks are InnoDB's mechanism.
 - q: >-
     A team enables SERIALIZABLE and sees many 40001 errors on a table that most transactions read with sequential scans. What is the most likely contributor?
-  options: ["Sequential scans take relation-level SIRead locks, so writes conflict", "SERIALIZABLE takes an exclusive lock on every row a transaction reads", "READ COMMITTED sessions on the same table are counted as conflicts too", "The retry loop is too eager, so each retry collides with the one before"]
-  answer: 0
+  options: ["SERIALIZABLE takes an exclusive lock on every row a transaction reads", "The retry loop is too eager, so each retry collides with the one before", "Sequential scans take relation-level SIRead locks, so writes conflict", "READ COMMITTED sessions on the same table are counted as conflicts too"]
+  answer: 2
   explanation: >-
     SIRead locks block nothing but drive conflict detection; a sequential scan records the coarsest, relation-level lock, so nearly every concurrent write forms an rw-dependency, including false positives. Index scans lock index pages instead, so suitable indexes cut aborts. Transactions not running at serializable are invisible to SSI.
 - q: >-
     With 16 clients and 1,000 accounts, SERIALIZABLE retried 4.3% of transfers; with 10 accounts it retried 60%. What does that show?
-  options: ["SSI bookkeeping is expensive and grows with the number of accounts", "Retries are driven by contention on hot rows, not by a fixed SSI cost", "SERIALIZABLE is broken for small tables and should not be used there", "The pgbench retry option itself causes most of the serialisation failures"]
-  answer: 1
+  options: ["SERIALIZABLE is broken for small tables and should not be used there", "The pgbench retry option itself causes most of the serialisation failures", "Retries are driven by contention on hot rows, not by a fixed SSI cost", "SSI bookkeeping is expensive and grows with the number of accounts"]
+  answer: 2
   explanation: >-
     Fewer accounts means more transactions touching the same rows at once, so more concurrent-update conflicts and dangerous structures. At low contention the strict levels cost under 10% of throughput. The abort rate is a property of the workload, which is why you measure on your own contention profile rather than quoting a fixed overhead.
 ```

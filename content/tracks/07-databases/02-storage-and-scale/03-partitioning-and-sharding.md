@@ -304,32 +304,32 @@ hints:
     Pruning compares the predicate with partition bounds; an expression of the key is not the key, and the planner does not invert it. The lab's ::date version scanned all 24 partitions in 140 ms. Rewrite it as a half-open range on occurred_at and one partition remains. Indexes and default partitions do not affect pruning.
 - q: >-
     After partitioning a table by month, a one-week query that already used an index on occurred_at is no faster. What does that tell you?
-  options: ["The partitions were created wrongly, so pruning did not apply", "Pruning skipped only what the index skipped: same pages read", "Postgres 17 disables pruning when a partitioned index is present", "Partitioned tables are always slower because of the Append node"]
-  answer: 1
+  options: ["Pruning skipped only what the index skipped: same pages read", "The partitions were created wrongly, so pruning did not apply", "Postgres 17 disables pruning when a partitioned index is present", "Partitioned tables are always slower because of the Append node"]
+  answer: 0
   explanation: >-
     The lab measured 320 buffers and about 2.3 ms either way: the index already bounded the scan to one week, so skipping other partitions saved nothing. Partitioning pays off for retention, per-partition maintenance and queries that would otherwise scan the whole table. The Append node's overhead is negligible when pruning leaves one partition.
 - q: >-
     You drop a month of data by DETACH PARTITION and DROP TABLE instead of DELETE. Why does this matter most on a large, replicated table?
-  options: ["DROP writes a few catalogue records instead of one WAL record per row", "DROP runs faster because it skips the foreign-key checks that DELETE runs", "DELETE cannot remove rows from a partitioned table without a full scan", "DROP returns disk space only after the next VACUUM FULL has completed"]
-  answer: 0
+  options: ["DELETE cannot remove rows from a partitioned table without a full scan", "DROP returns disk space only after the next VACUUM FULL has completed", "DROP runs faster because it skips the foreign-key checks that DELETE runs", "DROP writes a few catalogue records instead of one WAL record per row"]
+  answer: 3
   explanation: >-
     Deleting 99,692 rows wrote 99,694 WAL records and 14 MB of WAL that every replica replays, and the table did not shrink; the drop wrote 91 records and 14.6 KB. At 100 GB per month that is the difference between hours of WAL and an unlink. DROP returns space at once; DELETE only makes it reusable.
 - q: >-
     10,000 tenants have Zipf-distributed load and are hashed across 16 shards. The largest tenant carries about 10% of all traffic. What is the consequence?
-  options: ["Nothing, because hashing spreads tenants evenly across the 16 shards", "Every shard carries about 10% more than it would with uniform tenants", "The fleet needs 17 shards so that the largest tenant can be spread out", "Its shard carries about 2.5 times the average load and caps the fleet"]
-  answer: 3
+  options: ["Its shard carries about 2.5 times the average load and caps the fleet", "Every shard carries about 10% more than it would with uniform tenants", "The fleet needs 17 shards so that the largest tenant can be spread out", "Nothing, because hashing spreads tenants evenly across the 16 shards"]
+  answer: 0
   explanation: >-
     Hashing spreads tenants, not load: the largest tenant's 10.2% lands on one shard on top of that shard's 5.6% share of everyone else, about 15.8% against a 6.25% average. The fleet saturates when that shard does. A directory to isolate the tenant, or splitting it by a secondary key, fixes it; more shards do not.
 - q: >-
     Each of 16 shards answers within 10 ms 99% of the time. A query must wait for all 16. How often does it take longer than 10 ms?
-  options: ["About 1% of the time, the same as a single shard", "About 16% of the time, sixteen times the single-shard rate", "About 15% of the time, since 1 - 0.99^16 is 0.149", "About 50% of the time, since half the shards are always slow"]
-  answer: 2
+  options: ["About 16% of the time, sixteen times the single-shard rate", "About 1% of the time, the same as a single shard", "About 50% of the time, since half the shards are always slow", "About 15% of the time, since 1 - 0.99^16 is 0.149"]
+  answer: 3
   explanation: >-
     The query is slow if any shard is slow: 1 - 0.99^16 = 0.149. Adding the probabilities (16%) overcounts overlaps, and the single-shard rate ignores the fan-out. With 64 shards it is about 47%, which is why fan-out queries have poor tail latency and why hedged requests or avoiding fan-out matter.
 - q: >-
     A router uses hash(key) mod 4 and a fifth shard is added. Roughly what fraction of keys must move, and what avoids it?
-  options: ["About 80%; consistent hashing or a directory moves about a fifth", "About 20%; only the keys that belong on the new shard have to move", "About 25%; each old shard hands a quarter of its keys to the new one", "None; keys keep their shard and only new keys go to the new shard"]
-  answer: 0
+  options: ["None; keys keep their shard and only new keys go to the new shard", "About 80%; consistent hashing or a directory moves about a fifth", "About 25%; each old shard hands a quarter of its keys to the new one", "About 20%; only the keys that belong on the new shard have to move"]
+  answer: 1
   explanation: >-
     A key stays only if h mod 4 equals h mod 5, which holds for 1 in 5 hashes, so 80% move. Consistent hashing moves about 1/5 of keys, and a directory moves exactly the tenants you choose. Leaving old keys in place would break lookups, since the router computes a different shard for them.
 ```

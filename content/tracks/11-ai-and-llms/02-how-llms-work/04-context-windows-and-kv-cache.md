@@ -305,8 +305,8 @@ hints:
     GQA shares each key/value head across several query heads, so the cache stores a quarter as many key and value vectors. That multiplies how many concurrent sequences fit alongside the weights, which drives throughput. Query-side compute, and so prefill FLOPs, is largely unchanged, and vocabulary and training context length are separate properties.
 - q: >-
     With a KV cache, a 7B-class model without GQA generates 128 tokens per second at a 4k-token context and about 24 at 128k, on the same GPU and batch size. What explains the slowdown?
-  options: ["Each step reads the whole cache, which grows with the context", "The cache is recomputed for every new token at long context", "Sampling over the vocabulary takes longer as the context grows", "The weights must be reloaded from disk for long prompts"]
-  answer: 0
+  options: ["The cache is recomputed for every new token at long context", "Sampling over the vocabulary takes longer as the context grows", "The weights must be reloaded from disk for long prompts", "Each step reads the whole cache, which grows with the context"]
+  answer: 3
   explanation: >-
     Decode is memory-bandwidth-bound: every step streams the weights (13.5 GB) plus the sequence's entire KV cache, which is 2.1 GB at 4k tokens and 68.7 GB at 128k without GQA. The cache prevents recomputation, but not the read. Sampling cost depends on the vocabulary, not the context, and the weights stay in GPU memory.
 ```

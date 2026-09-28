@@ -482,14 +482,14 @@ hints:
 ```quiz
 - q: >-
     A page renders 100 orders with each customer's name and issues 101 queries, each under 0.1 ms inside Postgres. The application runs in the same availability zone as the database with a 0.5 ms round trip. Roughly how long does the page spend on the database, and why?
-  options: ["About 10 ms, since 101 queries at 0.1 ms each is the whole cost", "About 60 ms, since every query pays a network round trip", "Under 1 ms, since each lookup is a fast primary-key index probe", "About 200 ms, since each query must parse and plan the SQL again"]
-  answer: 1
+  options: ["About 10 ms, since 101 queries at 0.1 ms each is the whole cost", "About 200 ms, since each query must parse and plan the SQL again", "Under 1 ms, since each lookup is a fast primary-key index probe", "About 60 ms, since every query pays a network round trip"]
+  answer: 3
   explanation: >-
     Each lazy load pays a round trip plus pool and client work that dwarf the execution time: 101 × 0.5 ms is about 50 ms before anything else, and the lab model gave 62 ms. Execution time is the smallest term, and a cached prepared statement is not parsed again. One join or two queries remove almost all of it.
 - q: >-
     At 1,000 comments, one LEFT JOIN to users took 4.0 ms while fetching the comments and then the authors WHERE id = ANY($1) took 1.35 ms. What explains the join losing?
-  options: ["Joins cannot use an index on the inner table once a query returns many rows", "The planner hashed the whole users table instead of probing 1,000 times", "The ANY query benefits from a warmer cache because it runs as the second statement", "The join sent 1,000 separate result messages while the batch sent them all at once"]
-  answer: 1
+  options: ["The ANY query benefits from a warmer cache because it runs as the second statement", "The join sent 1,000 separate result messages while the batch sent them all at once", "Joins cannot use an index on the inner table once a query returns many rows", "The planner hashed the whole users table instead of probing 1,000 times"]
+  answer: 3
   explanation: >-
     With 1,000 outer rows and random_page_cost at 4, the planner estimated that 1,000 index probes cost more than a sequential scan, so it built a hash of all 100,000 users. The batch gave it one index scan for 994 distinct ids. A join can use the index, as it did with a nested loop at 100 rows; checking the plan at realistic N is the lesson.
 - q: >-
@@ -500,8 +500,8 @@ hints:
     Joining a parent to two independent to-many relations produces their cartesian product: 20 comments and 10 tags yield 200 rows for one post, which the ORM then deduplicates, and a LIMIT counts those rows rather than posts. Batch-load each relation separately or aggregate with json_agg.
 - q: >-
     Your server does not load pg_stat_statements. Which signal distinguishes an N+1 page from a single join?
-  options: ["The idx_scan counter on the related table's primary key index", "The page's worst query time as recorded in the slow-query log", "The number of statements or transactions per page load", "The number of buffers the related table reads from the buffer pool"]
-  answer: 2
+  options: ["The page's worst query time as recorded in the slow-query log", "The number of statements or transactions per page load", "The idx_scan counter on the related table's primary key index", "The number of buffers the related table reads from the buffer pool"]
+  answer: 1
   explanation: >-
     N+1 is a statement-count problem, so count statements: in the lab the commit counter rose by 106 for the N+1 page and by 4 for the join. idx_scan rose by about 100 for both, because a nested-loop join probes the index once per row. Each N+1 query is too fast for a slow-query log, and buffer reads are similar either way.
 - q: >-
@@ -512,7 +512,7 @@ hints:
     find_also_related is a single left join with A_ and B_ column aliases, served by the (target_kind, target_slug, created_at) index, so the query count was already right. The projection was wider than necessary: every users column, including email and password_hash, when only display_name was used. The current code selects the comment's columns plus users.display_name into a dedicated CommentRow struct.
 - q: >-
     SeaORM's load_one batches related rows with WHERE (id) IN (($1), ($2), ...), one parameter per distinct key. What problem can this cause that = ANY($1) avoids?
-  options: ["The IN form cannot use the primary key index for its lookups", "IN lists return related rows in a different order than the keys", "Each list length is a new statement, and 65,535 keys is the cap", "The IN form repeats parent columns on every related row returned"]
+  options: ["IN lists return related rows in a different order than the keys", "The IN form cannot use the primary key index for its lookups", "Each list length is a new statement, and 65,535 keys is the cap", "The IN form repeats parent columns on every related row returned"]
   answer: 2
   explanation: >-
     Postgres plans both forms as the same array comparison with an index scan, but the IN text changes with the number of keys, so each length is prepared separately and competes for sqlx's 100-entry statement cache, and a statement cannot carry more than 65,535 parameters. One array parameter is one statement text for any list size.

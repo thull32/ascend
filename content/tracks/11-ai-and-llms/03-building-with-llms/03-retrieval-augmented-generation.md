@@ -451,7 +451,7 @@ hints:
 ```quiz
 - q: >-
     Users report that the assistant says "I could not find that" for questions the documentation does answer. What should you measure first?
-  options: ["Retrieval recall@k on a labelled set of the failing queries", "Answer faithfulness on those queries, scored with an LLM judge", "The model's temperature and how often it declines to answer", "Whether the prompt is too long for the model's context window"]
+  options: ["Retrieval recall@k on a labelled set of the failing queries", "Whether the prompt is too long for the model's context window", "Answer faithfulness on those queries, scored with an LLM judge", "The model's temperature and how often it declines to answer"]
   answer: 0
   explanation: >-
     "Not found" for answerable questions points at retrieval: the passage probably never reached the prompt. Recall@k tells you whether it did. Faithfulness measures how the model uses the passages it received, which cannot help if the right one is missing.
@@ -463,7 +463,7 @@ hints:
     A BM25 score of 2.8 and a cosine of 0.83 cannot be meaningfully added, and their ranges change from query to query, so a raw sum lets one retriever dominate arbitrarily. RRF needs only positions, which are comparable across lists, and rewards documents that several retrievers rank highly. BM25 does produce scores; they are on their own scale.
 - q: >-
     In BM25 with k1 = 1.2, a document at average length mentions a query term four times instead of once. How does that term's contribution change?
-  options: ["It stays the same, because BM25 only records whether a term is present", "It quadruples, because the score is proportional to term frequency", "It rises by about 70%, because term frequency saturates toward k1 + 1", "It doubles, because BM25 takes the square root of term frequency"]
+  options: ["It doubles, because BM25 takes the square root of term frequency", "It stays the same, because BM25 only records whether a term is present", "It rises by about 70%, because term frequency saturates toward k1 + 1", "It quadruples, because the score is proportional to term frequency"]
   answer: 2
   explanation: >-
     At average length the term weight is tf times 2.2 divided by tf + 1.2: 1.0 for one mention and about 1.69 for four, approaching 2.2 however often the term repeats. Saturation stops keyword stuffing from winning, while presence of a rare term (high idf) still counts for a lot.
@@ -475,8 +475,8 @@ hints:
     Chunk count is about corpus length divided by the stride, size minus overlap. 400/300 is about 1.33, so a third more vectors to embed and store, not a quarter: the overlap shrinks the stride, and the count scales with 1/stride. Overlap protects facts at boundaries at a predictable cost.
 - q: >-
     A golden set of five queries has the first relevant result at ranks 3, 1, 2, none and 1. What are recall@3 and MRR?
-  options: ["Recall@3 of 0.6 and MRR of 0.458, counting only queries found at rank 1 or 2", "Recall@3 of 0.8 and MRR of 0.567, with the missing query counted as zero", "Recall@3 of 1.0 and MRR of 0.708, ignoring the query that was never found", "Recall@3 of 0.8 and MRR of 0.708, averaging only the four queries found"]
-  answer: 1
+  options: ["Recall@3 of 0.8 and MRR of 0.567, with the missing query counted as zero", "Recall@3 of 1.0 and MRR of 0.708, ignoring the query that was never found", "Recall@3 of 0.6 and MRR of 0.458, counting only queries found at rank 1 or 2", "Recall@3 of 0.8 and MRR of 0.708, averaging only the four queries found"]
+  answer: 0
   explanation: >-
     Four of five queries have their answer in the top 3, so recall@3 is 0.8. MRR averages 1/rank over all five queries, with 0 for the miss: (1/3 + 1 + 1/2 + 0 + 1) / 5 is about 0.567. Dropping the miss from the average inflates both metrics and hides exactly the queries you need to fix.
 - q: >-

@@ -193,6 +193,33 @@ flowchart LR
   Q --> R
 ```
 
+## Estimate 4: driver locations, where memory is not the constraint
+
+A ride-hailing app shows riders the cars near them and matches trips against where drivers are right now. It is the opposite shape to the feed: tiny state, relentless writes.
+
+| Assumption | Value |
+|---|---|
+| Drivers | 3M online at the global peak, 1.5M averaged over the day |
+| Updates | One GPS fix every 4 s per online driver; ~40 B stored (ID, coordinates, time, heading), ~150 B on the wire with framing and TLS |
+| Readers | 500,000 riders on the map screen at peak, each polling for nearby cars every 10 s |
+| Movement | 10 m/s in town; the geo index uses 1 km cells |
+| History | Kept for trips only (about 40% of online time), for receipts, disputes and ETA models |
+
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Location writes | 3M ÷ 4 s | 750,000/s, and this is already the peak |
+| Nearby queries | 500,000 ÷ 10 s | 50,000/s: writes outnumber reads 15 to 1 |
+| Ingress | 750,000 × 150 B | 112 MB/s, 0.9 Gbit/s |
+| Live state | 3M × ~100 B including the index entry | 300 MB: fits on any machine |
+| Cell changes | 40 m per update, so 25 updates per 1 km cell | 30,000 index moves/s; 96% of updates overwrite a position in place |
+| If every update were a commit | 750,000 ÷ 16,000 group commits/s per Postgres primary | 47 primaries, for data superseded 4 s later |
+| History log | 750,000 × 40 B × 3 copies | 90 MB/s of broker disk at peak |
+| History stored | 375,000/s average × 40 B × 86,400 × 40% | 0.52 TB/day, ~190 TB/year per copy before compression |
+
+The "does it fit in memory" check passes by three orders of magnitude and decides nothing. The design is set by the write rate and by how much durability each write deserves. A position is worthless four seconds later, so it gets no fsync: live state sits in memory, sharded by city or cell over about 8–15 Redis-class nodes (750,000 updates plus index maintenance, at 100,000–200,000 simple operations per node), and needs no replica for durability, because a lost shard refills from the next round of updates within 4 s. Only the history, which someone will ask for in a dispute, is durable, and it is written as batched appends to a log (30 MB/s before replication is a few Kafka partitions), never as a row per fix.
+
+**Bill of materials:** ~20 ingest gateways holding 150,000 persistent connections each (37,500 updates/s per node), ~12 in-memory location shards, a Kafka cluster sized for 90 MB/s of disk writes, and 0.5 TB a day of trip history into object storage. The feed in Estimate 1 was sized by memory; this system, with a four-thousandth of the feed's memory, is sized by writes. The sentence: "750,000 ephemeral writes a second: memory, sharded by geography, no per-write durability; the durable part is a batched log."
+
 ```exercise
 id: capacity-estimate
 title: Build the estimate calculator
@@ -249,6 +276,41 @@ hints:
   - "Compute servers from the already-rounded peak_rps, then add the spare."
 ```
 
+## How wrong can an estimate be?
+
+Every factor in an estimate is a guess. If each of four factors is within 2× of the truth, the product is within 16× only in the worst case, where every guess errs in the same direction; independent errors partly cancel. Simulated, with each factor's error drawn uniformly on a log scale between ½× and 2× and 100,000 trials per row:
+
+| Factors multiplied | Median error | 90th percentile | 99th percentile | Worst case |
+|---|---|---|---|---|
+| 1 | 1.4× | 1.9× | 2.0× | 2× |
+| 2 | 1.5× | 2.6× | 3.5× | 4× |
+| 4 | 1.75× | 3.7× | 7.1× | 16× |
+| 6 | 2.0× | 5.1× | 11.6× | 64× |
+
+Errors multiply, so they add in log space, and the spread grows with the square root of the number of factors rather than linearly: a four-factor estimate lands within about 4× nine times in ten. Three consequences:
+
+- **Fewer, better factors beat many.** Each guessed multiplier widens the band. One number from a comparable system's telemetry can replace three guessed ones.
+- **Challenge the widest factor first.** Daily users are usually known to within 20%; per-post fan-out is not. The [news feed case study](/learn/system-design/case-studies/news-feed) simulates fan-out per post at 1.7× to 31× the average follower count, depending on a tail you must measure. When an interviewer asks "what if you're wrong?", name the factor with the widest band and the component it resizes.
+- **Correlated errors do not cancel.** The model assumes independence. A launch plan whose every behavioural guess is optimistic in the same direction sits at the worst-case column, so run the estimate once with every factor at its pessimistic end and check which component breaks first.
+
+## Peaks and tails that averages hide
+
+**The peak factor depends on the rate.** Requests from many independent users arrive close to a Poisson process, whose count per second fluctuates by about its square root. The busiest second of a day, the 99.99th percentile of 86,400 seconds, computed from the Poisson distribution:
+
+| Average rate | Busiest second (p99.99) | Ratio to the average |
+|---|---|---|
+| 10/s | 24 | 2.4× |
+| 100/s | 139 | 1.39× |
+| 1,000/s | 1,120 | 1.12× |
+| 10,000/s | 10,374 | 1.04× |
+| 100,000/s | 101,178 | 1.01× |
+
+That is randomness alone, before the daily curve. A small service needs proportionally more headroom than a large one: a worker pool sized for exactly 10 jobs a second is overloaded for several seconds every day. Real traffic is burstier than Poisson (retries, cron jobs on the minute, push notifications landing at once), so treat the table as a floor.
+
+**Fan-out turns rare slowness into common slowness.** A request that waits for N parallel calls is as slow as the slowest. If each call is slow 1% of the time, the chance of hitting at least one slow call is $1 - 0.99^N$: 1% for one call, 4.9% for 5, 18% for 20 and 63% for 100. Dean and Barroso's "The Tail at Scale" (2013) uses the 100-call case to motivate hedged requests ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)). In Estimate 1, a page that hydrates 20 posts from 20 cache shards meets a slow shard on 18% of loads, so the per-shard p99, not its median, is the number to budget.
+
+**Concurrency, not rate, sizes pools.** Little's law turns a rate into requests in flight: 43,000 feed loads a second at 50 ms each is 2,150 in flight, 33 per server across 66 servers, which sizes each server's threads and cache connections ([Scalability primitives](/learn/system-design/building-blocks/scalability-primitives)).
+
 ## Presenting estimates in the room
 
 - **State assumptions as you make them and invite correction:** "500 bytes per row; if URLs are longer, storage scales linearly and nothing else changes."
@@ -287,6 +349,8 @@ The sentence to say: "The dominant cost is X; the design minimises X even at the
 | Fan-out counted once | The feed store melts on launch | Writes counted per post, not per copy | Trace one write through every component and count copies |
 | Wrong unit | A 1 Gbps link "carrying" 10 GB/s | Bits versus bytes (8×), per day versus per second (86,400×) | Sanity-check every result against the ceilings table |
 | Benchmarks as ceilings | Production does a third of the benchmark | Microbenchmark on warm cache, local socket, no contention | Treat benchmarks as upper bounds; load test the real path |
+| Small service sized for its average | A worker pool built for 10 jobs/s falls behind for seconds several times a day | Per-second arrival counts show bursts over twice the average that the per-minute graph smooths away | Size from the Poisson peak, or put a queue in front that absorbs bursts |
+| Durability for ephemeral data | A location or presence service needs dozens of database primaries | Every update is a commit, though the next update supersedes it within seconds | Keep superseded state in memory; make only the history durable, as batched log appends |
 
 ## Interviewer follow-ups
 
@@ -298,6 +362,10 @@ The sentence to say: "The dominant cost is X; the design minimises X even at the
 
 **"Give me the cost per user per month."** Model answer: take the dominant cost and divide: photo storage at year end is ~$470,000/month for 10 million daily users, about 5 cents each, before egress, which decides whether the product can be ad-funded. Common wrong answer: summing every component to the dollar, which takes ten minutes and hides the one line that matters.
 
+**"Your estimate turns out 10× low after launch. What do you check first?"** Model answer: the factors with the widest error band and the most leverage: per-post fan-out, the peak factor, and bytes per item including indexes and replicas; daily users are rarely the culprit. Then which component the error resizes: 10× more posts is a worker count and a queue, a scaling knob; 10× more fan-out per post resizes the feed cache, the most expensive line. A good estimate names in advance the assumption that, if wrong, forces a redesign. Common wrong answer: "we would scale out", without saying what, or whether the design survives it.
+
+**"750,000 location updates a second: Postgres, Cassandra or Redis?"** Model answer: none of them as a durable write per update. A position is superseded in 4 s, so per-update durability buys nothing and would take about 47 Postgres primaries at the measured group-commit rate. Live positions go in memory, sharded by geography, and refill themselves from the next updates after a node loss; history goes to a log in batches. Cassandra would absorb the rate but spends commit-log writes and compaction on data nobody reads again. Common wrong answer: picking the store with the best write benchmark and writing every fix to it.
+
 ## What mid-level engineers get wrong
 
 - Quoting numbers without a unit of time ("a million requests") or without the peak.
@@ -306,6 +374,8 @@ The sentence to say: "The dominant cost is X; the design minimises X even at the
 - Forgetting replication and indexes, then running out of disk.
 - Spending twelve minutes on precise arithmetic that changes no decision.
 - Estimating everything instead of the two or three numbers that choose the architecture.
+- Checking only whether the data fits in memory, when the write rate and the durability each write needs set the node count.
+- Presenting the product of every factor's worst case as the estimate, or a six-factor estimate as accurate to 10%; the honest band for four factors each within 2× is about 4×.
 
 ## Senior signals
 
@@ -314,39 +384,40 @@ The sentence to say: "The dominant cost is X; the design minimises X even at the
 - Every estimate ends in a bill of materials and a design consequence; you never estimate for its own sake.
 - You count every copy of a write, state a peak factor, and name the dominant cost.
 - You state assumptions as invitations to correct them and re-derive instantly.
+- You know how error compounds, challenge the widest factor first, and add headroom for Poisson bursts on small services and fan-out tails on large ones.
 - You say "one machine" when the numbers say so. [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost) extends this into growth modelling.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A service handles 500 million requests per day. What is a reasonable design target in requests per second?
-  options: ["About 5,000/s, so design for exactly 5,000/s to avoid waste", "About 5,000/s average, so design for roughly 15,000/s peak", "About 500/s average, so design for roughly 1,500/s peak", "About 50,000/s average, so design for roughly 150,000/s peak"]
-  answer: 1
+    An estimate multiplies four independent factors, each within 2x of the truth. How far off is the product likely to be?
+  options: ["Within 2x, since no factor is off by more than 2x", "Within about 16x, because the four 2x bounds multiply", "Within about 8x, since four 2x errors add up linearly", "Within about 4x in 90% of cases; errors partly cancel"]
+  answer: 3
   explanation: >-
-    500 million / 10^5 seconds is about 5,000/s average. Consumer traffic peaks at 2–5× average, so you design for the peak; exactly the average fails at lunchtime. The 500/s and 50,000/s options are off by ten in the seconds-per-day conversion.
+    Errors multiply, so they add on a log scale, and independent errors partly cancel: the spread grows with the square root of the number of factors. The simulation put the 90th percentile at 3.7x. 16x is the worst case, where every factor errs in the same direction, which is why correlated optimism is the real danger.
 - q: >-
     One Postgres connection commits 343 single-row transactions a second with fsync on. With 64 connections it commits about 16,000 a second at nearly the same latency. What explains this?
-  options: ["Concurrent commits share one WAL flush to disk", "The operating system caches the WAL and skips fsync", "Postgres switches to asynchronous commit under load", "The 64 connections write to 64 separate WAL files"]
-  answer: 0
+  options: ["The 64 connections write to 64 separate WAL files", "Postgres switches to asynchronous commit under load", "Concurrent commits share one WAL flush to disk", "The operating system caches the WAL and skips fsync"]
+  answer: 2
   explanation: >-
     Group commit: when one backend flushes the WAL up to its commit record, every commit record already in the buffer becomes durable in the same flush, so throughput grows with concurrency while latency stays near one flush. Postgres never silently drops durability, and there is a single WAL stream.
 - q: >-
     A request makes five sequential calls, each with a p50 of 2 ms and a p99 of 20 ms. What is the best statement about the request's latency?
-  options: ["p99 is exactly 100 ms, because five calls at 20 ms each add up", "p99 is 20 ms or more; about 5% of requests hit a slow call", "p99 is about 10 ms, because five calls at 2 ms each add up", "p99 is under 20 ms, since the tails average out over five calls"]
+  options: ["p99 is about 10 ms, because five calls at 2 ms each add up", "p99 is 20 ms or more; about 5% of requests hit a slow call", "p99 is under 20 ms, since the tails average out over five calls", "p99 is exactly 100 ms, because five calls at 20 ms each add up"]
   answer: 1
   explanation: >-
     With five independent calls, the chance that at least one is in its slowest 1% is about 5%, so the request's tail contains at least one slow call. Budget with p99s; summing means is the mistake, and summing five p99s assumes every call is slow at once.
 - q: >-
     A feed estimate shows 2,000 posts per second and 200 average followers. Which conclusion follows?
-  options: ["Storage is the bottleneck, so the posts table must be sharded first", "The system is read-dominated, so a CDN is the main component to size", "Postgres handles 2,000 writes/s, so a single database is enough", "Fan-out makes it ~400,000 inserts/s, so feeds need an in-memory store"]
-  answer: 3
+  options: ["Fan-out makes it ~400,000 inserts/s, so feeds need an in-memory store", "Storage is the bottleneck, so the posts table must be sharded first", "Postgres handles 2,000 writes/s, so a single database is enough", "The system is read-dominated, so a CDN is the main component to size"]
+  answer: 0
   explanation: >-
     Counting every copy of a write gives 2,000 x 200 = 400,000 inserts a second, an in-memory number. Users with millions of followers would produce millions of inserts per post, which is why real feeds fan out on read for them. The 2,000 posts/s figure alone is misleading.
 - q: >-
     A metrics pipeline writes 2 MB/s of raw points kept 15 days and 1.3 MB/s of rollups kept 13 months. Which tier dominates storage?
-  options: ["Neither, since both tiers end up at about the same size", "The raw tier, because it writes more bytes every second", "The raw tier, because raw points compress worse than rollups", "The rollup tier, because it is kept 26 times longer"]
-  answer: 3
+  options: ["Neither, since both tiers end up at about the same size", "The raw tier, because it writes more bytes every second", "The rollup tier, because it is kept 26 times longer", "The raw tier, because raw points compress worse than rollups"]
+  answer: 2
   explanation: >-
     Stored bytes are rate times retention: 2 MB/s for 15 days is about 2.6 TB, while 1.3 MB/s for 395 days is about 46 TB before replication. Retention, not write rate, decides storage, which is why the rollup schema should keep only what dashboards query.
 - q: >-

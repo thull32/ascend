@@ -488,14 +488,14 @@ hints:
 ```quiz
 - q: >-
     A node's heartbeat is 8 seconds late. Which cause can the detector rule out from the silence alone?
-  options: ["A GC pause, since pauses never exceed a few seconds", "A partition, since the other links are healthy", "A crash, since a crashed host always resets TCP", "None of them; all three produce the same silence"]
+  options: ["A partition, since the other links are healthy", "A crash, since a crashed host always resets TCP", "A GC pause, since pauses never exceed a few seconds", "None of them; all three produce the same silence"]
   answer: 3
   explanation: >-
     Silence carries no information about its cause. Pauses can last tens of seconds, a crashed or frozen host need not send a reset, and healthy links elsewhere say nothing about this one. That is why acting on a detection must stay safe when the detection is wrong, through leases and fencing.
 - q: >-
     Heartbeat intervals have mean 1,000 ms and standard deviation 100 ms. Under the normal model, when does phi reach 8?
-  options: ["About 1.56 s after the last heartbeat", "About 1.80 s after the last heartbeat", "About 8.00 s after the last heartbeat", "About 18.4 s after the last heartbeat"]
-  answer: 0
+  options: ["About 8.00 s after the last heartbeat", "About 1.56 s after the last heartbeat", "About 1.80 s after the last heartbeat", "About 18.4 s after the last heartbeat"]
+  answer: 1
   explanation: >-
     Phi 8 means an upper-tail probability of 10 to the minus 8, which the normal distribution reaches 5.61 standard deviations past the mean: 1,000 + 561 ms. 18.4 s is what Cassandra's exponential model gives for a 1 s mean, since there phi is the silence divided by the mean times ln 10. Adding 8 standard deviations confuses phi with a z-score.
 - q: >-
@@ -506,19 +506,19 @@ hints:
     Long pauses arrive about once an hour, so a 1,000-sample window of steady 1 s heartbeats rarely contains one; the fitted normal tail says a 1.6 s silence is a one-in-10^8 event, and pauses make it routine. Akka's acceptable heartbeat pause encodes the missing tail. That row used the exact normal CDF, and jitter was a few milliseconds.
 - q: >-
     A lease is 10 s, clocks drift at most 200 ppm, and the safety margin is 100 ms. When must the holder stop acting?
-  options: ["9.898 s after sending the request, on its monotonic clock", "10.000 s after receiving the grant, on its wall clock", "10.102 s after sending the request, on its monotonic clock", "9.898 s after the grantor's timestamp inside the grant"]
+  options: ["9.898 s after sending the request, on its monotonic clock", "10.102 s after sending the request, on its monotonic clock", "10.000 s after receiving the grant, on its wall clock", "9.898 s after the grantor's timestamp inside the grant"]
   answer: 0
   explanation: >-
     L(1 - rho) - m = 9.998 - 0.1 = 9.898 s, measured from send time because the grantor's clock started at or after receipt, on a monotonic clock so an NTP step cannot move it. 10.102 s is the grantor's wait, L(1 + rho) + m. A timestamp from the grantor compares two different clocks.
 - q: >-
     B is granted token 34 and reads a record. Client A's delayed write with token 33 then arrives, and B writes based on what it read. What closes this gap?
-  options: ["B touches the resource with token 34 before it reads anything", "The lease service revokes token 33 at the resource on expiry", "A re-checks its lease immediately before sending each write", "A shorter lease so that A's writes arrive before B is granted"]
-  answer: 0
+  options: ["The lease service revokes token 33 at the resource on expiry", "A shorter lease so that A's writes arrive before B is granted", "A re-checks its lease immediately before sending each write", "B touches the resource with token 34 before it reads anything"]
+  answer: 3
   explanation: >-
     Storage rejects 33 only after it has seen 34. A fenced read or no-op write with 34 raises the stored highest token before B relies on the data, so A's late write is rejected. A re-check by A cannot help because the write was already in flight, and the lease service has no channel to the resource.
 - q: >-
     A Kubernetes 1.32 node loses power. With default settings, roughly when are its Deployment's pods started on other nodes?
-  options: ["After about 6 minutes: the 50 s grace, then a 300 s toleration", "After about 10 s: the kubelet misses one node Lease renewal", "After about 40 s: the kubelet's node Lease duration expires", "Only once an operator deletes the Node object from the cluster"]
+  options: ["After about 6 minutes: the 50 s grace, then a 300 s toleration", "Only once an operator deletes the Node object from the cluster", "After about 40 s: the kubelet's node Lease duration expires", "After about 10 s: the kubelet misses one node Lease renewal"]
   answer: 0
   explanation: >-
     The node lifecycle controller marks the node unreachable when its Lease has not been renewed within node-monitor-grace-period, 50 s from 1.32 (40 s before), and pods then wait out the default 300 s toleration for the unreachable taint before eviction. Waiting for a manual delete is what StatefulSet pods need, not Deployment pods.

@@ -535,38 +535,38 @@ hints:
 ```quiz
 - q: >-
     A flat (brute-force) index holds one million 768-dimensional float32 vectors on a server that streams about 100 GB/s from memory across all cores. Roughly how long does one query take, and what limits it?
-  options: ["About 30 ms, limited by memory bandwidth over 3 GB", "About 1 ms, limited by the 1.5 GFLOP of arithmetic", "About 300 ms, limited by sorting a million distances", "About 3 s, limited by the Python loop over vectors"]
-  answer: 0
+  options: ["About 3 s, limited by the Python loop over vectors", "About 30 ms, limited by memory bandwidth over 3 GB", "About 1 ms, limited by the 1.5 GFLOP of arithmetic", "About 300 ms, limited by sorting a million distances"]
+  answer: 1
   explanation: >-
     The scan reads 10^6 × 768 × 4 bytes = 3.07 GB once, and each byte feeds only a couple of operations, so time is bytes over bandwidth, about 31 ms. The arithmetic is small for SIMD hardware, and keeping the best k in a heap costs far less than a full sort. Batching queries or using float16 are the levers that change it.
 - q: >-
     An IVF index with nprobe = 1 misses a query's true nearest neighbour even though that neighbour is very close to the query. What is the most likely reason?
-  options: ["The neighbour sits in an adjacent cell across the boundary", "The coarse quantiser stores the vectors at lower precision", "k-means placed the neighbour's vector in two separate cells", "The inverted lists are sorted by id rather than by distance"]
-  answer: 0
+  options: ["The inverted lists are sorted by id rather than by distance", "The neighbour sits in an adjacent cell across the boundary", "k-means placed the neighbour's vector in two separate cells", "The coarse quantiser stores the vectors at lower precision"]
+  answer: 1
   explanation: >-
     A query near a cell boundary is closest to one centroid while its nearest neighbour was assigned to the neighbouring cell, as in the 2D trace where (5.4, 2.2) sat in cell B and the query probed only A. Raising nprobe to 2 finds it. IVF-Flat stores full-precision vectors, each vector is in exactly one list, and list order does not matter because every probed vector is scored.
 - q: >-
     With HNSW and M = 16, what fraction of nodes appear on layer 2 or above, and what does that imply for a million vectors?
-  options: ["1/256, so about 3,900 nodes and a top layer near 5", "1/32, so about 31,000 nodes and a top layer near 2", "1/16, so about 62,500 nodes and a top layer near 16", "1/4, so about 250,000 nodes and a top layer near 10"]
-  answer: 0
+  options: ["1/4, so about 250,000 nodes and a top layer near 10", "1/16, so about 62,500 nodes and a top layer near 16", "1/256, so about 3,900 nodes and a top layer near 5", "1/32, so about 31,000 nodes and a top layer near 2"]
+  answer: 2
   explanation: >-
     Levels are drawn as floor(-ln(U) / ln M), which gives P(level ≥ l) = M^-l, so layer 2 holds 1/256 of the nodes: about 3,906 of a million. The number of layers is about log base 16 of 10^6, roughly 5. One in sixteen is the share for layer 1, not layer 2.
 - q: >-
     A multi-tenant pgvector table uses an HNSW index with the default hnsw.ef_search of 40. A tenant owns 0.5% of the rows. What do its top-10 queries typically return?
-  options: ["Under one row, because the filter runs on about 40 candidates", "Ten rows, because Postgres pushes the filter into the index", "Ten rows, but slower, because the index scans every tenant", "No rows, because HNSW indexes cannot be combined with WHERE"]
+  options: ["Under one row, because the filter runs on about 40 candidates", "Ten rows, because Postgres pushes the filter into the index", "No rows, because HNSW indexes cannot be combined with WHERE", "Ten rows, but slower, because the index scans every tenant"]
   answer: 0
   explanation: >-
     Without iterative scans the index yields ef_search candidates and the WHERE clause filters them afterwards: 40 × 0.005 = 0.2 expected survivors. The filter is legal, not pushed into the graph, and nothing forces a full scan. Iterative scans, a partial index or partition for the tenant, or brute force over its rows fix it.
 - q: >-
     Product quantisation splits 768-dimensional float32 vectors into 96 sub-vectors with 256-centroid codebooks. What does each stored vector cost, and how is a query scored against it?
-  options: ["96 bytes; the sum of 96 lookups in a per-query distance table", "96 bytes; decompress to 768 floats and compute an exact distance", "384 bytes; one float16 per sub-vector centroid compared directly", "3,072 bytes; the codes only select which vectors to compare exactly"]
-  answer: 0
+  options: ["384 bytes; one float16 per sub-vector centroid compared directly", "3,072 bytes; the codes only select which vectors to compare exactly", "96 bytes; the sum of 96 lookups in a per-query distance table", "96 bytes; decompress to 768 floats and compute an exact distance"]
+  answer: 2
   explanation: >-
     Each sub-vector becomes one byte (an index into 256 centroids), so 96 bytes against 3,072, a 32-fold saving. Asymmetric distance computation precomputes the query-to-centroid distances once (96 × 256 entries) and scores each code by table lookups, never reconstructing the vector. Exact distances come only in the re-ranking step on a short list.
 - q: >-
     After a year of updates, 40% of an HNSW index's nodes are tombstones. What do you expect to observe, and what is the usual fix?
-  options: ["More distance computations per query; rebuild the index and swap it in", "An immediate crash, since tombstoned nodes break the graph; restore a backup", "Faster queries, since dead nodes are skipped; no action is needed", "Wrong neighbours returned, since tombstones are still returned; filter them"]
-  answer: 0
+  options: ["Faster queries, since dead nodes are skipped; no action is needed", "An immediate crash, since tombstoned nodes break the graph; restore a backup", "More distance computations per query; rebuild the index and swap it in", "Wrong neighbours returned, since tombstones are still returned; filter them"]
+  answer: 2
   explanation: >-
     Tombstoned nodes are still traversed (which keeps the graph connected) but never returned, so the search expands more nodes to collect k live results: in the measured run, work per query rose from 128 to 229 distances at 60% deleted. Memory is not reclaimed either. A rebuild, or REINDEX CONCURRENTLY in Postgres, restores it; unlinking dead nodes without repair would fragment the graph instead.
 ```

@@ -348,38 +348,38 @@ hints:
 ```quiz
 - q: >-
     A product document embeds an array of reviews. It worked for a year; now product pages are slow and one insert failed with a size error. What is the root cause?
-  options: ["Review writes should have used w:majority to avoid failed inserts", "The reviews array needed a multikey index to keep appends fast", "An unbounded one-to-many was embedded and grew toward 16 MB", "The product collection has outgrown one shard and needs sharding"]
-  answer: 2
+  options: ["An unbounded one-to-many was embedded and grew toward 16 MB", "The product collection has outgrown one shard and needs sharding", "The reviews array needed a multikey index to keep appends fast", "Review writes should have used w:majority to avoid failed inserts"]
+  answer: 0
   explanation: >-
     Reviews per product have no upper bound, which is the rule for referencing from the many side. Each append creates a new version of the whole growing document and each read loads all of it, until the 16 MB limit stops inserts. A multikey index would add cost, and sharding or write concern do not change document size.
 - q: >-
     find({status: "open", created: {$gt: t}}).sort({priority: -1}).limit(20) is slow and explain shows a SORT stage. The range on created matches about 10% of open documents. Which index fixes it?
-  options: ["{priority: -1, status: 1, created: 1}", "{created: 1, status: 1, priority: -1}", "{status: 1, priority: -1, created: 1}", "{status: 1, created: 1, priority: -1}"]
-  answer: 2
+  options: ["{created: 1, status: 1, priority: -1}", "{status: 1, priority: -1, created: 1}", "{priority: -1, status: 1, created: 1}", "{status: 1, created: 1, priority: -1}"]
+  answer: 1
   explanation: >-
     ESR: the equality field first, then the sort field so the index delivers rows in order, then the range field, checked inside each index key until 20 match (about 200 keys at 10%). Putting created before priority still needs a blocking sort of every match. Only when the range is very selective does range-before-sort win.
 - q: >-
     Two MongoDB transactions update the same inventory document. The second one to write will:
-  options: ["Overwrite the first silently, since the last committer always wins", "Fail at once with a write conflict, so the whole transaction retries", "Block until the first transaction commits, and then apply its write", "Escalate to a collection lock so that the two transactions run in turn"]
-  answer: 1
+  options: ["Escalate to a collection lock so that the two transactions run in turn", "Block until the first transaction commits, and then apply its write", "Fail at once with a write conflict, so the whole transaction retries", "Overwrite the first silently, since the last committer always wins"]
+  answer: 2
   explanation: >-
     WiredTiger is optimistic: a write to a record with another transaction's uncommitted change fails with WriteConflict labelled TransientTransactionError, and withTransaction reruns the whole callback. Postgres, by contrast, makes the second writer wait on the row lock. Retries rerun application code, which is why contended transactions are expensive here.
 - q: >-
     A team sets writeConcern w:1 to reduce latency. After a primary failover some acknowledged orders are missing, and BSON files appear in a rollback directory. Why?
-  options: ["w:1 acks before replication, so the new primary never had them", "The failover restarted the TTL monitor, which deleted recent orders", "Secondaries reject writes that only one member has acknowledged", "The oplog is truncated during every election, dropping new entries"]
-  answer: 0
+  options: ["The oplog is truncated during every election, dropping new entries", "Secondaries reject writes that only one member has acknowledged", "w:1 acks before replication, so the new primary never had them", "The failover restarted the TTL monitor, which deleted recent orders"]
+  answer: 2
   explanation: >-
     With w:1 the write is acknowledged once the primary applies it. A secondary without it can win the election, and when the old primary rejoins it rolls back its divergent entries into rollback files. w:majority waits for a majority, and elections only choose members holding every majority-committed write.
 - q: >-
     A Postgres products table has a jsonb attrs column queried only with @> containment. Which index is the better default, and why?
-  options: ["jsonb_ops, because it also supports key-existence queries with ?", "jsonb_path_ops, since it hashes each path and value into one item", "A B-tree on attrs, because GIN cannot answer containment queries", "jsonb_ops, because indexing keys and values apart is more selective"]
-  answer: 1
+  options: ["jsonb_ops, because indexing keys and values apart is more selective", "jsonb_ops, because it also supports key-existence queries with ?", "A B-tree on attrs, because GIN cannot answer containment queries", "jsonb_path_ops, since it hashes each path and value into one item"]
+  answer: 3
   explanation: >-
     jsonb_path_ops stores one hash per path-and-value pair, so containment intersects short lists; measured on a million rows it was 18 MB and 1.4 ms against 25 MB and 13 ms for jsonb_ops, whose separate key items (a key present in every row) make long lists. jsonb_ops is needed only for ? and similar key operators; a plain B-tree on the whole value cannot serve @>.
 - q: >-
     A row holds a 100 KB jsonb document. The application updates one small field inside it with jsonb_set on every page view. What is the main cost?
-  options: ["Each update writes about 100 KB of WAL, since the whole value is rewritten", "Each update takes a table lock, since jsonb values cannot be locked by row", "Each update writes only the changed key, but it invalidates the GIN index", "Each update is cheap, but VACUUM can never reclaim the older jsonb values"]
-  answer: 0
+  options: ["Each update takes a table lock, since jsonb values cannot be locked by row", "Each update is cheap, but VACUUM can never reclaim the older jsonb values", "Each update writes about 100 KB of WAL, since the whole value is rewritten", "Each update writes only the changed key, but it invalidates the GIN index"]
+  answer: 2
   explanation: >-
     Postgres stores a jsonb value as one datum, so changing one key writes a new copy of the whole value: measured at 113 KB of WAL for one small change, against 130 bytes for updating a separate text column on the same row. Row locks work normally and vacuum reclaims old versions; the fix is to keep frequently changing fields in their own columns.
 ```

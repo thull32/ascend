@@ -407,8 +407,8 @@ Ticketmaster has publicly described Verified Fan, pre-registration that limits h
     Only 20,000 orders exist, so 99% of the load is from users who will fail. Admission control, with everyone else waiting cheaply at the edge, turns a 100,000/s write problem into about 1,250/s. Scaling the inventory store to serve doomed requests is the expensive wrong answer.
 - q: >-
     Holds aimed at the best 2,000 seats ran at 66,600 attempts a second, while holds spread over all 50,000 seats ran at about 9,000. Why were the contended attempts faster?
-  options: ["Hot rows stay in the buffer cache, so each read is quicker", "Most matched no rows, and an update of no rows writes no WAL", "Postgres batches updates that target the same rows together", "The hot seats were locked, so attempts were queued and skipped"]
-  answer: 1
+  options: ["Hot rows stay in the buffer cache, so each read is quicker", "Postgres batches updates that target the same rows together", "The hot seats were locked, so attempts were queued and skipped", "Most matched no rows, and an update of no rows writes no WAL"]
+  answer: 3
   explanation: >-
     Nearly all attempts on the hot seats found them held, updated nothing, and committed without writing WAL or waiting for a flush. Successful holds pay for a durable commit. Failed attempts are the cheap ones, which is why contention on the best seats is not a throughput problem; a single hot counter row is.
 - q: >-
@@ -419,8 +419,8 @@ Ticketmaster has publicly described Verified Fan, pre-registration that limits h
     Expired holds are released lazily by the next claimant, so the sweeper only keeps the seat map accurate. A seat in PAYMENT_PENDING is not matched by the clause, so a checkout in progress is never taken.
 - q: >-
     A user clicks Pay two seconds before their hold expires, and the provider takes three seconds. What stops another fan claiming the seats meanwhile?
-  options: ["The client keeps the hold alive by polling the order status", "Checkout moves the seats to PAYMENT_PENDING, which no claim matches", "The provider's authorisation locks the seats in the database", "The sweeper skips holds whose owners have clicked Pay recently"]
-  answer: 1
+  options: ["Checkout moves the seats to PAYMENT_PENDING, which no claim matches", "The client keeps the hold alive by polling the order status", "The provider's authorisation locks the seats in the database", "The sweeper skips holds whose owners have clicked Pay recently"]
+  answer: 0
   explanation: >-
     Checkout's conditional update succeeds only while the hold is live, and moves the seats to a state the lazy-expiry clause does not match, extending the deadline for the payment. The provider knows nothing about seats, polling does not extend holds, and correctness does not depend on the sweeper.
 - q: >-

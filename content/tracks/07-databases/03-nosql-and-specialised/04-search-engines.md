@@ -461,25 +461,25 @@ hints:
     Only terms the analyzer emitted exist in the index: lowercasing and stemming turned running into run. A term query does no analysis, so it looks for the literal token Running; a match query analyses the query text the same way as the documents. Stop words are words like the and of, and refresh lag lasts about a second, not indefinitely.
 - q: >-
     In BM25 with k1 = 1.2, a term appears once in document A and ten times in document B, both of average length. How do their contributions for that term compare?
-  options: ["A scores higher, since BM25 penalises repeated terms as stuffing", "B scores ten times higher, since tf is multiplied straight into it", "B scores about twice as high, since term frequency saturates", "They score the same, since BM25 counts only presence per document"]
-  answer: 2
+  options: ["A scores higher, since BM25 penalises repeated terms as stuffing", "B scores about twice as high, since term frequency saturates", "They score the same, since BM25 counts only presence per document", "B scores ten times higher, since tf is multiplied straight into it"]
+  answer: 1
   explanation: >-
     At average length the tf factor is tf / (tf + 1.2): 0.45 for one occurrence and 0.89 for ten, a ratio of 1.96. More occurrences still help, so presence-only and penalty models are wrong, but saturation stops keyword stuffing from dominating the ranking.
 - q: >-
     A corpus has 3 documents and the query term pool appears in all of them. Under Lucene's BM25, what does pool contribute to the ranking?
-  options: ["A small positive amount, because idf is ln(1 + 0.5 / 3.5)", "A negative amount, because a term in every document is noise", "Nothing, because idf is exactly zero when n equals N", "The largest amount, because it matches every document"]
-  answer: 0
+  options: ["Nothing, because idf is exactly zero when n equals N", "A small positive amount, because idf is ln(1 + 0.5 / 3.5)", "A negative amount, because a term in every document is noise", "The largest amount, because it matches every document"]
+  answer: 1
   explanation: >-
     Lucene's idf is ln(1 + (N - n + 0.5) / (n + 0.5)) = ln(1.1429) = 0.13, positive but small, so a rarer query term dominates the ranking. The classic Robertson idf without the added 1 would be ln(0.5 / 3.5), which is negative; Lucene added the 1 precisely to avoid penalising documents for containing a common query term.
 - q: >-
     A team updates Postgres and then calls Elasticsearch in the same request handler. Occasionally search shows an outdated title forever, although the database is correct. What is the likely mechanism?
-  options: ["Two updates reached the index out of order, so the older one won", "Elasticsearch drops some writes under load without reporting them", "The refresh interval is too long, so the new title never surfaces", "An analyzer change left the old title's terms in older segments"]
-  answer: 0
+  options: ["The refresh interval is too long, so the new title never surfaces", "Two updates reached the index out of order, so the older one won", "An analyzer change left the old title's terms in older segments", "Elasticsearch drops some writes under load without reporting them"]
+  answer: 1
   explanation: >-
     Dual writes have no ordering guarantee between the two systems, so two concurrent updates can reach the index in the opposite order from the database. Refresh delays visibility by about a second, not forever. CDC applies committed changes in commit order, and external versioning makes the index reject a stale version even if it is redelivered late.
 - q: >-
     A Postgres full-text query with a GIN index takes about 50 ms for a common term but under 2 ms for a rare one, even with LIMIT 20. Why?
-  options: ["Every match must be fetched and ranked before the top 20 are known", "The planner's statistics are stale for the most common search terms", "GIN indexes cannot store postings for terms in over half the rows", "websearch_to_tsquery reparses the query once for each row it sees"]
+  options: ["Every match must be fetched and ranked before the top 20 are known", "GIN indexes cannot store postings for terms in over half the rows", "websearch_to_tsquery reparses the query once for each row it sees", "The planner's statistics are stale for the most common search terms"]
   answer: 0
   explanation: >-
     The ORDER BY on ts_rank forces Postgres to compute the rank of every matching row before sorting; measured, 1,550 matches took 1.7 ms and 249,623 took 49 ms, with the planner switching to a sequential scan. Lucene's block-max WAND skips blocks that cannot enter the top k, so its cost tracks the result size much more closely.

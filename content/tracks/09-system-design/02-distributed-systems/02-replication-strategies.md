@@ -290,38 +290,38 @@ hints:
 ```quiz
 - q: >-
     A leader acknowledges after local commit and ships asynchronously. It handles 5,000 writes/s with 40 ms of replication lag, then crashes and a follower is promoted. Roughly how many acknowledged writes are lost?
-  options: ["None, the follower has the log", "About 5,000, one second of writes", "About 40, one per millisecond of lag", "About 200, the rate times the lag"]
-  answer: 3
+  options: ["None, the follower has the log", "About 5,000, one second of writes", "About 200, the rate times the lag", "About 40, one per millisecond of lag"]
+  answer: 2
   explanation: >-
     Writes inside the lag window exist only on the leader: 5,000/s × 0.04 s = 200. A semi-synchronous follower would reduce this to zero at 1 to 2 ms per write. The follower has the log only up to the point it was shipped.
 - q: >-
     Two regional leaders each run likes = likes + 1 on a post with 10 likes, with perfectly synchronised clocks, and replicate the new values under last-writer-wins. What is the converged value?
-  options: ["12, because synchronised clocks order both writes", "11, because each value came from a stale read", "10, because the two conflicting writes cancel", "Both 11s are kept as siblings for the reader"]
-  answer: 1
+  options: ["11, because each value came from a stale read", "12, because synchronised clocks order both writes", "10, because the two conflicting writes cancel", "Both 11s are kept as siblings for the reader"]
+  answer: 0
   explanation: >-
     Each leader read 10 and wrote 11, so both replicated values are 11; LWW picks one and an increment is lost. Clock accuracy is irrelevant to this loss. A per-leader counter merged by taking the maximum of each entry converges to 12.
 - q: >-
     With N = 5, W = 3 and R = 3, why must every read see the latest acknowledged write?
-  options: ["Any two sets of 3 out of 5 share at least one replica", "Reads wait for the slowest replica, which has every write", "Hinted handoff copies each write to all five replicas first", "The coordinator forwards reads to the replica that wrote last"]
-  answer: 0
+  options: ["Hinted handoff copies each write to all five replicas first", "Reads wait for the slowest replica, which has every write", "Any two sets of 3 out of 5 share at least one replica", "The coordinator forwards reads to the replica that wrote last"]
+  answer: 2
   explanation: >-
     The intersection of the read and write sets has at least R + W − N = 1 member, so some replica in the read set holds the write and version comparison returns it. A read waits for 3 responses, not the slowest; hinted handoff weakens the guarantee rather than creating it.
 - q: >-
     During a partition a sloppy quorum stores a write on nodes A and D (with a hint for B). A then crashes, and a read with R = 2 goes to B and C. What does it return?
-  options: ["The new value, because W + R > N still holds", "An error, because a quorum cannot be formed", "The new value, because D forwards all reads", "The old value, until D hands the hint to B"]
-  answer: 3
+  options: ["The new value, because W + R > N still holds", "The old value, until D hands the hint to B", "An error, because a quorum cannot be formed", "The new value, because D forwards all reads"]
+  answer: 1
   explanation: >-
     The write set {A, D} and the read set {B, C} do not intersect, since D is not in the key's preference list. The read succeeds with two responses and returns the old value. Hinted handoff trades the overlap guarantee for write availability.
 - q: >-
     A quorum read returns x = 1 to client B. Client C then does a quorum read of the same key and gets x = 0. Which mechanism prevents this?
-  options: ["Raising N from three replicas to five", "Blocking read repair on B's read before it returns", "Hinted handoff to the replica that missed the write", "Switching the key to last-writer-wins resolution"]
-  answer: 1
+  options: ["Blocking read repair on B's read before it returns", "Hinted handoff to the replica that missed the write", "Switching the key to last-writer-wins resolution", "Raising N from three replicas to five"]
+  answer: 0
   explanation: >-
     B read a write still in flight. If B's coordinator writes x = 1 to the stale replica in its read set before answering, C's quorum must overlap a replica holding 1. Cassandra 4.0's BLOCKING read repair does this, giving monotonic quorum reads, though still not full linearizability. More replicas do not change the in-flight window.
 - q: >-
     Which product is the poorest fit for multi-leader replication?
-  options: ["A note app that syncs edits made on offline devices", "A shopping cart edited from sessions in two regions", "A ledger where every transfer must be totally ordered", "A whiteboard whose users draw from several regions"]
-  answer: 2
+  options: ["A shopping cart edited from sessions in two regions", "A whiteboard whose users draw from several regions", "A note app that syncs edits made on offline devices", "A ledger where every transfer must be totally ordered"]
+  answer: 3
   explanation: >-
     A ledger needs a total order and no merged or lost writes, which a single leader with a synchronous follower provides. The note app, cart and whiteboard tolerate concurrent writes because their data types have well-defined merges.
 ```

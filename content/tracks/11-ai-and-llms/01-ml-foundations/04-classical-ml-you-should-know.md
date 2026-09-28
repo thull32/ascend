@@ -295,8 +295,8 @@ hints:
     Each tree fits y minus the whole ensemble's current prediction, which is the negative gradient of squared error with respect to those predictions. Its shrunken output is added to the ensemble. Fitting only the previous tree's errors would forget what earlier trees already corrected; fitting the original target independently, on random feature subsets, is what a random forest's trees do.
 - q: >-
     k-means with k = 2 on the points 1, 2, 3, 8, 9, 10 and 25 converges to centres 5.5 and 25 from one start, and to 2 and 13 from another. What does this show?
-  options: ["The algorithm has a bug, since k-means converges to one answer", "Both are local optima, and the outlier can capture a whole cluster", "Centres 2 and 13 are better, since they separate the real groups", "k-means ignored the outlier, since squared distance down-weights it"]
-  answer: 1
+  options: ["Both are local optima, and the outlier can capture a whole cluster", "The algorithm has a bug, since k-means converges to one answer", "Centres 2 and 13 are better, since they separate the real groups", "k-means ignored the outlier, since squared distance down-weights it"]
+  answer: 0
   explanation: >-
     Lloyd's algorithm only guarantees a fixed point, which depends on the starting centres. Centres 5.5 and 25 have inertia 77.5 against 196 for 2 and 13, so by k-means' own objective the outlier deserves its own cluster; squared distance amplifies far points rather than down-weighting them. Whether that answer is useful is a human judgement, which is why you inspect clusters.
 - q: >-
@@ -307,7 +307,7 @@ hints:
     Distances are computed in raw units, so a 1,000-dollar income difference outweighs a 35-year age difference. Standardising each feature puts them on a comparable scale. k-NN does no normalisation itself.
 - q: >-
     A gradient-boosted model forecasts weekly sales well until sales grow beyond anything in the training history, then its forecast stays flat. Why?
-  options: ["The learning rate was too low for the new range of sales", "The model overfit the history and needs stronger regularisation", "Trees predict leaf averages, so beyond the data they are constant", "Boosting needs feature scaling to handle values it has not seen"]
+  options: ["The model overfit the history and needs stronger regularisation", "The learning rate was too low for the new range of sales", "Trees predict leaf averages, so beyond the data they are constant", "Boosting needs feature scaling to handle values it has not seen"]
   answer: 2
   explanation: >-
     Every tree maps inputs above its last threshold to the same leaf, so the ensemble's prediction stops changing beyond the training range; it cannot extrapolate a trend. Modelling the change or ratio, or adding a linear component, fixes it. Regularisation and the learning rate change the fit inside the range, and trees are invariant to feature scaling.

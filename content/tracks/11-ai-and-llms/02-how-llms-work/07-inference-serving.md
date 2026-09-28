@@ -336,8 +336,8 @@ hints:
     Decode is limited by reading weights, and a batched step reads them once for every sequence in the batch, so the dominant memory cost is shared. What grows with the batch is KV-cache reading and memory, which adds a little time per step and eventually limits batch size. The model is not copied, and every token still passes through every layer.
 - q: >-
     Three slots serve five requests with output lengths 6, 2, 3, 4 and 2 in arrival order. How many decode steps do static and continuous batching take?
-  options: ["Static 10, continuous 6, since freed slots are refilled every step", "Static 6, continuous 6, since the longest request sets both totals", "Static 17, continuous 10, since each token needs its own step", "Static 10, continuous 8, since new requests wait for a full batch"]
-  answer: 0
+  options: ["Static 6, continuous 6, since the longest request sets both totals", "Static 17, continuous 10, since each token needs its own step", "Static 10, continuous 8, since new requests wait for a full batch", "Static 10, continuous 6, since freed slots are refilled every step"]
+  answer: 3
   explanation: >-
     Static batching runs {6, 2, 3} for 6 steps and then {4, 2} for 4: 10. Continuous batching admits D when B finishes after step 2 and E when C finishes after step 3, and everything is done after step 6. The 17 token-steps of useful work fill 94% of the 18 slot-steps instead of 57% of 30.
 - q: >-

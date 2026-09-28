@@ -322,8 +322,8 @@ hints:
     The dot product is the cosine multiplied by both lengths, so a longer vector in the same direction scores higher even though B adds no information. Equal direction would give equal scores only under cosine similarity; cosine, or normalising vectors before a dot product, removes the length effect and scores A and B equally.
 - q: >-
     In the worked contrastive batch at temperature 0.1, query 1 has similarity 0.55 to a wrong passage about refunds and 0.30 to a wrong passage about payment cards. Which receives the larger push away?
-  options: ["The payment passage, since it is the least similar and most wrong", "Both equally, since in-batch negatives share the gradient evenly", "Neither, since only the correct passage's similarity is updated", "The refunds passage, since its softmax probability is far higher"]
-  answer: 3
+  options: ["The payment passage, since it is the least similar and most wrong", "Both equally, since in-batch negatives share the gradient evenly", "The refunds passage, since its softmax probability is far higher", "Neither, since only the correct passage's similarity is updated"]
+  answer: 2
   explanation: >-
     The gradient on each negative's similarity is its softmax probability divided by the temperature: 0.075/0.1 = 0.75 for the refunds passage against 0.006/0.1 = 0.06 for the payment passage. Hard negatives carry the learning signal; easy ones are already far away. An equal split happens only at high temperature, where the softmax is nearly uniform.
 - q: >-
@@ -340,8 +340,8 @@ hints:
     With norms of 1, the cosine formula's denominator is 1, so the dot product equals the cosine, and expanding the squared distance gives 1 + 1 − 2·(a·b) = 2 − 2·cosine. The three measures are monotonic transformations of each other, so they cannot disagree on ranking. Equal lengths say nothing about direction, so cosine is not always 1, and the dot product of unit vectors can be negative, down to −1.
 - q: >-
     Answers that appear late in long product manuals are never retrieved, although short documents work well. What is the most likely cause?
-  options: ["The embedding model truncated each manual at its input limit", "Cosine similarity penalises long documents for their larger norm", "The ANN index drops vectors from documents above a set size", "Long documents need a lower similarity threshold to match"]
-  answer: 0
+  options: ["Cosine similarity penalises long documents for their larger norm", "The ANN index drops vectors from documents above a set size", "Long documents need a lower similarity threshold to match", "The embedding model truncated each manual at its input limit"]
+  answer: 3
   explanation: >-
     Embedding models accept a bounded number of tokens and cut off or reject the rest, so the end of a long manual never reaches the vector; chunking below the limit fixes it. Cosine ignores norm by construction, ANN indexes store whatever vector they are given, and a threshold cannot recover text that was never embedded.
 - q: >-

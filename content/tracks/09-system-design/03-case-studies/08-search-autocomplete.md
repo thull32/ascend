@@ -396,7 +396,7 @@ hints:
     A node can list at most as many queries as sit beneath it, and in a trie most nodes are near the leaves, so only 3.3% of prefixes had a full list of 8. Budgeting 8 IDs per node overstates that part of the index 3.6x. The threshold filters candidates before the build, and lists are not shared.
 - q: >-
     The index is estimated at 6–8 GB and peak origin traffic is 56,000 requests per second. What is the best serving topology?
-  options: ["Store every prefix in a Redis cluster and query it per keystroke", "Load the full snapshot on every node and scale out with replicas", "Query the search engine's primary index directly on each keystroke", "Shard the trie by first letter across 26 nodes behind a router"]
+  options: ["Query the search engine's primary index directly on each keystroke", "Load the full snapshot on every node and scale out with replicas", "Shard the trie by first letter across 26 nodes behind a router", "Store every prefix in a Redis cluster and query it per keystroke"]
   answer: 1
   explanation: >-
     Full replicas behind a plain load balancer make every node interchangeable. Sharding what fits on one machine adds routing and hot shards, since s carries far more than x. A Redis prefix map works but costs about 46 GB per replica plus a network hop per keystroke.
@@ -408,8 +408,8 @@ hints:
     The steady query converges to about 1,000 x 9.6 = 9,600. The spike starts near 45,300 and halves every 7 days, crossing 9,600 after about 17 days. The raw 50:1 ratio ignores that the steady query's score accumulates.
 - q: >-
     A client sends a request for netf, then netfl 70 ms later. The netf response arrives last because it hit a slow origin. What should the client do?
-  options: ["Render it, because the newest response always reflects newer data", "Discard it, because its sequence number is older than the one shown", "Merge both lists, because together they cover more possible queries", "Retry netfl, because the slow response means the edge cache is stale"]
-  answer: 1
+  options: ["Merge both lists, because together they cover more possible queries", "Render it, because the newest response always reflects newer data", "Retry netfl, because the slow response means the edge cache is stale", "Discard it, because its sequence number is older than the one shown"]
+  answer: 3
   explanation: >-
     Responses can arrive out of order, so the client tags each request with a sequence number and ignores any response older than the one it has rendered; otherwise the box flips back to suggestions for a prefix the user has already typed past. Arrival order says nothing about which prefix is current.
 - q: >-

@@ -454,20 +454,20 @@ hints:
     A fixed ladder assumes every title needs the same bits for the same quality. Scoring encodes with a perceptual metric and placing rungs on the convex hull shows that flat animation reaches top quality at about 2 Mbps while grainy film needs more than 5.8. Codec choice and client-side adaptation are separate levers.
 - q: >-
     Which property of the workload most directly makes proactive off-peak fill better than pull-through caching?
-  options: ["Viewers tolerate a slow first start while the edge pulls the file", "The catalogue is finite and scheduled, so demand can be forecast", "ISPs require content to be pre-positioned before they will peer", "Video files are large, so each cache miss costs a long origin fetch"]
+  options: ["Video files are large, so each cache miss costs a long origin fetch", "The catalogue is finite and scheduled, so demand can be forecast", "Viewers tolerate a slow first start while the edge pulls the file", "ISPs require content to be pre-positioned before they will peer"]
   answer: 1
   explanation: >-
     Proactive placement needs to know what will be requested. A finite, scheduled catalogue with predictable popularity makes that possible, and idle off-peak bandwidth makes it cheap. Large files alone argue for caching, not for prediction; a news site with large files still cannot fill tomorrow's content tonight.
 - q: >-
     An embedded site's 200 TB holds 13% of a 1.5 PB catalogue and serves 82% of its viewing locally. Which change raises the local share the most?
-  options: ["Keep only encodes its members' devices play, fitting 3x the titles", "Double the site's network capacity so each appliance serves more bytes", "Lengthen the nightly fill window so files arrive earlier each day", "Switch to pull-through caching so misses fill the site on demand"]
-  answer: 0
+  options: ["Lengthen the nightly fill window so files arrive earlier each day", "Keep only encodes its members' devices play, fitting 3x the titles", "Switch to pull-through caching so misses fill the site on demand", "Double the site's network capacity so each appliance serves more bytes"]
+  answer: 1
   explanation: >-
     Local share depends on how much of the popularity mass the site holds. Keeping only the codecs and resolutions its devices use lets the same disk hold about three times the content hours, which took the simulated share from 82% to 92%. Network capacity and a longer window do not change what is held, and pull-through moves misses into the evening peak.
 - q: >-
     In the simulated bandwidth drop, the throughput-based player stalled twice and the buffer-based player did not. Why?
-  options: ["It spent its headroom on bitrate, so a 12.8 s buffer met the drop", "Its harmonic-mean estimate overreacts, so it dropped rungs too far", "It started at a lower rung, so its buffer never had time to build up", "It downloaded longer segments, so each request took more wall time"]
-  answer: 0
+  options: ["It started at a lower rung, so its buffer never had time to build up", "Its harmonic-mean estimate overreacts, so it dropped rungs too far", "It downloaded longer segments, so each request took more wall time", "It spent its headroom on bitrate, so a 12.8 s buffer met the drop"]
+  answer: 3
   explanation: >-
     Picking 5,800 kbps on an 8 Mbps link grows the buffer only 1.1 s per segment, so when the link fell to 1.2 Mbps the 15.5 s download outlasted a 12.8 s buffer. The buffer rule had filled to over 50 s and absorbed a 19.3 s download. Both started at the same rung with the same segment length; the harmonic mean lagged rather than overreacted.
 - q: >-

@@ -374,14 +374,14 @@ Facebook's "Scaling Memcache at Facebook" (NSDI 2013) describes leases for stamp
     Normal misses are 90,000 per second. The dead node's share of reads, about 69,000 per second, now all misses, giving about 159,000: roughly 1.77 times normal. That is why the cache needs replicas or a gutter pool even though it stores nothing irreplaceable.
 - q: >-
     In the simulation, a dead node's keys went to one neighbour with one ring point per node but spread over 92 nodes with 160 points. Why does that matter?
-  options: ["More points reduce the fraction of keys that move on a change", "Spreading the load stops one neighbour doubling and cascading", "More points make the ring lookup faster for every key", "One point per node lets keys be stored on two nodes at once"]
-  answer: 1
+  options: ["One point per node lets keys be stored on two nodes at once", "More points make the ring lookup faster for every key", "Spreading the load stops one neighbour doubling and cascading", "More points reduce the fraction of keys that move on a change"]
+  answer: 2
   explanation: >-
     With one point, the dead node's whole arc falls to its successor, which suddenly carries twice its load and may fail too. With 160 points the arc is 160 small pieces spread over many nodes, each gaining under 5%. The fraction of keys moved on a change is about 1/N either way.
 - q: >-
     A replacement cache node starts empty. Under a Zipf(1) popularity model its hit rate reaches about 72% after a minute. Roughly how long until it reaches 93%?
-  options: ["About 5 seconds, once the hottest keys return", "About 5 minutes, one TTL-free refill of the arc", "About 1 hour, because the long tail arrives slowly", "Never, because a cold node cannot reach steady state"]
-  answer: 2
+  options: ["About 5 seconds, once the hottest keys return", "Never, because a cold node cannot reach steady state", "About 5 minutes, one TTL-free refill of the arc", "About 1 hour, because the long tail arrives slowly"]
+  answer: 3
   explanation: >-
     The head of the distribution returns in seconds, but the tail, many keys each requested rarely, takes time to be requested even once: the model gives 90% at 30 minutes and 93% at an hour. That is why a warm-up plan copies from a replica or dual-reads from a warm source instead of waiting.
 - q: >-

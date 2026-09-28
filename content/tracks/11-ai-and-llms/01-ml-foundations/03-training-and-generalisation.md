@@ -413,20 +413,20 @@ hints:
     With a random split, validation days are surrounded by training days on both sides, so the model effectively interpolates between known neighbours, including future ones. Production only ever extrapolates forward, which the random split never tested. A 20% slice of three years is hundreds of days, plenty for an estimate; the problem is that the estimate is of the wrong task. Split by time to get an honest number.
 - q: >-
     In the simulation, degree-1 and degree-5 polynomials both have zero bias on data from y = x, but the degree-5 model's expected test error is about twice the line's. Where does the extra error come from?
-  options: ["Label noise, which grows with the number of parameters", "Bias at the edges, where the polynomial bends away", "Variance: the fit moves more between training samples", "Optimisation error, since degree 5 has no closed form"]
-  answer: 2
+  options: ["Variance: the fit moves more between training samples", "Label noise, which grows with the number of parameters", "Bias at the edges, where the polynomial bends away", "Optimisation error, since degree 5 has no closed form"]
+  answer: 0
   explanation: >-
     Both families contain the true line, so the average fit is correct (zero bias). The degree-5 fit follows each sample's noise, so it moves far more from sample to sample: variance 0.060 against 0.011, largest at the edge points. Label noise is a property of the data, not the model, and a polynomial fit has a closed-form least-squares solution at any degree.
 - q: >-
     Ten scored examples have 4 positives and 6 negatives, and in 20 of the 24 positive-negative pairs the positive has the higher score. What is the ROC-AUC, and what does it not tell you?
-  options: ["0.83; it says nothing about precision at the real base rate", "0.83; it says nothing about how well positives are ranked", "0.20; it counts the fraction of pairs that are ordered wrongly", "0.40; it equals recall at the best threshold, not a ranking"]
-  answer: 0
+  options: ["0.83; it says nothing about how well positives are ranked", "0.83; it says nothing about precision at the real base rate", "0.20; it counts the fraction of pairs that are ordered wrongly", "0.40; it equals recall at the best threshold, not a ranking"]
+  answer: 1
   explanation: >-
     ROC-AUC is the probability that a random positive outranks a random negative: 20/24 = 0.833, the same number as the area under the TPR-against-FPR curve. It is exactly a ranking measure, and it is blind to the base rate: the same curve gives 50% precision on this sample and 1.5% precision at a 1% positive rate.
 - q: >-
     Adding an L2 penalty to the degree-5 fit raises training MSE from 0 to 0.028 at λ = 0.01. Why is that an improvement?
-  options: ["Higher training error always means less overfitting", "Test error falls from 0.113 to 0.008 as coefficients shrink", "The penalty removes the noise from the training labels", "It moves the model to degree 1, which is the true model"]
-  answer: 1
+  options: ["Test error falls from 0.113 to 0.008 as coefficients shrink", "The penalty removes the noise from the training labels", "It moves the model to degree 1, which is the true model", "Higher training error always means less overfitting"]
+  answer: 0
   explanation: >-
     The penalty stops the coefficients from growing to the huge cancelling values that pass exactly through noisy points (their squared sum falls from about 288,000 to 15), which cuts variance; test error drops from 0.113 to 0.008. Training error rising is the price, not the goal, and too much penalty (λ = 10) raises test error again. The model is still degree 5, and the labels are unchanged.
 - q: >-

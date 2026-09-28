@@ -212,6 +212,21 @@ A naive sync sends a cursor per conversation: 300 cursors and 300 partition read
 
 Under a second, whatever the number of conversations. If more than 10,000 events are waiting, or the 30-day inbox has been trimmed past the cursor, the server switches to a **summary resync**: the latest few messages and unread count per conversation, with full history fetched lazily on open.
 
+### Membership changes are sequenced events
+
+Adding or removing a member goes through the conversation's owner and takes the next `seq`, like a message. Fan-out for seq n uses the member set as of n, and each membership row records the range its member may read: `(conv_id, user_id, joined_seq, left_seq)`. C sends at the moment A removes D:
+
+| seq | Event, in the owner's order | Fan-out targets | Effect |
+|---|---|---|---|
+| 900 | B: "dinner at 8?" | A, B, C, D | |
+| 901 | A removes D | A, B, C, D | D's devices show the removal; `left_seq` = 901 |
+| 902 | C's message, which reached the owner after 901 | A, B, C | D receives nothing |
+| 903 | A adds E | A, B, C, E | `joined_seq` = 903: E's scrollback starts here |
+
+The race this prevents: if owners fanned out from a cached member list that a separate service updated, C's message could reach D after D's devices showed the removal, and phones could disagree on whether the removal came before C's message. In the seq stream, "did D receive 902?" has one answer, and every device shows the removal between 900 and 902.
+
+End-to-end encryption moves the cut to the clients. Each member encrypts group messages once with its own **sender key**, which D holds up to 901; after the removal every remaining member replaces its sender key and distributes the new one over pairwise sessions before its next message, as WhatsApp's security whitepaper describes. In a 1,000-member group with 1,500 devices, one removal costs about 999 × 1,500 ≈ 1.5 million pairwise encryptions, growing with the square of the group size.
+
 ## Deep dive 3: groups, channels and presence
 
 **Small groups (up to 1,000)**: store once, append a pointer per member, one batched registry lookup, deliver. At 1,000 members that is 1,000 pointer writes and ~1,500 deliveries per message; when such a group is busy, move its fan-out onto Kafka-fed workers so one hot group cannot stall the owner's other conversations.
@@ -228,16 +243,57 @@ Under a second, whatever the number of conversations. If more than 10,000 events
 
 **Typing indicators** are never stored or retried, are rate-limited to about one every three seconds, and are the first thing dropped under load. **Read receipts in a 500-member group** are one coalesced cursor per member ("read up to 1042", at most every few seconds); "read by 312 of 500" is computed from cursors when the sender opens message info.
 
+### Presence and typing, priced
+
+Subscribe on view moves the cost rather than removing it. Computed with 500 gateways and two assumptions, a screen that changes once a minute and 60 s heartbeats:
+
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Subscriptions | $10^8 \times 20$ (all online users foregrounded) | $2 \times 10^9$; 20–100 GB at 10–50 B each |
+| Per-gateway dedupe | 20 viewers span $500 (1 - (499/500)^{20}) = 19.6$ gateways | 2% saved; 200× for a user with 100,000 viewers |
+| Notifications | 167,000 changes/s × 20 viewers | 3.3 million/s, a tenth of 33 million |
+| Subscription churn | $10^8 \times 20$ per minute | 33 million/s; 1.7 million calls/s batched per screen |
+| "Last seen" writes | Offline transitions: 167,000 ÷ 2 | 83,000/s, versus 1.7 million/s per heartbeat |
+
+Churn is affordable because it stays in the datacentre, is batched (one call per screen returns all 20 states) and comes only from foregrounded apps, and a 10 s grace period after the user scrolls away absorbs scrolling back. Subscriptions are leases the gateway renews, so a gateway crash cannot leak them.
+
+**Detection time** follows from the heartbeat. With a 120 s idle timeout and the 30 s debounce, a clean close shows offline after 30 s, but a phone that loses signal sends nothing: the gateway notices 60–120 s later, depending on where in the heartbeat interval it died, and contacts see offline after 90–150 s. 30 s heartbeats cut that to 60–90 s at 3.3 million heartbeats/s and twice the radio wake-ups.
+
+**Typing indicators** outnumber messages. If typing takes about 6 s and a client sends at most one indicator per 3 s, the peak is 600,000 × 2 = 1.2 million events/s. In a 1,000-member group (1,500 devices) with 20 members typing, 6.7 events/s become 10,000 frames/s sent to every device, 500 sent only to the 5% with the conversation open, and 25 if the owner aggregates them into one "Ann and 19 others are typing" frame per viewer every 3 s.
+
+## Deep dive 4: the reconnect storm, with measured handshake costs
+
+A reconnect is a TCP and a TLS handshake, an authenticated upgrade, a registry write and a sync. `openssl speed -seconds 2` measured the server's public-key work on one core of this machine (OpenSSL 3.0.13 on an AMD Ryzen 9 9950X3D under WSL2; results depend on the CPU):
+
+| Operation | Per core | Each |
+|---|---|---|
+| X25519 key agreement | 55,189/s | 18.1 µs |
+| ECDSA P-256 sign | 95,474/s | 10.5 µs |
+| RSA-2048 sign | 6,181/s | 161.8 µs |
+
+A full TLS 1.3 handshake costs the server an ephemeral key pair and a key agreement (two X25519 operations, an upper bound since key generation is faster) plus one signature: 46.7 µs with an ECDSA certificate, 198 µs with RSA-2048. Resumption drops the signature, saving 22% with ECDSA and 82% with RSA. Assume a 16-core gateway spends half its CPU on handshakes and crypto is half of each handshake: 4 cores of crypto, about 85,600 full handshakes/s with ECDSA and 20,200/s with RSA.
+
+| Scenario | Handshakes | Where they land | Time at full capacity (ECDSA / RSA) |
+|---|---|---|---|
+| One gateway process crashes | 200,000 | 401 on each of 499 survivors | 5 ms / 20 ms |
+| The same, behind a least-connections balancer | 200,000 | All on the empty replacement | 2.3 s / 9.9 s |
+| Region loss (150 of 500 gateways) | 30 million | 85,700 on each of 350 survivors | 1.0 s / 4.2 s |
+
+Spread out, crypto is not the constraint; **concentration and synchronisation are**. A crashed process's kernel closes all 200,000 sockets at once, so every client learns within one RTT, whereas a dead machine is discovered at each client's next heartbeat, over 60 s. If 200,000 SYNs reach one replacement within a second, its accept queue (`somaxconn`, 4,096 by default since Linux 5.4) overflows, clients' kernels resend the dropped SYNs 1, 3 and 7 s later in synchronised waves, and with RSA only about 101,000 handshakes finish inside a 5 s client timeout. Slow start on the balancer ([load balancing](/learn/networking/application-protocols/load-balancing)) removes the concentration; full jitter over 30 s cuts the replacement's load to 6,700 handshakes/s, a third of its RSA capacity; admission control answers any excess at once with a retry-after ([timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff)).
+
+At region scale the limit moves downstream: 30 million registry writes are 6.8 s of the registry's entire 4.4 million operations/s, already busy serving deliveries, followed by 30 million syncs. Jitter over 60 s gives 500,000 reconnects/s: 1,430 handshakes/s per gateway (2% of ECDSA capacity) and 11% of the registry. Size the window from the slowest downstream tier, not from TLS.
+
 ## Failure modes
 
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
-| Gateway crash, then reconnect storm | 200,000 devices reconnect at once; TLS handshakes saturate survivors | Handshake rate and CPU on neighbours spike together | Exponential backoff with full jitter on clients; gateways admit handshakes at a rate they can complete and shed the rest ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)) |
+| Gateway crash, then reconnect storm | 200,000 devices reconnect at once; handshakes concentrate on a few survivors and saturate them | Handshake rate and CPU spike on a few gateways; `TcpExtListenOverflows` rises; least-connections routing favours the empty replacement | Exponential backoff with full jitter on clients; slow start on the balancer; gateways admit handshakes at a rate they can complete and shed the rest ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)) |
 | Region loss | 30 million connections move to surviving regions | Regional health checks; connection counts shift | Capacity-plan survivors for the handshake rate, not only the connection count; messages already acked are durable and replicated |
 | Session registry down | Delivery latency jumps from ~50 ms to seconds | Registry errors on owners | Registry is fast path only: fall through to push plus sync; correctness holds |
 | Slow store partition | Senders see the clock icon; retries | Store latency for one partition range | Retries reuse `client_msg_id`, so no duplicates; never ack from memory to hide it |
 | Duplicate sends | The same text twice in a chat | Retries without an idempotency key, or dedupe by text | `client_msg_id` → original `seq`; device dedupes by `(conv_id, seq)` |
 | Hot group | One owner's other conversations slow | Owner CPU and send latency skewed by one `conv_id` | Move that group's fan-out to workers; rate-limit sends per group |
+| Removed member still receives messages | A removed user sees one more message | Membership changed outside the owner; fan-out read a stale member list | Sequence membership changes through the owner |
 | Poison frame | A gateway or worker crash-loops on one malformed or oversized frame | The same message ID in every crash | Validate and cap frame size at the gateway; park bad fan-out jobs on a dead-letter queue |
 | Push provider throttling | Offline users notified late | APNs/FCM error and throttle rates | Push is the doorbell, sync is the guarantee; collapse notifications per conversation |
 
@@ -277,6 +333,10 @@ Under a second, whatever the number of conversations. If more than 10,000 events
 
 **"How do read receipts work in a 500-member group?"** Model answer: one coalesced read cursor per member, not a receipt per member per message; aggregate counts are computed from cursors on demand. Common wrong answer: 500 receipt messages per message.
 
+**"My phone dies in a tunnel. How long until my contacts see me offline?"** Model answer: no FIN is sent, so the gateway notices only when heartbeats stop, 60–120 s later with 60 s heartbeats, then the 30 s debounce: 90–150 s; faster detection costs heartbeats and battery. Common wrong answer: "immediately, the socket closes".
+
+**"A region with 30 million connections fails. How long until everyone is back?"** Model answer: TLS needs about a second of crypto across 350 survivors; the registry (6.8 s of its full capacity) and sync are the limits, so clients jitter over about a minute and gateways admit at a fixed rate. Common wrong answer: "as fast as clients retry", which is how the storm starts.
+
 ## What mid-level engineers get wrong
 
 - Acking "sent" before the durable write, so a crash loses messages users saw ticked.
@@ -286,6 +346,8 @@ Under a second, whatever the number of conversations. If more than 10,000 events
 - Pushing presence to all contacts: 33 million notifications a second.
 - Reconnecting without jitter, turning one gateway crash into a handshake storm.
 - Failing over conversation ownership without fencing, so two messages share one `seq`.
+- Changing group membership outside the conversation's sequence, so a removed member receives a message sent after the removal.
+- Writing "last seen" on every heartbeat: 20 times the writes of recording offline transitions.
 
 ## Exercise
 
@@ -354,14 +416,15 @@ hints:
 - You notice that the inbox log, not the message store, is the biggest write load, and trim it with a defined fallback.
 - You do the presence arithmetic and switch to subscribe-on-view before the interviewer asks.
 - You plan for the reconnect storm: draining for deploys, jittered backoff and handshake admission control for crashes.
+- You price presence, typing and reconnect storms with numbers, and know a storm's limits are concentration, synchronisation and the registry, not TLS.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     A message is acked to the sender and stored, but direct delivery fails because the registry points at a gateway that crashed a moment ago. What guarantees the recipient still gets it?
-  options: ["The push notification carries the message, so the device can display it", "The sender's device resends it after it does not see a delivery receipt", "The inbox log points to the stored copy, so the device's next sync gets it", "The gateway replays its in-memory queue for that device as soon as it restarts"]
-  answer: 2
+  options: ["The sender's device resends it after it does not see a delivery receipt", "The push notification carries the message, so the device can display it", "The gateway replays its in-memory queue for that device as soon as it restarts", "The inbox log points to the stored copy, so the device's next sync gets it"]
+  answer: 3
   explanation: >-
     Durable storage plus the per-user inbox log is the correctness path, and live delivery is only an optimisation. The push notification only has to wake the app so it syncs; APNs and FCM are best-effort. Gateways hold no durable state, and relying on the sender to resend would break exactly-once display.
 - q: >-
@@ -383,15 +446,15 @@ hints:
   explanation: >-
     Idempotency keys turn at-least-once sends into one stored message: a duplicate client_msg_id gets the original ack back, and devices deduplicate redelivery by (conv_id, seq). TCP cannot help, because the retry is a new application-level send. Text-based dedupe would wrongly drop a user who really did send ok twice.
 - q: >-
-    100 million online users with 200 contacts each change presence state about every 10 minutes. Why does the design subscribe to presence only for users on screen?
-  options: ["Presence is private, so it may only be shown to users who open a chat", "Pushing every change to all contacts is about 33 million deliveries/s", "Offline must be debounced for 30 s, which only works for visible users", "Presence must be strongly consistent, which is only affordable for a few users"]
-  answer: 1
+    Presence moves from push-to-all to subscribe on view: 100 million online users, 20 users on each screen, screens changing about once a minute. Which cost is now the largest by operation count?
+  options: ["Notifications, still about 33 million deliveries/s to all contacts", "Heartbeats, which double because every subscriber must ping them", "Memory, since two billion subscriptions cannot be held in RAM", "Subscription churn, about 33 million subscribes/s before batching"]
+  answer: 3
   explanation: >-
-    10^8 / 600 s is about 170,000 changes per second, and x 200 contacts that is about 33 million deliveries per second, almost all to people not looking. Limiting subscriptions to the roughly 20 users visible on screen makes fan-out follow attention. Presence is deliberately weakly consistent, and the debounce applies to every user.
+    Notifications fall to 167,000 changes/s x 20 viewers, about 3.3 million/s, a tenth of push-to-all. But 10^8 x 20 new subscriptions a minute is about 33 million/s, which is affordable only because it is batched per screen (1.7 million calls/s), limited to foregrounded apps and smoothed by hysteresis. Heartbeats do not depend on subscriptions, and 2 x 10^9 entries at 10 to 50 bytes is 20 to 100 GB spread across shards.
 - q: >-
     Messages are 200 bytes and inbox pointers 40 bytes. Why does the inbox log still write more bytes a day than the message store?
-  options: ["Pointers are replicated five times, once per device, and messages three times", "Each message creates about 7.4 pointers, one per member, on average", "Pointers are never compacted, while messages are compressed on write", "Receipts are stored as full messages, so they double the inbox traffic"]
-  answer: 1
+  options: ["Receipts are stored as full messages, so they double the inbox traffic", "Pointers are never compacted, while messages are compressed on write", "Pointers are replicated five times, once per device, and messages three times", "Each message creates about 7.4 pointers, one per member, on average"]
+  answer: 3
   explanation: >-
     A message is stored once per conversation but a pointer is appended for every member: 0.7 x 2 + 0.3 x 20 is 7.4 pointers per message, so 7.4 x 40 bytes beats 200 bytes. That is why the inbox is the biggest write load and why it is trimmed after 30 days with a summary resync behind it. Pointers are per user, not per device, and receipts are small events, not copies of messages.
 ```

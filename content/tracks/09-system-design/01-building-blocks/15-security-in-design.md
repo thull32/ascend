@@ -63,6 +63,21 @@ Ten rows, about fifteen minutes on a whiteboard, and every row is a design decis
  "title": "A request crossing three trust boundaries", "caption": "At each boundary the caller is authenticated and its request authorised. The gateway verifies the user; each internal hop verifies the calling service's identity and checks that the user context permits this operation on this resource."}
 ```
 
+### From threats to controls and residual risk
+
+A threat list becomes a plan when each row names its controls by kind (**prevent**, **detect**, **respond**) and states what is left. Scoring likelihood and impact from 1 to 5 is a team judgement, useful for ranking rather than measurement, but writing the residual row down is what makes it a decision instead of an assumption:
+
+| Threat | Prevent | Detect | Respond | L × I before | L × I after | Residual risk, accepted by |
+|---|---|---|---|---|---|---|
+| Cross-tenant read | Tenant from the token only; lookups by `(tenant_id, id)`; RLS with `SET LOCAL` | Per-caller rate of 404s on other tenants' IDs; two-tenant integration tests | Revoke the caller's credentials, notify affected tenants from the audit log | 4 × 5 = 20 | 1 × 5 = 5 | A bug in the application check and the policy at once; engineering lead, reviewed each quarter |
+| Stolen access token | 10-minute lifetime, `HttpOnly` cookies, rotating refresh tokens | Refresh-token reuse; logins from impossible locations | Revoke the refresh-token family | 3 × 4 = 12 | 2 × 2 = 4 | Up to 10 minutes of use; product owner |
+| SSRF from the renderer | Isolated fetcher, egress proxy, IP checks after DNS and redirects, IMDSv2 | Flow logs showing egress to private or link-local ranges | Rotate the renderer's short-lived credentials | 4 × 5 = 20 | 1 × 4 = 4 | Proxy bypasses such as DNS rebinding; security team, tested yearly |
+| Credential stuffing | Breached-password checks, MFA or passkeys, per-account and per-device buckets | Global ratio of failed to successful logins | Force resets on accounts that logged in during the attack | 5 × 3 = 15 | 3 × 2 = 6 | Reused passwords on accounts without MFA; product owns the MFA adoption target |
+| Secret in a log or image | Secrets manager, short leases, redaction in the logger | Scanners on repositories, images and log stores | Rotate with two live versions | 3 × 4 = 12 | 2 × 2 = 4 | A leak valid until its lease ends; platform team |
+| One tenant's export starves the rest | Per-tenant token bucket; exports as quota-limited jobs | Per-tenant saturation dashboards | Shed that tenant's jobs | 3 × 3 = 9 | 1 × 2 = 2 | Slower exports at peak; accepted |
+
+Every threat keeps a residual row, and every residual has a name beside it. A review that ends with no residual column has implicitly accepted every remaining risk on behalf of nobody. The detect column is the one teams skip, and it decides whether a breach is found in minutes by an alert or months later by a customer.
+
 ## Authentication: who is calling
 
 **Passwords** are stored with a slow, salted, preferably memory-hard hash, never reversible encryption. Measured with Python 3.14's `hashlib` on one core: one SHA-256 takes 0.19 µs, PBKDF2-SHA256 at OWASP's 600,000 iterations takes 49 ms, and scrypt with $N = 2^{17}$, $r = 8$ takes 202 ms and 128 MB. The slowdown is the point: a GPU that tries on the order of ten billion plain SHA-256 guesses per second manages on the order of ten thousand PBKDF2 guesses, and a memory-hard function also limits how many guesses run in parallel. argon2id is the current recommendation where a library is available. Credential stuffing (replaying passwords leaked elsewhere) is the dominant attack on logins; per-account limits, breached-password checks and MFA or passkeys are the defences.
@@ -100,6 +115,20 @@ An attacker who intercepts the code at step 4, through a malicious app registere
 {"type": "network", "scenario": "https-tls-handshake",
  "title": "TLS 1.3 handshake", "caption": "One round trip establishes keys and authenticates the server; with mutual TLS the client also presents a certificate and the server verifies it. Inside a mesh this happens between sidecars for every connection, giving each hop a proven identity."}
 ```
+
+### Under the hood: validating a JWT, and rotating the key that signs it
+
+A JWT's header names its own algorithm and key (`alg`, `kid`), which is exactly what an attacker controls. Three classic bypasses follow from trusting it: `alg: none` (an unsigned token accepted by libraries that honour the header); algorithm confusion, where a token signed with HS256 using the server's *public* RSA key as the HMAC secret passes a verifier that picks the algorithm from the header; and a `kid` used as a file path or database key without validation. The defence is to pin: each issuer maps to an allowed algorithm and a key set, and the verifier ignores the header's opinion. Then the claims checks in the exercise below run.
+
+Keys rotate, and the order is what keeps every token valid through it. The IdP publishes keys at its JWKS endpoint, and verifiers cache that document (an hour here), refetching early when they see an unknown `kid`, with a rate limit so a flood of forged `kid`s cannot hammer the IdP:
+
+| Time | Step | Why |
+|---|---|---|
+| T | Publish key k2 in the JWKS beside k1; keep signing with k1 | Verifiers learn k2 before any token needs it |
+| T + 1 h (the JWKS cache lifetime) | Start signing with k2 | Every verifier has refreshed and knows k2 |
+| T + 1 h + 11 min (token lifetime plus 60 s of clock leeway) | Remove k1 | No unexpired token signed with k1 remains |
+
+An emergency rotation after a key leak skips the waiting: k1 is removed at once and every access token it signed fails. Users do not log in again, because refresh tokens are opaque and held server-side, but every active client refreshes on its next call. With 2 million active sessions, that is between 3,300 refreshes a second, if spread across the 10-minute token lifetime, and 33,000 a second if most clients call within the first minute, so the token endpoint's capacity plan includes the day a key leaks.
 
 ## Authorization: what the caller may do
 
@@ -226,7 +255,45 @@ Every unauthenticated endpoint is an abuse surface: login (credential stuffing),
  "title": "Per-account bucket on the login endpoint", "caption": "Legitimate users never exhaust a bucket of five attempts per minute. A credential-stuffing run against one account is throttled after five, and a distributed run across many accounts is caught by a second bucket keyed on IP range and device."}
 ```
 
+**Credential stuffing, in numbers.** An attacker holds a million email and password pairs from another site's breach and rents 10,000 residential proxy addresses. Each account is tried once, so a per-account limit of five attempts a minute never fires. Each address makes 100 attempts; at a per-IP limit of 10 a minute the whole run takes 10 minutes, and a university NAT sharing that limit would have been blocked first. If even 0.5% of the pairs are reused on your site (reuse rates vary widely by audience; the figure is an assumption), 5,000 accounts are taken over in those 10 minutes. The signals that do work are aggregate and per credential: the global ratio of failed to successful logins, which jumps when most attempts use wrong passwords; checking each password against known breaches at signup and login (the Pwned Passwords range API takes the first five hex characters of the password's SHA-1 and returns every matching suffix, several hundred of them, so the password never leaves your server); device fingerprints; and MFA or passkeys, which make a correct password insufficient.
+
 Everything crossing a trust boundary is validated against a schema and reaches interpreters (SQL, shell, templates) through parameterised interfaces. Accept data, never serialised objects or templates. **SSRF** deserves its own line in every cloud review: a feature that fetches a user-supplied URL can be pointed at internal addresses, including the metadata endpoint at `169.254.169.254` that hands out the instance's credentials. Fetch from an isolated worker with no route inside, resolve the name and check the resolved IP against public ranges before connecting and again after every redirect, go through an egress proxy that blocks link-local and private ranges, and require session-token metadata access (IMDSv2 on AWS).
+
+### Signing what you send: webhooks
+
+A webhook is a request from you to a URL a tenant registered, and the tenant must be able to tell it from a forgery and from a replay. The scheme Stripe documents for its webhooks, and many providers copy, signs the timestamp and the exact body bytes with a per-tenant secret, and the receiver rejects anything older than five minutes:
+
+```python
+import hashlib, hmac, json
+
+TOLERANCE_S = 300
+
+def sign(secret: bytes, body: bytes, t: int) -> str:
+    mac = hmac.new(secret, f"{t}.".encode() + body, hashlib.sha256).hexdigest()
+    return f"t={t},v1={mac}"
+
+def verify(secrets: list[bytes], body: bytes, header: str, now: int) -> bool:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    t = int(parts["t"])
+    if abs(now - t) > TOLERANCE_S:                 # stale or from the future: a replay, or a broken clock
+        return False
+    signed = f"{t}.".encode() + body                # the timestamp is inside the MAC, so it cannot be edited
+    for secret in secrets:                          # current and previous secret during a rotation
+        expected = hmac.new(secret, signed, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected, parts["v1"]):   # constant time: no byte-by-byte timing leak
+            return True
+    return False
+
+old, new = b"whsec_old_2f9c", b"whsec_new_81ad"
+body = json.dumps({"type": "invoice.paid", "invoice": "inv_1"}, separators=(",", ":")).encode()
+h = sign(new, body, t=1_767_225_600)
+print(verify([new, old], body, h, now=1_767_225_630))                              # True
+print(verify([new, old], body.replace(b"inv_1", b"inv_2"), h, now=1_767_225_630))  # False: body changed
+print(verify([new, old], body, h, now=1_767_226_000))                              # False: 400 s old
+print(verify([new, old], body, sign(old, body, 1_767_225_600), now=1_767_225_601)) # True: old secret still valid
+```
+
+Three details carry the security. The receiver must verify the raw bytes it received, before any JSON parsing and re-serialisation, which would change whitespace and key order and break the MAC. The timestamp inside the signed payload bounds replays to the tolerance window; an event ID the receiver remembers for that window closes the rest. And rotation accepts two secrets for a period, so a tenant can roll its secret without dropping a single delivery.
 
 **Audit and PII.** An append-only audit log (who did what to which resource, when) is the only answer to repudiation. Collect the minimum PII, tag it in the schema, and keep an inventory of every store that holds it: primary and replicas, caches, search indexes, the warehouse, backups and event logs. Deletion must reach all of them, and for backups and event logs ([Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture)) that means crypto-shredding. [Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security) walks through these decisions in this platform's own code.
 
@@ -241,6 +308,9 @@ Everything crossing a trust boundary is validated against a schema and reaches i
 | Over-broad cloud roles | One pod exfiltrates every bucket | IAM analysis shows unused wildcard permissions | One role per workload, deny by default |
 | SSRF to metadata | Instance credentials used from outside the account | Egress to link-local addresses in flow logs | Isolated fetcher, post-DNS IP checks, hardened metadata |
 | Rate limiting by IP | A corporate customer blocked while stuffing succeeds | 429s concentrated on one legitimate ASN | Key on account and device; IP as a risk signal |
+| Algorithm confusion | Forged tokens accepted; users act as other users | The verifier takes `alg` from the token header; HS256 tokens signed with the public key pass | Pin the algorithm and key set per issuer; ignore `alg` and reject `none` |
+| Rotation that logs everyone out | A wave of 401s and a refresh storm right after a key change | Signing switched to a new key before verifiers' JWKS caches refreshed, or the old key removed while its tokens were live | Publish, wait out the cache lifetime, switch, wait out the token lifetime, remove |
+| Webhook signatures that fail at random | Tenants report valid events rejected, mostly with non-ASCII or reordered fields | The receiver verifies re-serialised JSON rather than the raw body | Verify the raw bytes before parsing; document it in the webhook guide |
 
 ## Interviewer follow-ups
 
@@ -254,6 +324,10 @@ Everything crossing a trust boundary is validated against a schema and reaches i
 
 **"A user requests deletion. Where is their data?"** Model answer: I read it off the PII inventory: primary and replicas (delete), caches (purge, TTL-bounded), search (delete by user), warehouse (scheduled job), backups and event log (crypto-shred the user's key). Common wrong answer: "delete the user row", which leaves copies in six other stores.
 
+**"Your per-account login limit is five a minute. Does that stop credential stuffing?"** Model answer: no. Stuffing tries each account once, from thousands of addresses, so neither the per-account nor the per-IP limit fires: a million pairs over 10,000 proxies is 100 attempts per address, done in 10 minutes. The defences are aggregate and per credential: alert on the global failed-login ratio, check passwords against breach corpora at login, fingerprint devices, and push MFA or passkeys so a correct password is not enough. Common wrong answer: "lower the per-account limit", which punishes real users and never touches the attack.
+
+**"How do you rotate the JWT signing key without logging anyone out?"** Model answer: publish the new key in the JWKS first, wait out the verifiers' cache lifetime, switch signing, then remove the old key after the longest token lifetime plus clock leeway. After a leak, remove it at once and size the token endpoint for every active client refreshing within minutes. Common wrong answer: "swap the key and restart the services", which invalidates every live token and depends on restart order.
+
 ## What mid-level engineers get wrong
 
 - **Trusting the internal network.** One compromised container then reaches everything.
@@ -262,6 +336,8 @@ Everything crossing a trust boundary is validated against a schema and reaches i
 - **`SET` instead of `SET LOCAL` behind a pool.** The previous tenant's context leaks into the next request.
 - **Fast hashes for passwords.** A plain or single-round hash turns a leaked table into cracked passwords within hours.
 - **Encrypting at rest and calling it done.** Disk encryption does nothing against an injected query.
+- **Threat models with no residual column.** Every remaining risk is accepted by nobody, and the detect controls that would find a breach are never built.
+- **Letting the token choose its own algorithm.** A verifier that honours `alg` from the header accepts unsigned or confused tokens.
 
 ## Exercise: validate an access token's claims
 
@@ -336,6 +412,7 @@ hints:
 - You give every service an **identity** and a **least-privilege role**, and treat the internal network as hostile.
 - You can defend a **tenancy model**, and you know the row-level-security pooling trap and how `SET LOCAL` fails closed.
 - You use **envelope encryption** for rotation and crypto-shredding, keep secrets in a manager with short leases, and name **SSRF** for any URL-fetching feature.
+- You turn threats into prevent, detect and respond controls with a named owner for each residual risk, pin token algorithms, rotate keys in a publish-wait-switch-wait-remove order, and sign webhooks over raw bytes with a timestamp.
 
 ## Check yourself
 
@@ -348,22 +425,22 @@ hints:
     Stateless verification means no per-request check against revocation, so there is nothing to revoke or log out server-side. A denylist reintroduces the lookup; rotating the signing key logs out every user, not only this one. Short-lived access tokens with revocable refresh tokens bound the exposure to minutes.
 - q: >-
     An attacker intercepts the authorization code in the redirect of an authorization-code flow that uses PKCE. Why can they not obtain tokens?
-  options: ["The token request needs the verifier the client kept", "The code is encrypted with the client's public key", "The identity provider rejects codes from new IP addresses", "The state parameter binds the code to the user's cookie"]
-  answer: 0
+  options: ["The identity provider rejects codes from new IP addresses", "The state parameter binds the code to the user's cookie", "The token request needs the verifier the client kept", "The code is encrypted with the client's public key"]
+  answer: 2
   explanation: >-
     The identity provider stored the challenge, a hash of the verifier, and only issues tokens to a request presenting a verifier that hashes to it. The verifier never left the client. The state parameter protects the client against login CSRF; it does not stop a stolen code being redeemed.
 - q: >-
     A pooled service sets the tenant with SET app.tenant_id at the start of each request, and Postgres RLS filters on it. What can go wrong?
-  options: ["A request that skips the SET sees the previous tenant's rows", "RLS policies are ignored when a connection pool is used", "Every query is slowed by a full scan to check the policy", "The setting is lost between the statements of a single transaction"]
-  answer: 0
+  options: ["RLS policies are ignored when a connection pool is used", "A request that skips the SET sees the previous tenant's rows", "The setting is lost between the statements of a single transaction", "Every query is slowed by a full scan to check the policy"]
+  answer: 1
   explanation: >-
     A session-level SET persists on the pooled connection, so the next borrower inherits the last tenant. SET LOCAL ends at commit, and a policy using current_setting with the missing-ok flag then compares to null and returns no rows, failing closed. RLS still applies with a pool; the leak comes from session state.
 - q: >-
-    What is the purpose of envelope encryption (per-object data keys wrapped by a KMS key)?
-  options: ["It lets encrypted fields be indexed and queried directly", "It removes the need for TLS between services and storage", "Key rotation re-wraps small data keys, not all the data", "It makes bulk encryption faster than calling AES directly"]
-  answer: 2
+    An attacker tries a million leaked email and password pairs against your login from 10,000 proxy addresses. Why does a per-account limit of five attempts a minute not stop it?
+  options: ["The limit only counts attempts after a first successful login", "Stuffing tools solve the CAPTCHA the per-account limit relies on", "Changing IP address resets each account's attempt counter", "Each account is tried only once, so none reaches the limit"]
+  answer: 3
   explanation: >-
-    Data stays encrypted under its own key; only the small wrapped keys touch the KMS or need rewriting on rotation. It also lets you delete data by destroying its key: that renders every copy, including backups, unreadable (crypto-shredding). The data keys are still AES keys, so it is not a faster cipher.
+    Stuffing spreads one attempt per account across thousands of addresses, so per-account limits never fire and per-IP limits allow about 100 attempts per address. What works is aggregate or per credential: the global failed-login ratio, breach checks on passwords, device fingerprints and MFA or passkeys. Per-account counters are keyed by account, not by IP.
 - q: >-
     A feature fetches user-supplied URLs to render previews. The most important cloud-specific control is:
   options: ["Rate limiting preview fetches per user and per domain", "Fetching over HTTPS only, rejecting plain HTTP URLs", "Caching previews so each URL is fetched only once", "Blocking private and metadata IPs after resolving DNS"]
@@ -372,8 +449,8 @@ hints:
     SSRF against the instance metadata endpoint yields instance credentials. Validation must block link-local and private ranges on resolved addresses and on every redirect, from an isolated fetcher and egress proxy with no internal reach. Rate limiting helps abuse but not this attack.
 - q: >-
     Why is PBKDF2 with 600,000 iterations used for stored passwords instead of a single SHA-256?
-  options: ["Each guess costs an attacker 600,000 times more work", "SHA-256 has known collisions that expose stored passwords", "PBKDF2 output is reversible for password resets", "A single SHA-256 is too slow for login at scale"]
-  answer: 0
+  options: ["PBKDF2 output is reversible for password resets", "Each guess costs an attacker 600,000 times more work", "A single SHA-256 is too slow for login at scale", "SHA-256 has known collisions that expose stored passwords"]
+  answer: 1
   explanation: >-
     The lesson measured 0.19 microseconds for one SHA-256 and 49 ms for PBKDF2 at 600,000 iterations: negligible per login, but it cuts an attacker's guess rate by the same factor. SHA-256 has no practical collisions, and password hashes are never reversible.
 ```

@@ -462,13 +462,13 @@ hints:
     Fairness limits exist to share capacity, and a few approximate minutes through a local fallback bucket beat an API outage. Login and OTP limits exist to stop brute force, and admitting them unmetered opens exactly the window an attacker wants, so they fail closed or fall back to a strict local limit. Failing open for everything misses that distinction, and queuing turns the outage into latency and memory growth.
 - q: >-
     An abusive client sends 40,000 requests/s against a 100/s limit, spread over 200 gateways. Adding a 50 ms denial cache on each gateway has what effect?
-  options: ["Redis calls fall about 10x and the client is admitted exactly as before", "Redis calls fall about 10x but the client now gets about 20x its limit", "Redis calls stay the same, since every single request must still be counted", "The client is starved below its limit because gateways stop checking"]
-  answer: 0
+  options: ["Redis calls fall about 10x but the client now gets about 20x its limit", "The client is starved below its limit because gateways stop checking", "Redis calls stay the same, since every single request must still be counted", "Redis calls fall about 10x and the client is admitted exactly as before"]
+  answer: 3
   explanation: >-
     Each gateway re-checks the key at most 20 times a second while denied, so the shard sees about 200 x 20 = 4,000 calls a second instead of 40,000; the simulation measured 3,780. Those 4,000 checks still find every token as it refills, so admission stays at the bucket's 100/s plus its initial burst. Rejected requests do not need to reach Redis to be rejected, and the fleet-wide check rate is far above the refill rate, so nobody is starved.
 - q: >-
     Three regions replicate per-region counters to each other with 100 ms lag. A client sends 1,000 requests/s to each region against a 100/s global limit. Roughly how many requests a second get through?
-  options: ["About 100, since the lag only delays convergence", "About 110, since the overshoot is lag x limit", "About 300, since each region spends the limit", "About 200, since only remote regions overshoot"]
+  options: ["About 200, since only remote regions overshoot", "About 100, since the lag only delays convergence", "About 300, since each region spends the limit", "About 110, since the overshoot is lag x limit"]
   answer: 2
   explanation: >-
     At 1,000/s a region exhausts 100 tokens in 100 ms, before it hears about the other regions' admissions, so each region admits the full limit: about 300/s, as simulated. The overshoot is roughly lag x per-region rate x (regions - 1), capped at (regions - 1) x limit. A per-key budget split avoids it at the cost of under-admitting when traffic shifts between regions.

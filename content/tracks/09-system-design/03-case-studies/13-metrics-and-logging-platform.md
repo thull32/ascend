@@ -359,31 +359,31 @@ Treat these as design lineages; the numbers in this lesson are assumptions for a
     Series count is the product of label cardinalities, so a new label multiplies rather than adds. Ingester memory, index size and query cost all scale with distinct series. The tempting "adds 50,000" answer is the mistake that causes cardinality outages.
 - q: >-
     Pod A serves 9,000 requests with p99 69 ms and pod B serves 1,000 with p99 520 ms. Which method gives a fleet p99 close to the true 463 ms?
-  options: ["Average the two p99 values, which gives about 295 ms", "Weight the p99s by traffic, which gives about 114 ms", "Sum both pods' histogram buckets, then interpolate", "Take the larger p99, since the tail is set by the slow pod"]
-  answer: 2
+  options: ["Sum both pods' histogram buckets, then interpolate", "Weight the p99s by traffic, which gives about 114 ms", "Average the two p99 values, which gives about 295 ms", "Take the larger p99, since the tail is set by the slow pod"]
+  answer: 0
   explanation: >-
     Quantiles are not additive, so any average of per-pod p99s describes nothing. Summing bucket counts gives the merged distribution; interpolating in the 400–500 ms bucket gives about 484 ms, within one bucket width of the truth. The maximum is an upper bound heuristic, here 57 ms too high.
 - q: >-
     Five 1-minute rollups have averages 14.7, 30.5, 105, 33 and 14.2, but the 105 minute has only 2 samples while the others have 6. What should the 5-minute average be built from?
-  options: ["The mean of the five averages, which is about 39.5", "The median of the five averages, to damp the outlier", "The sum of sums divided by the sum of counts: 29.4", "The maximum of the maxima divided by the sample count"]
+  options: ["The maximum of the maxima divided by the sample count", "The median of the five averages, to damp the outlier", "The sum of sums divided by the sum of counts: 29.4", "The mean of the five averages, which is about 39.5"]
   answer: 2
   explanation: >-
     Averages of averages weight a two-sample minute like a six-sample one. Storing sum and count per window lets every level roll up exactly: 764 over 26 samples is 29.4. The median discards information rather than weighting it correctly.
 - q: >-
     A sample is scraped at 21:00:00. Which step contributes most to the time before a dashboard can see it, in the traced design?
-  options: ["The Kafka produce with acks=all to three replicas", "The agent's one-second batching window before pushing", "The WAL fsync on the ingester before the offset commit", "The two-hour block upload to object storage"]
+  options: ["The WAL fsync on the ingester before the offset commit", "The agent's one-second batching window before pushing", "The Kafka produce with acks=all to three replicas", "The two-hour block upload to object storage"]
   answer: 1
   explanation: >-
     The batch window costs up to a second; the gateway, Kafka acknowledgement and WAL append are milliseconds to a few hundred milliseconds. Recent samples are served from the ingester's head, so the block upload hours later does not affect visibility.
 - q: >-
     A needle query looks for one trace_id across all services for 24 hours, with per-chunk Bloom filters at 1% false positives over 8.6 million chunks. What is the realistic cost?
-  options: ["One chunk fetch, because the filter points to the chunk", "Nothing beyond the label index, which stores trace IDs", "A full scan of 7.2 TB, because filters cannot skip chunks", "~52 GB of filters plus ~86,000 false-positive chunks"]
-  answer: 3
+  options: ["Nothing beyond the label index, which stores trace IDs", "~52 GB of filters plus ~86,000 false-positive chunks", "One chunk fetch, because the filter points to the chunk", "A full scan of 7.2 TB, because filters cannot skip chunks"]
+  answer: 1
   explanation: >-
     A Bloom filter only answers per chunk, so every chunk's filter must be checked, and 1% of 8.6 million chunks are wasted fetches. That is roughly 100 times cheaper than scanning everything, and narrowing by a service label or a lower false-positive rate cuts it further. Filters do not point to locations.
 - q: >-
     Why does the rule evaluator read only from the in-memory ingesters rather than through the full query path?
-  options: ["Alerts read recent data, so paging survives a history outage", "Object storage cannot hold time-series data in queryable form", "Reading from memory is cheaper per query than object storage", "Ingesters hold more complete data than the object store"]
+  options: ["Alerts read recent data, so paging survives a history outage", "Reading from memory is cheaper per query than object storage", "Ingesters hold more complete data than the object store", "Object storage cannot hold time-series data in queryable form"]
   answer: 0
   explanation: >-
     Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. The cheaper query is a side effect, not the reason.

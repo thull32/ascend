@@ -335,8 +335,8 @@ hints:
 ```quiz
 - q: >-
     A table order_lines(order_id, product_sku, product_name, qty) has primary key (order_id, product_sku). Which normal form does it violate, and what is the anomaly?
-  options: ["2NF; product_name depends on product_sku, part of the key", "3NF; qty depends transitively on product_name via product_sku", "1NF; product_name repeats on every line that sells it", "None; every column depends on the full composite key"]
-  answer: 0
+  options: ["None; every column depends on the full composite key", "3NF; qty depends transitively on product_name via product_sku", "2NF; product_name depends on product_sku, part of the key", "1NF; product_name repeats on every line that sells it"]
+  answer: 2
   explanation: >-
     product_name is determined by product_sku alone, a partial dependency on the composite key, which is the 2NF case. Renaming a product means updating every line that ever sold it, and one missed row leaves the table contradicting itself. The value is atomic, so 1NF holds, and qty has no dependency on product_name.
 - q: >-
@@ -347,26 +347,26 @@ hints:
     The split is lossless because tutor is a key of tutor_rooms, so the join reproduces the original rows exactly. But the dependency (room, slot) -> tutor now spans two tables, so no single UNIQUE constraint can stop two tutors sharing a room from taking the same slot. That is why BCNF is not always the right target: 3NF keeps every dependency enforceable.
 - q: >-
     orders.customer_id REFERENCES users(id) on a 300-million-row orders table with no other index on customer_id. What does DELETE FROM users WHERE id = 5 do?
-  options: ["It cascades by default and removes the customer's orders", "It scans orders to look for referencing rows before it can finish", "It is fast because Postgres indexes foreign key columns itself", "It fails at once because rows with foreign keys cannot be deleted"]
+  options: ["It cascades by default and removes the customer's orders", "It scans orders to look for referencing rows before it can finish", "It fails at once because rows with foreign keys cannot be deleted", "It is fast because Postgres indexes foreign key columns itself"]
   answer: 1
   explanation: >-
     Postgres indexes primary keys and unique constraints but not the referencing side of a foreign key, so the delete trigger's lookup on orders.customer_id becomes a sequential scan, run while holding the lock on the user row. On the 2-million-row lab table that took 42 ms against 0.3 ms with an index. The default action is NO ACTION, which only raises an error if a referencing row exists.
 - q: >-
     Copying 2 million rows into a table with a foreign key took 28.8 s; without the foreign key it took 0.67 s. What explains the difference?
-  options: ["The foreign key forces a full-page WAL image for every row", "A row-level trigger probes the parent key and locks it per row", "The foreign key makes Postgres rebuild the parent index per batch", "Rows with foreign keys are stored wider, so fewer fit on a page"]
-  answer: 1
+  options: ["A row-level trigger probes the parent key and locks it per row", "The foreign key forces a full-page WAL image for every row", "Rows with foreign keys are stored wider, so fewer fit on a page", "The foreign key makes Postgres rebuild the parent index per batch"]
+  answer: 0
   explanation: >-
     Referential integrity is enforced by system triggers. Each inserted row runs a primary-key lookup on the parent with FOR KEY SHARE, about 14 microseconds per row in the lab. Row width and page layout are identical in both tables, and the parent index is only read, never rebuilt. Bulk loads therefore validate once with a set-based query or add the constraint as NOT VALID and validate later.
 - q: >-
     An orders table stores unit_price_cents on each order line although products has a price column. A reviewer calls it a 3NF violation. What is the right response?
-  options: ["Remove it; the current price can always be joined from products", "Keep it and sync it with a trigger whenever the product price changes", "Keep it; the price at purchase is a fact about the line, not a copy", "Move it into a materialised view that is refreshed from products daily"]
-  answer: 2
+  options: ["Move it into a materialised view that is refreshed from products daily", "Keep it and sync it with a trigger whenever the product price changes", "Remove it; the current price can always be joined from products", "Keep it; the price at purchase is a fact about the line, not a copy"]
+  answer: 3
   explanation: >-
     The purchase price is an attribute of the order line: it must not change when the product's current price changes. Joining to products, or syncing with a trigger, would silently rewrite past invoices. Telling historical facts apart from redundant copies of current values is the core normalisation judgement.
 - q: >-
     Why is a random UUIDv4 primary key worse than a bigint sequence or UUIDv7 for a table taking 5,000 inserts per second?
-  options: ["Random 122-bit values start to collide at thousands of inserts per second", "Its 16 bytes make every index comparison twice as slow as a bigint", "Postgres cannot build a B-tree on uuid, so each lookup must scan the heap", "Random keys hit a random leaf per insert, so pages split and cache poorly"]
-  answer: 3
+  options: ["Postgres cannot build a B-tree on uuid, so each lookup must scan the heap", "Random keys hit a random leaf per insert, so pages split and cache poorly", "Its 16 bytes make every index comparison twice as slow as a bigint", "Random 122-bit values start to collide at thousands of inserts per second"]
+  answer: 1
   explanation: >-
     Ordered keys append to the rightmost leaf, which stays in cache and fills to 90%. Random keys touch any leaf, so the whole index is the working set, pages split in the middle and settle near 70% full, and each first touch after a checkpoint logs a full-page image. UUIDv7 is also 16 bytes but time-ordered, which shows width is not the main cost; collisions are negligible at any realistic rate.
 ```

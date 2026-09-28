@@ -432,26 +432,26 @@ hints:
 ```quiz
 - q: >-
     A service handles 50,000 reads per second with a 98% cache hit ratio. A deploy changes the cache key format and the hit ratio drops to 60% for twenty minutes. How does database read load change?
-  options: ["It stays near 1,000 per second, since misses refill the cache", "It roughly doubles, from 1,000 to 2,000 queries per second", "It rises by about 40%, from 1,000 to 1,400 queries per second", "It rises twentyfold, from 1,000 to 20,000 queries per second"]
-  answer: 3
+  options: ["It stays near 1,000 per second, since misses refill the cache", "It rises twentyfold, from 1,000 to 20,000 queries per second", "It roughly doubles, from 1,000 to 2,000 queries per second", "It rises by about 40%, from 1,000 to 1,400 queries per second"]
+  answer: 1
   explanation: >-
     Database load is proportional to the miss ratio: 2% of 50,000 is 1,000 and 40% is 20,000. Refilling does not help while every new key starts cold. Small changes in hit ratio are large changes in miss ratio, which is why key-format changes and cold starts need warming and gradual rollout.
 - q: >-
     A handler runs BEGIN; UPDATE products SET price = ...; DEL product:7; COMMIT. Occasionally the old price stays cached for a full TTL. Why?
-  options: ["Redis DEL runs asynchronously, so the key can outlive the transaction", "The TTL is too short, so the key is refilled before the commit lands", "A reader refills the old committed price between the DEL and COMMIT", "The DEL was sent before the UPDATE finished, so Redis ignored it"]
+  options: ["The TTL is too short, so the key is refilled before the commit lands", "The DEL was sent before the UPDATE finished, so Redis ignored it", "A reader refills the old committed price between the DEL and COMMIT", "Redis DEL runs asynchronously, so the key can outlive the transaction"]
   answer: 2
   explanation: >-
     Until COMMIT, other transactions see the old row under MVCC, as the lab's two sessions showed. A reader that misses after the DEL reads the old price and fills the cache, and the commit then lands behind a stale entry. Delete after the commit, or invalidate from the WAL, which only carries committed changes.
 - q: >-
     Cache fills read a replica that is usually a second behind. The writer deletes the key after commit, and the cache supports memcache-style leases. Some users still see an old name for an hour. Why did leases not help?
-  options: ["The reader's miss came after the delete, so its lease was still valid", "Leases only work when every fill is read from the primary database", "The replica ignored the lease token that the cache issued to the reader", "Leases expire after ten seconds, which is shorter than the replica lag"]
+  options: ["The reader's miss came after the delete, so its lease was still valid", "Leases expire after ten seconds, which is shorter than the replica lag", "The replica ignored the lease token that the cache issued to the reader", "Leases only work when every fill is read from the primary database"]
   answer: 0
   explanation: >-
     A lease is revoked only by invalidations that happen after it was granted. Here the miss, and the lease, came after the delete, so the fill of the replica's old value was accepted. A versioned marker left by the writer rejects any fill older than the new version, whatever it was read from.
 - q: >-
     Why does adding a version check to fills not, by itself, fix the slow-reader race when writers delete the key?
-  options: ["Version numbers cannot be compared atomically inside a Redis script", "After a delete the key holds no version, so the stale fill is accepted", "The database increments versions only after the cache has been filled", "Readers always read the newest version, so there is nothing to reject"]
-  answer: 1
+  options: ["After a delete the key holds no version, so the stale fill is accepted", "Readers always read the newest version, so there is nothing to reject", "The database increments versions only after the cache has been filled", "Version numbers cannot be compared atomically inside a Redis script"]
+  answer: 0
   explanation: >-
     The check compares the fill's version with what the cache holds; a delete leaves nothing, so the old value goes in unchallenged. The writer must leave a tombstone carrying the new version instead of deleting; then a fill with an older version is rejected. A Lua script or memcached's cas makes the comparison atomic.
 - q: >-
@@ -462,7 +462,7 @@ hints:
     Every request during the 200 ms recompute also misses, so about λδ = 400 run at once. XFetch lets readers refresh early with a probability that rises near expiry; for these numbers the first refresh lands a median 1.27 s early and the simulation averaged 2.8 recomputes per expiry. A remote cache does not serialise misses unless you add single-flight.
 - q: >-
     This app serves hashed front-end assets with max-age=31536000, immutable, and curriculum responses with an ETag and max-age=0, must-revalidate. What makes a year-long cache safe for the assets?
-  options: ["Browsers revalidate immutable responses on every reload anyway", "A changed file gets a new hashed name, so old copies are never asked for", "The server purges browser caches on deploy using the Clear-Site-Data header", "The ETag on the curriculum invalidates the assets whenever content changes"]
+  options: ["Browsers revalidate immutable responses on every reload anyway", "A changed file gets a new hashed name, so old copies are never asked for", "The ETag on the curriculum invalidates the assets whenever content changes", "The server purges browser caches on deploy using the Clear-Site-Data header"]
   answer: 1
   explanation: >-
     Versioned names make invalidation unnecessary: a new build references new file names, and the old cached ones are never requested again. index.html, which holds those names, is served with no-cache so browsers always fetch the current one. The curriculum cannot be renamed per version, so it uses an ETag over the content version, build ID and index.html, and the browser revalidates with a cheap conditional request.

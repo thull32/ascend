@@ -314,7 +314,7 @@ Presenting improves only with repetitions under realistic conditions. Run timed 
     Writing it in the parking lot and saying you will return shows you heard it and are prioritising; covering it in the wrap-up shows follow-through. Ignoring or dismissing it loses the signal; switching immediately hands the agenda to whatever is raised next.
 - q: >-
     The interviewer says: I don't think last-writer-wins works here. What response scores best?
-  options: ["Ask where it fails, then answer from the data", "Agree at once and switch to a consensus-based store", "Explain that last-writer-wins is Cassandra's default", "Offer three other conflict strategies to choose from"]
+  options: ["Ask where it fails, then answer from the data", "Agree at once and switch to a consensus-based store", "Offer three other conflict strategies to choose from", "Explain that last-writer-wins is Cassandra's default"]
   answer: 0
   explanation: >-
     Locating the disagreement first shows you treat pushback as a probe. Then the answer comes from the data: positions should take the latest action, so last-writer-wins by server time is right, while a counter would need a CRDT or a home region. Folding looks like there were no reasons; citing the default is not a reason; a menu of options hands the decision back.
@@ -326,14 +326,14 @@ Presenting improves only with repetitions under realistic conditions. Run timed 
     The device-switch requirement applies at the moments a person stops watching, so those events must be visible within seconds. Heartbeats are the bulk of the load and tolerate asynchronous delay. Paying the synchronous cost only for the rare events meets the requirement without putting 350,000 writes a second on the synchronous path; heartbeats are still stored, asynchronously.
 - q: >-
     In the lesson's model of the clock, the minute-15 or minute-25 checkpoint fired in 91% of simulated rounds. What is the right conclusion?
-  options: ["The plan is a budget to enforce, not a forecast", "The checkpoints are set too early and should move", "Most candidates are too slow to pass the round", "The model proves interviewers ask too many questions"]
+  options: ["The plan is a budget to enforce, not a forecast", "Most candidates are too slow to pass the round", "The model proves interviewers ask too many questions", "The checkpoints are set too early and should move"]
   answer: 0
   explanation: >-
     Small, typical overruns compound, so by minute 22 most rounds are behind; the checkpoints convert that slippage into a shorter diagram instead of a missing deep dive and wrap-up. Moving them later only moves the loss to the end. The model's inputs are assumptions, so it supports the budgeting habit, not claims about candidates or interviewers.
 - q: >-
     Why does a note such as estimated 350k writes/s, keyed Kafka by profile for ordering carry more weight in a debrief than strong communicator?
-  options: ["Debriefs calibrate on evidence, not adjectives", "Numbers show that the design was memorised in advance", "Committees read only the technical parts of the notes", "Adjectives are not permitted in written feedback at all"]
-  answer: 0
+  options: ["Committees read only the technical parts of the notes", "Adjectives are not permitted in written feedback at all", "Numbers show that the design was memorised in advance", "Debriefs calibrate on evidence, not adjectives"]
+  answer: 3
   explanation: >-
     A debrief compares evidence against a shared bar for each level. A concrete decision with its reason can be checked against that bar; an adjective cannot, so it carries little weight. Your job in the room is to generate quotable evidence in every phase.
 ```

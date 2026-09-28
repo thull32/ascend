@@ -42,7 +42,7 @@ And what you pay:
 
 - **Loss and reordering are yours.** Loss on a healthy wired path is well under 1%; Wi-Fi, mobile and congested links are worse, and silence is indistinguishable from loss.
 - **No congestion control.** A UDP sender pushing 100 Mbit/s into a 10 Mbit/s link loses 90% of its packets and starves every TCP flow sharing the link.
-- **Size is bounded by the path.** A datagram larger than the path MTU is fragmented at the IP layer, and losing any fragment loses the whole datagram, so real protocols keep datagrams near 1,200 bytes ([layers and encapsulation](/learn/networking/fundamentals/layers-and-encapsulation) derives the number).
+- **Size is bounded by the path.** A datagram larger than the path MTU is fragmented at the IP layer, and losing any fragment loses the whole datagram, so real protocols keep datagrams near 1,200 bytes ([layers and encapsulation](/learn/networking/fundamentals/layers-and-encapsulation) derives the number). DNS advertises 1,232 bytes (the 1,280-byte IPv6 minimum MTU minus 40 bytes of IPv6 header and 8 of UDP); a larger answer returns with the TC bit set and is re-queried over TCP, 180 ms instead of 60 at a 60 ms RTT ([DNS](/learn/networking/fundamentals/dns)).
 - **Middleboxes distrust it.** NATs expire idle UDP mappings in about 30 seconds (versus hours or days for TCP), and some networks drop UDP that is not DNS.
 
 ## Under the hood: where UDP datagrams die
@@ -139,6 +139,71 @@ The sequence number lets the receiver detect gaps and discard stale or duplicate
 
 Such a protocol must also control its rate. A UDP sender with no feedback loop is a denial-of-service tool; WebRTC uses a delay-based controller (Google Congestion Control) and QUIC uses the same algorithms as TCP ([congestion control](/learn/networking/fundamentals/congestion-control)).
 
+## Loss recovery for a live stream, traced
+
+A live stream sends a 1,200-byte packet every 5 ms. The one-way delay is 30 ms plus 0–8 ms of jitter, so the RTT is about 60 ms, and a packet is useful only if it is available within 150 ms of being sent, when the jitter buffer plays it. You can ask for a lost packet again (a **NACK**) or send redundancy in advance (**forward error correction**, FEC).
+
+### A NACK, step by step
+
+The receiver never sees a loss, only a later sequence number, so it waits a **reorder tolerance** of 10 ms before asking: 8 ms of jitter can deliver a packet up to 3 ms after its successor. Packets 100–106 leave at t = 0, 5, …, 30 ms, and 102 is lost:
+
+| t (ms) | Event | Receiver: highest seq, missing | Action |
+|---|---|---|---|
+| 31, 38 | 100 and 101 arrive | 101, none | |
+| 47 | 103 arrives | 103, {102} | Start a 10 ms timer for 102 |
+| 55 | 105 arrives before 104 (jitter 0 against 7 ms) | 105, {102, 104} | Start a timer for 104 |
+| 57 | 104 arrives: reordered, not lost | 105, {102} | Cancel 104's timer; 102's fires: send `NACK 102` |
+| 64 | 106 arrives | 106, {102} | |
+| 89 | The NACK reaches the sender (30 + 2 ms) | | Retransmit 102 |
+| 122 | 102 arrives (30 + 3 ms) | 106, none | Deadline 10 + 150 = 160 ms: 38 ms to spare |
+
+The worst case is 129 ms: 5 ms to the next packet, 10 ms of tolerance and three one-way trips of up to 38 ms. One round fits; a second, after a lost retransmission, lands after playout. At a 120 ms RTT the sum is 219 ms.
+
+### XOR parity, step by step
+
+XOR parity sends one extra packet per group of k, the byte-wise XOR of the group; a single missing packet is the XOR of the parity with the survivors. With k = 4:
+
+```python
+from functools import reduce
+
+def xor(*pkts: bytes) -> bytes:
+    n = max(map(len, pkts))                      # shorter packets are zero-padded
+    return bytes(reduce(lambda a, b: a ^ b, (p[i] if i < len(p) else 0 for p in pkts))
+                 for i in range(n))
+
+data = [bytes.fromhex(h) for h in ("3a7f", "5c01", "f00d", "0ff0")]
+parity = xor(*data)                              # sent after the fourth data packet
+received = [data[0], data[1], None, data[3]]     # the third packet is lost
+lost = received.index(None)
+rebuilt = xor(parity, *(p for p in received if p is not None))
+print(parity.hex(), lost, rebuilt.hex())         # 9983 2 f00d
+print(xor(parity, data[0], data[3]).hex())       # ac0c: lose two and you hold their XOR
+```
+
+Parity costs 1/k of the bandwidth even when nothing is lost, and repairs within a group span (50 ms at k = 10) plus a one-way trip, where NACK needs a round trip. RTP's ULPFEC (RFC 5109) and FlexFEC (RFC 8627) are XOR codes of this kind; FlexFEC's column mode computes parity across interleaved packets.
+
+## Simulated: which recovery meets the deadline
+
+The stream was simulated for 400,000 packets per loss model, every policy on the same channel, with 2% average loss and 2% of NACKs lost. **Random** loss drops packets independently. **Bursty** loss is a Gilbert–Elliott channel with the same average: a loss-free good state lasting 960 ms on average and a 40 ms bad state that drops half its packets. Of 10-packet groups with a loss, 8.5% had a second under random loss and 71% under bursty loss. The TCP-like policy delivers in order and retransmits 1.25 RTT after each lost transmission, as RACK does; ignoring its congestion window flatters it.
+
+| Policy | Extra packets | Random: missed deadline (never repaired) | Bursty: missed deadline (never repaired) |
+|---|---|---|---|
+| No recovery | 0 | 1.99% (1.99%) | 2.09% (2.09%) |
+| NACK once | 2.0% | 0.083% (0.083%) | 0.198% (0.186%) |
+| XOR FEC, k = 10 | 10% | 0.357% (0.357%) | 1.92% (1.92%) |
+| FEC k = 10 interleaved ×2, 100 ms span | 10% | 0.369% (0.369%) | 1.74% (1.74%) |
+| FEC k = 10 interleaved ×4, 200 ms span | 10% | 1.04% (0.379%) | 1.72% (1.40%) |
+| FEC k = 5 interleaved ×4, 100 ms span | 20% | 0.196% (0.196%) | 1.29% (1.29%) |
+| NACK + FEC k = 10 | 11.5–12% | 0.018% (0.018%) | 0.191% (0.182%) |
+| TCP-like, in order | 2.0–2.3% | 0.387% (0) | 0.883% (0) |
+
+A second seed moved every figure by under 0.1 percentage point.
+
+- **FEC sized for the average fails on bursts.** k = 10 repairs 82% of random losses and 8% of bursty ones. Interleaving helps only when its span exceeds the burst, and the deadline caps the span: k = 10 interleaved ×4 repairs more, but over 40% of its repairs arrive too late.
+- **NACK wins while the RTT fits**, at a fifth of FEC's overhead, and survives bursts because a repair 80 ms later usually misses the burst. At a 120 ms RTT it still repairs 96% of losses, all late (1.99% missed), while FEC k = 10 still misses 0.357%.
+- **In-order delivery turns rare double losses into stalls**: 0.39% missed at 60 ms, 4.7 times NACK's, and 25.8% at 120 ms, where each loss stalls about 13 packets.
+- **The budget decides, not the media.** Netflix's on-demand player buffers tens of seconds ([video streaming](/learn/system-design/case-studies/video-streaming-netflix)), which absorbs any RTO, so it uses TCP.
+
 ## QUIC: TCP's guarantees, rebuilt over UDP
 
 QUIC (RFC 9000, 2021) is the strongest evidence that the choice is about *where* reliability lives. It runs over UDP because middleboxes pass UDP and drop unknown IP protocols, and UDP adds nothing but ports. Its design fixes several things TCP cannot change:
@@ -172,6 +237,18 @@ Header plus the 1,182 counted bytes is exactly 1,200: the client padded its firs
 
 The cost is that all of this runs in user space: each datagram crosses the system-call boundary and the NIC's TCP offloads do not apply. QUIC servers historically used a few times the CPU per byte of kernel TCP with offloads; UDP GSO/GRO and batched system calls narrowed the gap, and the remaining difference is one reason large CDNs rolled HTTP/3 out gradually. [HTTP/2 and HTTP/3](/learn/networking/application-protocols/http-2-and-http-3) covers the application side.
 
+### Under the hood: how QUIC decides a packet is lost
+
+RFC 9002 declares a packet lost once a later one is acknowledged and either threshold is crossed: three higher-numbered packets acknowledged (**packet threshold**), or sent more than 9/8 × max(smoothed RTT, latest RTT) ago (**time threshold**). If nothing later is acknowledged, a **probe timeout** fires: PTO = smoothed_rtt + max(4 × rttvar, 1 ms) + max_ack_delay, doubling on each consecutive expiry, where max_ack_delay is the peer's promised ACK delay (25 ms by default). With a 60 ms smoothed RTT, rttvar 5 ms and immediate ACKs:
+
+| Case | Next packet's ACK | Time threshold (67.5 ms) | Packet threshold | Declared lost |
+|---|---|---|---|---|
+| 200 packets/s, 5 ms apart | 65 ms | A timer fires at 67.5 ms | 75 ms | 67.5 ms |
+| 50 packets/s, 20 ms apart | 80 ms | Already passed | 120 ms | 80 ms |
+| Tail: nothing sent after it | Never | Never | Never | QUIC probes at 105 ms, then 315 and 735 ms cumulative; Linux TCP's RTO fires at 260 ms, then 780 and 1,820 |
+
+Linux computes RTO = SRTT + max(4 × RTTVAR, 200 ms), so the floor dominates on short paths; QUIC needs no floor because max_ack_delay tells the sender how long an ACK may be held. A PTO is also a probe, not a verdict: the sender sends one or two packets and keeps its congestion window, which falls to the two-packet minimum only after persistent congestion (losses spanning three PTOs); an RTO resets TCP's window to one segment. TCP's tail loss probe (RACK-TLP, RFC 8985) at 2 × SRTT, 120 ms here, narrows the gap until the probe is lost too ([reliable delivery](/learn/networking/network-algorithms/reliable-delivery-algorithms)).
+
 ## The sockets API, and the framing bug
 
 ```python
@@ -204,6 +281,8 @@ Run on this machine, the server's single `recv()` returned 200 bytes: two messag
 | UDP blocked | HTTP/3 or a VPN fails on some corporate networks | Handshakes time out on UDP while TCP to the same port works | TCP fallback (browsers race HTTP/3 against HTTP/2); TURN over TCP 443 for WebRTC |
 | Reflection and amplification | Your UDP service floods a victim with large responses to spoofed small requests | Outbound bandwidth spikes to sources that never completed an exchange | Rate-limit responses per source, never expose UDP services such as memcached publicly, prefer protocols with QUIC-style 3× limits |
 | Head-of-line stalls on lossy links | Interactive stream freezes for a round trip or 200 ms at a time | Loss correlated with stalls; `ss -ti` shows retransmits | UDP for real-time media; QUIC streams for multiplexed requests; keep enough data in flight for fast recovery |
+| FEC sized for the average loss rate | Artefacts in bursts although FEC overhead exceeds the loss rate | Log loss run lengths: in the simulation 71% of groups with a loss had a second one under bursty loss, 8.5% under random | NACK while the RTT fits; interleave within the deadline; size FEC from measured bursts |
+| Repairs after the deadline | Retransmission traffic rises during loss and quality does not | Count repairs that arrive after playout; at a 120 ms RTT every NACK repair in the simulation did | Drop NACKs for packets past their deadline; switch to FEC when detection + RTT + one-way delay exceeds the budget |
 
 ## Trade-offs
 
@@ -226,6 +305,10 @@ Run on this machine, the server's single `recv()` returned 200 bytes: two messag
 
 **"Can you build reliable delivery on UDP?"** Model answer: yes, and QUIC is the proof, but the justification must be a different policy (per-stream ordering, deadlines, partial reliability) and it must include congestion control. Common wrong answer: "no, UDP is unreliable by definition".
 
+**"Design loss recovery for a live stream with a 150 ms deadline and 2% loss."** Model answer: start from the budget. A NACK round costs detection, a round trip and a one-way trip, 129 ms worst case at a 60 ms RTT, so NACK fits for 2% extra traffic; above about a 75 ms RTT FEC must take over, sized from measured loss runs, because bursts defeat it. Common wrong answer: "use TCP" (0.39% of packets late at 60 ms, 26% at 120 ms), or "FEC at the loss rate" (8% of bursty losses repaired).
+
+**"Why does a lost final packet cost QUIC less time than TCP?"** Model answer: only a timer can detect it; QUIC's PTO is 105 ms at a 60 ms RTT with no 200 ms floor and probes without shrinking the window, while Linux's RTO is 260 ms and resets it; TCP's tail loss probe narrows the gap. Common wrong answer: "UDP is faster".
+
 ## What mid-level engineers get wrong
 
 - Treating TCP `recv()` as message-oriented because it works on localhost tests, then shipping a protocol that corrupts merged or split messages.
@@ -233,6 +316,7 @@ Run on this machine, the server's single `recv()` returned 200 bytes: two messag
 - Adding per-message ACKs and retransmission to a UDP protocol without rate control, rebuilding TCP's costs without its safety.
 - Forgetting NAT keepalives for long-lived UDP flows, and forgetting a TCP fallback for networks that block UDP.
 - Pricing a fresh TCP plus TLS request at one round trip; it is three before the first response byte.
+- Sizing FEC from the average loss rate (a 10% code repaired 82% of random loss and 8% of bursty loss), or retransmitting media past its playout deadline, which adds traffic during congestion and repairs nothing.
 
 ## Exercises
 
@@ -340,11 +424,12 @@ hints:
 ## Senior signals
 
 - You describe TCP as a list of mechanisms with individual costs (handshake RTT, head-of-line blocking, RTO, TIME_WAIT) and say which one an application cannot afford.
-- You can trace a head-of-line stall segment by segment and explain when fast retransmit fires and when the RTO does.
+- You can trace a head-of-line stall segment by segment and explain when fast retransmit fires, when the RTO does, and why QUIC's probe timeout fires sooner (105 ms against Linux's 260 ms at a 60 ms RTT).
 - You know UDP drops happen silently in the receiver's socket buffer, read `RcvbufErrors`, and size buffers and readers accordingly.
 - You treat a UDP sender without rate control as a bug, and every UDP product ships with keepalives and a TCP fallback.
 - You explain QUIC's design choices (streams, never-reused packet numbers, encrypted headers, connection IDs, 1,200-byte and 3× limits) and its CPU cost.
 - You frame TCP `recv()` as bytes, not messages, and write length-prefix framing by reflex.
+- You pick NACK, FEC or both from the deadline budget and the measured loss pattern, and know the deadline caps interleaving.
 
 ## Check yourself
 
@@ -380,9 +465,9 @@ hints:
   explanation: >-
     TCP delivers a byte stream; the receive queue has no record of how the sender split its writes, so one recv can return several messages or part of one. Nothing is corrupted or overflowed, and disabling Nagle changes timing but not the stream semantics. A length prefix or delimiter is required in every TCP protocol.
 - q: >-
-    Why did QUIC's designers build on UDP rather than defining a new IP protocol number alongside TCP (6) and UDP (17)?
-  options: ["NATs and firewalls pass UDP but drop unknown IP protocols", "IP has no free protocol numbers left for a new transport", "UDP datagrams are routed faster than other IP protocols are", "UDP already provides the congestion control that QUIC needs"]
-  answer: 0
+    A live stream adds one XOR parity packet per 10 data packets, more than its measured 2% average loss, yet viewers see artefacts at almost the rate without FEC. What is the most likely cause?
+  options: ["The parity packets are too small to protect full-size video packets", "Losses come in bursts, so groups often lose two packets at once", "XOR parity cannot rebuild a packet that arrives out of order", "The receiver's socket buffer drops parity packets before data"]
+  answer: 1
   explanation: >-
-    Middleboxes understand TCP and UDP; SCTP, which took the new-protocol route, is nearly undeployable across the internet for that reason. UDP adds only ports and a checksum, so QUIC implements streams, reliability, congestion control and encryption itself. Routers forward by address, not by transport protocol.
+    XOR parity rebuilds one missing packet per group. Under bursty loss with the same 2% average, 71% of groups with a loss in the lesson's simulation had a second one, and k = 10 repaired 8% of losses against 82% under random loss. Parity is as large as the largest packet it protects, reordering only delays recovery, and the kernel does not favour data over parity. NACK, or interleaving that spans the burst within the deadline, fixes it.
 ```
