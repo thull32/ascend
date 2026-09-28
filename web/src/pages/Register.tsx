@@ -34,7 +34,7 @@ export default function Register() {
       >
         <Field label="Display name" value={name} onChange={setName} autoComplete="nickname" />
         <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
-        <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 10 characters." />
+        <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="At least 15 characters. A few unrelated words make a strong, memorable passphrase." />
         {error ? <ErrorBox error={error} /> : null}
         <Button type="submit" className="w-full" disabled={busy}>
           Create account

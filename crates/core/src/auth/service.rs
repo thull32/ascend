@@ -15,7 +15,10 @@ pub struct RegisterInput {
     #[validate(email(message = "must be a valid email address"))]
     #[validate(length(max = 320))]
     pub email: String,
-    #[validate(length(min = 10, max = 200, message = "must be at least 10 characters"))]
+    /// NIST SP 800-63B-4: at least 15 characters for a password that is the
+    /// only factor, and no composition rules. Sign-in accepts any length, so
+    /// accounts created under the old 10-character rule keep working.
+    #[validate(length(min = 15, max = 200, message = "must be at least 15 characters"))]
     pub password: String,
     #[validate(length(min = 1, max = 80, message = "must be 1–80 characters"))]
     pub display_name: String,

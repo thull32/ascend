@@ -250,6 +250,10 @@ async fn login_errors_do_not_leak_account_existence() {
         .await;
     assert_eq!(weak.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(weak.body["message"].as_str().unwrap().contains("password"));
+    // 14 characters: one short of NIST's minimum for a single factor.
+    let body = json!({"email": "fourteen@example.com", "password": "fourteen-chars", "display_name": "W"});
+    let short = app.call("POST", "/api/auth/register", Some(body), None, true).await;
+    assert_eq!(short.status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
