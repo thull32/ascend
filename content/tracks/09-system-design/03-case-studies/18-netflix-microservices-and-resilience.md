@@ -1,83 +1,58 @@
 ---
 slug: netflix-microservices-and-resilience
 title: "Netflix microservices and resilience: Zuul, Eureka, Hystrix, chaos and regional evacuation"
-description: How a streaming control plane made of hundreds of services keeps members pressing play through instance, zone, dependency and region failures, built from Netflix's publicly described lineage of edge gateways, discovery, isolation libraries, chaos engineering and active-active regions.
+description: How a streaming control plane made of hundreds of services keeps members pressing play through instance, zone, dependency and region failures, with one home page simulated under five resilience policies, retry amplification computed, a chaos experiment sized by statistics, a timed regional evacuation, and a circuit breaker to build, all grounded in Netflix's publicly described lineage.
 minutes: 45
 difficulty: expert
 tags: [system-design, case-study, netflix, microservices, resilience, circuit-breaker, bulkhead, chaos-engineering, multi-region]
 ---
-On Christmas Eve 2012, an AWS load-balancing outage in a single region took Netflix streaming down for many members. Nothing in Netflix's own code was broken. The failure came from a dependency, in one place, and at the time the architecture had no way to route around it. What Netflix built before and after that night, and described publicly in unusual detail, is one of the most influential answers to the question this lesson asks: how do you design a system of hundreds of services so that members can always browse and press play, when every instance, every dependency, every availability zone and occasionally a whole cloud region will fail?
+On Christmas Eve 2012, an AWS load-balancing outage in one region took Netflix streaming down for many members. Nothing in Netflix's own code was broken: the failure came from a dependency, in one place, and the architecture then had no way to route around it. What Netflix built before and after that night, and described publicly in unusual detail, is one of the most influential answers to the question this lesson asks: how do you design hundreds of services so that members can always browse and press play, when every instance, dependency, availability zone and occasionally a whole region will fail?
 
-This case study is different from the others in the module. The question is not "design a feature" but "design for failure at the scale of an organisation". The video bytes themselves are served by Netflix's own CDN, Open Connect, which [the video streaming case study](/learn/system-design/case-studies/video-streaming-netflix) covers. Here the subject is the *control plane* in the cloud: the services that sign you in, build your home page, authorise playback and choose which CDN server you stream from.
+The question is not "design a feature" but "design for failure at the scale of an organisation". The video bytes come from Netflix's own CDN, Open Connect, covered in [the video streaming case study](/learn/system-design/case-studies/video-streaming-netflix). Here the subject is the *control plane* in the cloud: the services that sign you in, build your home page, authorise playback and choose your CDN server.
 
-A note on sources. Everything said here about Netflix is drawn from what its engineers have publicly described: the Netflix Technology Blog, conference talks, and the documentation of its open-source projects. Internal details change and are not public, so the numbers in the estimates are illustrative assumptions, labelled as such, and the design is framed as what you would build using these publicly described ideas, not as a description of Netflix's current internals.
+A note on sources. Everything said about Netflix is drawn from what its engineers have publicly described: the Netflix Technology Blog, conference talks and the documentation of its open-source projects. Internals change and are not public, so the numbers below are illustrative assumptions, labelled as such, and the design is what you would build with these publicly described ideas, not a description of Netflix's current internals.
 
 ## Requirements
 
-### Functional
-
-- Sign-in, profiles, and account state.
-- A personalised home page: rows of titles chosen and ordered per profile, with per-member artwork.
-- Search and title details.
-- Start playback: check entitlement, issue a DRM licence, choose CDN servers, return the stream manifest.
-- Playback telemetry (heartbeats, quality events) and client logging.
-- Billing and plan changes (strongly consistent, but deliberately *off* the playback path).
-
-### Non-functional
+**Functional.** Sign-in, profiles and account state; a personalised home page of rows with per-member artwork; search and title details; start playback (entitlement, DRM licence, CDN steering, manifest); playback telemetry; billing and plan changes, strongly consistent but deliberately *off* the playback path.
 
 | Property | Target | Why |
 |---|---|---|
-| The availability metric | Stream starts per second (SPS) stays on its expected curve | Netflix has publicly described SPS as its primary health signal; per-service uptime is not what members experience |
-| Instance failure | Invisible to members, continuously | Cloud instances disappear routinely |
-| Zone failure | Invisible or nearly so | Every service runs in multiple zones |
+| Availability metric | Stream starts per second (SPS) stays on its expected daily curve | Netflix has publicly described SPS as its primary health signal; per-service uptime is not what members experience |
+| Instance failure | Invisible, continuously | Cloud instances disappear routinely |
+| Zone failure | Invisible or nearly so | Every service runs in several zones |
 | Region failure | Members moved to healthy regions within minutes | The Christmas Eve lesson |
-| Dependency failure | The product degrades, it does not fail | Most features are enhancements, not necessities |
-| Change velocity | Hundreds of teams deploy independently, many times a day | Most outages are caused by changes, so safe change is a resilience requirement |
+| Dependency failure | The product degrades; it does not fail | Most features are enhancements, not necessities |
+| Change velocity | Hundreds of teams deploying independently, many times a day | Most outages start with a change |
 
-The row that most distinguishes a senior answer is the first. Choose one business-level metric that reflects whether members are getting what they came for, define "healthy" as that metric following its normal daily curve, and judge every resilience mechanism by whether it protects that metric.
+The first row is the senior one: choose one business metric that says whether members get what they came for, define "healthy" as that metric following its normal curve, and judge every mechanism by whether it protects it.
 
 ## Back-of-envelope estimates
 
-Assume (illustratively) 250 million member accounts, 100 million active on a given day.
+Illustrative: 250 million accounts, 100 million active on a given day.
 
-**Edge traffic.** Each active member's devices make ~200 API calls a day: browsing, artwork, playback licences, heartbeats, logging. $10^8 \times 200 = 2 \times 10^{10}$ calls/day, $2 \times 10^5$ per second on average. Evening viewing concentrates by time zone, so peak is ~3×: **~600,000 requests/s at the edge.**
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Edge traffic | $10^8$ members × ~200 API calls a day ÷ 86,400 s, ×3 for the evening peak | **~600,000 requests/s** at the edge |
+| Internal RPCs | ~10 internal calls per edge request | ~6 million/s: a one-in-a-million failure happens six times a second |
+| Page availability | 30 synchronous dependencies at 99.99% each: $0.9999^{30}$ | 0.9970: 150 failed pages a second at 50,000 page loads/s, with every SLO met |
+| Tail exposure | $1 - 0.99^{30}$ | 26% of pages wait for someone's p99 |
+| Threads for one slow dependency | Little's law: 1,000 requests/s × 5 s | 5,000 in flight against a 200-thread pool: saturated in 0.2 s |
+| Stream starts | $10^8$ × ~1.5 plays a day | ~1,500 SPS average, ~5,000 at peak |
+| Evacuation load | $N/(N-1)$ with three regions | Survivors carry 1.5× their peak: 65% utilisation becomes 98% |
 
-**Internal fan-out.** If an edge request fans out to ~10 internal calls on average (a home page, far more), that is ~6 million internal RPCs per second at peak. At this volume, "rare" failures are constant: a one-in-a-million failure mode happens six times a second.
+**Consequences.** Turn dependency failure into degraded success; bound concurrency per dependency; judge health by SPS; and plan region capacity as $N/(N-1)$, ready before traffic moves.
 
-**Why availability cannot be a product of dependencies.** Suppose a home page synchronously needs 30 services, each 99.99% available. Its availability is $0.9999^{30} \approx 0.9970$: 0.3% of pages fail. At 50,000 home-page loads per second, that is 150 failed pages every second, continuously, with every dependency meeting a four-nines SLO. The only way out is to make most dependency failures *not* fail the page: time out, fall back, render without that row.
+## API
 
-**Why tails dominate.** If each of those 30 calls has a p99 of 100 ms, the chance that at least one of them is in its tail is $1 - 0.99^{30} \approx 26\%$. A quarter of home pages would wait for somebody's worst 1%. Timeouts with fallbacks bound the page's latency to the timeout, not to the slowest dependency's tail.
+The device API is shaped for devices. Netflix has publicly described its evolution from one REST API, to device-specific endpoint scripts run on the API servers, to Falcor, to federated GraphQL: device teams shape responses for very different screens without a backend release each time. The internal contract is shaped for failure. Every internal call carries:
 
-**Why one slow dependency exhausts a service (Little's law).** A service handling 1,000 requests/s calls a dependency that normally answers in 50 ms: 50 calls in flight. The dependency slows to 5 s: now $1{,}000 \times 5 = 5{,}000$ calls in flight. A server with a 200-thread pool is saturated in a fifth of a second, and it stops serving requests that never touch the slow dependency. Cap that dependency at 10 concurrent calls with a 1-second timeout, and it can hold at most 10 threads; the other 190 keep working.
+- **A deadline**, the member's remaining budget, so a service three hops deep does not start work the edge has abandoned.
+- **A priority class** set at the edge: playback outranks prefetch, which outranks log upload. Netflix has described prioritised load shedding at its edge on exactly this idea.
+- **Failure-injection context**, present only during experiments, telling a service to fail or delay *this* request's call to a named dependency.
+- **Trace context**, so any request can be followed through the graph ([observability](/learn/system-design/building-blocks/observability)).
 
-**Playback.** 100 million daily members × ~1.5 plays = $1.5 \times 10^8$ stream starts/day: ~1,500 SPS on average, ~5,000 at peak (illustrative).
-
-**Regional headroom.** Spread 600,000 requests/s evenly over three regions: 200,000 each. Evacuate one, and the other two carry 300,000 each: **1.5× their normal peak.** In general, with N regions each must absorb $N/(N-1)$ of its normal load: 1.5× for three, 1.33× for four. A region running at 60% of capacity at peak lands at 90% after an evacuation, survivable with no margin; one at 70% lands at 105% and falls over. So either every region carries permanent headroom (expensive), or the survivors scale up *before* traffic moves, which is only fast enough if capacity is ready rather than waiting on autoscaling.
-
-The design consequences: turn dependency failure into degraded success; bound concurrency per dependency; judge health by SPS; and plan region capacity as $N/(N-1)$.
-
-## API design
-
-The device-facing API is shaped for devices; the internal contract is shaped for failure.
-
-```text
-Device-facing (at the edge)
-GET  /home?profile={id}                        -> rows of titles (a GraphQL-style query in practice)
-GET  /titles/{id}                              -> metadata, artwork, member state
-POST /playback/start {title_id, device_caps}  -> manifest, DRM licence, CDN steering
-POST /events         [telemetry batch]         -> 202, sheddable
-```
-
-Netflix's device API has a publicly described history of its own: a one-size-fits-all REST API, then device-specific endpoint scripts written by the client teams and run on the API servers, then Falcor (its JSON Graph library), and later GraphQL, including a federated GraphQL architecture. The through-line is that device teams need to shape responses for very different screens without every change requiring a backend release.
-
-What matters more for this lesson is the context every internal call carries:
-
-- **A deadline**, not just a timeout: the remaining budget of the member's request, so a service three hops deep does not start work the edge has already abandoned.
-- **A priority class**, assigned at the edge: a playback request outranks a prefetch, which outranks a log upload. Netflix has publicly described using exactly this idea for prioritised load shedding at its edge gateway.
-- **Failure-injection context**, present only during experiments, which tells downstream services to fail or delay this particular request (more in the chaos deep dive).
-- **Trace context**, so any request can be followed through the call graph.
-
-Every remote call is wrapped by the same few mechanisms. A sketch of what an isolation wrapper in the style of Netflix's publicly described Hystrix does around every call:
+Every remote call is wrapped the same way. A sketch in the style of the publicly described Hystrix:
 
 ```python
 import threading
@@ -110,35 +85,23 @@ class Dependency:
             self.slots.release()
 ```
 
-The numbers in the sketch are Hystrix's documented defaults: a circuit opens only when at least 20 requests in a rolling 10-second window have been seen and at least 50% failed, then waits 5 seconds before letting a trial request through; the default timeout was 1 second and the default thread pool 10 threads. Hystrix's default isolation used a separate thread pool per dependency (so a hung call could be abandoned by the caller); the semaphore here is the lighter variant it also offered.
+The breaker numbers are Hystrix's documented defaults: open once a rolling 10-second window holds at least 20 requests of which at least 50% failed, then wait 5 seconds before one trial request; the default timeout was 1 second and the default pool 10 threads. Hystrix isolated each dependency in its own thread pool by default, so a hung call could be abandoned; the semaphore here is the lighter variant it also offered.
 
 ## Data model
 
-The interesting state in this system is the state that resilience mechanisms depend on.
+The interesting state is the state resilience depends on.
 
-**Service registry entry (Eureka-style).**
-
-```json
-{"app": "RECOMMENDATIONS", "instanceId": "i-0a12bc34", "ipAddr": "10.1.2.3", "port": 7001,
- "zone": "us-east-1c", "status": "UP", "metadata": {"version": "v412"},
- "lease": {"renewalIntervalSecs": 30, "durationSecs": 90, "lastRenewal": 1790000000}}
-```
-
-Instances renew their lease every 30 seconds and are expired after 90 seconds without renewal, the defaults Eureka documents. Every client caches the full registry locally and refreshes it periodically, so calls keep working if the registry servers are unreachable.
-
-**Circuit state**, per (calling service, dependency, operation): a rolling window of ten 1-second buckets counting successes, failures, timeouts and rejections; a state (`CLOSED`, `OPEN`, `HALF_OPEN`); and when it opened. It is in-process and per instance: each instance decides from its own experience, which avoids a coordination dependency for the thing that exists to survive dependency failures.
-
-**Personalisation, in tiers.** Netflix has publicly described splitting recommendation computation into offline, nearline and online stages. For fallback purposes that gives three tiers of home-page data:
+- **Registry entry (Eureka-style):** app, instance ID, address, zone, status, version, and a lease renewed every 30 seconds and expired after 90 without renewal, Eureka's documented defaults. Every client caches the whole registry and keeps using it if the registry servers are unreachable.
+- **Circuit state** per (caller, dependency, operation): ten 1-second buckets of successes, failures, timeouts and rejections, a state (`CLOSED`, `OPEN`, `HALF_OPEN`) and when it opened. In-process and per instance, so the mechanism that survives dependency failures depends on nothing remote.
+- **Traffic map:** per geography, the share of traffic each region receives. Evacuation is a change to this map.
+- **Chaos experiment:** target (service, operation), injection (fail, or add latency), scope (for example 1% of members on one device family), an equal control group, the steady-state metric (SPS), an abort threshold and a maximum duration.
+- **Personalisation in tiers.** Netflix has described offline, nearline and online recommendation stages, which give the home page three fallback tiers:
 
 | Tier | Contents | Where it lives | Staleness |
 |---|---|---|---|
-| Live | Rows ranked with current context (time of day, what you just watched) | Computed per request by online services | Seconds |
-| Precomputed | Rows computed per profile offline or nearline | Replicated cache (EVCache) in every region, backed by Cassandra | Hours |
-| Unpersonalised | Popular and trending rows per country | Small, cached everywhere, even embedded as a static default | Hours to a day |
-
-**Traffic map.** Per geography, the share of traffic each region receives. Evacuation is a change to this map.
-
-**Chaos experiment definition.** Target (service, operation), injection (fail, or add 500 ms), scope (for example 1% of members on one device family), a control group of equal size, the steady-state metric (SPS), an abort threshold, and a maximum duration.
+| Live | Rows ranked with current context | Computed per request online | Seconds |
+| Precomputed | Rows per profile, computed offline or nearline | Replicated cache ([EVCache](/learn/system-design/case-studies/distributed-cache)) in every region, backed by Cassandra | Hours |
+| Unpersonalised | Popular and trending rows per country | Cached everywhere; a static default on the device | Up to a day |
 
 ## High-level design
 
@@ -167,21 +130,18 @@ flowchart TB
   CH -.-> R2
 ```
 
-Every region is a full copy of the control plane and serves live traffic. Geo DNS sends each member to a nearby region. Within a region, requests enter through Zuul, go to an API layer that assembles device-shaped responses, and fan out to mid-tier services that find each other through Eureka and call each other through isolation wrappers. Member data lives in Cassandra, replicated asynchronously across regions, and hot data in EVCache, which Netflix has publicly described replicating across regions so that a member's data is already warm wherever they are sent. Playback returns the addresses of Open Connect servers; the video bytes never touch the cloud.
+Every region is a full copy of the control plane serving live traffic. Requests enter through Zuul, reach an API layer that assembles device-shaped responses, and fan out to mid-tier services that find each other through Eureka and call each other through isolation wrappers. Member data lives in Cassandra, replicated asynchronously across regions, and hot data in EVCache, which Netflix has described replicating across regions so that a member is already warm wherever they are sent. Playback returns Open Connect addresses; video bytes never touch the cloud.
 
-### The publicly described lineage
+| Component | Problem it answered | Publicly described evolution |
+|---|---|---|
+| Move to AWS | A 2008 database corruption stopped DVD shipping for about three days | Streaming control plane fully in the cloud by early 2016 |
+| **Zuul** | One dynamic front door for every device: auth, routing, canaries, shedding | Zuul 2 on Netty, open-sourced 2018; prioritised load shedding |
+| **Eureka** + **Ribbon** | Finding instances that come and go; client-side, zone-aware balancing | Moving into an Envoy-based service mesh; Ribbon in maintenance |
+| **Hystrix** | One slow dependency cascading through everything | Maintenance mode since 2018; the README points to Resilience4j and adaptive concurrency limits |
+| **Chaos Monkey**, Simian Army | Resilience assumed, not tested | FIT (request-scoped injection), ChAP (automated experiments with control groups) |
+| **Active-active** | The Christmas Eve 2012 regional outage | Three regions; faster evacuation by having capacity ready (Project Nimble) |
 
-| Component | Problem it answered | What it did | Publicly described evolution |
-|---|---|---|---|
-| Move to AWS | A 2008 database corruption stopped DVD shipping for about three days | Rebuild as cloud-native services rather than lift the monolith | Streaming control plane fully in the cloud by early 2016 |
-| **Zuul** | One front door for every device, with dynamic behaviour | Edge gateway with pre, routing, post and error filters loaded at runtime; auth, routing, insights, canary routing, stress testing, load shedding | Zuul 2 rewritten asynchronously on Netty and open-sourced in 2018; prioritised load shedding at the edge |
-| **Eureka** | Finding instances that come and go constantly | Registry with heartbeats, client-side caches, and a preference for stale data over no data | Service-mesh discovery (Netflix has described moving inter-service traffic onto an Envoy-based mesh) |
-| **Ribbon** | Load balancing without a central balancer hop | Client-side, zone-aware load balancing using Eureka's data | In maintenance mode; the responsibility moves into gRPC clients and the mesh |
-| **Hystrix** | One slow dependency cascading through everything | Timeouts, per-dependency thread pools, circuit breakers, fallbacks, real-time metrics (Hystrix Dashboard, Turbine) | Maintenance mode since 2018; the README points new projects to Resilience4j and to adaptive approaches such as concurrency limits |
-| **Chaos Monkey and the Simian Army** | Resilience that was assumed, not tested | Terminate instances in production during business hours; Chaos Gorilla (a zone), Chaos Kong (a region), Latency Monkey | FIT (request-scoped failure injection) and ChAP (automated experiments with control groups) |
-| **Active-active regions** | The Christmas Eve 2012 regional outage | Serve from multiple regions at once; evacuate a failing region by shifting traffic | Three regions; work (Project Nimble) to make evacuation much faster by having capacity ready |
-
-Three ideas run through the table. **Prefer availability for control-plane metadata**: a registry entry that is 30 seconds stale is fine; a registry that refuses to answer during a partition is not. **Put resilience in the client**: the caller is the one who suffers when a dependency is slow, so the caller holds the timeout, the breaker and the fallback. **Move shared mechanisms down the stack when they stabilise**: discovery, load balancing, retries and mTLS started as Java libraries every service linked, and are moving into infrastructure (a [mesh sidecar](/learn/networking/networking-in-practice/service-meshes-and-proxies)) that works for any language.
+Three ideas run through the table. **Prefer availability for control-plane metadata:** a registry 30 seconds stale is fine; one that refuses to answer during a partition is not ([CAP and PACELC](/learn/system-design/building-blocks/cap-and-pacelc)). **Put resilience in the caller**, who suffers when a dependency is slow. **Move shared mechanisms down the stack** once they stabilise: discovery, balancing, retries and mTLS started as Java libraries and are moving into a [mesh sidecar](/learn/networking/networking-in-practice/service-meshes-and-proxies) that serves any language.
 
 ```viz
 {"type": "system", "scenario": "service-mesh", "nodes": 3,
@@ -189,16 +149,31 @@ Three ideas run through the table. **Prefer availability for control-plane metad
  "caption": "Discovery, client-side load balancing, retries and mTLS once lived in libraries linked into every Java service (Eureka client, Ribbon, Hystrix). A sidecar proxy does the same work outside the application, for any language, configured centrally. The patterns are unchanged; where they run has moved."}
 ```
 
-## Deep dives
+## Deep dive: one home page, five policies
 
-### Isolation: from Hystrix to adaptive concurrency limits
+### The model
 
-The Little's-law arithmetic above is why isolation exists. [Resilience patterns](/learn/system-design/building-blocks/resilience-patterns) covers each pattern on its own; here the question is how they compose across hundreds of services. Without isolation, a single dependency slowing from 50 ms to 5 s consumes every request thread in the calling service within a fraction of a second, and the caller fails for everything, including requests that never needed the slow dependency. Then *its* callers see it slow down, and the failure climbs the call graph. The publicly described Hystrix design stops that with four mechanisms, each answering one part of the problem:
+An API instance serves 1,000 requests a second with 200 request threads. 70% are home pages, which call five dependencies in parallel (`profile`, `rows`, `ratings`, `artwork`, `bookmarks`, each answering in 30–70 ms); 30% are playback requests, which call three others and never touch `ratings`. A request holds its thread until its slowest call returns. At t = 10 s `ratings` slows to 5 s; at t = 70 s it heals. When every thread is busy a new request is rejected with a 503. Arrivals are Poisson; each policy was simulated for 100 seconds (results for the incident's steady state, t = 15–70 s):
 
-1. **Timeouts** bound how long any one call can hold resources. Set them from the dependency's observed p99 plus margin, and never longer than the caller's remaining deadline.
-2. **Bulkheads** (a small, separate thread pool or semaphore per dependency) bound how *many* resources one dependency can hold. When the pool is full, new calls are rejected instantly and go to the fallback, rather than queueing.
-3. **Circuit breakers** stop calling a dependency that is clearly failing, which protects the caller's latency (no waiting for timeouts) and gives the dependency room to recover instead of being hammered.
-4. **Fallbacks** turn a rejected, timed-out or failed call into a degraded answer instead of an error.
+| Policy | Threads busy | Home pages: full / degraded / failed / rejected | Playback served | p99 answered | Calls/s to `ratings` | Full pages again after heal |
+|---|---|---|---|---|---|---|
+| Healthy baseline | 67 | 100 / 0 / 0 / 0% | 100% | 75 ms | 700 | – |
+| No timeouts | 200 | 5.7 / 0 / 0 / 94.3% | 6.2% | 5,005 ms | 40 | 0.5 s |
+| 1 s timeouts | 200 | 0 / 0 / 27.6 / 72.4% | 28% | 1,005 ms | 194 | 0.3 s |
+| + bulkhead of 60 | 123 | 0 / 0 / 100 / 0% | 100% | 1,005 ms | 60 | 0.3 s |
+| + circuit breaker | 67 | 0 / 0 / 100 / 0% | 100% | 75 ms | 0.2 once open | 4.1 s |
+| + fallback | 67 | 0 / **100** / 0 / 0% | 100% | 75 ms | 0.2 once open | 4.1 s |
+
+### Reading it row by row
+
+- **No timeouts.** Little's law: $700 \times 5\text{ s} = 3{,}500$ threads wanted, 200 available. 94% of requests are rejected, and **playback, which never calls `ratings`, fails with them**. That is the cascade.
+- **1 s timeouts alone still saturate:** $700 \times 1\text{ s} + 300 \times 0.05\text{ s} = 715$ threads wanted. Hystrix's default 1 s timeout is safe only where rate × timeout fits the pool. It also sends `ratings` more traffic (194 calls/s) than doing nothing.
+- **The bulkhead is sized from normal concurrency**, $700 \times 0.05\text{ s} = 35$ calls in flight, 49 at the slowest normal latency, so 60. (A bulkhead of 10, Hystrix's default pool size, failed 72% of home pages in the same simulation while `ratings` was healthy.) Now `ratings` can hold at most 60 threads and playback is untouched; home pages still fail, because nothing substitutes for the row.
+- **The breaker** stops calling a dependency once half the calls in its window fail: its load drops from 700 calls/s to one trial every 5 s, and failures take microseconds instead of 1 s. It opened 5.0 s into the incident, not at once, because the 10-second window still held five seconds of successes: the error percentage reached 50% only then.
+- **The fallback** turns every failure into a page without the ratings row, at normal latency.
+- **The cost:** after `ratings` healed, full pages returned in 0.3 s without a breaker and 4.1 s with one, because nothing calls the dependency until the next trial. The sleep window is paid on the way out.
+
+One request at t = 30 s under the last policy: the edge assigns the interactive class and a 1,000 ms deadline (0 ms); the API fans out five calls (2 ms); the `ratings` wrapper finds the breaker open and returns the fallback in microseconds; the other four answer by 70 ms; the page is assembled without the row, counted as degraded, and returned at about 75 ms.
 
 ```viz
 {"type": "system", "scenario": "bulkhead", "nodes": 3,
@@ -212,77 +187,137 @@ The Little's-law arithmetic above is why isolation exists. [Resilience patterns]
  "caption": "After enough requests in the rolling window fail, the breaker opens and calls fail fast into the fallback without touching the dependency. After a sleep window, one trial request is allowed through; success closes the breaker, failure keeps it open."}
 ```
 
-**Why Netflix moved on from Hystrix's configuration model.** Every Hystrix command had its own timeout, pool size and thresholds. Across hundreds of services and thousands of commands, those numbers were set once, rarely revisited, and wrong after the next change to either side: a timeout tuned for last quarter's latency, a pool sized for last year's traffic. The README's stated direction (when the project entered maintenance) was towards implementations that react to an application's real-time performance rather than pre-configured settings. The publicly described concurrency-limits work applies TCP congestion-control thinking to services: measure latency continuously, treat latency rising above its no-load baseline as a sign that requests are queueing, and shrink the number of requests allowed in flight; when latency returns to baseline, grow it again. By Little's law the right limit is roughly throughput × latency at the healthy operating point, and the algorithm discovers it instead of an engineer guessing it. The server protects itself by shedding excess concurrency early and cheaply, and the client does the same towards each dependency.
+### Retries multiply
 
-The senior way to say this in an interview: the *patterns* (timeouts, bulkheads, breakers, fallbacks, load shedding) are permanent; the *library* is a detail; and static per-call configuration does not survive contact with hundreds of teams, so prefer adaptive limits and platform-level defaults that teams override only with a reason.
+Suppose the API, the personalisation service and the `ratings` client each make up to three attempts. With `ratings` fully down, one home page produces $3^3 = 27$ attempts at the bottom: its normal 700 calls/s become 18,900/s at the moment it is least able to take them. At a 50% failure rate the same policy gives about 2× (the layers above mostly see success), so the amplification is worst exactly when the dependency is fully down. Retrying at one layer with a budget of 10% of normal traffic caps it at 770/s. Retry where a different choice is possible (another instance), never past the propagated deadline ([idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) simulates the storms).
 
-### Fallbacks and graceful degradation of personalisation
-
-A fallback is a product decision made in advance. Netflix's public write-ups on making its API fault-tolerant described three kinds: return something else useful (often stale data from a cache), fail silently by omitting optional content, or fail fast when there is no sensible substitute. Applied to the home page, that becomes a degradation ladder:
-
-1. **Live personalisation** is available: rows reflect what the member did five minutes ago.
-2. **The online ranking service is down or slow**: serve the profile's precomputed rows from the replicated cache. They are a few hours stale; almost nobody notices.
-3. **The member's precomputed rows are missing too**: serve unpersonalised popular and trending rows for the member's country.
-4. **Even that is unreachable**: the edge or the client renders a static default set of rows it already holds.
-
-Meanwhile, anything optional (a "because you watched" row, ratings badges, a promotional banner) *fails silent*: the row is omitted. And a small number of calls have no honest fallback. Playback cannot fake a DRM licence or an entitlement check; those *fail fast* and rely instead on redundancy: retry once on another instance, and if the region is broken, the region is evacuated.
-
-Four rules make a degradation ladder real rather than aspirational:
-
-- **The fallback must not share the failure.** "If recommendations fails, read from the recommendations cache cluster" is not a fallback if that cluster is why recommendations failed. Each rung depends on less than the one above it, ending in something in-process.
-- **The fallback must be cheaper than the primary.** A fallback that runs a heavy query turns an outage of one service into load on another.
-- **The fallback must be exercised.** A path that runs only during incidents is a path with undiscovered bugs. Failure injection (next section) forces fallbacks to run in production on purpose.
-- **Fallback rate is a monitored signal.** If 30% of home pages are unpersonalised for a week and nobody notices, the product has quietly degraded. Alert on fallback rate like an error rate.
-
-The justification is SPS. A member who sees popular titles instead of perfectly personalised ones still finds something to watch most of the time; a member who sees an error page does not. Degrading the enhancement protects the metric that matters, and that is why personalisation is treated as important but not critical-path.
-
-### Chaos engineering: from killing instances to automated experiments
-
-Netflix's publicly described chaos engineering practice can be read as three stages, and the stages are a good template for any organisation.
-
-**Stage 1: make failure routine (Chaos Monkey).** Chaos Monkey terminates instances at random in production, during business hours when engineers are around to respond. Its real effect was cultural and architectural rather than operational: once every team knew instances *would* disappear on a normal Tuesday, statelessness, redundancy across zones and automatic replacement stopped being best practices and became requirements, because the alternative was being paged for your own design. The Simian Army extended the idea: Latency Monkey injected delays, Chaos Gorilla took out an availability zone, and Chaos Kong evacuated an entire region, which Netflix has described doing regularly as an exercise.
-
-**Stage 2: target the failure precisely (FIT).** Killing instances cannot test "what happens to the home page when the ratings service returns errors for a subset of members", and killing the ratings service entirely is too blunt. Failure Injection Testing, as publicly described, attaches failure-injection metadata at the edge to requests that match a scope (a test account, a device type, a small percentage of members); services along the call path read the metadata and fail or delay *that request's* call to the named dependency. The blast radius is a set of requests, not a set of machines, and it can start at one engineer's own account.
-
-**Stage 3: make experiments safe to run continuously (ChAP).** The Chaos Automation Platform, as publicly described, runs each experiment with two small, equal slices of traffic: a control group and an experiment group, both routed to fresh deployments so the comparison is fair. The failure is injected only for the experiment group; the platform compares the steady-state metric (SPS) between the groups and stops the experiment automatically if the difference exceeds a threshold.
-
-The experiment method itself is the one written up as the Principles of Chaos Engineering, which Netflix engineers helped articulate: define steady state as a measurable output (SPS, not CPU), hypothesise that it will not change under a realistic failure, introduce the failure, try to disprove the hypothesis, and minimise the blast radius while doing it.
-
-The group size is a statistics question, and it is worth doing the arithmetic in an interview. At 5,000 SPS, a 1% experiment group sees 50 stream starts a second, 30,000 in 10 minutes; so does the control. Stream starts are roughly Poisson, so the standard deviation of the difference between two groups is about $\sqrt{30{,}000 + 30{,}000} \approx 245$. A 5% drop in the experiment group is 1,500 starts, about 6 standard deviations: detectable within minutes. At a 0.1% group the same 5% drop is about 2 standard deviations after 10 minutes, too noisy to act on quickly. **The blast radius you can afford is set by how fast your metric can detect harm**, which is why a high-volume, low-noise business metric is the foundation of chaos engineering.
-
-### Regional evacuation
-
-Active-active means every region serves traffic all the time, so the failover path is exercised continuously rather than discovered during a disaster. Evacuating a region, as publicly described in Netflix's active-active write-ups, has these parts:
-
-**Data is already everywhere.** Member data in Cassandra replicates asynchronously between regions, and EVCache replicates cache writes across regions, so a member moved to another region finds their profile and a warm cache there. The consequence of *asynchronous* replication has to be accepted per data type: a "continue watching" position written seconds before the evacuation may be missing for a short while. That is fine for viewing history and wrong for billing, which is why strongly consistent flows are kept out of the evacuation-critical path and handled with different mechanisms.
-
-**Traffic moves in two ways.** Changing the traffic map in geo DNS moves new connections, but DNS answers are cached by resolvers and devices, some of which ignore TTLs. So the edge in the failing region also *proxies* requests it still receives to a healthy region, which moves traffic immediately for clients that have not re-resolved. Netflix has described Zuul's role in exactly this cross-region proxying.
-
-**Capacity must be there first.** From the estimate, the survivors need 1.5× their peak. Autoscaling reacts to load, but launching instances and warming them takes minutes, and during those minutes the survivors would be overloaded, which is how one regional failure becomes three. The sequence is therefore: scale up the survivors to the target capacity, *then* shift traffic in steps, watching SPS and error rates at each step. Netflix has publicly described work (Project Nimble) aimed at making evacuations much faster, largely by having that capacity ready instead of waiting for it.
-
-**The decision is made quickly and early.** Cheap, rehearsed evacuation enables a posture of evacuating first and debugging later: if a region is unhealthy and the cause is not immediately obvious, move members out, restore SPS, and then investigate in a region with no customers in it. That only works because evacuation is practised regularly (Chaos Kong) and is known to be safe; an evacuation that has never been rehearsed is itself a risk, and teams hesitate to use it.
-
-```mermaid
-sequenceDiagram
-  participant Ops as Evacuation tooling outside the failing region
-  participant S as Surviving regions
-  participant E as Edge in failing region
-  participant DNS as Geo DNS
-  Ops->>S: pre-scale to 1.5x peak capacity
-  S-->>Ops: capacity ready, caches warm (replicated)
-  Ops->>DNS: shift 25% of the failing region's traffic
-  Ops->>E: proxy matching requests cross-region
-  Ops->>Ops: watch SPS and errors, then 50%, 100%
-  Note over E: region drained, debugging starts
+```viz
+{"type": "system", "scenario": "retry-backoff", "requests": 6,
+ "title": "Retries arriving at a struggling dependency",
+ "caption": "Every layer that retries multiplies the attempts that reach the bottom. Backoff with jitter spreads them in time; only a budget or a single retrying layer bounds how many there are."}
 ```
 
-Note where the tooling runs. If the system that performs the evacuation is hosted in the region being evacuated, the failure you are escaping can disable the escape. The control plane for failover must be deployed so that it survives the loss of any one region.
+### Why Netflix moved on from static configuration
+
+Every Hystrix command had its own timeout, pool size and thresholds, set once and wrong after the next change on either side, as the bulkhead-of-10 result shows. The README's stated direction was towards mechanisms that react to real-time performance. The publicly described concurrency-limits work applies TCP congestion-control thinking: treat latency rising above its no-load baseline as queueing and shrink the number of requests allowed in flight; grow it again when latency recovers. By Little's law the right limit is throughput × healthy latency, and the algorithm finds it instead of an engineer guessing. The patterns are permanent; the library and its hand-tuned numbers were not ([resilience patterns](/learn/system-design/building-blocks/resilience-patterns)).
+
+```exercise
+id: circuit-breaker
+title: A Hystrix-style circuit breaker
+prompt: |
+  Implement `breaker(events, volume, error_pct, window, sleep)`. Each event is
+  `[t, outcome]` (seconds, non-decreasing), where `outcome` is what the call would return:
+  `"ok"`, `"error"` or `"timeout"` (both of the last two are failures). Calls complete
+  instantly. Return one decision per event: `"call"`, `"reject"` or `"trial"`.
+
+  - **Closed:** make the call (`"call"`) and record its outcome at time `t`. The window
+    holds recorded outcomes with time in `(t - window, t]`: one exactly `window` seconds
+    old has dropped out. After recording, if the window holds at least `volume` outcomes
+    and `failures * 100 >= error_pct * count`, the breaker opens at `t`.
+  - **Open:** if `t - opened_at < sleep`, return `"reject"` and record nothing. Otherwise
+    this call is the single half-open trial (`"trial"`): if it succeeds the breaker closes
+    and the window is emptied; if it fails the breaker stays open with `opened_at = t`.
+languages: [python, javascript]
+entry: breaker
+starter:
+  python: |
+    def breaker(events, volume, error_pct, window, sleep):
+        out = []
+        # your code here
+        return out
+  javascript: |
+    function breaker(events, volume, error_pct, window, sleep) {
+      const out = [];
+      // your code here
+      return out;
+    }
+tests:
+  - args: [[[0, "ok"], [1, "error"], [2, "error"], [3, "error"], [4, "ok"], [7, "ok"], [8, "ok"], [9, "error"]], 4, 50, 10, 5]
+    expected: ["call", "call", "call", "call", "reject", "reject", "trial", "call"]
+    label: opens, rejects, then a trial succeeds
+  - args: [[[0, "error"], [1, "error"], [2, "error"], [3, "error"]], 5, 50, 10, 5]
+    expected: ["call", "call", "call", "call"]
+    label: below the volume threshold it never opens
+  - args: [[[0, "error"], [1, "error"], [6, "error"], [8, "ok"], [10, "ok"], [11, "ok"]], 2, 50, 10, 5]
+    expected: ["call", "call", "trial", "reject", "reject", "trial"]
+    label: a failed trial re-opens for another sleep window
+  - args: [[[0, "error"], [10, "error"], [11, "error"], [12, "ok"]], 2, 100, 10, 5]
+    expected: ["call", "call", "call", "reject"]
+    label: an outcome exactly one window old has aged out
+  - args: [[], 20, 50, 10, 5]
+    expected: []
+    label: no calls
+  - args: [[[0, "ok"], [1, "timeout"], [2, "ok"], [3, "timeout"], [4, "ok"]], 4, 50, 10, 5]
+    expected: ["call", "call", "call", "call", "reject"]
+    label: timeouts count as failures; exactly the threshold opens
+  - args: [[[0, "error"], [1, "error"], [6, "ok"], [7, "error"], [8, "ok"], [9, "error"], [10, "error"]], 2, 50, 10, 5]
+    expected: ["call", "call", "trial", "call", "call", "reject", "reject"]
+    hidden: true
+  - args: [[[0.0, "ok"], [0.1, "ok"], [0.2, "ok"], [0.3, "ok"], [0.4, "ok"], [0.5, "ok"], [0.6, "ok"], [0.7, "ok"], [0.8, "ok"], [0.9, "ok"], [1.0, "error"], [1.1, "error"], [1.2, "error"], [1.3, "error"], [1.4, "error"], [1.5, "error"], [1.6, "error"], [1.7, "error"], [1.8, "error"], [1.9, "error"], [2.0, "error"], [2.5, "error"], [6.8, "ok"], [7.0, "ok"], [7.1, "error"]], 20, 50, 10, 5]
+    expected: ["call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "call", "reject", "reject", "reject", "trial", "call"]
+    hidden: true
+hints:
+  - "Keep the state, the time it opened, and a list of (time, failed) for calls made while closed."
+  - "Drop outcomes with time <= t - window before counting; check volume first, then the percentage."
+```
+
+## Deep dive: fallbacks and graceful degradation
+
+A fallback is a product decision made in advance. Netflix's public write-ups on its fault-tolerant API described three kinds: return something else useful (often stale cached data), fail silently by omitting optional content, or fail fast when there is no honest substitute. For the home page that is a ladder: live personalisation; else the profile's precomputed rows from the replicated cache, hours stale; else popular rows for the country; else the static default the device already holds. Optional content (a ratings badge, a "because you watched" row, a banner) fails silent. Playback cannot fake a DRM licence or an entitlement check: those fail fast and rely on redundancy, a retry on another instance, and evacuation if the region is broken.
+
+Four rules make the ladder real:
+
+- **The fallback must not share the failure.** Reading the recommendations cache is no fallback if that cache is why recommendations failed; each rung depends on less, ending in something in-process.
+- **It must be cheaper than the primary**, or an outage of one service becomes load on another.
+- **It must be exercised.** A path that runs only during incidents has undiscovered bugs; failure injection runs it on purpose.
+- **Fallback rate is an alert.** If 30% of home pages are unpersonalised for a week and nobody notices, the product has quietly degraded.
+
+A member shown popular titles still usually finds something to watch; a member shown an error does not. Degrading the enhancement protects SPS.
+
+## Deep dive: chaos experiments on the same call graph
+
+Netflix's publicly described practice reads as three stages. **Chaos Monkey** terminates instances in production during business hours; its real effect was architectural, because once every team knew instances *would* vanish on a Tuesday, statelessness and redundancy across zones became requirements. The Simian Army extended it: Latency Monkey, Chaos Gorilla (a zone), Chaos Kong (a region). **FIT** (Failure Injection Testing) attaches injection metadata at the edge to requests matching a scope, so services fail or delay *that request's* call to a named dependency: the blast radius is a set of requests, starting with one engineer's account. **ChAP** (the Chaos Automation Platform) runs each experiment on two equal slices of traffic routed to fresh deployments, injects only into the experiment slice, compares SPS, and aborts automatically.
+
+The experiment for our graph: "home pages whose `ratings` calls fail still start streams at the normal rate", injected for 1% of members against a 1% control. At 5,000 SPS each group sees 50 starts a second. Starts are roughly Poisson, so the standard deviation of the difference between two groups of $n$ starts is $\sqrt{2n}$:
+
+| Running time | Starts per group | σ of difference | A 5% drop is | Smallest drop at 3σ |
+|---|---|---|---|---|
+| 1 minute | 3,000 | 77 | 1.9σ | 7.7% |
+| 10 minutes | 30,000 | 245 | 6.1σ | 2.4% |
+| 10 minutes, 0.1% groups | 3,000 | 77 | 1.9σ | 7.7% |
+
+So set the abort threshold at the experiment group falling 3σ below control at any one-minute check, which stops a large regression (8% or worse) within a minute, and run for 10 minutes, which resolves a 2.4% effect. If the fallback works, the two groups match; if the client treats a missing ratings row as an error, SPS in the experiment group drops and the platform stops the experiment before most members notice. **The blast radius you can afford is set by how fast your metric detects harm.** Injecting a 5 s delay instead of an error tests something different: the timeouts and the bulkhead rather than the fallback.
+
+## Deep dive: regional evacuation
+
+Active-active means every region serves traffic all the time, so the failover path is exercised continuously. Member data in Cassandra replicates asynchronously and EVCache replicates cache writes across regions, so a moved member finds a warm cache. Asynchronous replication is accepted per data type: a "continue watching" position written seconds before an evacuation may be briefly missing, which is fine for viewing history and wrong for billing, so billing stays off the evacuation-critical path. Traffic moves two ways: a traffic-map change in geo DNS moves new connections, and because resolvers and devices cache answers (some ignore TTLs), the failing region's edge also *proxies* what it still receives to a healthy region, which Netflix has described Zuul doing.
+
+A timed evacuation of region A, three regions at 65% of capacity at peak. Timings are illustrative orders of magnitude:
+
+| t (min) | Step | Waits for |
+|---|---|---|
+| 0 | SPS in region A falls below its expected curve; errors rise | Automated detection on SPS, a minute or two of evidence |
+| 2 | Decision: evacuate first, debug later | A human confirms; nobody investigates yet |
+| 2–10 | Pre-scale B and C from 65% to handle 1.5× their load | Instances launched, healthy and warm; the longest step unless capacity is already reserved |
+| 10 | Shift 25% of A's members (DNS weights plus edge proxying) | SPS and errors in B and C steady for a few minutes |
+| 13 | Shift 50% | Same gate |
+| 16 | Shift 100%; region A drained | Debugging starts in a region with no customers |
+
+Shifting before scaling puts the survivors at $65\% \times 1.5 = 97.5\%$, where any wobble overloads them, which is how one regional failure becomes three. Netflix has described work (Project Nimble) to make evacuation much faster, largely by having capacity ready instead of waiting for it. The tooling that performs the evacuation must itself survive the loss of any one region.
 
 ## Failure modes
 
-**Retry amplification.** Three layers of services each making up to three attempts turn one failed request into up to $3^3 = 27$ calls at the bottom, arriving exactly when the bottom layer is struggling. Mitigate: retry at one layer (usually closest to the caller that can make a different choice, such as another instance), use retry budgets ([timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff)) so that retries add at most, say, 10% to normal traffic, and never retry past the propagated deadline.
-
-**The change that breaks every region at once.** Active-active protects against a region failing; it amplifies a bad global change. A configuration push or a deploy that reaches every region simultaneously is a correlated failure that evacuation cannot fix, because there is nowhere healthy to go. Mitigate: treat configuration like code, roll out region by region with a bake time, and gate each stage on automated canary analysis (Netflix publicly described Kayenta, built with Google, for this), comparing the canary's metrics with a baseline running the old version.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Dependency cascade | Unrelated endpoints fail when one dependency slows | Thread pools saturated; in-flight calls to one dependency ≈ rate × its latency | Timeouts from the deadline, bulkheads sized from normal concurrency, breakers, fallbacks |
+| Retry amplification | Load on a failing service 10–30× normal | Attempts per request at the bottom ≫ 1 | One retrying layer, a 10% budget, deadline propagation |
+| Bad global change | Every region degrades at once; evacuation cannot help | Correlation with a deploy or config push | Region-by-region rollout with bake time and automated canary analysis (Netflix described Kayenta, built with Google) |
+| Stale discovery | Calls to instances that died up to 90 s ago | Connection refused from addresses still in the registry | Retry idempotent calls on another instance; fast local failure detection |
+| Registry partition | Heartbeats stop from much of the fleet at once | Renewals far below the expected rate | Eureka's self-preservation stops expiring registrations: a partition is likelier than a mass death |
+| Evacuation overload | Survivors saturate after traffic moves; cache miss storm | Shift happened before scaling; cold caches | Pre-scale first; replicated caches; shift in steps with SPS gates |
+| Hidden degradation | Home pages unpersonalised for a week | Fallback rate trending up with no alert | Fallback rate as a first-class alert with an owner |
+| Edge overload | 3× traffic from a client bug or a surge | Request rate per priority class | Prioritised shedding at the edge: telemetry and prefetch before playback |
+| Chaos escapes its radius | Harm beyond the experiment group | Control and experiment both drop | Small groups, automatic abort on SPS, a global kill switch, no experiments during launches |
 
 ```viz
 {"type": "system", "scenario": "canary", "requests": 10,
@@ -290,51 +325,63 @@ Note where the tooling runs. If the system that performs the evacuation is hoste
  "caption": "A small share of traffic goes to the new version alongside a baseline on the old version. Metrics are compared statistically; a regression stops the rollout before it reaches the rest of the region, let alone the other regions."}
 ```
 
-**Stale discovery.** An instance dies without deregistering; for up to the lease duration, clients' cached registries still route to it. Mitigate: client-side retries on a different instance for idempotent calls, and fast local failure detection (connection refused is immediate). The opposite failure is worse: during a network partition the registry sees heartbeats stop from many instances at once. Eureka's publicly documented self-preservation mode stops expiring registrations when renewals fall far below the expected rate, on the reasoning that it is more likely the registry is partitioned than that most of the fleet died simultaneously.
+## Trade-offs: what we rejected
 
-**Evacuation overload.** Survivors receive 1.5× load before they are scaled, or with cold caches, and the database behind them sees a miss storm. Mitigate: pre-scale first, replicate caches across regions, and shift traffic in steps with SPS gates.
+| Decision | Chosen | Rejected | Why here | What would flip it |
+|---|---|---|---|---|
+| Discovery | AP registry, client caches, self-preservation | CP coordination service (ZooKeeper) | A partition must not erase healthy instances | Needing strict leader election, which belongs in a CP store anyway |
+| Isolation limits | Adaptive concurrency limits, platform defaults | Hand-tuned per-command pools and timeouts | Static numbers were wrong after the next change | A handful of stable dependencies |
+| Retries | One layer, 10% budget, deadline-aware | Every layer retries three times | 27× at the bottom when it is fully down | None |
+| Region strategy | Active-active, pre-scaled evacuation | Active-passive standby | The failover path is exercised daily | Cost of 1.5× capacity exceeding the cost of regional outages |
+| Chaos scope | Request-scoped injection with control groups | Killing whole services | Blast radius measured in requests, aborted by statistics | A metric too noisy to detect harm quickly |
 
-**Fallbacks that hide a permanent outage.** The home page quietly serves unpersonalised rows for a week. Mitigate: fallback rate as a first-class alert, with an owner.
+## At 10× and 100×
 
-**Edge overload.** A client bug or a surge sends 3× normal traffic. Mitigate: prioritised load shedding at the edge, as publicly described: classify requests by criticality and shed prefetch, telemetry and non-interactive traffic before anything on the playback path, and prefer shedding at the edge (cheap) to shedding deep in the call graph (after work has been done).
+Assume (illustratively) 50,000 instances today, each renewing a lease every 30 s, with ~1.5 KB per registry entry.
 
-**Chaos that escapes its blast radius.** An experiment's failure spreads further than planned. Mitigate: small groups, automatic abort on the steady-state metric, a global kill switch, and not running experiments during known high-risk periods such as a major launch.
+| Scale | Edge requests/s | Internal RPCs/s | Registry renewals/s | Full registry per client | One-in-a-million failures |
+|---|---|---|---|---|---|
+| 1× | 600,000 | 6 million | 1,700 | 75 MB | 6/s |
+| 10× | 6 million | 60 million | 16,700 | 750 MB | 60/s |
+| 100× | 60 million | 600 million | 167,000 | 7.5 GB | 600/s |
 
-## Senior follow-ups
+At 10× every client caching the whole registry becomes untenable, so clients subscribe only to the services they call and receive deltas, which is what a mesh control plane does. At 100× discovery is sharded per region and per service domain. Scale also helps: at 10× the SPS, a 0.1% experiment group sees what a 1% group sees today, so chaos experiments can shrink their blast radius tenfold.
 
-**Q: "Why did Netflix build Eureka instead of using ZooKeeper, or just DNS?"**
+## What real companies describe
 
-The design answer is that discovery should prefer availability. In a CP coordination service, instances on the minority side of a partition lose their sessions, their ephemeral registrations disappear, and healthy services vanish from the registry because of a network problem that did not affect them. Eureka's design takes the opposite position: registries replicate loosely, clients cache the whole registry and keep using it if the servers are unreachable, and self-preservation stops mass expiry when heartbeats drop suspiciously. Stale entries are handled by client retries. DNS alone is slow to change (answers are cached far and wide) and carries no health or metadata. The general principle, which applies equally to a mesh control plane today, is that the data plane must keep working on the last known good configuration when the control plane is unavailable.
+Beyond Netflix's own writing, Amazon's Builders' Library articles describe timeouts, retries with capped exponential backoff and jitter, and limiting retries to one layer; Google's SRE book describes client-side throttling, retry budgets per request and per client, criticality-based load shedding and deadline propagation. The ideas converge because the arithmetic is the same everywhere. Treat these as public descriptions of approaches, not current internals.
 
-**Q: "Hystrix is in maintenance mode. Would you still use circuit breakers?"**
+## Interviewer follow-ups
 
-Yes; the library retired, not the pattern. What I would change is how they are configured. Hand-tuned per-command timeouts and pool sizes drift out of date, so I would use platform defaults (from a library such as Resilience4j or from the mesh), derive timeouts from propagated deadlines and observed latency, use adaptive concurrency limits for overload protection, and key breakers per operation so one broken endpoint does not open the breaker for a healthy one. The fallback is still application code, because only the application knows what "degraded but useful" means.
+**"Why did Netflix build Eureka instead of using ZooKeeper, or DNS?"** Model answer: discovery should prefer availability. In a CP service, instances on the minority side of a partition lose their sessions and vanish from the registry over a network problem that did not affect them; Eureka replicates loosely, clients keep their cached copy, and self-preservation stops mass expiry. DNS is slow to change and carries no health data. Common wrong answer: "ZooKeeper is consistent, so it is safer".
 
-**Q: "How do you decide what a service's fallback should be?"**
+**"Hystrix is in maintenance mode. Would you still use circuit breakers?"** Model answer: yes; the library retired, not the pattern. I would take defaults from a library or the mesh, derive timeouts from propagated deadlines, use adaptive concurrency limits for overload, key breakers per operation, and accept that a breaker delays recovery by up to its sleep window (4.1 s in the simulation). The fallback stays application code. Common wrong answer: "no, the mesh handles resilience now", when only the application knows what degraded-but-useful means.
 
-Classify the call by what the member loses without it. Critical-path calls with no honest substitute (entitlement, DRM licence) get no fake fallback; they fail fast and rely on redundancy and evacuation. Enhancements get a stale or generic substitute (precomputed rows, then popular rows). Purely optional content fails silent. Then check each fallback against three rules: it must not depend on the thing that failed, it must be cheaper than the primary, and it must be exercised by failure injection. I would write the table down with product owners, because choosing what the member sees in an outage is a product decision.
+**"How do you choose a timeout?"** Model answer: from the caller's remaining deadline and the dependency's observed p99 plus margin, then check rate × timeout against the pool: at 700 calls/s a 1 s timeout needs 700 threads, so it must be backed by a bulkhead sized from normal concurrency. Common wrong answer: "1 second, the default".
 
-**Q: "Chaos in production sounds reckless. How do you justify it to a VP?"**
+**"Chaos in production sounds reckless. How do you justify it?"** Model answer: failures happen in production anyway; the choice is a 1% blast radius at 14:00 with engineers watching or 100% on a holiday. It needs a metric that detects harm within minutes (at 5,000 SPS, 3σ on a 1% group catches an 8% drop in a minute), automatic abort, and basic resilience in place. Common wrong answer: "we test in staging", which never has production's traffic or dependencies.
 
-Failures happen in production whether or not you schedule them; the choice is between discovering a weakness at 14:00 on a Tuesday with engineers watching and a 1% blast radius, or at 21:00 on a holiday at 100%. The practice has prerequisites, and I would say so: you need a steady-state metric that detects harm within minutes, automatic abort, and basic resilience already in place. Start with game days in staging, then single-instance termination in production, then request-scoped injection for a test account, and grow the blast radius only as confidence and detection improve.
+**"How much of this would you build with 30 engineers and one region?"** Model answer: multiple zones; timeouts, bounded retries with jitter and breakers on every remote call via a library or mesh; a fallback table for the top five features; alerts on one business metric; a quarterly game day. Active-active costs 1.5× capacity plus asynchronous replication, justified only by the cost of a regional outage ([designing for failure](/learn/system-design/senior-design-skills/designing-for-failure)). Common wrong answer: copying Netflix's architecture, which buys its costs without its reasons.
 
-**Q: "Your region evacuation takes 40 minutes. How do you get it to 5?"**
+## What mid-level engineers get wrong
 
-Break the 40 minutes into phases and attack each. Detection and decision: automate the trigger on SPS and error rate, with a human confirming rather than investigating. Capacity: pre-provisioned headroom or instant pre-scaling, because waiting for autoscaling is usually the longest phase. Traffic shift: edge proxying moves traffic immediately while DNS catches up. Data: caches already replicated so the survivors are warm. Then rehearse it regularly, because each rehearsal finds the manual step nobody wrote down.
-
-**Q: "How much of this would you build at a company with 30 engineers and one region?"**
-
-Much less, deliberately. I would run everything across multiple zones; put timeouts, bounded retries with jitter and circuit breakers on every remote call via a library or mesh; write a fallback table for the five most important features; alert on one business-level metric rather than on CPU; and run a game day each quarter. Active-active multi-region roughly means paying for 1.5× capacity plus the complexity of asynchronous replication, so I would adopt it only when the cost of a regional outage justifies that. Copying Netflix's architecture without Netflix's scale is a way of buying its costs without its reasons. [Designing for failure](/learn/system-design/senior-design-skills/designing-for-failure) develops the blast-radius and multi-region trade-offs.
+- Setting a 1 s timeout and calling the service protected, without checking rate × timeout against the thread pool.
+- Sizing bulkheads by default (10) rather than from normal concurrency, and rejecting healthy traffic.
+- Retrying at every layer, which multiplies load 27× on a dependency that is fully down.
+- Writing a fallback that reads from the component that has failed.
+- Measuring health with CPU and per-service error rates instead of the business metric.
+- Shifting traffic to surviving regions before they have scaled.
+- Treating chaos engineering as random breakage rather than an experiment with a hypothesis, a control group and an abort threshold.
 
 ## Senior signals
 
-- You define availability as a business-level metric (stream starts) and judge every resilience mechanism by whether it protects that metric.
-- You show with arithmetic why availability cannot be the product of 30 dependencies' availabilities, and why one slow dependency exhausts a caller (Little's law).
-- You prefer availability for control-plane metadata and require the data plane to work on the last known good configuration.
-- You treat fallbacks as product decisions with rules: independent of the failure, cheaper than the primary, exercised, and monitored.
-- You describe chaos engineering as a scientific method with a blast radius set by statistics, not as randomly breaking things.
-- You plan region capacity as N/(N−1), pre-scale before shifting traffic, and know that active-active amplifies bad global changes, which is why rollouts are regional and canaried.
-- You attribute Netflix specifics to what has been publicly described, and adapt the ideas to the scale in front of you rather than copying the architecture.
+- You define availability as a business metric (stream starts) and judge every mechanism by whether it protects it.
+- You show with Little's law why one slow dependency takes down unrelated endpoints, and why timeouts alone do not stop it at high rates.
+- You size bulkheads from normal concurrency and know a breaker trades faster failure for slower recovery.
+- You treat fallbacks as product decisions: independent of the failure, cheaper, exercised and monitored.
+- You size chaos experiments by statistics and give them an abort threshold.
+- You plan regions as N/(N−1), pre-scale before shifting, and roll changes out region by region because active-active amplifies bad global changes.
+- You attribute Netflix specifics to public descriptions and adapt the ideas to the scale in front of you.
 
 ## Check yourself
 
@@ -344,35 +391,35 @@ Much less, deliberately. I would run everything across multiple zones; put timeo
   options: ["It fails ~0.3% of the time; failures must degrade, not error", "The page should call the services in sequence, not in parallel", "The page is 99.99% available, so nothing is needed", "Each dependency must be 99.999% available and that is sufficient"]
   answer: 0
   explanation: >-
-    0.9999^30 is about 0.997, so the page fails about 0.3% of the time even when every dependency meets its SLO. At high volume that is a constant stream of failed pages, so most dependency failures must become degraded success. Timeouts and fallbacks make a dependency's failure cost a row, not the page; tightening every SLO helps less and costs far more.
+    0.9999^30 is about 0.997, so the page fails about 0.3% of the time even when every dependency meets its SLO. At high volume that is a constant stream of failed pages, so most dependency failures must become degraded success. Tightening every SLO helps less and costs far more.
 - q: >-
-    A service at 1,000 requests per second calls a dependency whose latency rises from 50 ms to 5 s. The service has 200 request threads. Why does a bulkhead of 10 threads for that dependency help?
-  options: ["It caches the dependency's responses for the fallback", "It retries the slow calls on a separate thread pool", "It gives the slow calls priority over other requests", "Slow calls can tie up 10 threads instead of all 200"]
-  answer: 3
+    In the simulation, adding 1-second timeouts still left 72% of requests rejected, including playback requests that never call the slow dependency. Why?
+  options: ["700 home pages/s × 1 s needs ~700 threads; the pool has 200", "Timeouts add retries, which double the load on the pool", "Playback shares the slow dependency's database connection", "The breaker opened and rejected every request at the edge"]
+  answer: 0
   explanation: >-
-    By Little's law, in-flight calls equal rate times latency: 5,000 calls would be in flight, so the slow dependency would absorb all 200 threads and fail unrelated requests. The bulkhead caps its share at 10 and rejects excess calls straight into the fallback, leaving the rest to serve other requests. It protects the caller; it does not make the dependency faster.
+    By Little's law, threads in use equal arrival rate times time held. Each home page now holds its thread for the full 1 s timeout, so about 715 threads are wanted against 200, and every other request, playback included, finds the pool full. A bulkhead sized from normal concurrency caps what the slow dependency can hold.
 - q: >-
-    Which is the best fallback when the online personalisation service times out on the home page?
-  options: ["Query the personalisation service's database directly", "Retry the personalisation service three times with backoff", "Return an error so the client can retry the whole page", "Cached precomputed rows, then popular rows for the country"]
-  answer: 3
+    The dependency fails at t = 10 s, but the Hystrix-style breaker (10 s window, 20 requests, 50% errors) opens only at about t = 15 s. Why the delay?
+  options: ["The breaker waits one sleep window of 5 s before it may open", "Its window held 5 s of successes, so errors hit 50% late", "The volume threshold of 20 requests takes 5 s to accumulate", "Timeouts are not counted as failures until the call is retried"]
+  answer: 1
   explanation: >-
-    A good fallback is cheaper than the primary, does not depend on the failing component, and still gives the member something useful: precomputed rows for the profile from a replicated cache, then popular rows for the country if those are missing. Retrying adds load to a struggling service, and reading its database shares its failure.
+    The error percentage is computed over the whole rolling window. At 700 calls a second, 20 requests arrive in milliseconds, but the window also holds the healthy calls from before the incident, so failures reach half of it only when about half the window is post-incident. The sleep window applies after opening, not before.
 - q: >-
-    A chaos experiment uses 1% of traffic each for control and experiment groups at 5,000 stream starts per second. Why can it detect a 5% drop in the experiment group within about 10 minutes?
-  options: ["Because 1% of traffic is a large blast radius at this scale", "Because the experiment compares against yesterday's traffic", "~30,000 starts per group make a 1,500 drop about six sigma", "Because SPS is steady enough that any dip is significant"]
+    The API, a mid-tier service and a client library each make up to three attempts. The bottom dependency is fully down. How many attempts reach it per home page?
+  options: ["3, one set of retries for the whole request", "9, three attempts at each of the top two layers", "27, three at each of three nested layers", "About 2, because retries mostly succeed"]
   answer: 2
   explanation: >-
-    Each group sees about 30,000 starts in 10 minutes. With roughly Poisson counts, the standard deviation of the difference is about the square root of 60,000, around 245, so a 1,500 difference is clear. Smaller groups would need longer to reach the same confidence, which is why the metric's volume sets the affordable blast radius. SPS does vary, which is why a concurrent control group is used.
+    Each attempt at a layer triggers the full retry sequence of the layer below, so attempts multiply: 3 × 3 × 3 = 27. At a 50% failure rate the same policy gives about 2 because upper layers mostly see success, which is why amplification peaks exactly when the dependency is down. One retrying layer with a 10% budget caps it at 1.1.
+- q: >-
+    A chaos experiment uses 1% of traffic each for control and experiment groups at 5,000 stream starts per second. What does one minute of data let you detect at 3 sigma?
+  options: ["Any drop at all, because the groups are large", "A drop of about 8% or more in experiment starts", "Only a complete outage of the experiment group", "A drop of about 0.5%, the natural noise in SPS"]
+  answer: 1
+  explanation: >-
+    Each group sees about 3,000 starts in a minute; the standard deviation of the difference is the square root of 6,000, about 77, so 3 sigma is about 232 starts, 7.7% of 3,000. After ten minutes the same threshold resolves about 2.4%. The metric's volume sets how small a blast radius can still detect harm quickly.
 - q: >-
     Three active-active regions each run at 65% of capacity at peak. One region must be evacuated. What happens if traffic is shifted before the survivors scale up?
   options: ["Each survivor hits ~98%, with almost no headroom left", "The evacuated region keeps serving until the survivors scale", "Nothing; each survivor rises to about 72% of capacity", "DNS drops the evacuated region's traffic until scaling ends"]
   answer: 0
   explanation: >-
-    Survivors must carry N/(N-1) = 1.5 times their load, so 65% becomes about 98%, and overload there spreads the failure. Shifting first and scaling later is how one regional failure becomes a global one; pre-scaling or permanent headroom is required.
-- q: >-
-    Why is Eureka designed to keep serving possibly stale registrations, and to stop expiring instances when heartbeats drop sharply?
-  options: ["To save the memory and CPU that expiry sweeps would cost", "Because it has no reliable way to detect instance failures at all", "Stale entries beat evicting healthy instances in a partition", "Because instances rarely fail, so expiry is seldom needed"]
-  answer: 2
-  explanation: >-
-    A sudden mass loss of heartbeats is more likely a partition between the registry and the fleet than a simultaneous failure of most instances. Expiring them would remove healthy services from discovery; stale data with client-side retries is the better failure. Preferring availability for control-plane metadata is the principle. Eureka does detect failures through heartbeats; it just distrusts a mass drop.
+    Survivors must carry N/(N-1) = 1.5 times their load, so 65% becomes about 98%, and any wobble overloads them and spreads the failure. Pre-scaling, or permanent headroom, comes before the shift.
 ```

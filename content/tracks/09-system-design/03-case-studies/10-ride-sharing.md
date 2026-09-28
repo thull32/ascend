@@ -1,54 +1,50 @@
 ---
 slug: ride-sharing
 title: "Design a ride-sharing service: geospatial indexing, matching and live tracking"
-description: An Uber-style dispatch system worked end to end, covering why 375,000 location updates a second fit in 150 MB, geohash versus S2 versus H3, exactly one trip per driver via compare-and-set, batched matching, and ETAs on a road graph.
+description: An Uber-style dispatch system worked end to end, with a location update and a matching request traced hop by hop, measured reasons why 375,000 position writes a second belong in memory and not in Postgres, geohash versus S2 versus H3, one trip per driver by compare-and-set, simulated greedy versus batched matching, and ETAs on a road graph.
 minutes: 35
 difficulty: hard
 tags: [system-design, case-study, geospatial, geohash, h3, s2, matching, websockets, sharding]
 problems: [k-closest-points, network-delay-time]
 ---
-A rider opens the app outside a stadium at 22:40 on a Friday. Within a second the map shows the cars around them; within a few seconds of tapping "request", one specific driver has been offered the trip, has accepted it, and is visible crawling toward the pickup. Fifty thousand other people near the stadium are doing the same thing, and every one of a million and a half online drivers is reporting its position every four seconds whether or not anyone is looking.
+A rider opens the app outside a stadium at 22:40 on a Friday. Within a second the map shows the cars around them; within a few seconds of tapping "request", one specific driver has been offered the trip, has accepted it, and is visible crawling toward the pickup. Fifty thousand other people near the stadium are doing the same, and every one of a million and a half online drivers reports its position every four seconds whether or not anyone is looking.
 
-Two properties make this design interesting. The data that drives matching is **huge in rate and tiny in size**: a firehose of positions that are worthless after a few seconds. And the one decision that must be exactly right, *this driver is assigned to this trip and no other*, has to be made on top of that deliberately approximate, eventually consistent data. The senior answer keeps those two worlds apart: a fast, lossy geospatial index that proposes candidates, and a small, strongly consistent state store that decides.
+Two properties make the design interesting. The data that drives matching is **huge in rate and tiny in size**: a firehose of positions that are worthless after a few seconds. And the one decision that must be exactly right, *this driver is assigned to this trip and no other*, is made on top of that deliberately approximate data. The senior answer keeps the two worlds apart: a fast, lossy geospatial index that proposes candidates, and a small, strongly consistent state store that decides.
 
 ## Requirements
 
-### Functional
-
-- Riders see nearby available cars, get a fare estimate (including surge), and request a trip from pickup to drop-off.
-- The system offers the trip to a suitable driver; the driver has 15 seconds to accept, otherwise the next candidate is tried.
-- Rider and driver see each other's live position until pickup; the trip is tracked to drop-off and priced.
-- Out of scope: pooled rides, scheduled rides, payments (see [the payment system](/learn/system-design/case-studies/payment-system)), ratings.
-
-### Non-functional
+**Functional.** Riders see nearby cars, get a fare estimate (including surge) and request a trip. The system offers the trip to one driver, who has 15 seconds to accept before the next candidate is tried. Rider and driver see each other live until pickup; the trip is tracked to drop-off and priced. Out of scope: pooled and scheduled rides, ratings, and payments ([the payment system](/learn/system-design/case-studies/payment-system)).
 
 | Property | Target |
 |---|---|
-| Scale | 1.5 million drivers online at global peak; 20 million trips per day |
-| Location freshness | Positions used for matching are at most a few seconds old |
-| Matching latency | First offer sent within 2 s of the request at p95 |
+| Scale | 1.5 million drivers online at the global peak; 20 million trips a day |
+| Freshness | A position used for matching is at most 5 s old (a 4 s reporting interval plus under 1 s of pipeline) |
+| Matching latency | First offer on the driver's screen within 2 s of the request, p95 |
 | Correctness | A driver is never assigned two trips; a request never creates two trips |
-| Availability | Matching survives the loss of a zone; degraded maps are fine, lost trips are not |
+| Availability | 99.99% for trip requests; losing a zone costs seconds; losing a region costs minutes |
+| Trip durability | An accepted trip is never lost (synchronous replication, zero RPO) |
 
-Say out loud which data is allowed to be stale (positions, nearby-car maps, surge) and which is not (driver assignment, trip state). That sentence is the design.
+Say which data may be stale (positions, nearby-car maps, surge) and which may not (assignment, trip state). That sentence is the design.
 
 ## Back-of-envelope estimates
 
-**Location writes.** 1.5 million drivers × one update every 4 s = **375,000 updates per second**. At ~100 bytes each that is only 37.5 MB/s: the problem is message rate, not bandwidth. No disk-backed database wants 375,000 small updates per second of rows that are overwritten four seconds later.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Location updates | $1.5 \times 10^6$ drivers ÷ 4 s | **375,000 per second**, flat through the evening |
+| Update bandwidth | 375,000 × ~100 B | 37.5 MB/s: the problem is message rate, not bytes |
+| Live position state | $1.5 \times 10^6$ × ~100 B | **150 MB**: one server's RAM holds the world |
+| Index CPU | Measured: 3.1 µs per update in pure Python on one core (2.3 µs of it the geohash encode) | 375,000 × 3.1 µs ≈ 1.2 cores; a compiled index needs a fraction of one |
+| Trip requests | $2 \times 10^7$ ÷ 86,400 s | 230/s average; design for 1,000/s, concentrated in a few cities |
+| Nearby-car reads | 230 trips/s × 10 app opens per trip × 12 refreshes a minute | ~28,000/s, ~100,000/s at peak; everyone in one cell sees the same cars, so one computation per cell per second |
+| Persistent connections | 1.5 M drivers + ~1 M riders with live trips | 2.5 M; at 50,000–100,000 per gateway node, 25–50 nodes; run 60 across three zones |
+| Rider map pushes | 600,000 on-trip drivers ÷ 4 s | 150,000 pushes/s, each 1:1 |
+| Stream writes | 37.5 MB/s × replication factor 3 | 112 MB/s across the brokers: six brokers at under 20 MB/s each |
+| Driver ETAs | 1,000 requests/s × 15 candidates | 15,000/s at peak (the ETA deep dive prices them) |
+| Trip points kept | 600,000 × one point per 4 s × 50 B | 7.5 MB/s, ~650 GB/day, for disputes and safety |
 
-**Index size.** The latest position of every driver is ~100 bytes × 1.5 million = **150 MB**. The whole working set fits in the memory of one small server. **Consequence: the geo index is in memory, and it is sharded for write throughput and blast radius, not for size.**
+**Consequences.** The geo index lives in memory and is sharded for write rate and blast radius, not size. Connections, not CPU, set the gateway count. And routing must use a precomputed speed-up, because textbook Dijkstra per fare estimate costs hundreds of cores.
 
-**Trip requests.** $2 \times 10^7 / 10^5 = 200$ trips per second on average, with local peaks (bar closing, concerts, rain) of 5× or more: design for ~1,000 requests per second globally, heavily concentrated in a few cities at a time.
-
-**Nearby-car reads.** Riders open the app far more often than they request. If each trip is preceded by ~10 app opens that refresh nearby cars every 5 seconds for a minute, that is $200 \times 10 \times 12 = 24{,}000$ reads per second on average and ~100,000 at peak. All riders standing in the same small cell see the same cars, so this collapses to one computation per cell per second.
-
-**Live connections.** 1.5 million drivers plus perhaps a million riders with active trips hold persistent connections: 2.5 million. At 50,000–100,000 connections per gateway node that is 25–50 nodes. Forwarding the assigned driver's position to each waiting or riding rider is ~150,000 pushes per second.
-
-**Routing.** Each request ranks 10–20 candidates by driving time, up to 20,000 driver-to-pickup ETAs per second at peak, and every fare estimate needs a pickup-to-drop-off route across the city. A full Dijkstra search over a city road graph with a million intersections takes on the order of 100 ms; thousands of such searches per second is hundreds of cores spent on textbook graph search. **Consequence: routing uses a precomputed speed-up technique, not plain Dijkstra per query.**
-
-**Trip history.** Points for on-trip drivers only (~600,000 drivers, one point per 4 s, ~50 bytes) are 7.5 MB/s, about 650 GB a day, kept for fare disputes and safety: a time-partitioned wide-column store with tiering.
-
-## API design
+## API
 
 ```text
 Driver app, persistent connection (WebSocket or gRPC stream):
@@ -70,7 +66,7 @@ Rider app, HTTPS plus a stream for updates:
   POST /v1/trips/t_88/cancel
 ```
 
-Notes that matter: the location stream carries a per-driver sequence number so out-of-order updates can be discarded. The nearby endpoint returns approximate positions (snapped and slightly delayed) because exact live positions of drivers are a safety and privacy concern. The fare estimate is a signed, expiring quote, so the price the rider accepted is the price charged even if surge changes a second later. And trip creation takes an idempotency key, because a rider tapping "request" on a flaky connection must not summon two cars.
+The per-driver `seq` lets the index drop out-of-order updates. `/nearby` returns snapped, slightly delayed positions, because exact live positions of drivers are a safety and privacy risk. The fare estimate is a signed, expiring quote, so the price the rider accepted is the price charged even if surge moves a second later. Trip creation takes an [idempotency key](/learn/system-design/building-blocks/idempotency-and-retries), because a rider tapping "request" on a flaky connection must not summon two cars.
 
 ## Data model
 
@@ -78,14 +74,17 @@ Notes that matter: the location stream carries a per-driver sequence number so o
 driver_state (driver_id PK, city_id, state,        -- offline | available | offered | on_trip
               trip_id, offer_expires_at, version)
 trips        (trip_id PK, city_id, rider_id, driver_id, status, pickup, dropoff,
-              estimate_id, price_minor, currency, requested_at, assigned_at,
-              completed_at, version)
-fare_quotes  (estimate_id PK, rider_id, pickup_cell, dropoff_cell, price_minor,
-              surge, expires_at)
-trip_points  (trip_id, ts, lat, lng, speed)        -- wide-column, time-partitioned
+              estimate_id, idempotency_key UNIQUE, price_minor, currency,
+              requested_at, assigned_at, completed_at, version)
+fare_quotes  (estimate_id PK, rider_id, pickup_cell, dropoff_cell, price_minor, surge, expires_at)
+trip_points  (trip_id, ts, lat, lng, speed)         -- wide-column: partition trip_id, cluster ts
 ```
 
-`driver_state` and `trips` for one city live in the same strongly consistent database shard, so assigning a driver and updating the trip is one local transaction. The geo index is not in this list: it is soft state in memory, rebuilt from the location stream.
+Every key is chosen from the transaction or query it serves:
+
+- **`driver_state` and `trips` are sharded by `city_id`.** Accepting an offer changes a driver row and a trip row atomically. Sharded by driver and trip separately, that becomes a cross-shard transaction; co-located by city it is one local commit. A metro area is the natural unit because a trip rarely crosses one.
+- **The geo index is keyed by cell, not driver.** "Who is near here" must become "who is in these few cells". Keyed by driver, every nearby query would scatter to every shard. The index is not in this list at all: it is soft state in memory, rebuilt from the stream.
+- **`trip_points` is partitioned by `trip_id`, clustered by time**, so a fare dispute reads one partition in order, and time-bucketed tables expire whole.
 
 ```mermaid
 stateDiagram-v2
@@ -104,13 +103,13 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
   DA["Driver app"] -->|"GPS every 4 s"| GW["Connection gateways"]
-  GW --> K[["Location stream, key = cell shard"]]
+  GW --> K[["Location stream, key = coarse cell"]]
   K --> GI["Geo index shards, in memory"]
   K --> TP[("Trip points store")]
   K --> SU["Surge: supply and demand per cell"]
   RA["Rider app"] --> API["API gateway"]
   API --> TS["Trip service"]
-  TS --> MA["Matcher"]
+  TS --> MA["Matcher, one owner per city"]
   MA --> GI
   MA --> ETA["ETA service"]
   MA --> DB[("Driver state + trips, per city")]
@@ -118,19 +117,21 @@ flowchart LR
   GW -->|"driver position"| RA
 ```
 
-**Location path.** Drivers hold a connection to a gateway. The gateway validates each update (sequence number, plausible speed), and publishes it to a stream partitioned by geographic shard. Geo index shards consume their partitions and keep the latest position of every driver in their area. The same stream feeds trip-point storage and the surge calculator.
+Drivers hold a connection to a gateway, which validates each update and publishes it to a stream partitioned by coarse cell. Geo index shards consume their partitions and keep each driver's latest position; the same stream feeds trip points and surge. A trip request goes to the trip service, which creates the trip idempotently and asks the city's matcher for a driver. The matcher reads candidates from the index, ranks them by ETA, claims one with a compare-and-set, and sends the offer through the driver's gateway. Gateways are a separate tier from the stateless API because they hold 2.5 million long-lived connections and do the 1:1 forwarding of positions to riders. Balance them by connection count, not round robin: after a gateway restarts, round robin keeps handing it the same share of new connections while the others keep their old ones, so it stays nearly empty for hours.
 
-**Request path.** The trip service creates the trip (idempotently) and asks the matcher for a driver. The matcher gets candidates from the geo index, ranks them by ETA, and claims one with a compare-and-set on `driver_state`. It sends the offer through the driver's gateway and waits for an answer or the 15-second expiry.
+```viz
+{"type": "network", "scenario": "load-balancer-least-conn",
+ "title": "Long-lived connections need least-connections balancing",
+ "caption": "Each new driver connection goes to the gateway holding the fewest. With persistent connections, request-count balancing says nothing about load; open connections do."}
+```
 
-**Tracking path.** Once assigned, the driver's updates are also forwarded to the rider's connection. That is a 1:1 fan-out, cheap per message, and the reason gateways are a separate tier from the stateless API.
+## Deep dive: a location update, traced into the index
 
-## Deep dives
+### Cells: geohash, S2 and H3
 
-### Geospatial indexing: geohash, S2 and H3
+The naive query, `WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`, uses one B-tree range efficiently, so it scans a latitude band across the city and filters longitude. The fix is a key that turns "near" into "equal or adjacent", so the index becomes a hash map from **cell** to **drivers in that cell**. [Spatial indexes](/learn/advanced-data-structures/spatial-and-persistent/spatial-indexes) builds the structures; here is how the three common cell systems compare for dispatch.
 
-The naive query, `WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?` on B-tree indexes, fails twice. A B-tree can use one range efficiently, so the database scans a latitude band across the whole city and filters on longitude. And every position update rewrites index entries, which at 375,000 per second is a write-amplification disaster. What you want is a key that turns "near" into "equal or adjacent", so the index becomes a hash map from **cell** to **drivers in that cell**.
-
-**Geohash** interleaves the bits of longitude and latitude and encodes them in base 32. Each extra character narrows the cell, so nearby points usually share a prefix:
+**Geohash** interleaves longitude and latitude bits and encodes each 5 bits as one base-32 character:
 
 ```python
 BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
@@ -151,28 +152,45 @@ def geohash(lat, lng, precision=7):
             ch, bits = 0, 0
     return "".join(out)
 
-geohash(37.7749, -122.4194)   # '9q8yyk8'  (a ~150 m cell in San Francisco)
+print(geohash(37.7749, -122.4194))   # 9q8yyk8
 ```
 
-At the equator, precision 5 is about 4.9 × 4.9 km, precision 6 about 1.2 × 0.6 km, and precision 7 about 153 × 153 m. The trap is the boundary: `(37.7749, -122.4097)` is `9q8yykx` and `(37.7749, -122.4095)`, 18 metres east, is `9q8yys8`. They share only five characters, so "same prefix" is not "nearby". Every geohash proximity query must therefore search the cell **and its eight neighbours**. Geohash cells are also rectangles whose shape distorts with latitude, and the Z-order curve behind them makes some adjacent cells far apart in key order.
+Seven characters are 35 bits: 18 of longitude ($360°/2^{18} = 0.00137°$) and 17 of latitude ($180°/2^{17} = 0.00137°$), a cell 153 m tall and 153 m wide at the equator but 121 m wide in San Francisco, because a degree of longitude shrinks with $\cos(\text{latitude})$. The trap is the boundary: `(37.7749, -122.4097)` is `9q8yykx`, and the point 17.6 m east of it is `9q8yys8`. They share five characters. A shared prefix implies proximity; proximity does not imply a shared prefix. So every geohash query searches the cell **and its eight neighbours**.
 
-**S2** (from Google) projects the sphere onto the six faces of a cube and orders cells along a Hilbert curve, which preserves locality better than geohash's Z-order. Cell IDs are 64-bit integers across 31 levels, each level splitting a cell into four (roughly a square kilometre around level 13). Its strength is **region coverings**: any shape (a circle around the pickup, an airport polygon) becomes a small set of cell ID ranges, which map naturally onto range scans in an ordered store.
+### S2 and H3
 
-**H3** (open-sourced by Uber) tiles the world with hexagons at 16 resolutions; resolution 9 hexagons average about 0.1 km² with ~174 m edges. A hexagon has six neighbours, all at the same distance from its centre, unlike a square's four edge neighbours and four farther corner neighbours. That uniform adjacency makes "rings" around a point (`grid_disk(cell, k)` returns $1 + 3k(k+1)$ cells: 7 for $k=1$, 19 for $k=2$) cheap and nearly circular, and makes smoothing a quantity across neighbours (surge, demand forecasts) natural. The costs: hexagons do not nest exactly (a parent's seven children only approximately cover it), and each resolution contains 12 pentagons that code must tolerate.
+**S2** projects the sphere onto a cube and orders cells along a Hilbert curve in a 64-bit ID: 3 bits of cube face, then 2 bits per level for 30 levels. A level-13 cell averages $5.1 \times 10^8 \text{ km}^2 / (6 \times 4^{13}) \approx 1.27$ km². Its strength is **coverings**: a circle or an airport polygon becomes a few ranges of cell IDs, which suit range scans in an ordered store.
+
+**H3** (open-sourced by Uber) tiles the sphere with hexagons. Resolution $r$ has $2 + 120 \times 7^r$ cells, so resolution 9 has 4.84 billion and averages $5.1 \times 10^8 / 4.84 \times 10^9 = 0.105$ km², a regular hexagon with ~200 m edges. Under the hood an H3 index is a 64-bit integer: 4 bits of mode, 4 of resolution, 7 for one of 122 base cells, then fifteen 3-bit digits naming the child at each level. All six neighbours sit at the same distance from the centre, so `grid_disk(cell, k)` returns $1 + 3k(k+1)$ cells (7 for $k=1$, 19 for $k=2$) forming a near-circle. The costs: a parent's seven children only approximately cover it, and each resolution has 12 pentagons.
 
 | | Geohash | S2 | H3 |
 |---|---|---|---|
-| Cell shape | Rectangle, distorts with latitude | Quadrilateral on a cube face | Hexagon (plus 12 pentagons) |
-| Neighbour query | Cell + 8 neighbours | Coverings / neighbour functions | `grid_disk(k)`, uniform distances |
+| Cell shape | Rectangle, narrows with latitude | Quadrilateral on a cube face | Hexagon (plus 12 pentagons) |
+| Neighbour query | Cell + 8 neighbours, two distances | Coverings, neighbour functions | `grid_disk(k)`, one distance |
 | Hierarchy | Exact (prefix) | Exact (4 children) | Approximate (7 children) |
-| Best at | Simplicity, prefix keys in any store | Arbitrary regions, range scans | Rings, smoothing, analytics per area |
+| Best at | Prefix keys in any store | Arbitrary regions, range scans | Rings, smoothing, per-area analytics |
 
-For dispatch, choose H3 at resolution 9 for the index and a coarser resolution (7 or 8) for surge. The index itself is small enough to show:
+For dispatch: H3 resolution 9 for the index, resolution 7 (5.2 km²) for surge.
+
+### The update, hop by hop
+
+Driver 17 is available near the stadium. Timings are one-way and typical; radio latency depends on carrier and signal.
+
+| t (ms) | Where | What happens |
+|---|---|---|
+| 0 | Phone | GPS fix (37.7749, −122.4194), `seq` 5812 |
+| ~50–150 | Uplink | One ~100-byte frame on an already-open TLS WebSocket; no handshake, which is why the connection is persistent |
+| +0.1 | Gateway | Checks `seq` > 5811 and plausibility (40 m in 4 s is 10 m/s); keys the message by its resolution-5 parent cell |
+| +2–5 | Stream | Produce with `acks=all`: replicated to three brokers in different zones |
+| +1–10 | Index shard | Consumer applies it: the resolution-9 cell is unchanged, so one hash-map write (3 µs measured) |
+| ≈ 60–170 | Visible to matching | Worst-case age at match time is this plus the 4 s interval, inside the 5 s target |
+
+Why is the common case one write? A driver at 10 m/s moves 40 m between updates. Simulating 200,000 random 40 m steps inside a 0.105 km² hexagon, 14% crossed into another cell; the same steps inside a 121 × 153 m geohash-7 cell crossed 35% of the time. Bigger cells mean fewer moves, at the cost of scanning more drivers per query.
 
 ```python
 import h3                                    # h3-py, v4 API
 
-RES = 9                                      # ~0.1 km² hexagons
+RES = 9                                      # ~0.105 km² hexagons
 
 class DriverIndex:
     def __init__(self):
@@ -189,38 +207,130 @@ class DriverIndex:
         self.cell_drivers.setdefault(cell, set()).add(driver_id)
         self.driver[driver_id] = (cell, lat, lng, ts)
 
-    def nearby(self, lat, lng, want=10, max_k=6):
+    def nearby(self, lat, lng, want=10, max_k=6, now=None, max_age=10):
         origin = h3.latlng_to_cell(lat, lng, RES)
         found = []
         for k in range(1, max_k + 1):        # widen until enough candidates
             found = [d for c in h3.grid_disk(origin, k)
-                       for d in self.cell_drivers.get(c, ())]
+                       for d in self.cell_drivers.get(c, ())
+                       if now is None or now - self.driver[d][3] <= max_age]
             if len(found) >= want:
                 break
         return found
 ```
 
-A driver moving at 10 m/s travels 40 m between updates, so most updates stay inside the same 174 m hexagon and cost one dictionary write. A production index also carries each driver's reported status so `nearby` can skip drivers already on a trip, and a background sweep evicts drivers whose last update is older than ~30 seconds, because a phone that died in a tunnel sends no "offline" message.
+The `max_age` filter matters: a phone that died in a tunnel sends no "offline" message, so stale entries are skipped at query time and evicted by a sweep after ~30 s.
 
-### Matching: candidates are a hint, the compare-and-set is the truth
+### Why not Postgres for live positions
 
-The geo index is eventually consistent by construction: it can list a driver who went offline two seconds ago, or who was offered another trip by a matcher in the next process. So it only **proposes**. The decision is a conditional write against `driver_state`:
+Measured on Postgres 17 on a 32-thread workstation, with 100,000 drivers in a table with a GiST index on a `point` column: random position updates committed 6,450 a second from 32 connections and 13,500 from 64 (group commit). With `synchronous_commit = off` they reached 89,400 a second, and after 30 seconds of that the GiST index had grown from 6.5 MB to 178 MB and the heap from 5.9 MB to 76 MB, with 2.7 million dead tuples waiting for vacuum: an update that changes an indexed column cannot be a HOT update, so each one writes a new heap tuple and a new index entry. The nearest-10 query was fast (0.18 ms), so reads are not the problem. 375,000 writes a second of data that is useless four seconds later is: durability you do not need, bought with WAL, vacuum and index churn. PostGIS remains the right tool for static geometry such as service areas and airport polygons.
+
+```exercise
+id: geohash-neighbours
+title: The eight geohash neighbours
+prompt: |
+  A proximity search on geohashes must look at a cell and its eight neighbours,
+  because two points a few metres apart can straddle a cell edge.
+
+  Implement `geohash_neighbors(gh)`: given a geohash string (1 or more characters,
+  base-32 alphabet `0123456789bcdefghjkmnpqrstuvwxyz`, even bits refine longitude,
+  odd bits refine latitude), return the 8 neighbouring cells of the same length,
+  in the order N, NE, E, SE, S, SW, W, NW.
+
+  Longitude wraps: the east neighbour of a cell touching +180° is on the -180° side.
+  You may assume the cell does not touch the North or South Pole.
+languages: [python, javascript]
+entry: geohash_neighbors
+starter:
+  python: |
+    BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz"
+
+    def geohash_neighbors(gh):
+        # your code here
+        return []
+  javascript: |
+    const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+
+    function geohash_neighbors(gh) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: ["9q8yyk8"]
+    expected: ["9q8yykb", "9q8yykc", "9q8yyk9", "9q8yyk3", "9q8yyk2", "9q8yyhr", "9q8yyhx", "9q8yyhz"]
+    label: interior cell in San Francisco
+  - args: ["9q8yykx"]
+    expected: ["9q8yykz", "9q8yysb", "9q8yys8", "9q8yys2", "9q8yykr", "9q8yykq", "9q8yykw", "9q8yyky"]
+    label: the east neighbour shares only five characters
+  - args: ["9"]
+    expected: ["c", "f", "d", "6", "3", "2", "8", "b"]
+    label: a single-character cell
+  - args: ["xbpbp"]
+    expected: ["xbpbr", "80002", "80000", "2pbpb", "rzzzz", "rzzzy", "xbpbn", "xbpbq"]
+    label: wraps across the antimeridian
+    hidden: true
+  - args: ["s0000"]
+    expected: ["s0002", "s0003", "s0001", "kpbpc", "kpbpb", "7zzzz", "ebpbp", "ebpbr"]
+    label: corner at the equator and Greenwich
+    hidden: true
+  - args: ["gbsuv"]
+    expected: ["gbsvj", "gbsvn", "gbsuy", "gbsuw", "gbsut", "gbsus", "gbsuu", "gbsvh"]
+    hidden: true
+hints:
+  - "Decode the hash to its bounding box, then take the centre and the cell's height and width."
+  - "Step one height or width from the centre in each direction, wrap longitude into [-180, 180), and re-encode at the same length."
+```
+
+## Deep dive: a matching request, traced
+
+### The request, hop by hop
+
+A rider requests trip `t_88` at the stadium. Server-side timings are typical for same-zone calls.
+
+| t (ms) | Component | What happens |
+|---|---|---|
+| 0 | Trip service | Receives `POST /v1/trips`; inserts `t_88` with its idempotency key (a retry finds the row); one commit, ~3 ms |
+| 3 | Matcher | `grid_disk(pickup, 1)`: 7 cells, 4 drivers, too few; $k=2$: 19 cells, 14 fresh, available drivers |
+| 5 | Geo index | The 19 cells fall on two shards; scatter-gather, ~1 ms each |
+| 6 | ETA service | One search from the pickup on the reversed road graph, stopped when all 14 drivers are settled (~2 ms, next section) |
+| 9 | Driver-state DB | Compare-and-set on the best candidate, driver 17; 1 row updated, ~3 ms |
+| 12 | Gateway | Pushes the `TripOffer` over driver 17's open connection |
+| ~70–160 | Driver's phone | Offer on screen: ~12 ms of server work, the rest radio |
+| +3,000–15,000 | Driver | Taps accept (or the 15 s expiry fires and the next candidate gets an offer) |
+| +5 | Driver-state DB | Accept CAS and the trip update in one transaction; the rider is notified |
+
+The 2 s p95 budget is almost all network and, if the city batches, the batch window. That is the number that decides how long a batch may be.
+
+### Candidates are a hint; the compare-and-set is the truth
+
+The index can list a driver who went offline two seconds ago or who was offered another trip a moment ago. So it only **proposes**; the decision is a conditional write:
 
 ```sql
--- claim: only succeeds if nobody else has
+-- claim: succeeds only if the driver is free, or holds an offer that has expired
 UPDATE driver_state
    SET state = 'offered', trip_id = 't_88',
        offer_expires_at = now() + interval '15 seconds', version = version + 1
- WHERE driver_id = 17 AND state = 'available';
--- 1 row: we own the offer.  0 rows: someone else does; try the next candidate.
+ WHERE driver_id = 17
+   AND (state = 'available' OR (state = 'offered' AND offer_expires_at < now()));
 
--- accept: only the trip that holds the offer can be confirmed
+-- accept: only the trip holding a live offer can be confirmed
 UPDATE driver_state SET state = 'on_trip', version = version + 1
  WHERE driver_id = 17 AND state = 'offered' AND trip_id = 't_88'
    AND offer_expires_at > now();
 ```
 
-The server's clock decides expiry, a sweeper returns expired offers to `available`, and the accept statement runs in the same transaction as the `trips` update, which is why both tables live in the same city shard. Two matchers can race for driver 17 all day; exactly one `UPDATE` matches.
+Two matcher threads racing for driver 17:
+
+| t (ms) | Matcher A (trip t_88) | Matcher B (trip t_91) | driver_state(17) |
+|---|---|---|---|
+| 0 | Index returns 17 as best | | available, v41 |
+| 1 | | Index returns 17 as best | available, v41 |
+| 9 | Claim: 1 row; commits | | offered to t_88, v42 |
+| 9.2 | | Same claim blocked on the row lock, re-checks `WHERE` after A commits: 0 rows | offered to t_88 |
+| 9.5 | Sends the offer | Claims driver 23 instead: 1 row | |
+| 15,009 | No answer | | The expiry clause makes 17 claimable again with no sweeper |
+
+The database's `now()` decides expiry, so application clocks never matter, and the accept runs in the same transaction as the `trips` update, which is why both tables live on the city's shard.
 
 ```mermaid
 sequenceDiagram
@@ -241,13 +351,31 @@ sequenceDiagram
   M-->>R: driver 17 assigned
 ```
 
-**Greedy versus batched.** Matching each request to its nearest available driver the moment it arrives is simple and fast, and it is globally wasteful. Two riders and two drivers: R1 to D1 is 2 minutes, R1 to D2 is 3, R2 to D1 is 3, R2 to D2 is 8. Greedy serves R1 first with D1, leaving R2 an 8-minute wait: 10 minutes of total waiting. Assigning R1 to D2 and R2 to D1 costs 6. Batched matching collects requests in a zone for a second or two, builds a rider × driver ETA matrix, and solves the assignment problem (Hungarian algorithm, or a greedy approximation on large batches). It costs a second or two of latency and pays back in shorter pickups across the whole city. Dense, busy areas benefit most; in a quiet suburb with one request a minute, batching only adds delay.
+### Greedy versus batched
 
-**Sequential versus broadcast offers.** Offering to one driver at a time can take 15 seconds per decline. Offering to three at once and confirming the first to accept is faster but annoys the two who accepted and lost. Most systems offer sequentially with a short timeout and use acceptance-rate history to rank candidates.
+Two riders and two drivers: R1–D1 is 2 minutes, R1–D2 3, R2–D1 3, R2–D2 8. Greedy serves R1 first with D1 and leaves R2 an 8-minute wait: 10 minutes in total. Assigning R1–D2 and R2–D1 costs 6. Batched matching collects a zone's requests for a second or two, builds the rider × driver ETA matrix and solves the assignment problem (the Hungarian algorithm is $O(n^3)$).
 
-### ETAs on a road graph
+Simulated over 2,000 batches of 10 riders in a 3 × 3 km zone (Manhattan distance at 24 km/h):
 
-Straight-line distance lies. A driver 300 metres away across a river may be twelve minutes away by road, and one on a one-way street pointing the wrong direction may be five. Ranking by drive time is the difference between a good and a bad pickup.
+| Drivers available | Greedy mean pickup | Batched mean pickup | Saving |
+|---|---|---|---|
+| 11 (supply tight) | 2.49 min, worst 12.8 | 2.15 min, worst 10.8 | 14% |
+| 15 | 1.80 min | 1.62 min | 10% |
+| 30 (supply plentiful) | 1.05 min | 1.00 min | 4.5% |
+
+Batching pays most when supply is scarce, which is exactly the stadium at 22:40; in a quiet suburb with one request a minute it only adds delay, so the window is set per zone.
+
+**Sequential or broadcast offers?** Offering to one driver at a time can cost 15 s per decline; offering to three and confirming the first to accept annoys the two who accepted and lost. Most systems offer sequentially with a short expiry and rank candidates partly by acceptance history.
+
+```viz
+{"type": "system", "scenario": "leader-lease", "nodes": 3,
+ "title": "One matcher per city, fenced",
+ "caption": "Each city's matcher holds a lease. A matcher that pauses past its lease and wakes up still believing it owns the city is stopped by the epoch carried in every write: the store rejects writes from an older epoch."}
+```
+
+## Deep dive: ETAs on a road graph
+
+Straight-line distance lies. A driver 300 m away across a river may be twelve minutes away by road.
 
 ```viz
 {"type": "graph", "algorithm": "dijkstra", "directed": false, "start": "P",
@@ -257,58 +385,72 @@ Straight-line distance lies. A driver 300 metres away across a river may be twel
  "caption": "P is the pickup; weights are minutes. D1 is closer in a straight line but sits across the river, reachable only via the bridge B–C: 13 minutes. D2 is farther on the map and 5 minutes away by road."}
 ```
 
-Dijkstra settles nodes in order of distance, so it answers "how far to everything" from one source; the matcher needs "how far from each of 15 drivers to one pickup", which is one Dijkstra on the reversed graph from the pickup. On a real city graph of about a million intersections, each such search still settles tens of thousands of nodes, and fare estimates need long cross-city routes thousands of times a second. Production routing engines precompute: **contraction hierarchies** add shortcut edges so a query explores a few hundred nodes instead of hundreds of thousands, answering in well under a millisecond; live traffic is applied by re-weighting edges and re-running a cheaper customisation phase every few minutes. [A* and heuristic search](/learn/algorithms/graph-algorithms/a-star-and-heuristic-search) is the other lever. The ETA service is also where machine learning earns its keep, correcting the routing engine's estimate with historical error by time of day and area.
+[Dijkstra](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra) settles nodes in order of distance from one source, so the matcher runs one search from the pickup on the **reversed** graph and stops when every candidate is settled. On a synthetic 1,000 × 1,000 grid (a million intersections, 7–18 s per block) in Python, that search for 15 drivers within 2 km settled 1,954 nodes in 1.2 ms. The expensive query is the fare estimate: a point-to-point route across the grid settled 444,000 nodes in 365 ms, and a full search 0.79 s. Thousands of estimates a second at that cost is hundreds of cores.
+
+Production engines precompute. **Contraction hierarchies** order nodes by importance, remove them one by one and add shortcut edges that preserve shortest paths, so a query runs a bidirectional search that only climbs to more important nodes and settles hundreds of nodes instead of hundreds of thousands. Live traffic changes edge weights, so engines separate a slow topology preprocessing from a fast re-weighting phase rerun every few minutes. [A* and heuristic search](/learn/algorithms/graph-algorithms/a-star-and-heuristic-search) is the other lever. A model then corrects the engine's estimate with its historical error by area and time of day.
 
 ## Failure modes
 
-**A geo index shard crashes.** Detection: health checks and missing heartbeats. Mitigation: nothing to restore. Every driver reports within four seconds, so a replacement consuming the stream from "now" has a complete index in about four seconds. This is the payoff of treating the index as soft state; do not add persistence to it.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Geo index shard crashes | Nearby maps empty in one area; matches there fail | Shard health check; stream consumer group shows a member gone | Nothing to restore: a replacement consumes from "now" and every driver has reported within 4 s. Do not add persistence |
+| Stale positions | Offers go to drivers who drove away or lost signal | Distribution of position age at match time | Skip candidates older than a few seconds; evict entries after ~30 s |
+| Stream lag | ETAs and offers wrong in one region | Consumer lag in seconds per partition | Scale consumers; widen freshness tolerance explicitly and show a less certain ETA rather than silently using 20 s old data |
+| Double assignment | A driver sees two offers or two trips | Accept conflicts; two matchers writing one city | The compare-and-set; a lease epoch in every write so a deposed matcher is rejected ([fencing](/learn/system-design/distributed-systems/failure-detection-and-leases)) |
+| Duplicate trip request | Two cars for one rider | Two trips with the same rider seconds apart | The idempotency key, unique on `trips` |
+| Reconnect storm | Gateways saturate after a deploy or network blip | Connection rate spikes; CPU in TLS handshakes | Drain gradually; clients reconnect with jittered backoff |
+| Hot cell | One index shard at 100% during a concert | Per-shard CPU and query rate | Cache nearby results per cell per second; split the hot coarse cell to its own shard |
+| Spoofed GPS | Drivers "parked" at the airport from home | Speed and acceleration outliers; road-snapping failures | Map-matching, plausibility checks, network-location cross-checks, fraud scoring |
 
-**Stale positions.** A phone loses signal. Detection: last-update age. Mitigation: evict entries older than ~30 s, and have the matcher skip candidates whose position is older than a few seconds.
+## Trade-offs: what we rejected
 
-**Double assignment.** Two matchers, a retried offer, a partitioned matcher that thinks it still owns a city. Mitigation: the compare-and-set; nothing else is trusted. If matchers own cities through leases, the lease epoch is included in the write so a deposed matcher's writes are rejected (a fencing token).
+| Decision | Chosen | Rejected | Why here | What would flip it |
+|---|---|---|---|---|
+| Live position store | In-memory index from a stream | Postgres/PostGIS rows | Measured 6,450–89,400 updates/s and a 27× index bloat in 30 s, against 375,000/s needed | Positions that must survive a crash, at a low rate |
+| Cell system | H3 resolution 9 | Geohash, S2 | Uniform rings for search and surge smoothing | An ordered store where S2 range scans or geohash prefixes are native |
+| Assignment | CAS in the city's database | Distributed lock across the 15 s offer | One statement, server-side expiry, no lock to lose | None at this scale |
+| Matching | Batched in busy zones | Greedy everywhere | 10–14% shorter pickups when supply is tight | Sparse zones, where batching only adds delay |
+| Shard key for trip state | City | Driver or trip | Accept is single-shard | Trips that routinely cross metro areas |
 
-**Duplicate trip requests.** Mitigation: the idempotency key on `POST /v1/trips`, stored with the trip.
+## At 10× and 100×
 
-**Reconnect storm.** A gateway deploy or network blip disconnects hundreds of thousands of drivers at once, and they all reconnect in the same second. Mitigation: drain connections gradually during deploys, and have clients reconnect with jittered exponential backoff.
+**10× (15 million drivers, the whole world's couriers and cars on one platform).** 3.75 million updates a second is 375 MB/s before replication: 60+ brokers, 250–500 gateway nodes, a 1.5 GB index still in memory. The first change is adaptive reporting: every 4 s when available in a busy area or on a trip, every 15 s when idle or stationary, several points batched per message on a trip. Cutting the average interval to 8 s halves every one of these numbers.
 
-**Location stream lag.** Consumers fall behind; matching uses positions that are 20 seconds old. Detection: consumer lag in seconds per partition. Mitigation: alert, scale consumers, and have matchers widen their freshness tolerance explicitly (and tell the rider the ETA is less certain) rather than silently.
+**100× in one place (New Year's Eve in one city).** A zone with 5,000 requests in a two-second batch makes an $O(n^3)$ assignment $1.25 \times 10^{11}$ steps, minutes of compute; batches are split into sub-zones solved in parallel, or solved greedily and improved locally. The hot coarse cell gets dedicated shards, and nearby-car reads are served from a per-cell cache refreshed once a second.
 
-**Spoofed or noisy GPS.** Drivers fake positions to sit near surge zones or airports. Mitigation: map-matching (snap to roads), speed and acceleration sanity checks, and cross-checks against network location; fraud scoring downstream.
+## What real companies describe
 
-## Senior follow-ups
+Uber open-sourced H3 and has written about using hexagons for marketplace work such as surge and demand forecasting; its engineers have also described sharding dispatch state with Ringpop, an open-source library combining consistent hashing with SWIM gossip, and earlier talks described S2 cells in dispatch. Uber has written about predicting arrival times by combining a routing engine's estimate with a learned correction. DoorDash's engineering blog describes dispatch as ML-predicted times feeding an optimisation solved repeatedly over short batches. Open-source routing engines such as OSRM implement contraction hierarchies. Details change; treat these as public descriptions of approaches, not current internals.
 
-**Q: "Why not keep driver locations in Postgres with PostGIS?"**
+## Interviewer follow-ups
 
-PostGIS is excellent for static geometry: points of interest, service areas, airport polygons. For live positions the write pattern is wrong. 375,000 updates a second, each rewriting a row and its spatial index entry, means a WAL record per update, dead tuples for vacuum to clean, and index churn, all to store a value that is useless four seconds later and that the next update will reconstruct anyway. The in-memory index gives up durability we do not need and gains two orders of magnitude of write throughput.
+**"Why not keep driver locations in PostGIS?"** Model answer: the write pattern is wrong: measured, one Postgres primary did 6,450–13,500 durable position updates a second and 89,400 with async commit while its GiST index grew 27-fold in 30 seconds; we need 375,000 of a value that is worthless in four seconds. Keep PostGIS for static geometry. Common wrong answer: "Postgres can't do spatial queries", when its nearest-neighbour query took 0.18 ms.
 
-**Q: "How do you shard, and what about a pickup on a shard boundary?"**
+**"How do you shard the index, and what about a pickup on a shard boundary?"** Model answer: shard by coarse cell (resolution 5 or 6) with consistent hashing, so a dense city spreads over several shards; a query computes its ring of fine cells, groups them by owning shard and scatters to the one or two involved. Matching is owned per city because assignment needs one consistent owner, and airports on a border get an explicit owner. Common wrong answer: sharding by driver ID, which makes every query a scatter to all shards.
 
-Shard by cell, not by city name: map coarse cells (H3 resolution 5 or 6, tens to a few hundred km²) to index nodes with consistent hashing, so a dense city spreads over several nodes and small towns share one. A nearby query computes its ring of fine cells, groups them by owning shard, and scatters to the one or two shards involved. Matching itself is owned per city or metro area, because assignment needs one consistent owner, and airports on the edge of two cities get an explicit owner.
+**"How is surge computed, and how do you honour the price shown?"** Model answer: a stream job counts supply and demand per resolution-7 hexagon in one-minute windows, derives a multiplier, and smooths it over the six neighbours and over time so prices do not cliff at an edge; the estimate snapshots it into a signed quote that the trip references. Common wrong answer: recomputing the price at request time, so the rider pays a number they never saw.
 
-**Q: "How is surge computed, and how do you honour the price the rider saw?"**
+**"A city's matching database fails on a Friday night. What happens?"** Model answer: it fails over to its synchronous standby in another zone in tens of seconds; in-flight offers complete or expire and are retried because all state is in `driver_state`, not matcher memory; a standby matcher takes the city lease with a higher epoch. Riders see "finding your driver" for longer. Common wrong answer: "matchers keep assignments in memory and replay them".
 
-A stream job counts supply (available drivers) and demand (requests and app opens) per coarse hexagon in one- or two-minute windows, computes a multiplier from the ratio, and smooths it across neighbouring hexagons and over time, so prices do not flicker or show a cliff at a cell border. The fare estimate snapshots the multiplier into a signed quote with a short expiry; the trip references the quote, so a surge change between estimate and request never changes the price.
+**"What changes for pooled rides?"** Model answer: matching becomes inserting a pickup and drop-off into a moving vehicle's route within promised detour limits: candidates include busy drivers and the objective is total detour, a vehicle-routing problem solved heuristically in batches. The index and the CAS survive; the matcher is new. Common wrong answer: "match two riders to one driver with the same algorithm".
 
-**Q: "A whole city's matching shard dies on a Friday night. What happens?"**
+## What mid-level engineers get wrong
 
-The database for that city fails over to its synchronous replica in another zone; that takes seconds to tens of seconds, and in-flight offers either complete or expire and are retried, because every step is idempotent and state lives in `driver_state`, not in matcher memory. Matchers are stateless apart from their lease on the city, so a standby takes the lease with a higher fencing epoch. Riders see "finding your driver" for longer, which is the right degradation. The geo index rebuilds itself from the stream in seconds.
-
-**Q: "Location updates drain driver batteries and cost data. How would you reduce them?"**
-
-Make the interval adaptive: every 4 seconds when available in a busy area or on a trip; every 10–15 seconds when idle in a quiet area or when stationary; batch several points into one message when on a trip and send them together, since the rider's map can interpolate. Send deltas rather than full coordinates. Each of these cuts the 375,000-per-second figure directly, and the estimate shows the index and gateways would welcome it.
-
-**Q: "What changes if you add pooled rides?"**
-
-Matching stops being an assignment of riders to idle drivers and becomes inserting a new pickup and drop-off into a moving vehicle's existing route without breaking detour limits promised to riders already on board. Candidates include busy drivers, the cost function becomes total detour, and the problem is a constrained vehicle-routing problem solved heuristically in batches. The geo index and the compare-and-set survive unchanged; the matcher is almost entirely new.
+- Persisting every position to a database, then fighting vacuum and replication lag for data that expires in four seconds.
+- Searching one geohash cell, and missing the car 18 m away across the edge.
+- Holding a distributed lock for the 15 s the driver takes to decide, instead of an offered state with a server-side expiry.
+- Ranking by straight-line distance, so the car across the river wins.
+- Treating the index as truth and assigning from it without a conditional write, which double-books drivers under load.
+- Sizing gateways by requests per second rather than by concurrent connections.
 
 ## Senior signals
 
-- You separate **soft, lossy location state** (in memory, rebuilt from the stream) from **hard assignment state** (a conditional write in a consistent store) and say which is allowed to be stale.
-- You derive that 375,000 updates per second is **150 MB of state**, and therefore shard for write rate and blast radius, not size.
-- You know the **geohash boundary problem** (search the cell plus eight neighbours) and can compare **geohash, S2 and H3** on shape, hierarchy and neighbour queries.
-- You guarantee one trip per driver with a **compare-and-set, server-side expiry and fencing**, not with a lock held across a network call.
-- You rank candidates by **road-network ETA**, and know that per-query Dijkstra is too slow and **contraction hierarchies** are what production routing uses.
-- You can argue **greedy versus batched matching** with numbers.
+- You separate **soft, lossy location state** (in memory, rebuilt from the stream in seconds) from **hard assignment state** (a conditional write in a consistent store), and say which may be stale.
+- You derive that 375,000 updates a second is **150 MB of state**, shard for write rate and blast radius, and can quote why a relational store is the wrong home for it.
+- You know the **geohash boundary problem** and compare geohash, S2 and H3 on shape, hierarchy and neighbour queries.
+- You guarantee one trip per driver with a **compare-and-set, server-side expiry and a fencing epoch**, not a lock across a human decision.
+- You rank by **road ETA**, bound the search to the candidates, and know production routing uses **contraction hierarchies**.
+- You argue **greedy versus batched** with numbers and say when batching is not worth it.
 
 ## Check yourself
 
@@ -318,29 +460,35 @@ Matching stops being an assignment of riders to idle drivers and becomes inserti
   options: ["Geohash distorts badly at this latitude, so switch to S2", "Points can straddle a cell edge; search the 8 neighbours too", "Geohash only supports exact-match lookups, not proximity", "The precision is too high; drop to 3 characters to merge them"]
   answer: 1
   explanation: >-
-    A shared prefix implies proximity, but proximity does not imply a shared prefix. Points on either side of a cell boundary diverge early in the string, so a query must search the cell and its eight neighbours. Dropping to 3 characters makes cells about 150 km wide and still has boundaries; latitude distortion is real but is not what this example shows.
+    A shared prefix implies proximity, but proximity does not imply a shared prefix. Points either side of a cell boundary diverge early in the string, so a query searches the cell and its eight neighbours. Dropping to 3 characters makes cells about 150 km wide and still has boundaries; latitude distortion is real but is not what this example shows.
 - q: >-
     1.5 million drivers send a position every 4 seconds. What is the most important conclusion from the estimate?
   options: ["The positions need a sharded disk-based database for storage", "Bandwidth is the bottleneck, at roughly 37.5 GB/s of updates", "The data must be replicated synchronously across regions", "375,000 writes/s over 150 MB of state: keep it in memory"]
   answer: 3
   explanation: >-
-    The state is tiny and the rate is huge. An in-memory index, kept as soft state and sharded for write rate rather than size, handles it easily and rebuilds from the stream in seconds after a crash. The bandwidth is 37.5 MB/s, not GB/s, and the data is worthless after a few seconds, so synchronous replication would be waste.
+    The state is tiny and the rate is huge. An in-memory index, kept as soft state and sharded for write rate rather than size, handles it and rebuilds from the stream in seconds after a crash. The bandwidth is 37.5 MB/s, not GB/s, and the data is worthless after a few seconds, so synchronous replication would be waste.
 - q: >-
-    Two matcher instances both see driver 17 as available in the geo index and both want to offer them a trip. What prevents a double assignment?
-  options: ["Matchers use the driver's latest location timestamp as a version", "The geo index removes drivers as soon as they are offered", "A distributed lock held while waiting for the driver to accept", "A conditional UPDATE WHERE state = 'available'; one row wins"]
-  answer: 3
-  explanation: >-
-    The geo index is eventually consistent and only proposes candidates. The decision is a compare-and-set on driver_state in a consistent store: exactly one matcher gets a row back. Holding a lock across a 15-second human decision is fragile and unnecessary; the offered state with a server-side expiry is the lock.
-- q: >-
-    Rider R1 is 2 minutes from D1 and 3 from D2; R2 is 3 minutes from D1 and 8 from D2. What does batched matching buy over greedy?
-  options: ["It guarantees every rider gets their individually nearest driver", "Total wait drops from 10 to 6 minutes, for a short batching delay", "Nothing; greedy is optimal when each rider takes the nearest driver", "It removes the need to compute road ETAs for each candidate"]
+    Two matcher threads both see driver 17 as available and both run UPDATE driver_state SET state = 'offered' ... WHERE driver_id = 17 AND state = 'available'. What happens?
+  options: ["Both succeed, and the later offer replaces the earlier one", "The second blocks on the row lock, re-checks, updates 0 rows", "Both fail with a serialization error and must retry the claim", "The one with the older index snapshot is rejected by version"]
   answer: 1
   explanation: >-
-    Greedy gives R1 D1 (2) and leaves R2 with D2 (8): 10 minutes. The optimal assignment gives R1 D2 and R2 D1: 3 + 3 = 6. Batching trades a second or two of latency for globally shorter pickups, and gives neither rider a guarantee of their individual nearest driver; it still needs the ETA matrix.
+    The second UPDATE blocks on the first's row lock and, after the first commits, re-evaluates its WHERE clause against the new row, which is now offered, so it matches nothing and the matcher moves to the next candidate. Check and write are one statement, so there is no window between them; no retry loop or version from the index is involved.
 - q: >-
-    Why does H3's hexagonal grid suit surge pricing particularly well?
-  options: ["All six neighbours are equidistant, so smoothing is uniform", "H3 cell IDs sort in Hilbert order, so rings are range scans", "Hexagons tile the sphere with no pentagons or distortion", "Hexagons nest exactly, so parent cells are exact sums of children"]
-  answer: 0
+    In the simulation, batched matching cut mean pickup time by 14% with 11 drivers for 10 riders but only 4.5% with 30 drivers. What should you conclude?
+  options: ["Batching always pays, so every zone should batch requests", "Batching pays most when supply is tight; tune the window per zone", "Greedy matching is optimal once there are more drivers than riders", "The batch should grow until every rider gets the nearest driver"]
+  answer: 1
   explanation: >-
-    Every neighbour is at the same distance from the centre, so k-rings are nearly circular and smoothing a value across rings of neighbours is even, which avoids price cliffs at cell edges. H3 hierarchy is approximate, not exact; Hilbert ordering is S2's property; and each H3 resolution contains 12 pentagons.
+    With plentiful drivers, greedy choices rarely conflict, so the optimal assignment gains little while the batch window still adds delay. With scarce supply, one greedy choice often steals the only good driver for the next rider. Greedy is not optimal even with surplus drivers, and no assignment guarantees each rider their individually nearest driver.
+- q: >-
+    Postgres sustained 89,400 position updates a second with synchronous_commit off, and its GiST index grew from 6.5 MB to 178 MB in 30 seconds. What does the growth show?
+  options: ["GiST indexes store every historical position by design", "Async commit turns off the page-level compression of the index", "Each update leaves a dead tuple and index entry for vacuum", "The index was rebuilt from scratch on every committed update"]
+  answer: 2
+  explanation: >-
+    Under MVCC an UPDATE creates a new row version, and because the indexed column changed it cannot be a HOT update, so each update also inserts a new GiST entry. The old versions and entries remain until vacuum removes them, and at this rate vacuum falls behind. That churn, not query speed, is why live positions do not belong in a relational table.
+- q: >-
+    The matcher needs driving times from 14 nearby drivers to one pickup. What is the efficient way to get them from plain Dijkstra?
+  options: ["Run Dijkstra once from each driver to the pickup", "Run Dijkstra from the pickup on the reversed graph", "Run Floyd-Warshall once over the whole city graph", "Use straight-line distance and skip the road graph"]
+  answer: 1
+  explanation: >-
+    One search from the pickup over reversed edges gives every driver's time to the pickup, and it can stop once all 14 are settled, about 2,000 nodes in the grid measurement. Fourteen separate searches cost fourteen times as much; Floyd-Warshall is cubic in a million nodes; straight-line distance ranks the car across the river first.
 ```

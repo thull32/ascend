@@ -1,52 +1,45 @@
 ---
 slug: payment-system
 title: "Design a payment system: idempotency, double-entry ledgers and reconciliation"
-description: A subscription-scale payments platform worked end to end, covering idempotency keys at every boundary, the unknown-outcome problem, why exactly-once is an illusion you build from at-least-once plus dedupe, a double-entry ledger with real numbers, and reconciliation as the final line of defence.
+description: A subscription-scale payments platform worked end to end, with one checkout traced through authorisation, capture and the ledger, the unknown outcome of a timed-out call, idempotency at every boundary, a double-entry ledger with a measured hot-account bottleneck, and a day of reconciliation worked line by line.
 minutes: 40
 difficulty: expert
 tags: [system-design, case-study, payments, idempotency, ledger, double-entry, reconciliation, outbox, exactly-once]
 ---
-A customer taps "Pay". Your service calls the payment provider, and ten seconds later the call times out. Did the card get charged? You do not know, and nothing you can do in the next millisecond will tell you. If you report failure and the customer taps again, they may be charged twice, and they will see it on their bank statement. If you report success and the charge actually failed, you have given away the product. This single moment, a network call to a system you do not control with an outcome you cannot observe, is what payment system design is about.
+A customer taps "Pay". Your service calls the payment provider, and ten seconds later the call times out. Did the card get charged? You do not know, and nothing you can do in the next millisecond will tell you. Report failure and the customer taps again: they may be charged twice, and they will see it on their statement. Report success when the charge failed and you have given the product away. That moment, a call to a system you do not control with an outcome you cannot observe, is what payment design is about.
 
-Payments are rarely a scale problem. A business billing 250 million subscribers a month needs a few hundred charges per second. They are a **correctness** problem, in the presence of retries, timeouts, crashes, duplicate webhooks and external systems that cannot join your transactions. The senior answer rests on four ideas: **idempotency keys** at every boundary, **exactly-once as an illusion** built from at-least-once delivery plus deduplication, a **double-entry ledger** that makes errors structurally visible, and **reconciliation** against the outside world as the backstop that catches whatever the first three miss.
+Payments are rarely a scale problem: billing 250 million subscribers a month needs a few hundred charges a second. They are a **correctness** problem in the presence of retries, timeouts, crashes, duplicate webhooks and external systems that cannot join your transactions. The senior answer rests on four ideas: **idempotency keys** at every boundary, **exactly-once as an effect** built from at-least-once delivery plus deduplication, a **double-entry ledger** that makes errors structurally visible, and **reconciliation** against the outside world to catch whatever the first three miss.
 
 ## Requirements
 
-### Functional
-
-- Charge a customer's stored payment method for an invoice (monthly renewals) and at checkout (new sign-ups), including a 3-D Secure challenge when the issuer demands one.
-- Full and partial refunds; record disputes (chargebacks) when the PSP reports them.
-- Route charges across more than one payment service provider (PSP) by region and cost, with failover.
-- Record every movement of money in a double-entry ledger; answer "what is this account's balance?"
-- Reconcile daily against PSP reports and bank statements.
-- Publish payment events to downstream systems (entitlements, receipts, analytics).
-- Out of scope: storing card numbers (the PSP's vault tokenises them, which keeps most of your systems out of PCI DSS scope), fraud models, tax, payouts to third parties.
-
-### Non-functional
+**Functional.** Charge a stored payment method for monthly renewals and at checkout, with a 3-D Secure challenge when the issuer demands one; full and partial refunds; record disputes (chargebacks) when the payment service provider (PSP) reports them; route across two or more PSPs by region and cost, with failover; post every movement of money to a double-entry ledger; reconcile daily against PSP reports and bank statements; publish payment events to entitlements, receipts and analytics. Out of scope: storing card numbers (the PSP's vault tokenises them, which keeps most of your systems out of PCI DSS scope), fraud models, tax and payouts.
 
 | Property | Target |
 |---|---|
-| Correctness | No double charges; no lost payments; every cent traceable from invoice to bank |
-| Latency | Checkout p99 under 3 s, dominated by the PSP |
-| Availability | 99.99% for accepting payment requests; renewals may be delayed hours, never dropped |
-| Auditability | Immutable financial records, retained for years |
-| Scale | 250 million subscriptions billed monthly, plus checkouts |
+| Correctness | No double charges, no lost payments; every cent traceable from invoice to bank |
+| Durability | Zero data loss for payment state (synchronous replication) |
+| Latency | Checkout p99 under 3 s, of which the PSP takes most |
+| Availability | 99.99% for accepting payment requests; renewals may wait hours, never be dropped |
+| Reconciliation | Over 99.9% of lines matched automatically; every break resolved within 3 business days |
+| Audit | Immutable financial records retained 7+ years |
 
-Make the priority explicit: for money movement you choose **correctness over availability**. A renewal that is delayed by an hour is fine; one that is charged twice is an incident.
+For money you choose **correctness over availability**. A renewal delayed by an hour is fine; one charged twice is an incident.
 
 ## Back-of-envelope estimates
 
-**Charge rate.** $2.5 \times 10^8 / 30 \approx 8.3$ million renewals a day, about 100 per second. Add checkouts, retries of declined cards and refunds, and assume 150 per second on average with billing-run peaks of 5×: **under 1,000 per second.** A single well-run relational database cluster handles this. **Consequence: do not shard for throughput; spend the complexity budget on correctness.**
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Renewals | $2.5 \times 10^8$ ÷ 30 days ÷ 86,400 s | 8.3 million a day, 96/s |
+| All charges | Add checkouts, card retries and refunds: assume 150/s; billing runs peak at 5× | **750/s peak**: one relational primary; do not shard for throughput |
+| Money moved | $2.5 \times 10^8$ × \$15 | \$3.75 billion a month; a 0.01% error rate is \$375,000 a month |
+| PSP calls in flight | Little's law: 750/s × ~1 s | 750; in a PSP brown-out with 10 s timeouts, 7,500: async I/O and a bounded pool per PSP |
+| Ledger postings | 8.3 M charges × 3 entries × 2 postings | 50 million a day, 18 billion a year |
+| Ledger bytes | Measured on Postgres 17: 141 B per posting including a primary key and an `(account_id, created_at)` index | 2.6 TB a year, kept 7+ years: partition by month |
+| Idempotency keys | 150/s × 86,400 s × ~370 B (measured in [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)) | ~5 GB live for a 24 h window |
 
-**Money at stake.** At an average of \$15, 250 million subscriptions move about \$3.75 billion a month. An error rate of 0.01% is \$375,000 a month. **Consequence: reconciliation is a first-class component, not a finance spreadsheet.**
+**Consequences.** Spend the complexity budget on correctness, not scale. Reconciliation is a product, not a spreadsheet, because \$375,000 a month is at stake per basis point. PSP calls never happen inside a database transaction. Balances cannot be computed by summing 18 billion rows. Machines: a primary with a synchronous standby in another zone and a read replica for reconciliation, six stateless payment-service instances across three zones, a small Kafka cluster.
 
-**Ledger volume.** Each successful charge produces about three journal entries (capture, PSP fee, settlement) of two postings each. $8.3 \times 10^6 \times 6 \approx 50$ million postings a day, 18 billion a year, about 2.7 TB a year at ~150 bytes, retained for seven or more years. **Consequence: postings are append-only and partitioned by month; balances cannot be computed by summing from the beginning of time.**
-
-**PSP concurrency.** PSP calls take roughly 0.3–2 s. By Little's law, 1,000 charges per second × 1 s = 1,000 calls in flight, and during a PSP brown-out with 10-second timeouts, 10,000. **Consequence: PSP calls use asynchronous I/O and bounded pools per PSP, and never happen while a database transaction is open.**
-
-**Declines.** A few percent of renewals decline (insufficient funds, expired card), so hundreds of thousands of retry schedules exist on any day. Retry timing is a revenue lever, and retries are another source of duplicates.
-
-## API design
+## API
 
 ```text
 POST /v1/payments
@@ -68,31 +61,27 @@ POST /v1/payments/pay_7Q/refunds     Idempotency-Key: …   { "value_minor": 500
 POST /webhooks/psp/{psp}             signed events from the PSP
 ```
 
-Amounts are **integers in minor units** with an ISO 4217 currency code, never floating point: $0.1 + 0.2 \neq 0.3$ in binary floating point, and the number of minor units differs by currency (0 for JPY, 2 for USD, 3 for KWD). `processing` is a first-class, honest answer: the API does not pretend to know what it does not. The idempotency key here is derived from the invoice, which is the strongest kind of key: a natural identifier of the business intent rather than a random value that a buggy client might regenerate. A deliberate retry after a decline (dunning, days later) is a new intent and carries a new key such as `inv_2026_09_c42:attempt-2`; replaying the old key would just return the old decline.
+Amounts are **integers in minor units** with an ISO 4217 code, never floats: $0.1 + 0.2 \neq 0.3$ in binary floating point, and minor units differ by currency (0 for JPY, 2 for USD, 3 for KWD). `processing` is an honest answer. The key is derived from the invoice, a natural identifier of the business intent that a buggy client cannot regenerate. A deliberate retry after a decline (dunning, days later) is a new intent with a new key, `inv_2026_09_c42:attempt-2`; replaying the old key would return the old decline.
 
 ## Data model
 
 ```sql
 payments (payment_id PK, invoice_id, customer_id, amount_minor BIGINT, currency CHAR(3),
-          status,          -- processing | requires_action | succeeded | failed | refunded | disputed
+          status,   -- processing | requires_action | authorised | succeeded | failed | refunded | disputed
           psp, psp_reference, created_at, updated_at);
-CREATE UNIQUE INDEX one_live_payment_per_invoice
-    ON payments (invoice_id) WHERE status <> 'failed';
+CREATE UNIQUE INDEX one_live_payment_per_invoice ON payments (invoice_id) WHERE status <> 'failed';
 
 idempotency_keys (scope, key, request_hash, payment_id, response_code, response_body,
                   created_at, PRIMARY KEY (scope, key));
-
 payment_attempts (attempt_id PK,   -- also sent to the PSP as ITS idempotency key
-                  payment_id, psp, status, psp_reference, raw_response, created_at);
-
+                  payment_id, psp, operation, status, psp_reference, raw_response, created_at);
 accounts        (account_id PK, kind, currency);   -- asset | liability | revenue | expense
-journal_entries (entry_id PK, kind, payment_id, created_at);
-postings        (entry_id, account_id, amount_minor BIGINT, currency);  -- debit > 0, credit < 0
-
-outbox (event_id PK, topic, payload, created_at, published_at);
+journal_entries (entry_id PK, kind, payment_id, created_at);   -- entry_id = 'capture:pay_7Q'
+postings        (entry_id, account_id, amount_minor BIGINT, currency, created_at);  -- debit > 0
+outbox          (event_id PK, topic, payload, created_at, published_at);
 ```
 
-Three structural choices are doing the work. The partial unique index means the database itself refuses a second live payment for the same invoice, however many keys, retries or bugs are involved. The idempotency keys, payments, ledger and outbox live in **one database**, so a single local transaction can update all of them atomically. And postings are append-only: nothing in the ledger is ever updated or deleted.
+Each key answers a failure. The **partial unique index** makes the database refuse a second live payment for an invoice, however many keys, retries or bugs are involved, and it outlives the idempotency key's 24-hour window. **`(scope, key)`** scopes keys by customer, so two clients sending key `1` never see each other's response. **Deterministic `entry_id`s** make a replayed ledger post hit the primary key. **Postings are partitioned by month** on `created_at`, append-only, and indexed on `(account_id, created_at)` for balances. Keys, payments, attempts, ledger and outbox live in **one database**, so one local transaction updates them together.
 
 ## High-level design
 
@@ -106,6 +95,7 @@ flowchart LR
   PA -.->|"signed webhooks"| WH["Webhook ingestor"]
   PB -.->|"signed webhooks"| WH
   WH --> PAY
+  RES["Resolver: stuck 'processing' payments"] --> PAY
   DB --> RL["Outbox relay"]
   RL --> K[["Payment events"]]
   K --> DS["Entitlements, receipts, analytics"]
@@ -114,19 +104,72 @@ flowchart LR
   REC --> OPS["Exceptions queue for finance ops"]
 ```
 
-A charge flows like this. The payment service claims the idempotency key and creates the payment in state `processing` with an attempt row, in one transaction. It commits, then calls the PSP through the router, passing the `attempt_id` as the PSP's own idempotency key. When the answer arrives it opens a second transaction that records the outcome, writes the ledger entry and writes an outbox event, then stores the response under the idempotency key. Webhooks from the PSP feed the same state machine. The relay publishes outbox rows to Kafka, and reconciliation compares the database against files from the PSPs and the bank.
+The payment service claims the key and records the attempt in one transaction, commits, and only then calls the PSP. Results arrive synchronously or by webhook and feed one state machine; a resolver chases anything stuck in `processing`. The outbox relay publishes events to Kafka, and reconciliation compares the database with the PSP's files and the bank.
 
-## Deep dives
+## Deep dive: one checkout, traced
 
-### Idempotency at every boundary, and the unknown outcome
+### Authorise, provision, capture
 
-There are four boundaries, and each needs its own deduplication:
+At checkout the service **authorises** (the issuer reserves the funds) and **captures** (takes them) only once the product is granted, so a failure in between voids the authorisation instead of refunding a charge. Renewals use a single authorise-and-capture call. A \$15.99 checkout, key `inv_2026_09_c42`:
+
+| t (ms) | Step | Database after the step | Ledger |
+|---|---|---|---|
+| 0 | Transaction 1: insert the key (`in_progress`), `pay_7Q` (`processing`), attempt `att_1` (`authorise`, `sent`); commit | Key claimed; a crash from here on leaves evidence | – |
+| 3 | Authorise at PSP A with idempotency key `att_1` | Unchanged: no transaction is open across the call | – |
+| ~400–1,500 | Issuer approves through the card network; the time depends on issuer and region | – | – |
+| 900 | Transaction 2: `pay_7Q` = `authorised`, `att_1` = `ok`, reference `ch_1` | Funds reserved, not moved | Nothing: no money has moved |
+| 905 | Entitlements grant the plan (idempotent on `pay_7Q`) | – | – |
+| 910 | Capture `ch_1`, idempotency key `capture:pay_7Q` | Attempt `att_2` recorded first | – |
+| ~1,200 | Transaction 3: `pay_7Q` = `succeeded`; post E1; outbox `payment.succeeded`; save the 201 under the key; commit | Everything in one commit | E1: receivable +1599, revenue −1599 |
+| ~1,210 | Client gets 201 | – | – |
+| Day +1 | PSP settlement file lists `ch_1`: gross 1599, fee 76 | Reconciliation matches it | E2: fees +76, receivable −76 |
+| Day +2 | Bank payout arrives | Payout matched to the file's net total | E3: cash +1523, receivable −1523 |
+
+The fee is $0.029 \times 1599 = 46.37$, rounded to 46 cents, plus 30: 76 cents, so the payout is \$15.23. If provisioning fails at 905 ms, the service voids `ch_1` and the customer sees "payment not taken"; an uncaptured authorisation also lapses by itself after a card- and network-dependent period, commonly about a week. The three-phase handler that implements transactions 1–3, with a crash between the side effect and the record, is built and run in [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
+
+### Under the hood: what the 400–1,500 ms is
+
+The PSP, acting for your acquiring bank, sends an authorisation request over the card network to the issuing bank, which checks the card, the available funds and its fraud models and answers approve or decline with a reason code. Nothing has moved yet: the issuer has only reduced the available balance. Capture puts the transaction into **clearing**, batches the acquirer submits to the network, typically daily; in **settlement** the issuer pays the network, the network pays the acquirer, and the PSP pays you net of fees on its payout schedule, often one to a few business days later. That is why the settlement file and the bank payout arrive days after the customer saw "paid", and why reconciliation must work in windows. When the issuer demands strong customer authentication (3-D Secure), a challenge in the customer's banking app comes first: the API returns `requires_action`, and the payment may wait minutes, which is another reason nothing holds a transaction open.
+
+```viz
+{"type": "system", "scenario": "saga", "nodes": 3,
+ "title": "Checkout as a small saga",
+ "caption": "Authorise, grant the entitlement, capture: each step commits on its own. If a later step fails, earlier ones are undone by compensation (void the authorisation, revoke the entitlement), not by a rollback, because the PSP is not in our transaction."}
+```
+
+### The unknown outcome
+
+Now the capture at 910 ms times out after 10 s. There are exactly two wrong responses. Marking the payment `failed` invites the billing job to retry with a new key, which can double-charge; retrying with a new PSP key has the same effect. The right response:
+
+1. Leave `pay_7Q` in `processing` and return 202; the page polls and says "confirming your payment".
+2. Retry the capture with the **same** key `capture:pay_7Q`, which the PSP deduplicates, with backoff.
+3. Accept the webhook for `ch_1` whenever it arrives; it feeds the same state machine.
+4. A resolver queries the PSP by reference for anything `processing` longer than 5 minutes; the committed attempt row is the evidence that a call may have happened, which also covers a crash between the call and transaction 3.
+5. Reconciliation is the backstop for whatever the resolver misses.
+
+This is what "exactly-once" means: at-least-once delivery plus idempotent processing gives an exactly-once *effect* within the window in which keys are remembered. Stripe documents keeping keys for at least 24 hours, so a retry three days later is a new request; the partial unique index still blocks it. [Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics) develops the theory.
+
+### Webhooks out of order
+
+Webhooks arrive at least once and in any order, so the payment's status moves only forward (`processing` → `authorised` → `succeeded` → `refunded`), and an event that does not fit triggers a fetch of the authoritative object:
+
+| t | Event | Status before | Action | Status after |
+|---|---|---|---|---|
+| 0 s | `charge.refunded` for ch_1 (`evt_9`) | `processing` | Not reachable from `processing`: fetch ch_1 from the PSP API, which says captured, then refunded 500 | `succeeded` with a 500 refund recorded; E1 then E4 posted |
+| 2 s | `charge.succeeded` (`evt_7`) | `succeeded` | Already past it: acknowledge, no-op | `succeeded` |
+| 5 s | `evt_7` again | – | Event ID already stored: 200, no-op | – |
+
+### Declines and dunning
+
+If 3% of 8.3 million daily renewals decline, 250,000 retry schedules start every day. Soft declines (insufficient funds, issuer unavailable) are retried over days, often timed to when funds are likely (after a payday), each retry a new intent with a new key. Hard declines (stolen card, closed account) are never retried: card networks publish rules that cap retries of declined cards and charge for excessive ones. Retry timing is a revenue lever, so the schedule is an experiment, not a constant.
+
+### Idempotency at every boundary
 
 | Boundary | Duplicate source | Mechanism |
 |---|---|---|
-| Client → payment service | Retries, double taps, replayed billing jobs | `Idempotency-Key` stored with a request hash and the saved response; plus the unique live-payment-per-invoice index |
-| Payment service → PSP | Our retries after a timeout or crash | Send `attempt_id` as the PSP's idempotency key; the PSP returns the original result for a repeated key |
-| PSP → payment service | Webhooks are delivered at least once and out of order | Verify the signature, dedupe on the PSP's event ID, apply only forward state transitions |
+| Client → payment service | Retries, double taps, replayed billing jobs | `Idempotency-Key` with request hash and saved response; the live-payment-per-invoice index |
+| Payment service → PSP | Our retries after a timeout or crash | `attempt_id` or `capture:pay_7Q` as the PSP's key |
+| PSP → payment service | Webhooks delivered at least once, out of order | Verify the signature, dedupe on the PSP's event ID, apply only forward transitions |
 | Payment service → downstream | Outbox relay republishes after a crash | Consumers dedupe on `event_id` |
 
 ```viz
@@ -134,55 +177,14 @@ There are four boundaries, and each needs its own deduplication:
  "caption": "The first request claims the key, charges once and saves the response. The retry after a lost reply finds the saved response and replays it; a concurrent duplicate is refused with 409. Same key with a different body is a client bug and gets 422."}
 ```
 
-The handler, in outline:
-
-```python
-def create_payment(req, key):
-    h = sha256(canonical_json(req.body))
-    with db.transaction():
-        claimed = db.insert_if_absent("idempotency_keys",
-                                      scope=req.customer_id, key=key, request_hash=h)
-        if not claimed:
-            prev = db.get("idempotency_keys", scope=req.customer_id, key=key)
-            if prev.request_hash != h:
-                return 422, "key reused with a different request"
-            if prev.response_code is None:
-                return 409, "original request still in progress"
-            return prev.response_code, prev.response_body        # replay, no side effects
-        pay = db.insert("payments", invoice_id=req.invoice_id, status="processing", ...)
-        att = db.insert("payment_attempts", payment_id=pay.id, psp=route(req), status="sent")
-
-    # No transaction is open across the network call.
-    result = psp.charge(att, idempotency_key=att.attempt_id, timeout_s=10)
-
-    with db.transaction():
-        if result.kind == "succeeded":
-            db.update("payments", pay.id, status="succeeded", psp_reference=result.ref)
-            post_capture_entry(pay, result)                 # double-entry, same transaction
-            db.insert("outbox", topic="payment.succeeded", payload=...)
-        elif result.kind == "declined":
-            db.update("payments", pay.id, status="failed")
-        # timeout or 5xx: leave it 'processing'; the resolver will find out
-        db.save_response("idempotency_keys", req.customer_id, key, response_for(pay))
-    return response_for(pay)
-```
-
-The important line is the comment about timeouts. On a timeout the outcome is **unknown**, and there are exactly two wrong responses. Marking the payment `failed` invites the customer or the billing job to retry with a new key, which can double-charge. Retrying with a new PSP idempotency key has the same effect. The right response is to leave the payment `processing`, tell the caller so (202), and resolve it: retry the PSP call with the *same* `attempt_id`, which the PSP deduplicates; wait for the webhook; and run a resolver that queries the PSP by reference for anything stuck in `processing` longer than a few minutes. The same resolver cleans up after a crash between the two transactions, because the committed `sent` attempt is the record that a call may have happened.
-
-This is what "exactly-once" means in practice. No network gives you exactly-once delivery. You get **at-least-once delivery plus idempotent processing**, which produces an exactly-once *effect* within the window in which you remember keys. Public payment APIs typically keep keys for about a day (Stripe documents a minimum of 24 hours), so a retry three days later is a new request. That is why the natural key matters: the unique index on `invoice_id` still blocks the duplicate after the idempotency key has expired, and reconciliation catches anything that escapes both. [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) and [exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics) develop the general theory.
-
-Downstream delivery uses the transactional outbox: the `payment.succeeded` event commits in the same transaction as the status change, so there is no window in which the payment succeeded but entitlements never hear about it.
-
 ```viz
 {"type": "system", "scenario": "outbox", "requests": 3, "title": "Payment succeeded, event guaranteed",
  "caption": "The status change, ledger entry and outbox row commit together. The relay may publish an event twice after a crash, so the entitlement service dedupes on event_id; it can never miss one."}
 ```
 
-### The double-entry ledger
+## Deep dive: the double-entry ledger
 
-A payments table records what you *asked* for. A ledger records what money *did*, and double-entry bookkeeping is the format that has survived centuries because it makes errors visible. Every journal entry moves money between at least two accounts, as postings that sum to zero per currency: debits positive, credits negative. Asset and expense accounts grow with debits; liability and revenue accounts grow with credits.
-
-Work a real charge. A customer pays \$15.99. The PSP charges 2.9% plus 30 cents: $0.029 \times 1599 = 46.37$, rounded to 46 cents, plus 30 is 76 cents. Two days later the PSP pays out the net \$15.23. Later the customer gets a \$5.00 partial refund.
+A payments table records what you *asked* for; a ledger records what money *did*. Every journal entry moves money between at least two accounts as postings that sum to zero per currency: debits positive, credits negative. Asset and expense accounts grow with debits; liability and revenue accounts grow with credits. The checkout above, plus a later \$5.00 partial refund:
 
 | Entry | Account | Posting (minor units) |
 |---|---|---|
@@ -195,42 +197,133 @@ Work a real charge. A customer pays \$15.99. The PSP charges 2.9% plus 30 cents:
 | E4 refund | contra-revenue: refunds | +500 |
 | | asset: PSP receivable | −500 |
 
-After E3 the PSP receivable is $1599 - 76 - 1523 = 0$: the PSP owes us nothing for this charge, which is precisely the fact reconciliation will verify. Cash is +1523, fees +76, revenue −1599, and all balances sum to zero. After E4 the receivable is −500: we owe the PSP, which will net it from the next payout. At every point, the sum of all balances is zero. A bug that writes one side of an entry cannot commit.
+After E3 the receivable is $1599 - 76 - 1523 = 0$: the PSP owes nothing for this charge, which is exactly what reconciliation verifies. After E4 it is −500: we owe the PSP, which nets it from the next payout. The sum of all balances is zero at every point, so a bug that writes one side of an entry cannot commit. Runnable with SQLite:
 
 ```python
+import sqlite3
 from collections import defaultdict
 
-def post(db, entry_id, kind, postings, payment_id=None):
-    """postings: [(account_id, amount_minor, currency)], debit > 0, credit < 0."""
+db = sqlite3.connect(":memory:", isolation_level=None)
+db.executescript("""
+CREATE TABLE journal_entries (entry_id TEXT PRIMARY KEY, kind TEXT, payment_id TEXT);
+CREATE TABLE postings (entry_id TEXT REFERENCES journal_entries, account TEXT,
+                       amount_minor INTEGER NOT NULL, currency TEXT NOT NULL);
+""")
+
+def post(entry_id, kind, postings, payment_id=None):
+    """postings: [(account, amount_minor, currency)]; debit > 0, credit < 0."""
     totals = defaultdict(int)
     for _, amount, currency in postings:
         if amount == 0:
             raise ValueError("zero posting")
         totals[currency] += amount
-    if any(totals.values()):
+    if len(postings) < 2 or any(totals.values()):
         raise ValueError(f"unbalanced entry {entry_id}: {dict(totals)}")
-    # entry_id is deterministic (e.g. 'capture:pay_7Q'), so a replay hits the
-    # primary key and cannot post twice.
-    db.insert("journal_entries", entry_id=entry_id, kind=kind, payment_id=payment_id)
-    for account, amount, currency in postings:
-        db.insert("postings", entry_id=entry_id, account_id=account,
-                  amount_minor=amount, currency=currency)
+    db.execute("BEGIN")
+    try:
+        # entry_id is deterministic ('capture:pay_7Q'), so a replay hits the primary key
+        db.execute("INSERT INTO journal_entries VALUES (?, ?, ?)", (entry_id, kind, payment_id))
+        db.executemany("INSERT INTO postings VALUES (?, ?, ?, ?)",
+                       [(entry_id, a, amt, cur) for a, amt, cur in postings])
+        db.execute("COMMIT")
+    except sqlite3.IntegrityError:
+        db.execute("ROLLBACK")          # already posted: the replay is a no-op
+        return False
+    return True
+
+def balance(account, currency="USD"):
+    return db.execute("SELECT coalesce(sum(amount_minor), 0) FROM postings "
+                      "WHERE account = ? AND currency = ?", (account, currency)).fetchone()[0]
+
+post("capture:pay_7Q", "capture", [("psp_receivable", 1599, "USD"), ("revenue", -1599, "USD")])
+print(post("capture:pay_7Q", "capture", [("psp_receivable", 1599, "USD"), ("revenue", -1599, "USD")]))  # False
+post("fee:pay_7Q", "fee", [("fees", 76, "USD"), ("psp_receivable", -76, "USD")])
+post("settle:pay_7Q", "settlement", [("cash", 1523, "USD"), ("psp_receivable", -1523, "USD")])
+print(balance("psp_receivable"), balance("cash"), balance("revenue"))    # 0 1523 -1599
+try:
+    post("refund:pay_7Q", "refund", [("refunds", 500, "USD"), ("psp_receivable", -50, "USD")])
+except ValueError as e:
+    print(e)                          # unbalanced entry refund:pay_7Q: {'USD': 450}
 ```
 
-Enforce the invariant in the database too (a deferred constraint trigger that checks the sum per entry at commit), because application code is not the only thing that will ever write to the ledger.
+In Postgres, enforce the same invariant with a deferred constraint trigger that checks each entry's sum at commit, because application code is not the only thing that will ever write to the ledger.
 
-Four rules keep a ledger honest:
+### The hot account, measured
 
-- **Immutable.** Mistakes are corrected with a new reversing entry, never an `UPDATE`. The history of the correction is itself audit evidence.
-- **Balanced per currency.** Currency conversion is two entries through an FX account at a recorded rate; you never let USD postings balance EUR postings.
-- **Deterministic rounding.** When splitting 1,000 cents three ways, allocate 333, 333, 334 by a fixed rule, and never let rounding create or destroy a cent.
-- **Balances are derived.** A balance is the sum of postings. At 18 billion postings a year you do not sum from zero: keep a periodic balance snapshot per account and sum postings since. Do not maintain a running-balance row on hot system accounts like the PSP receivable, which every charge touches; at hundreds of writes per second a single row becomes a lock queue. Split such accounts into sub-accounts (`psp_receivable:pspA:USD:shard-07`) summed on read.
+It is tempting to keep a running `balance` row per account, updated in the same transaction as each posting. Every charge touches the PSP receivable, so that row sees every transaction. Measured on Postgres 17 with durable commits, each transaction inserting two postings:
 
-### Reconciliation: trust, but verify against the outside world
+| Design | 8 connections | 32 connections |
+|---|---|---|
+| Append postings only | 1,590/s | 7,600/s |
+| Plus one running-balance row for the receivable | 390/s, 20 ms latency | 360/s, 88 ms latency |
+| Plus 16 receivable sub-accounts, one picked at random | 1,540/s | 3,030/s |
 
-Everything above can still be wrong. A resolver has a bug, a webhook was never sent, a PSP applied a fee you did not expect, a bank payout was short. Reconciliation compares three independent records of the same money: **your ledger**, **the PSP's reports** (per-transaction settlement files, usually daily) and **the bank statement** (the payouts that actually arrived).
+The single row stays at ~360 a second however many connections you add, because each transaction holds the row lock until its commit has flushed the WAL ([MVCC and locking](/learn/databases/relational-fundamentals/mvcc-and-locking) shows why an `UPDATE` must wait for the previous writer to finish): $1/360 \approx 2.8$ ms per transaction, serialised. At the 750/s billing peak that row is a queue. So balances are derived: a periodic snapshot per account plus the postings since, served by the `(account_id, created_at)` index; hot system accounts are split into sub-accounts (`psp_receivable:pspA:USD:07`) summed on read. A single customer's balance row is fine, because nothing else contends for it.
 
-The core is a full outer join on the PSP reference:
+Three more rules keep a ledger honest. **Immutable:** mistakes are corrected by a reversing entry, never an `UPDATE`. **Balanced per currency:** conversion is two legs through an FX account at a recorded rate. **Deterministic rounding:** 1,000 cents split three ways is 333, 333 and 334 by a fixed rule, so rounding never creates or destroys a cent.
+
+```exercise
+id: ledger-balance-check
+title: Check and apply journal entries
+prompt: |
+  Implement `check_ledger(entries)`. Each entry is `[entry_id, postings]` and each posting is
+  `[account, amount_minor, currency]` (debit > 0, credit < 0). Process entries in order and
+  reject an entry, applying none of its postings, for the first rule it breaks:
+
+  1. `"duplicate"`: an entry with this `entry_id` was already accepted (a replay).
+  2. `"too_few_postings"`: fewer than two postings.
+  3. `"zero_posting"`: some posting has amount 0.
+  4. `"unbalanced"`: for some currency, the entry's postings do not sum to 0.
+
+  Return `{"balances": {account: {currency: total}}, "rejected": [[entry_id, reason], ...]}`.
+  Include every account and currency touched by an accepted entry, even if its total is 0;
+  `rejected` is in input order. A rejected `entry_id` may be accepted later.
+languages: [python, javascript]
+entry: check_ledger
+starter:
+  python: |
+    def check_ledger(entries):
+        balances, rejected = {}, []
+        # your code here
+        return {"balances": balances, "rejected": rejected}
+  javascript: |
+    function check_ledger(entries) {
+      const balances = {}, rejected = [];
+      // your code here
+      return { balances, rejected };
+    }
+tests:
+  - args: [[["capture:pay_7Q", [["psp_receivable", 1599, "USD"], ["revenue", -1599, "USD"]]], ["fee:pay_7Q", [["fees", 76, "USD"], ["psp_receivable", -76, "USD"]]], ["settle:pay_7Q", [["cash", 1523, "USD"], ["psp_receivable", -1523, "USD"]]]]]
+    expected: {"balances": {"psp_receivable": {"USD": 0}, "revenue": {"USD": -1599}, "fees": {"USD": 76}, "cash": {"USD": 1523}}, "rejected": []}
+    label: capture, fee and settlement leave the receivable at zero
+  - args: [[["capture:pay_7Q", [["psp_receivable", 1599, "USD"], ["revenue", -1599, "USD"]]], ["capture:pay_7Q", [["psp_receivable", 1599, "USD"], ["revenue", -1599, "USD"]]], ["fee:pay_7Q", [["fees", 76, "USD"], ["psp_receivable", -76, "USD"]]]]]
+    expected: {"balances": {"psp_receivable": {"USD": 1523}, "revenue": {"USD": -1599}, "fees": {"USD": 76}}, "rejected": [["capture:pay_7Q", "duplicate"]]}
+    label: a replayed entry is not applied twice
+  - args: [[["capture:pay_7Q", [["psp_receivable", 1599, "USD"], ["revenue", -1599, "USD"]]], ["fee:pay_7Q", [["fees", 76, "USD"], ["psp_receivable", -67, "USD"]]], ["settle:pay_7Q", [["cash", 1523, "USD"], ["psp_receivable", -1523, "USD"]]]]]
+    expected: {"balances": {"psp_receivable": {"USD": 76}, "revenue": {"USD": -1599}, "cash": {"USD": 1523}}, "rejected": [["fee:pay_7Q", "unbalanced"]]}
+    label: a mistyped fee is rejected and the receivable shows the gap
+  - args: [[]]
+    expected: {"balances": {}, "rejected": []}
+    label: no entries
+  - args: [[["fx:1", [["cash_usd", -1000, "USD"], ["cash_eur", 920, "EUR"]]]]]
+    expected: {"balances": {}, "rejected": [["fx:1", "unbalanced"]]}
+    label: USD cannot balance EUR
+    hidden: true
+  - args: [[["fx:1", [["cash_usd", -1000, "USD"], ["fx", 1000, "USD"], ["fx", -920, "EUR"], ["cash_eur", 920, "EUR"]]]]]
+    expected: {"balances": {"cash_usd": {"USD": -1000}, "fx": {"USD": 1000, "EUR": -920}, "cash_eur": {"EUR": 920}}, "rejected": []}
+    label: conversion through an FX account balances per currency
+    hidden: true
+  - args: [[["a", [["cash", 5, "USD"]]], ["b", [["cash", 0, "USD"], ["revenue", 0, "USD"]]], ["a", [["cash", 5, "USD"], ["revenue", -5, "USD"]]], ["a", [["cash", 5, "USD"], ["revenue", -5, "USD"]]]]]
+    expected: {"balances": {"cash": {"USD": 5}, "revenue": {"USD": -5}}, "rejected": [["a", "too_few_postings"], ["b", "zero_posting"], ["a", "duplicate"]]}
+    hidden: true
+hints:
+  - "Keep a set of accepted entry ids; check it before anything else."
+  - "Sum amounts per currency inside one entry; every sum must be exactly 0 before any posting touches the balances."
+```
+
+## Deep dive: a day of reconciliation
+
+Everything above can still be wrong: a resolver bug, a webhook never sent, a fee you did not expect, a short payout. Reconciliation compares three independent records of the same money: **your ledger**, **the PSP's settlement file** and **the bank statement**. The core is a full outer join on the PSP reference:
 
 ```sql
 SELECT coalesce(p.psp_reference, s.psp_reference) AS ref,
@@ -249,68 +342,82 @@ FULL OUTER JOIN
   ON p.psp_reference = s.psp_reference;
 ```
 
-Each outcome has a playbook:
+A small day, worked. PSP A's file for day D has four lines; our database has four succeeded payments in the window:
 
-- **Missing internally.** The PSP charged; you have no successful payment. Usually the unknown-outcome case where resolution failed. If the invoice is unpaid, record the payment and grant the product; if the invoice was already paid by another attempt, this is a double charge, so refund it automatically and alert.
-- **Missing at the PSP.** You believe it succeeded; the PSP has no record. The customer received the product without paying. Rare and serious: a bug in result handling or a forged webhook. Investigate every one.
-- **Amount mismatch.** Partial captures, currency conversion, or a bug. Investigate.
-- **Fee mismatch.** The PSP charged a different fee than the contract; finance raises a claim.
-- **Payout mismatch.** The bank received less than the sum of settlement lines, often a PSP reserve, adjustment or chargeback. Match the PSP's payout report line by line.
+| Ref | Ours | PSP file | Outcome | Action |
+|---|---|---|---|---|
+| ch_1 | 1599 | 1599, fee 76 | matched | Post E2 and E3 |
+| ch_2 | 999 | 999, fee 59 | matched | Post fee and settlement |
+| ch_3 | 1599, captured 23:59:58 | – | **pending** | The PSP dated it D+1; it becomes a break only if still unmatched after 3 days |
+| ch_5 | – | 1599, fee 76 | **missing internally** | Invoice `inv_2026_09_c42` was already paid by ch_1: a double charge from an unresolved timeout. Refund automatically, alert, fix the resolver |
+| ch_6 | 1599 | 1499, fee 73 | **amount mismatch** | A partial capture or a bug; investigate |
 
-Timing causes most false alarms. A charge captured at 23:59:58 in your time zone lands in the PSP's next UTC day, and settlements arrive one to three business days later. So matching uses windows (a transaction stays `pending` for a few days before it can become a break), and only unresolved items age into an exceptions queue with the money at risk attached. The metrics that matter are the automatic match rate (well above 99.9%), the age of the oldest break, and the total value of unresolved breaks.
-
-Run reconciliation continuously as well as daily: webhooks and the resolver catch most divergence within minutes, and the daily file-based run is the independent check that does not share code paths with the system it is checking.
+The file's net is $(1599-76) + (999-59) + (1599-76) + (1499-73) = 5{,}412$. The bank shows 5,112. The 300 gap matches a chargeback line in the PSP's payout report, so the payout reconciles once that line is posted. Timing causes most false breaks, which is why lines age through `pending` before becoming exceptions. The metrics that matter are the automatic match rate, the age of the oldest break and the money in unresolved breaks. Run it daily from files as an independent check that shares no code with the payment path, and continuously from webhooks for speed.
 
 ## Failure modes
 
-**PSP timeout.** Outcome unknown. Mitigation: `processing` state, same-key retry, webhook, resolver, and reconciliation as the last resort. Never convert "unknown" into "failed".
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| PSP timeout | Payments stuck in `processing` | Timeouts per PSP; resolver backlog | Same-key retry, webhook, resolver, reconciliation. Never convert unknown into failed |
+| PSP outage | Error rate and latency up on one PSP | Per-PSP dashboards | Route **new** payments to PSP B. A payment unknown on A stays on A until resolved or its authorisation is voided; B could charge it twice |
+| Webhook chaos | A refund event before the success event; forged events | Signature failures; transitions rejected as backwards | Verify signatures, dedupe on event ID, forward-only transitions; fetch the object from the PSP when an event does not fit |
+| Keys in a cache | Duplicates clustered around a cache eviction or failover | Key store is Redis with eviction | Keys in the payments database, in the same transaction |
+| Crash after the PSP succeeded | Charged, but `processing` | Attempt `sent` with no result | Resolver queries by attempt reference and completes transaction 3 |
+| Billing-day storm | PSP 429s at midnight on the 1st | Charge rate versus PSP limits | Anniversary billing dates, paced billing jobs, per-PSP concurrency caps |
+| Hot ledger row | Commit latency climbs with load; throughput flat at ~360/s | Lock waits on one `balance` row | Derived balances; sub-accounts |
+| Unbalanced entry | Commit rejected; payment unposted | Constraint-trigger errors after a deploy | Alert; post the missing entry, never edit rows |
 
-**PSP outage.** Detection: error rates and latency per PSP. Mitigation: route **new** payments to the secondary PSP. Do not retry a payment whose attempt on PSP A is in an unknown state on PSP B; if A later succeeds you have charged twice. Resolve A first, or cancel the authorisation on A explicitly before trying B. Renewals do not need failover at all; they can wait hours and retry on the primary.
+## Trade-offs: what we rejected
 
-**Webhook chaos.** Duplicates, reordering (a refund event before the success event), forgeries. Mitigation: verify signatures, dedupe on event ID, make state transitions monotonic (a `succeeded` payment never returns to `processing`), and when an event does not fit, fetch the authoritative object from the PSP API rather than guessing.
+| Decision | Chosen | Rejected | Why here | What would flip it |
+|---|---|---|---|---|
+| Cross-system atomicity | Local transactions, idempotent calls, outbox, compensation ([distributed transactions](/learn/system-design/distributed-systems/distributed-transactions)) | Two-phase commit with the PSP | The PSP is an HTTP API, not an XA participant | Never, for external PSPs |
+| Key source | Derived from the invoice | Random UUID per request | Survives client restarts; backed by a unique index | No natural business key (tips, donations) |
+| Balances | Snapshot plus postings; sub-accounts for hot accounts | Running balance row | Measured cap of ~360 commits/s on one row | Per-customer accounts, which are not contended |
+| Checkout flow | Authorise, provision, capture | One-step charge | A provisioning failure voids instead of refunding | Instant digital goods with no provisioning step |
+| Scale | One primary with a sync standby | Sharded ledger | 750/s peak | Sustained write rate beyond one primary (see 100×) |
 
-**Idempotency store loses keys.** Keys kept in a cache that evicts under memory pressure silently turn retries into duplicate charges. Mitigation: keep keys in the same durable database as the payments, in the same transaction.
+## At 10× and 100×
 
-**Crash between PSP success and the second transaction.** The customer is charged; your database says `processing`. Mitigation: the resolver queries the PSP by attempt reference and completes the transaction; reconciliation catches it if the resolver does not.
+**10× (7,500 charges/s at peak).** Durable commits on one primary still fit (7,600/s measured for two-posting transactions from 32 connections, with room from larger machines and batching), but the headroom is gone: partition postings by month, move reconciliation and reporting to a replica or warehouse, and add PSPs per region. Ledger storage becomes 26 TB a year: cold partitions move to cheaper storage.
 
-**Billing-day retry storm.** Millions of renewals and their retries hit the PSP at midnight on the first of the month. Mitigation: spread billing dates (anniversary billing), pace billing jobs, and respect PSP rate limits with per-PSP concurrency caps.
+**100× (a payments platform for many businesses).** Shard by merchant or account: each merchant's payments, keys and ledger live on one shard, so every transaction stays local; platform-wide accounts (fees, the PSP receivable) are split per shard and rolled up asynchronously. Reconciliation runs per shard in a batch engine over files that are now hundreds of millions of lines a day.
 
-**Unbalanced ledger entry.** A code change emits one side of an entry. Mitigation: the entry is rejected at commit, the payment remains unposted, an alert fires, and reconciliation reports the gap. Correct by posting the missing entry, never by editing rows.
+## What real companies describe
 
-## Senior follow-ups
+Stripe's API documentation describes idempotency keys that save the first response, compare the parameters of retries and may be pruned after 24 hours. Airbnb's engineering blog has described a payments idempotency library that splits each request into pre-call, call and post-call phases so that a crash between them can be retried safely. Payment providers generally document authorise-then-capture flows, settlement reports per payout, and signed, at-least-once webhooks. The same authorise, confirm, then capture-or-void sequence protects [ticket booking](/learn/system-design/case-studies/ticket-booking) from charging for seats a user did not get. Treat these as public descriptions of approaches, not current internals.
 
-**Q: "The PSP times out during checkout. What does the customer see, and what does the system do?"**
+## Interviewer follow-ups
 
-The customer sees "we're confirming your payment" rather than a failure, and the page polls the payment status. The system leaves the payment `processing`, retries the PSP call with the same attempt ID (the PSP deduplicates it), and listens for the webhook. Most resolve in seconds. If it is still unknown after a minute, the customer is told we will email them, and the resolver keeps querying. What we never do is show "payment failed, try again", because the second tap would carry a new intent and could charge twice.
+**"The PSP times out during checkout. What does the customer see?"** Model answer: "we're confirming your payment", while the page polls; the payment stays `processing`, the capture is retried with the same key, the webhook and resolver settle it within seconds to minutes, and we email if it takes longer. Common wrong answer: "payment failed, try again", which invites a second charge.
 
-**Q: "How do you fail over between PSPs without double charging?"**
+**"How do you fail over between PSPs without double charging?"** Model answer: only payments with a known outcome move. New payments route to the healthy PSP; payments unknown on the failing one stay until resolved or explicitly voided there. The unique live-payment-per-invoice index refuses a second live payment even if routing is wrong. Common wrong answer: "retry everything on the backup PSP".
 
-Only payments whose outcome is known may move. New payments route to the healthy PSP immediately. Payments with an unknown outcome on the failing PSP stay there until resolved, or until we explicitly cancel the authorisation on that PSP and get confirmation. The unique live-payment-per-invoice index is the safety net: the database refuses a second live payment for the invoice even if routing logic is wrong.
+**"A client retries four days later with the same key."** Model answer: the key has expired, so the request looks new, but the invoice already has a live payment, so the unique index rejects it and we return the existing payment; reconciliation catches anything that escapes both. Common wrong answer: "keep keys forever", which trades a bounded table for an unbounded one and still misses a client that mints a new key.
 
-**Q: "Why not a distributed transaction across the payments database and the PSP?"**
+**"How do you answer 'what is this balance' in milliseconds?"** Model answer: a daily snapshot per account plus the postings since, via the `(account_id, created_at)` index; a materialised row is fine for a customer's account but not for system accounts, which measured at ~360 commits/s on one row. Common wrong answer: `SUM` over all postings, or one balance row for everything.
 
-The PSP will not participate. Two-phase commit needs every participant to support prepare and commit under a shared coordinator; the PSP exposes an HTTP API with idempotency keys, not an XA resource manager. Even inside our own systems, 2PC would couple our availability to every participant's. The substitute is what we built: local transactions, idempotent external calls, an outbox for events, compensations (refunds) where needed, and reconciliation to prove the result. [Distributed transactions](/learn/system-design/distributed-systems/distributed-transactions) covers the trade-off in general.
+**"Isn't the ledger event sourcing?"** Model answer: it shares the property that state derives from an append-only log of immutable facts, but it has a fixed audited schema and a strong invariant (balanced per currency); event-source the payment lifecycle only if you need that history beyond audit. Common wrong answer: "yes, so store payment events and skip the ledger".
 
-**Q: "A client retries four days later with the same idempotency key. What happens?"**
+## What mid-level engineers get wrong
 
-The key has expired, so the request looks new. The natural key saves us: the invoice already has a live payment, so the unique index rejects the insert and we return the existing payment. This is why I derive keys from business identifiers where one exists, and why the database constraint, not the key store, is the long-term guarantee.
-
-**Q: "How do you answer 'what is this customer's balance' in milliseconds with billions of postings?"**
-
-Balances are snapshots plus deltas: a daily (or hourly) balance per account computed by a job, and a sum over postings since the snapshot, served by an index on `(account_id, created_at)`. For customer-facing balances, a materialised balance row updated in the same transaction as the posting is fine, because a single customer's account is not contended. Hot system accounts are the ones that get sharded sub-accounts or snapshot-only balances.
-
-**Q: "Isn't the ledger just event sourcing?"**
-
-It shares the key property: state is derived from an append-only log of immutable facts, and corrections are new facts. The difference is that a ledger has a fixed, audited schema (entries, postings, accounts) with a strong invariant (balanced per currency), whereas event sourcing is a general pattern for arbitrary domain events. I would event-source the payment's lifecycle only if we needed its full history for more than audit; the ledger is non-negotiable either way.
+- Storing money as a float, then chasing a one-cent drift across millions of rows.
+- Marking a timed-out payment `failed`, which turns every PSP brown-out into double charges.
+- Holding a database transaction open across the PSP call and exhausting the pool during a brown-out.
+- Keeping idempotency keys in an evicting cache.
+- Updating ledger rows to fix mistakes, which destroys the audit trail.
+- One running balance row for a system account, which caps throughput at one commit per WAL flush.
+- Treating reconciliation as finance's job, so double charges are found by customers.
+- Retrying hard declines on a timer, which never succeeds and draws network penalties.
 
 ## Senior signals
 
-- You say early that payments are a **correctness problem at modest scale**, and you refuse to shard or add infrastructure for throughput you do not have.
-- You place **idempotency at all four boundaries** and derive the key from the **business intent** (invoice) where possible, backed by a **unique constraint** that outlives the key's TTL.
-- You treat **"unknown" as a state**, never convert a timeout into a failure, and resolve it with same-key retries, webhooks, a resolver and reconciliation.
-- You describe **exactly-once as at-least-once plus dedupe**, bounded by how long you remember keys.
-- You can post a charge, fee, settlement and refund in a **double-entry ledger** with integer minor units and show that it balances.
-- You make **reconciliation** a product with match rates, ageing and money-at-risk, and you know that timing windows cause most false breaks.
+- You say early that payments are a **correctness problem at modest scale**, and refuse to shard for throughput you do not have.
+- You place **idempotency at all four boundaries**, derive the key from the **business intent**, and back it with a **unique constraint** that outlives the key's TTL.
+- You treat **"unknown" as a state** and resolve it with same-key retries, webhooks, a resolver and reconciliation.
+- You separate **authorisation from capture** so that a failure after payment voids instead of refunding.
+- You post a charge, fee, settlement and refund in a **double-entry ledger** in integer minor units, and know why a hot balance row serialises at the WAL flush rate.
+- You make **reconciliation** a product with match rates, ageing and money at risk, and know timing windows cause most false breaks.
 
 ## Check yourself
 
@@ -320,7 +427,7 @@ It shares the key property: state is derived from an append-only log of immutabl
   options: ["Mark the payment succeeded, since most charges succeed", "Mark the payment failed so the customer can retry", "Retry immediately on a second PSP to get a definite answer", "Keep it processing; retry with the same key and reconcile"]
   answer: 3
   explanation: >-
-    The outcome is unknown, so the payment stays in processing and is retried with the same PSP idempotency key, then resolved via webhook or status query. Marking it failed invites a retry with a new intent, and trying a second PSP can charge twice if the first succeeded. A same-key retry is deduplicated by the PSP, and the webhook, resolver and reconciliation settle the truth. Guessing success gives away the product when the charge actually failed.
+    The outcome is unknown, so the payment stays in processing and is retried with the same PSP idempotency key, then resolved by webhook or status query. Marking it failed invites a retry with a new intent, and trying a second PSP can charge twice if the first succeeded. Guessing success gives away the product when the charge actually failed.
 - q: >-
     Idempotency keys are kept for 24 hours. What protects against a duplicate charge from a retry four days later?
   options: ["A longer idempotency key, so collisions cannot occur", "The PSP's fraud checks flagging the repeated charge", "A unique constraint: one live payment per invoice", "Nothing; beyond 24 hours a duplicate is an accepted risk"]
@@ -332,17 +439,23 @@ It shares the key property: state is derived from an append-only log of immutabl
   options: ["-76", "+1599", "+1523", "0"]
   answer: 3
   explanation: >-
-    The capture debits the receivable 1599; the fee credits it 76; the settlement credits it 1523. 1599 - 76 - 1523 = 0. A zero receivable after settlement is exactly the fact reconciliation checks for each charge.
+    The capture debits the receivable 1599; the fee credits it 76; the settlement credits it 1523. 1599 - 76 - 1523 = 0. A zero receivable after settlement is exactly the fact reconciliation checks for each charge; a nonzero one points at a missing or wrong entry.
 - q: >-
-    Which statement about exactly-once payment processing is accurate?
-  options: ["Two-phase commit with the PSP gives true exactly-once", "It is at-least-once delivery plus idempotent processing", "Kafka transactions make the PSP calls themselves exactly-once", "Setting retries to zero achieves exactly-once delivery"]
+    A running balance row for the PSP receivable is updated in every payment transaction. Measured, throughput stayed near 360 per second at both 8 and 32 connections. Why?
+  options: ["Each transaction holds the row lock until its WAL flush", "Postgres limits each table to one writer at a time", "The postings index is rebuilt on every committed insert", "32 connections exceed the database's connection limit"]
+  answer: 0
+  explanation: >-
+    Every transaction updates the same row and keeps its lock until commit, and commit waits for the WAL flush, about 2.8 ms here, so transactions on that row run one at a time whatever the connection count. Append-only postings do not contend and reached 7,600 per second; splitting the account into 16 sub-accounts reached 3,030.
+- q: >-
+    Checkout authorises the card, then grants the plan, then captures. Provisioning fails after the authorisation succeeded. What should happen?
+  options: ["Capture anyway and refund the customer later", "Void the authorisation so no money is taken", "Retry the authorisation with a new idempotency key", "Let reconciliation capture the authorisation later"]
   answer: 1
   explanation: >-
-    Exactly-once delivery is impossible over a network: messages and calls can always be lost or duplicated, so systems deliver at least once and deduplicate, giving an exactly-once effect within the dedupe window. Kafka transactions cover reads and writes inside Kafka, not calls to an external PSP, which also does not participate in 2PC. Zero retries gives at-most-once, trading duplicates for lost payments.
+    An authorisation reserves funds without moving them, so voiding it means the customer is never charged, which is cleaner than a refund that shows on the statement for days. A new authorisation key would reserve the funds twice, and reconciliation reports breaks; it does not capture payments.
 - q: >-
-    Daily reconciliation finds a PSP charge with no successful payment in your database, and the invoice was already paid by another attempt. What is it and what should happen?
+    Reconciliation finds a PSP charge with no successful payment in your database, on an invoice already paid by another charge. What is it, and what should happen?
   options: ["A double charge; refund it automatically and alert", "A timing difference; it will match in tomorrow's file", "A fee mismatch; raise a claim against the PSP's fee", "Card fraud; block the customer's account and card"]
   answer: 0
   explanation: >-
-    A charge the PSP holds that you never recorded, on an invoice already paid, means the customer paid twice, probably from an unresolved unknown outcome. The playbook refunds it and alerts so the resolver bug can be fixed. Timing windows explain charges that appear a day late, not a second charge on a paid invoice.
+    A charge the PSP holds that you never recorded, on an invoice already paid, means the customer paid twice, probably from an unresolved unknown outcome. The playbook refunds it and alerts so the resolver bug can be fixed. Timing windows explain a charge that appears a day late, not a second charge on a paid invoice.
 ```

@@ -1,7 +1,7 @@
 ---
 slug: ad-click-aggregation
 title: "Design ad click aggregation: counting a billion clicks well enough to bill for them"
-description: A click aggregation pipeline worked end to end, covering event-time windows and watermarks, effectively-once counting with deduplication and idempotent sinks, and why the real-time number and the billing number come from different paths that must reconcile.
+description: A click aggregation pipeline worked end to end, covering one click traced from redirect to dashboard with timings, event-time windows with early and final firings, watermarks and late clicks, a crash-and-replay simulation that shows why sinks must write absolute counts, and why the real-time number and the billing number come from different paths that must reconcile.
 minutes: 30
 difficulty: hard
 tags: [system-design, case-study, stream-processing, kafka, watermarks, exactly-once, lambda-architecture, ads]
@@ -9,46 +9,47 @@ problems: [top-k-frequent]
 ---
 An advertiser pays you every time someone clicks their ad. Every click is money, and a counting error in either direction is a real problem: undercount and you lose revenue; overcount and you have billed a customer for clicks that did not happen, which is a trust problem and in some jurisdictions a legal one. Advertisers also want to see clicks within seconds, because they adjust bids and budgets live, and the ad server needs near-real-time spend to stop showing ads for a campaign that has exhausted its budget.
 
-The tension is between fast and exact. A counter that updates in a second cannot also wait for late data, run a fraud model over a day of traffic, and deduplicate against every click in the past 24 hours. The senior answer is not to pick one. It is to build two paths that share one immutable log, make each path correct for its purpose, and reconcile them.
+The tension is between fast and exact. A counter that updates in seconds cannot also wait for late data, run a fraud model over a day of traffic, and deduplicate against every click in the past 24 hours. The senior answer is not to pick one. It is to build two paths that share one immutable log, make each correct for its purpose, and reconcile them.
 
 ## Requirements
 
 ### Functional
 
 - Record every click: ad, campaign, advertiser, time, placement, coarse location, device, and a user or device key.
-- Aggregate clicks per ad per minute, with breakdowns by country and device.
-- Query clicks for an ad or campaign over a time range; the top N ads by clicks in the last minute.
+- Aggregate clicks per ad per minute, with breakdowns by country and device; the top N ads in the last minute.
 - Feed budget pacing: current spend per campaign within seconds.
-- Produce billing-grade daily counts per campaign: deduplicated, with invalid (fraudulent or robotic) clicks removed, auditable.
+- Produce billing-grade daily counts per campaign: deduplicated, invalid (fraudulent or robotic) clicks removed, auditable.
 
 ### Non-functional
 
 | Property | Target |
 |---|---|
 | Volume | 1 billion clicks/day; peaks of 5× average |
-| Real-time freshness | Aggregates queryable within ~30 s of the click |
-| Accuracy | Billing counts exact after deduplication and fraud filtering; no click counted twice, none lost |
-| Late data | Real-time path accepts events up to 5 minutes late; billing path up to 24+ hours |
-| Retention | Raw clicks retained for audit (at least 90 days, typically much longer) |
-| Ingest availability | 99.99%+: a lost click is lost revenue and a broken user navigation |
+| Real-time freshness | Dashboard aggregates within ~30 s of the click; pacing within a few seconds |
+| Accuracy | Billing counts exact after dedupe and fraud filtering; no click counted twice, none lost |
+| Late data | Real-time path accepts clicks up to 5 minutes late; billing path up to 48 hours |
+| Retention | Raw clicks at least 90 days for audit, typically years |
+| Ingest availability | 99.99%+: a lost click is lost revenue and a broken navigation for the user |
 
 ## Back-of-envelope estimates
 
-**Rate.** $10^9 / 10^5 = 10{,}000$ clicks/s on average, 50,000/s at peak. For scale: at a 1% click-through rate there are about 100 impressions per click, so the impression pipeline (out of scope here) is 100× larger, which is why click tracking must be designed not to depend on it.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Click rate | $10^9$ ÷ 86,400 s | 11,600/s average, **58,000/s at peak**; impressions (~100 per click at a 1% click-through rate) are 100× larger, so click tracking must not depend on them |
+| Event bytes | 11,600/s × ~200 B | 2.3 MB/s, 11.6 MB/s peak: small for Kafka; 64 partitions are chosen for consumer parallelism, not throughput |
+| Kafka disk | 2.3 MB/s × 7 days × 3 replicas | 4.2 TB |
+| Raw storage | $10^9$ × 200 B, ~5× columnar compression | 200 GB/day raw, 40 GB/day as Parquet, ~15 TB/year: keeping the audit trail for years is cheap |
+| Aggregate rows | ~300,000 (ad, minute) pairs with a click × ~5 country/device breakdowns | 1.5 million rows/min = 25,000 upserts/s; ~108 GB/day at 50 B/row, 60× less once minutes roll into hours after a week |
+| Window state | 300,000 keys × ~6 open 1-minute windows (5 minutes of lateness) × 64 B | ~115 MB |
+| Dedupe state | IDs × 16 B: 1 hour at average rate / peak rate / 24 hours | 670 MB / 3.3 GB / 16 GB before store overhead |
+| Stream tasks | 58,000/s ÷ 64 tasks | ~900 events/s per task at peak; with 2–3× catch-up headroom that is a handful of machines, sized by state and recovery speed, not CPU |
+| Click servers | HMAC verification measured at 0.7 µs in CPython; 58,000/s over ~30 instances | CPU is negligible (~2,000 clicks/s per instance at peak); the count is set by regions and availability, not load |
 
-**Bytes.** ~200 bytes per click event: 2 MB/s average, 10 MB/s peak. For Kafka that is small; partitions are chosen for consumer parallelism (say 64), not throughput.
+**The pacing number.** A campaign paying \$1 a click on a live-event ad draws 1,000 clicks/s. If the ad server learns about spend 30 s late, it has spent \$30,000 it did not know about. **Consequence: pacing reads the raw stream with a running counter (seconds of latency, no fraud filtering) and stops at ~95% of budget; it does not wait for minute windows.** Each pacing task pre-aggregates spend per campaign and pushes totals to the ad server's budget store every 1–2 s, which bounds the blind spot on that campaign to 1,000 × 2 s × \$1 = \$2,000, and the 5% margin absorbs it.
 
-**Raw storage.** $10^9 \times 200$ B = 200 GB/day. Columnar and compressed (~5×), ~40 GB/day, ~15 TB/year. Keeping raw clicks for years is cheap, which matters, because the raw log is the audit trail and the source of truth for every recomputation.
+## API
 
-**Aggregates.** With 2 million active ads and 600,000 clicks a minute, perhaps 300,000 (ad, minute) pairs have at least one click. Breaking down by country and device multiplies rows by ~5: 1.5 million rows a minute, 25,000 upserts/s into an OLAP store, ~100 GB/day at ~50 bytes a row. Roll minutes into hours after a week and the long-term footprint drops 60×.
-
-**Stream state.** Windows are small: 300,000 keys × ~6 open windows (1-minute windows kept for 5 minutes of lateness) × ~64 bytes ≈ 115 MB. Deduplication state is the bigger one: remembering every click ID for an hour is $3.6 \times 10^7 \times 16$ B ≈ 600 MB; for 24 hours, ~14 GB before overhead. Spread across 64 parallel tasks with an on-disk state backend, both are fine.
-
-**The pacing number.** Suppose a campaign pays \$1 per click and a live-event ad draws 1,000 clicks/s. A 30-second pipeline delay means the ad server learns about 30,000 clicks, \$30,000 of spend, after they happened. If policy is not to bill past the budget, that overspend is your lost revenue. So the pacing path needs lower latency than the dashboard path for high-velocity campaigns, and a safety margin (stop at 95% of budget) for everything else.
-
-## API design
-
-The click itself is a redirect: the ad's link points at your click server, which records the click and sends the user on to the advertiser.
+The click itself is a redirect: the ad links to your click server, which records the click and sends the user on.
 
 ```text
 GET /c?t=<signed impression token>
@@ -60,11 +61,9 @@ GET /v1/campaigns/{id}/clicks?date=2026-09-26&source=realtime|billing
 GET /v1/top-ads?window=1m&n=100&country=US
 ```
 
-The signed token carries the impression ID, ad ID and issue time with an HMAC, so the click server can reject forged or replayed clicks without a lookup. The landing URL comes from the ad's metadata, never from a query parameter, or the click server becomes an open redirect for phishing. And the query API exposes `source=realtime|billing` explicitly, because the two numbers will differ for a few hours and the advertiser should know which one they are looking at.
+The signed token carries the impression ID, ad ID and issue time with an HMAC, so the click server rejects forged or replayed clicks without a lookup. The landing URL comes from the ad's metadata, never from a query parameter, or the click server becomes an open redirect for phishing. `source=realtime|billing` is explicit because the two numbers differ for a day, and the advertiser should know which one they are reading.
 
 ## Data model
-
-The click event, serialised with a schema registry so producers and consumers evolve compatibly:
 
 ```json
 {"click_id": "c-8f14e45f", "impression_id": "imp-5d41402a", "ad_id": "ad-9",
@@ -74,17 +73,18 @@ The click event, serialised with a schema registry so producers and consumers ev
  "device": "mobile", "placement": "feed", "token_valid": true}
 ```
 
-Two timestamps, on purpose: `event_time` is when the click happened (windows use it), `received_at` is when the server saw it (used to bound lateness and to detect clock skew).
-
-Real-time aggregates, in an OLAP store that supports upserts by key:
+Two timestamps on purpose: `event_time` is when the click happened (windows use it); `received_at` is when the server saw it (bounds lateness, exposes clock skew). The raw topic is partitioned by `impression_id`, so every duplicate of a click lands on one partition and one task and dedupe needs no shuffle; aggregation then re-keys by `ad_id`. Keying the raw topic by `ad_id` instead would put a viral ad's entire traffic on one partition.
 
 ```text
-ad_clicks_minute
+ad_clicks_minute  (OLAP store with upserts)
   key:    (ad_id, window_start, country, device)
-  values: clicks, unique_users_sketch (HyperLogLog), updated_at
+  values: clicks, unique_users_sketch (HyperLogLog), is_final, updated_at
+
+campaign_billing  (transactional database)
+  (campaign_id, date) -> billable_clicks, invalid_clicks, amount, batch_run_id
 ```
 
-Billing, in a transactional database: `campaign_billing(campaign_id, date, billable_clicks, invalid_clicks, amount, batch_run_id)`, one row per campaign per day, rewritten atomically by each batch run.
+The OLAP key *is* the window, which is what makes replays harmless (deep dive 3). An OLAP store (Pinot or Druid class) rather than Postgres, because dashboards group 30 days of a campaign's rows by country and device while 25,000 upserts a second arrive: columnar segments answer that scan in milliseconds, and a row store would need an index per grouping. Billing rows are rewritten whole by each batch run, tagged with the run that produced them.
 
 ## High-level design
 
@@ -92,11 +92,11 @@ Billing, in a transactional database: `campaign_billing(campaign_id, date, billa
 flowchart LR
   U["User clicks ad"] --> R["Click server: verify token, 302, log"]
   R --> K["Kafka raw-clicks, partitioned by impression_id"]
-  K --> F["Stream job: dedupe, event-time windows, pre-aggregate"]
+  K --> F["Stream job: dedupe, event-time windows, early and final firings"]
   F --> O[("OLAP store: minute aggregates, upserts")]
-  F --> P["Budget pacing"]
+  K --> P["Pacing: running spend per campaign"]
   F --> LT["late-clicks topic"]
-  K --> S["Lake sink: hourly Parquet files"]
+  K --> S["Lake sink: hourly Parquet"]
   S --> B["Daily batch: dedupe, fraud filtering, billing counts"]
   LT --> B
   B --> BD[("Billing DB")]
@@ -105,36 +105,59 @@ flowchart LR
   BD --> INV["Invoicing"]
 ```
 
-The click server is stateless, runs in every region, and appends events to Kafka with an idempotent producer (`acks=all`); if Kafka is unreachable it spools to local disk rather than dropping or blocking the redirect. The raw topic has two consumers. The **fast path** is a stream processor (Flink-class) that deduplicates, assigns clicks to event-time windows, and upserts minute aggregates into an OLAP store for dashboards and pacing. The **billing path** lands the same raw events in the data lake as hourly Parquet files, and a daily batch job computes the authoritative numbers with the full fraud model. A reconciliation job compares the two.
-
-Partitioning the raw topic by `impression_id` puts every duplicate of a click on the same partition, so deduplication is local to one task with no shuffle; the job then re-keys by `ad_id` for aggregation.
+The click server is stateless, runs in every region, and appends to Kafka with an idempotent producer (`acks=all`); if Kafka is unreachable it spools to local disk rather than dropping or blocking the redirect. The raw topic feeds three consumers: the **fast path** (a Flink-class job) for dashboards, **pacing**, and the **billing path**, which lands hourly Parquet files for a daily batch job with the full fraud model.
 
 ```viz
 {"type": "system", "scenario": "kafka-partitions", "nodes": 3, "keys": ["imp-51", "imp-07", "imp-51", "imp-93", "imp-07", "imp-22"],
  "title": "Duplicates land together",
- "caption": "Keying by impression ID sends a double-click's two events to the same partition and the same consumer, so a local 'seen' check catches it. Ordering is guaranteed within a partition, not across partitions, which is why aggregation re-keys by ad and uses event-time windows rather than arrival order."}
+ "caption": "Keying by impression ID sends a double-click's two events to the same partition and consumer, so a local seen check catches it. Ordering holds within a partition, not across partitions, which is why aggregation re-keys by ad and windows on event time."}
 ```
 
-## Deep dives
+## Deep dive: one click, end to end
 
-### Event time, windows and watermarks
+A user taps an ad for `ad-9` at 10:00:41.120 on a phone in the US.
 
-A click at 10:00:58 belongs to the 10:00 minute even if it reaches the stream job at 10:01:05 because an edge buffer flushed late, or at 10:40 because a region's Kafka mirror was lagging. Counting by *processing time* (when the job saw it) would put it in the wrong minute, and after any outage it would pile an hour of clicks into the minute the job recovered, a spike that never happened. So windows are defined on **event time**. [The stream processing model](/learn/big-data/streaming/stream-processing-model) covers windows and watermarks in general.
+| Time | Where | What happens | What it depends on |
+|---|---|---|---|
+| 10:00:41.120 | Phone | Taps; the browser requests `/c?t=…` | |
+| +~100 ms | Click server | Cold mobile connection plus request; HMAC check, landing URL from an in-memory ad cache, event handed to the producer buffer, `302` after ~1 ms of server time | The mobile round trip, not the server |
+| +~20 ms | Kafka | Producer waits up to 5 ms to batch, then `acks=all`; durable on the in-sync replicas | In-region replication |
+| +~50 ms | Stream task 17 | Fetches from its partition; dedupe lookup on `imp-5d41402a` in the state store (tens of µs), not seen; stored with a 1-hour TTL | Consumer fetch |
+| +≤100 ms | Shuffle | Re-keyed by `ad_id` to the aggregation task; network buffers flush at least every 100 ms | Buffer timeout |
+| 10:00:41.4 | Window | Count for (`ad-9`, [10:00, 10:01), US, mobile) increments | |
+| 10:00:50 | Early firing | A processing-time trigger emits the partial count every 10 s: upsert `clicks = 342, is_final = false` | Trigger interval |
+| +~1–2 s | OLAP | Real-time ingestion makes the row queryable | Store ingestion lag |
+| ≤10:01:02 | Dashboard | A 10 s poll shows 342: **the click is visible 10–20 s after the tap** | Poll interval |
+| 10:01:30 | Final firing | The watermark passes 10:01:00; the job upserts `clicks = 412, is_final = true` | Watermark bound (30 s) |
+| 10:06:30 | State dropped | Allowed lateness ends; later clicks for 10:00 go to the late topic | Allowed lateness (5 min) |
+| 48 h later | Batch | The billing count for `cmp-3` is computed from Parquet over the whole day, late clicks included, and replaces the real-time rows | The 48-hour grace period for late data |
 
-Event time creates a question processing time never had: when is the 10:00 window *complete*? The job never knows for certain that no more 10:00 clicks are coming. A **watermark** is its declared assumption: "I believe I have seen all events with event time ≤ W". A common policy is W = (maximum event time seen) − (bounded out-of-orderness), say 30 seconds. The window [10:00, 10:01) fires when the watermark passes 10:01:00, that is, once a click stamped 10:01:30 or later has arrived.
+### Early firings, and a click that was never logged
 
-Worked through:
+The early firing is the design point people miss: with a 30 s watermark bound, a click at 10:00:01 would not appear until 10:01:30, 89 s later, which breaks the 30 s freshness target. Emitting partial counts on a processing-time trigger and a final count on the watermark gives both freshness and completeness. The Dataflow model paper calls these early, on-time and late firings.
 
-| Arrives at | Event time | Max event time seen | Watermark | Effect on [10:00, 10:01) |
+**The edge case.** The redirect returns before the event is durable, so a click server that crashes loses whatever sits in its producer buffer. At ~2,000 clicks/s per instance and a 5 ms batching delay, that is about 10 clicks per crash, plus anything queued behind a slow broker. Writing each click to a local append-only file before answering closes the gap at the cost of a disk write on the redirect path; most designs accept the small loss and make it visible by reconciling click-server request logs against the topic.
+
+```viz
+{"type": "system", "scenario": "stream-windowing",
+ "title": "Tumbling one-minute windows",
+ "caption": "Each click is assigned to the window containing its event time, not its arrival time. Partial results can be emitted while a window is open; the final result is emitted when the watermark says the window is complete."}
+```
+
+## Deep dive: event time, watermarks and late clicks
+
+A click at 10:00:58 belongs to the 10:00 minute even if the job sees it at 10:01:05 or at 10:40 after a regional mirror lagged. Counting by *processing time* would misplace it, and after an outage would pile an hour of clicks into the recovery minute. When is [10:00, 10:01) *complete*? The job never knows. A **watermark** is its declared assumption: "I have seen everything with event time ≤ W". With W = max event time seen − 30 s ([the stream processing model](/learn/big-data/streaming/stream-processing-model)):
+
+| Arrives at | Event time | Max seen | Watermark | Effect on [10:00, 10:01) |
 |---|---|---|---|---|
-| 10:00:52 | 10:00:50 | 10:00:50 | 10:00:20 | counted, window open |
-| 10:01:05 | 10:00:58 | 10:00:58 | 10:00:28 | counted, window open |
-| 10:01:25 | 10:00:40 | 10:00:58 | 10:00:28 | counted (out of order, but the window is still open) |
-| 10:01:31 | 10:01:30 | 10:01:30 | 10:01:00 | **window fires, count emitted** |
-| 10:03:00 | 10:00:45 | ... | ~10:02:30 | late: within 5-minute allowed lateness, count updated and re-emitted |
-| 10:09:00 | 10:00:33 | ... | ~10:08:30 | too late: sent to the late-clicks topic for the batch path |
+| 10:00:52 | 10:00:50 | 10:00:50 | 10:00:20 | Counted, window open |
+| 10:01:05 | 10:00:58 | 10:00:58 | 10:00:28 | Counted |
+| 10:01:25 | 10:00:40 | 10:00:58 | 10:00:28 | Counted (out of order, window still open) |
+| 10:01:31 | 10:01:30 | 10:01:30 | 10:01:00 | **Final firing** |
+| 10:03:00 | 10:00:45 | ~10:03:00 | ~10:02:30 | Late but within 5 minutes' allowed lateness: count corrected and re-emitted |
+| 10:09:00 | 10:00:33 | ~10:09:00 | ~10:08:30 | Too late: diverted to the late-clicks topic for the batch path |
 
-The bounded delay trades latency for completeness: a 30-second bound means results are at least 30 seconds behind; a 5-second bound fires sooner and sends more clicks down the late path. Allowed lateness keeps window state around so stragglers can *correct* an already-emitted result, which only works because the sink accepts overwrites, as the next deep dive requires.
+The bound trades latency for completeness: 30 s means final results at least 30 s behind; 5 s fires sooner and diverts more clicks. Measure the arrival-delay distribution and set the bound at the percentile you can afford to divert.
 
 ```viz
 {"type": "system", "scenario": "watermarks",
@@ -142,95 +165,184 @@ The bounded delay trades latency for completeness: a 30-second bound means resul
  "caption": "The watermark trails the maximum event time seen by a fixed bound. An out-of-order event that arrives before the watermark passes its window's end is counted normally; one that arrives after is late and is either used to correct the result or diverted."}
 ```
 
-One production trap: the job's watermark is the *minimum* across its input partitions. A partition that receives no data (a quiet region at night) holds the watermark back and stops every window from firing. Stream processors provide an idleness timeout that excludes silent partitions; configure it, or dashboards freeze at 3 a.m. for reasons nobody can see.
+**The frozen watermark.** An operator's watermark is the *minimum* across its input partitions. A partition from a quiet region receives nothing at 3 a.m., holds the minimum back, and no window fires anywhere: dashboards freeze with clicks still arriving. An idleness timeout excludes silent partitions; the watermark-lag metric (wall clock minus watermark) is the alert.
 
-### Counting each click once
+The exercise implements the core loop without allowed lateness: a click for a window that has already fired is late.
 
-Exactly-once *delivery* does not exist across a network; what you can build is an exactly-once *effect*: every click contributes once to the result, however many times it was transmitted. Duplicates come from four places, and each needs its own defence.
+```exercise
+id: windowed-click-count
+title: Count clicks in event-time windows with a watermark
+prompt: |
+  Implement `window_counts(events, window, delay)`. Each event is
+  `[impression_id, ad_id, event_time]` (integer seconds), given in arrival order.
+  Process events one at a time:
 
-1. **The user.** A double-click, or a back-and-click-again, produces two genuine requests. Billing policy defines one billable click per impression within a time window, so dedupe on `impression_id`. The stream job keeps a keyed "seen" set with a TTL (an hour for the fast path); the batch path dedupes over the full day.
-2. **The click server's retries to Kafka.** A timeout after the broker wrote the event causes a resend. Kafka's idempotent producer ([Kafka internals](/learn/big-data/streaming/kafka-internals)) attaches a producer ID and sequence number so the broker discards the duplicate.
-3. **The stream job's own restarts.** The job periodically checkpoints its state (window counts, the seen set) together with the Kafka offsets it has consumed, as one consistent snapshot. After a crash it restores the snapshot and re-reads from those offsets, so every event after the checkpoint is processed again, against state that has not yet seen it. State stays exactly-once.
-4. **The sink.** Replayed events produce results that were already written. If the sink *adds*, they are counted twice. So the sink must be idempotent: write the window's absolute count keyed by window, not an increment.
+  1. If `impression_id` has appeared before (counted or late), ignore the event.
+  2. Its window starts at `event_time - event_time % window`. If
+     `window_start + window <= watermark`, the window has already fired:
+     append `impression_id` to the late list. Otherwise add 1 to the count for
+     `(ad_id, window_start)`.
+  3. Set `watermark = max(watermark, event_time - delay)` (it starts at minus
+     infinity), then fire every open window with `window_start + window <= watermark`.
 
-```sql
--- Wrong: a replay after a crash adds the same 37 clicks again
-UPDATE ad_clicks_minute SET clicks = clicks + 37
- WHERE ad_id = 'ad-9' AND window_start = '2026-09-26 10:00' AND country = 'US';
-
--- Right: the job emits the window's full count; a replay overwrites with the same value
-INSERT INTO ad_clicks_minute (ad_id, window_start, country, clicks, updated_at)
-VALUES ('ad-9', '2026-09-26 10:00', 'US', 412, now())
-ON CONFLICT (ad_id, window_start, country)
-DO UPDATE SET clicks = EXCLUDED.clicks, updated_at = EXCLUDED.updated_at;
+  Firing appends `[ad_id, window_start, count]` to the fired list and removes the
+  window. When several windows fire at once, fire them ordered by `window_start`,
+  then `ad_id`. At the end of input, fire all remaining windows in the same order.
+  Return `[fired, late]`.
+languages: [python, javascript]
+entry: window_counts
+starter:
+  python: |
+    def window_counts(events, window, delay):
+        fired, late = [], []
+        # your code here
+        return [fired, late]
+  javascript: |
+    function window_counts(events, window, delay) {
+      const fired = [], late = [];
+      // your code here
+      return [fired, late];
+    }
+tests:
+  - args: [[["i1", "ad1", 5], ["i2", "ad1", 30], ["i3", "ad2", 50], ["i4", "ad1", 75]], 60, 10]
+    expected: [[["ad1", 0, 2], ["ad2", 0, 1], ["ad1", 60, 1]], []]
+    label: in order
+  - args: [[["a", "x", 50], ["b", "x", 65], ["c", "x", 58], ["d", "x", 80]], 60, 10]
+    expected: [[["x", 0, 2], ["x", 60, 2]], []]
+    label: out of order within the bound
+  - args: [[["a", "x", 10], ["b", "x", 130], ["c", "x", 20]], 60, 10]
+    expected: [[["x", 0, 1], ["x", 120, 1]], ["c"]]
+    label: late click diverted
+  - args: [[["a", "x", 10], ["a", "x", 12], ["b", "x", 20]], 60, 10]
+    expected: [[["x", 0, 2]], []]
+    label: duplicate impression
+  - args: [[], 60, 10]
+    expected: [[], []]
+    label: no events
+  - args: [[["a", "x", 0], ["b", "x", 60], ["c", "x", 59]], 60, 0]
+    expected: [[["x", 0, 1], ["x", 60, 1]], ["c"]]
+    label: watermark equal to window end fires it
+  - args: [[["a", "x", 10], ["b", "x", 200], ["c", "x", 15], ["c", "x", 16]], 60, 0]
+    expected: [[["x", 0, 1], ["x", 180, 1]], ["c"]]
+    hidden: true
+  - args: [[["p", "b", 3], ["q", "a", 4], ["r", "a", 15], ["s", "c", 27]], 10, 0]
+    expected: [[["a", 0, 1], ["b", 0, 1], ["a", 10, 1], ["c", 20, 1]], []]
+    hidden: true
+hints:
+  - "Keep a set of seen impression IDs, a map from (window_start, ad_id) to count, and the watermark."
+  - "Decide lateness against the watermark before this event advances it, then fire."
 ```
 
-This is the single most important line in the design: absolute values keyed by window make replays harmless and make late corrections natural. Where the sink is another Kafka topic, transactional producers achieve the same by committing output and offsets atomically. [Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics) covers the mechanics in depth.
+## Deep dive: counting each click once, then proving it
+
+Exactly-once *delivery* does not exist across a network; the target is an exactly-once *effect* ([exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)). Duplicates come from four places:
+
+1. **The user.** A double-click is two genuine requests; policy says one billable click per impression, so dedupe on `impression_id` (1 hour in the stream, the full day in batch).
+2. **Producer retries.** A timeout after the broker wrote the event causes a resend; the idempotent producer's sequence numbers let the broker drop it ([Kafka internals](/learn/big-data/streaming/kafka-internals)).
+3. **The job's restarts.** State and consumed offsets are checkpointed together; after a crash the job restores both and re-reads from the checkpointed offsets, so its *state* is exactly-once.
+4. **The sink.** Replayed events re-emit results already written. Whether that double-counts depends on what the sink stores.
+
+### A crash, simulated
+
+Window [10:00, 10:01) for `ad-9` receives 412 clicks. The job emits every 10 s, checkpoints at 10:00:30, crashes at 10:00:47 and restarts from the checkpoint at 10:00:55:
+
+| Processing time | Clicks seen so far | Increment sink writes | Its total | Absolute (upsert) sink writes | Its value |
+|---|---|---|---|---|---|
+| 10:00:10 | 60 | +60 | 60 | 60 | 60 |
+| 10:00:20 | 139 | +79 | 139 | 139 | 139 |
+| 10:00:30 (checkpoint: state 202, "emitted 202") | 202 | +63 | 202 | 202 | 202 |
+| 10:00:40 | 278 | +76 | 278 | 278 | 278 |
+| 10:00:47 crash; 10:00:55 restore state 202 and replay | | | | | |
+| 10:01:00 | 405 | +203 (405 − 202) | **481** | 405 | 405 |
+| 10:01:30 final | 412 | +7 | **488** | 412 | **412** |
+
+The increment sink overcounts by exactly the 76 clicks emitted between the checkpoint and the crash, and nothing flags it. The upsert sink rewrites the same key with the full count, so the replay is invisible:
+
+```sql
+INSERT INTO ad_clicks_minute (ad_id, window_start, country, device, clicks, is_final, updated_at)
+VALUES ('ad-9', '2026-09-26 10:00', 'US', 'mobile', 412, true, now())
+ON CONFLICT (ad_id, window_start, country, device)
+DO UPDATE SET clicks = EXCLUDED.clicks, is_final = EXCLUDED.is_final, updated_at = EXCLUDED.updated_at;
+```
+
+Absolute values keyed by window make replays harmless and late corrections natural (the Dataflow paper's *accumulating* rather than *discarding* panes). Where the sink is another Kafka topic, transactional producers commit output and offsets atomically instead.
+
+### Under the hood: what a checkpoint is, and what transactions cost
+
+A Flink-class job does not stop the world to checkpoint. The sources inject a *barrier* into every partition's stream; each operator, on receiving the barrier from all of its inputs, snapshots its state (the window counts and the seen set) and forwards the barrier, so the snapshot is consistent with the offsets the sources recorded when they injected it. With an on-disk state store the snapshot is incremental: only files written since the last checkpoint are uploaded. A transactional Kafka sink rides on this: it writes output inside a Kafka transaction, pre-commits when the barrier arrives, and commits only when the whole checkpoint is complete. The price is latency: consumers reading with `read_committed` see output once per checkpoint, so a 60-second checkpoint interval adds up to 60 seconds to every result. The upsert sink needs no transaction, so its freshness is set by the trigger, not the checkpoint.
 
 ### Two paths and a reconciliation
 
-Why not make the stream the billing system? Three reasons, each concrete.
+The stream cannot be the billing system: fraud detection needs a day of context (device behaviour, IP reputation, cross-campaign patterns); lateness has a long tail (offline SDK batches, regional outages); and an invoice must be recomputable from immutable inputs by a versioned, deterministic job. So the fast path is correct for dashboards and pacing, the batch path is authoritative for money, and once a day closes (48-hour grace) its numbers overwrite that day's real-time rows.
 
-- **Fraud detection needs time and context.** Invalid traffic (bots, click farms, accidental clicks within a second of page load) is detected with models that look at a device's behaviour over hours, IP reputation, and patterns across campaigns. That is a batch computation over a day of data.
-- **Lateness has a long tail.** SDKs that batch clicks while offline, and regional outages, deliver clicks hours late. The fast path cannot keep windows open for a day; the batch path simply runs after the day closes (with a grace period) over everything that arrived.
-- **Reproducibility.** An invoice must be recomputable from immutable inputs by a deterministic job. A batch run over Parquet files with a recorded code version is exactly that; a stream's output depends on timing.
-
-So the fast path is **correct for its purpose**: dashboards and pacing, where a count that is 0.5% high for a few hours is acceptable and seconds of freshness is essential. The batch path is **authoritative for money**. Once the batch for a day completes, its numbers overwrite the real-time aggregates for that day (a "restatement"), and the dashboard labels which source it shows.
-
-Reconciliation compares the two per campaign per hour. The expected difference is the invalid-click rate plus late arrivals; alert when it deviates, for example when the stream is more than 1% below the batch (the stream is losing events) or when the difference for one campaign jumps (a fraud attack, or a dedupe bug). Reconciliation is how you find the bugs that exactly-once machinery was supposed to prevent.
-
-The alternative, a single streaming codebase that also recomputes billing by replaying the retained Kafka log (the Kappa architecture), is attractive because it avoids maintaining two implementations of the counting logic. It works when the fraud logic can run in the stream and the log is retained long enough to replay a month. Many teams land in between: one shared library for the counting rules, invoked by both a streaming job and a batch job, so the logic cannot drift. [Lambda vs Kappa](/learn/big-data/streaming/lambda-vs-kappa) develops the trade-off.
+Reconciliation compares them per campaign per hour against an expected gap. Illustratively, for 120,000 streamed clicks: batch dedupe over the full day removes 0.3%, the fraud model removes 3.1%, and late arrivals add 0.4%, so batch should read 116,400 and the stream should run about 3% higher. Alert when the stream falls *below* batch by more than 1% (the stream is losing events), or when one campaign's gap moves several standard deviations from its history (a fraud attack or a dedupe bug). [Lambda vs Kappa](/learn/big-data/streaming/lambda-vs-kappa) covers the single-codebase alternative; a shared counting library called by both jobs keeps the logic from drifting.
 
 ## Failure modes
 
-**Stream job crash.** Restore from the last checkpoint and replay; idempotent upserts make the replay invisible. The real risk is recovery time: after a 10-minute outage the job must process 10 minutes of backlog while keeping up with live traffic, so provision catch-up capacity of at least 2–3× normal throughput and alert on consumer lag.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Stream job crash | Dashboards stall, then catch up | Consumer lag in seconds; restarts in job logs | Restore checkpoint and replay; upserts make it invisible; provision 2–3× catch-up throughput |
+| Frozen watermark | Dashboards freeze nightly while clicks arrive | Watermark lag grows; one partition has no input | Idleness timeout; a "data delayed" banner instead of silently stale numbers |
+| Increment sink | Minute counts exceed batch after every restart | Overcount equals clicks emitted since the last checkpoint | Upsert absolute counts keyed by window |
+| Click server outage | Users get errors instead of the landing page; clicks lost | Error rate at the edge by region | Stateless, every region behind anycast or geo-DNS, no synchronous dependency but the signing key; local spool when Kafka is down |
+| Broker failure | Produce latency spike | Under-replicated partitions | RF 3, `min.insync.replicas=2`, `acks=all`: an acknowledged click survives one broker |
+| Fraud flood | One campaign's clicks jump 100×; its budget drains | Velocity per IP prefix and device | Keep the evidence; score in the stream so pacing ignores suspicious clicks; batch excludes them from billing |
+| Device clock skew | Clicks in windows hours away from `received_at` | `received_at − event_time` distribution | Clamp to [received − 24 h, received + 1 min] and flag clamped events |
+| Schema change | Job fails to deserialise after a producer deploy | Deserialisation errors on one field | Schema registry rejecting incompatible changes at publish time |
 
-**Broker failure.** Replication factor 3, `min.insync.replicas=2` and `acks=all` mean an acknowledged click survives the loss of any one broker. The click server's local spool covers the rare case where Kafka is unavailable altogether.
+## Trade-offs: what we rejected
 
-**Frozen watermark.** An idle partition stalls every window. Detect: watermark lag metric (wall clock minus watermark). Mitigate: idleness timeouts, and a "data delayed" banner on dashboards rather than silently stale numbers.
+| Decision | Chosen | Rejected | Why here | What would flip it |
+|---|---|---|---|---|
+| Counter store | Stream job + OLAP upserts from an immutable log | `INCR` in Redis per ad per minute | `INCR` is not idempotent, has no dedupe, uses arrival time and can lose increments on failover | A prototype with no billing |
+| Window time | Event time with a watermark | Processing time | Outages would pile clicks into the recovery minute | None for billing |
+| Freshness | Early processing-time firings + final on watermark | Final firing only | Final alone is ~90 s behind for early-minute clicks | A looser freshness target |
+| Billing source | Daily batch over Parquet | The stream's numbers | Fraud context, long-tail lateness, reproducible invoices | Fraud logic that runs in the stream and a replayable month of log (Kappa) |
+| Raw key | `impression_id` | `ad_id` | Local dedupe; no hot partition for a viral ad | No dedupe requirement |
+| Unique users | HyperLogLog, $2^{14}$ registers | Exact sets | 12 KB per sketch, 0.8% standard error, mergeable across minutes and countries | Billing on uniques (compute exact in batch) |
 
-**Click server outage.** Clicks are lost and, worse, users clicking an ad get an error instead of the advertiser's page. This is the most availability-critical component: stateless, deployed in every region behind anycast or geo-DNS, with no synchronous dependency except its signing key.
+## At 10× and 100×
 
-**Fraud flood.** A botnet generates a million clicks on one campaign. Do not drop at ingest: the evidence is what the fraud model needs. Instead, score clicks in the stream by velocity per IP prefix and device, tag the suspicious ones so pacing does not exhaust the victim's budget, and let the batch path exclude them from billing.
+**10× (10 billion clicks/day, 580,000/s peak):** Kafka and the lake scale by partitions and files. Dedupe state for one hour at peak reaches ~33 GB, spread over more tasks. A viral ad at 10% of traffic is 58,000 clicks/s on one key: pre-aggregate per task before the shuffle, so an ad costs one partial count per task per trigger rather than one message per click.
 
-**Device clock skew.** SDK-reported event times can be hours off. Clamp `event_time` to a window around `received_at` (for example, no earlier than 24 hours before and no later than 1 minute after) and flag clamped events.
+**100× (100 billion clicks/day, 1.2 million/s average):** 24-hour dedupe state is $10^{11}$ IDs × 16 B = 1.6 TB; shorten the stream's dedupe window and leave full-day dedupe to batch, or front the store with per-task Bloom filters. The OLAP store rolls minutes into hours after a day instead of a week, and reconciliation itself becomes a batch job per region.
 
-**Schema change breaks consumers.** A producer renames a field and the stream job fails to deserialise. Mitigate: a schema registry that rejects incompatible changes at publish time.
+## What real companies describe
 
-## Senior follow-ups
+- **Google's Photon paper** describes joining ad clicks with the queries that produced them across data centres, using a replicated registry of event IDs so each click is joined once; the **MillWheel** paper describes low watermarks and deduplication of record IDs for exactly-once processing; the **Dataflow model** paper introduced the window, trigger and accumulation vocabulary used here.
+- **Uber** has publicly described an ad-event pipeline built on Flink, Kafka and Pinot that relies on checkpoints, Kafka transactions and unique record IDs to count each event once, with an upsert-capable OLAP store as the sink.
 
-**Q: "Why not just `INCR` a Redis key per ad per minute?"**
+The rates, gaps and percentages in this lesson are illustrative assumptions, not any company's figures.
 
-At 50,000/s it would keep up, and for a prototype it is fine. But it is not billing-grade: an `INCR` is not idempotent, so every retry and replay double-counts; there is no deduplication; it uses arrival time unless you compute windows yourself; and a Redis failover can lose recent increments. Most importantly there is no replayable source of truth. Put the immutable log first, and derive every counter from it.
+## Interviewer follow-ups
 
-**Q: "A click arrives three days late. What happens?"**
+**"Why not `INCR` a Redis key per ad per minute?"** Model answer: it keeps up at 58,000/s, but `INCR` is not idempotent (every retry and replay double-counts, as the simulation shows), there is no dedupe, windows follow arrival time, a failover can lose recent increments, and there is no replayable source of truth. Put the immutable log first and derive every counter from it. Common wrong answer: "Redis is fast enough", which answers the wrong question.
 
-The fast path has long since closed that window and sends the click to the late topic. The batch path for that day has already run, so it depends on policy: most systems close a day for billing after a fixed grace period (say 48 hours) and either drop later clicks or credit them to the current period. What matters is that the policy is explicit, applied consistently, and visible in reconciliation. I would also measure how many clicks arrive that late; if it is material, the grace period is wrong.
+**"A click arrives three days late."** Model answer: the stream sent it to the late topic long ago; billing for that day closed after a 48-hour grace period, so policy decides: drop it, or credit it to the current period. The policy must be explicit, consistent and visible in reconciliation, and I would measure how many clicks arrive that late before choosing the grace period. Common wrong answer: "reopen the day and re-invoice", which makes invoices unstable.
 
-**Q: "Advertisers want unique users per campaign per day. How?"**
+**"Advertisers want unique users per campaign per day."** Model answer: a [HyperLogLog](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) with $2^{14}$ six-bit registers is 12 KB with $1.04/\sqrt{16{,}384} = 0.8\%$ standard error, and sketches merge by per-register maximum, so minutes roll into days and countries into a global count without double-counting; billing-grade uniques come from batch. Common wrong answer: summing per-minute unique counts, which counts a returning user once per minute.
 
-Exact distinct counts require remembering every user key per campaign, which is expensive at this scale. A [HyperLogLog](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) sketch with $2^{14}$ registers uses about 12 KB and has a standard error of $1.04 / \sqrt{16{,}384} \approx 0.8\%$. Sketches merge by taking the maximum per register, so per-minute sketches roll up into hourly and daily ones, and per-country sketches merge into a global one, without double-counting users who appear in several. For billing-grade unique counts, the batch job can compute exact values from the lake.
+**"Top 100 ads in the last minute?"** Model answer: after re-keying by `ad_id`, each ad's count is complete in one task; each task keeps a local top 100 when the window fires, and one final step merges 64 × 100 candidates. Exact, because no ad's count is split. Common wrong answer: each task's top 100 over *unaggregated* partitions, which misses ads spread across partitions. [Top K frequent elements](/practice/top-k-frequent) is the in-memory version.
 
-**Q: "How do you compute the top 100 ads in the last minute?"**
+**"How do you convince an advertiser the invoice is right?"** Model answer: reproducibility: an immutable, retained click log, a versioned batch job that recomputes any day to the same number, click-level reports on request, documented invalid-traffic rules, and a reconciliation history showing the two paths agreeing within the expected gap. Common wrong answer: "we use exactly-once processing", which is a mechanism, not evidence.
 
-After re-keying by `ad_id`, each ad's minute count lives in exactly one task. Each task keeps a heap of its local top 100 when the window fires; a final single-parallelism step merges 64 × 100 candidates and takes the top 100. That is exact because each ad's count is complete in one place. If the job pre-aggregates across tasks to relieve hot keys, the merge happens after partials are combined. [Top K frequent elements](/practice/top-k-frequent) is the in-memory version.
+## What mid-level engineers get wrong
 
-**Q: "How do you convince an advertiser that the invoice is right?"**
-
-By making it reproducible: the raw click log is immutable and retained, the batch job is versioned, and any day can be recomputed and must produce the same number. Provide a click-level report on request, so they can compare against their own landing-page analytics, and explain the documented invalid-traffic rules. Reconciliation history shows the stream and batch paths agreeing within the expected margin over time, which is evidence the counting is stable.
-
-**Q: "Traffic grows 100×, to 1 million clicks a second. What breaks first?"**
-
-Hot keys and the dedupe state. A viral ad at 10% of traffic is 100,000 clicks/s on one key, too much for one task; pre-aggregate per task before the shuffle (each task emits a partial count per window per ad, so one ad costs one message per task per minute rather than one per click), or salt the key into N sub-keys and merge. Dedupe state for 24 hours grows past a terabyte ($8.6 \times 10^{10}$ IDs × 16 bytes); shorten the fast path's dedupe window and leave full-day dedupe to batch. Kafka scales by partitions; the OLAP store by rolling up older data more aggressively.
+- Windowing on processing time, so every outage produces a false spike.
+- Writing increments to the sink; the overcount after a restart equals the clicks emitted since the last checkpoint and nobody notices.
+- Firing only on the watermark and then missing the freshness target by a minute.
+- Forgetting idle partitions, so dashboards freeze every night.
+- Deduplicating in the stream only, with a window shorter than the longest redelivery, and billing from it.
+- Taking the landing URL from a query parameter, turning the click server into an open redirect.
 
 ## Senior signals
 
-- You separate the fast path (dashboards, pacing) from the billing path and make each correct for its purpose, with reconciliation between them.
-- You window on event time, explain watermarks and allowed lateness with numbers, and know about idle partitions stalling watermarks.
-- You achieve an exactly-once effect by composing idempotent production, checkpointed state and idempotent (absolute-value) sinks, and you name every source of duplicates.
-- You treat the raw log as the immutable source of truth and design everything else as a derivation from it.
-- You quantify pacing overspend from pipeline latency and design the pacing path's latency accordingly.
-- You make policy explicit where the technology cannot decide: billable-click rules, late-click cut-offs, and which number the advertiser sees.
+- You separate the fast path (dashboards, pacing) from the billing path, make each correct for its purpose, and reconcile them against an expected gap.
+- You window on event time, explain watermarks with numbers, add early firings for freshness, and know idle partitions stall watermarks.
+- You name all four sources of duplicates and show with a crash trace why sinks must write absolute values keyed by window.
+- You treat the raw log as the immutable source of truth and everything else as a derivation.
+- You quantify pacing overspend from pipeline latency and give pacing its own low-latency path.
+- You make policy explicit where technology cannot decide: billable-click rules, late-click cut-offs, which number the advertiser sees.
 
 ## Check yourself
 
@@ -240,29 +352,35 @@ Hot keys and the dedupe state. A viral ad at 10% of traffic is 100,000 clicks/s 
   options: ["The backlog is counted in the recovery minute", "The 20 minutes of clicks are dropped as too late", "Nothing; each minute's count comes out the same", "Kafka rejects the backlog as older than retention"]
   answer: 0
   explanation: >-
-    Processing-time windows assign events by when the job sees them, so twenty minutes of clicks land in the recovery minute: a false spike, with empty minutes before it. Nothing is dropped; it is misattributed. Event-time windows assign each click to the minute it happened, regardless of when it is processed.
+    Processing-time windows assign events by when the job sees them, so twenty minutes of clicks land in the recovery minute: a false spike, with empty minutes before it. Nothing is dropped; it is misattributed. Event-time windows assign each click to the minute it happened.
 - q: >-
-    The watermark policy is max event time seen minus 30 seconds. When does the window [10:00, 10:01) fire?
+    The watermark policy is max event time seen minus 30 seconds. When does the window [10:00, 10:01) get its final firing?
   options: ["At 10:01:00 on the wall clock of the job's host", "Only once the allowed-lateness period has expired", "When 1,000 events for that window have arrived", "Once an event stamped 10:01:30 or later is seen"]
   answer: 3
   explanation: >-
-    The watermark is derived from event times, not wall-clock time. It reaches 10:01:00 once the maximum event time is 10:01:30, which pushes it past the window end. Allowed lateness governs corrections after firing, not the first firing.
+    The watermark is derived from event times, not wall-clock time. It reaches 10:01:00 once the maximum event time is 10:01:30. Allowed lateness governs corrections after the final firing, not the firing itself.
 - q: >-
-    The stream job restarts from a checkpoint and reprocesses 2 minutes of events. Which sink design keeps the minute counts correct?
-  options: ["Append every result as a new row and sum at query time", "Disable checkpoints so the job never replays events", "Upsert absolute counts keyed by the window and dimensions", "Increment with UPDATE clicks = clicks + n for each window"]
-  answer: 2
+    The job checkpoints at 10:00:30 after emitting 202, emits 278 at 10:00:40, crashes, and replays from the checkpoint. The window's true count is 412. What does an increment sink end up showing?
+  options: ["412, because the checkpoint restores the job's state", "488: the 76 clicks after the checkpoint count twice", "278, because output after the crash is discarded", "202, because the sink rolls back to the checkpoint"]
+  answer: 1
   explanation: >-
-    Replays re-emit results. Increments double-count them; absolute counts keyed by (ad_id, window_start, dimensions) overwrite with the same value, so the replay is harmless. Appending rows and summing has the same double-counting problem as increments.
+    The restored job believes it has emitted 202, so it re-emits the delta for clicks it already reported: 76 of them. The sink is outside the checkpoint and keeps everything written. An upsert of the absolute count rewrites the same key and ends at 412.
+- q: >-
+    With a 30-second watermark bound, a click at 10:00:01 would first appear on dashboards at 10:01:30. How does the design meet a 30-second freshness target?
+  options: ["Shrink the bound to 1 s so windows close almost at once", "Emit partials every 10 s and a final on the watermark", "Switch windows to processing time for the dashboard only", "Have dashboards read the raw Kafka topic directly"]
+  answer: 1
+  explanation: >-
+    Early firings on a processing-time trigger publish the running count while the window is open, and the watermark firing marks it final. A 1-second bound would divert every click delayed by more than a second; processing-time windows misplace clicks after any delay.
 - q: >-
     Why is the billing number computed by a daily batch job rather than taken from the real-time stream?
-  options: ["Batch jobs are always more accurate than streams", "The stream is too expensive to run for every click", "Fraud filtering, late clicks and reproducible invoices", "Streams cannot count exactly, only approximately, at scale"]
+  options: ["Batch jobs are always more accurate than stream jobs", "The stream is too expensive to run over every click", "Fraud context, late clicks and reproducible invoices", "Streams can only count approximately at this scale"]
   answer: 2
   explanation: >-
-    Fraud filtering needs a day of context, late clicks have a long tail, and invoices must be reproducible from immutable inputs. Each reason is a property of the billing requirement, not a general claim about batch versus streaming. The stream is correct for dashboards and pacing; the batch path is authoritative for money, and reconciliation keeps them honest.
+    Fraud filtering needs a day of context, late clicks have a long tail, and invoices must be reproducible from immutable inputs. Each reason is a property of the billing requirement, not a general claim that batch beats streaming. Reconciliation keeps the two paths honest.
 - q: >-
     Dashboards stop updating every night at 3 a.m. although clicks are still arriving in most regions. What is the most likely cause?
   options: ["The OLAP store is compacting segments and blocks writes", "Clock skew on the click servers stamps events wrongly", "Kafka's nightly retention sweep deletes the input", "An idle partition is holding back the job's watermark"]
   answer: 3
   explanation: >-
-    The operator's watermark is the minimum of its inputs' watermarks, so one partition from a quiet region with no events stops every window from firing. An idleness timeout excludes silent partitions from the minimum.
+    An operator's watermark is the minimum of its inputs' watermarks, so one partition from a quiet region with no events stops every window from firing. An idleness timeout excludes silent partitions from the minimum.
 ```

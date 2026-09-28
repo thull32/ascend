@@ -1,59 +1,60 @@
 ---
 slug: metrics-and-logging-platform
 title: "Design a metrics and logging platform: a million points a second, queryable during the incident"
-description: An observability platform for 200,000 containers, worked end to end, covering cardinality as the real capacity unit, time-series compression, index-everything versus index-labels for logs, and keeping the platform alive when production is on fire.
+description: An observability platform for 200,000 containers, worked end to end, covering cardinality as the real capacity unit, one sample traced from scrape to object storage, measured time-series compression, downsampling that keeps averages and percentiles honest, index-everything versus index-labels for logs with Bloom filters sized, and keeping the platform alive when production is on fire.
 minutes: 35
 difficulty: hard
 tags: [system-design, case-study, observability, time-series, logging, cardinality, kafka]
 problems: [find-median-data-stream]
 ---
-Every other system in the company depends on this one at the worst possible moment. When checkout starts failing at 21:00 on a Friday, five hundred engineers open dashboards at once, every service starts logging stack traces at ten times its normal rate, and the platform that is supposed to explain the outage receives its highest read load and its highest write load in the same minute. If it falls over, the company is debugging blind.
+Every other system in the company depends on this one at the worst possible moment. When checkout starts failing at 21:00 on a Friday, five hundred engineers open dashboards at once, every service starts logging stack traces at three times its normal rate, and the platform that is supposed to explain the outage receives its highest read load and its highest write load in the same minute. If it falls over, the company is debugging blind.
 
 The workload is inverted compared with most products: writes outnumber reads by three orders of magnitude, nothing is updated, and the data is valuable only in aggregate. The capacity unit is not requests per second but *distinct time series*, and one careless label can multiply it by a million. And the platform must be more available than what it monitors, so it cannot share that system's failure modes.
 
 ## Requirements
 
-Ask before you draw. The questions that change the design are: how many hosts and containers, how many metrics per container, how long to keep raw and aggregated data, how fresh dashboards must be, and whether logs need full-text search or only filtering.
+Ask before you draw: how many hosts and containers, how many series per container, how long to keep raw and aggregated data, how fresh dashboards must be, and whether logs need full-text search or only filtering.
 
 ### Functional
 
-- **Metrics ingestion.** Counters, gauges and histograms with key/value labels (`service`, `endpoint`, `status`, `pod`) from every container, every 10 seconds.
-- **Metrics queries.** Range queries aggregated by label ("p99 latency of checkout by endpoint, last hour"), for dashboards and ad-hoc exploration.
-- **Alerting.** Tens of thousands of rules evaluated every 30 seconds, routed to on-call with deduplication and silencing.
-- **Log ingestion.** Structured log lines with labels (`service`, `pod`, `level`) and a free-text body.
-- **Log search.** Filter by labels and time, grep the body, find every line carrying a given `trace_id`, and tail a service live.
-- **Retention.** Raw metrics for 15 days; 1-minute rollups for 13 months (to compare with last year's peak). Logs hot for 7 days, retained 90 days for audit.
+- **Metrics ingestion.** Counters, gauges and histograms with labels (`service`, `endpoint`, `status`, `pod`) from every container, every 10 seconds.
+- **Metrics queries.** Range queries aggregated by label ("p99 latency of checkout by endpoint, last hour").
+- **Alerting.** 30,000 rules evaluated every 30 seconds, routed to on-call with deduplication and silencing.
+- **Logs.** Structured lines with labels (`service`, `pod`, `level`) and a free-text body; filter by labels and time, grep the body, find every line for a `trace_id`, tail live.
+- **Retention.** Raw metrics 15 days; rollups 13 months (to compare with last year's peak). Logs hot 7 days, retained 90.
 
 ### Non-functional
 
 | Property | Target | Why this number |
 |---|---|---|
-| Ingest availability | 99.99%, and never blocks the application | Losing telemetry is bad; slowing checkout to protect telemetry is worse |
-| Freshness | Metric visible on a dashboard within 30 s (p99); log line searchable within 60 s | An alert on 5-minute-old data pages people for problems that are already over |
-| Dashboard query | p99 under 1 s for a 1-hour panel; under 5 s for 30 days of rollups | Engineers retry slow dashboards, multiplying load during incidents |
-| Alert evaluation lag | under 60 s | Alerts are the product; dashboards are the debugger |
-| Failure independence | Platform survives the loss of the region or cluster it monitors | "Who monitors the monitor" is a requirement, not a joke |
-| Cost | A bounded, known fraction of infrastructure spend | Observability bills grow faster than the fleet if nobody owns them |
+| Ingest availability | 99.99%, never blocks the application | Slowing checkout to protect telemetry is worse than losing telemetry |
+| Freshness | Metric on a dashboard within 30 s (p99); log line searchable within 60 s | An alert on 5-minute-old data pages people for problems already over |
+| Dashboard query | p99 under 1 s for a 1-hour panel; under 5 s for 30 days | Engineers retry slow dashboards, multiplying incident load |
+| Alert evaluation lag | Under 60 s | Alerts are the product; dashboards are the debugger |
+| Failure independence | Survives the loss of the region it monitors | "Who monitors the monitor" is a requirement |
+| Cost | A bounded, known fraction of infrastructure spend | Observability bills grow faster than the fleet when nobody owns them |
 
 ## Back-of-envelope estimates
 
 Assume 50,000 hosts running 200,000 containers.
 
-**Metrics ingest.** Each container exposes ~50 series (a handful of metrics, most of them histograms with a dozen buckets). $200{,}000 \times 50 = 10^7$ active series. At one sample per series every 10 seconds, that is $10^7 / 10 = 10^6$ samples per second, flat around the clock. There is no lunchtime peak; there is a deploy peak, which matters later.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Active series | 200,000 containers × ~50 series (a few metrics, mostly 12-bucket histograms) | $10^7$ |
+| Samples per second | $10^7$ ÷ 10 s | $10^6$/s, flat all day; the peak comes from deploys (new series), not traffic |
+| Raw metric storage | $10^6$ × ~2 B per compressed sample × 86,400 s | 173 GB/day, 2.6 TB for 15 days |
+| 1-minute rollups | $10^7$ ÷ 60 × 20 B (min, max, sum, count) × 86,400 × 395 days | 114 TB for 13 months; 30 TB if rolled to 5 minutes after 30 days |
+| Ingester memory | $10^7$ × ~4 KB (labels, index, open chunk) + $10^7$ × 720 samples × 2 B | 54 GB; 163 GB at replication factor 3, so ~20 ingesters holding ~8 GB each, with room for churn |
+| Log lines | 200,000 × 5 lines/s | $10^6$/s average, $3 \times 10^6$/s in an incident |
+| Log bytes | $10^6$ × 500 B | 500 MB/s, **43 TB/day**, 1.5 GB/s at incident peak |
+| Wire into Kafka | Logs ÷ ~5 (agent compression) + metrics | ~120 MB/s, ~320 MB/s peak; ~10 MB/s per partition means 32+ partitions, so provision 128 for consumer parallelism |
+| Kafka disk | 120 MB/s × 86,400 × 3 replicas | 31 TB for a 24-hour buffer: ~12 brokers at ~4 TB each with headroom |
+| Log ingest CPU | 1.5 GB/s peak × 3 replicas ÷ 276 MB/s per core (zlib level 1, measured in CPython) | ~16 cores: log ingesters are sized by open-chunk memory, not CPU |
+| Reads | 500 engineers × 20 panels ÷ 10 s refresh; 30,000 rules ÷ 30 s | 1,000 panel queries/s in an incident; 1,000 rule evaluations/s always |
 
-**Sample size.** A sample is a timestamp and a float, 16 bytes raw. Time-series codecs in the style of Facebook's published Gorilla design compress regular timestamps and slowly changing values to around 1–2 bytes per sample; assume 2. Raw tier: $10^6 \times 2 \text{ B} = 2$ MB/s, which is $2 \times 86{,}400 \approx 170$ GB/day and ~2.6 TB for 15 days. Small.
+**Consequences.** Logs are 250 times the metric bytes, so the logging tier is where the money goes. Memory scales with *series*, not samples, so cardinality is the capacity unit. The rollup tier is 40 times the raw tier, and on triple-replicated SSD at ~\$0.10 per GB-month it would cost ~\$34,000 a month against ~\$2,300 in object storage at ~\$0.02, so historical blocks live in object storage.
 
-**Rollups.** One rollup per series per minute is $10^7 / 60 \approx 167{,}000$ rollups/s. Each stores min, max, sum and count, ~20 bytes compressed, so 3.3 MB/s, ~290 GB/day, and about 110 TB over 13 months. The long-term tier is forty times the raw tier. On triple-replicated SSD at roughly \$0.10 per GB-month that is 330 TB and ~\$33,000 a month; in object storage at roughly \$0.02 per GB-month, stored once (the store handles durability), it is ~\$2,200 a month. That single comparison decides that historical blocks live in object storage.
-
-**In-memory head.** Recent data is served from memory. A few KB per active series for labels, index entries and the open chunk (assume 4 KB) gives $10^7 \times 4 \text{ KB} = 40$ GB, plus two hours of samples, $10^7 \times 720 \times 2 \text{ B} \approx 14$ GB. Replicated three times, ~160 GB across the ingester fleet: twenty 32 GB machines with headroom. Memory scales with *series*, not samples, which is why cardinality is the capacity unit.
-
-**Logs.** Assume 5 lines per second per container on average: $2 \times 10^5 \times 5 = 10^6$ lines/s, and 3× that during incidents because errors log stack traces. At 500 bytes per line, 500 MB/s average, $500 \text{ MB} \times 86{,}400 \approx 43$ TB/day raw, up to 1.5 GB/s at incident peak. Logs are 250 times the metrics volume. That ratio is normal and is the first thing to say out loud: the logging tier is where the money goes.
-
-**Ingest buffer.** Agents compress batches roughly 5×, so logs arrive at ~100 MB/s (300 MB/s peak) and metrics at ~20 MB/s. At ~10 MB/s per partition, peak needs 30+ Kafka partitions; provision 128 for consumer parallelism. Twenty-four hours of retention at replication factor 3 is $120 \text{ MB/s} \times 86{,}400 \times 3 \approx 31$ TB of broker disk, and it buys a full day during which any downstream store can be down without losing a byte.
-
-**Reads.** 30,000 alert rules every 30 seconds is 1,000 in-memory evaluations/s: negligible. The dangerous read is the incident: 500 engineers × 20 panels ÷ a 10 s refresh = 1,000 panel queries/s, survivable only with a results cache and per-user limits.
-
-## API design
+## API
 
 Ingestion is batched, compressed and asynchronous; the client never waits on storage.
 
@@ -67,8 +68,6 @@ GET  /api/v1/logs/tail         ?query=   (WebSocket, rate-limited)
 PUT  /api/v1/rules/{namespace} alert and recording rules (YAML)
 ```
 
-Queries use a label-matching language. PromQL is the de facto standard for metrics, and a LogQL-style syntax keeps the two consistent:
-
 ```text
 histogram_quantile(0.99,
   sum by (le, endpoint) (rate(http_request_duration_seconds_bucket{service="checkout"}[5m])))
@@ -76,56 +75,51 @@ histogram_quantile(0.99,
 {service="checkout", level="error"} |= "timeout" | json | trace_id="4bf92f3577b34da6"
 ```
 
-Two API decisions matter. The tenant header lets the gateway enforce per-team limits on series count and ingest rate, which is the only defence against one team's cardinality bomb taking down everyone's alerts. And `429` is a real answer: the agent buffers and retries, it never blocks the application.
+The tenant header lets the gateway enforce per-team limits on series and ingest rate, the only defence against one team's cardinality bomb taking down everyone's alerts. And `429` is a real answer: the agent spools and retries; it never blocks the application.
 
 ## Data model
 
-A **series** is identified by its metric name plus its sorted label set. The ingester hashes that to a 64-bit `series_id` and keeps an **inverted index** from each label pair to a sorted postings list of series IDs, exactly like a search engine:
+A **series** is a metric name plus its sorted label set, hashed to a 64-bit `series_id`. The ingester keeps an **inverted index** from each label pair to a sorted postings list, exactly like a search engine:
 
 ```text
-series  {__name__="http_requests_total", service="checkout", status="500", pod="co-7f"}  -> id 91
+series    {__name__="http_requests_total", service="checkout", status="500", pod="co-7f"}  -> id 91
 postings  service="checkout" -> [12, 40, 91, 133]
           status="500"       -> [7, 91, 133, 204]
 query {service="checkout", status="500"}  = intersect -> [91, 133]
 ```
 
-Samples live in **chunks**: ~120 samples of one series, compressed. Chunks are grouped into immutable **blocks** covering two hours, each carrying its own index. The compressor merges small blocks into larger ones (2 h → 12 h → 24 h) and writes downsampled rollups for old data.
+Samples live in **chunks** of ~120 samples of one series (20 minutes at 10 s), grouped into immutable two-hour **blocks**, each with its own index. The partition key is the series hash, because every query reads a series' samples in time order and every write appends to one series; keying by time would send every sample of a two-hour window to one shard.
 
-The compression trick is worth knowing because it explains the 2-byte figure. Timestamps arrive at a near-constant interval, so store the *delta of the delta*, which is almost always zero and costs one bit. Values change slowly, so XOR each float with the previous one; identical values XOR to zero (one bit) and similar values share their leading and trailing zero bits.
+**Under the hood: why 2 bytes a sample is an assumption, not a law.** The Gorilla encoding stores each timestamp as a delta of deltas (a regular 10 s scrape is `0`, one bit) and each value as the XOR with the previous one (unchanged is one bit; similar floats share leading and trailing zero bits). Implementing that bit accounting over 720 synthetic samples gave:
 
-```python
-def delta_of_delta(timestamps):
-    out = [timestamps[0]]               # first timestamp stored in full
-    prev_delta = None
-    for prev, cur in zip(timestamps, timestamps[1:]):
-        delta = cur - prev
-        out.append(delta if prev_delta is None else delta - prev_delta)
-        prev_delta = delta
-    return out
+| Series shape | Bytes per sample |
+|---|---|
+| Constant gauge (most high histogram buckets) | 0.26 |
+| Request counter, regular scrape | 2.08 |
+| Same counter, 1 scrape in 5 off by ±1 s | 2.51 |
+| Noisy full-precision float (a latency gauge) | 7.26 |
 
-print(delta_of_delta([1000, 1010, 1020, 1030, 1041, 1051]))
-# [1000, 10, 0, 0, 1, -1]  -> the zeros encode in 1 bit each
-```
+Facebook's Gorilla paper reports about 1.37 bytes per point averaged over its production mix. Your mix decides your storage bill: jittery scrapes and noisy gauges cost several times what constant counters do.
 
-**Logs** are grouped into **streams**, one per distinct label set (`{service="checkout", pod="co-7f", level="error"}`). Each stream is a sequence of compressed chunks of lines ordered by time. The index maps labels to streams and streams to chunk references with time ranges; it does *not* index the words in the body. Each chunk carries a small Bloom filter over high-cardinality fields such as `trace_id` and `request_id`.
+**Logs** are grouped into **streams**, one per distinct label set. Each stream is a sequence of compressed chunks of lines, and the index maps labels to streams and streams to chunk references with time ranges; it does *not* index words in the body. Each chunk carries a small Bloom filter over high-cardinality fields such as `trace_id`.
 
 ## High-level design
 
 ```mermaid
 flowchart LR
   subgraph Hosts
-    A["Agent per host: scrape local containers, tail logs, buffer to disk"]
+    A["Agent per host: scrape, tail logs, spool to disk"]
   end
   A --> G["Ingest gateway: auth, tenant limits, cardinality checks"]
-  G --> K["Kafka: metrics topic by series hash, logs topic by stream"]
-  K --> MI["Metric ingesters: in-memory head + WAL, RF 3"]
-  K --> LI["Log ingesters: build compressed chunks"]
+  G --> K["Kafka: metrics by series hash, logs by stream"]
+  K --> MI["Metric ingesters: WAL + in-memory head, RF 3"]
+  K --> LI["Log ingesters: compressed chunks"]
   MI -->|"2 h blocks"| OS[("Object storage")]
   LI -->|"chunks + Bloom filters"| OS
   C["Compactor and downsampler"] --> OS
   QF["Query frontend: split by day, results cache, limits"] --> Q["Queriers"]
   Q --> MI
-  Q --> SG["Store gateways over object storage"]
+  Q --> SG["Store gateways"]
   Q --> LI
   SG --> OS
   R["Rule evaluator"] --> MI
@@ -133,116 +127,226 @@ flowchart LR
   D["Dashboards and log search"] --> QF
 ```
 
-The agent on each host scrapes its own containers, pushes compressed batches to the gateway, and spools to a bounded local disk buffer when the gateway says `429`, dropping the oldest data when the buffer fills. Metric ingesters consume [Kafka](/learn/big-data/streaming/kafka-internals) partitions, append to a write-ahead log, hold the last two hours in memory, and every two hours upload an immutable block to object storage. Recent queries go to ingesters; older ranges go to store gateways that cache block indexes and hot chunks. The query frontend splits a 30-day query into 30 one-day queries and caches each day's result, so the 499th engineer opening the same dashboard costs almost nothing.
-
-The rule evaluator reads only from ingesters for recent windows, so alerting keeps working if object storage or the store gateways are down. That is a deliberate asymmetry: dashboards over last month can degrade, alerts cannot.
+The agent pushes compressed batches and spools to a bounded local disk buffer when the gateway says `429`, dropping the oldest data when the buffer fills. Metric ingesters consume [Kafka](/learn/big-data/streaming/kafka-internals), append to a write-ahead log, hold two hours in memory and upload immutable blocks. The query frontend splits a 30-day query into 30 one-day queries and caches each day's result, so the 499th engineer opening the same dashboard costs almost nothing. The rule evaluator reads only from ingesters, so alerting survives an outage of object storage: dashboards over last month may degrade, alerts may not.
 
 ```viz
 {"type": "system", "scenario": "kafka-partitions", "nodes": 3, "keys": ["series:91", "series:12", "series:40", "series:91", "series:133", "series:12"],
  "title": "Partitioning the ingest stream",
- "caption": "Metrics are keyed by series hash, so every sample of one series lands in one partition and one ingester, which keeps chunks append-only and in order. Adding consumers up to the partition count scales ingestion; a consumer that dies has its partitions reassigned and resumes from the last committed offset."}
+ "caption": "Metrics are keyed by series hash, so every sample of one series lands in one partition and one ingester, which keeps chunks append-only and in order. A consumer that dies has its partitions reassigned and resumes from the last committed offset."}
 ```
 
-## Deep dives
+```viz
+{"type": "system", "scenario": "backpressure", "requests": 8,
+ "title": "429 is backpressure, not an error",
+ "caption": "When the gateway or a tenant limit refuses a batch, the agent keeps it in a bounded disk spool and retries later. The application never waits; if the spool fills, the oldest telemetry is dropped first."}
+```
 
-### Cardinality is the capacity unit
+## Deep dive: one sample, scrape to object storage
 
-Memory, index size and query cost all scale with the number of distinct series, and the number of distinct series is the *product* of the distinct values of every label. Consider one innocent histogram:
+Follow one sample of `http_requests_total{service="checkout", status="500", pod="co-7f"}` scraped at 21:00:00.000.
 
-`http_request_duration_seconds_bucket{service, endpoint, method, status, pod, le}`
+| t | Where | What happens | What the time depends on |
+|---|---|---|---|
+| 0 | Agent | Scrapes the container's `/metrics`; the sample is stamped 21:00:00.000 | 10 s interval; a 50-series scrape is sub-millisecond |
+| +0–1,000 ms | Agent | Joins a batch flushed every 1 s or at 1 MB, snappy-compressed | The batch window (an assumption; it dominates freshness) |
+| +~2 ms | Gateway | Auth, tenant lookup, "is this series already active?" against an in-memory set, over-limit new series rejected | Same-zone round trip ~0.5 ms |
+| +~5–10 ms | Kafka | Produced with `acks=all` to partition `hash(series) mod 128`; acknowledged once in-sync replicas have it | Follower fetch round trips, order of milliseconds in one region |
+| +~50–200 ms | Ingester (×3) | Consumer poll, WAL append (fsyncs batched), append to the series' open chunk, then commit the offset | Poll interval and fsync batching |
+| ≈1.2 s | Queryable | A dashboard now sees it; the 30 s p99 freshness target leaves ~28 s of slack for consumer lag | Consumer lag is therefore an alert |
+| ≤ 30 s | Rule evaluator | Evaluates `rate(...[5m])` over the head; an alert with `for: 2m` fires 2–2.5 minutes after the expression first becomes true | Evaluation interval plus `for:` duration |
+| 21:20 | Head | The chunk seals at 120 samples and is compressed | Samples per chunk |
+| ~23:00–24:00 | Block | The 21:00–23:00 window is cut into an immutable block and uploaded with its index | Block range plus an out-of-order grace period |
+| Next day | Compactor | Merged into a 24-hour block; downsampled once old enough | Compaction schedule |
 
-With 300 services × 20 endpoints × 2 methods × 5 status codes × 30 pods × 12 buckets, the upper bound is $300 \times 20 \times 2 \times 5 \times 30 \times 12 = 21.6$ million series. Real combinations are sparser, but the order of magnitude is right, and it is more than the whole platform's 10-million-series budget from one metric. Now someone adds `user_id` with a million values and asks why the ingesters are OOM-killing.
-
-The mechanisms that keep it bounded, from cheapest to most intrusive:
-
-1. **Admission limits per tenant and per metric.** The gateway tracks active series per tenant (a HyperLogLog is enough for an estimate) and rejects *new* series over the limit with an explicit error, while continuing to accept samples for existing ones. Existing dashboards keep working; the team that added the label sees the rejection in its own metrics.
-2. **Aggregate before storing.** Most dashboards want per-service, not per-pod, latency. Recording rules or agent-side aggregation sum the histogram buckets across pods and drop `pod`, dividing that metric's series by 30. Keep the per-pod version with a 24-hour retention for debugging.
-3. **Put high-cardinality identity in logs and traces, not metrics** ([observability](/learn/system-design/building-blocks/observability) covers what each signal is for). Per-user or per-request data belongs in an event store that is priced per event, not per distinct value. *Exemplars* attach a sample trace ID to a histogram bucket, so a latency spike on the dashboard links directly to a slow trace without a `trace_id` label.
-4. **Watch churn, not just the total.** Every deploy gives every pod a new name, so a fleet that redeploys daily creates millions of new series a day even if the active count is flat. The in-memory head holds every series seen in its window, so churn inflates memory. Labels that change on every deploy (pod name, container ID, build SHA) are the usual culprits.
-
-Percentiles deserve their own warning: the mean of 30 pods' p99s is not a p99 of anything. Store histograms, sum the buckets across pods, and compute the quantile at query time, as the PromQL example above does; mergeable sketches (t-digest, DDSketch) do the same with bounded error. The [median of a data stream](/practice/find-median-data-stream) problem is the exact-but-unmergeable version of the question.
-
-### The storage engine: append, seal, compact, tier
-
-A relational table with one row per sample fails on arithmetic alone: 10^6 inserts/s is 100 times a Postgres primary's comfortable write rate, with 30+ bytes of row overhead per 2 bytes of payload. A wide-column store can absorb the writes but compresses individual samples poorly and turns "sum 10,000 series over an hour" into a scatter-gather.
-
-The design that works is log-structured and specialised: append to an in-memory head and a WAL, seal and compress chunks, compact immutable blocks and downsample them. That is the [LSM pattern](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) with time doing the partitioning. Because data arrives roughly in time order and is never updated, compaction is cheap and retention deletes whole blocks instead of tombstoning rows.
+That is the [LSM pattern](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) with time as the partitioning: append to memory backed by a WAL, flush immutable files, compact in the background, and delete whole blocks at retention instead of tombstoning rows.
 
 ```viz
 {"type": "system", "scenario": "lsm-tree",
  "title": "The same shape as an LSM tree",
- "caption": "Writes land in memory backed by a WAL, flush as immutable sorted files, and compact in the background. A time-series store specialises this: each flush is a two-hour block, compaction merges adjacent time ranges, and retention deletes whole files instead of individual rows."}
+ "caption": "Writes land in memory backed by a WAL, flush as immutable sorted files, and compact in the background. A time-series store specialises this: each flush is a two-hour block, compaction merges adjacent time ranges, and retention deletes whole files."}
 ```
 
-Two consequences to state. **Out-of-order samples** cannot be appended to a sealed block, so accept a bounded window (say, 10 minutes), and reject older or future-dated samples with a per-host counter, which also surfaces broken clocks. **The query path is split by time**: the last two hours come from ingesters (the querier asks all three replicas and deduplicates), older ranges from object storage, which adds tens of milliseconds per request; a 30-day dashboard should read 5-minute rollups, not raw samples.
+### The dashboard query, and a late sample
 
-### Logs: index everything, or index labels and scan
+`sum by (le, endpoint) (rate(bucket{service="checkout"}[5m]))` over one hour touches every checkout bucket series: 20 endpoints × 2 methods × 5 statuses × 30 pods × 12 buckets = 72,000 series × 360 samples = 26 million samples. The querier intersects postings, asks all three ingester replicas and deduplicates, then decodes. At an order of 10–100 million decoded samples per second per core (it depends on the engine and encoding), that is 0.3–3 core-seconds per refresh, times 500 engineers. A **recording rule** that precomputes the sum every 30 s stores 20 × 12 = 240 series, and the panel then reads 86,400 samples. Precompute every dashboard that incidents depend on.
 
-This is the decision that sets the logging bill, so compare both with the numbers.
+**The edge case.** The gateway was down for 15 minutes; agents spooled and now replay. The ingester accepts samples up to 10 minutes older than its newest for a series, so the oldest 5 minutes are rejected as out of order. Size the out-of-order window to the spool, or accept the gap, and count rejections per host, which also exposes broken clocks.
 
-**Option A, full-text inverted index (Elasticsearch-class).** Every token is indexed and queries of any shape are fast. But indexing a million documents per second takes a large CPU-heavy cluster sized for the 3× incident peak, and stored size including the index is of the same order as the raw data: at 43 TB/day with one replica and 7 days hot, ~600 TB of SSD before the 90-day archive.
+## Deep dive: cardinality and honest downsampling
 
-**Option B, label index plus compressed chunks in object storage (Loki-class).** Index only the stream labels, compress lines ~8× into chunks, and brute-force scan at query time. Storage is 43 TB / 8 ≈ 5.4 TB/day; 90 days is ~490 TB in object storage, roughly \$10,000 a month. Ingest is cheap because there is no per-token work.
+### Cardinality is multiplicative
 
-The price of B is paid at query time, and whether it is acceptable depends on the query's selectivity:
+`http_request_duration_seconds_bucket{service, endpoint, method, status, pod, le}` has an upper bound of $300 \times 20 \times 2 \times 5 \times 30 \times 12 = 21.6$ million series: more than the whole platform's 10-million budget from one metric. Add `user_id` with a million values and the bound multiplies by a million. Controls, cheapest first:
 
-- "Errors from checkout in the last hour, containing `timeout`": if checkout produces 1% of volume, the label index narrows the scan to $1.8 \text{ TB/hour} \times 1\% = 18$ GB raw (~2 GB compressed). At roughly 1 GB/s of decompress-and-match per core, that is 18 core-seconds, well under a second on 100 query cores.
-- "Any line containing this IP address, all services, last 24 hours": 43 TB raw, ~43,000 core-seconds, most of a minute even on 1,000 cores. Slow, and expensive every time it runs.
+1. **Admission limits per tenant and metric.** The gateway rejects *new* series over the limit with an explicit error and keeps accepting samples for existing ones, so dashboards keep working and the failure lands on the team that caused it.
+2. **Aggregate before storing.** Summing buckets across pods and dropping `pod` divides the bound by 30, to 720,000. Keep per-pod data for 24 hours for debugging.
+3. **Put identity in logs and traces**, priced per event, not per distinct value ([observability](/learn/system-design/building-blocks/observability)). *Exemplars* attach a trace ID to a histogram bucket, so a latency spike links to a slow trace without a `trace_id` label.
+4. **Watch churn.** Pod names change on every deploy, so a full fleet redeploy inside the two-hour head window holds both generations: $2 \times 10^7$ series and ~80 GB instead of 40 GB, with the active count on the dashboard unchanged.
 
-**[Bloom filters](/learn/advanced-data-structures/probabilistic-structures/bloom-filters) close most of the gap for needle queries.** The common needle query is "every line for this `trace_id`". Each chunk stores a Bloom filter of the trace IDs it contains; the querier checks the filter (a few KB, cached) and fetches only chunks that *might* contain the ID. A chunk of 10,000 lines with ~5,000 distinct trace IDs needs about 9.6 bits per ID for a 1% false-positive rate, so ~6 KB per chunk, about 1% of the chunk's compressed size, and it cuts a 24-hour trace lookup from scanning every chunk to scanning the handful that match plus 1% false positives.
+### Downsampling, traced
+
+A queue-depth gauge scraped every 10 s from 21:00 to 21:05; four scrapes failed in minute 21:02:
+
+| Minute | Samples | min | max | sum | count | Average |
+|---|---|---|---|---|---|---|
+| 21:00 | 12 15 14 18 16 13 | 12 | 18 | 88 | 6 | 14.7 |
+| 21:01 | 17 22 30 41 38 35 | 17 | 41 | 183 | 6 | 30.5 |
+| 21:02 | 90 120 | 90 | 120 | 210 | 2 | 105.0 |
+| 21:03 | 60 44 31 25 20 18 | 18 | 60 | 198 | 6 | 33.0 |
+| 21:04 | 16 15 15 14 13 12 | 12 | 16 | 85 | 6 | 14.2 |
+| **5-minute rollup** | | **12** | **120** | **764** | **26** | **29.4** |
+
+The 5-minute row is built from the 1-minute rows, not the raw samples: min of mins, max of maxes, sum of sums, count of counts, and the average is sum ÷ count = 29.4. The average of the five averages is 39.5, a third too high, because the two-sample minute weighs as much as the full ones. Store the four components and every level rolls up exactly. Counters need a reset-aware increase per window instead, or a restart looks like a negative rate.
+
+**Percentiles do not roll up at all.** Pod A serves 9,000 requests with p99 69 ms; pod B, degraded, serves 1,000 with p99 520 ms. The mean of the p99s is 295 ms, traffic-weighted 114 ms, and the true fleet p99 is 463 ms. Summing the two pods' histogram buckets and interpolating inside the 400–500 ms bucket gives 484 ms: right to within the bucket width. Store histograms (or mergeable sketches such as DDSketch), sum buckets, and compute the quantile last. The [median of a data stream](/practice/find-median-data-stream) problem is the exact-but-unmergeable version.
+
+One more surprise: a 1-minute rollup (20 bytes) is *larger* than the six raw samples it replaces (~12 bytes). Rollups buy query speed and long retention, not compression, which is why the 13-month tier rolls again to 5 minutes after 30 days (114 TB down to 30 TB).
+
+```exercise
+id: downsample-rollup
+title: Downsample samples into rollups
+prompt: |
+  Implement `rollup(samples, step)`. `samples` is a list of `[ts, value]` pairs
+  (integer seconds, numeric value) in any order. Each sample belongs to the
+  window starting at `ts - ts % step`, so a sample exactly on a multiple of
+  `step` opens a new window.
+
+  Return one row `[window_start, min, max, sum, count]` per window that has at
+  least one sample, sorted by `window_start`. Windows with no samples are
+  omitted, not zero-filled. Return `[]` for no samples.
+languages: [python, javascript]
+entry: rollup
+starter:
+  python: |
+    def rollup(samples, step):
+        # your code here
+        return []
+  javascript: |
+    function rollup(samples, step) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [[[0, 5], [10, 7], [20, 3], [60, 4], [70, 10]], 60]
+    expected: [[0, 3, 7, 15, 3], [60, 4, 10, 14, 2]]
+    label: two windows
+  - args: [[[70, 10], [0, 5], [60, 4], [20, 3], [10, 7]], 60]
+    expected: [[0, 3, 7, 15, 3], [60, 4, 10, 14, 2]]
+    label: unsorted input
+  - args: [[[59, 1], [60, 2], [119, 3], [120, 4]], 60]
+    expected: [[0, 1, 1, 1, 1], [60, 2, 3, 5, 2], [120, 4, 4, 4, 1]]
+    label: samples on window boundaries
+  - args: [[], 60]
+    expected: []
+    label: no samples
+  - args: [[[0, 1], [300, 2]], 60]
+    expected: [[0, 1, 1, 1, 1], [300, 2, 2, 2, 1]]
+    label: gaps are omitted
+  - args: [[[125, 4], [61, 3], [179, 9]], 60]
+    expected: [[60, 3, 3, 3, 1], [120, 4, 9, 13, 2]]
+    hidden: true
+  - args: [[[0, -3], [100, 2.5], [200, -0.5], [299, 1]], 300]
+    expected: [[0, -3, 2.5, 0, 4]]
+    hidden: true
+hints:
+  - "Key a dictionary by window start and keep [start, min, max, sum, count] per window."
+  - "Sort the window starts at the end; the input order must not matter."
+```
+
+## Deep dive: logs, index everything or index labels and scan
+
+This decision sets the logging bill. Synthetic 230-byte log lines with a random 64-bit trace ID compressed 4.5× with zlib level 1 and 6.3× at level 6 (measured); decompression ran at 0.9 GB/s and substring search at 2.2 GB/s on one core, so ~0.64 GB/s per core for decompress-and-grep.
+
+**Option A, full-text inverted index (Elasticsearch-class).** Any query shape is fast, but indexing a million documents a second is a large CPU-heavy cluster sized for the 3× peak, and the index is of the order of the raw data: 43 TB/day × 7 days × 2 copies ≈ 600 TB of SSD before the archive.
+
+**Option B, label index plus compressed chunks in object storage (Loki-class).** At ~6× compression, 7.2 TB/day, 648 TB for 90 days, ~\$13,000 a month in object storage; ingest does no per-token work. The price is paid per query and depends on selectivity:
+
+- "Checkout errors containing `timeout`, last hour": checkout is 1% of 1.8 TB/hour = 18 GB raw, 28 core-seconds, **0.3 s on 100 cores**.
+- "This IP, all services, 24 hours": 43 TB, 67,000 core-seconds, **over a minute on 1,000 cores**, every time it runs.
+
+### Bloom filters for needle queries
+
+A [Bloom filter](/learn/advanced-data-structures/probabilistic-structures/bloom-filters) per chunk makes "every line for this `trace_id`" affordable. A chunk of 10,000 lines (5 MB raw, ~830 KB compressed) holds ~5,000 distinct trace IDs. For a 1% false-positive rate:
+
+$$m = -\frac{n \ln p}{(\ln 2)^2} = \frac{5{,}000 \times 4.605}{0.4805} = 47{,}925 \text{ bits} \approx 5.9 \text{ KB}, \qquad k = \frac{m}{n}\ln 2 = 6.6 \to 7$$
+
+That is 0.7% of the chunk. Be honest about the whole-day needle query, though: $10^6$ lines/s is 8.6 million chunks a day, so checking every filter reads ~52 GB of filters, and 1% false positives still fetch 86,400 chunks (~72 GB). That beats scanning 7.2 TB by two orders of magnitude but is not free; narrowing by a `service` label first, or 14.4 bits per key for 0.1%, cuts it by another 10×.
 
 ```viz
 {"type": "system", "scenario": "bloom-filter", "keys": ["trace-4bf9", "trace-a3c1", "trace-77e0", "trace-19d2"],
  "title": "Skipping chunks that cannot contain the trace",
- "caption": "Each chunk's filter answers 'definitely not here' or 'maybe here'. A 'no' is always right, so the querier skips that chunk without fetching it; a 'maybe' costs one fetch that is occasionally wasted. The false-positive rate is set by bits per key, about 10 bits for 1%."}
+ "caption": "Each chunk's filter answers 'definitely not here' or 'maybe here'. A 'no' is always right, so the querier skips that chunk; a 'maybe' costs one fetch that is occasionally wasted. About 10 bits per key gives 1%."}
 ```
 
-The senior answer is usually B with filters, plus a small full-text index for the few high-value log types that need arbitrary search (security audit logs, for instance), and a habit of turning repeated log queries into metrics. If a team greps for `payment declined` every day, that should be a counter.
+The usual senior answer is B with filters, a small full-text index for the few log types that need arbitrary search (security audit), and a habit of turning repeated log queries into metrics: a team grepping for `payment declined` every day needs a counter.
 
 ## Failure modes
 
-**Incident log flood.** Errors multiply log volume exactly when you need it. Detect: ingest rate per tenant, Kafka consumer lag. Mitigate: Kafka absorbs the burst (24 hours of buffer); per-tenant rate limits shed `DEBUG` and `INFO` before `ERROR`; agents sample repetitive lines ("this message repeated 4,000 times") rather than shipping each copy.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Incident log flood | Log search lags minutes behind; Kafka lag climbs | Ingest rate per tenant 3× normal, mostly stack traces | Kafka absorbs it (24 h buffer); per-tenant limits shed `DEBUG`/`INFO` before `ERROR`; agents collapse repeats ("repeated 4,000 times") |
+| Cardinality bomb from a deploy | Ingester memory climbs, then OOM kills | Active series per tenant and metric jumps; a new label with raw URLs or IDs | Gateway rejects new series over the tenant limit; everyone else is untouched |
+| Ingester crash | A gap in one replica's recent data | Pod restart; WAL replay time in logs | RF 3 across zones, WAL replay, Kafka offsets committed only after the WAL write |
+| Query of death | Every querier at 100% CPU; dashboards time out | Per-query bytes scanned and series touched; one regex over a year | Frontend limits on range, series and bytes per tenant; fair queueing; kill over budget; reject 5 s refresh on 30-day panels at save time |
+| Alerting silenced by its own outage | No alerts during an outage | Rules evaluated over no data return nothing | A dead man's switch that pages when it *stops*; `absent()` alerts; alert on ingest lag |
+| Platform shares the outage | Dashboards die with production | Same region, Kafka or DNS as production | Alerting and critical dashboards in a separate failure domain; a small meta-monitoring stack elsewhere |
+| Spool replay rejected | A 5-minute hole after a gateway outage | Out-of-order rejections spike on reconnect | Out-of-order window sized to the agent spool |
 
-**Cardinality bomb from a deploy.** A new release adds a `request_path` label containing raw URLs with IDs. Detect: active-series count per tenant and per metric, alerting on growth rate. Mitigate: the gateway rejects new series over the tenant limit; the rest of the platform is untouched. The failure is contained to the team that caused it, which is the whole point of per-tenant limits.
+## Trade-offs: what we rejected
 
-**Ingester crash.** Two hours of in-memory data for a set of series is lost from that replica. Mitigate: replication factor 3 across ingesters in different zones, and the WAL replays on restart. Kafka offsets are committed only after the WAL write, so a crash re-delivers rather than loses.
+| Decision | Chosen | Rejected | Why here | What would flip it |
+|---|---|---|---|---|
+| Metric store | Append-only TSDB, blocks in object storage | One row per sample in Postgres or a wide-column store | $10^6$ inserts/s with 30+ B of row overhead per 2 B of payload | A few thousand series with SQL joins |
+| Log index | Labels + chunks + Bloom filters | Full-text index for all logs | ~\$13k/month vs ~600 TB of SSD | Most queries are arbitrary-word searches over everything |
+| Ingest buffer | Kafka, 24 h | Agents push straight to ingesters | Absorbs 3× bursts; outage becomes delay | Under ~50,000 samples/s: agent spooling is enough |
+| Percentiles | Histograms or sketches, quantile at query time | Per-pod p99 gauges | p99s cannot be averaged (295 ms vs a true 463 ms) | Only per-instance views ever needed |
+| Alert source | In-memory ingesters only | The full query path | Paging survives an object-store outage | Alerts over long ranges (use recording rules instead) |
+| Collection | Pull locally, push to the platform | Central scraping of 200,000 containers | A failed local scrape is a signal; the agent buffers | A small static fleet |
 
-**Query of death.** A regex over a year of raw samples, or a log scan over all services for 30 days, eats every querier. Detect: per-query CPU and bytes scanned. Mitigate: the query frontend enforces per-tenant limits on time range, series touched and bytes scanned, queues fairly across tenants, and kills queries over budget. Dashboards that refresh every 5 seconds over 30 days are rejected at save time.
+## At 10× and 100×
 
-**Alerting silenced by its own outage.** If ingestion stops, rules evaluate over no data and nothing fires. Detect: a dead man's switch, an alert that is *always* firing and pages when it stops arriving. Mitigate: alert on `absent()` for critical series, and on ingest lag directly.
+**10× (2 million containers):** $10^8$ series and $10^7$ samples/s; head memory 1.6 TB at RF 3, ~200 ingesters, so the hash ring and per-tenant shuffle-sharding (each tenant on a subset of ingesters) matter more than the storage format. Logs reach 430 TB/day: full-text indexing of bulk logs becomes unaffordable, and sampling of success logs becomes policy.
 
-**The platform shares the outage.** If the metrics stack runs in the same region, on the same Kafka cluster or behind the same DNS as production, a regional failure blinds you while it hurts you. Mitigate: run the platform (or at least alerting and a thin slice of critical dashboards) in a separate failure domain, and monitor the platform itself with a small, independent meta-monitoring stack in another region.
+**100×:** $10^9$ series will not be queried as raw series. Aggregate at ingest (a streaming aggregation tier that keeps only the rolled-up series most dashboards read), keep per-pod data for hours, federate per region with a thin global view, and treat logs as mostly structured events feeding metrics, with raw lines sampled.
 
-## Senior follow-ups
+## What real companies describe
 
-**Q: "A team wants `user_id` as a metric label so they can see per-user latency. What do you say?"**
+- **Facebook's Gorilla paper** describes an in-memory time-series cache with delta-of-delta timestamps and XOR values, at about 1.37 bytes per point, serving recent data while older data lives in a slower store: the head-and-blocks split used here.
+- **Netflix** has publicly described **Atlas**, its open-source in-memory dimensional time-series system, built for operational queries over recent data at high cardinality, with rollups for longer ranges.
+- **Uber** has publicly described **M3**, its open-source metrics platform, including an aggregation tier that downsamples at ingest.
+- **Prometheus, Thanos, Cortex and Grafana Mimir** document the two-hour block, WAL, object-storage block and query-frontend splitting design; **Grafana Loki** documents label-only indexing with chunks in object storage.
 
-No, and I explain the arithmetic rather than the rule: a million users multiplies every series of that metric by up to a million, and the head memory is per series, so it would cost more than the rest of the platform combined. The question they are asking ("is this user having a bad time?") is answered by traces and structured logs, which are priced per event, and exemplars link a latency bucket to specific traces. If they need a per-customer view for a few hundred enterprise customers, a `tier` or `customer` label with bounded values is fine, with a series limit on that metric.
+Treat these as design lineages; the numbers in this lesson are assumptions for a 200,000-container fleet, not any company's figures.
 
-**Q: "Why put Kafka between the agents and the ingesters?"**
+## Interviewer follow-ups
 
-It absorbs the 3× incident burst without sizing ingesters for peak; its 24 hours of retention turns a store outage into a delay instead of a loss; and it lets several consumers (ingesters, a security pipeline, a data-lake archiver) read one stream. The cost is ~30 TB of broker disk and one more system to run, so below roughly 50,000 samples/s I would push straight to ingesters with agent-side buffering.
+**"A team wants `user_id` as a label for per-user latency."** Model answer: no, with arithmetic: a million users multiplies every series of the metric by up to a million and head memory is per series. Per-user questions belong to traces and structured logs; exemplars link a latency bucket to traces; a bounded `tier` label with a series limit is fine. Common wrong answer: "it adds a million series, we can absorb that", which confuses adding with multiplying.
 
-**Q: "How do you compute a fleet-wide p99 across 200 pods?"**
+**"Why Kafka between agents and ingesters?"** Model answer: it absorbs the 3× incident burst without sizing ingesters for peak, turns a store outage into delay rather than loss for 24 hours, and lets a security pipeline and an archiver read the same stream; it costs 31 TB of broker disk and a system to run, so below ~50,000 samples/s I would push directly. Common wrong answer: "Kafka makes it exactly-once", when the WAL-then-commit order is what prevents loss.
 
-Sum the per-second rate of each histogram bucket across pods, then interpolate the quantile. The error depends on bucket boundaries, so I put buckets densely around the SLO threshold (if the SLO is 300 ms, buckets at 250, 300 and 350 ms matter more than one at 10 s). If boundaries cannot be chosen in advance, a mergeable sketch such as DDSketch gives a relative-error guarantee.
+**"How do you compute a fleet-wide p99 across 200 pods?"** Model answer: sum per-bucket rates across pods, then interpolate; the error is bounded by bucket width, so put buckets densely around the SLO threshold (250, 300, 350 ms for a 300 ms SLO), or use DDSketch for a relative-error guarantee. Common wrong answer: average the pods' p99s.
 
-**Q: "Pull or push?"**
+**"Dashboards are slow during every incident."** Model answer: check the query frontend's cache hit rate and the series each panel touches; the checkout panel reads 26 million samples per refresh, and a recording rule reduces it to 86,400. Then per-tenant query limits and a minimum refresh interval. Common wrong answer: add queriers, which multiplies load on ingesters.
 
-Both, at different layers. Pull from the agent to local containers, because a failed scrape is itself a signal ("target down") and discovery is local. Push from the agent to the platform, because a central system scraping 200,000 ephemeral containers across networks is fragile and the agent can buffer during outages. Short-lived batch jobs push directly, because they may finish before a scrape.
+**"The logging bill grows 40% a year while the fleet grows 15%."** Model answer: attribute cost per team and per log pattern (it is always concentrated), then retention by level, sampling of success logs, repeated queries turned into metrics, label-only indexing for bulk logs, and chargeback. Common wrong answer: "compress harder", which moves the bill by tens of percent, not multiples.
 
-**Q: "The logging bill is growing 40% a year while the fleet grows 15%. What do you do?"**
+## What mid-level engineers get wrong
 
-Measure it per team and per log line pattern first; logging cost is always concentrated in a few chatty services. Then, in order: retention by level (debug for 3 days, errors for 30), sampling of high-volume success logs, converting repeated queries into metrics, moving from full-text indexing to label indexing for bulk logs, and charging teams back for their volume so the incentive sits with the people who can change it. A cost that nobody owns grows forever.
+- Adding an unbounded label (user, request path, container ID) and discovering cardinality from an OOM kill.
+- Averaging per-pod p99s, or averaging averages in rollups; both give numbers that describe nothing.
+- Alerting through the same query path, region and Kafka cluster as production, so the pager goes quiet exactly when it matters.
+- Indexing every log token because search "must be fast", then paying for 600 TB of SSD to grep a few services.
+- Sizing ingesters by samples per second instead of active series and churn.
+- Letting dashboards query 30 days of raw samples instead of rollups and recording rules.
 
 ## Senior signals
 
-- You treat active series and churn, not requests per second, as the capacity unit, and you enforce limits per tenant so one team cannot take down everyone's alerts.
-- You know percentiles do not average, and you design storage (histograms, mergeable sketches) so they can be aggregated correctly.
-- You split the query path by time and make alerting depend only on the recent, in-memory tier.
-- You compare index-everything and index-labels-and-scan with storage and scan arithmetic, and you name the query shapes each makes slow.
-- You put the platform in a different failure domain from production and monitor the monitor with a dead man's switch.
-- You name cost as a first-class requirement and know the logging tier dominates it.
+- You treat active series and churn as the capacity unit and enforce limits per tenant.
+- You trace a sample end to end and know which step sets freshness (the batch window) and which sets alert latency (evaluation interval plus `for:`).
+- You store min, max, sum and count so rollups compose, and histograms so percentiles merge.
+- You compare index-everything with index-labels-and-scan using storage and scan arithmetic, and size the Bloom filters that make needle queries affordable.
+- You put alerting on the smallest dependency set and in a different failure domain, and watch it with a dead man's switch.
+- You name cost as a requirement and know the logging tier dominates it.
 
 ## Check yourself
 
@@ -254,27 +358,33 @@ Measure it per team and per log line pattern first; logging cost is always conce
   explanation: >-
     Series count is the product of label cardinalities, so a new label multiplies rather than adds. Ingester memory, index size and query cost all scale with distinct series. The tempting "adds 50,000" answer is the mistake that causes cardinality outages.
 - q: >-
-    Thirty pods each report their own p99 latency. Which approach gives a correct fleet-wide p99?
-  options: ["Average the 30 per-pod p99 values, weighted by traffic", "Take the maximum of the 30 p99 values as the fleet p99", "Take the median of the 30 p99 values to damp outliers", "Sum the pods' histogram buckets, then take the quantile"]
-  answer: 3
+    Pod A serves 9,000 requests with p99 69 ms and pod B serves 1,000 with p99 520 ms. Which method gives a fleet p99 close to the true 463 ms?
+  options: ["Average the two p99 values, which gives about 295 ms", "Weight the p99s by traffic, which gives about 114 ms", "Sum both pods' histogram buckets, then interpolate", "Take the larger p99, since the tail is set by the slow pod"]
+  answer: 2
   explanation: >-
-    Quantiles are not additive; the mean (weighted or not) or median of per-pod p99s is not a p99 of anything. Histograms (or mergeable sketches) can be summed across pods and the quantile computed from the merged distribution. The maximum is an upper-bound heuristic, not the fleet p99.
+    Quantiles are not additive, so any average of per-pod p99s describes nothing. Summing bucket counts gives the merged distribution; interpolating in the 400–500 ms bucket gives about 484 ms, within one bucket width of the truth. The maximum is an upper bound heuristic, here 57 ms too high.
 - q: >-
-    Why does the design make alert evaluation read only from the in-memory ingesters rather than from object storage?
-  options: ["Alerts use recent windows, so paging survives a history outage", "Object storage cannot hold time-series data in a queryable form", "Reading from memory is cheaper per query than object storage", "Ingesters hold more complete data than the object store does"]
-  answer: 0
+    Five 1-minute rollups have averages 14.7, 30.5, 105, 33 and 14.2, but the 105 minute has only 2 samples while the others have 6. What should the 5-minute average be built from?
+  options: ["The mean of the five averages, which is about 39.5", "The median of the five averages, to damp the outlier", "The sum of sums divided by the sum of counts: 29.4", "The maximum of the maxima divided by the sample count"]
+  answer: 2
   explanation: >-
-    Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. Designing the most critical path to have the fewest dependencies is the point; per-query cost is a side effect, not the reason.
+    Averages of averages weight a two-sample minute like a six-sample one. Storing sum and count per window lets every level roll up exactly: 764 over 26 samples is 29.4. The median discards information rather than weighting it correctly.
 - q: >-
-    Logs are stored as compressed chunks indexed only by labels. Which query becomes cheap once each chunk carries a Bloom filter of trace IDs?
-  options: ["Compute p99 latency from the duration field in log lines", "Count all error lines across every service for a month", "Full-text search for any word in any log line this week", "Find all lines for one trace_id across services in a day"]
-  answer: 3
-  explanation: >-
-    A Bloom filter answers "definitely not here" for most chunks, so the querier fetches only chunks that might contain that trace ID, plus about 1% false positives. It does nothing for aggregate scans or arbitrary words that were not put in the filter.
-- q: >-
-    The 1-minute rollup tier for 13 months is about 110 TB while raw 15-day data is about 2.6 TB. What is the design consequence?
-  options: ["Compress the rollups with gzip before writing to SSD", "Move old blocks to object storage and downsample further", "Drop rollups and keep raw data for 13 months instead", "Shard the rollups across a larger fleet of replicated SSD nodes"]
+    A sample is scraped at 21:00:00. Which step contributes most to the time before a dashboard can see it, in the traced design?
+  options: ["The Kafka produce with acks=all to three replicas", "The agent's one-second batching window before pushing", "The WAL fsync on the ingester before the offset commit", "The two-hour block upload to object storage"]
   answer: 1
   explanation: >-
-    The long-term tier dominates storage, so its cost per GB decides the design: replicated SSD for that tier would cost roughly ten times more. Object storage provides durability without triple replication at a fraction of the SSD price, and 5-minute rollups for older ranges shrink it further. Keeping raw data for 13 months would be larger still.
+    The batch window costs up to a second; the gateway, Kafka acknowledgement and WAL append are milliseconds to a few hundred milliseconds. Recent samples are served from the ingester's head, so the block upload hours later does not affect visibility.
+- q: >-
+    A needle query looks for one trace_id across all services for 24 hours, with per-chunk Bloom filters at 1% false positives over 8.6 million chunks. What is the realistic cost?
+  options: ["One chunk fetch, because the filter points to the chunk", "Nothing beyond the label index, which stores trace IDs", "A full scan of 7.2 TB, because filters cannot skip chunks", "~52 GB of filters plus ~86,000 false-positive chunks"]
+  answer: 3
+  explanation: >-
+    A Bloom filter only answers per chunk, so every chunk's filter must be checked, and 1% of 8.6 million chunks are wasted fetches. That is roughly 100 times cheaper than scanning everything, and narrowing by a service label or a lower false-positive rate cuts it further. Filters do not point to locations.
+- q: >-
+    Why does the rule evaluator read only from the in-memory ingesters rather than through the full query path?
+  options: ["Alerts read recent data, so paging survives a history outage", "Object storage cannot hold time-series data in queryable form", "Reading from memory is cheaper per query than object storage", "Ingesters hold more complete data than the object store"]
+  answer: 0
+  explanation: >-
+    Alert rules look at the last few minutes, which live in the ingesters. Removing the dependency on store gateways and object storage means a failure in the historical tier degrades dashboards but not paging. The cheaper query is a side effect, not the reason.
 ```
