@@ -31,6 +31,26 @@ What rules it out:
 
 Choosing between BFS and DFS: if the answer involves a *distance* or *the first time something happens*, BFS. If it involves *everything reachable* or a *region*, either works; DFS is shorter to write recursively, BFS avoids recursion-depth problems on a 1000×1000 grid (a snake-shaped island can recurse a million frames deep). Say that trade-off out loud and pick.
 
+| Axis | Recursive DFS | Iterative DFS (stack) | BFS (queue) | Multi-source BFS |
+|---|---|---|---|---|
+| Gives distances | no | no | yes, in edge count | yes, from the nearest source |
+| Memory | `O(depth)` frames, crashes past ~10³ in Python | `O(V)` stack worst case | `O(V)` queue worst case, `O(width)` typical | as BFS |
+| Code length | shortest | medium | medium | medium plus seeding |
+| Safe on a 10⁶-cell grid | no | yes | yes | yes |
+| Natural for | regions, components, "can reach" | same, at scale | fewest steps, levels, "spreads" | "nearest X for every cell" |
+
+### Near misses
+
+| Statement | Looks like | Actually | The tell |
+|---|---|---|---|
+| "Shortest path where each cell has a cost" | Grid BFS | Dijkstra on the grid: [Shortest path](/learn/interview-patterns/tree-and-graph-patterns/shortest-path-pattern) | BFS levels are distances only when every step costs the same |
+| "Shortest path, you may remove up to `k` walls" | Grid BFS with a visited set of cells | BFS over states `(r, c, walls_left)`; visited is per state | The same cell can be worth revisiting with more removals left |
+| "Number of islands, cells are added one at a time and you report the count after each" | Flood fill after every addition, `O(k · R·C)` | [Union-find](/learn/interview-patterns/tree-and-graph-patterns/union-find-pattern): each addition unions with land neighbours in near-`O(1)` | Edges arrive over time and no distances are needed |
+| "Can you finish all courses" | Cycle detection with a visited set | Directed cycle detection needs three colours or Kahn's algorithm: [Topological sort](/learn/interview-patterns/tree-and-graph-patterns/topological-sort-pattern) | A visited neighbour in a directed graph is not necessarily a cycle |
+| "Is the undirected graph a tree" | Cycle detection | Cycle detection *plus* connectivity plus the `n − 1` edge count | Acyclic but disconnected is a forest, not a tree |
+| "Longest increasing path in a matrix" | Grid DFS | DFS with memoisation (DP on a DAG); no visited set needed because increasing values cannot cycle | The answer per cell is reused, which a plain traversal cannot do |
+| "Reach the last index in the fewest jumps" | BFS over indices | Greedy over contiguous ranges, `O(n)`: [Greedy](/learn/interview-patterns/combinatorial-patterns/greedy-pattern) | Every level of the BFS is a contiguous range, so the queue is two integers |
+
 ## The template
 
 Three pieces: a way to enumerate neighbours, a visited set, and the loop. On a grid, the neighbour enumeration is the four direction offsets with a bounds check; on an adjacency list it is `adj[u]`; on an implicit graph it is "generate the legal next states".
@@ -115,7 +135,9 @@ function dfsComponents(n, adj) {
 
 The line that matters most is where `visited` is set. In BFS, mark a node visited **when you enqueue it**, not when you dequeue it. If you mark on dequeue, the same cell can be enqueued by several neighbours before any of them is processed, and on a grid that turns `O(R·C)` into something much worse (each cell enqueued up to four times, and the duplicates each fan out again). The `dist[nr][nc] == -1` check in the template does the marking and the visited test in one line.
 
-Both traversals are `O(V + E)`: every node is enqueued or pushed once, and every edge is examined once from each end. On an `R × C` grid that is `O(R·C)` because each cell has at most four edges. Space is `O(V)` for the visited structure plus the queue or stack, which can also reach `O(V)`.
+Both traversals are `O(V + E)`, and here is where each term comes from: the outer scan or the seeding touches every node once (`V`); each node is enqueued at most once because it is marked when enqueued, so the dequeue loop runs at most `V` times; each dequeue examines that node's edges, and summed over all nodes that is every edge once per endpoint (`2E` for an undirected graph). On an `R × C` grid each cell has at most four edges, so `E ≤ 2·R·C` and the total is `O(R·C)`; on an adjacency list built from an edge list it is `O(V + E)` plus `O(E)` to build the list. Space is `O(V)` for the visited structure plus the queue or stack, which can also reach `O(V)`: on a grid a BFS frontier is a diagonal band of at most `R + C` cells from a single corner source, but from many sources or on an open adjacency list it can hold most of the graph.
+
+The visited structure is where the constant factors live. Measured on CPython 3.14 for a 1000 × 1000 grid: a `set` of `(r, c)` tuples costs about 121 MB (a 64-byte tuple per cell plus the set's own slots), a list of lists of booleans about 8 MB (one 8-byte pointer per cell to a shared `False`), a `bytearray` of `R·C` about 1 MB, and writing the mark into the input grid costs nothing. A BFS queue holding half the grid as tuples is another 48 MB. None of this changes the big-O; all of it decides whether a 10⁶-cell test passes a 256 MB memory limit.
 
 Watch the flood fill count islands:
 
@@ -301,9 +323,33 @@ Trace with `begin = "hit"`, `end = "cog"`, words `["hot", "dot", "dog", "lot", "
 | (log, 4) | cog already seen | |
 | (cog, 5) | equals `end`, return 5 | |
 
-Answer 5 (hit → hot → dot → dog → cog). `O(N · 26L · L)` time for `N` words of length `L` (the `L` factor from building each candidate string), `O(N·L)` space. The follow-up is bidirectional BFS, which grows the frontier from both ends and stops when they meet; it reduces the explored states from roughly `b^d` to `2·b^(d/2)` for branching factor `b` and distance `d`.
+Answer 5 (hit → hot → dot → dog → cog). `O(N · 26L · L)` time for `N` words of length `L` (the `L` factor from building each candidate string), `O(N·L)` space. Building one candidate (`word[:i] + ch + word[i + 1:]` plus the set lookup) costs on the order of 100 ns in CPython 3.14 on a laptop for `L = 7`, so a 5,000-word dictionary of 7-letter words is `5,000 × 26 × 7 ≈ 9 × 10⁵` candidates, under 0.1 s; comparing every pair of words instead is `5,000² × 7 ≈ 1.75 × 10⁸` character comparisons, which is seconds in Python. The follow-up is bidirectional BFS, which grows the frontier from both ends and stops when they meet; it reduces the explored states from roughly `b^d` to `2·b^(d/2)` for branching factor `b` and distance `d`. With `b = 10` reachable neighbours and `d = 6`, that is about 10⁶ states against 2,000.
+
+The same loop with a single source and a wall grid is "shortest path in a maze"; watch the frontier spread as a diamond and the path recovered from parent pointers:
+
+```viz
+{"type": "graph", "algorithm": "grid-bfs", "grid": [[0, 0, 0, 1, 0], [1, 1, 0, 1, 0], [0, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 0, 0, 1, 0]], "title": "Grid BFS with walls", "caption": "Cells at distance d are all dequeued before any at d + 1; the first time the goal is dequeued its distance is final."}
+```
 
 ## Variations
+
+The template's four slots are: what a node is, how neighbours are enumerated, what the visited structure is, and what is carried in the queue.
+
+| Variant | Node | Neighbours | Visited | Queue entry | Answer |
+|---|---|---|---|---|---|
+| Number of Islands | land cell | 4 directions, land only | sink into the grid | `(r, c)` | traversals started |
+| Max Area of Island | land cell | as above | as above | `(r, c)` | max cells per traversal |
+| Rotting Oranges | fresh cell | 4 directions, fresh only | rot into the grid | `(r, c)` per level | levels until `fresh == 0` |
+| Walls and Gates | room | 4 directions, rooms | write the distance | `(r, c)` | distance grid |
+| Pacific Atlantic | cell | equal-or-higher neighbours | one set per ocean | `(r, c)` | intersection of two sets |
+| Surrounded Regions | `O` cell | 4 directions, `O` only | mark from the border | `(r, c)` | flip unmarked `O` |
+| Word Ladder | word | `26·L` edits present in the set | set of words | `(word, steps)` | steps at `end` |
+| Clone Graph | node object | `node.neighbors` | map original → copy | node | the copy of the start |
+| Count Components / Provinces | integer | `adj[u]` | boolean array | integer | traversals started |
+| Graph Valid Tree | integer | `adj[u]` minus the parent | boolean array | `(node, parent)` | all reached and `E == n − 1` |
+| Bipartite | integer | `adj[u]` | colour array | integer | no same-colour edge |
+| 0-1 BFS | any | weighted 0 or 1 | distance array | deque, front for 0 | distance |
+| State space (locks, boards) | encoded state | legal moves | set of states | `(state, moves)` | moves at the goal |
 
 - **Clone a graph** ([Clone Graph](/practice/clone-graph)): traverse with a dictionary `original → copy`. Create the copy when you first *see* a node (on enqueue), and wire neighbours when you *process* it. The dictionary is the visited set.
 - **Count components on an edge list** ([Count Components](/practice/count-components), [Number of Provinces](/practice/number-of-provinces)): build adjacency lists first (`O(V + E)`), then the component loop. Or skip the graph entirely and use union-find.
@@ -313,17 +359,50 @@ Answer 5 (hit → hot → dot → dog → cog). `O(N · 26L · L)` time for `N` 
 - **State-space search**: the nodes are configurations (a board, a number, a set of open locks). Encode each state as a hashable key, generate moves as neighbours, BFS for fewest moves. The visited set is what keeps it finite.
 - **Grid with diagonals or knight moves**: replace `DIRS`. Everything else is unchanged; say so, and the interviewer will believe you understood the abstraction.
 
-## Pitfalls
+## Under the hood
+
+**Why marking on enqueue is the invariant, not a micro-optimisation.** BFS correctness rests on this claim: *when a node is dequeued, its recorded distance is the shortest*. The proof is by induction on distance and needs every node to enter the queue exactly once, at the moment the first (and therefore shortest) path to it is found. Marking on dequeue lets a node be enqueued by several neighbours before its first dequeue; the first copy still carries the right distance, so answers stay correct, but the queue can hold up to `deg(v)` copies of every node, and every copy is expanded. On a grid that is a factor of up to 4 in work and memory; on a dense adjacency list it is a factor of `deg`, which can be `V`. The [BFS lesson](/learn/data-structures/graphs/breadth-first-search) carries the full proof.
+
+**What the visited set costs per entry.** A Python `set` stores one 8-byte pointer plus an 8-byte cached hash per slot and resizes when the table passes about 60% full, so a 10⁶-entry set is roughly 32 MB of table before the keys; each `(r, c)` key is a 64-byte tuple with two small `int` objects (cached below 257, allocated above), which is where the measured 121 MB for a 1000 × 1000 grid comes from. Encoding the cell as a single integer `r * C + c` cuts the key to one 28-to-32-byte `int` and the hash to a trivial function, and a `bytearray` visited array at one byte per cell is the compact end. In JavaScript, a `Set` of strings `` `${r},${c}` `` pays for string construction and hashing on every check; a `Uint8Array(R * C)` is the equivalent of the bytearray. The choice is invisible at 100 × 100 and decisive at 3,000 × 3,000.
+
+**Recursion depth on a grid.** A recursive DFS on a snake-shaped island recurses once per cell along the snake. CPython stops at 1,000 frames by default; a 32 × 32 all-land grid already exceeds it. Node's stack of roughly 1 MB allows on the order of 10⁴ frames, so a 100 × 100 all-land grid is at the edge and a 1000 × 1000 grid fails. The explicit stack version stores `(r, c)` tuples in a list and has no such limit; for a component of 10⁶ cells that list peaks below 10⁶ entries and, at 64 bytes per tuple plus the list slot, uses on the order of 70 MB, which is why encoding cells as single integers matters here too.
+
+**Word Ladder's neighbour set, two ways.** Generating `26·L` candidates per word is `O(26·L²)` including the string builds. The alternative preprocesses every dictionary word into `L` wildcard patterns (`h*t`, `*ot`, `ho*`) in a map from pattern to words, so a dequeued word's neighbours are the union of `L` map lookups, `O(L²)` per word plus `O(N·L²)` once. Both pass; the pattern map wins when the alphabet is large (Unicode) and the dictionary is small, the edit enumeration wins when the dictionary is large.
+
+## Failure modes
+
+**Symptom: a grid BFS times out or runs out of memory on a large open grid, while small tests pass.** Diagnosis: visited is marked on dequeue, so each cell is enqueued by up to four neighbours; or the visited structure is a list and `in` is a linear scan. Count enqueues against `R·C` in a debugger; if the count is larger, it is the marking. Fix: mark when enqueuing (the `dist[nr][nc] == -1` test in the template), and use a set, a boolean grid or the input itself.
+
+**Symptom: wrong island counts on grids where land touches the top or left edge, with no crash.** Diagnosis: the bounds check is `nr < R and nc < C` without `nr >= 0`; Python's `grid[-1]` wraps to the last row, so a traversal leaks across the top edge into the bottom row. Fix: `0 <= nr < R and 0 <= nc < C`. In JavaScript `grid[-1]` is `undefined` and the same bug crashes instead, which is the kinder failure.
+
+**Symptom: `RecursionError` or `RangeError` on a hidden test.** Diagnosis: the recursive flood fill met a component deeper than the language's stack; a 100 × 100 all-land grid is 10⁴ frames. Fix: an explicit stack or a queue; say the number when you make the switch.
+
+**Symptom: Graph Valid Tree reports a cycle on every graph with at least one edge.** Diagnosis: the DFS sees the node it came from as "already visited". Fix: pass the parent and skip it; when parallel edges are allowed, skip the incoming edge id instead of the parent node, because two edges between the same pair are a genuine cycle.
+
+**Symptom: Clone Graph loops forever or produces shared nodes in the copy.** Diagnosis: the copy is created when a node is processed rather than when it is first seen, so a node reached from two neighbours is copied twice, or the map is consulted after recursing. Fix: create and record the copy at first sight, before enqueuing; the map is the visited set.
+
+## Interviewer follow-ups
+
+**"Return the actual shortest path, not only its length."** Model answer: record `parent[v] = u` when enqueuing `v` and walk back from the goal; the parent is set exactly once per node, at the moment of its shortest discovery, so the walk is a shortest path. Common wrong answer: carrying the whole path in each queue entry, which multiplies memory by the path length and copies a list on every enqueue.
+
+**"The grid is 10⁵ × 10⁵. What now?"** Model answer: 10¹⁰ cells cannot be materialised; if the walls are sparse, treat the grid as implicit and store only visited cells in a hash set, with the search bounded by how far the goal is; if the question is reachability with few obstacles, compress coordinates to the rows and columns that contain obstacles and traverse the compressed grid. Common wrong answer: "use a bitset", which still needs 10¹⁰ bits, about 1.2 GB.
+
+**"Now you may knock down up to `k` walls."** Model answer: the state is `(r, c, k_left)`, visited is per state, and BFS over the expanded state space is `O(R·C·k)`; the same cell must be revisitable with more removals remaining. This changes the pattern from a grid BFS to a state-space BFS. Common wrong answer: a greedy that removes a wall whenever the direct route is blocked.
+
+**"Cells become land over time and you must report the island count after each addition."** Model answer: union-find; each new land cell adds one component and each successful union with a land neighbour removes one, near-`O(1)` per addition against `O(R·C)` for a flood fill after each. This changes the pattern to [union-find](/learn/interview-patterns/tree-and-graph-patterns/union-find-pattern). Common wrong answer: re-running Number of Islands after every addition.
+
+**"Word Ladder with a 10⁶-word dictionary and a very long ladder."** Model answer: bidirectional BFS, always expanding the smaller frontier, which cuts explored states from about `b^d` to `2·b^(d/2)`; plus the wildcard-pattern index so neighbour generation does not depend on the alphabet. Common wrong answer: "use DFS to save memory", which finds a ladder but not the shortest one.
+
+## What mid-level engineers get wrong
 
 - **Marking visited on dequeue instead of enqueue.** Cells get enqueued multiple times; on a grid the queue can balloon and the level counts go wrong. Mark when you enqueue.
-- **Forgetting the bounds check** or writing it as `nr < R and nc < C` without the `>= 0` half. Python's negative indexing makes `grid[-1]` silently wrap to the last row, so the bug produces wrong answers rather than crashes.
+- **Forgetting the `>= 0` half of the bounds check.** Python's negative indexing makes `grid[-1]` silently wrap to the last row, so the bug produces wrong answers rather than crashes.
 - **Recursion depth on large grids.** A recursive flood fill on a 10⁶-cell island overflows. Have the iterative version ready.
-- **Counting the last empty BFS level.** In Rotting Oranges, guard the loop with `fresh > 0` or subtract one at the end. Trace the small example to check which convention you are using.
-- **Treating the undirected edge you arrived by as a cycle.** In graph-valid-tree and cycle detection on undirected graphs, skip the parent (or track the incoming edge id when multi-edges are possible).
-- **Building the graph from the edge list in `O(V·E)`** by scanning all edges for each node. Build adjacency lists once.
+- **Counting the last empty BFS level.** In Rotting Oranges, guard the loop with `fresh > 0` or subtract one at the end.
+- **Treating the undirected edge you arrived by as a cycle.** Skip the parent, or the incoming edge id when multi-edges are possible.
 - **Word Ladder neighbour generation by comparing all pairs.** `O(N²·L)` versus `O(N·26·L)`; on a 5,000-word dictionary that is the difference between passing and timing out.
-- **Mutating the input without asking.** Sinking islands is elegant; check that the grid may be modified, and if not, keep a visited set.
 - **Using a list as the visited structure.** `if (r, c) in visited_list` is `O(n)`. Use a set, a boolean grid, or the input itself.
+- **Using a per-cell visited set when the state has another dimension.** With `k` wall removals or a set of collected keys, visited must include that dimension, or the search rejects the states that lead to the answer.
 
 ## Exercise
 
@@ -386,6 +465,8 @@ hints:
 - You spot the **reverse-from-the-boundary** move (oceans, surrounded regions) and explain that reachability is symmetric when you flip the edge direction.
 - You offer the **iterative traversal** before the interviewer mentions recursion depth, and you quantify: a million-cell island is a million frames.
 - You know when **union-find replaces traversal** (dynamic edges, many connectivity queries) and when it does not (you need distances or the actual path).
+- You can say what the **visited structure costs**: on a 1000 × 1000 grid, about 121 MB for a set of tuples against 8 MB for a boolean grid and 1 MB for a bytearray, and you encode cells as single integers when memory is tight.
+- You recognise the follow-ups that **add a dimension to the state** (wall removals, collected keys) and put it in the visited key.
 
 ## Check yourself
 

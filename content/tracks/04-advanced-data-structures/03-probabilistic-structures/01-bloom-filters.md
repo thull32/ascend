@@ -1,14 +1,14 @@
 ---
 slug: bloom-filters
 title: "Bloom filters: membership in ten bits per key"
-description: How a bit array and k hash functions answer "is this key present?" with zero false negatives, how to size one from a target false-positive rate, and why RocksDB, Cassandra and CDNs cannot live without them.
+description: How a bit array and k hash functions answer "is this key present?" with zero false negatives, the bits traced for ten concrete keys, the false-positive formula derived and checked against the trace, how to size one from a target rate, what Guava, RocksDB (blocked Bloom and Ribbon), Cassandra and Postgres actually build, and why LSM engines and CDNs cannot live without them.
 minutes: 40
 difficulty: medium
 tags: [bloom-filter, hashing, probabilistic, lsm-tree, caching]
 ---
 A RocksDB or Cassandra node holds a key's value in one of dozens of sorted files on disk. A read for a key that exists must find the one file that has it; a read for a key that does *not* exist must check every file and come back empty-handed. Each check is a disk read of at least one 4 KB block. Thirty files, thirty reads, for a key that was never there. Point lookups for absent keys are common (every "insert if not exists", every cache miss, every deduplication check), so this is the dominant read cost of the whole engine.
 
-You cannot afford to keep every key of every file in memory. What you can afford is about ten bits per key. A Bloom filter turns those ten bits into an answer of "definitely not in this file" or "probably in this file", with no false negatives and a false-positive rate you choose. The engine consults the filter first and skips the disk read for the "definitely not" files, which at a 1% false-positive rate is 99% of the useless reads.
+You cannot afford to keep every key of every file in memory. What you can afford is about ten bits per key. A Bloom filter turns those ten bits into an answer of "definitely not in this file" or "probably in this file", with no false negatives and a false-positive rate you choose. The engine consults the filter first and skips the disk read for the "definitely not" files, which at a 1% false-positive rate is 99% of the useless reads. This lesson traces the bits for ten concrete keys, derives the false-positive formula and checks it against that trace, and then opens the implementations in Guava, RocksDB, Cassandra and Postgres. It assumes [hash functions](/learn/data-structures/hashing/hash-functions) and the probability in [probability for engineers](/learn/foundations/math-for-engineers/probability-for-engineers).
 
 ## The mechanism
 
@@ -55,11 +55,37 @@ class BloomFilter:
         return all(self.bits[p] for p in self._positions(key))
 ```
 
-Trace it. `"apple"` hashes to positions `[63, 54, 45]`; `"banana"` to `[16, 54, 28]`. After adding both, five bits are set (54 is shared). `"cherry"` maps to `[56, 10, 28]`: bit 28 is set by banana, but 56 and 10 are 0, so the answer is a definite no. Now add eight more fruits so that 19 of the 64 bits are set, and query `"strawberry"`, which maps to `[28, 22, 16]`. Bits 28 and 16 came from banana and 22 came from another fruit. All three are 1. The filter says "probably", and it is wrong: that is a false positive.
+## The bits, traced for ten keys
 
-Note what `might_contain` costs: `k` hash computations and `k` random bit reads. No comparison of the key itself, no pointer chasing, no dependence on how many keys are stored. The filter never stores the key at all, which is also why you cannot enumerate its contents or remove anything from it.
+Add ten fruit names. Each row is the three positions `(h1 + i·h2) mod 64`; the last column is how many bits the filter has set after the insert.
 
-## The false-positive rate, derived
+| Insert | Positions | New bits | Bits set after |
+|---|---|---|---|
+| `apple` | 63, 54, 45 | 3 | 3 |
+| `banana` | 16, 54, 28 | 2 (54 already set) | 5 |
+| `cherry` | 56, 10, 28 | 2 (28 already set) | 7 |
+| `date` | 25, 60, 31 | 3 | 10 |
+| `elderberry` | 33, 22, 11 | 3 | 13 |
+| `fig` | 21, 16, 11 | 1 (16, 11 already set) | 14 |
+| `grape` | 16, 4, 56 | 1 | 15 |
+| `honeydew` | 24, 0, 40 | 3 | 18 |
+| `kiwi` | 25, 18, 11 | 1 | 19 |
+| `lemon` | **16, 16, 16** | 0 | 19 |
+
+Ten keys, 30 hash positions, 19 bits set, a fill of 30%. Now query six keys that were never added:
+
+| Query | Positions | Bits found | Answer | Right? |
+|---|---|---|---|---|
+| `mango` | 21, 12, 3 | 1, 0, 0 | definitely absent | yes |
+| `orange` | 43, 12, 45 | 0, 0, 1 | definitely absent | yes |
+| `lychee` | 63, 62, 61 | 1, 0, 0 | definitely absent | yes |
+| `strawberry` | 28, 22, 16 | 1, 1, 1 | probably present | **false positive**: 28 from banana and cherry, 22 from elderberry, 16 from banana, fig, grape and lemon |
+| `melon` | **28, 28, 28** | 1 | probably present | false positive on a single shared bit |
+| `coconut` | **28, 28, 28** | 1 | probably present | false positive |
+
+Note what `might_contain` costs: `k` hash computations and `k` random bit reads. No comparison of the key itself, no pointer chasing, no dependence on how many keys are stored. The filter never stores the key at all, which is also why you cannot enumerate its contents or remove anything from it. The rows for `lemon`, `melon` and `coconut` are a bug, not bad luck, and the hashing section below explains it.
+
+## The false-positive rate, derived and checked
 
 You will be asked to size a filter, so you need the formula and roughly where it comes from.
 
@@ -70,6 +96,8 @@ $$(1 - 1/m)^{kn} \approx e^{-kn/m}.$$
 A query for an absent key reads `k` bits, and it is a false positive when all `k` are 1. Treating those reads as independent, the false-positive probability is
 
 $$p \approx \left(1 - e^{-kn/m}\right)^{k}.$$
+
+Check it against the trace: `n = 10`, `k = 3`, `m = 64` predicts a fill of `1 − e^{−30/64} = 37%` and a false-positive rate of `0.374³ = 5.2%`. The trace shows 30% fill, lower than predicted because `lemon` set one bit instead of three, and three false positives in six queries, higher than 5% because those queries were chosen to show the failure. On a filter with a good hash and thousands of random queries, the measured rate lands within a few percent of the formula.
 
 Two consequences follow from that formula.
 
@@ -87,8 +115,8 @@ $$m = -\frac{n \ln p}{(\ln 2)^2} \approx -2.08 \cdot n \ln p.$$
 
 You want to filter `n = 1,000,000` keys at a `p = 1%` false-positive rate.
 
-- `m = −1,000,000 × ln(0.01) / (ln 2)² = 1,000,000 × 4.605 / 0.4805 ≈ 9.59 million bits ≈ 1.2 MB`.
-- `k = (9.59 / 1) × 0.693 ≈ 6.6`, so use `k = 7`.
+- `m = −1,000,000 × ln(0.01) / (ln 2)² = 1,000,000 × 4.605 / 0.4805 = 9,585,059` bits ≈ 1.2 MB.
+- `k = 9.585 × 0.693 = 6.64`, so use `k = 7`, and the achieved rate is `(1 − e^{−7/9.585})^7 = 1.004%`.
 
 That is 9.6 bits per key, for keys that might themselves be 20–100 bytes each. The table shows how the budget moves with `p`:
 
@@ -99,7 +127,7 @@ That is 9.6 bits per key, for keys that might themselves be 20–100 bytes each.
 | 0.1% | 14.4 | 10 |
 | 0.01% | 19.2 | 13 |
 
-Every factor of ten in accuracy costs about 4.8 more bits per key. RocksDB's default is 10 bits per key, which lands at roughly 1% false positives.
+Every factor of ten in accuracy costs about 4.8 more bits per key. RocksDB's default is 10 bits per key, which lands at roughly 1% false positives (0.82% at `k = 7` by the formula; its cache-local filter uses 6 probes and measures near 0.9%). The second exercise has you implement this sizing function.
 
 ### What happens when you overfill
 
@@ -117,44 +145,86 @@ $$g_i(\text{key}) = h_1(\text{key}) + i \cdot h_2(\text{key}) \pmod m, \quad i =
 
 This *double hashing* gives the same asymptotic false-positive rate at a fraction of the cost, and it is what Guava, RocksDB and most libraries do (Guava splits one 128-bit MurmurHash3 output into `h1` and `h2`).
 
-There is a trap in it, and the small example above walks straight into it. If `h2(key) mod m == 0`, every `g_i` is the same position: the key sets one bit instead of `k`, and any other key hitting that single bit is a false positive against it. In the exercise's 64-bit filter, `"melon"` hashes to `[28, 28, 28]` for exactly this reason. Real implementations force `h2` to be odd (when `m` is a power of two, an odd step visits `k` distinct positions) or otherwise guard against a zero step. When you write one, write that guard.
+There is a trap in it, and the trace above walks straight into it. If `h2(key) mod m == 0`, every `g_i` is the same position: the key sets one bit instead of `k`, and any other key hitting that single bit is a false positive against it. `lemon` (`djb2 mod 64 = 0`) sets only bit 16; `melon` and `coconut` collapse onto bit 28, which `banana` had set, so both are false positives on the strength of one bit. With `m = 64` one key in 64 has this problem; with `m` a power of two and an even `h2` the step also cycles through fewer than `k` distinct positions. Real implementations force `h2` to be odd (an odd step visits `k` distinct positions in a power-of-two table) or otherwise guard against a zero step. When you write one, write that guard.
 
-The other production concern is memory locality. Seven random reads into a 1.2 MB array are seven likely cache misses. **Blocked Bloom filters** (RocksDB's newer filter format, and the standard design in high-performance libraries) first hash the key to a single cache-line-sized block (512 bits) and then set all `k` bits within that block. One cache miss per query instead of `k`, at the cost of a slightly higher false-positive rate for the same bits per key.
+The other production concern is memory locality. Seven random reads into a 1.2 MB array are seven likely cache misses, about 700 ns cold against a few nanoseconds of hashing. **Blocked Bloom filters** first hash the key to a single cache-line-sized block (512 bits) and then set all `k` bits within that block. One cache miss per query instead of `k`, at the cost of a slightly higher false-positive rate for the same bits per key (about 10–20% more false positives at 10 bits per key, because keys are no longer spread uniformly).
+
+## Under the hood: Guava, RocksDB, Cassandra, Postgres
+
+**Guava `BloomFilter`** (`com.google.common.hash`, since Guava 11). `BloomFilter.create(funnel, expectedInsertions, fpp)` computes `m` and `k` with exactly the two formulas above (`optimalNumOfBits`, `optimalNumOfHashFunctions`), rounding `k` to the nearest integer with a minimum of 1; `fpp` defaults to 3% if you omit it, which is 7.3 bits per key. The default strategy, `MURMUR128_MITZ_64`, hashes the object through its `Funnel` with 128-bit MurmurHash3, takes the two 64-bit halves as `h1` and `h2`, and computes `combined = h1 + i·h2` for each of the `k` probes, masking the sign bit before the modulus. Bits live in a `long[]` with atomic updates, so concurrent `put` calls are safe without a lock. `expectedFpp()` returns the *current* rate computed from the fraction of set bits, which is how you detect an overfilled filter in a running JVM, and `writeTo`/`readFrom` serialise the array so a filter built in one job can be shipped to another (the *Bloom join* pattern in Spark and Hive, where a filter of the small table's keys is broadcast and the large table is pre-filtered before the shuffle).
+
+**RocksDB.** `NewBloomFilterPolicy(bits_per_key)` with a default of 10 in most configurations. Three generations exist in the code: the legacy per-block filter (one filter per 2 KB of data blocks, mostly abandoned), the *full filter* (one filter per SSTable, `format_version` 4 and below), and the *fast local* Bloom of `format_version ≥ 5` (2019), which is a blocked filter with 64-byte blocks, chooses the number of probes from bits per key (6 at 10 bits per key) and uses a 64-bit XXH3 hash split into a block index and probe steps. Since 6.15 the **Ribbon filter** (`NewRibbonFilterPolicy`) offers the same false-positive rate in roughly 30% less space (about 7 bits per key for 1%) by solving a linear system at construction, at the cost of several times more CPU to build; it is the choice for cold, rarely rewritten levels. `optimize_filters_for_memory` rounds filter sizes to the allocator's bins. Filters live in the block cache when `cache_index_and_filter_blocks` is set, and a billion-key store at 10 bits per key needs 1.25 GB of filter memory, which is why that setting and `pin_l0_filter_and_index_blocks_in_cache` exist. Point reads also consult a **prefix Bloom** (`prefix_extractor`) so that a seek to `user:123:` can skip files with no keys under that prefix, the one case where a Bloom filter helps a range scan.
+
+**Cassandra** stores each SSTable's filter in `Filter.db` and keeps it off-heap. `bloom_filter_fp_chance` is per table: 0.01 by default with size-tiered compaction and 0.1 with leveled, because leveled compaction already limits the files a read touches. `nodetool tablestats` reports "Bloom filter false ratio" (measured, from reads that consulted a file and found nothing) and "Bloom filter space used"; a false ratio well above the configured chance means the filters were built for a different key count or the hash is being fed poorly distributed keys.
+
+**Postgres** ships a `bloom` index access method: each row gets a signature of `length` bits (default 80) with `colN` bits set per indexed column (default 2), and a query with equality predicates on any subset of the columns scans the signatures, rejects rows whose bits are not all set, and rechecks the survivors against the heap. It replaces a combinatorial explosion of B-tree indexes on column subsets with one small index, at the cost of a full signature scan.
 
 ## Deletion: counting and cuckoo filters
 
-You cannot delete from a plain Bloom filter. Clearing the `k` bits of a key also clears bits shared with other keys, and those keys would then produce false negatives, which breaks the one guarantee the structure makes.
+You cannot delete from a plain Bloom filter. Clearing the `k` bits of a key also clears bits shared with other keys, and those keys would then produce false negatives, which breaks the one guarantee the structure makes. In the trace, deleting `banana` by clearing 16, 54 and 28 would make `apple` (54) and `cherry` (28) disappear.
 
 A **counting Bloom filter** replaces each bit with a small counter (typically 4 bits). Add increments `k` counters, delete decrements them, query checks that all `k` are non-zero. It works, at four times the memory, and with an overflow hazard: a 4-bit counter saturates at 15, after which you must never decrement it (leave it stuck, which slightly raises false positives, rather than risk a false negative).
 
-A **cuckoo filter** is the modern answer when you need deletion. It stores a short fingerprint (say 8–16 bits) of each key in one of two candidate buckets of four slots each, using cuckoo hashing to relocate fingerprints on collision. Lookup reads two buckets; delete removes one matching fingerprint. Below about 3% false positives it uses *less* space than a Bloom filter, and it has better locality (two bucket reads). The costs: insertion can fail when the table is nearly full (above ~95% load), and a fingerprint collision within a bucket is what produces its false positives. If your interviewer asks "and if we need to remove keys?", the cuckoo filter is the answer that signals you have looked past the textbook.
+A **cuckoo filter** (Fan, Andersen, Kaminsky and Mitzenmacher, 2014) is the modern answer when you need deletion. It stores a short fingerprint (say 8–16 bits) of each key in one of two candidate buckets of four slots each, using cuckoo hashing to relocate fingerprints on collision. Lookup reads two buckets; delete removes one matching fingerprint. Below about 3% false positives it uses *less* space than a Bloom filter, and it has better locality (two bucket reads). The costs: insertion can fail when the table is nearly full (above ~95% load), and a fingerprint collision within a bucket is what produces its false positives. If your interviewer asks "and if we need to remove keys?", the cuckoo filter is the answer that signals you have looked past the textbook.
 
 ## Where Bloom filters live
 
-**LSM storage engines.** LevelDB, RocksDB, Cassandra, HBase and ScyllaDB write a Bloom filter into every SSTable (or per block within it). A point read checks the memtable, then consults each SSTable's filter from newest to oldest, reading only the files whose filter says "maybe". Cassandra exposes the trade-off as `bloom_filter_fp_chance` per table (default 0.01 for size-tiered compaction, 0.1 for levelled). Turning the filter off on a table with many SSTables can multiply read latency by the number of files. You will see this again in [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables).
+**LSM storage engines.** LevelDB, RocksDB, Cassandra, HBase and ScyllaDB write a Bloom filter into every SSTable. A point read checks the memtable, then consults each SSTable's filter from newest to oldest, reading only the files whose filter says "maybe". Turning the filter off on a table with many SSTables can multiply read latency by the number of files. You will see this again in [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables).
 
-**Bigtable and its descendants** use the same trick at the tablet level, and Postgres ships a `bloom` index access method that packs several columns into one signature index for equality queries on arbitrary column subsets, where a B-tree per column combination would be impractical.
-
-**CDN admission.** Akamai's edge caches found that the majority of objects requested at an edge are requested exactly once ("one-hit wonders"). Caching them evicts objects that will be requested again. The fix is a Bloom filter of "URLs seen once": an object is only admitted to the cache on its *second* request. That is a few megabytes of filter protecting terabytes of disk, and it improved hit rates measurably.
+**CDN admission.** Akamai's edge caches found that the majority of objects requested at an edge are requested exactly once ("one-hit wonders"). Caching them evicts objects that will be requested again. The fix is a Bloom filter of "URLs seen once": an object is only admitted to the cache on its *second* request. That is a few megabytes of filter protecting terabytes of disk, and it improved hit rates measurably; the [LRU lesson](/learn/advanced-data-structures/caches-and-eviction/lru-cache) shows the same idea inside a cache.
 
 **Browsers.** Chrome's Safe Browsing check historically kept a local Bloom filter (later a more compact prefix set) of malicious URL prefixes; a miss means the URL is definitely safe and no network call is needed, a hit triggers an exact check with the server.
 
-**Recommendation and deduplication.** Medium used a Bloom filter per user of "articles already recommended" so the feed does not repeat itself; a false positive costs one article never being shown, which is harmless. Web crawlers keep a filter of visited URLs. Data pipelines use filters to skip joining rows whose key cannot match (a *Bloom join*: broadcast a filter of the small side's keys, prefilter the large side before the shuffle).
+**Recommendation and deduplication.** Medium used a Bloom filter per user of "articles already recommended" so the feed does not repeat itself; a false positive costs one article never being shown, which is harmless. Web crawlers keep a filter of visited URLs. Data pipelines use filters to skip joining rows whose key cannot match.
 
 **Network and distributed systems.** Bloom filters summarise peer content in gossip protocols, keep routers from re-forwarding packets, and let a database check "might this transaction conflict with a running one?" cheaply.
 
 The common thread: every one of these cases tolerates a false positive (an extra disk read, an extra network call, a skipped article) and needs to avoid a false negative (missing a value that exists, re-crawling forever). If your use case is the other way round, if a false positive is expensive and a false negative is cheap, a Bloom filter is the wrong tool.
 
-## When not to use one
+## Trade-offs
 
-- **You need to enumerate or delete.** Use a hash set or a cuckoo filter.
-- **The set is small.** Ten thousand 16-byte keys is 160 KB in a hash set; the exact answer is cheap, and the filter buys nothing.
-- **False positives have a real cost.** A filter gating "does this user exist?" before a login form that reveals the answer is leaking information at the false-positive rate.
-- **`n` is unknown and unbounded.** Use a scalable Bloom filter or a cuckoo filter, and monitor the fill ratio.
+| | Bloom filter | Blocked Bloom | Ribbon / XOR filter | Cuckoo filter | Hash set of keys |
+|---|---|---|---|---|---|
+| Bits per key at 1% FP | 9.6 | ~10.5 | ~7 | ~10 (8-bit fingerprints, 95% load) | 64+ per key plus the key |
+| Cache misses per query | `k` | 1 | 1–3 | 2 | 1–2 |
+| Deletion | no | no | no (static) | yes | yes |
+| Build cost | one pass | one pass | linear-algebra solve, several times slower | one pass, can fail near full | one pass |
+| Grows after build | no | no | no | limited | yes |
+| Where | Guava, Cassandra, Chrome | RocksDB `format_version 5` | RocksDB Ribbon, FastFilter library | some CDNs, research | everything small |
 
-A senior answer to "should we add a Bloom filter?" starts with "what is the cost of a false positive, and how many keys do we expect?".
+## Failure modes
 
-## Exercise
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| Measured false-positive rate is 10× the configured one; reads touch many SSTables | The filter was sized for fewer keys than it holds (overfill), or keys are being added repeatedly through a path that re-counts them | Size from the real key count (an SSTable knows it), monitor fill fraction or `expectedFpp()`, or a scalable filter |
+| Two different keys collide far more often than 1% although the filter is half empty | A zero or even `h2` step collapsing probes, or a weak hash (Java `String.hashCode` on similar keys, sequential integers hashed by identity) feeding correlated positions | Force the step odd; use Murmur3 or XXH3 through a proper funnel; never hash a hash |
+| A "delete" was implemented by clearing bits, and reads now miss keys that exist | Shared bits were cleared: false negatives, the one thing the structure promises never to do | Counting Bloom filter or cuckoo filter; or rebuild without the deleted keys |
+| Read latency rose after the block cache was shrunk, although data hit ratio looks fine | Filter blocks were evicted and every read fetches the filter from disk before it can skip anything | `cache_index_and_filter_blocks` with pinned filters, or a block cache sized for filters plus indexes first |
+| A range scan is slow even though "we have Bloom filters" | Filters answer single-key membership; a scan cannot ask about a range | Prefix Bloom filters for prefix seeks; otherwise accept the merge or restructure keys |
+| A login form says "username taken" for names nobody has | A Bloom filter answering an exact question; the 1% false positives are user-visible | Exact check (hash set or database) after the filter, and never expose the filter's answer directly |
+
+## Interviewer follow-ups
+
+**"Size a filter for 100 million keys at 0.1% false positives and tell me the memory."** Model answer: 14.4 bits per key, so 1.44 gigabits ≈ 180 MB, with `k = 10`; if that is too much, 1% costs 120 MB and 10% costs 60 MB, and the choice depends on what a false positive costs downstream. Common wrong answer: "a few megabytes", from confusing bits with bytes or forgetting that bits scale with `n`.
+
+**"Why does RocksDB attach a filter to every file rather than one filter for the whole store?"** Model answer: files are immutable and know their key count, so each filter is sized exactly and never overfills; a store-wide filter would need to grow, cannot forget deleted keys, and would say "maybe" for every file at once instead of skipping the specific ones. Common wrong answer: "for parallelism".
+
+**"We need to remove keys. What changes?"** Model answer: a plain Bloom filter cannot delete without risking false negatives; use a counting filter at 4× memory with saturating counters, or a cuckoo filter at similar memory with real deletion and a load limit around 95%. Common wrong answer: "clear the bits and accept a few errors", which turns a filter with one guarantee into one with none.
+
+**"How would you check that a filter in production is behaving?"** Model answer: measure the false-positive rate directly (queries that passed the filter and found nothing, divided by absent-key queries), compare with the configured rate, and read the fill fraction; a fill above 50% at the optimal `k` means overfill. Common wrong answer: "check that lookups of present keys succeed", which tests the guarantee that cannot fail.
+
+**"A colleague proposes a Bloom filter in front of the user table to reject unknown usernames at login."** Model answer: fine as a pre-filter that saves a database read for most junk requests, wrong as the source of truth; every "maybe" must go to the database, and the error message must never come from the filter, or 1% of legitimate new users are told their name exists. Common wrong answer: "use a lower false-positive rate", which reduces but does not remove a user-visible error.
+
+## What mid-level engineers get wrong
+
+- **Sizing by intuition** ("a megabyte should be plenty") instead of from `n` and `p`; the formula is one line.
+- **Not guarding the double-hash step**, then measuring false positives that the formula cannot explain.
+- **Clearing bits to delete.**
+- **Proposing a filter where an exact answer is required** (uniqueness checks, authorisation).
+- **Forgetting that filters need to be in memory** and letting them fall out of the block cache.
+- **Expecting help on range scans.**
+
+## Exercises
 
 ```exercise
 id: bloom-filter
@@ -271,17 +341,67 @@ tests:
 hints:
   - "Compute h1 = fnv1a(key) and h2 = djb2(key) once, then positions are (h1 + i * h2) % M for i in 0..K-1."
   - "might_contain is true only if every position's bit is 1; a single 0 proves absence."
-  - "bits_set is just the count of 1s in the array."
+  - "bits_set is the count of 1s in the array."
+```
+
+```exercise
+id: bloom-sizing
+title: Size a Bloom filter from n and p
+prompt: |
+  Implement `bloom_params(n, p)` returning `[m, k]`: the number of bits
+  `m = ceil(-n * ln(p) / (ln 2)^2)` and the number of hash functions
+  `k = round(m / n * ln 2)`, with a minimum of 1. These are the formulas
+  Guava's `BloomFilter.create` uses. `n` is a positive integer and `p` is
+  a probability strictly between 0 and 1.
+languages: [python, javascript]
+entry: bloom_params
+starter:
+  python: |
+    import math
+
+    def bloom_params(n, p):
+        # your code here
+        return [0, 0]
+  javascript: |
+    function bloom_params(n, p) {
+      // your code here
+      return [0, 0];
+    }
+tests:
+  - args: [1000000, 0.01]
+    expected: [9585059, 7]
+    label: a million keys at 1 percent is 9.6 bits per key
+  - args: [1000000, 0.001]
+    expected: [14377588, 10]
+    label: another factor of ten costs 4.8 bits per key
+  - args: [1000, 0.1]
+    expected: [4793, 3]
+  - args: [1, 0.5]
+    expected: [2, 1]
+    label: k never drops below 1
+  - args: [100000, 0.0001]
+    expected: [1917012, 13]
+    hidden: true
+  - args: [5000000, 0.01]
+    expected: [47925292, 7]
+    hidden: true
+    label: bits per key does not depend on n
+  - args: [10, 0.01]
+    expected: [96, 7]
+    hidden: true
+hints:
+  - "Use natural logarithms: `math.log` in Python, `Math.log` in JavaScript."
+  - "Compute m first, then derive k from m / n; both languages round 6.64 to 7."
 ```
 
 ## Senior signals
 
-- You size a filter from a **target false-positive rate and expected `n`**, and you can quote "about 10 bits per key for 1%" and "another 4.8 bits per key per factor of ten".
+- You size a filter from a **target false-positive rate and expected `n`**, and you can quote "about 10 bits per key for 1%" and "another 4.8 bits per key per factor of ten", and check a formula against a traced filter.
 - You know a Bloom filter has **no false negatives**, that deletion breaks that guarantee, and that counting or cuckoo filters are the fix.
-- You explain **why LSM engines use them** (skipping SSTable reads for absent keys) and can name the Cassandra or RocksDB knob.
-- You use **double hashing** and know the zero-step trap and the cache-locality argument for blocked filters.
+- You explain **why LSM engines use them** (skipping SSTable reads for absent keys), can name the Cassandra or RocksDB knob, and know that RocksDB's cache-local filter and Ribbon filter trade false positives and build CPU for memory and cache misses.
+- You use **double hashing**, know the zero-step trap and can show it on a concrete key, and know the cache-locality argument for blocked filters.
+- You can say what Guava does on `create` (the two formulas, Murmur3 split in two, a `long[]` bit array) and how to detect an overfilled filter in production (`expectedFpp`, fill fraction, measured false ratio).
 - You ask "what does a false positive cost?" before proposing one, and you reach for a plain hash set when the set is small.
-- You know what happens when the filter is **overfilled** and either fix `n` up front or use a scalable filter.
 
 ## Check yourself
 
@@ -303,13 +423,19 @@ hints:
   options: ["To compress each file's keys so fewer pages are read", "To let range scans skip files outside the scanned range", "To find which keys to merge together during compaction", "To skip files that cannot hold the key on a point lookup"]
   answer: 3
   explanation: >-
-    A point read for a key must otherwise check every SSTable that might hold it. The filter answers "definitely not here" for most files without touching disk. It does not help range scans: a filter answers membership for one key, and a range scan must visit every overlapping file regardless.
+    A point read for a key must otherwise check every SSTable that might hold it. The filter answers "definitely not here" for most files without touching disk. It does not help range scans: a filter answers membership for one key, and a range scan must visit every overlapping file regardless (a prefix Bloom helps only prefix seeks).
 - q: >-
     Your double-hashing implementation uses positions (h1 + i·h2) mod m. For one key h2 mod m is 0. What happens?
   options: ["Nothing, since the key still sets k distinct bits", "The key sets one bit, not k, so false positives rise", "The insert fails and the key is left out of the filter", "The filter returns a false negative for that key later"]
   answer: 1
   explanation: >-
-    All k positions collapse to h1 mod m. The key is still found (no false negative), but it occupies one bit instead of k, so any key whose positions all land on already-set bits, including that one, is a false positive far more easily. Implementations force h2 to be odd or non-zero.
+    All k positions collapse to h1 mod m, as lemon, melon and coconut do in the lesson's trace. The key is still found (no false negative), but it occupies one bit instead of k, so any key whose positions all land on already-set bits, including that one, is a false positive far more easily. Implementations force h2 to be odd or non-zero.
+- q: >-
+    Why does RocksDB's cache-local Bloom filter put all of a key's bits inside one 64-byte block?
+  options: ["So the false-positive rate drops, because bits are packed more densely", "So the filter can be updated in place when keys are deleted", "So a query costs one cache miss instead of k, at a slightly higher false-positive rate", "So the filter can be built without knowing the number of keys"]
+  answer: 2
+  explanation: >-
+    With k independent positions a query touches k random cache lines, about k DRAM misses on a large filter; confining the probes to one line makes it one miss. Packing keys into blocks makes the bit distribution less uniform, so the false-positive rate rises a little for the same bits per key. Deletion and unknown n are not addressed by blocking.
 - q: >-
     Which use case is a poor fit for a Bloom filter?
   options: ["Answering 'is this username taken?' exactly at signup", "Avoiding re-crawling URLs a crawler has already visited", "Admitting a URL to a CDN cache on its second request", "Skipping a disk read for keys not in an SSTable"]

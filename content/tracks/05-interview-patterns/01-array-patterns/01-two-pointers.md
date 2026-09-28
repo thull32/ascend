@@ -7,7 +7,7 @@ difficulty: medium
 tags: [two-pointers, arrays, sorted-input, in-place, pattern:two-pointers]
 problems: [valid-palindrome, two-sum-sorted, three-sum, container-with-most-water, trapping-rain-water, remove-duplicates-sorted, move-zeroes, sort-colors]
 ---
-You need a pair of elements with some property (they sum to a target, they bound the most water, they mirror each other), and the obvious code is a nested loop that checks every pair. That is `O(n²)`, and for `n = 10⁵` it is 5 billion checks. The interviewer knows you can write the nested loop. The question is whether you can see the structure that lets you skip almost all of it.
+You need a pair of elements with some property (they sum to a target, they bound the most water, they mirror each other), and the obvious code is a nested loop that checks every pair. That is `O(n²)`, and for `n = 10⁵` it is 5 billion checks: at the roughly 10⁷ simple loop iterations per second that CPython manages, that is about eight minutes for one test case. The interviewer knows you can write the nested loop. The question is whether you can see the structure that lets you skip almost all of it.
 
 Two pointers is that structure. When the input has an order, either because it is sorted or because some quantity changes monotonically as you walk in from the ends, one comparison tells you that an entire row of the pair table cannot contain the answer. You discard the row by moving one pointer, and after at most `n` moves you are done. The pattern is not "use two variables"; it is "each step eliminates many candidates, and I can say which ones and why".
 
@@ -21,13 +21,18 @@ Reach for two pointers when you read any of these in the statement:
 - **A value that depends on both ends** where the weaker end is the only one worth moving (the container problem, the rain-water problem).
 - **Two sorted sequences** that you need to merge, intersect or compare (`is s a subsequence of t?`).
 
-What rules it out:
+The near-misses matter as much as the signals. Each row below looks like two pointers on a first read and is not:
 
-- The array is unsorted and the answer needs **original indices**. Sorting destroys them. That is a hash-map problem ([Two Sum](/practice/two-sum) versus [Two Sum Sorted](/practice/two-sum-sorted)); see [Hash-map patterns](/learn/interview-patterns/sequence-patterns/hash-map-patterns).
-- The condition is about a **contiguous segment** between the pointers (longest substring with…, minimum window…). Both pointers move the same way but the *segment* is what matters. That is a [sliding window](/learn/interview-patterns/array-patterns/sliding-window), which has a different invariant.
-- You need **all pairs counted with multiplicity** in an unsorted array. Frequency counting with a hash map is simpler.
+| Statement says | Pattern | Why |
+|---|---|---|
+| "Return the **indices** of the two numbers" in an unsorted array | [Hash map](/learn/interview-patterns/sequence-patterns/hash-map-patterns) | Sorting destroys the indices; a value → index map finds the complement in one pass |
+| "Longest **substring/subarray** such that…" | [Sliding window](/learn/interview-patterns/array-patterns/sliding-window) | The answer is the segment *between* the indices and needs a running summary of it |
+| "Subarray with sum `k`" and values may be negative | [Prefix sum](/learn/interview-patterns/array-patterns/prefix-sum) | Removing an element can raise the sum; no pointer move is provably safe |
+| "Count pairs with `nums[i] + nums[j] == k`" **with multiplicity**, unsorted | Hash map of counts | Two pointers finds *whether* a pair exists; counting equal values needs the frequency of `k − v` |
+| "Kth smallest pair distance" or "pairs with difference ≤ d" for a **threshold you must find** | [Binary search on the answer](/learn/algorithms/sorting-searching/binary-search-on-the-answer) | Two pointers is the inner *counting* step; the outer search over the threshold is the pattern |
+| Anything on a **linked list** with "middle", "cycle", "nth from end" | [Fast and slow pointers](/learn/interview-patterns/sequence-patterns/fast-slow-pointers) | No random access, so the pointers move by speed, not by value comparison |
 
-The nearest confusable pattern is the sliding window. The test: if you care about the elements *at* the two indices, it is two pointers; if you care about everything *between* them, it is a window.
+The test for the sliding-window confusion: if you care about the elements *at* the two indices, it is two pointers; if you care about everything *between* them, it is a window.
 
 ## The template
 
@@ -46,7 +51,6 @@ def pair_with_sum(nums, target):
         else:
             hi -= 1          # nums[hi] is too large for every remaining lo
     return []
-
 
 def compact(nums, keep):
     """Keep elements satisfying keep(x), in order, in place. Return new length."""
@@ -79,21 +83,27 @@ function compact(nums, keep) {
 }
 ```
 
-The invariant for the opposite-ends form is the thing to say out loud: *every pair using an index left of `lo` or right of `hi` has already been ruled out*. Why is moving `lo` safe when the sum is too small? Because `nums[hi]` is the largest value still in play, so `nums[lo] + nums[j] ≤ nums[lo] + nums[hi] < target` for every remaining `j`. Index `lo` cannot be in any answer; you drop it and every pair it belongs to in one step. The symmetric argument covers `hi`. Each step retires one index, so the loop runs at most `n - 1` times: `O(n)` after the sort.
+The invariant for the opposite-ends form is the thing to say out loud:
 
-Watch the pointers eliminate pairs on a real input:
+> Every pair that uses an index below `lo` or above `hi` has been ruled out. If a matching pair exists, both of its indices lie in `[lo, hi]`.
+
+It holds trivially at the start (`[0, n−1]` is everything). Each branch preserves it: when `s < target`, `nums[hi]` is the largest value still in play, so `nums[lo] + nums[j] ≤ nums[lo] + nums[hi] < target` for every remaining `j`, and index `lo` cannot be in any answer; you drop it and every pair it belongs to in one step. The symmetric argument covers `hi` when `s > target`. **Termination:** `hi − lo` is a non-negative integer that decreases by exactly 1 on every non-returning iteration, so the loop runs at most `n − 1` times. When it exits with `lo == hi`, every index has been ruled out, and returning "no pair" is correct. Watch the pointers eliminate pairs on a real input:
 
 ```viz
 {"type": "array", "algorithm": "two-pointers-sum", "values": [1, 2, 3, 4, 6, 8, 11, 15], "target": 10}
 ```
 
-The same-direction form has a different invariant: *`nums[0..write)` holds exactly the kept elements seen so far, in their original order, and `write ≤ read` always*. The second half matters because it is what makes overwriting safe: you never clobber an element you have not read yet. Here it is partitioning three values in one pass, the Dutch national flag from [Sort Colors](/practice/sort-colors):
+The same-direction form has a different invariant:
+
+> `nums[0..write)` holds exactly the kept elements seen so far, in their original order, and `write ≤ read` always.
+
+The second clause is what makes overwriting safe: you never clobber an element you have not read yet, because the write index can only fall behind the read index. Here it is partitioning three values in one pass, the Dutch national flag from [Sort Colors](/practice/sort-colors):
 
 ```viz
 {"type": "array", "algorithm": "dutch-flag", "values": [2, 0, 2, 1, 1, 0, 0, 2, 1]}
 ```
 
-Both forms are covered in more depth, with their correctness arguments, in [Two-pointers mastery](/learn/algorithms/technique-mastery/two-pointers-mastery) and [Invariants and loop reasoning](/learn/foundations/problem-solving/invariants-and-loop-reasoning). This lesson is about recognising them under pressure and executing without a bug.
+Both forms are developed further, with their correctness arguments, in [Two-pointers mastery](/learn/algorithms/technique-mastery/two-pointers-mastery) and [Invariants and loop reasoning](/learn/foundations/problem-solving/invariants-and-loop-reasoning). This lesson is about recognising them under pressure and executing without a bug.
 
 ## Worked problems
 
@@ -149,7 +159,7 @@ Time `O(n²)`: `n` anchors, each with an `O(n)` two-pointer sweep. Sorting is `O
 
 [Container With Most Water](/practice/container-with-most-water): given vertical line heights, choose two lines so that the water held between them, `min(h[l], h[r]) × (r - l)`, is maximal.
 
-The insight is a single sentence you should say before writing any code: *moving the taller line can never help*. If `h[l] ≤ h[r]`, every container `(l, r')` with `r' < r` is narrower and its height is still capped at `h[l]`, so it holds no more than the current one. Index `l` is finished. You have just eliminated `r - l - 1` candidate pairs with one comparison, which is exactly the two-pointer move.
+The insight is a single sentence you should say before writing any code: *moving the taller line can never help*. If `h[l] ≤ h[r]`, every container `(l, r')` with `r' < r` is narrower and its height is still capped at `h[l]`, so it holds no more than the current one. Index `l` is finished. One comparison has eliminated `r - l - 1` candidate pairs, which is exactly the two-pointer move.
 
 ```python
 def max_area(h):
@@ -219,27 +229,121 @@ Loop ends with `lo == hi == 4`. Total 6, which you can confirm by hand: 2 units 
 
 Notice how the pointers alternate. The right side got settled first because its running maximum was the weaker wall; once the bar of height 3 was found, the left side became the weaker wall and every left position was settled against it. Time `O(n)`, space `O(1)`, versus `O(n)` space for the two-array version. Interviewers usually accept the two-array version and then ask for this one.
 
-## Variations
+### Remove Duplicates, at most k copies
 
-- **Count instead of find.** "How many pairs sum to less than `target`?" When `nums[lo] + nums[hi] < target`, every `j` in `(lo, hi]` also works with `lo`, so add `hi - lo` to the count and advance `lo`. Still `O(n)`; you count a whole row at once rather than discarding it.
-- **Closest rather than exact.** "Three Sum Closest": track the smallest `|sum - target|` and never return early. The pointer moves are unchanged because the direction argument is about ordering, not equality.
-- **k-Sum.** Peel one anchor per level of recursion until two remain, then two-pointer. `O(n^(k-1))`, with duplicate-skipping at every level.
-- **Same-direction with a bound.** [Remove Duplicates from Sorted Array](/practice/remove-duplicates-sorted) generalises to "allow at most `k` copies": keep `nums[read]` when `write < k or nums[read] != nums[write - k]`.
-- **Two arrays.** Merge sorted arrays, intersect sorted arrays, "is `s` a subsequence of `t`": one pointer per array, advance the one that is behind. The invariant is "everything before each pointer has been matched or discarded".
-- **Linked lists.** Fast and slow pointers are two pointers on a structure without random access. They get their own lesson: [Fast and slow pointers](/learn/interview-patterns/sequence-patterns/fast-slow-pointers).
+[Remove Duplicates from Sorted Array](/practice/remove-duplicates-sorted) is the same-direction form, and its generalisation ("keep at most `k` copies of each value") is the version interviewers use to check you understand *why* the compaction works rather than having memorised it.
 
-## Pitfalls
+```python
+def keep_at_most_k(nums, k):
+    write = 0
+    for read in range(len(nums)):
+        if write < k or nums[read] != nums[write - k]:
+            nums[write] = nums[read]
+            write += 1
+    return write
+```
 
-- **`while lo <= hi` in the opposite-ends loop.** With `lo == hi` you pair an element with itself. Use `<`.
-- **Sorting when indices are the answer.** If you must sort and return indices, sort an array of `(value, index)` pairs or an index array keyed by value. Better: recognise that unsorted-with-indices is the hash-map version.
-- **Duplicate skipping at the wrong time.** In Three Sum, skip the anchor by comparing to the *previous* anchor (`i > 0 and nums[i] == nums[i-1]`), and skip `lo`/`hi` duplicates only *after* recording a match. Skipping before the check throws away valid triples.
-- **Unbounded duplicate skips.** `while nums[lo] == nums[lo + 1]` walks off the end. Every skip loop needs `lo < hi` in its condition.
-- **Moving the taller line** in the container problem. It feels symmetric; it is not. Trace the proof once and it stays with you.
-- **Returning `write + 1`** or `write - 1` from the compaction form. `write` is the count of kept elements and the index of the next free slot; both interpretations mean the answer is `write`.
-- **Mutating an immutable string.** Python `str` and JavaScript strings cannot be edited in place; convert to a list or array of characters, or use the read-only opposite-ends form (palindrome checks need no writes).
-- **Forgetting the `n < 2` case.** `hi = len(nums) - 1` is `-1` on an empty array; the `while lo < hi` guard saves you, but state it rather than rely on it.
+Why `nums[write - k]` is the right thing to compare against: the kept prefix is sorted (it is a subsequence of a sorted array), so if `nums[read] == nums[write - k]` then every kept element between `write − k` and `write − 1` is squeezed between two equal values and is that value too. Keeping `nums[read]` would make `k + 1` copies. Trace with `k = 1` on `[1, 1, 2, 2, 2, 3, 4, 4]`:
 
-## Exercise
+| `read` (value) | `write` | compare `nums[write − 1]` | keep? | array prefix after |
+|---|---|---|---|---|
+| 0 (1) | 0 | `write < 1` | yes | `[1]`, `write = 1` |
+| 1 (1) | 1 | 1 == 1 | no | `[1]` |
+| 2 (2) | 1 | 2 ≠ 1 | yes | `[1, 2]`, `write = 2` |
+| 3 (2) | 2 | 2 == 2 | no | |
+| 4 (2) | 2 | 2 == 2 | no | |
+| 5 (3) | 2 | 3 ≠ 2 | yes | `[1, 2, 3]`, `write = 3` |
+| 6 (4) | 3 | 4 ≠ 3 | yes | `[1, 2, 3, 4]`, `write = 4` |
+| 7 (4) | 4 | 4 == 4 | no | |
+
+Return 4. With `k = 2` the same input keeps `[1, 1, 2, 2, 3, 4, 4]` and returns 7. `write` is both the count of kept elements and the index of the next free slot, so it is the return value under either reading; returning `write + 1` or `write − 1` is a bug you can rule out by that sentence alone.
+
+```viz
+{"type": "array", "algorithm": "remove-duplicates", "values": [1, 1, 2, 2, 2, 3, 4, 4], "title": "Read/write compaction with k = 1", "caption": "write never overtakes read, so each overwrite lands on a slot that has already been read."}
+```
+
+## Variants
+
+| Variant | What changes in the template | Complexity |
+|---|---|---|
+| **Count** pairs with sum below target | When `nums[lo] + nums[hi] < target`, add `hi − lo` (every `j` in `(lo, hi]` works with `lo`) and advance `lo`; you count a whole row instead of discarding it | `O(n)` after sort |
+| **Closest** rather than exact (Three Sum Closest) | Track the smallest `abs(sum − target)`; never return early. Pointer moves are unchanged because the direction argument is about ordering, not equality | `O(n²)` |
+| **k-Sum** | Peel one anchor per recursion level until two remain, then two-pointer; duplicate skipping at every level | `O(n^(k−1))` |
+| **Keep at most k copies** | `keep` when `write < k or nums[read] != nums[write − k]` | `O(n)`, `O(1)` space |
+| **Two arrays**: merge, intersect, "is `s` a subsequence of `t`" | One pointer per array. Merge: advance the smaller. Intersect: advance the smaller, or **both** on equality. Subsequence: advance `t` always, `s` on match | `O(n + m)` |
+| **Three-way partition** (Dutch flag) | Three indices `lo`, `mid`, `hi`; after swapping `mid` with `hi`, do **not** advance `mid`, because the swapped-in element is unread | `O(n)`, `O(1)` space |
+| **Palindrome with one deletion allowed** | On the first mismatch, check whether `s[lo+1..hi]` or `s[lo..hi−1]` is a palindrome; one extra linear pass at most | `O(n)` |
+| **Linked list** | Pointers move by speed rather than by comparison | [Fast and slow pointers](/learn/interview-patterns/sequence-patterns/fast-slow-pointers) |
+
+## Complexity, derived
+
+The opposite-ends loop has a potential function: `hi − lo` starts at `n − 1`, decreases by exactly 1 per iteration, and the loop stops at 0. That gives at most `n − 1` iterations, each doing a constant amount of work, so `O(n)`. The same-direction form is `O(n)` because `read` visits each index once and `write` never exceeds it.
+
+For Three Sum, anchor `i` runs a sweep over `n − i − 1` elements, so the total is $\sum_{i=0}^{n-3}(n-i-1) = \frac{(n-1)(n-2)}{2} \approx n^2/2$ inner steps. The sort adds `n log₂ n`, which is smaller than `n²/2` once `n > 4`. Put numbers on it: the problem's usual constraint is `n ≤ 3,000`, so about 4.5 × 10⁶ inner steps, which CPython finishes in well under a second. For `n = 10⁵` the nested-loop version needs 5 × 10⁹ steps (minutes in CPython, seconds in Rust or Go); the two-pointer version needs 10⁵ steps plus one sort, which is milliseconds in any language.
+
+Compare the alternatives for "find a pair with a given sum":
+
+| Approach | Time | Extra space | Keeps original indices | Mutates input | Handles duplicate values |
+|---|---|---|---|---|---|
+| Nested loop | `O(n²)` | `O(1)` | yes | no | yes |
+| Hash map of value → index | `O(n)` | `O(n)` | yes | no | needs care (`k − v == v`) |
+| Sort + two pointers | `O(n log n)` | `O(1)` if sorted in place | no | yes (or copy) | yes, by skipping |
+| Sort + binary search per element | `O(n log n)` | `O(1)` | no | yes | yes |
+
+The hash map wins on time when indices matter; two pointers wins on space and when the input is already sorted, and it is the only one of the four that extends to Three Sum without an extra factor of `n` in memory.
+
+## Under the hood
+
+### The sort underneath
+
+**CPython.** `list.sort()` is Timsort, stable since it shipped in 2.3. With `key=`, the key is computed once per element and stored in a parallel array, so `key=lambda p: p[0]` on `(value, index)` pairs costs `n` calls, not `n log n`; stability then guarantees that equal values keep their index order, which is how the "sort `(value, index)` pairs" trick returns the smaller index first. Since CPython 3.7, `list.sort` first checks whether every element has the same type and, if so, selects a specialised comparison (`unsafe_long_compare` for `int`, a Latin-1 fast path for ASCII strings, a float path, and a tuple path that specialises on the first element). The change that introduced it (bpo-28685) reported sorts 40–75% faster on homogeneous lists; a list mixing `int` and `float` falls back to the generic rich comparison.
+
+**V8.** `Array.prototype.sort` in V8 has been TimSort, and therefore stable, since V8 7.0 (2018); before that, arrays longer than 10 elements were sorted with an unstable quicksort. The default comparator converts elements to strings, so `[10, 9, 1].sort()` returns `[1, 10, 9]`. Always pass `(a, b) => a - b` for numbers.
+
+### What a pointer read costs
+
+A CPython list stores 8-byte pointers; each `int` is a separate object (28 bytes for values below 2³⁰; the values −5 to 256 are pre-allocated singletons). So `nums[lo] + nums[hi]` follows two pointers and allocates a new `int` object when the result is outside that small-int cache. A two-pointer sweep over 10⁵ elements is on the order of 10 ms in CPython, an estimate that depends on the interpreter version and machine. V8 stores an array of small integers as `PACKED_SMI_ELEMENTS`, the integers inline in the backing store (31-bit values under pointer compression on 64-bit builds), so the same walk is a contiguous scan with no allocation, typically an order of magnitude faster. Push a `1.5` into that array and V8 transitions it to `PACKED_DOUBLE_ELEMENTS`; push `undefined` or a string and it becomes `PACKED_ELEMENTS`, permanently for that array. Writing past the end (`arr[100] = x` on a length-10 array) makes it `HOLEY_*`, and every subsequent read checks for holes.
+
+**Strings.** Python and JavaScript strings are immutable, so the compaction form cannot run on them directly. For palindrome checks you do not need to write, so index the string directly; CPython caches one-character Latin-1 strings, so `s[i]` on ASCII text returns a shared object rather than allocating. For problems that genuinely write, `list(s)` costs `n` pointers (800 KB for a 10⁵-character string) plus `"".join` at the end.
+
+**At scale.** The two-array merge is the merge phase of a sort-merge join in a relational engine ([SQL and query plans](/learn/databases/relational-fundamentals/sql-and-query-plans)) and the compaction step that merges sorted runs in an LSM tree; the read/write compaction is what C++'s `std::unique` and Rust's `Vec::dedup` do.
+
+## Failure modes
+
+**An element is paired with itself.** *Symptom:* `pair_with_sum([1, 3, 5], 6)` returns `[1, 1]`; the test with an odd target that is twice a single element fails. *Diagnosis:* the loop condition is `lo <= hi`; on the final iteration `lo == hi` and the sum is `2 × nums[lo]`. *Fix:* `while lo < hi`. In the counting variant the same bug adds `hi − lo == 0`, so it is silent there and loud here.
+
+**Three Sum returns duplicate triples, or the "3,000 zeros" test times out.** *Symptom:* `[-1, 0, 1]` appears twice for `[-1, 0, 1, 2, -1, -4]`; on an all-zero input the result list grows to about `n²/2` identical triples before a `set` at the end collapses them, and memory follows. *Diagnosis:* no duplicate skip after recording a match, or a skip placed before the check (which throws away valid triples), or dedup by `set(tuple(t))` instead of by construction. *Fix:* after recording, advance both pointers and then skip while `nums[lo] == nums[lo − 1]` and `nums[hi] == nums[hi + 1]`, with `lo < hi` in both conditions; skip anchors by comparing to the previous anchor.
+
+**Index error inside the skip loop.** *Symptom:* Python raises `IndexError` on `[0, 0, 0]`; JavaScript silently stops because `nums[lo + 1]` is `undefined` and never equals anything, so the bug hides until a Python port. *Diagnosis:* `while nums[lo] == nums[lo + 1]` has no bound. *Fix:* every skip loop is `while lo < hi and …`.
+
+**Sorted, then returned the wrong indices.** *Symptom:* the sample passes (the sample happens to be sorted), the hidden tests fail. *Diagnosis:* the returned positions refer to the sorted copy. *Fix:* recognise unsorted-with-indices as the hash-map version; if you must sort, sort `(value, index)` pairs.
+
+**A reconciliation job pegs a core at 100% and never finishes.** *Symptom:* a nightly job that merges two sorted exports (say, a billing feed against a ledger) hangs; a thread dump shows the merge loop with both indices unchanged. *Diagnosis:* the equal-keys branch advanced neither pointer, or an intersection advanced only one and matched the same record repeatedly. *Fix:* every branch advances at least one pointer, and the equality branch does what the operation needs: merge advances either, intersection and difference advance both.
+
+**Moved the taller line.** *Symptom:* Container With Most Water returns 40 instead of 49 on the sample. *Diagnosis:* the branch moves the pointer at the taller line, which can only shrink the width without lifting the cap. *Fix:* move the shorter line; on a tie either move is safe.
+
+## Interviewer follow-ups
+
+**"The array is not sorted and I need the original indices, in O(n)."** Model answer: a hash map from value to index; for each element look up `target − value` before inserting the element itself, which handles `target = 2 × value` correctly. Common wrong answer: sort `(value, index)` pairs and run two pointers, which works but costs `O(n log n)` and more code for no benefit.
+
+**"Now count the pairs with sum strictly less than the target."** Model answer: when `nums[lo] + nums[hi] < target`, all of `(lo, lo+1) … (lo, hi)` qualify, so add `hi − lo` and advance `lo`; otherwise retreat `hi`. Still `O(n)`. Common wrong answer: adding 1 per iteration, which counts at most `n` pairs when the answer can be `n²/2`.
+
+**"Extend it to 4-Sum. What is the complexity for general k?"** Model answer: recurse, fixing one anchor per level and skipping duplicate anchors at every level; the bottom level is the two-pointer sweep, so `O(n^(k−1))` after one sort. Common wrong answer: `O(n^k)` nested loops, or the right bound with a `set` for deduplication, which hides the duplicate logic the interviewer wanted to see.
+
+**"Trapping rain water on a 2D grid."** Model answer: the pattern changes. Water at a cell is bounded by the lowest wall on any path to the border, so start a min-heap with the border cells, pop the lowest, and for each unvisited neighbour add `max(level − h, 0)` and push it with height `max(level, h)`; `O(mn log(mn))`. Common wrong answer: run the 1D two-pointer solution per row and per column and add them, which double counts and ignores diagonal escape paths.
+
+**"n is 10⁶ for Three Sum. Now what?"** Model answer: `n²/2 = 5 × 10¹¹` steps is out of reach in any language, and no algorithm substantially faster than quadratic is known; the 3SUM conjecture in complexity theory says none exists. So ask what else is constrained: if values are bounded by `V`, a count array and a convolution give `O(V log V)`; if only existence matters and you can accept randomness, hashing helps the constant but not the exponent. Common wrong answer: "use a hash set to get O(n)", which is still `O(n²)` because every anchor pair needs a lookup.
+
+## What mid-level engineers get wrong
+
+- **Treating "two pointers" as one trick.** They apply the opposite-ends loop to a compaction problem or vice versa. Consequence: an invariant that does not match the code, and a bug they cannot reason about.
+- **Skipping duplicates before checking the sum**, or comparing the anchor to the *next* element. Consequence: valid triples such as `[-1, -1, 2]` disappear, on exactly the inputs the hidden tests use.
+- **Deduplicating with a set at the end.** Consequence: `O(n)` extra memory and, on degenerate inputs, `n²/2` intermediate results; the interviewer reads it as not understanding the pointer moves.
+- **`hi = len(nums) − 1` on an empty array with no guard.** Consequence: the `while lo < hi` check happens to save them, but they cannot say so, which is what the interviewer is probing.
+- **Advancing `mid` after the swap with `hi` in the Dutch flag.** Consequence: an unread element is skipped and a 2 can land before a 1.
+- **Reaching for two pointers when the statement asks for original indices.** Consequence: a correct-looking solution that fails every unsorted test.
+
+## Exercises
 
 ```exercise
 id: count-pairs-below-target
@@ -290,14 +394,67 @@ hints:
   - "Stop when lo >= hi; each step retires one index so the loop is O(n)."
 ```
 
+```exercise
+id: intersect-sorted-arrays
+title: Intersect two sorted arrays with multiplicity
+prompt: |
+  `a` and `b` are sorted ascending and may contain repeated values. Return
+  the sorted list of values that appear in both, where each value appears
+  as many times as it appears in both arrays (the minimum of its two
+  counts). For example `[1, 2, 2, 3]` and `[2, 2, 4]` give `[2, 2]`.
+
+  Use one pointer per array and no hash map, so the pass is O(len(a) + len(b)).
+  Decide what happens on a tie before you write the loop.
+languages: [python, javascript]
+entry: intersect_sorted
+starter:
+  python: |
+    def intersect_sorted(a, b):
+        # your code here
+        return []
+  javascript: |
+    function intersect_sorted(a, b) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [[1, 2, 2, 3], [2, 2, 4]]
+    expected: [2, 2]
+  - args: [[1, 1, 1], [1, 1]]
+    expected: [1, 1]
+    label: multiplicity is the minimum count
+  - args: [[1, 3, 5], [2, 4, 6]]
+    expected: []
+    label: no overlap
+  - args: [[], [1, 2]]
+    expected: []
+    label: empty input
+  - args: [[-3, -1, 0, 0, 7], [-1, 0, 0, 0, 8]]
+    expected: [-1, 0, 0]
+    hidden: true
+  - args: [[2, 2, 2], [2]]
+    expected: [2]
+    hidden: true
+    label: one side runs out first
+  - args: [[1, 2, 3, 4, 5], [5]]
+    expected: [5]
+    hidden: true
+    label: match at the very end
+hints:
+  - "While both pointers are in range: if a[i] < b[j] advance i; if a[i] > b[j] advance j."
+  - "On a tie record the value and advance both pointers, otherwise the same element is matched twice."
+  - "Every branch moves at least one pointer, which is what bounds the loop by len(a) + len(b)."
+```
+
 ## Senior signals
 
-- You say the **elimination argument** before you write the loop: "if the sum is too small, `lo` cannot pair with anything remaining because `hi` is the largest remaining value".
+- You say the **elimination argument** before you write the loop: "if the sum is too small, `lo` cannot pair with anything remaining because `hi` is the largest remaining value", and you name the potential function (`hi − lo`) that bounds the iterations.
 - You separate the **opposite-ends** and **read/write** forms and know each one's invariant, rather than treating "two pointers" as a single trick.
 - You recognise the **sorted-versus-indices** trade-off instantly: sorted input or free to sort means two pointers; original indices required means a hash map.
-- You handle **duplicates by design** (skip after match, compare to previous anchor) instead of deduplicating with a set at the end, and you can say why the set is `O(n)` extra memory and hides the bug.
+- You handle **duplicates by design** (skip after match, compare to previous anchor, `lo < hi` in every skip) instead of deduplicating with a set at the end, and you can say why the set is `O(n)` extra memory and hides the bug.
 - You know the container proof and can give the **rain-water argument** in one sentence: the side with the smaller running maximum is fully determined, so settle it.
-- You mention that on a sorted array the pattern is `O(1)` extra space, which is the follow-up the interviewer is about to ask.
+- You know what the sort underneath costs and does: Timsort, stable, keys computed once, type-specialised compares in CPython, `(a, b) => a - b` in JavaScript because the default comparator stringifies.
+- You know which follow-ups **change the pattern**: 2D rain water is a heap flood, `n = 10⁶` Three Sum is a conversation about constraints rather than a faster loop.
 
 ## Check yourself
 
@@ -332,4 +489,10 @@ hints:
   answer: 2
   explanation: >-
     Because lmax <= rmax, the true right-side maximum for the next left position is at least 6, so min(maxLeft, maxRight) there equals the updated lmax. That side is fully determined; the right side is not, because its left wall might still grow.
+- q: >-
+    You are intersecting two sorted arrays with multiplicity and reach a[i] == b[j] == 2. After recording the 2, which move keeps the counts right?
+  options: ["Advance neither and count the run of 2s on each side first", "Advance i only, so b's 2 can still match the next 2 in a", "Advance both pointers, because that 2 in each array has been consumed", "Advance j only, so a's 2 can still match the next 2 in b"]
+  answer: 2
+  explanation: >-
+    Each matched element is used once, so both pointers move; advancing only one side pairs the same element repeatedly and turns [2, 2] against [2] into [2, 2]. Counting the runs gives the same answer with more code, and advancing neither never terminates. The rule that every branch moves at least one pointer is also what bounds the loop by len(a) + len(b).
 ```

@@ -29,6 +29,19 @@ What rules it out:
 
 The nearest confusable pattern is DFS with a depth parameter, which can produce per-level output by writing `levels[depth].append(node.val)`. It works, and interviewers accept it, but the pre-order visit order means "right side view" becomes "the first node visited at each depth when you visit right before left", which is an argument you have to make, where BFS makes it obvious. When the question is about levels, use the tool built for levels.
 
+### Near misses
+
+Each of these statements contains a BFS trigger word and is not a tree-BFS problem, or looks like something else and is one. The tell is in the last column.
+
+| Statement | Looks like | Actually | The tell |
+|---|---|---|---|
+| "Return all nodes at distance `k` from a target node" | BFS, because "distance" | Graph BFS: you need a parent map first (one DFS), then BFS outward through children *and* parent | Distance is measured through the parent edge too, and tree nodes have no upward pointer |
+| "Maximum depth of the tree" | Levels, count them with BFS | Either; the bottom-up DFS is one line (`1 + max(l, r)`) and uses `O(h)` memory | No per-level output is required, so the level loop buys nothing |
+| "Sum of all root-to-leaf paths" | "Leaf", "path", sounds like min-depth | Top-down DFS carrying the running value | The answer depends on the *ancestors* of each leaf, not on its level |
+| "Boundary of the tree, anticlockwise" | "Seen from the side", like Right Side View | Three DFS walks (left edge, leaves, right edge) | The output order is not by level; the left edge is visited top-down and the right edge bottom-up |
+| "Vertical order traversal" | Level order rotated 90° | BFS with `(node, column)` pairs *plus* a sort inside each column by row then value | Ties inside a column are ordered by a rule BFS order does not give you |
+| "Check if two trees are identical" | Compare them level by level | Lockstep DFS on both roots | Two trees with identical level lists can differ in structure (`[1, 2]` with 2 as a left child versus a right child) |
+
 ## The template
 
 The whole pattern is a queue, an outer loop over levels and an inner loop that runs exactly `size` times. Capturing `size` before the inner loop is what pins the level boundary; without it, children enqueued during the inner loop bleed into the current level.
@@ -77,7 +90,9 @@ function bfsLevels(root) {
 
 The JavaScript version uses the swap-a-level form: instead of a deque, it holds the current level in one array and builds the next level in another. That avoids `Array.prototype.shift()`, which is `O(n)` in most engines because it re-indexes the array; on a wide tree a `shift()`-based queue turns the `O(n)` traversal into `O(n²)`. The Python version uses `collections.deque`, whose `popleft` is `O(1)`. Either form works in either language; know which one you are writing and why.
 
-The invariant to say out loud: *at the top of the outer loop, the queue holds exactly the nodes of one level, in left-to-right order*. The inner loop consumes those `size` nodes and appends their children, so at the bottom of the outer loop the queue holds exactly the next level, again left to right. Every node is enqueued once and dequeued once: `O(n)` time. The queue's peak size is the widest level, which is `O(n)` in the worst case (a complete tree's last level has about `n/2` nodes).
+The invariant to say out loud: *at the top of the outer loop, the queue holds exactly the nodes of one level, in left-to-right order*. The inner loop consumes those `size` nodes and appends their children, so at the bottom of the outer loop the queue holds exactly the next level, again left to right. The argument is an induction on depth, and the code never mentions depth: the queue starts as `[root]`, level 0; if it holds exactly level `d` left to right, the inner loop dequeues those nodes in order and appends each one's left child then right child, which is left-to-right order at level `d + 1`, and nothing else is appended because `size` was fixed before any child arrived. Every node is enqueued once and dequeued once with `O(1)` work per visit, so time is `O(n)`.
+
+The space bound is the number of nodes in the widest level plus the output. In a complete binary tree with `n` nodes the bottom level holds `⌈n/2⌉` nodes, so the queue peaks at about `n/2` entries; on a chain it peaks at 1. Concretely, for a complete tree of `n = 2²⁰ − 1 ≈ 10⁶` nodes the queue holds up to `2¹⁹ = 524,288` node references at once, which in CPython 3.14 is about 4.5 MB of deque blocks (8 bytes per slot plus block overhead, measured at 8,680 bytes for a 1,000-element deque on this platform's interpreter) before counting the nodes themselves; a recursive DFS on the same tree is 20 frames deep. On a chain of 10⁶ nodes the numbers flip: the BFS queue holds one entry and the recursive DFS needs 10⁶ frames, which no default stack allows.
 
 Watch the queue fill and drain on a real tree:
 
@@ -221,9 +236,31 @@ def deserialize(data):
     return root
 ```
 
-Serialising `[1, 2, 3, null, null, 4, 5]` emits `1,2,3,#,#,4,5,#,#,#,#`: the trailing `#` entries are the missing children of 4 and 5 and of the leaf 2. Deserialising consumes them in pairs: root 1 takes `2,3`; node 2 takes `#,#`; node 3 takes `4,5`; node 4 takes `#,#`; node 5 takes `#,#`. The queue and the token index advance in lockstep, which is the invariant: *the queue holds, in order, exactly the nodes whose children have not yet been read*. Output length is `2n + 1` tokens; time `O(n)` each way.
+Serialising `[1, 2, 3, null, null, 4, 5]` emits `1,2,3,#,#,4,5,#,#,#,#`: the trailing `#` entries are the missing children of 4 and 5 and of the leaf 2. Deserialising consumes them in pairs: root 1 takes `2,3`; node 2 takes `#,#`; node 3 takes `4,5`; node 4 takes `#,#`; node 5 takes `#,#`. The queue and the token index advance in lockstep, which is the invariant: *the queue holds, in order, exactly the nodes whose children have not yet been read*. Output length is `2n + 1` tokens (every node emits itself and every one of the `n + 1` missing children emits a marker); time `O(n)` each way.
+
+Watch the same encoding produced from a BST built by inserting values in order:
+
+```viz
+{"type": "tree", "algorithm": "serialize", "values": [4, 2, 6, 1, 3, 5, 7], "title": "Level-order serialisation", "caption": "Each node emits its value; each missing child emits a marker, which is what lets the decoder consume tokens in pairs."}
+```
 
 ## Variations
+
+Every variant is the same loop with one of four slots changed: what a queue entry carries, what happens per dequeued node, what happens at the end of a level, and whether you may stop early.
+
+| Variant | Queue entry | Per node | End of level | Early exit | Cost versus the template |
+|---|---|---|---|---|---|
+| Level order | `node` | append `val` to `level` | append `level` | no | none |
+| Right side view | `node` | record when `i == size − 1` | nothing | no | none |
+| Zigzag | `node` | append `val` | reverse `level` on odd depth | no | `+O(w)` per level, `O(n)` total |
+| Level maximum / average / sum | `node` | fold into an accumulator | append the accumulator | no | none, and no `level` list |
+| Minimum depth | `(node, depth)` | test for leaf | none (no `size` loop needed) | yes, at the first leaf | often much less than `O(n)` |
+| Maximum width | `(node, index)` with `2i`, `2i + 1` | track first and last index | `last − first + 1` | no | index grows as `2^depth`, so re-base per level in fixed-width languages |
+| Next-right pointers | `node` | `prev.next = node` | reset `prev` | no | none; `O(1)` space version exists for perfect trees |
+| Cousins | `(node, parent)` | compare on the target values | check same level, different parents | yes, once both found | none |
+| N-ary | `node` | `for child in node.children` | as level order | no | none |
+| Serialise | `node` or `None` | emit `val` or `#` | none (no `size` loop) | no | output is `2n + 1` tokens |
+| Graph BFS | `node` | mark visited on enqueue | as needed | as needed | needs the visited set: [Graph traversal](/learn/interview-patterns/tree-and-graph-patterns/graph-traversal) |
 
 - **Zigzag order** ([Zigzag Level Order](/practice/zigzag-level-order)): run the standard loop and reverse `level` on odd depths before appending. Do not try to alternate the queue direction; the queue always delivers left to right and the reversal is a presentation step. Reversing costs `O(w)` per level, `O(n)` total.
 - **Level aggregates**: average, maximum, sum per level. Replace `level.append(node.val)` with an accumulator. Largest-value-per-row is "max over the inner loop".
@@ -234,16 +271,47 @@ Serialising `[1, 2, 3, null, null, 4, 5]` emits `1,2,3,#,#,4,5,#,#,#,#`: the tra
 - **N-ary trees**: replace the two `if node.left / node.right` lines with `for child in node.children`. Everything else is identical.
 - **BFS on a graph** is the same loop with a `visited` set added, which is [Graph traversal](/learn/interview-patterns/tree-and-graph-patterns/graph-traversal).
 
-## Pitfalls
+## Under the hood
 
-- **Forgetting to capture `size`.** `for _ in range(len(queue))` in Python evaluates `len(queue)` once, so it happens to work; in JavaScript `for (let i = 0; i < queue.length; i++)` re-evaluates the length every iteration and swallows the next level into the current one. Capture it explicitly in both languages so the intent is visible.
-- **`Array.prototype.shift()` as a queue.** `O(n)` per call on most engines. Use the swap-a-level form or a head index (`let head = 0; ... queue[head++]`).
+**What `deque.popleft` does.** CPython's `collections.deque` is a doubly linked list of fixed blocks, each holding 64 object pointers (`BLOCKLEN` in `Modules/_collectionsmodule.c`). `popleft` advances an index inside the leftmost block and frees the block only when it empties; `append` writes into the rightmost block and allocates a new one only when it is full. Both are `O(1)` with no memmove, which is why a 10⁶-node level costs about 10⁶ pointer writes and nothing more. A Python `list` used as a queue with `pop(0)` shifts every remaining pointer left with a memmove on each call: `n` pops cost `n²/2` pointer moves, which for a 10⁵-node level is 5 × 10⁹ moves and turns a millisecond traversal into seconds. Measured on CPython 3.14, a deque of 1,000 ints occupies 8,680 bytes and a list of the same 1,000 ints 8,056; the deque's extra 8% is block headers, and the price of `O(1)` at both ends.
+
+**Why `shift()` is the JavaScript trap.** `Array.prototype.shift()` has to make element 1 become element 0. V8 can sometimes do that by moving the start of the backing store forward ("left-trimming") instead of copying, so `shift()` on a small array looks `O(1)` in a microbenchmark. That optimisation depends on the array's elements kind, on whether the backing store lives in large-object space, and on the engine; on a large array or another engine the call copies every element. The portable way to get `O(1)` dequeue is the head index (`queue[head++]`) or the swap-a-level form, both of which never move elements.
+
+**Recursion limits, the reason BFS wins on chains.** CPython's default recursion limit is 1,000 frames (`sys.getrecursionlimit()`; a recursive function of depth 990 succeeds and 1,000 raises `RecursionError` on 3.14). Raising it with `sys.setrecursionlimit` lets Python frames grow until the C stack underneath runs out, at which point the interpreter dies with a segmentation fault rather than an exception, so the limit is a safety rail, not a tunable. Node's default stack is about 1 MB (`--stack-size` is in KB and defaults to 984), which allows on the order of 10⁴ frames; the exact number depends on how many locals each frame holds. A tree given as a chain of 10⁵ nodes therefore overflows every recursive traversal in both languages, while the BFS queue holds one node at a time. The [call stack lesson](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
+
+**The `[1, 2, 3, null, null, 4, 5]` format.** The array every test harness uses, including this platform's `$tree` encoding, is a level-order listing with explicit `null` gaps, with two conventions that differ from the serialiser above: the children of a `null` are not listed (so the array is shorter than `2n + 1`), and trailing `null`s are trimmed. Decoding it is the same queue-of-parents loop; each real node consumes the next two tokens and a `null` consumes none. Knowing this lets you read a failing test's input as a tree in your head. The [serialisation lesson](/learn/data-structures/trees/n-ary-trees-and-serialization) compares this with pre-order encodings.
+
+## Failure modes
+
+**Symptom: the JavaScript solution returns a single level containing every node, or times out on a wide tree.** Diagnosis: the inner loop's bound is `queue.length`, which grows as children are pushed, or the queue is drained with `shift()` on a level of 10⁵ nodes. Reproduce with `[1, 2, 3]`: `i < queue.length` sees 3 before it stops. Fix: capture `const size = queue.length` (or build `next` in a separate array) and dequeue with a head index.
+
+**Symptom: Right Side View passes the sample and fails a test where the left subtree is deeper.** Diagnosis: the code walks `root.right` until it is `null`. On `[1, 2, 3, 4]` it returns `[1, 3]` and the expected answer is `[1, 3, 4]`. Fix: take the last node dequeued in each level (`i == size − 1`); the view is a per-level property, not a spine.
+
+**Symptom: Minimum Depth returns 1 for a root with one child.** Diagnosis: `1 + min(depth(left), depth(right))` treats the missing child's depth of 0 as a leaf. Fix: exclude the missing side from the `min`, or use BFS and return at the first dequeued node with no children, which also stops early.
+
+**Symptom: the deserialiser builds a tree that is almost right, with children attached one node too late.** Diagnosis: each parent must consume exactly two tokens; the code advances the index once when the first token is `#`. Trace `1,2,3,#,#,4,5` and watch node 3 receive `#` and `4` instead of `4` and `5`. Fix: advance the index twice per parent unconditionally, guarding the bounds check on each read.
+
+**Symptom: `RecursionError` (Python) or `RangeError: Maximum call stack size exceeded` (Node) on a test with 10⁴ nodes.** Diagnosis: the per-level output was built with a recursive DFS and the test tree is a chain. Fix: use the queue form, whose memory is proportional to width; or, if the DFS is needed for another reason, convert it to an explicit stack.
+
+## Interviewer follow-ups
+
+**"Can you do it without the `size` variable?"** Model answer: carry the depth with each entry (`(node, depth)`) and start a new list whenever the dequeued depth exceeds the length of the output, or push a `None` sentinel after each level and treat dequeuing it as "level finished, re-push if the queue is non-empty". Both preserve the invariant. Common wrong answer: "use a second queue", which is the swap-a-level form, valid but not what was asked, or a version that forgets to re-push the sentinel and stops after level 1.
+
+**"The tree has 10⁷ nodes and is nearly complete. What is your memory?"** Model answer: the queue peaks at the widest level, about 5 × 10⁶ references, roughly 40 MB of pointer slots before node objects, and the output holds every value once; DFS would use about 24 frames instead. If memory is the constraint and per-level output is still required, DFS with a depth-indexed list gives the same output with `O(h)` stack, at the cost of the visit order being pre-order. Common wrong answer: "BFS is `O(n)` space, same as DFS", which is true only in the worst case and misses that the shapes are opposite.
+
+**"Connect each node to its next-right neighbour in `O(1)` extra space."** Model answer: for a perfect binary tree, walk level `d` using the `next` pointers you set when processing level `d − 1`, wiring `node.left.next = node.right` and `node.right.next = node.next.left`; the previous level is the queue. For a general tree, keep a dummy head for the next level and a `tail` pointer that appends children as you walk the current level. Common wrong answer: a BFS with a queue, which is `O(w)` space and does not meet the constraint.
+
+**"Now return the nodes at distance `k` from a given node."** Model answer: this changes the pattern. Build a parent map with one DFS, then BFS from the target through `left`, `right` and `parent` with a visited set, collecting the level at distance `k`; `O(n)` time. Common wrong answer: BFS downward from the target only, which misses every node reached through an ancestor.
+
+## What mid-level engineers get wrong
+
+- **Not capturing `size` explicitly.** Python's `range(len(queue))` evaluates the length once, so the bug hides until the same code is written in JavaScript, where `i < queue.length` grows with the queue. Capture it in both languages so the intent is visible.
+- **`Array.prototype.shift()` as a queue.** Engine-dependent, and `O(n)` per call in the cases that matter. Use the swap-a-level form or a head index.
 - **Not handling the empty tree.** `deque([None])` puts `None` in the queue, and `node.left` on it throws. Return early on `root is None`.
-- **Right side view by following `root.right`.** Wrong when the left subtree is deeper. Take the last node per level.
-- **Minimum depth with `1 + min(left, right)`.** Returns 1 for a node with one missing child. Either special-case the missing side or use BFS and stop at the first leaf.
 - **Enqueuing `None` children in the level loop.** In the level-order template, skip missing children; in the serialiser, enqueue them deliberately because you need to emit a marker. Mixing the two conventions produces `None.left` errors or missing markers.
-- **Deserialising with the wrong pairing.** Every dequeued parent consumes exactly two tokens, even when both are `#`. Skipping the second token when the first is `#` desynchronises the queue from the tokens and produces a tree that looks almost right.
 - **Assuming BFS is always cheaper than DFS.** The queue holds a full level; on a complete tree that is `n/2` nodes. DFS holds a root-to-leaf path. Name the shape of the tree when you state the space bound.
+- **Comparing two trees by their level lists.** Without null markers, `[1, 2]` with 2 as a left child and `[1, 2]` with 2 as a right child look identical. Use the lockstep DFS from [Tree DFS](/learn/interview-patterns/tree-and-graph-patterns/tree-dfs), or compare serialisations that include the markers.
+- **Treating "distance from a node" as a tree problem.** The parent edge makes it a graph; without a parent map and a visited set the search only ever goes down.
 
 ## Exercise
 
@@ -307,6 +375,8 @@ hints:
 - You know **`shift()` is O(n)** in JavaScript and use a head index or the swap-a-level form, and you know `deque.popleft` is O(1) in Python.
 - You recognise the LeetCode array format as a **level-order serialisation with explicit nulls**, and can explain why the deserialiser consumes tokens in pairs.
 - When the interviewer asks for the DFS version of a level problem, you can give it (depth-indexed lists) and explain **when you would prefer it** (narrow deep trees, or when you also need subtree information).
+- You can put **numbers on the queue**: about `n/2` entries on a complete tree, one on a chain, and you know that CPython's deque is a linked list of 64-slot blocks so `popleft` never moves elements, while `list.pop(0)` does.
+- You recognise **"distance `k` from a node"** as the follow-up that turns tree BFS into graph BFS with a parent map, and say so before writing a downward-only search.
 
 ## Check yourself
 
@@ -341,4 +411,10 @@ hints:
   answer: 1
   explanation: >-
     Every dequeued node owns exactly two tokens. Consuming only one leaves the second # to be read as the right child, which shifts every subsequent token by one and misattaches all later children. The invariant is that queue order and token pairs advance together.
+- q: >-
+    The interviewer asks for every node at distance k from a given target node in a binary tree. Why does the tree-BFS template not apply directly, and what is the fix?
+  options: ["It applies directly; run the level loop from the target and take level k", "The tree must first be converted to a BST so that distance is well defined", "BFS cannot count distance; only a recursive DFS can measure it correctly", "Distance runs through parents too; build a parent map, then BFS with a visited set"]
+  answer: 3
+  explanation: >-
+    Nodes at distance k can sit above the target or in a sibling subtree, reachable only by an upward step that tree nodes do not provide. One DFS records each node's parent; a BFS from the target then expands left, right and parent, with a visited set because the parent edge makes the structure a graph. A downward-only BFS from the target misses every node reached through an ancestor.
 ```

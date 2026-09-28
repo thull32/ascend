@@ -9,7 +9,7 @@ problems: [merge-intervals, insert-interval, top-k-frequent]
 ---
 A 45-minute coding interview is not 45 minutes of problem solving. Take off three minutes of introductions at the start and four for your questions at the end, and you have about 38 minutes for a problem the interviewer expects to see understood, solved, coded, tested and extended. Most candidates who fail a round they "nearly had" did not fail on the algorithm. They spent fourteen minutes circling the approach, finished typing at minute 41, never traced a single input, and never reached the follow-up question where the interviewer had planned to find out whether they were senior. The feedback says "ran out of time", and the people making the hiring decision read that as "could not deliver".
 
-The fix is not typing faster. It is a budget: a fixed sequence of phases, a deliverable for each, and checkpoints at which you look at the clock and deliberately change course if you are behind. This lesson gives you that budget, the sentences that move you between phases, and a compressed run of a full round so you can hear how it sounds. The [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) gave you the *order* of the steps; this lesson gives you the *clock*.
+The fix is not typing faster. It is a budget: a fixed sequence of phases, a deliverable for each, and checkpoints at which you look at the clock and deliberately change course if you are behind. This lesson gives you that budget, the sentences that move you between phases, and two runs of a full round so you can hear how it sounds, including one where the candidate takes a wrong turn and recovers. The [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) gave you the *order* of the steps; this lesson gives you the *clock*.
 
 ## Where the 45 minutes go
 
@@ -119,6 +119,19 @@ flowchart TD
 
 Every cut is said out loud. "I'm going to skip validation so we get to testing" tells the interviewer you are managing the clock. The same cut made silently looks like an oversight.
 
+### The minute-15 decision, costed
+
+The checkpoint that decides most rounds is minute 15 with a brute force and nothing better. You have four moves, and they are not equal.
+
+| Move | Time it costs | Effect on the algorithm score (commonly reported) | What it guarantees | Choose it when |
+|---|---|---|---|---|
+| Code the brute force, optimise after | 8–10 minutes to working code | Capped below "strong" unless the optimisation follows | Tested code by minute 26; code-quality and testing credit | n is small enough to defend it, or you have no lead at all |
+| Think two or three more minutes, aloud | 2–3 minutes | Neutral if the idea arrives; costly if it does not | Nothing | You have a specific lead ("the repeated work is the rescans") |
+| Ask a targeted hint | 1 minute | A nudge is usually noted without much penalty; a core-idea hint weighs more | Progress within a minute | Minute 17 with no lead, or the lead has not paid off |
+| Code an unverified optimisation | 10–15 minutes | Strong if it works; the worst outcome of the four if not, because nothing is tested | Nothing | Only when you can state the invariant that makes it correct |
+
+The second row is the trap: "two more minutes" becomes eight because nothing forces the stop. If you take it, say the deadline out loud: "Give me until minute 18; if I haven't got it I'll code the quadratic version."
+
 ## A full run, compressed
 
 Here is a round on [Merge Intervals](/practice/merge-intervals), cut down to its key lines, with timestamps.
@@ -147,6 +160,127 @@ Here is a round on [Merge Intervals](/practice/merge-intervals), cut down to its
 
 This candidate finished the base problem at minute 18, which is typical for a medium you recognise: the example made the sort obvious and the approach phase took two minutes. The spare time went into follow-ups, which is where the senior signal was earned. On a harder problem the same protocol stretches to fill the budget, but the order stays the same.
 
+## A second run, with a wrong turn
+
+The Merge Intervals run went smoothly because the candidate recognised the problem. Most rounds do not. Here is a round on [Top K Frequent Elements](/practice/top-k-frequent) where the candidate starts down the wrong road, notices, recovers, and then finds their own bug in testing. Read it for *where* each recovery sits on the clock; that is what the interviewer is watching.
+
+### Minutes 3–10: clarify, approach, wrong turn
+
+> **[03:00] Interviewer:** Given an array of integers and a number k, return the k values that appear most often.
+>
+> **[03:15] Candidate:** So I count each value and return the k with the highest counts. Three questions. How long is the array, and what's the value range? Can two values tie at the k-th place, and what do I return if so? Does the output need an order?
+>
+> **[03:50] Interviewer:** Up to 10⁵ elements, values within plus or minus 10⁴. The input is chosen so there's no tie at the boundary. Any order.
+>
+> **[04:10] Candidate:** Example: `[4,4,4,5,5,6,6,6,6]` with k = 2. Counts 4 → 3, 5 → 2, 6 → 4, so `[6, 4]`. Edge: k equal to the number of distinct values returns all of them. I'll assume k is between 1 and the distinct count.
+>
+> **[05:30] Candidate:** Counting is one hash-map pass, O(n). Then I need the k largest counts. Sorting the d distinct values by count is O(d log d), which is O(n log n) when every value is distinct. Does that sound reasonable, or would you like something faster before I code?
+>
+> **[06:20] Interviewer:** See if you can beat the sort.
+>
+> **[06:30] Candidate:** The sort orders all d counts and I only need the top k. I'll put every count in a max-heap and pop k times: heapify is O(d), k pops are O(k log d), so O(n + k log d).
+>
+> **[07:40] Candidate:** *(writing)* `heap = [(-c, v) for v, c in counts.items()]`, heapify, pop k times...
+>
+> **[08:30] Candidate:** Wait. Let me check that against what I claimed. It beats the sort, but the heap holds all d entries, so it's O(d) extra memory, and if k is anywhere near d the pops cost about what the sort did. I asked the wrong question earlier: is k small compared with the number of distinct values?
+>
+> **[08:50] Interviewer:** Assume k is small.
+>
+> **[09:00] Candidate:** Then a min-heap of size k is the right shape: push each `(count, value)`, and pop the smallest whenever the heap exceeds k. Each operation is O(log k), so O(n + d log k) in total, and with k around 10 that's log₂ 10 ≈ 3.3 comparisons per distinct value instead of log₂ 10⁵ ≈ 17 for a sort. Extra memory is O(k), which is also the shape that survives a stream. For completeness, frequencies are integers from 1 to n, so bucketing by frequency is O(n) with no comparisons at all, at the cost of an n-slot array. I'll code the heap because it generalises to any score. Shall I go ahead?
+>
+> **[10:10] Interviewer:** Go ahead.
+
+### Minutes 10–28: code, test, follow-ups
+
+*[10:10–16:30: about twelve lines of code]*
+
+```python
+import heapq
+
+def top_k_frequent(nums, k):
+    counts = {}
+    for x in nums:
+        counts[x] = counts.get(x, 0) + 1
+    heap = []                                    # min-heap, never more than k entries
+    for value, count in counts.items():
+        heapq.heappush(heap, (value, count))     # the bug is on this line
+        if len(heap) > k:
+            heapq.heappop(heap)
+    return [v for c, v in heap]
+```
+
+> **[16:30] Candidate:** Let me test before we go on. The example: counts in insertion order are 4 → 3, 5 → 2, 6 → 4. I'll track the heap after each push.
+
+| Push | Heap after push | Over k? | Heap after pop |
+|---|---|---|---|
+| `(4, 3)` | `[(4,3)]` | no | `[(4,3)]` |
+| `(5, 2)` | `[(4,3), (5,2)]` | no | `[(4,3), (5,2)]` |
+| `(6, 4)` | `[(4,3), (5,2), (6,4)]` | yes, pops `(4,3)` | `[(5,2), (6,4)]` |
+| return | `[v for c, v in heap]` → `[2, 4]` | | expected `[6, 4]` |
+
+> **[18:00] Candidate:** That's wrong, and 2 isn't even in the input, so I'm returning counts. The tuple is `(value, count)`: the heap orders by value and the comprehension reads the wrong field. One root cause, two symptoms. The fix is to push `(count, value)`. Re-tracing: `(3,4)`, `(2,5)`, then `(4,6)` makes three, pop the smallest, `(2,5)`, leaving `[(3,4), (4,6)]`, values `[4, 6]`. Matches, in any order.
+>
+> **[19:00] Candidate:** Degenerate cases. `[1]` with k = 1: one push, size 1 is not over 1, `[1]`. k equal to the distinct count, `[1,2,3,4,5]` with k = 5: never pops, returns all five. The line I trust least is `len(heap) > k`; with `>=` the heap would hold k − 1 entries. `[5,5,5,5]` with k = 1: one push, 1 > 1 is false, `[5]`. Good. Complexity of what I wrote, not what I planned: O(n) counting, d pushes and at most d pops at O(log k) each, so O(n + d log k) time and O(d + k) space.
+>
+> **[21:00] Interviewer:** You said this beats O(n log n). Prove it.
+>
+> **[21:15] Candidate:** d ≤ n, so d log k ≤ n log k, which is O(n) for fixed k. The caveat: as k approaches d the heap becomes a sort in disguise, and at k = d I'd return every key with no heap. If you need O(n) regardless of k, that's the bucket version, because it never compares counts.
+>
+> **[23:30] Interviewer:** Now the values arrive as an unbounded stream and I want the top k at any moment.
+>
+> **[23:45] Candidate:** The size-k heap doesn't survive as is: a value already in it changes its count after insertion, and a value outside it can climb past the heap's minimum without my knowing. So the count map must persist, and it grows with the number of distinct values. Two exact options: rebuild the size-k heap from the map at query time, O(1) per arrival and O(d log k) per query; or keep a count-ordered structure, O(log d) per arrival and O(k) per query. If memory must be bounded, the map is what breaks, and the fix is approximate: a Count-Min sketch for counts plus a small candidate heap, which can over-count but never under-counts. The choice depends on query rate versus arrival rate and whether approximate is acceptable. The [top-k lesson](/learn/interview-patterns/sequence-patterns/top-k-elements) has the variants.
+>
+> **[28:00] Interviewer:** Good. Let's stop there. Do you have questions for me?
+
+### What the interviewer wrote down
+
+Interviewers take timestamped notes while you talk, because the feedback is written later from them. Here is a plausible version of this interviewer's notes, in the phrases that recur in write-ups. Every line corresponds to a moment the candidate controlled.
+
+| Time | What the candidate did | The note |
+|---|---|---|
+| 03:15 | Asked size, tie rule and output order before anything else | "clarified constraints unprompted" |
+| 04:10 | Example with expected output; named the k = d edge | "worked an example before proposing an approach" |
+| 05:30 | Baseline with its cost; asked before coding | "named the brute force; asked for buy-in" |
+| 06:30–08:30 | Started a full heap; caught the mismatch with their own claim | "self-corrected before coding" |
+| 09:00 | Size-k heap for a stated reason; buckets named as the O(n) option | "chose for a reason; knew the alternative and its cost" |
+| 16:30–18:00 | Traced the example; found the tuple-order bug | "tested unprompted; found and fixed own bug" |
+| 19:00–21:15 | Degenerate cases, the `>` line, complexity from the code, the bound's assumption | "chose tests deliberately; stated the assumption behind the complexity" |
+| 23:45 | Exact versus approximate streaming, with costs | "handled the follow-up with trade-offs" |
+| overall | Announced every transition; never needed prompting | "drove the session" |
+
+Notice what the detour at 06:30 cost: two minutes and one line of feedback, and the line is positive. Had the candidate coded the full-heap version and discovered its memory cost only when asked about streaming, the note would have read "needed a nudge to see the size-k shape", and the streaming answer would have arrived at minute 33 or not at all.
+
+## What the interviewer writes down
+
+Write-ups vary by company, but their vocabulary is stable. These phrases, or close paraphrases, are commonly reported by people who have written and read many of them. None of this is any particular company's internal rubric; it is the shared dialect of interview feedback, and each phrase is produced by a behaviour you can practise.
+
+| Phrase | Dimension | Reads as |
+|---|---|---|
+| "drove the session" / "managed their own time" | Communication | Senior |
+| "clarified constraints unprompted" | Problem understanding | Senior |
+| "named the brute force and its cost, then improved on it" | Algorithm | Solid at any level |
+| "needed a small nudge" / "needed a hint on the core idea" | Algorithm | The first is minor; the second commonly caps the dimension around a mid-level pass |
+| "led through the approach" / "required multiple hints" | Algorithm | Below the bar for that dimension |
+| "self-corrected before coding" | Algorithm, communication | Positive; often quoted as evidence of judgement |
+| "readable; extracted a helper; no over-engineering" | Code quality | Senior |
+| "tested unprompted with chosen cases" / "found and fixed own bug" | Testing | Senior / neutral-to-positive |
+| "bug found by interviewer" / "did not test" / "ran out of time before testing" | Testing | Negative; the last two are also read as delivery risk |
+| "stated complexity with its assumptions" | Algorithm | Senior |
+| "handled the follow-up with trade-offs" | Algorithm, communication | The most common phrase in a senior-consistent write-up |
+| "answered with a technology name, no mechanism" / "had to be prompted at each phase" | Communication | Mid-level |
+
+The phrases are evidence, not scores. "Found and fixed own bug at 18:00" carries more weight in a debrief than a 3-out-of-4 on a testing scale, because it can be checked against the transcript and compared across candidates. Absence is recorded too: "did not test" and "no follow-up reached" are facts about the round, and a dimension with no evidence cannot be earned back.
+
+## Under the hood: how a round becomes a decision
+
+You are optimising for a document you will never see, so it helps to know how it is produced. Details differ between companies; the commonly reported shape is this.
+
+During the round, the interviewer keeps timestamped notes: what you asked, what you proposed, when you started typing, who found each bug, what you said to the follow-up. Anything they did not hear or see cannot appear. That is why silent progress earns nothing and why narrating a decision ("a max here, because a later interval can be contained") is not chatter.
+
+Within about a day those notes become written feedback: a rating per dimension with a sentence of evidence each, and an overall recommendation, often with a level ("hire, senior-consistent", "hire at the level below", "leaning no"). Interviewers are typically asked to submit before seeing anyone else's, so your round is judged on its own transcript.
+
+Then every round's write-up is read side by side in a debrief or by a hiring committee, by people who were not in the room. A coding write-up saying "correct code; needed a hint on the core idea; did not reach testing" next to a strong design round produces the question "is the coding a concern?", and that question is what pulls level down. "Drove the session; found own bug; handled the streaming follow-up with trade-offs" answers it before it is asked. The clock matters because "ran out of time" is a recorded fact; announced decisions matter because only announced decisions get written; the follow-up matters because it is the only phase whose evidence is specifically about level.
+
 ## Sentences that move the round forward
 
 Transitions are where minutes leak away. Have a sentence ready for each one.
@@ -160,14 +294,51 @@ Transitions are where minutes leak away. Have a sentence ready for each one.
 | Code → test | "Let me test this before we move on." |
 | Stuck | "I'm stuck on how to avoid rescanning. Let me think quietly for thirty seconds." |
 | Behind the clock | "We have about ten minutes. Would you rather I optimise this or test what I have?" |
+| Changing direction | "Let me check that against what I claimed. It doesn't hold, so I'm switching; the counting code carries over." |
 
-The last one is underrated. Offering the interviewer the choice when time is short shows you understand the trade-off, and it turns them into a partner in the decision rather than a judge of the outcome.
+The "behind the clock" one is underrated. Offering the interviewer the choice when time is short shows you understand the trade-off, and it turns them into a partner in the decision rather than a judge of the outcome. The last one is the sentence from 08:30 in the second transcript; rehearse it, because the moment it belongs to feels like failure and reads as judgement.
 
 ## Keeping the clock visible
 
 You cannot manage time you are not watching. Put a clock where your eyes already are: a small timer beside the editor, or a watch on the desk. Look at it at each transition, not constantly. In Ascend's mock interviews at `/interviews`, the timer sits in the header and turns red in the last five minutes.
 
 For your first few mocks, write the checkpoint minutes (8, 15, 25, 33) on a sticky note and compare them with your actual times afterwards. Most people find the same pattern: the approach phase runs long, testing gets squeezed, and follow-ups never happen.
+
+A few numbers make the budget concrete. Typing 25–30 lines you have already designed takes three to five minutes for most people, depending on typing speed and how much you narrate; if coding is taking fifteen, the other ten are design happening at the keyboard. Tracing one heap push or one loop iteration aloud takes roughly fifteen to twenty seconds, so the four-row table above fits in under two minutes, and a six-operation class sequence takes three to four. The widely quoted window of visible effort before asking for a hint is three to five minutes; it varies between interviewers, but none report rewarding eight minutes of silence.
+
+## Failure modes of a round
+
+Each of these is a line that appears in feedback, what usually caused it, and the change that removes it. Diagnose from your own mock transcripts, not from memory of how the round felt.
+
+**Symptom: "ran out of time before testing."** Diagnosis: check when typing started. In most such rounds it was after minute 18, because the approach was designed silently in the candidate's head, or a first idea was coded, abandoned and restarted. Fix: the minute-15 checkpoint with a named move from the table above, plus transition-only drills so the approach phase becomes a rehearsed seven minutes.
+
+**Symptom: "solved a slightly different problem."** Diagnosis: no restatement and no example with an expected output. The interviewer checks your expected output against their notes at minute 4, and a mismatch there costs thirty seconds instead of twenty minutes. Fix: never leave the clarifying phase without an example whose output the interviewer has confirmed.
+
+**Symptom: "needed a hint on the core idea" after a long pause.** Diagnosis: two or more minutes with nothing new on screen, usually because the candidate was trying to remember a trick rather than derive one. Fix: name the stuck point aloud within a minute, run one tool from the [getting-unstuck toolbox](/learn/interview-patterns/interview-execution/getting-unstuck), and ask a specific question by minute 17 if it has not paid off.
+
+**Symptom: "correct code, but had to be prompted at each phase" or "rewrote at minute 28."** Diagnosis: the transitions were the interviewer's ("shall we test it?"), or the candidate coded without buy-in and the interviewer waited for the code to finish before asking for a better complexity. Fix: the sentence table, and the buy-in question at minute 12, every round.
+
+## Interviewer follow-ups
+
+These are questions the Top K interviewer asked or could have. Each has a model answer and the common wrong one.
+
+**"Prove that this is faster than O(n log n)."** Model answer: d ≤ n distinct values, each pushed and popped at most once at O(log k), so O(n + d log k), which is O(n) for small k; the bound weakens as k approaches d, where the heap is a sort with worse constants, and the bucket approach is O(n) unconditionally because it never compares counts. Common wrong answer: "heap operations are O(log n), so it's O(n log n) as well", which confuses the heap's size with the input's.
+
+**"Values arrive as a stream. What changes?"** Model answer: the count map persists and grows with distinct values; the size-k heap cannot be maintained incrementally because counts change after insertion; rebuild it on demand at O(d log k) per query, keep a count-ordered structure at O(log d) per arrival, or bound memory with a Count-Min sketch and a candidate heap, which is approximate. Common wrong answer: "push each arrival into the size-k heap", which silently drops values whose counts later overtake the heap's minimum.
+
+**"Two values tie at the k-th place."** Model answer: define the rule (say, the smaller value wins), then encode it in the heap key with the direction reversed, because a min-heap of `(count, value)` evicts the *smallest* value on a tie, so the key must be `(count, -value)`; record the rule in the assumption ledger. Common wrong answer: "ties don't matter because output order is free", which is true of the order and false of the membership.
+
+**"You spent two minutes on the full-heap version. Was that wasted?"** Model answer: the plan was checked against the claim made for it before any code existed, so the salvage was total and the check is exactly what those minutes were for. Common wrong answer: apologising, or arguing that the full heap was fine after all.
+
+## What mid-level engineers get wrong
+
+- **Typing at minute 4 with the first approach.** The interviewer rejects it at minute 20, or the tie or memory question exposes it at minute 30, and the write-up says "rewrote".
+- **Treating "does that sound reasonable?" as weakness.** It is the cheapest information in the round; skipping it turns a two-minute redirect into a fifteen-minute one.
+- **Testing by running the example once.** The example rarely exercises the boundary lines; the interviewer's "what about `[[1,10],[2,3]]`?" then produces "bug found by interviewer".
+- **Going silent to think, or narrating every keystroke.** Both leave the notes empty of reasoning; narrate decisions at transitions and at the lines that carry risk.
+- **Finishing at minute 44 and feeling relieved.** No follow-up was reached, so no level evidence exists; the round can confirm the bar but not the level.
+- **Polishing problem one in a two-problem screen.** The O(n) rewrite costs the minutes problem two needed, and an unfinished second problem is the heavier line.
+- **Making cuts silently.** "Skipped validation" said aloud is time management; discovered by the interviewer it is an omission.
 
 ## Practising the protocol
 
@@ -177,6 +348,8 @@ Reading a budget does not install it. Three practice loops do.
 2. **Transition-only drills.** Take a problem you already know, such as [Top K Frequent Elements](/practice/top-k-frequent), and run only minutes 3–15 aloud: restate, clarify, example, brute force, optimise, buy-in. Seven minutes, no code. Five of these in an evening train the part of the round that most often runs over.
 3. **Two-problem drills.** Pair an easy problem with a medium and give yourself 40 minutes for both. This trains the "good enough, move on" decision that phone screens reward.
 
+After each mock, write the interviewer's notes yourself, in the phrase vocabulary above, with timestamps. If no moment would produce "found and fixed own bug" or "handled the follow-up with trade-offs", you know what the next mock is for.
+
 ## Senior signals
 
 - You ask for buy-in on the approach before coding, so the interviewer can redirect you while it is cheap.
@@ -185,6 +358,9 @@ Reading a budget does not install it. Three practice loops do.
 - You offer the interviewer a choice when time is short instead of deciding silently.
 - In multi-part problems, you write part one so that part two is an addition rather than a rewrite.
 - You keep introductions and closing questions short, because the round's time belongs to the problem.
+- You check a plan against the claim you made for it before coding it, and when they disagree you say so, switch, and keep what carries over.
+- You know the vocabulary of the write-up ("drove the session", "found and fixed own bug", "needed a hint on the core idea") and can point to the minute in your own transcript that produced each line.
+- At the minute-15 checkpoint you name which of the four moves you are taking and give yourself a deadline for it.
 
 ## Check yourself
 
@@ -219,4 +395,10 @@ Reading a budget does not install it. Three practice loops do.
   answer: 3
   explanation: >-
     Base-problem code is often the same for both levels. The follow-ups (scale, streaming, concurrency) are where interviewers test judgement and trade-offs, and a candidate who finishes at minute 44 never gets asked. Typing speed, language and helpers matter far less than getting to that conversation.
+- q: >-
+    In the Top K transcript the candidate began a full max-heap of all counts at 06:30, then at 08:30 said "let me check that against what I claimed" and switched to a size-k heap before writing code. How does that moment typically appear in the write-up?
+  options: ["As a negative, since two minutes were spent on an abandoned idea", "As a hint, because the interviewer's question prompted the switch", "As neutral, because only the final approach is recorded in notes", "As a positive, noted as self-correcting before any code was written"]
+  answer: 3
+  explanation: >-
+    Interviewers record the detour and the recovery, and a candidate who checks a plan against their own claim and switches before coding is credited with judgement; the phrase is close to "self-corrected before coding". The interviewer's "assume k is small" answered a question the candidate asked, which is not a hint on the core idea. Had the candidate coded the full heap and only discovered its cost at the streaming follow-up, the note would have been a nudge and the follow-up would have arrived too late.
 ```

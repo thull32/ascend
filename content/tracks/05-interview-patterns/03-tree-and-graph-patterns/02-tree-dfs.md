@@ -29,6 +29,18 @@ What rules it out:
 
 The single most useful question to ask yourself is: *to answer for this node, what do I need to know about each child?* If the answer is "one number", the recursion returns that number. If it is "two numbers", return a tuple. If the node also needs to know something about its ancestors, that becomes a parameter. The lessons in [Tree recursion patterns](/learn/data-structures/trees/tree-recursion-patterns) cover the theory; this lesson is about recognising which shape a problem wants in the first minute.
 
+### Near misses
+
+| Statement | Looks like | Actually | The tell |
+|---|---|---|---|
+| "Is this tree symmetric?" | Same-tree on `root.left` and `root.right` | Lockstep DFS, but comparing `a.left` with `b.right` and `a.right` with `b.left` | The mirror swaps which children pair up; the plain same-tree call returns false on a symmetric tree |
+| "Is `t` a subtree of `s`?" | One bottom-up pass | `same(s, t)` at every node of `s`, `O(n·m)`, or serialise both and string-match in `O(n + m)` | The answer at a node does not combine the children's answers; it restarts a comparison |
+| "Sum of nodes at the deepest level" | Bottom-up: return `(depth, sum)` | Works, and so does BFS keeping the last level; BFS is shorter | Level questions belong to [Tree BFS](/learn/interview-patterns/tree-and-graph-patterns/tree-bfs) even when phrased as "deepest" |
+| "Count nodes in a complete binary tree in better than `O(n)`" | Bottom-up count `1 + l + r` | Compare left-edge and right-edge heights; if equal the subtree is perfect and has `2^h − 1` nodes, else recurse, `O(log² n)` | "Complete" is a structural promise the plain recursion ignores |
+| "Longest path where consecutive values differ by exactly 1" | Diameter with a side channel | The same shape, but the arm only extends when `child.val == node.val ± 1`, otherwise it contributes 0 | Diameter with a condition on the edge, not on the node |
+| "Flatten the tree to a linked list in pre-order, in place" | Pre-order visit collecting nodes, then rewire | Reverse post-order (right, left, root) with a `prev` pointer rewires in `O(1)` extra space | Rewiring in pre-order destroys the right pointer before you have visited it |
+| "Nodes at distance `k` from a node" | DFS with a depth parameter | Graph BFS after a parent map | Distance runs upward too |
+
 ## The template
 
 Two shapes cover the family. **Bottom-up** (post-order): recurse first, then compute this node's answer from the children's answers. **Top-down** (pre-order): compute something from the ancestors, pass it into the children. Many problems combine them: pass a bound down, return a result up.
@@ -95,7 +107,7 @@ Watch the two quantities separate on a real tree:
 {"type": "tree", "algorithm": "diameter", "values": [1, 2, 3, 4, 5, 6, 7, 8, 9], "title": "Diameter: return height, record the best left + right", "caption": "Each call returns its height to the parent and updates the global best with left + right."}
 ```
 
-The complexity of every shape is `O(n)` time, because each node is visited once and the combine step is `O(1)`, and `O(h)` space for the recursion stack, where `h` is the height: `O(log n)` on a balanced tree, `O(n)` on a chain.
+The complexity of every shape is `O(n)` time, because each node is visited once and the combine step is `O(1)`, and `O(h)` space for the recursion stack, where `h` is the height: `O(log n)` on a balanced tree, `O(n)` on a chain. Two consequences are worth stating with numbers. A balanced tree of 10⁶ nodes has height about 20, so twenty frames; a chain of 10⁶ nodes needs 10⁶ frames, and CPython's default limit is 1,000 (see "Under the hood"). And the `O(1)` combine step is only `O(1)` if it does not rebuild anything: a combine that concatenates the children's path lists, or slices an array, or calls a separate `height()` function, multiplies the cost by the subtree size and turns `O(n)` into `O(n²)` on a chain and `O(n log n)` on a balanced tree.
 
 ## Worked problems
 
@@ -227,29 +239,91 @@ def kth_smallest(root, k):
 
 Trace on `[5, 3, 6, 2, 4, null, null, 1]` with `k = 3`: push 5, 3, 2, 1 (walking left). Pop 1 (`k = 2`); no right child. Pop 2 (`k = 1`); no right. Pop 3 (`k = 0`): return 3. The stack never held more than the height, four nodes, and nodes 4, 5 and 6 were never visited. Time `O(h + k)`, space `O(h)`.
 
+```viz
+{"type": "tree", "algorithm": "inorder", "values": [5, 3, 6, 2, 4, 1], "title": "In-order walk of a BST", "caption": "The stack holds the left spine; each pop yields the next key in ascending order, which is why the kth pop is the kth smallest."}
+```
+
 The follow-up is always "what if the tree is modified often and kth is queried often?": augment each node with the size of its left subtree, so the query becomes a single root-to-node walk in `O(h)` and updates cost `O(h)` too. Say that without being asked and the interviewer moves on to something harder.
 
 ## Variations
+
+The template has three slots: what flows down (parameters), what flows up (return value), and what is recorded on the side. Every variant fills them differently.
+
+| Problem | Flows down | Flows up | Side channel | Base case | Combine |
+|---|---|---|---|---|---|
+| Height / max depth | nothing | height | none | `0` | `1 + max(l, r)` |
+| Diameter | nothing | height | best `l + r` | `0` | as height |
+| Balanced | nothing | height or `−1` sentinel | none | `0` | `−1` if a child is `−1` or `abs(l − r) > 1` |
+| Max path sum | nothing | best one-arm gain | best `val + l + r` | `0` | `val + max(l, r)` with arms clamped at 0 |
+| Validate BST (bounds) | `(lo, hi)` | boolean | none | `True` | `lo < val < hi and children` |
+| Validate BST (in-order) | nothing | nothing | `prev` value | | `prev < val`, then `prev = val` |
+| Count good nodes | max on path | count | none | `0` | `(val >= mx) + children` |
+| Path Sum II | remaining target, `path` | nothing | list of copied paths | leaf check | append `path[:]` when remaining hits 0 at a leaf |
+| Same tree / symmetric | two nodes | boolean | none | both `None` | values equal and children pairs equal |
+| LCA (general tree) | `p`, `q` | node or `None` | none | `None` | this node if it is `p` or `q`, else the non-null child, or this node if both children are non-null |
+| Build from pre/in-order | index ranges | node | in-order index map | empty range | root is `pre[lo]`; left size is `idx − in_lo` |
+| Kth smallest | `k` | nothing | counter | | in-order, stop on the kth pop |
 
 - **Two trees in lockstep** ([Same Tree](/practice/same-tree), [Subtree of Another](/practice/subtree-of-another), symmetric tree): `go(a, b)` with base cases for both `None`, one `None`, and values differing. Subtree-of-another is `same(a, b) or subtree(a.left, b) or subtree(a.right, b)`, `O(n·m)`; the follow-up is serialising both with markers and running a string search.
 - **Root-to-leaf paths** ([Path Sum II](/practice/path-sum-ii)): top-down with a `path` list you append to on entry and pop on exit. Copy the list when you record an answer; do not store the live reference.
 - **Building from traversals** ([Construct from Preorder and Inorder](/practice/construct-from-preorder-inorder)): `preorder[0]` is the root; find it in `inorder` (precompute a value-to-index map to make that `O(1)`), and the left subtree has `idx` elements. Recurse on index ranges, not on sliced copies, to keep it `O(n)`.
 - **Bottom-up with early exit** ([Balanced Binary Tree](/practice/balanced-binary-tree)): return the height, or −1 as a sentinel meaning "already unbalanced", and short-circuit as soon as a child returns −1. Same trick applies to "is this a BST" returning `(min, max, valid)` tuples.
 - **LCA**: in a BST, walk from the root until `p` and `q` are on different sides ([LCA of BST](/practice/lowest-common-ancestor-bst)). In a general binary tree, bottom-up: return the node if it is `p` or `q`, otherwise return whichever child returned non-null, or the current node if both did.
+
+```viz
+{"type": "tree", "algorithm": "lca", "values": [6, 2, 8, 0, 4, 7, 9, 3, 5], "a": 2, "b": 8, "title": "LCA in a BST", "caption": "Walk down while both targets are on the same side; the first node that splits them is the answer."}
+```
 - **Iterative DFS**: an explicit stack of `(node, visited_flag)` pairs or a two-stack post-order reproduces any of these without recursion, which is the answer to "the tree has a million nodes in a chain".
 - **Tree DP** (longest univalue path, house robber on a tree, count nodes satisfying a subtree predicate): every one is bottom-up returning one or more numbers per subtree; see [Interval and tree DP](/learn/algorithms/dynamic-programming/interval-and-tree-dp).
 
-## Pitfalls
+## Under the hood
+
+**What a recursive call costs in CPython.** Each Python-level call creates a frame holding the local variables, the evaluation stack and a pointer to the code object; on CPython 3.11 and later frames are allocated in contiguous chunks rather than as separate heap objects, and a call from Python code into Python code no longer consumes C stack, which is why the interpreter can honour a raised recursion limit without crashing as readily as 3.10 did. The default limit is still 1,000 (`sys.getrecursionlimit()`; depth 990 succeeds and 1,000 raises `RecursionError` on 3.14), and it exists to catch runaway recursion, not to size your tree. Raising it to 10⁶ for a chain of 10⁶ nodes works on 3.12+ for a pure-Python recursion but costs roughly 100 bytes or more per frame, so about 100 MB of frame memory; the explicit stack of `(node, state)` tuples holds the same information in a list for a fraction of that. Node's default stack is about 984 KB, allowing on the order of 10⁴ frames depending on how many locals each frame carries; there is no runtime switch to raise it from inside a script, so the iterative version is the only portable fix.
+
+**`nonlocal` and the side channel.** A closure variable declared `nonlocal` lives in a cell object shared between the outer function and every inner call; reads and writes go through the cell, which is a pointer dereference, not a dictionary lookup. That is why `best` as a `nonlocal` costs the same as a local. The alternatives (a one-element list, an instance attribute, a return tuple `(height, best)`) all work; the tuple version is the one to use in languages without closures over mutable locals, and it is also the one that makes the data flow visible in the signature, which some interviewers prefer.
+
+**Why the iterative in-order stack is exactly the left spine.** Pushing while walking left leaves the stack holding the path from the root to the leftmost unvisited node, which is at most `h` entries; popping yields that node, and its right subtree is then walked left in turn. The stack depth is bounded by height, never by `k` or `n`, which is what makes early exit at the kth pop `O(h + k)`. The [traversals lesson](/learn/data-structures/trees/binary-tree-traversals) derives the pre-order and post-order stacks the same way; post-order is the awkward one because a node is visited after both children, so the explicit stack needs either a visited flag per entry or the reverse of a right-first pre-order.
+
+**The in-order index map.** `construct-from-preorder-inorder` looks up the root's position in `inorder` at every call. Precomputing `{value: index}` makes that `O(1)`, but only if values are distinct; with duplicates the map keeps the last index and the split is wrong. Ask, and if duplicates are possible fall back to a linear scan within the current range or require a different pair of traversals.
+
+## Failure modes
+
+**Symptom: the diameter or balanced solution passes small tests and times out on a chain of 10⁴ nodes.** Diagnosis: `height()` is called from inside the recursion at every node, so each level rescans its subtree; on a chain that is `1 + 2 + … + n ≈ n²/2 ≈ 5 × 10⁷` visits. Fix: return the height and update the answer in the same pass, as the single-pass template does.
+
+**Symptom: Validate BST accepts a tree the hidden tests reject.** Diagnosis: the check compares each node with its immediate children only. Reproduce with `[5, 1, 7, null, null, 3, 8]`: 3 is under 7 and below 5. Fix: pass `(lo, hi)` bounds down, or check `prev < val` in an in-order walk; and settle the duplicate policy (strict or not, and on which side) before choosing `<` versus `<=`.
+
+**Symptom: Max Path Sum returns 0 on an all-negative tree.** Diagnosis: `best` was initialised to 0, so an empty path wins. Fix: initialise to `-inf`; keep the clamp on arms, because dropping a negative arm is correct while dropping every node is not.
+
+**Symptom: every path in Path Sum II is the same, usually empty.** Diagnosis: `paths.append(path)` stored a reference to the shared list that later `pop`s emptied. Fix: `path[:]` or `list(path)` at the moment of recording.
+
+**Symptom: `RecursionError` on a test whose tree is a list.** Diagnosis: height equals `n` and the recursion depth passed 1,000. Fix: an explicit stack; or, if the problem is a level question in disguise, BFS.
+
+**Symptom: the tree built from `preorder` and `inorder` is wrong only when values repeat.** Diagnosis: the value-to-index map collapsed duplicates. Fix: confirm distinct values with the interviewer (the standard problem guarantees it) or scan for the root within the current in-order range.
+
+## Interviewer follow-ups
+
+**"Write the diameter without recursion."** Model answer: post-order with an explicit stack of `(node, visited)` pairs, or a two-pass approach that records a post-order sequence with a right-first pre-order and reverses it; keep a dictionary `height[node]` filled as nodes are finished, and update `best` when both children are done. Common wrong answer: a pre-order stack, which sees a node before its children's heights exist.
+
+**"The tree is an N-ary tree. What changes in the diameter?"** Model answer: the best path through a node uses its two tallest children, so keep the top two child heights while iterating `children`, record `top1 + top2`, and return `1 + top1`. Common wrong answer: summing all child heights, which counts a path through three or more children, which is not a path.
+
+**"Kth smallest, but the tree is updated between queries."** Model answer: store the left-subtree size in each node and maintain it on insert and delete; then a query walks one root-to-node path comparing `k` with the left size, `O(h)` per query and per update. Common wrong answer: "cache the sorted list", which is `O(n)` to rebuild after every change.
+
+**"Validate a BST where duplicates are allowed in the left subtree."** Model answer: loosen exactly one bound: the left child inherits `hi = node.val` inclusive (`lo < val <= hi`), the right child keeps `lo = node.val` strict. Common wrong answer: making both bounds inclusive, which accepts a right child equal to its parent, which the policy forbids.
+
+**"Subtree of Another Tree in better than `O(n·m)`."** Model answer: serialise both trees in pre-order with null markers and a delimiter that cannot occur in values (for instance `#` and a leading `,` before each value so `12` and `2` cannot alias), then run KMP or a rolling hash for the pattern in the text, `O(n + m)`. This changes the pattern from tree DFS to [string matching](/learn/data-structures/tries-and-string-structures/string-matching). Common wrong answer: hashing each subtree by value only, which collides for different shapes with the same multiset of values.
+
+## What mid-level engineers get wrong
 
 - **Returning the answer instead of what the parent needs.** In diameter and max path sum the return value is a one-arm quantity; the answer is recorded on the side. Returning `l + r` gives the parent a path it cannot extend.
 - **Checking only the immediate children in Validate BST.** Pass bounds down or use in-order with `prev`. Also decide the duplicate policy before writing the comparison.
 - **Initialising the best to 0** when values can be negative. Use `-inf` (or the root's value).
 - **Forgetting to clamp negative arms** in max path sum. A negative subtree should contribute nothing, not reduce the total.
-- **Storing a live reference to the path list.** `paths.append(path)` then continuing to mutate `path` makes every recorded path identical. Append `path[:]` (Python) or `[...path]` (JavaScript).
+- **Storing a live reference to the path list.** Append `path[:]` (Python) or `[...path]` (JavaScript).
 - **Slicing arrays in the construct-from-traversals recursion.** `preorder[1:idx+1]` copies at every level, `O(n²)` on a skewed tree. Pass index bounds.
 - **`O(n²)` diameter/balanced** by calling a separate height function at every node. Compute height and the answer in one pass.
-- **Recursion depth on a chain.** Python's limit is 1,000 by default; `sys.setrecursionlimit` is a partial fix (it can still segfault). Know the iterative version.
-- **Using `if node.left` where you mean `if node.left is not None`.** Same in JavaScript with truthiness: a node object is always truthy, so this one is safe, but a *value* of 0 is not. Test `val` comparisons with zeros in the tree.
+- **Treating `sys.setrecursionlimit` as the fix for deep trees.** It moves the failure from an exception to memory pressure; know the iterative version.
+- **Using `if node.left` where you mean `if node.left is not None`.** A node object is always truthy, so this one is safe, but a *value* of 0 is not. Test `val` comparisons with zeros in the tree.
+- **Calling symmetric-tree "same tree on the two children".** The mirror pairs `a.left` with `b.right`; the plain comparison returns false on a symmetric tree.
 
 ## Exercise
 
@@ -309,7 +383,8 @@ hints:
 - You pass **bounds top-down** for BST validation and can explain why checking immediate children is wrong with a four-node counterexample.
 - You initialise **best to −∞** when values can be negative and clamp negative arms, and you can say which test case breaks each mistake.
 - You can produce the **iterative in-order** with an explicit stack and use it to stop early for kth smallest, and you mention subtree-size augmentation for the repeated-query follow-up.
-- You state **space as `O(h)`** and name the degenerate case where recursion overflows, offering the iterative version before the interviewer asks.
+- You state **space as `O(h)`** and name the degenerate case where recursion overflows, offering the iterative version before the interviewer asks, and you know why raising the recursion limit is not the fix.
+- You recognise the **follow-ups that change the pattern**: subtree-of-another in `O(n + m)` is string matching over serialisations; distance-`k` is graph BFS; repeated kth-smallest queries are an augmented tree.
 
 ## Check yourself
 
