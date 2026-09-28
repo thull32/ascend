@@ -134,6 +134,7 @@ impl AppState {
                 daily_requests: config.ai.daily_request_budget,
                 daily_input_tokens: config.ai.daily_input_token_budget,
                 daily_output_tokens: config.ai.daily_output_token_budget,
+                cache_read_divisor: ascend_core::ai::budget::cache_read_divisor(&config.ai.model),
             },
         );
         let coach = CoachService::new(db.clone(), curriculum.clone(), client, budget, config.ai.model.clone());

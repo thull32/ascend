@@ -11,10 +11,11 @@
 //! Before holds, the check ran before a call and the charge after it, so a
 //! learner one token under the limit could start a call worth thousands.
 //!
-//! The input limit is in *billed* input tokens: a cache write costs 1.25x an
-//! ordinary input token and a cache read 0.1x, so both count at that weight.
-//! Counting only uncached input would leave cache writes, the most expensive
-//! input of all, outside the budget.
+//! The input limit is in *billed* input tokens: a cache write (5-minute TTL)
+//! costs 1.25x an ordinary input token and a cache read a model-dependent
+//! fraction ([`cache_read_divisor`]), so both count at that weight. Counting
+//! only uncached input would leave cache writes, the most expensive input of
+//! all, outside the budget.
 //!
 //! Because this is the only place that touches `ai_usage`, changing the
 //! policy (e.g. per-plan tiers) is a one-file change.
@@ -45,10 +46,25 @@ pub struct Limits {
     pub daily_requests: i32,
     pub daily_input_tokens: i64,
     pub daily_output_tokens: i64,
+    /// A cache read costs 1/this of an input token; see [`cache_read_divisor`].
+    pub cache_read_divisor: i64,
 }
 
-fn billed_input(row: &ai_usage::Model) -> i64 {
-    row.input_tokens + row.cache_write_tokens * 5 / 4 + row.cache_read_tokens / 10
+/// What a cache read costs relative to an ordinary input token, as a
+/// divisor, from Anthropic's prompt-caching price table: 0.05x on Claude
+/// Opus 5.5, 0.025x on Claude Fable 5.1 and Mythos 5.1, 0.1x on other models.
+pub fn cache_read_divisor(model: &str) -> i64 {
+    if model.starts_with("claude-opus-5-5") {
+        20
+    } else if model.starts_with("claude-fable-5-1") || model.starts_with("claude-mythos-5-1") {
+        40
+    } else {
+        10
+    }
+}
+
+fn billed_input(row: &ai_usage::Model, limits: &Limits) -> i64 {
+    row.input_tokens + row.cache_write_tokens * 5 / 4 + row.cache_read_tokens / Ord::max(limits.cache_read_divisor, 1)
 }
 
 /// Seconds until the budgets reset at the next UTC midnight.
@@ -75,7 +91,7 @@ impl BudgetService {
         Ok(BudgetStatus {
             requests_used: row.as_ref().map(|r| r.requests).unwrap_or(0),
             requests_limit: self.limits.daily_requests,
-            input_tokens_used: row.as_ref().map(billed_input).unwrap_or(0),
+            input_tokens_used: row.as_ref().map(|r| billed_input(r, &self.limits)).unwrap_or(0),
             input_tokens_limit: self.limits.daily_input_tokens,
             output_tokens_used: row.as_ref().map(|r| r.output_tokens).unwrap_or(0),
             output_tokens_limit: self.limits.daily_output_tokens,
@@ -112,7 +128,7 @@ impl BudgetService {
         let remaining_output = self.limits.daily_output_tokens - row.output_tokens - row.reserved_output_tokens;
         let within_requests = row.requests < self.limits.daily_requests;
         let within_input =
-            billed_input(&row) + row.reserved_input_tokens + input_hold <= self.limits.daily_input_tokens;
+            billed_input(&row, &self.limits) + row.reserved_input_tokens + input_hold <= self.limits.daily_input_tokens;
         if !within_requests || !within_input || remaining_output < min_output {
             txn.rollback().await?;
             return Err(self.exhausted());
@@ -240,5 +256,19 @@ impl Drop for Reservation {
             }
             Err(_) => tracing::warn!(%user_id, "AI budget hold dropped outside a runtime; it expires with the day"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cache_read_divisor;
+
+    #[test]
+    fn cache_reads_are_weighted_at_the_models_price() {
+        assert_eq!(cache_read_divisor("claude-opus-5-5"), 20);
+        assert_eq!(cache_read_divisor("claude-fable-5-1"), 40);
+        assert_eq!(cache_read_divisor("claude-mythos-5-1"), 40);
+        assert_eq!(cache_read_divisor("claude-sonnet-5"), 10);
+        assert_eq!(cache_read_divisor("claude-haiku-4-5-20251001"), 10);
     }
 }

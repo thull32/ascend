@@ -14,7 +14,7 @@ cheap as possible without degrading quality.
 - Per-user, per-UTC-day request and output-token budgets in `ai_usage`, reserved before each call and
   settled with actual usage after, using single-statement upserts. (Amended: an input budget,
   `AI_DAILY_INPUT_TOKENS`, was added and counts *billed* input, with cache writes at 1.25x and cache reads
-  at 0.1x, because counting only uncached input left cache writes, the most expensive input, unbudgeted. A
+  at the model's price (0.1x on most models, 0.05x on Opus 5.5, 0.025x on Fable 5.1), because counting only uncached input left cache writes, the most expensive input, unbudgeted. A
   spent budget answers 429 with `Retry-After` until the next UTC midnight.)
 - A per-session request-rate limit on model-calling routes on top of the daily budget. (Amended: this was
   per IP until end-to-end tests showed a whole class behind one NAT address sharing a single allowance.)
