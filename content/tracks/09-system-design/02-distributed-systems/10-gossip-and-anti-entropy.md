@@ -1,197 +1,370 @@
 ---
 slug: gossip-and-anti-entropy
 title: "Gossip and anti-entropy: membership by rumour, SWIM, and Merkle-tree repair"
-description: How epidemic protocols spread state in O(log N) rounds with constant per-node load, how SWIM detects failures without a coordinator, how Merkle trees find the differences between replicas cheaply, and why a missed repair can resurrect deleted data.
+description: Epidemic dissemination simulated (push, pull and push-pull at fanout 1–3 for 10 to 10,000 nodes, against log₂N + ln N); SWIM traced on five nodes with suspicion and incarnation refutation; Lifeguard in memberlist, Serf and Consul; Cassandra's gossiper and phi threshold; a Merkle-tree comparison traced hash by hash; Cassandra repair, overstreaming arithmetic and resurrected deletes; and where gossip is the wrong tool.
 minutes: 30
 difficulty: hard
 tags: [system-design, distributed-systems, gossip, swim, anti-entropy, merkle-tree, membership]
 ---
-A thousand nodes need to know which of them are alive, which owns which token range, and what the schema version is. A central registry that every node polls becomes the busiest and most fragile component in the system: a thousand nodes polling every second is a thousand requests per second on one box, and when it is down nobody learns anything. Having every node tell every other node directly is N² messages, a million per round. Neither scales, and both have the failure mode that a single point (the registry, or the network to one node) blocks the spread of information.
+A thousand nodes need to know which of them are alive, which owns which token range, and what the schema version is. A central registry that every node polls becomes the busiest and most fragile component in the system: a thousand nodes polling every second is a thousand requests a second on one box, and when it is down nobody learns anything. Having every node tell every other node directly is N² messages, a million per round. Both designs also give information one place where it can stop spreading: the registry, or the network path to one node.
 
-Gossip protocols take the third path: each node periodically tells a few random peers what it knows, and they tell a few more. Information spreads like an epidemic, reaching everyone in a logarithmic number of rounds with constant load per node and no coordinator, and the spread is robust to any individual node or link failing because the next round picks different peers. The same idea, applied to data rather than membership, is anti-entropy: replicas compare what they hold and repair the differences, with Merkle trees making the comparison cheap.
+Gossip takes a third path: each node periodically exchanges what it knows with a few random peers, and they do the same. Information spreads like an epidemic, reaching everyone in a logarithmic number of rounds with constant load per node and no coordinator, and it survives any single node or link failing because the next round picks different peers. Applied to membership it becomes SWIM; applied to replicated data it becomes anti-entropy, with Merkle trees making the comparison cheap. This lesson simulates the convergence, traces SWIM on five nodes and a Merkle comparison hash by hash, and opens up memberlist and Cassandra.
 
-## Epidemic spreading
+## Epidemic spreading: push, pull and push-pull
 
-The basic round: every T seconds (1 second is typical), each node picks k peers at random (fanout, typically 3) and exchanges state with them. Three variants:
+Every T seconds each node picks k random peers (the **fanout**) and exchanges state with them.
 
-- **Push**: the node sends what it knows. Fast to start (one infected node starts spreading immediately); slow to finish (near the end, most pushes hit nodes that already know).
-- **Pull**: the node asks peers what they know. Slow to start (nobody has anything to pull until someone does); fast to finish (an uninfected node pulling from a random peer is likely to hit an infected one once most are).
-- **Push-pull**: both in one exchange. Best of both; the standard choice.
+- **Push**: the node sends what it knows. The number of informed nodes roughly doubles per round at first, but the finish is slow: near the end almost every push lands on a node that already knows, and the last few stragglers wait on luck, like collecting the last coupons of a set.
+- **Pull**: the node asks what its peers know. Early on it grows like push, but it finishes fast: an uninformed node stays uninformed only if the peer it asked is also uninformed, so the uninformed fraction squares every round (10% → 1% → 0.01%).
+- **Push-pull**: both halves in one exchange, and the standard choice.
 
-The numbers, for push-pull with fanout k: after r rounds, roughly k^r nodes have heard, so full spread takes about log_k(N) rounds plus a few for the tail. For N = 1,000 and k = 3, log₃(1,000) ≈ 6.3, and in practice around 8 to 10 rounds cover everyone with high probability. At a 1-second interval, a new fact is cluster-wide in about 10 seconds. Doubling the cluster to 2,000 nodes adds one round. Per node, the load is k messages sent and about k received per round regardless of N: constant.
+What is spread divides protocols in two. **Rumour mongering** spreads a specific new update and retires it after a bounded number of transmissions, so each update costs a bounded number of messages, and a rare node can miss it. **Anti-entropy** periodically exchanges full state (or a digest of it), so any difference, however old, is eventually repaired; it never stops, and it is the safety net under rumour mongering.
+
+Bandwidth decides which one you can afford. With 200 nodes, a 1-second interval, fanout 3 and 2 KB of state per node sent whole in both directions, each node sends 3 × 2 × 2 KB = 12 KB/s and receives about as much: 5 MB/s cluster-wide, which is nothing. At 5,000 nodes carrying 100 KB each it is 600 KB/s per node and 3 GB/s cluster-wide. Real implementations therefore gossip **digests** (node id plus version per entry) and fetch only the entries whose version is newer, so steady-state traffic follows the change rate, not the state size.
 
 ```viz
 {"type": "system", "scenario": "gossip", "nodes": 8,
- "title": "Push-pull gossip with fanout 3", "caption": "One node learns a fact. Each round, every node that knows it exchanges with three random peers. Watch the count of informed nodes roughly triple per round until it saturates; the last few nodes are reached by pull, not push."}
+ "title": "Push-pull gossip with fanout 3", "caption": "One node learns a fact. Each round, every node exchanges with three random peers. Watch the count of informed nodes multiply per round until it saturates; the last few nodes are reached by pull, not push."}
 ```
 
-Two flavours by what is spread. **Rumour mongering** spreads a specific new update and stops when it is old (a node that finds its peers already know may stop propagating with some probability), so the message cost per update is bounded. **Anti-entropy** exchanges full state, or a digest of it, so that any difference, however old, is eventually repaired; it never stops and is the safety net under rumour mongering.
+## Convergence, simulated
 
-Bandwidth arithmetic: 200 nodes, gossip interval 1 second, fanout 3, per-node state 2 KB, and each exchange sends the whole state (naive) both ways: 3 x 2 x 2 KB = 12 KB per node per second sent, plus about the same received, about 25 KB/s per node, 5 MB/s cluster-wide. Trivial. At 5,000 nodes with 100 KB of state per node it is 600 KB/s per node and 3 GB/s cluster-wide, no longer trivial, which is why real implementations gossip **digests** (node ID plus version per entry) and fetch only entries whose version is newer, so steady-state traffic is proportional to the change rate, not the state size.
+The textbook says "O(log N) rounds". The constants matter, so this program measures them: synchronous rounds, one node initially informed, each node contacting k peers chosen uniformly from the other N − 1, no message loss or failures, 200 trials per cell with the seeds shown.
 
-## Membership with SWIM
+```python
+import math
+import random
+import statistics
 
-Failure detection by heartbeating everyone to everyone is N² traffic. SWIM (Scalable Weakly-consistent Infection-style Membership) separates detection from dissemination and makes both constant per node.
 
-**Detection.** Every protocol period (say 1 second), each node picks one random member and sends it a ping. If the ack comes back within the timeout, done. If not, the node asks k other members (say 3) to ping the target on its behalf (**indirect probe**); if any of them gets an ack, the target is alive and the problem was the link between the prober and the target, not the target. Only if all fail does the prober **suspect** the target.
+def rounds_to_full(n, k, mode, rnd):
+    """Synchronous rounds until all n nodes know a fact that node 0 starts with."""
+    informed = bytearray(n)
+    informed[0] = 1
+    count, rounds = 1, 0
+    while count < n:
+        rounds += 1
+        start = bytes(informed)                  # decisions use start-of-round state
+        for i in range(n):
+            if mode == "pull" and start[i]:
+                continue                         # pull: only the uninformed ask
+            if mode == "push" and not start[i]:
+                continue                         # push: only the informed send
+            for _ in range(k):
+                t = int(rnd.random() * (n - 1))
+                t += t >= i                      # uniform over the other n - 1 nodes
+                if start[i] and mode != "pull" and not informed[t]:
+                    informed[t] = 1              # push half of the exchange
+                    count += 1
+                elif start[t] and mode != "push" and not informed[i]:
+                    informed[i] = 1              # pull half of the exchange
+                    count += 1
+                    if mode == "pull":
+                        break                    # a pulling node stops once it has the fact
+    return rounds
 
-**Suspicion.** A suspected member is not immediately declared dead. The suspicion is gossiped; the suspected node, when it hears it is suspected, gossips a refutation with a higher **incarnation number**, which overrides the suspicion everywhere. If no refutation arrives within a suspicion timeout (a few protocol periods, scaled by log N), the node is declared dead and that is gossiped. The incarnation number is a per-node counter that only the node itself increments, so a node can always prove it is alive by incrementing it, and stale claims about it are ordered by it.
 
-**Dissemination.** Membership updates (joined, suspected, alive, dead) are piggybacked on the ping and ack messages, each update carried a bounded number of times (proportional to log N) before it is dropped. No separate gossip traffic; the failure detector's messages carry the membership.
-
-The result: detection time is a small multiple of the protocol period regardless of N; false positives from a single bad link are eliminated by indirect probes; false positives from a slow node are given time to refute; and per-node load is one ping, up to k indirect pings, and the piggybacked updates, per period. HashiCorp's memberlist (used by Consul, Nomad, Serf) implements SWIM with the Lifeguard extensions: a node that is itself slow (and therefore likely to accuse others falsely) lengthens its own timeouts, and suspicions from several independent nodes shorten the time to declaring death.
-
-```mermaid
-sequenceDiagram
-    participant A as Node A
-    participant T as Target
-    participant K as 3 random nodes
-    A->>T: ping
-    Note over A,T: no ack within timeout
-    A->>K: ping-req(T)
-    K->>T: ping
-    T-->>K: ack
-    K-->>A: ack (T alive, A's link is bad)
-    Note over A: no suspicion raised
+for mode in ("push", "pull", "push-pull"):
+    for k in (1, 2, 3):
+        cells = []
+        for n in (10, 100, 1000, 10000):
+            rnd = random.Random(20260928 + 1000 * k + n)
+            rs = sorted(rounds_to_full(n, k, mode, rnd) for _ in range(200))
+            cells.append(f"{statistics.mean(rs):.1f}/{rs[math.ceil(0.99 * len(rs)) - 1]}")
+        print(f"{mode:9} k={k}  " + "  ".join(cells))
 ```
 
-Cassandra's gossip is the other common design: every second each node gossips with one to three peers, exchanging (node, generation, version) heartbeat state where generation is a per-node start timestamp and version a counter; failure detection is the phi-accrual detector from [Failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases) applied to gossip arrival times; the token ring, schema version and node status all ride the same channel. Redis Cluster's bus does the same with a fixed binary format and `PFAIL` (possibly failed, one node's opinion) promoted to `FAIL` when a majority of masters agree, a voting step on top of the rumour.
+Simulated rounds to full dissemination, mean / p99 over 200 trials (about 30 seconds of CPU for the whole table):
 
-## Anti-entropy for data
+| Mode, fanout | N = 10 | N = 100 | N = 1,000 | N = 10,000 |
+|---|---|---|---|---|
+| Push, k = 1 | 6.1 / 10 | 12.2 / 16 | 18.1 / 22 | 23.7 / 28 |
+| Push, k = 2 | 3.7 / 5 | 7.4 / 9 | 10.7 / 13 | 13.9 / 16 |
+| Push, k = 3 | 3.0 / 4 | 5.7 / 7 | 8.2 / 9 | 10.6 / 12 |
+| Pull, k = 1 | 4.8 / 9 | 9.7 / 14 | 13.8 / 17 | 17.4 / 21 |
+| Pull, k = 3 | 2.7 / 4 | 5.1 / 7 | 7.1 / 8 | 8.9 / 10 |
+| Push-pull, k = 1 | 3.5 / 5 | 6.6 / 8 | 9.1 / 10 | 11.6 / 13 |
+| Push-pull, k = 2 | 2.5 / 3 | 4.5 / 5 | 6.1 / 7 | 8.0 / 8 |
+| Push-pull, k = 3 | 2.1 / 3 | 3.9 / 4 | 5.1 / 6 | 6.7 / 7 |
+| log₂N + ln N | 5.6 | 11.2 | 16.9 | 22.5 |
 
-Gossip spreads small state. Replicas of a large dataset diverge for different reasons (a write missed one replica; a node was down for an hour; hinted handoff failed), and the fix is to compare the replicas and copy the differences. Comparing key by key is O(data) per comparison, which for a terabyte per replica is impractical to run often.
+What the numbers say:
 
-**Merkle trees** make the comparison O(log n) in exchanges. Each replica builds a tree over its key range: leaves are hashes of buckets of keys (say 2^15 leaves over the range, each covering a slice of the hash space), internal nodes are hashes of their children, the root is one hash of everything. Two replicas exchange roots: equal roots mean identical data, one message. Different roots: exchange the children, descend only into the subtrees whose hashes differ, and at the leaves compare keys. A handful of differing keys is found in a depth-of-tree number of round trips, ~15 for 2^15 leaves, each carrying a few hashes.
+- **Push at fanout 1 sits about one round above log₂N + ln N at every size.** That is Pittel's 1987 result for push rumour spreading: log₂N rounds of doubling, then ln N rounds collecting stragglers. Quoting "log N" without the ln N tail underestimates it by 40% at 10,000 nodes.
+- **Pull's squaring finish** saves about 6 rounds at 10,000 nodes; **push-pull** halves push, and at fanout 3 covers 1,000 nodes in about 5 rounds and 10,000 in under 7. Each tenfold growth adds 1.5 to 2.5 rounds.
+- **Tails are tight at scale**: from 1,000 nodes up, p99 is within 1 to 4 rounds of the mean.
+- **Fanout has diminishing returns**: push-pull from k = 2 to k = 3 saves about one round at 10,000 nodes for 50% more messages.
 
-```mermaid
-flowchart TD
-    R["root: differs"] --> L["left: equal (skip)"]
-    R --> Ri["right: differs"]
-    Ri --> RL["right-left: equal (skip)"]
-    Ri --> RR["right-right: differs"]
-    RR --> B1["bucket 0x3a: equal"]
-    RR --> B2["bucket 0x3b: differs -> compare keys"]
+Translated: Cassandra's gossiper is push-pull with about one peer per second, so a change reaches 1,000 nodes in roughly 9 to 10 seconds. memberlist pushes updates to 3 members every 200 ms, so push at k = 3 reaches 1,000 nodes in about 8 rounds, under 2 seconds. The model ignores loss, failures and unsynchronised timers: treat it as the shape, not a latency guarantee.
+
+## SWIM, traced on five nodes
+
+Heartbeating everyone to everyone is N² traffic. SWIM (Das, Gupta and Motivala, 2002) makes detection and dissemination constant per node. Each **protocol period** a member pings one member; if no ack arrives within the timeout it asks k others to **ping-req** the target, so a single bad link cannot condemn it; if none succeeds, it marks the target **suspect** rather than dead. Updates ride **piggybacked** on pings and acks. Every member carries an **incarnation number** that only the member itself increments, and only to refute a suspicion; updates about member M are ordered by these rules:
+
+| Incoming update | Replaces the local entry for M when |
+|---|---|
+| Alive(M, i) | Local entry is Suspect(M, j) or Alive(M, j) with i > j |
+| Suspect(M, i) | Local entry is Suspect(M, j) with i > j, or Alive(M, j) with i ≥ j |
+| Dead(M, i) | Always |
+
+Nodes A to E, period 1 s, ping timeout 500 ms, k = 3, suspicion timeout 4 s. E stops responding at t = 0:
+
+| t (s) | Event | A's entry for E | B, C, D's entry for E | E |
+|---|---|---|---|---|
+| 0.0 | A's probe target this period is E; A pings E | Alive/0 | Alive/0 | Unresponsive |
+| 0.5 | No ack within 500 ms; A sends ping-req(E) to B, C, D | Alive/0 | Alive/0 | – |
+| 0.5–1.0 | B, C and D each ping E; no acks | Alive/0 | Alive/0 | – |
+| 1.0 | Period ends: A records Suspect(E, 0), starts a 4 s timer, queues the update | Suspect/0 | Alive/0 | – |
+| 1.0–2.0 | The update rides on A's pings and acks, then on B, C and D's | Suspect/0 | Suspect/0, own timers start | – |
+| **Branch 1** | E was in a 2.5 s GC pause | | | |
+| 2.6 | E resumes; C's ping to E carries Suspect(E, 0) | Suspect/0 | Suspect/0 | Increments to 1 |
+| 2.6 | E acks with Alive(E, 1) piggybacked | Suspect/0 | C: Alive/1 | Alive/1 |
+| ≈ 3.5 | Alive(E, 1) reaches everyone; i = 1 > j = 0 replaces the suspicion | Alive/1 | Alive/1 | Alive/1 |
+| **Branch 2** | E crashed | | | |
+| 5.0 | A's timer fires; A records Dead(E, 0) and gossips it | Dead | Dead within about a round | – |
+
+The indirect probe removes the false positive from a bad A–E link; suspicion plus incarnation removes the false positive from a pause shorter than the timeout. Load stays constant: one ping per period per member, and ping-reqs only after a miss. Detection is fast without anyone watching E specifically: each of the N − 1 others probes one random member per period, so the chance that nobody probes E is (1 − 1/(N−1))^(N−1) ≈ 1/e, and the expected wait for a first probe is e/(e − 1) ≈ 1.6 periods in a large cluster. Implementations such as memberlist walk a shuffled round-robin list instead of picking at random, which bounds the worst case.
+
+## Under the hood: memberlist, Lifeguard, Serf and Consul
+
+HashiCorp's memberlist is the most widely deployed SWIM. Its `DefaultLANConfig`:
+
+| Setting | LAN default | Effect |
+|---|---|---|
+| `ProbeInterval` / `ProbeTimeout` | 1 s / 500 ms | One direct probe per period; wait for its ack |
+| `IndirectChecks` | 3 | Members asked to ping-req |
+| `SuspicionMult` | 4 | Minimum suspicion timeout = 4 × max(1, log₁₀N) × `ProbeInterval`: 4 s at 5 nodes, 12 s at 1,000 |
+| `SuspicionMaxTimeoutMult` | 6 | Lifeguard's starting timeout is 6 × the minimum |
+| `GossipInterval` / `GossipNodes` | 200 ms / 3 | Push queued updates to 3 random members every 200 ms |
+| `RetransmitMult` | 4 | Each update is sent 4 × ⌈log₁₀(N+1)⌉ times, then retired (16 at 1,000 nodes) |
+| `PushPullInterval` | 30 s | Full-state TCP sync with one random member: the anti-entropy safety net |
+
+**Lifeguard** (Dadgar, Phillips and Currey at HashiCorp) attacked SWIM's remaining false positives, which came mostly from slow *probers* rather than slow targets:
+
+1. **Local health awareness.** Helpers asked to ping-req send a nack when their own probe fails. A prober that hears neither ack nor nacks concludes the problem is local (CPU starvation, a saturated NIC), raises an awareness score up to `AwarenessMaxMultiplier` (8), and multiplies its probe timeout and interval by it. A sick node stops accusing healthy ones.
+2. **Dynamic suspicion.** The timeout starts at the maximum and shrinks as independent suspicions arrive: timeout = max − (max − min) × log(c + 1) / log(K + 1), where c counts confirmations from other members and K = `SuspicionMult` − 2 = 2. At five nodes (min 4 s, max 24 s) that is 24 s with no confirmation, about 11.4 s after one and 4 s after two. Branch 2 above takes longer in memberlist until B's and C's own probes of E confirm it.
+3. **Buddy system.** A prober that suspects its target says so in the ping itself, so a live but suspected node learns of it at once and refutes.
+
+**Serf** wraps memberlist with user events and queries ordered by Lamport clocks. **Consul** runs a LAN Serf pool of every agent in a datacenter and a WAN pool of servers across datacenters, with a WAN profile of multi-second timeouts. Gossip only detects: the Raft-replicated catalog on the servers decides, and the leader records a failed member as a failing health check, so service discovery changes once, through consensus.
+
+## Under the hood: Cassandra's gossiper
+
+Every second each Cassandra node increments its own heartbeat version and starts an exchange with one random live peer; it may also contact a random unreachable node (to notice recoveries) and a seed if the live peer was not one, so one to three exchanges per second. A node's gossiped state is a **generation** (the epoch second at which it started) and **versions** from one counter, stamped on the heartbeat and on each application state (`STATUS`, `TOKENS`, `SCHEMA`, `DC`, `RACK`, `LOAD`, `HOST_ID`). An exchange is three messages, traced here between A and B about three endpoints:
+
+| Endpoint | A's digest (generation:max version) | B's digest | B's ACK | A's ACK2 |
+|---|---|---|---|---|
+| X | 1726000000:212 | 1726000000:205 | "Send X after version 205" | X's heartbeat (212) and `LOAD` (209), the states newer than 205 |
+| Y | 1726000100:90 | 1726000100:97 | Y's states with versions above 90 | – |
+| Z | 1726000500:3 | 1725990000:4410 | "Send all of Z": a newer generation means Z restarted | Z's full state |
+
+A's SYN carries only digests. Equal generations compare versions and ship only the delta, in whichever direction is behind; a higher generation wins regardless of version. This is push-pull anti-entropy on digests, and steady-state bytes follow the change rate.
+
+**Failure detection** is the phi-accrual detector from [failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases), fed by the arrival of a newer heartbeat version for each node from anyone. Cassandra approximates inter-arrival times as exponential, so phi = Δt / (mean × ln 10): with a 1-second mean, the default `phi_convict_threshold` of 8 convicts after about 18 seconds of silence, and each step above 8 adds about 2.3 mean intervals. Operators on noisy cloud networks commonly raise it to 10 to 12. Gossip spreads state but does not order decisions; Cassandra's transactional cluster metadata work (CEP-21) moves token ownership and schema changes onto a linearizable log, keeping gossip for liveness.
+
+## Anti-entropy with Merkle trees, traced
+
+Gossip spreads small state. Replicas of a large dataset diverge for other reasons (a write missed one replica, a node was down for an hour, a hint was lost), and comparing them row by row costs O(data) each time. A **Merkle tree** hashes each slice of the token range into a leaf, and each parent hashes its two children, so equal hashes vouch for everything beneath them ([Merkle trees](/learn/advanced-data-structures/log-structured-and-disk-structures/merkle-trees-and-ring-buffers) builds one). Take 8 token ranges of 3 rows each; replica B missed one update in range 5. Truncated SHA-256 hashes, compared top down:
+
+| Round | Nodes compared | A | B | Result |
+|---|---|---|---|---|
+| 1 | root | `5a2a2b99` | `609113b7` | Differs: fetch children |
+| 2 | ranges 0–3, 4–7 | `f85d94e4`, `aac8f65d` | `f85d94e4`, `9e4f47f5` | 0–3 equal, skipped; 4–7 differs |
+| 3 | ranges 4–5, 6–7 | `fd2ad865`, `2f4e4d4b` | `4702ab83`, `2f4e4d4b` | 4–5 differs |
+| 4 | ranges 4, 5 | `e31fb404`, `5217e32d` | `e31fb404`, `4f237642` | Range 5 differs: stream its rows |
+
+Seven hash comparisons in four round trips. At this size sending all 8 leaf hashes in one message would be cheaper; the tree pays off as leaves multiply. With 2¹⁵ leaves and one differing leaf the walk costs 1 + 2 × 15 = 31 comparisons instead of 32,768, and d scattered differences cost roughly 2d·log₂(L/d). Cassandra trades round trips for bandwidth: each replica sends its whole tree to the repair coordinator, which diffs them locally and then streams the mismatched ranges between replica pairs.
+
+The expensive part is **building** the tree: every row in the range is read and hashed. At 200 MB/s, 2 TB per replica takes nearly 3 hours of disk and CPU, which is why repair is scheduled, throttled and run per range. Dynamo and Riak's active anti-entropy keep trees updated on every write instead, paying on the write path to avoid the scan.
+
+```exercise
+id: merkle-diff
+title: Find the differing leaves with a Merkle walk
+prompt: |
+  Two replicas hold leaf hashes `a` and `b`: integer lists of equal length,
+  a power of two (1, 2, 4, 8, ...). Build each Merkle tree bottom up, where a
+  parent's hash is
+
+      parent = (left * 1000003 + right) % 2147483647
+
+  Then compare the trees top down, level by level: compare the roots; for
+  every internal node pair that differs, compare both of its children; never
+  descend into a pair that is equal. Each node pair compared counts as one
+  comparison.
+
+  Return `{"diff": [...], "comparisons": n}` where `diff` lists, in ascending
+  order, the leaf indexes whose hashes differ and that the walk reached.
+languages: [python, javascript]
+entry: merkle_diff
+starter:
+  python: |
+    def merkle_diff(a, b):
+        # build both trees, then walk down from the roots
+        return {"diff": [], "comparisons": 0}
+  javascript: |
+    function merkle_diff(a, b) {
+      // build both trees, then walk down from the roots
+      return { diff: [], comparisons: 0 };
+    }
+tests:
+  - args: [[11, 22, 33, 44, 55, 66, 77, 88], [11, 22, 33, 44, 55, 67, 77, 88]]
+    expected: {"diff": [5], "comparisons": 7}
+    label: one differing leaf out of eight
+  - args: [[11, 22, 33, 44, 55, 66, 77, 88], [11, 22, 33, 44, 55, 66, 77, 88]]
+    expected: {"diff": [], "comparisons": 1}
+    label: identical replicas need one comparison
+  - args: [[5], [6]]
+    expected: {"diff": [0], "comparisons": 1}
+    label: a single leaf is the root
+  - args: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 9, 3, 4, 5, 6, 0, 8]]
+    expected: {"diff": [1, 6], "comparisons": 11}
+    label: differences in both halves
+  - args: [[1, 2, 3, 4], [5, 6, 7, 8]]
+    expected: {"diff": [0, 1, 2, 3], "comparisons": 7}
+    label: everything differs, every node compared
+  - args: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], [0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]]
+    expected: {"diff": [0, 1], "comparisons": 9}
+    hidden: true
+  - args: [[1, 2, 3, 4], [2, 1, 3, 4]]
+    expected: {"diff": [0, 1], "comparisons": 5}
+    hidden: true
+    label: parent hashes are order-sensitive
+hints:
+  - "Store each tree as a list of levels, leaves first; level i+1 has half as many entries as level i."
+  - "Keep a frontier of node indexes to compare at the current level; a differing internal node at index j adds children 2j and 2j+1 to the next frontier."
 ```
 
-The cost that is not free is *building* the tree: every key must be read and hashed. Cassandra's repair builds Merkle trees per token range per table on each replica involved, which is a full scan of the data and a burst of CPU and disk I/O. It is why repair is scheduled off-peak, throttled, and run per range rather than cluster-wide at once; a full repair on a large cluster can take hours to days. Dynamo and Riak use the same approach with trees kept incrementally updated to avoid the scan.
-
-A **Bloom filter** is the lighter-weight cousin for the question "do you have any keys I do not?": a replica sends a filter of its key set (a few bits per key, so ~1.2 MB for a million keys at 1% false positives); the peer checks its keys against it and sends back the ones that are definitely missing. It finds one-sided differences in one round at the cost of false positives (a missing key the filter claims is present is not repaired this round). Digests, Merkle trees and Bloom filters are all set-reconciliation tools with different trade-offs between build cost, round trips and exactness.
+A **Bloom filter** answers the one-sided question "which of my keys do you lack?" in one message: a replica sends a filter of its keys (about 1.2 MB for a million keys at a 1% false-positive rate, 9.6 bits per key), and the peer sends back every key the filter says is absent. A false positive hides a missing key until the next round or a Merkle comparison.
 
 ```viz
 {"type": "system", "scenario": "bloom-filter", "keys": ["k1","k2","k3","k7","k9"],
  "title": "Bloom filter as a set digest", "caption": "One replica sends a compact filter of its keys. The peer tests each of its own keys: a miss means the first replica definitely lacks it and it is sent; a hit might be a false positive, so a rare missing key survives until the next round or a Merkle comparison."}
 ```
 
-### Three repair mechanisms
+## Cassandra repair: full, incremental and overstreaming
 
-| Mechanism | When it runs | Covers | Cost |
+**Full repair** builds trees over all data in the range on every replica (a validation compaction), diffs them and streams mismatches. **Incremental repair** marks SSTables as repaired after a successful session, splitting mixed files by anti-compaction, so later sessions hash only unrepaired data. Before 4.0 it had correctness problems when sessions failed partway, and many operators ran full repair only; Cassandra 4.0 reworked it (CASSANDRA-9143) so SSTables are marked repaired only when the whole session succeeds. **Subrange repair** (what Cassandra Reaper schedules) splits a range into small pieces so each session is short and its trees are fine-grained. `nodetool repair --preview` (4.0) reports what a repair would stream without streaming it.
+
+**Overstreaming** comes from coarse leaves: a differing leaf streams every partition it covers, even when one differs. Take a range of 1,000,000 partitions of 100 KiB (about 100 GB) under a 2¹⁵-leaf tree, about 30.5 partitions per leaf, with differing partitions scattered at random:
+
+| Partitions that differ | Leaves that differ | Streamed | Actually different | Overstream |
+|---|---|---|---|---|
+| 100 | 100 | 0.31 GB | 0.01 GB | 30× |
+| 1,000 | 985 | 3.1 GB | 0.10 GB | 30× |
+| 10,000 | 8,655 | 27 GB | 1.0 GB | 26× |
+| 100,000 | 31,453 | 98 GB | 10 GB | 9.6× |
+
+A leaf is clean with probability (1 − d/P)^(P/L); with 10,000 differences that is 0.99^30.5 = 0.74, so 26% of leaves stream about 30 partitions each. With 2²⁰ leaves (about one partition per leaf) the same repair streams 0.98 GB, but each tree grows 32-fold in memory. Cassandra sizes tree depth from the estimated partition count within a memory budget, on the order of 2¹⁵ to 2²⁰ leaves per range depending on version and settings; smaller subranges are the practical lever, because they make every leaf finer.
+
+## Read repair, hinted handoff and full repair
+
+| Mechanism | Trigger | Covers | Misses | Cassandra default |
+|---|---|---|---|---|
+| Read repair | A read at a consistency level above ONE sees mismatched digests | Keys that are read | Cold keys, forever | Blocking read repair on mismatch; the probabilistic `read_repair_chance` options were removed in 4.0 |
+| Hinted handoff | A replica is down at write time; the coordinator stores a hint and replays it on return | Writes during short outages | Outages longer than the window; hints lost with the coordinator | `max_hint_window` 3 hours |
+| Full or incremental repair | Scheduled | Every key, including cold ones and long outages | Nothing, if it runs in time | Must complete on every range within `gc_grace_seconds` (10 days) |
+
+Read repair and hints keep divergence small; scheduled repair is the guarantee, and it has a deadline because of **tombstones**. A delete writes a tombstone that shadows older values and is purged after `gc_grace_seconds`. Trace replica C missing a delete:
+
+| Day | Replica A | Replica B | Replica C |
 |---|---|---|---|
-| Read repair | On a read that sees divergent replicas | Hot keys only; cold keys never | Free, piggybacked on reads |
-| Hinted handoff | When a replica is unreachable at write time; delivered when it returns | Writes during short outages, if the hint is stored and delivered | Storage on the hinting node; a replay burst on return; hints expire (Cassandra defaults to 3 hours) |
-| Full anti-entropy repair | Scheduled (Cassandra: within gc_grace_seconds; Dynamo: continuous background) | Everything, including cold keys and long outages | Full scan, tree build, streaming; hours |
+| 0 | Row r = v | r = v | r = v; C goes down |
+| 1 | Delete r: tombstone | Tombstone | Missed |
+| 11 | Compaction purges the tombstone (10 days passed) | Purged | Down |
+| 12 | – | – | Returns with r = v |
+| 13 | Repair: C has v, A has nothing, so v streams to A | v streams to B | r = v |
 
-Read repair and hinted handoff are the fast paths that keep divergence small; full repair is the guarantee. A cluster that runs only the fast paths has cold data that has been diverged for months.
+The deleted row is back. The rules follow: repair every range at least once per `gc_grace_seconds`, and rebuild (wipe and stream) a node down longer than that instead of rejoining it. [Wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores) covers the rest of Cassandra's write path.
 
-### Tombstones and resurrection
+## Choosing a membership mechanism
 
-Deletion in a replicated store cannot simply remove the key, because a replica that missed the delete would, on the next repair, "repair" the key back onto the replicas that deleted it. So a delete writes a **tombstone**, a marker with a timestamp that says "deleted at T", which propagates and repairs like any write and shadows older values. Tombstones must eventually be purged or the store fills with them. Cassandra's `gc_grace_seconds` (default 10 days) is the window: a tombstone is kept for that long, then compacted away.
+| Approach | Per-node load | Detection time | View consistency | When the mechanism fails | Fits |
+|---|---|---|---|---|---|
+| All-to-all heartbeats | N − 1 messages per period | One timeout | Each node's own | No central part | Tens of nodes |
+| Central registry | One heartbeat per period; the registry handles N | One timeout | Single view | Registry outage blinds everyone | Hundreds, with a replicated registry |
+| Consensus store with leases (etcd, ZooKeeper) | Lease renewals | Lease TTL | Linearizable | Needs a quorum of the store | Membership that decides ownership |
+| SWIM gossip | About one ping plus piggybacked updates | ≈ 1.6 periods to first probe, plus suspicion | Eventually consistent | No central part; partitions yield two views | Thousands to tens of thousands |
 
-The trap: if a replica is down for longer than `gc_grace_seconds`, or repair does not run within it, the other replicas purge the tombstone; the returning replica still has the live value; the next repair sees a value on one side and nothing on the other, and copies the value back. The deleted row returns. The rule that follows is operational: full repair must run on every range at least once per `gc_grace_seconds`, and a node down longer than that must be rebuilt rather than rejoined. [Wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores) covers the rest of Cassandra's write path.
+Gossip is the wrong tool when the answer must be agreed: leader election, ownership reassignment, anything that must happen exactly once needs [consensus](/learn/system-design/distributed-systems/consensus-raft), with gossip as an input. It is overkill below about ten nodes, where broadcasting is simpler. It cannot carry megabytes per node per second; gossip versions and fetch the state from a store. And "converges in about 10 rounds with high probability" is not a hard deadline. Redis Cluster shows the pattern: one node's `PFAIL` is a rumour, promoted to `FAIL` only when a majority of masters report it.
 
-## Where gossip is the wrong tool
+## Production failure modes
 
-- **Agreement.** Gossip converges to a consistent view eventually; it does not produce a decision that all nodes make at the same logical moment. Leader election, configuration changes that must not be applied twice, or anything with a "who is right" question needs consensus ([Raft](/learn/system-design/distributed-systems/consensus-raft)). Cassandra gossips the ring but uses a single coordinator (or now a transactional metadata log) for changes that must be ordered.
-- **Small N.** At 5 nodes, just tell everyone; the log N advantage is nil and the randomness adds latency.
-- **Large state.** Gossiping megabytes of state per node per second is a bandwidth problem; gossip digests and fetch deltas, or move the state to a store and gossip only its version.
-- **Fast, guaranteed delivery.** Convergence in ~10 rounds with high probability is not "every node within 10 seconds, guaranteed". Anything with a hard deadline needs a different mechanism.
-
-## Worked numbers
-
-A 200-node cluster, gossip interval 1 s, fanout 3, per-node membership state 2 KB, digest-based exchange where only changed entries are sent.
-
-- Convergence: log₃(200) ≈ 4.8, so ~7 rounds, ~7 seconds for a new member to be known everywhere.
-- Steady-state bandwidth per node: 3 exchanges x (digest of 200 entries x ~40 B = 8 KB) x 2 directions ≈ 50 KB/s. Cluster: 10 MB/s. Fine.
-- SWIM detection with a 1-second protocol period, 500 ms ping timeout, 3 indirect probes, suspicion timeout of 5 periods: a dead node is suspected within ~1.5 s by its first prober and declared dead ~5 s later, ~6.5 s total, independent of cluster size. A node with a 3-second GC pause is suspected and refutes itself on resuming, never declared dead.
-- Anti-entropy on 2 TB per replica with 2^15-leaf Merkle trees: a full scan at 200 MB/s takes ~3 hours per replica to build the trees; the comparison is ~15 round trips of a few KB; streaming a 0.1% divergence is 2 GB. Scheduled weekly per range, well inside a 10-day `gc_grace_seconds`.
-
-## Failure modes
-
-**Partition produces two consistent views.** Each side's gossip converges to "the other side is dead". Both are internally consistent and wrong. Detect: membership size per node diverging; each side reporting the other as down. Mitigate: gossip is the input to a decision, not the decision; quorum-based actions (Redis Cluster's majority `FAIL` vote; a consensus store for ownership) prevent both sides from acting as if they were the whole cluster.
-
-**Gossip storm.** Full-state gossip with large state and high fanout; per-node bandwidth grows with cluster and state size; the gossip traffic starves real traffic. Detect: gossip bandwidth per node trending with N. Mitigate: digests and deltas; bounded fanout; rate limits on gossip.
-
-**False death from a pause.** A 10-second GC pause on a node with a 5-second suspicion timeout; the node is declared dead, its partitions reassigned, and it comes back to find it owns nothing. Detect: dead declarations followed by rejoins within seconds. Mitigate: suspicion timeouts sized above observed pauses; incarnation refutation; Lifeguard-style self-awareness.
-
-**Resurrected deletes.** Repair missed the `gc_grace` window on a range; deleted rows reappear. Detect: rows with deletion audit records present again. Mitigate: repair scheduling with alerts on ranges not repaired within the window; rebuild nodes down longer than the window.
-
-**Merkle build cost at peak.** Repair kicked off during peak; every replica scans its disk; p99 doubles. Detect: repair start correlated with latency. Mitigate: schedule, throttle, per-range incremental repair.
-
-**Slow convergence from low fanout or high interval.** Fanout 1, interval 10 s: 200 nodes need ~8 rounds, 80 seconds to learn a membership change; routing is stale for over a minute. Detect: time from event to cluster-wide knowledge. Mitigate: fanout 3, interval 1 s; the cost is negligible.
-
-**Hints that never deliver.** A node down for 4 hours with a 3-hour hint window; the hints expire; the writes are missing until full repair. Detect: expired-hint counters. Mitigate: know the hint window; run repair after any outage longer than it.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Partition produces two views | Each side reports the other side dead; both keep serving | Membership size diverges by side; cross-side probes fail | Gossip informs, consensus decides: quorum-gated actions, ownership in a consensus store |
+| Gossip storm | Gossip bandwidth grows with cluster size and starves traffic | Full-state exchanges; per-node gossip bytes trend with N × state | Digests and deltas, bounded fanout, rate limits |
+| False deaths from pauses (flapping) | Dead declarations followed by rejoins within seconds; partitions shuffle | GC or CPU-steal pauses longer than the suspicion timeout | Timeouts above observed pauses, incarnation refutation, Lifeguard awareness |
+| Resurrected deletes | Deleted rows reappear after a node returns | A range went unrepaired for longer than `gc_grace_seconds`, or a long-dead node was rejoined | Repair SLO per range with alerts; rebuild nodes down past the window |
+| Repair at peak | p99 latency doubles when repair starts | Validation compactions scanning every replica's disk | Schedule off-peak, throttle, subrange or incremental repair |
+| Overstreaming | Repair streams tens of GB to fix a handful of rows; disks fill with new SSTables | Coarse Merkle leaves; `--preview` shows streamed bytes far above the mismatch | Smaller subranges, incremental repair, deeper trees where memory allows |
+| Hints that never deliver | Writes missing after an outage longer than 3 hours | Expired-hint counters; outage longer than `max_hint_window` | Run repair after any outage longer than the window |
 
 ## Interviewer follow-ups
 
-**Q: "How does a 1,000-node cluster learn a node has died without a coordinator?"**
+**"How does a 1,000-node cluster learn a node has died, without a coordinator, and how long does it take?"** Model answer: SWIM: each member probes one member per second, indirect probes through three others rule out a bad link, then suspicion; memberlist's minimum suspicion timeout at 1,000 nodes is 12 s (up to 72 s until other members confirm), and the death spreads in a handful of gossip rounds, so tens of seconds end to end, at constant per-node cost. Common wrong answer: "every node heartbeats every other node," which is N² traffic.
 
-Through SWIM-style detection and gossip dissemination. Each node pings one random peer per second; on a missed ack it asks three other nodes to probe indirectly, so a single bad link does not condemn anyone; if those fail too, it marks the node suspected and gossips that. The suspected node, if alive, refutes with a higher incarnation number. If no refutation arrives within a few seconds, the node is declared dead and that fact rides on the ping traffic to everyone in around log N rounds, roughly 10 seconds. Per node the cost is one ping and a few piggybacked updates per second, whatever N is. What gossip does not give me is agreement: if I need to reassign the dead node's partitions exactly once, that decision goes through a consensus store using the gossip as its input.
+**"Why does Cassandra need repair if it has read repair and hinted handoff?"** Model answer: read repair covers only keys that are read and hints only outages under three hours whose coordinator survived; only Merkle repair covers every key, and it must run within `gc_grace_seconds` or deletes resurrect. Common wrong answer: "read repair fixes everything eventually," which never touches cold data.
 
-**Q: "Two replicas hold a terabyte each. How do you find the differences without reading everything on every comparison?"**
+**"Repair streamed 27 GB to fix about 1 GB of differences. Why, and what do you change?"** Model answer: overstreaming from coarse leaves, each differing leaf dragging about 30 partitions; run subrange or incremental repair and check with `--preview`. Common wrong answer: "throttle streaming," which makes the same 27 GB take longer.
 
-Merkle trees. Each replica hashes its keys into buckets, then hashes up a tree to a root. Exchanging roots answers "identical or not" in one message; on a mismatch, we descend only into subtrees whose hashes differ, so a few divergent keys are located in about 15 round trips of a few kilobytes. The expensive part is building the tree, which is a full scan, so I keep trees updated incrementally where the store supports it, or I schedule the build off-peak per key range with a throughput throttle. For one-sided "what am I missing" questions, a Bloom filter of one side's keys does it in a round at a small false-positive cost.
+**"When would you not use gossip for membership?"** Model answer: under about ten nodes; when membership decides ownership and must be linearizable, which belongs in etcd or ZooKeeper; when state per node is large. Common wrong answer: "gossip is always more scalable," which ignores that it cannot produce agreement.
 
-**Q: "Why does Cassandra need repair at all if it has read repair and hinted handoff?"**
+**"A node was down for 12 days. Can it rejoin?"** Model answer: not with a 10-day `gc_grace_seconds`: tombstones it missed are purged elsewhere, and repair would copy its stale rows back; wipe it and stream its ranges as a new node. Common wrong answer: "run repair after it rejoins," which is precisely what resurrects the deletes.
 
-Because those only cover the keys that get read and the outages that are short. A key that nobody reads is never read-repaired; hints expire after three hours by default and are lost if the hinting node dies. Full repair with Merkle trees is the only mechanism that guarantees every replica of every key converges, and it has a deadline: it must run within `gc_grace_seconds`, or tombstones are purged on the replicas that saw the delete while a replica that did not still holds the value, and the next repair resurrects the deleted row. So repair is an operational SLO, once per range per window, with alerting.
+## What mid-level engineers get wrong
 
-**Q: "When would you not use gossip for membership?"**
-
-When the cluster is small enough to just broadcast, under maybe ten nodes; when I need a strongly consistent membership view for correctness, like deciding partition ownership, where I keep membership in etcd or ZooKeeper and let nodes watch it; or when the state per node is large, in which case I gossip versions and fetch the state from a store. Gossip's guarantee is probabilistic convergence in log N rounds with constant load; it is the right tool for the "who is probably alive and what do they probably own" question at scale, and the wrong tool for any question that ends in "exactly".
-
-**Q: "A node was down for 12 days. Can it rejoin?"**
-
-Not as it is. With a 10-day `gc_grace_seconds`, tombstones for deletes it missed have been purged from the live replicas, and its stale live values would be repaired back onto them, resurrecting deleted data. I rebuild it: wipe its data, rejoin as a new node, and stream its ranges from the live replicas. The rule is that a node down longer than the grace period is treated as new, and the operational check before any rejoin is comparing downtime with the window.
+- **Quoting log₂N rounds for push gossip.** Consequence: at 10,000 nodes the simulated mean is 23.7 rounds, not 13; SLOs set on the smaller number are missed.
+- **Setting the suspicion timeout below observed GC pauses.** Consequence: nodes flap dead and alive, and every flap reshuffles ownership.
+- **Letting gossip membership decide ownership directly.** Consequence: a partition gives two sides that each own everything.
+- **Relying on read repair and hints alone.** Consequence: cold data diverges for months, and the first real repair resurrects deletes.
+- **Running full, cluster-wide repair at peak.** Consequence: every replica scans its disks at once and latency doubles.
+- **Gossiping full state because it is simpler.** Consequence: bandwidth grows with N × state size until gossip crowds out traffic.
 
 ## Senior signals
 
-- You quote **log N rounds and constant per-node load** with the arithmetic, and you know push-pull is the practical default.
-- You describe **SWIM's indirect probes, suspicion and incarnation numbers** and explain which false positive each one removes.
-- You separate **dissemination from agreement** and route decisions that must happen once through consensus.
-- You explain **Merkle-tree comparison** and its build cost, and you schedule repair as an operational SLO.
-- You know that **tombstones plus a missed repair window resurrect deletes**, and you rebuild rather than rejoin a long-dead node.
-- You gossip **digests, not state**, and can size the bandwidth for a given N and change rate.
+- You quote convergence with constants: push ≈ log₂N + ln N, push-pull at fanout 3 about 5 rounds for 1,000 nodes, and you know digests keep bandwidth proportional to the change rate.
+- You can trace SWIM's ping, ping-req, suspicion and incarnation refutation, and say which false positive each removes.
+- You know what Lifeguard changed (local health awareness, dynamic suspicion, buddy system) and what memberlist's timeouts are at your cluster size.
+- You separate dissemination from agreement: gossip detects, consensus decides.
+- You can walk a Merkle comparison, size overstreaming from leaf granularity, and pick subrange or incremental repair.
+- You treat repair within `gc_grace_seconds` as an SLO and rebuild, not rejoin, a node down longer.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    With push-pull gossip and fanout 3, roughly how many rounds does it take for a fact to reach all of 1,000 nodes?
-  options: ["About 10", "About 100", "About 3", "About 333"]
+    In the lesson's simulation, push-pull gossip with fanout 3 reached every one of 1,000 nodes in how many rounds, and how does that grow?
+  options: ["About 5, adding 1–2 rounds per tenfold growth in N", "About 30, growing linearly as N divided by 33", "About 330, since N / 3 nodes are reached each round", "About 1,000, since every node needs a round of its own"]
   answer: 0
   explanation: >-
-    Informed nodes grow by roughly the fanout each round, so log base 3 of 1,000 is about 6.3, plus a few rounds for the tail: around 8 to 10. Doubling the cluster adds about one round.
+    Informed nodes multiply each round, so the count grows logarithmically: the simulated mean was 5.1 rounds at 1,000 nodes and 6.7 at 10,000. Linear answers assume one informer at a time; in gossip every informed node spreads in parallel.
 - q: >-
-    In SWIM, why does a node ask three other members to probe a target before suspecting it?
-  options: ["To elect a leader that decides whether the target is dead", "To measure latency from several points and average it", "To spread the ping load across more of the members", "So a bad link is not mistaken for a dead target"]
+    In SWIM, why does a prober ask three other members to ping the target before suspecting it?
+  options: ["To elect a leader that decides whether the target is dead", "To average round-trip latency measured from several places", "To spread the probing load more evenly across all members", "So a bad link to the target is not mistaken for its death"]
   answer: 3
   explanation: >-
-    If any indirect prober gets an ack, the target is alive and the original prober's path was the problem. This removes the single-bad-link false positive without a coordinator; the extra probes add traffic rather than reduce it.
+    If any indirect prober gets an ack, the target is alive and the problem was the path from the original prober. This removes the single-bad-link false positive without a coordinator. The indirect probes add traffic rather than spreading it, and no leader is involved.
 - q: >-
-    Two replicas exchange Merkle tree roots and they differ. What happens next?
-  options: ["They compare child hashes and descend where they differ", "They exchange all keys in the key range to find the gap", "They rebuild both trees from scratch and compare again", "The replica with the larger dataset overwrites the other"]
+    Node E learns from a piggybacked message that it is suspected with incarnation 4. What does it do so the cluster keeps it alive?
+  options: ["It gossips Alive with incarnation 5, which overrides Suspect 4", "It pings the accuser directly so the accuser cancels its timer", "It waits until its heartbeat version passes the suspicion's", "It asks a majority of members to vote that it is still alive"]
   answer: 0
   explanation: >-
-    The tree localises differences in a depth-of-tree number of exchanges; equal subtrees are skipped until the differing buckets are found. The full scan happens once when building the tree, not during comparison.
+    Only E increments its own incarnation, and Alive(E, i) replaces Suspect(E, j) whenever i is greater than j, so Alive 5 overrides every copy of Suspect 4 as it spreads. Other members' timers are cancelled by that update, not by a direct message, and SWIM has no vote.
+- q: >-
+    Two replicas compare Merkle trees level by level. The trees have 2^15 leaves and exactly one leaf differs. How many hash comparisons does the walk make?
+  options: ["31 comparisons, two per level below the root", "15 comparisons, one for each level of the tree", "32,768 comparisons, one for every leaf hash", "65,535 comparisons, one for every tree node"]
+  answer: 0
+  explanation: >-
+    The roots are compared once; at each of the 15 levels below, only the children of the one differing node are compared, two hashes per level: 1 + 2 × 15 = 31. Equal subtrees are never entered, which is the point of the tree. Comparing every leaf or node is what the tree avoids.
+- q: >-
+    A Cassandra repair streams 27 GB to fix about 1 GB of scattered differences. What is the most likely cause?
+  options: ["Each differing leaf streams every partition it covers", "Every replica streams its full copy of each changed row", "Tombstones are streamed alongside every row they shadow", "Repair streaming always sends data without compression"]
+  answer: 0
+  explanation: >-
+    With about 30 partitions per leaf, a single differing partition makes its whole leaf stream, so scattered differences inflate the transfer about 26 to 30 times. Smaller subranges or incremental repair make leaves finer or the data smaller; throttling would only slow the same transfer.
 - q: >-
     A replica misses a delete, stays down for 15 days, and rejoins a cluster with gc_grace_seconds of 10 days. The likely outcome is:
-  options: ["Nothing; repair treats the stale row as already deleted", "The deleted row comes back; its tombstone is gone elsewhere", "The cluster rejects the node for exceeding the grace window", "The delete reaches it on rejoin through normal repair"]
+  options: ["Nothing; repair treats the stale row as already deleted", "The deleted row comes back; its tombstone is gone elsewhere", "The cluster rejects the node for exceeding the grace window", "The delete reaches it on rejoin through normal hinted handoff"]
   answer: 1
   explanation: >-
-    The tombstone was purged from the other replicas after 10 days, so there is nothing to shadow the old value, and repair copies the stale live row back. A node down longer than the grace window must be rebuilt from live replicas rather than repaired; nothing rejects it automatically.
-- q: >-
-    Which task is gossip the wrong tool for?
-  options: ["Choosing, once, who takes a dead node's partitions", "Spreading node liveness across a 1,000-node cluster", "Distributing schema version numbers to every node", "Propagating token ring changes around the cluster"]
-  answer: 0
-  explanation: >-
-    Gossip gives eventual, probabilistic convergence of a view, not an agreed decision at one logical moment. Ownership reassignment must happen exactly once, which needs consensus with gossip as its input.
+    The tombstone was purged from the other replicas after 10 days, so nothing shadows the old value, and repair copies the stale row back to them. Hints expire after 3 hours by default, and nothing rejects the node automatically; a node down longer than the grace window must be rebuilt.
 ```
