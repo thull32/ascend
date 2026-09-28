@@ -39,6 +39,20 @@ flowchart TD
   Q3 -->|no| E["End-to-end journey, only if business-critical"]
 ```
 
+## The pyramid's costs, measured on this repository
+
+The cost argument is easy to state and rarely measured. This repository's CI records it. On the run for commit `527d3d1` (GitHub's `ubuntu-latest` runners, warm caches), each level reported:
+
+| Level | Tests | Reported time | Per test | Paid before the first test | What only this level catches |
+|---|---|---|---|---|---|
+| Rust unit, api crate | 8 | 0.00 s | microseconds | the shared 19.1 s test build | the CSRF decision, the error mapping, ETags |
+| Rust unit, core crate | 16 | 1.83 s | about 0.1 s on average | the same build | hashing, tokens, content parsing |
+| API integration, real Postgres | 22 | 1.49 s | about 70 ms of wall time, run in parallel | a Postgres 17 service container, 12 s to initialise | SQL, wiring, authorisation, races |
+| Vitest, web | 1,133 | 6.63 s wall, 21% of it in tests | about 1 ms | test environments, 64% of the run | visualiser invariants, the SSE parser, Markdown |
+| Playwright, end to end | 24 (12 specs on 2 profiles) | 42.8 s on 2 workers | 2.0 to 7.0 s | about 95 s: SPA and server builds, Chromium install | the real browser, cookies and runners together |
+
+CI reports the core crate's 1.83 s only as a total; its 16 tests include an Argon2 round trip compiled without optimisation and a load of the full embedded curriculum, each far heavier than a typical unit test, so read that row as the cost of those tests rather than of the level. The shape is the pyramid's argument in numbers: each level up costs one to two orders of magnitude more per test, and the top one also pays a minute and a half before its first assertion. That is why the browser suite has 12 journeys and the visualiser suite has 1,133 cases, and why a rule that can be decided without I/O is moved to where a unit test can reach it.
+
 ## How this repository tests itself
 
 Read the suite as an inventory, the way you would when joining a team.
@@ -49,17 +63,43 @@ Read the suite as an inventory, the way you would when joining a team.
 
 **Frontend visualisers get invariant tests.** Each file in `web/src/viz/families/*.test.ts` feeds every visualiser its example input plus hostile edge inputs (zero or one bucket, forty identical keys, unknown operations) and asserts properties that must always hold: at least one frame, a frame count bounded by the engine's `MAX_FRAMES` cap, and a non-empty explanation on every frame. They do not assert exact output, so they survive changes to wording and layout while still catching crashes and runaway loops.
 
+## The integration suite carries the most weight
+
 **API integration tests carry the most weight.** `crates/api/tests/api.rs` builds the *exact production router* against a real Postgres and drives it in-process with `tower::ServiceExt::oneshot`: no sockets, no browser, milliseconds per request. That is possible only because the api crate is also a library (`crates/api/src/lib.rs` says so in its first comment), which is architecture paying for testability. Read the test names and you have the system's promises: `login_errors_do_not_leak_account_existence`, `csrf_rejects_requests_without_header_or_with_foreign_origin`, `lesson_payload_hides_quiz_answers`, `comments_threading_and_authorisation`, `ai_features_degrade_gracefully_without_a_key`, `malformed_json_uses_the_api_error_shape`, `request_ids_are_server_controlled`. The session test even queries the `sessions` table to prove the raw cookie token is not stored, and `ai_budget_reservation_cannot_be_overshot_by_concurrency` tests a race the only way a race can be tested: it spawns 30 budget reservations at once against a limit of 10 and asserts that exactly 10 succeed. Two newer tests use the same technique on races a review found: `concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four sign-ups for one email at once and asserts exactly one `200` and the rest `409` (registration used to check for the email and then insert, so two simultaneous requests could both pass the check and one surfaced as a `500`), and `a_learner_has_at_most_one_active_interview_and_solo_locks_the_coach` races five interview starts and asserts that exactly one is left active. These are the tests that would have caught the renamed column in the opening story.
 
 Two design choices are worth copying, and a third was worth questioning until it was fixed. The suite loads a small fixture curriculum from `crates/api/tests/fixtures/content` instead of the real one, so editing a lesson can never break an API test. Every test registers its own uniquely named user, so tests share one database and run in parallel. The questionable one: when `TEST_DATABASE_URL` was unset, each test printed a notice and *passed*, so `cargo test` worked offline. CI's workflow provides a Postgres service container, so the tests really ran there, but nothing checked that they did: a workflow edit that dropped the variable would have turned the whole integration suite into silent passes. Now the skip path starts with `assert!(std::env::var_os("CI").is_none(), "TEST_DATABASE_URL must be set in CI")`. GitHub Actions sets `CI` on every runner, so offline laptops still skip and a misconfigured pipeline fails loudly. The general rule: a skipped test must never look like a passing one in the place that gates merges.
 
+## End-to-end tests
+
 **End-to-end tests cover the journeys only a browser can.** `web/e2e/smoke.spec.ts` drives the real binary and a real Postgres with Playwright, on a desktop and a mobile (`Pixel 7`) profile from `web/playwright.config.ts`. It used to run only on demand, with `make e2e` against a running server, which meant a change that broke the browser journey could merge with every CI check green. CI now has an `e2e` job that runs after the Rust and web jobs pass: it starts Postgres as a service container, builds the SPA and the binary, starts the server, polls `/api/readyz` until it answers, runs `e2e/smoke.spec.ts` in Chromium and uploads the Playwright report and server log if anything fails. It covers register to roadmap to lesson completion, quiz grading and comments, running JavaScript and Python in the browser, and one security regression: a `PUT` with `origin: https://evil.example` and no custom header must get a 403. The integration suite checks the same CSRF rule below the browser; the end-to-end copy proves the real browser, cookies and SPA behave as the server expects. Security controls deserve tests at both levels because they are exactly what a refactor silently removes.
+
+## Under the hood: how the runners schedule tests
+
+Parallelism is where most order-dependence flakes come from, so know what each runner does by default.
+
+- **`cargo test`** builds one binary per crate's unit tests and one per file in `tests/`, and runs the binaries one after another. Inside a binary, libtest runs tests on a pool of threads sized by `std::thread::available_parallelism()`, unless `RUST_TEST_THREADS` or `--test-threads` says otherwise. The 22 tests in `crates/api/tests/api.rs` therefore run concurrently against one Postgres, which is safe only because each registers its own user; a test that counted all rows in `users` would pass alone and fail in the suite.
+- **Tokio tests** (`#[tokio::test]`) each get their own runtime, current-thread by default, so a test that spawns 30 reservations races them on one thread; the race in `ai_budget_reservation_cannot_be_overshot_by_concurrency` is real because the contention is in Postgres, not in Rust.
+- **Playwright** starts worker processes, half the logical CPUs by default, which is the "2 workers" in the CI log on a 4-vCPU runner. `web/playwright.config.ts` sets `fullyParallel: false`, so tests inside one file run in order in one worker, and `retries: 0`.
+- **Vitest** runs each test file in its own isolated environment by default; the 64% of the run spent on environments is the price of that isolation.
 
 ## Contract tests
 
 When two teams (or a client and a server) depend on a shape, an end-to-end test across both is slow, flaky and runs too late. A **contract test** pins the shape at the boundary instead.
 
 In **consumer-driven contract testing** (the model behind tools such as Pact), the consumer records the requests it makes and the responses it relies on. The provider's CI replays those expectations against the real provider. If the provider renames a field a consumer uses, the provider's own pull request fails, before anything is deployed.
+
+A consumer's expectation is data. For the SPA's reliance on the CSRF error, it might read:
+
+```json
+{"consumer": "web", "provider": "ascend-api",
+ "interactions": [{
+   "description": "a forged mutating request",
+   "request": {"method": "PUT", "path": "/api/progress/lessons/t/m/l", "headers": {"origin": "https://evil.example"}},
+   "response": {"status": 403, "body": {"code": "csrf", "message": {"match": "type", "example": "cross-site request rejected"}}}
+ }]}
+```
+
+The provider's pipeline replays each request against the real provider and checks the response with the matchers: status equal, `code` equal, `message` any string. Renaming `csrf` to `csrf_rejected` fails the provider's own pull request; rewording the message passes, which is the stable-code rule from [API and error design](/learn/senior-craft/software-craft/api-and-error-design) made executable. A broker records which consumer versions have been verified against which provider versions, so a deploy can ask whether the version about to ship is compatible with what is running.
 
 Inside one repository the idea scales down. The contract between Ascend's SPA and API includes the error shape from the previous lesson, and the integration suite already pins parts of it over HTTP: an unknown endpoint returns code `not_found`, a forged request returns `csrf`, a disabled AI feature returns `ai_disabled`. A table-driven unit test beside the mapping in `crates/api/src/error.rs` would pin *every* variant, including the one that matters most:
 
@@ -100,7 +140,7 @@ Good properties are rarely "the output equals X". They are shapes like these:
 
 Heading anchors in lessons are generated twice. The server builds the table of contents with `headings` and `slugify` in `crates/core/src/content/blocks.rs`; the browser renders the Markdown, and `rehype-slug` (which uses github-slugger) puts an `id` on each heading. A table-of-contents link works only if the two agree. The first server version used its own rule: keep alphanumeric characters, lowercase them, collapse everything else into single dashes, trim a trailing dash. Its one example test (`"## Big-O: the intuition"` becomes `big-o-the-intuition`) passed, because on that input both rules agree. On many others they do not: github-slugger drops punctuation instead of turning it into a dash (`Why O(1) is a lie` is `why-o1-is-a-lie`, not `why-o-1-is-a-lie`), keeps underscores, turns every space into its own dash (`Two  spaces` is `two--spaces`), and numbers duplicate headings `-1`, `-2`. Those links silently went nowhere. The fix reimplemented github-slugger's rule, pinned each known disagreement as an example test (`heading_ids_match_github_slugger`), and made the site crawl in `web/e2e/crawl.spec.ts` check that every table-of-contents link lands on a heading.
 
-Examples could only pin the disagreements someone had already noticed. The property that actually matters is an oracle property: for *every* heading text, the server's id equals the browser's. Sketched with Python's Hypothesis, where `slugify` is a port of the Rust function and `github_slug` stands for the reference implementation (in practice, the real github-slugger run through Node on the generated inputs):
+Examples could only pin the disagreements someone had already noticed. The property that actually matters is an oracle property: for *every* heading text, the server's id equals the browser's. Sketched with Python's Hypothesis, where `slugify` is a port of the Rust function and `github_slug` stands for the reference implementation (the real github-slugger, run through Node on the generated inputs):
 
 ```python
 from hypothesis import given, strategies as st
@@ -113,6 +153,67 @@ def test_server_ids_match_the_browser(s):
 def test_slugify_is_idempotent(s):
     assert slugify(slugify(s)) == slugify(s)          # a slug is its own slug
 ```
+
+### Shrinking, traced
+
+What a property library does after it finds a failure is the part worth understanding. The script below plays both roles: a generator and a shrinker, with the property "the shipped rule agrees with the reference rule" (`slug_shipped` keeps what an `is_alphanumeric`-style check keeps; `slug_reference` keeps letters, marks, decimal digits, `_` and `-`, as github-slugger does for these characters).
+
+```python
+import random, unicodedata
+
+def slug_shipped(s):                      # the first reimplementation's rule
+    return "".join("-" if c == " " else c for c in s.lower()
+                   if c.isalnum() or c in "-_ " or unicodedata.category(c).startswith("M"))
+
+def slug_reference(s):                    # github-slugger's rule, for these characters
+    return "".join("-" if c == " " else c for c in s.lower()
+                   if c.isalpha() or c in "-_ " or unicodedata.category(c)[0] == "M" or unicodedata.category(c) == "Nd")
+
+def fails(s):
+    return slug_shipped(s) != slug_reference(s)
+
+def shrink(s):
+    progress = True
+    while progress:
+        progress = False
+        size = max(len(s) // 2, 1)
+        while size >= 1:                  # delete chunks, halving the chunk size
+            i = 0
+            while i + size <= len(s):
+                if fails(s[:i] + s[i + size:]):
+                    s = s[:i] + s[i + size:]
+                    print(f"delete {size} at {i}: {s!r}")
+                    progress = True
+                else:
+                    i += size
+            size //= 2
+        for i, c in enumerate(s):         # then simplify each character toward 'a'
+            if c != "a" and fails(s[:i] + "a" + s[i + 1:]):
+                s = s[:i] + "a" + s[i + 1:]
+                print(f"simplify {i}: {s!r}")
+                progress = True
+    return s
+
+rng = random.Random(2026)
+case = next(s for s in ("".join(rng.choice("abcXYZ019 -_!(),.é²₂½") for _ in range(rng.randint(0, 24)))
+                        for _ in range(1000)) if fails(s))
+print("found:", repr(case))
+print("minimal:", repr(shrink(case)))
+```
+
+It prints:
+
+```text
+found: 'X1₂₂é(²é,²)1a₂cX X)a'
+delete 10 at 0: ')1a₂cX X)a'
+delete 5 at 5: ')1a₂c'
+delete 2 at 0: 'a₂c'
+delete 1 at 0: '₂c'
+delete 1 at 1: '₂'
+minimal: '₂'
+```
+
+The second generated string failed; twelve property evaluations shrank 20 characters to one, a subscript two, which `isalnum` accepts (Unicode category No) and the reference drops. Hypothesis does the same with more strategies (it shrinks the random choices that built the value rather than the value itself, so it can shrink any generated structure) and stores the minimal example in a local database so the next run tries it first. A shrunk counterexample is also the regression test to keep: `slugs_match_github_slugger_on_unicode_edge_cases` is that list, written down.
 
 Notice what the old example-based mindset would have asserted instead: "no double dashes, no leading or trailing dash, only alphanumerics and dashes". Every one of those is false for github-slugger, so a property suite written from the old implementation's habits would have locked the bug in. Choose properties from the *requirement* (anchors must match the browser), not from the current code.
 
@@ -135,15 +236,22 @@ Most brittle suites are brittle because of their data, not their assertions.
 
 A flaky test produces different results on the same code. A well-known 2014 study of flaky tests in open-source projects found the largest causes were asynchronous waits, concurrency and dependence on test order; time, randomness, network and leaked resources make up much of the rest.
 
-Every cause has a mechanical fix:
+Every cause has a diagnosis and a mechanical fix:
 
-| Cause | Symptom | Fix |
-|---|---|---|
-| Fixed sleeps | Fails on a slow CI machine | Wait for a condition, not a duration |
-| Shared state / order dependence | Passes alone, fails in the suite | Per-test data and teardown; randomise order to find it |
-| Wall-clock time | Fails near midnight or across DST | Inject the clock; pin the timezone |
-| Randomness | Fails one run in a thousand | Seed and log the seed |
-| External services | Fails when a third party is slow | Fake at the boundary; test the real one in a separate, non-blocking job |
+| Cause | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Fixed sleeps | Fails on a slow CI machine | Fails more under load; `--repeat-each` with CPU contention reproduces it | Wait for a condition, not a duration |
+| Shared state or order dependence | Passes alone, fails in the suite | Passes with one test thread, fails with many; a random order finds the pair | Per-test data and teardown |
+| Wall-clock time | Fails near midnight or across DST | Failures cluster by time of day in CI history | Inject the clock; pin the timezone |
+| Randomness | Fails one run in a thousand | The logged seed reproduces it every time | Seed, log the seed, keep the case |
+| External services | Fails when a third party is slow | Failures correlate with the provider's status | Fake at the boundary; test the real one in a non-blocking job |
+| A race in the product | Fails under parallel load, and users report the same symptom | The failure survives every test-side fix | Fix the product; keep the test |
+
+### Diagnosing a flake
+
+Diagnosis starts with a number. If a test fails with probability $p$ per run, $n$ reruns on one commit show at least one failure with probability $1 - (1 - p)^n$. To catch a 2% flake with 95% confidence you need $n \geq \ln 0.05 / \ln 0.98 \approx 148$ runs; a 0.1% flake needs about 2,995. So "I reran it ten times and it passed" rules out almost nothing: ten runs catch a 2% flake only 18% of the time. Playwright's `--repeat-each=200` and a shell loop over `cargo test <name>` produce those runs; running once with `--test-threads=1` and once without separates order dependence from everything else. Then read the artifacts: Ascend's CI uploads the Playwright report, traces and `server.log` on failure, so the first failure is also the first diagnosis.
+
+The last row is the one that matters. Ascend's coach once dropped the first streamed reply of a new conversation: creating the conversation navigated between two routes, which remounted the page mid-stream. Commit `6cf9c45` fixed it with one route and a guard that never hydrates server history over a live stream, and added an opt-in Playwright spec for the AI journeys (`E2E_AI=1`, since it calls the real model). A test that flickered on that bug was reporting a real one.
 
 Playwright's web-first assertions are the first fix built in: `await expect(page.getByTestId("results")).toContainText(...)` polls until the condition holds or a timeout expires, instead of sleeping a guessed duration. Ascend's config also sets `retries: 0`. That is a policy choice: retries make a suite green while hiding the flake. Where a test is genuinely slow rather than flaky, the suite says so explicitly: the Pyodide test raises its own timeout to 180 seconds because the first run downloads the Python runtime.
 
@@ -208,6 +316,47 @@ When you review a pull request, ask what each new behaviour needs, not "are ther
 
 The foundations track covers the single-function version of this discipline in [testing your own code](/learn/foundations/problem-solving/testing-your-own-code), and [verifying AI code](/learn/ai-assisted-engineering/tools-and-workflows/verifying-ai-code) applies it to code you did not write.
 
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| CI green, production broken by a renamed column | Every repository test mocked the database | Integration tests that run the real SQL against the migrated schema |
+| A pull request's build takes 40 minutes and people stop waiting for it | Browser tests used where a unit or integration test could observe the behaviour | Push each check down; keep end-to-end for journeys |
+| "Re-run" is the team's reflex and real regressions merge | Retries hide flakes; no flake-rate tracking | Quarantine with an owner and a date; count pass-on-retry as a failure signal |
+| The integration suite silently stops running | A skip path that passes when its dependency is missing | Fail in CI when the dependency is absent, as `CI` makes Ascend's tests do |
+| Tests pass alone and fail together | Shared rows, global state, or a test that assumes an empty table | Unique data per test; run single-threaded to confirm |
+| A property test passes forever | The property was derived from the current code, not the requirement | Use an oracle or a round trip that states the requirement |
+
+## Trade-offs
+
+| Technique | Fidelity | Speed | Failure precision | Maintenance | Best for |
+|---|---|---|---|---|---|
+| Unit test with fakes | Low at the boundaries | Microseconds | Names the function | Breaks when internals are refactored | Pure logic, decisions pulled out of frameworks |
+| Integration test, real dependencies | High | Tens of milliseconds | Names the endpoint | Needs a database in CI | SQL, wiring, authorisation, races |
+| Contract test | High at one boundary | Milliseconds to seconds | Names the interaction | A broker and a discipline across teams | Shapes other teams depend on |
+| Property test | Depends on the oracle | Hundreds of cases per run | A shrunk minimal input | Generators and properties to design | Large input spaces: parsers, encoders, slugs |
+| End-to-end test | Highest | Seconds | "Somewhere in the journey" | Selectors and timing | A few money or safety journeys |
+
+## Interviewer follow-ups
+
+**"Your CI takes 40 minutes. How do you cut it without losing confidence?"** Model answer: measure per job and per test first, then push checks down (a browser test that only checks an API response becomes an integration test), parallelise independent jobs, cache dependencies, and keep a small end-to-end set on every change with the long tail on a schedule. Common wrong answer: "delete the slow tests" or "run them nightly only", which moves the failure to after the merge.
+
+**"How do you know a test is flaky and not the product?"** Model answer: rerun on the same commit enough times to estimate the rate (about 150 runs for a 2% flake), then isolate: single-threaded versus parallel, alone versus in the suite, pinned seed and clock. If it survives every test-side fix, it is a race in the product. Common wrong answer: "it passed on retry, so it is flaky."
+
+**"When is a mock the wrong tool?"** Model answer: when the thing mocked is the thing most likely to be wrong: your SQL, your schema, your serialisation. A mock can only confirm the author's belief about it. Fake slow, costly or non-deterministic vendors at the boundary instead. Common wrong answer: "mock everything so tests are fast."
+
+**"What makes a good property?"** Model answer: a round trip, an invariant, idempotence or an oracle derived from the requirement, run against a generator that includes hostile inputs; and when it fails, the shrunk case becomes an example test. Common wrong answer: "the output equals the expected value", which is an example test in disguise.
+
+## What mid-level engineers get wrong
+
+- **Counting tests or coverage instead of asking what each test proves.** 100% coverage of mocked code proves the mocks.
+- **Mocking the database** and discovering schema drift in production.
+- **Sleeping in tests**, then raising the sleep when it fails.
+- **Retrying flaky tests automatically** and treating pass-on-retry as a pass.
+- **Skipped tests that report success** in the place that gates merges.
+- **Writing properties from the implementation** so the property shares the bug.
+- **Fixing a bug without a test that failed first.**
+
 ## Senior signals
 
 - You describe tests by **what they prove and what they cost** (fidelity, speed, precision), not by counting them.
@@ -216,6 +365,7 @@ The foundations track covers the single-function version of this discipline in [
 - You treat **flaky tests as bugs** with owners, quarantine them rather than retrying them, and measure flake rate from CI history.
 - You put **security controls under test** (CSRF, authorisation, secret non-leakage) because refactors remove them silently.
 - You require every bug fix to come with a test that **failed before the fix**.
+- You can **quote the cost of each level** in your own pipeline and **size a flake investigation** with the rerun arithmetic.
 
 ## Check yourself
 
@@ -250,4 +400,10 @@ The foundations track covers the single-function version of this discipline in [
   answer: 3
   explanation: >-
     Some flakes are real product bugs (races, timeouts) that users will hit, and automatic retries turn them into green builds with no signal. Only failing tests are retried, so passing runs are not slower, and retrying changes neither test order nor how often the underlying bug fires. If you retry at all, record a pass-on-retry as a flake event and track it.
+- q: >-
+    A test fails in about 2% of runs. Roughly how many reruns on the same commit do you need to see at least one failure with 95% probability?
+  options: ["About 20 reruns", "About 50 reruns", "About 500 reruns", "About 150 reruns"]
+  answer: 3
+  explanation: >-
+    The chance of at least one failure in n runs is 1 - 0.98^n, which passes 0.95 at n = ln 0.05 / ln 0.98, about 148. Twenty runs catch it only a third of the time and fifty about 64% of the time, which is why a handful of green reruns proves little; 500 is more than needed.
 ```

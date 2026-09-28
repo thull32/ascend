@@ -126,6 +126,8 @@ Even the body extractor is an adapter decision. `AppJson` (in `crates/api/src/ex
 
 `AuthService::login` in `crates/core/src/auth/service.rs` validates the input, normalises the email, verifies the password, and creates a session. It returns the user and a `NewSession { token, expires_at }`. It does not know what a cookie is. The api crate decides that the token travels in an `HttpOnly`, `SameSite=Lax` cookie whose `Secure` flag comes from configuration. If Ascend grew a mobile client that wanted a bearer token instead, only the adapter would change.
 
+## What lives where
+
 | Concern | Where it lives | Why there |
 |---|---|---|
 | Parsing JSON bodies, cookies, headers | `crates/api/src/routes`, `crates/api/src/extractors.rs` | Transport vocabulary |
@@ -142,6 +144,77 @@ The last row is a boundary decision too. Lessons are not database rows; they are
 Read the code honestly and you will see that the core is not a pure hexagon. `AuthService` holds a concrete `sea_orm::DatabaseConnection`; the entities in `crates/core/src/entities` are SeaORM models; `AppError` has a `Database(#[from] sea_orm::DbErr)` variant; and the AI client in `crates/core/src/ai` uses `reqwest` directly. There are no repository traits.
 
 That is a defensible trade-off, not an accident. The one boundary that changes often (transport) is hard; the one that almost never changes (Postgres) is soft. The price is that service-level tests need a real database, which is exactly how the repository tests them: `crates/api/src/lib.rs` exposes the api crate as a library precisely so that integration tests can build the exact production router against a real Postgres, and `crates/api/tests/api.rs` does so. The coach, however, cannot be tested deterministically without either the network or a fake HTTP server. If you were reviewing this, the proportionate ask is not "abstract everything"; it is "put a port in front of the LLM client", because that is the dependency that is slow, costly, non-deterministic and most likely to be swapped.
+
+## Under the hood: how the build graph enforces the rule
+
+Cargo compiles each crate with one `rustc` invocation, and that invocation can name only the crates passed to it as `--extern name=path` flags, which Cargo passes for the crate's *direct* dependencies. Everything else in the graph is compiled and linked but cannot be named. `cargo tree`, which reads the lockfile without compiling anything, shows the difference on this repository:
+
+- `cargo tree -p ascend-core --depth 1 -e normal` lists 23 direct dependencies (`sea-orm`, `reqwest`, `tokio`, `argon2`, `serde` and the rest), with no `axum`, `tower` or `http`.
+- `cargo tree -p ascend-core -i http -e normal` shows that `http` 1.5.0 *is* in core's graph, pulled in by `reqwest` through `hyper` and `http-body`. It is compiled into every build, and core still cannot write `use http::HeaderMap`.
+- `cargo tree -p ascend-core -i axum` fails: Axum is not in core's graph at all.
+
+A `use axum::http::HeaderMap;` in a crate that does not declare Axum fails at the first compile, in rustc 1.98's words:
+
+```text
+error[E0433]: cannot find module or crate `axum` in this scope
+ --> core_lib.rs:1:5
+  |
+1 | use axum::http::HeaderMap;
+  |     ^^^^ use of unresolved module or unlinked crate `axum`
+```
+
+The architectural change is therefore a one-line diff to `crates/core/Cargo.toml`, which no reviewer misses. Counting the source makes the two boundaries concrete: of core's 40 Rust files, none mentions `axum::`, `tower::` or `http::`, and 22 mention `sea_orm`. One boundary is hard and one is deliberately soft. In the other direction, the only api file that queries the database itself is the readiness probe in `routes/health.rs`, whose `SELECT 1` exists to test the connection.
+
+Other ecosystems need a tool for the same guarantee. In Python every installed package is importable from everywhere, so import-linter parses `import` statements into a graph and fails CI on a forbidden edge. Go's toolchain refuses imports of a package under an `internal/` directory from outside its parent tree; Java's module system exports packages explicitly in `module-info.java`; ArchUnit checks rules against compiled bytecode inside a unit test. The cheaper the check, the earlier it runs, and Cargo's runs before a line of the crate compiles.
+
+## A real refactor, traced: moving a decision out of the framework
+
+The CSRF check ([security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) covers what it defends against) began inside an Axum middleware. The decision needed the request's headers and one configuration string; the function holding it needed `State<AppState>`, `Request<Body>` and `Next`. A review found a bug (the `Referer` fallback compared by prefix, so `https://ascend.example.evil.net/page` passed), and the fix, in commit `008eee6`, changes the code in the order that keeps each step safe.
+
+| Step | Change | Smallest test that can observe the decision | Behaviour |
+|---|---|---|---|
+| 0 | Decision inline in `enforce(State<AppState>, Request<Body>, Next)` | The router over a real `AppState`, which holds a Postgres pool: an integration test | Prefix bug present |
+| 1 | Move the logic, unchanged, into `pub fn allowed(headers: &HeaderMap, public_origin: &str) -> bool` | A `HeaderMap` and a string: a unit test | Unchanged, bug included |
+| 2 | Pin the current behaviour with tests, then add the look-alike case, which fails | Five tests, no I/O | The bug is a red test |
+| 3 | Fix inside the pure function: `origin_of` reduces a `Referer` to its origin, origins compare for equality, the localhost allowance parses the host first | The same tests | Look-alikes rejected |
+| 4 | `enforce` shrinks to an adapter | The existing integration test still passes | HTTP behaviour otherwise identical |
+
+The adapter before and after:
+
+```rust
+// before: the decision and the framework in one function
+pub async fn enforce(State(state): State<AppState>, req: Request<Body>, next: Next) -> Response {
+    let mutating = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH | Method::DELETE);
+    if mutating {
+        let headers = req.headers();
+        let expected = state.config.public_origin.trim_end_matches('/');
+        let origin_ok = match headers.get("origin").and_then(|v| v.to_str().ok()) {
+            Some(origin) => origin.trim_end_matches('/') == expected || is_local_dev(origin, expected),
+            None => match headers.get("referer").and_then(|v| v.to_str().ok()) {
+                Some(referer) => referer.starts_with(expected) || is_local_dev(referer, expected),
+                None => true, // non-browser clients
+            },
+        };
+        let header_ok = headers.get("x-requested-with").is_some();
+        if !origin_ok || !header_ok { /* 403 csrf */ }
+    }
+    next.run(req).await
+}
+
+// after: the adapter translates; `allowed` decides
+pub async fn enforce(State(state): State<AppState>, req: Request<Body>, next: Next) -> Response {
+    let mutating = matches!(*req.method(), Method::POST | Method::PUT | Method::PATCH | Method::DELETE);
+    if mutating && !allowed(req.headers(), &state.config.public_origin) {
+        return (StatusCode::FORBIDDEN, Json(ErrorBody { code: "csrf", message: "cross-site request rejected".into() }))
+            .into_response();
+    }
+    next.run(req).await
+}
+```
+
+CI measures the difference. On the run for commit `527d3d1`, the api crate's 8 unit tests, five of them for `allowed`, reported `finished in 0.00s`; the 22 integration tests reported 1.49 s, after a Postgres service container that took 12 s to initialise. Each new tricky input now costs one line and microseconds. `HeaderMap` is still an `http` type, which is right: the rule is HTTP policy and belongs in the api crate. The refactor moved it away from the *framework's* signature, not away from HTTP.
+
+The discipline generalises: move without changing behaviour, pin the behaviour with tests at the new seam, then change it. The repository did the move and the fix in one commit; for a riskier change, two commits let a reviewer confirm that the move alone changed nothing. The same commit made a smaller dependency-direction fix: the comment route stopped computing `user.role == "admin"` and calls `CurrentUser::is_admin`, moving the meaning of "admin" from the transport layer into core.
 
 ## The middleware stack is architecture too
 
@@ -265,6 +338,47 @@ hints:
 
 Notice the design choice in the prompt: unknown layers are **default deny**. A new top-level directory someone adds next year gets no permissions until a reviewer grants them, which is the same stance you want from firewalls and IAM policies.
 
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| Every production log line shows `request_id="-"` after a refactor of `app.rs` | The trace layer now runs before the layer that sets the ID; in Axum the last `.layer` call is outermost | Set the ID outside the trace layer; a test that reads the emitted log line |
+| A slow AI call surfaces as a generic `503` instead of the client's own timeout error | The outer timeout is not longer than the inner one (here 240 s against 180 s) | Shrink timeouts inward so the most specific one fires first |
+| A framework upgrade touches sixty files | Framework types (`Request`, `Json`, `HeaderMap`) passed into services | Adapters translate at the edge; services take domain types |
+| A unit test for a business rule needs a database and a router | The rule lives in a handler or a middleware | Extract it into a pure function or a service, as with `allowed` |
+| One service cannot deploy without three others | Services split along layers or sharing a schema: a distributed monolith | Merge back into modules, or split along a boundary proven stable inside the monolith |
+| A typo in an API URL returns `200` and HTML | The SPA fallback catches unknown `/api` paths | A JSON 404 for unknown `/api/...` paths, as `api_not_found` returns |
+
+## Trade-offs
+
+| Style | Boundary enforced by | Cost of a change across it | Testing a business rule | Operational cost | Pays off when |
+|---|---|---|---|---|---|
+| Layers in one package | Convention and review | Low | Often needs the framework | One deploy | Small, short-lived services |
+| Hexagonal, ports and adapters | Interfaces plus packages or a fitness check | Mapping code at each port | In-memory fakes, no I/O | One deploy | Rich, long-lived domains with swappable vendors |
+| Modular monolith (Ascend's crates) | The compiler or a linter | One commit across modules | Real-database tests, in process | One deploy | Small teams whose boundaries still move |
+| Microservices | The network | Versioned contracts, ordered rollouts | Contract tests plus integration | N deploys, tracing, partial failure | Independent teams or scaling profiles |
+
+Hexagonal architecture is not only a textbook shape: Netflix's engineering blog described its studio applications adopting it in 2020 so that a data source could be replaced behind a port without touching business logic.
+
+## Interviewer follow-ups
+
+**"How would you enforce 'the domain must not import the web framework' in a Python monolith?"** Model answer: put the domain and the adapters in separate packages, declare a layers contract in import-linter and run it in CI so a forbidden import fails the build, and state the reason beside the rule. Common wrong answer: "code review", which erodes one exception at a time.
+
+**"Where would you add the first port in this codebase?"** Model answer: in front of the LLM client, because it is slow, costly, non-deterministic and the vendor most likely to change; a fake then makes coach tests deterministic. Not the database, which is tested for real and unlikely to be swapped. Common wrong answer: "a repository interface per table."
+
+**"After a refactor, every log line says `request_id=-`. What happened?"** Model answer: the layer order changed, so the tracing span is created before the request-ID layer sets the header; in Axum each `.layer` wraps what came before, so the last call runs first. Restore the order and add a test that inspects an emitted line. Common wrong answer: "the UUID generator is broken."
+
+**"When would you split Ascend into services?"** Model answer: when a team or a scaling profile needs to move independently (the AI coach's cost and latency profile is the likeliest candidate), along a crate boundary that has proven stable, after moving rate-limit state to a shared store, as ADR 0001's revisit trigger says. Common wrong answer: "when the codebase is big", which is not a reason by itself.
+
+## What mid-level engineers get wrong
+
+- **Abstracting the database "in case we switch"** while the LLM client, the dependency that does change, stays concrete.
+- **Passing framework types into services.** Every framework upgrade then becomes a domain change.
+- **Documenting the dependency rule without a check** that fails the build.
+- **Treating middleware order as cosmetic.** Swapping two layers silently removes request IDs or security headers.
+- **Moving code and changing its behaviour in the same step**, with no tests at the new seam to prove the move was neutral.
+- **Splitting services along technical layers** (a "database service") instead of along business capabilities.
+
 ## Senior signals
 
 - You justify each boundary by **where change comes from**, and you can name a boundary you deliberately did not draw (usually the database) and why.
@@ -273,13 +387,14 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
 - You make **nested timeouts shrink inward** so the most specific failure fires first.
 - You recognise a **dual write** on sight and reach for a transaction, an outbox or an explicit "acceptable loss" decision.
 - You default to a **modular monolith** and extract services along boundaries that have already proven stable.
+- You refactor **move first, pin with tests, then change**, and you can point to the seam that made a rule unit-testable.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     An Axum router is built as Router::new().route("/x", get(h)).layer(A).layer(B). A request for /x arrives. In what order does it pass through the layers?
-  options: ["A and B run concurrently", "A, then B, then h", "Only B runs because it replaced A", "B, then A, then h"]
+  options: ["A and B at once, then h", "A first, then B, then h", "B only, which replaced A", "B first, then A, then h"]
   answer: 3
   explanation: >-
     Each .layer call wraps everything added before it, so B wraps A, which wraps the route. The request meets the outermost layer, B, first. Tower's ServiceBuilder reads top-to-bottom in the opposite sense, which is a common source of confusion when switching between the two styles.
@@ -288,10 +403,10 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
   options: ["Core types can be exported as an OpenAPI schema without any extra HTTP annotations", "The compiler keeps HTTP types out of the domain, so a CLI or test can reuse it", "Requests run faster because the domain no longer parses HTTP types on the hot path", "The release binary shrinks because the core crate compiles without any web framework"]
   answer: 1
   explanation: >-
-    The build graph enforces the dependency rule on every compile: a use axum::... line in core simply does not compile. The same services can then be driven by a CLI, a worker or a test without an HTTP server. Speed and binary size are essentially unchanged, because the api crate still links Axum into the same binary, and API documentation has nothing to do with it; the benefit is changeability.
+    The build graph enforces the dependency rule on every compile: a use axum::... line in core does not compile. The same services can then be driven by a CLI, a worker or a test without an HTTP server. Speed and binary size are essentially unchanged, because the api crate still links Axum into the same binary, and API documentation has nothing to do with it; the benefit is changeability.
 - q: >-
     In hexagonal terms, which of these is a driven (outbound) adapter?
-  options: ["The Axum route handler for POST /api/auth/login", "The login use case itself", "The HTTP client that sends requests to the AI provider", "A Playwright test that clicks the login button"]
+  options: ["The Axum route handler for POST /api/auth/login", "The login use case inside the core crate", "The HTTP client that calls the AI provider", "A Playwright test that clicks the login button"]
   answer: 2
   explanation: >-
     Driven adapters implement what the core needs from the outside world: storage, clocks, vendors. Route handlers and tests are driving adapters that call into the core; the use case is the core.
@@ -307,4 +422,10 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
   answer: 3
   explanation: >-
     Boundaries cost indirection and mapping code. Storage is the dependency least likely to be swapped, and fakes of a relational database hide exactly the behaviour (transactions, constraints) you most need to test, so testing against the real Postgres is simpler and more honest. A planned engine move is the one case where that port would earn its keep, and hexagonal design does not require a port for everything: one pays off first for slow, costly, non-deterministic dependencies such as an LLM client. Table count is not the deciding factor.
+- q: >-
+    The http crate appears in ascend-core's dependency graph, pulled in by reqwest. Can code in core write use http::HeaderMap?
+  options: ["No: Cargo drops transitive crates from the build before linking", "Yes: every crate compiled into the graph can be imported from core", "No: rustc names only crates Cargo passes as direct dependencies", "Yes, but only in test modules, which see every crate in the build"]
+  answer: 2
+  explanation: >-
+    Cargo gives rustc an --extern flag only for each direct dependency, so a transitive crate is compiled and linked but cannot be named. That is why the boundary is enforced by core's Cargo.toml rather than by the whole graph. Transitive crates are not dropped (reqwest needs http at run time), and test modules follow the same rule, plus dev-dependencies.
 ```
