@@ -16,7 +16,9 @@
 FROM node:24-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS web
 WORKDIR /app/web
 RUN corepack enable
-COPY web/package.json web/pnpm-lock.yaml ./
+# The workspace file carries pnpm settings the lockfile records (overrides),
+# so a frozen install needs all three.
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build
