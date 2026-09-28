@@ -1,33 +1,54 @@
 ---
 slug: profiling-and-measurement
 title: "Profiling and measurement: flame graphs, p99 thinking and Amdahl's law"
-description: Why the mean lies, how tail latency compounds under fan-out, the difference between on-CPU and off-CPU time, sampling versus instrumenting profilers, how to read perf output and flame graphs, and how Amdahl's law tells you what an optimisation can possibly buy.
+description: Why the mean lies, how tail latency compounds under fan-out, how histograms bucket and merge percentiles, on-CPU versus off-CPU time, sampling versus instrumenting profilers with measured overhead, a real py-spy session read as a flame graph, and how Amdahl's law bounds what an optimisation can buy.
 minutes: 40
 difficulty: medium
 tags: [performance, profiling, flame-graphs, latency, percentiles, amdahl, perf]
 ---
 After a deploy, your checkout service's p99 latency goes from 120 ms to 310 ms. The average moves from 38 ms to 41 ms and CPU usage is flat. Someone captures a CPU profile, sees JSON serialisation at the top (as it always has been) and proposes a faster JSON library. It would not help. The slow requests lost their time *waiting*, for a database connection that the new code holds a little longer, and a CPU profiler cannot see waiting.
 
-Two mistakes stack up in that story: looking at the wrong statistic (the mean, which barely moved) and the wrong kind of profile (on-CPU, when the time was off-CPU). Performance work goes wrong at measurement far more often than at optimisation. This lesson is about measuring so that the next step is obvious: latency as a distribution, where wall-clock time goes, how profilers work and lie, how to read `perf` output and flame graphs, and how to bound the payoff of a change before you write it.
+Two mistakes stack up in that story: looking at the wrong statistic (the mean, which barely moved) and the wrong kind of profile (on-CPU, when the time was off-CPU). Performance work goes wrong at measurement far more often than at optimisation. This lesson measures a real program end to end: latency as a distribution and how histograms store it, where wall-clock time goes, how profilers collect stacks and how much they cost, how to read a flame graph built from an actual run, and how to bound the payoff of a change before you write it. Every profile below was recorded on a Ryzen 9 9950X3D under WSL2 with CPython 3.14 and py-spy 0.4.2.
 
 ## Latency is a distribution, not a number
 
-Suppose 95% of requests take 10 ms and 5% take 1,000 ms. The mean is 59.5 ms, a latency that no request actually experienced. The median (p50) is 10 ms and the p99 is 1,000 ms, and those two numbers describe the service honestly: most users are fine, and one in twenty waits a second.
+Take 1,000 requests from one minute of a service: 900 took 12 ms, 89 took 40 ms, 10 took 250 ms (a cache miss path) and one took 2,000 ms (a retry after a timeout). The **nearest-rank** percentile sorts the $n$ samples and takes the one at rank $\lceil p \cdot n / 100 \rceil$:
 
-A **percentile** $p$ is the value below which $p$% of observations fall. The simplest definition, **nearest rank**, sorts the $n$ samples and takes the one at rank $\lceil p \cdot n / 100 \rceil$. Monitoring systems use approximations of this over histograms, but the idea is the same.
+| Statistic | Rank | Value |
+|---|---|---|
+| Mean | – | 18.86 ms |
+| p50 | 500 | 12 ms |
+| p90 | 900 | 12 ms |
+| p95 | 950 | 40 ms |
+| p99 | 990 | 250 ms |
+| p99.9 | 999 | 250 ms |
+| Max | 1,000 | 2,000 ms |
+
+The mean, 18.86 ms, is a latency that no request experienced. The p50 says most users are fine; the p99 says one request in a hundred takes twenty times longer; the maximum is the one you hear about. None of the summary numbers is "the latency". Keep the distribution and choose the percentile that matches the promise you made.
 
 The tail matters more than its size suggests, for two reasons.
 
-**Fan-out amplifies it.** A page that calls 100 backend services in parallel is as slow as the slowest call. If each backend exceeds its p99 on 1% of calls, the chance that at least one of the 100 does is $1 - 0.99^{100} \approx 63\%$. The backends' p99 has become the page's *median*. Dean and Barroso's paper "The Tail at Scale" is the standard reference, and it is why large services put SLOs on p99 or p99.9 rather than averages.
+**Fan-out amplifies it.** A page that calls 100 backends in parallel is as slow as the slowest call. If each backend exceeds its p99 on 1% of calls, the chance that at least one of the 100 does is $1 - 0.99^{100} \approx 63\%$. The backends' p99 has become the page's median. Dean and Barroso's "The Tail at Scale" (2013) is the standard reference, and it is why services that sit behind fan-out set SLOs on p99 or p99.9.
 
-**Users repeat.** A user who loads 50 pages in a session will very likely see the p99 at least once: $1 - 0.99^{50} \approx 40\%$.
+**Users repeat.** A user who loads 50 pages will see a p99 event at least once with probability $1 - 0.99^{50} \approx 40\%$. The [probability lesson](/learn/foundations/math-for-engineers/probability-for-engineers) has the general form.
 
-Two operational rules follow from percentiles being order statistics:
+The mean still has one honest job: capacity. Throughput times mean service time is the average number of busy workers (Little's law, worked in [I/O-bound versus CPU-bound](/learn/systems/performance-engineering/io-bound-vs-cpu-bound)). Use means to size, percentiles to judge.
 
-- **You cannot average percentiles.** The mean of ten hosts' p99 values is not the fleet's p99; one bad host can have all the slow requests. Aggregate the *histograms* (HdrHistogram, Prometheus histogram buckets, t-digest, DDSketch) and compute the percentile from the merged distribution.
-- **Histogram buckets set your resolution.** Prometheus's `histogram_quantile` interpolates linearly inside a bucket; if your buckets are 100 ms and 500 ms, a reported p99 of 320 ms means "somewhere between 100 and 500". Put bucket boundaries around your SLO.
+## Percentiles from histograms: bucketing and merging
 
-The mean is still useful for one thing: capacity. Throughput times mean service time is the average number of busy workers (Little's law, covered in [I/O-bound versus CPU-bound](/learn/systems/performance-engineering/io-bound-vs-cpu-bound)). Use means to size, percentiles to judge.
+A service handling 20,000 requests a second cannot keep every sample, so it records a histogram and computes percentiles from bucket counts. Two rules follow.
+
+**You cannot average percentiles.** Host A serves every request in 10 ms, so its p99 is 10 ms. Host B serves 90% in 10 ms and 10% in 800 ms, so its p99 is 800 ms. The mean of the two p99s is 405 ms, a number that describes nothing. Merge the samples (equal traffic) and 5% of all requests took 800 ms, so the fleet p99 is 800 ms. Percentiles are order statistics, not sums; aggregate the **histograms** (add bucket counts) and compute the percentile from the merged counts.
+
+**Bucket boundaries set your resolution.** Prometheus's `histogram_quantile` finds the bucket holding the target rank and interpolates linearly inside it. With cumulative buckets `le=0.1: 900`, `le=0.25: 960`, `le=0.5: 990`, `le=1: 1000` for the table above, it reports:
+
+1. p95: rank 950 lies in (0.1, 0.25], which holds ranks 901–960, so $0.1 + 0.15 \times 50/60 = 0.225$ s. True value: 40 ms.
+2. p99: rank 990 is the last in (0.25, 0.5], so 0.5 s. True value: 250 ms.
+3. p50: rank 500 is inside (0, 0.1], interpolated as 0.0556 s. True value: 12 ms.
+
+Every reported number is off by a factor of two to six, because the buckets were not placed around the values that matter. If more than 1% of requests land in the `+Inf` bucket, `histogram_quantile` returns the largest finite boundary: a p99 flat at exactly 1.0 s for a week means "over 1% of requests exceed 1 s", and the true p99 could be 30 s.
+
+**HdrHistogram** fixes resolution with log-linear buckets: every power-of-two range is split into the same number of linear sub-buckets, so relative error is bounded everywhere. With 2 significant digits there are 256 sub-buckets; values under 256 µs are exact, 12,345 µs is recorded to within 64 µs (0.52%), and covering 1 µs to one hour needs 3,328 counters, about 26 KB. With 3 digits the error drops below 0.1% and the array grows to 23,552 counters, about 188 KB. Merging two HdrHistograms adds their count arrays, exactly. DDSketch (Datadog) and Prometheus's native histograms use exponential buckets for the same reason; t-digest keeps adaptive clusters and is most accurate at the extremes.
 
 ```exercise
 id: nearest-rank-percentile
@@ -80,88 +101,66 @@ hints:
 
 ## Where the time goes: on-CPU and off-CPU
 
-Every millisecond of wall-clock time a thread spends is either **on-CPU** (executing instructions, including the kernel's on its behalf) or **off-CPU**: blocked on I/O, waiting for a lock or a pool slot, sleeping, stalled on a page fault, or runnable but waiting for a core. A CPU profiler samples only the first kind. That is its entire blind spot, and it is the one that caught the team in the opening.
+Every millisecond a thread spends is either **on-CPU** (executing instructions, including the kernel's on its behalf) or **off-CPU**: blocked on I/O, waiting for a lock or a pool slot, sleeping, or runnable but queued for a core. A CPU profiler samples only the first kind.
 
-The quickest check is `time`, which reports wall-clock (`real`) against CPU time in user and kernel mode:
-
-```text
-$ time ./nightly-report            $ time ./image-resize --threads 8
-real    0m41.203s                  real    0m12.010s
-user    0m6.118s                   user    1m31.442s
-sys     0m1.904s                   sys     0m2.113s
-```
-
-The report job spent 8 seconds on-CPU out of 41: it spent 33 seconds waiting, and no CPU optimisation can save more than 8. The resize job used 93 seconds of CPU in 12 seconds of wall time, so about 7.8 cores were busy throughout: it is CPU-bound and parallel, and a CPU profile is exactly the right tool.
-
-For off-CPU time you need different instruments: off-CPU flame graphs built from scheduler events (`offcputime` from the BCC tools, or `perf sched`), Go's block and mutex profiles, async-profiler's wall-clock mode on the JVM, and at the request level, distributed tracing spans that show time spent waiting on each dependency.
-
-A useful companion is Brendan Gregg's **USE method**: for every resource (CPUs, memory, disks, network, and also connection pools and locks), check **U**tilisation, **S**aturation (is work queueing?) and **E**rrors. It turns "the service is slow" into a short list of places the time could be going, and it often finds a saturated resource before you open a profiler at all.
-
-## Sampling versus instrumentation
-
-| | Sampling profiler | Instrumenting profiler |
-|---|---|---|
-| How | Interrupt each thread periodically (for example 99 times a second) and record its stack | Hook every function entry and exit and record timings |
-| Overhead | Low and fixed, often around 1% | Proportional to the number of calls; can double the run time |
-| Accuracy | Statistical: precise for anything over about 1% of samples | Exact call counts, but timing is distorted for small, frequent functions |
-| Safe in production | Usually | Rarely |
-| Examples | `perf`, `pprof`, `py-spy`, async-profiler, browser devtools | `cProfile`, manual timers, tracing spans |
-
-Sampling works because of statistics. At 99 Hz for 30 seconds on 8 cores you collect about 23,800 samples. A function that really uses 1% of CPU appears in about 238 of them, and the standard error on that estimate is $\sqrt{p(1-p)/n} \approx 0.065$ percentage points. Anything big enough to be worth optimising is measured precisely. The odd frequency, 99 rather than 100 Hz, avoids sampling in lockstep with timers that fire every 10 ms.
-
-Instrumentation distorts in a specific direction: every call pays a fixed probe cost, so code that makes many small calls looks much slower than it is (the **probe effect**). `cProfile` on function-heavy Python can double the run time and blame the wrong functions. Tracing is instrumentation at a coarse grain, one span per RPC or query, which keeps overhead low and is exactly right for "which dependency is slow" but useless for "which line".
-
-The per-language defaults:
-
-- **Go**: `pprof` is built in. `import _ "net/http/pprof"` exposes CPU, heap, goroutine, block and mutex profiles over HTTP.
-- **Python**: `py-spy` attaches to a running process from outside, with no restart and no code change: `py-spy top --pid 4212` or `py-spy record`.
-- **JVM**: async-profiler. Older JVM profilers sample only at *safepoints*, so hot loops without safepoints are invisible and their time is blamed on whatever comes next (**safepoint bias**); async-profiler avoids this.
-- **Rust, C, C++**: `perf`, or `cargo flamegraph`, which wraps it.
-- **Node**: `--cpu-prof` or the Chrome DevTools profiler.
-
-**Continuous profiling** (Google published its fleet-wide version in 2010; Pyroscope, Parca and commercial agents do the same) samples every production host all the time at around 1% overhead, so you can diff the profile from before and after a deploy instead of trying to reproduce the problem.
-
-## perf in practice
-
-On Linux, `perf` reads the CPU's hardware counters. `perf stat` gives you the shape of a program's execution in one run:
+The profiling target for the rest of this lesson is a toy order service in Python. Each request loads a customer (a 1 ms `time.sleep` standing in for a database round trip), validates the order ID against a regular expression built from the customer's prefix, sums 150 order lines and renders the order as indented JSON. The shell's `time` splits wall-clock from CPU:
 
 ```text
-$ perf stat -e task-clock,cycles,instructions,cache-misses,branch-misses ./ingest
-
- Performance counter stats for './ingest':
-
-          8,412.37 msec task-clock          #    0.997 CPUs utilized
-    33,104,221,870      cycles              #    3.935 GHz
-    14,902,118,334      instructions        #    0.45  insn per cycle
-       612,440,118      cache-misses
-        41,227,905      branch-misses
-
-       8.437152118 seconds time elapsed
+$ time python3 orders.py 3000 1        # 3,000 requests, 1 ms simulated DB wait
+real    0m3.602s
+user    0m0.381s
+sys     0m0.016s
 ```
 
-The number to read first is **IPC**, instructions per cycle. A modern core can retire four or more instructions per cycle; well-tuned compute loops reach 2–4. An IPC of 0.45 means the core spends most of its cycles stalled, which with 612 million cache misses points at memory: the fix is data layout ([CPU caches and memory layout](/learn/systems/performance-engineering/cpu-caches-and-memory-layout)), not fewer arithmetic instructions.
+The process was on-CPU for 0.397 s of 3.602 s, 11%. No CPU optimisation can save more than that 0.4 s. Two py-spy recordings of the same program show both sides:
 
-To find *where*, sample with call stacks:
+| Recording | Samples | `load_customer` (the wait) | JSON rendering | Regex compile |
+|---|---|---|---|---|
+| Default (active threads only) | 582 | 30.8% | 26.1% | 25.4% |
+| `--idle` (wall-clock, idle included) | 3,769 | 87.7% | 4.9% | 3.6% |
+
+The wall-clock view says the wait is the latency; the CPU view says JSON and regex compiling are the cost. Both are true, and they answer different questions: latency per request, or cores per request. One detail is a warning about tools: py-spy classifies a sample as idle from the thread's OS state, and all 179 of the default recording's `load_customer` samples sit on the `time.sleep` line: waiting that was counted as active. Treat the active/idle split as approximate.
+
+Real off-CPU profilers are more precise. BCC's `offcputime` and `perf sched` hook the kernel's context-switch path, record the stack when a thread is switched out and the duration until it runs again, and sum durations per stack, so width in the resulting flame graph is time blocked. Go's block and mutex profiles, async-profiler's wall-clock mode and distributed-tracing spans answer the same question at other granularities.
+
+## A real profiling session with py-spy
+
+For the CPU view, set the simulated wait to zero and run 40,000 requests (about 3 s). py-spy launches the program as a child and writes folded stacks:
 
 ```bash
-perf record -F 99 -g -p 4212 -- sleep 30     # sample PID 4212 for 30 s
-perf report --stdio --no-children | head -20
+python3 -m venv venv && ./venv/bin/pip install py-spy
+./venv/bin/py-spy record --rate 1000 --format raw -o cpu.folded \
+    -- ./venv/bin/python orders.py 40000 0
+# py-spy> Wrote raw flamegraph data to 'cpu.folded'. Samples: 3503 Errors: 0
 ```
+
+The **folded** format is one line per distinct stack, root first, frames separated by semicolons, then a sample count. The heaviest lines from this run, truncated to seven frames and with file names dropped:
 
 ```text
-# Samples: 23K of event 'cycles'
-# Overhead  Command  Shared Object   Symbol
-    18.42%  api      api             [.] json::escape_str
-    11.07%  api      libc.so.6       [.] __memmove_avx_unaligned_erms
-     9.88%  api      api             [.] regex::compile
-     6.12%  api      [kernel.kallsyms] [k] copy_user_enhanced_fast_string
+main;serve;handle_order;render_json;dumps;encode;iterencode 1550
+main;serve;handle_order;validate;compile;_compile;compile 893
+main;serve;handle_order 557
+main;serve;handle_order;compute_totals 142
+main;serve 112
+main;serve;handle_order;validate;compile;_compile 90
 ```
 
-Two practical traps. First, stack walking needs frame pointers or unwind information. Many builds omit frame pointers for a small speed gain, which produces truncated, useless stacks; compile with `-fno-omit-frame-pointer` (or `-C force-frame-pointers=yes` in Rust), or use `--call-graph dwarf` at a higher cost. Several Linux distributions have recently re-enabled frame pointers by default for exactly this reason, and Go has kept them on by default for years. Second, JIT-compiled code has no symbols on disk. Node needs `--perf-basic-prof`, Python 3.12+ has `-X perf`, and the JVM is best served by async-profiler.
+Summing every line in which a function appears gives its **total** (inclusive) share; counting only lines where it is the last frame gives its **self** share:
 
-## Reading a flame graph
+| Function | Total | Self | What it is |
+|---|---|---|---|
+| `handle_order` | 96.7% | 15.9% | Self time: building 150 line dicts per request |
+| `render_json` → `json.dumps` | 45.9% | 0.3% | Almost all inside `iterencode` |
+| `iterencode` | 44.2% | 44.2% | The C encoder; py-spy shows the Python frame that called it |
+| `validate` | 30.5% | 0.8% | Almost all inside `re.compile` |
+| `re.compile` and its parser | 29.4% | spread | Parsing and compiling a pattern on every request |
+| `compute_totals` | 4.1% | 4.1% | The arithmetic loop |
 
-A flame graph is the standard way to look at thousands of stack samples at once. Each sample is a snapshot of the call stack at one instant, like the stack below; the profiler records tens of thousands of them.
+`go tool pprof -top` calls these columns `flat` (self) and `cum` (total); perf calls them `Self` and `Children`.
+
+## Reading the flame graph
+
+A flame graph draws each folded line as a column of boxes. Each sample is one snapshot of a stack like this one:
 
 ```viz
 {"type": "memory", "algorithm": "call-stack", "n": 4,
@@ -169,48 +168,67 @@ A flame graph is the standard way to look at thousands of stack samples at once.
  "caption": "A sampling profiler freezes the thread and records the frames from main() to the innermost call. A flame graph stacks thousands of these snapshots, merging identical prefixes."}
 ```
 
-The pipeline is: record stacks, **fold** identical stacks into one line with a count, then render.
+Render the folded file (`flamegraph.pl cpu.folded > cpu.svg`, or `py-spy record -o cpu.svg` directly) and read it with four rules:
 
-```bash
-perf record -F 99 -a -g -- sleep 30
-perf script | ./stackcollapse-perf.pl | ./flamegraph.pl > cpu.svg
-# or: py-spy record -o cpu.svg --pid 4212
-# or: go tool pprof -http=:8080 cpu.pprof   (then View -> Flame Graph)
-```
+- **Width is share of samples.** `handle_order` spans 96.7% of the width; above it sit `render_json` (45.9%), `validate` (30.5%) and `compute_totals` (4.1%).
+- **The x-axis is not time.** Frames are sorted alphabetically so identical prefixes merge; left-to-right order means nothing.
+- **Self time is the exposed top edge.** `handle_order`'s 15.9% is the part of its box with nothing above it: the list comprehension building dicts.
+- **Look for wide plateaus, not tall towers.** The regex tower under `validate` is deep (parser, code generator, charset optimiser) but its total width, 29.4%, is what matters.
 
-The folded format is worth knowing, because you can reason about it directly:
+Now the diagnosis. `validate` builds a pattern string from the customer's prefix and calls `re.compile` on it. The `re` module caches compiled patterns, but in CPython 3.14 the cache holds 512 entries (`re._MAXCACHE`), and this service has 5,000 customers, so every request misses and re-parses. The flame graph shows a cache that works in tests with 20 customers and thrashes in production. The fix is one pattern compiled at import time, `^(C\d{5})-\d{6}-[A-Z]{2}$`, plus a comparison of the captured prefix.
 
-```text
-main;serve;handle_order;render_json;escape_str 1840
-main;serve;handle_order;render_json;write_buf 310
-main;serve;handle_order;validate;regex_compile 1210
-main;serve;handle_order;validate;regex_match 240
-main;serve;handle_order;load_customer;db_query 95
-main;serve;accept_loop 105
-```
+`render_json` at 45.9% is a different kind of plateau: the work is inside C, and it scales with payload size. The levers are smaller payloads, caching the rendered bytes for orders that do not change, or a faster serialiser. **Differential flame graphs** colour frames red or blue by growth since a baseline profile, which is the fastest way to review a regression. **Allocation flame graphs** (width is bytes allocated) often explain a garbage-collection problem faster than a GC log.
 
-There are 3,800 samples. In the rendered graph each function is a box whose **width is its share of samples**: `handle_order` spans 3,695 (97%), `render_json` 2,150 (57%), `escape_str` 1,840 (48%), `validate` 1,450 (38%), `regex_compile` 1,210 (32%). The rules for reading it:
+## Sampling versus instrumentation, measured
 
-- **The x-axis is not time.** Frames are sorted alphabetically so identical stacks merge. Left-to-right order means nothing.
-- **Callers are below, callees above.** A frame's width includes everything it called; the part of its top edge with nothing above it is its **self time**, where the CPU actually was.
-- **Look for wide plateaus, not tall towers.** A tall narrow tower is a deep call chain that costs little. A wide flat top is where the time goes.
-- **Colours are usually decoration**, except in differential flame graphs, where red means "grew since the baseline" and blue means "shrank".
+A **sampling** profiler interrupts at a fixed rate and records the stack. An **instrumenting** profiler hooks every call and return. Same program, CPU-only, 40,000 requests, three runs each, median:
 
-This graph tells a story in two boxes. `regex_compile` at 32% means the code compiles a regular expression on every request; hoisting it into a static or a lazily initialised global removes almost a third of the CPU. `escape_str` at 48% is JSON string escaping; a faster serialiser, or caching serialised payloads for objects that rarely change, attacks it. Notice also what is *not* there: `db_query` shows only 95 samples because a CPU profile sees only the CPU spent issuing the query, not the milliseconds spent waiting for the answer.
+| Mode | Time per request | Overhead | `validate` share | `render_json` share |
+|---|---|---|---|---|
+| No profiler | 72.8 µs | – | – | – |
+| py-spy at 100 Hz | 73.5 µs | about 1% | – | – |
+| py-spy at 1,000 Hz | 87.2 µs | about 20% | 30.5% | 45.9% |
+| cProfile | 125.7 µs | 73% | 54.2% | 29.4% |
 
-Variants exist for other questions: **icicle graphs** (inverted), **off-CPU flame graphs** (width is time blocked rather than time running) and **allocation flame graphs** (width is bytes allocated), which often explain a garbage-collection problem faster than a GC log does.
+Sampling overhead scales with the *rate*: each sample pauses the process and reads its memory, so ten times the rate cost twenty times the overhead. Instrumentation overhead scales with the *number of calls*. cProfile recorded 13.2 million calls, about 330 per request, almost all inside the regex parser. Each call pays a fixed probe cost, so call-heavy Python code is inflated and the single call into the C JSON encoder is not. cProfile ranks `validate` first at 54%; the sampler ranks `render_json` first at 46%. This is the **probe effect**, and here it reorders the priorities.
 
-## Amdahl's law: what an optimisation can possibly buy
+Sampling's error is statistical and small. A share $p$ estimated from $n$ samples has standard error $\sqrt{p(1-p)/n}$; for `validate`, $\sqrt{0.294 \times 0.706 / 3503} \approx 0.77$ percentage points. Anything worth optimising is measured precisely. Profilers default to odd rates such as 99 Hz so samples do not fall into lockstep with 10 ms timers.
 
-If a fraction $p$ of the run time is sped up by a factor $s$ and the rest is untouched, the overall speed-up is
+Instrumentation is still the right tool for questions sampling cannot answer: exact call counts (cProfile showed `re._compiler._compile` running 120,000 times, three per request), and at coarse grain, tracing spans per RPC, where overhead is a few microseconds per span.
+
+## Under the hood: how a profiler gets a stack
+
+**Linux `perf`** opens a counter with `perf_event_open`. For hardware events the counter overflows after a set number of cycles and raises a non-maskable interrupt; `-F 99` makes perf adjust that period to land about 99 samples a second. The handler records the instruction pointer and walks the user stack along saved frame pointers (`rbp`), which is cheap. Without frame pointers, `--call-graph dwarf` copies 8 KiB of stack per sample for unwinding afterwards: bigger files, more overhead. Code built with `-fomit-frame-pointer` yields truncated stacks, which is why Fedora 38 and Ubuntu 24.04 re-enabled frame pointers distribution-wide.
+
+**py-spy** runs in a separate process. It reads the target's memory with `process_vm_readv`, finds the interpreter's runtime state, and walks each thread's frame chain, decoding code objects into function names and line numbers. The target runs no profiler code at all, which is why you can attach it to production with `py-spy record --pid`. By default it pauses the target during each read; `--nonblocking` skips the pause, and in this run it logged 196 failed samples against 233 good ones.
+
+**cProfile** is a C extension registered through `sys.monitoring` in CPython 3.12 and later (on 3.14, `sys.monitoring.get_tool(2)` returns `"cProfile"` while it runs). The interpreter calls it on every call and return, which is where the 73% comes from.
+
+**Go** delivers `SIGPROF` at 100 Hz using per-thread timers (since Go 1.18) and walks goroutine stacks in the signal handler. **JVM** profilers that sample only at safepoints miss hot loops without them and blame the time on the next safepoint (**safepoint bias**); async-profiler avoids it by combining perf events with an internal stack-walking API. **JIT code** has no symbols on disk: Node needs `--perf-basic-prof`, CPython 3.12+ has `-X perf`, and Netflix's "Java in Flames" work led to `-XX:+PreserveFramePointer` in JDK 8u60 so perf could see Java frames.
+
+`perf stat` adds a first split before any profile: **IPC**, instructions retired per cycle. A modern core can retire four or more; well-tuned compute loops reach 2–4, and below about 1 with a high cache-miss count the core is mostly waiting on memory ([CPU caches and memory layout](/learn/systems/performance-engineering/cpu-caches-and-memory-layout)).
+
+## Amdahl's law: what an optimisation can buy
+
+If a fraction $p$ of the time is sped up by a factor $s$ and the rest is untouched, the overall speed-up is
 
 $$ S = \frac{1}{(1 - p) + p / s} $$
 
-and more generally, if parts $f_i$ of the time are each sped up by $s_i$, $S = 1 / \sum_i (f_i / s_i)$, counting untouched parts with $s_i = 1$.
+and with several parts $f_i$ each sped up by $s_i$, $S = 1 / \sum_i (f_i / s_i)$, counting untouched parts with $s_i = 1$.
 
-Apply it to the flame graph. Eliminating `regex_compile` ($p = 0.318$, $s \to \infty$) gives $1 / 0.682 \approx 1.47\times$. Making `escape_str` twice as fast ($p = 0.484$, $s = 2$) gives $1 / (0.516 + 0.242) \approx 1.32\times$. Both together give $1 / (0.198 + 0.242) \approx 2.27\times$. That is CPU time. If half of each request's *wall-clock* time is waiting on the database, apply the law again to latency: a 2.27× CPU speed-up on the other half gives $1 / (0.5 + 0.5 / 2.27) \approx 1.39\times$ faster requests. Amdahl's law is how you avoid promising a 2× latency win and delivering 1.4×.
+Apply it to the measured profile before writing the fix. Removing the per-request compile deletes $p = 0.294$ of CPU, so $S = 1/0.706 = 1.42\times$. After the change, the same 40,000-request benchmark measured 53.8 µs per request (median of three runs) against 72.8–76.0 µs for the original in two sets of runs: $1.35$–$1.41\times$. The shortfall against $1.42\times$ is the regex match that still runs. Had you trusted cProfile's 54% share, you would have predicted $2.18\times$ and been embarrassed.
 
-The same law bounds parallelism. With a serial fraction $\sigma$ and $N$ cores, $S = 1 / (\sigma + (1 - \sigma)/N)$. With just 5% serial work, 8 cores give 5.9×, 64 cores give 15.4× and infinitely many give at most 20×. In practice it is worse: shared locks and cache-line contention add a cost that *grows* with $N$, so real throughput often peaks and then declines as you add cores. The Universal Scalability Law models that coherence penalty and fits many real systems better than Amdahl does. The opposite, optimistic view (Gustafson's law) is that larger machines are used for larger problems, where the serial fraction shrinks.
+Now apply it to latency. With the 1 ms database wait, CPU is 11% of wall-clock, so the compile is $0.294 \times 0.11 \approx 3.2\%$ of each request's latency. The same fix that saves over a quarter of the CPU makes requests 3% faster. Both statements are true, and a senior engineer says which one the change is for: cores per request (cost, throughput) or latency.
+
+The law also bounds parallelism. With serial fraction $\sigma$ on $N$ cores, $S = 1 / (\sigma + (1 - \sigma)/N)$. With $\sigma = 0.05$:
+
+| Cores | Amdahl (fixed problem) | Gustafson (problem grows with cores) | USL, $\alpha = 0.05$, $\beta = 0.001$ |
+|---|---|---|---|
+| 8 | 5.93× | 7.65× | 5.69× |
+| 32 | 12.55× | 30.45× | 9.03× |
+| 64 | 15.42× | 60.85× | 7.82× |
+
+**Gustafson's law**, $S = N - \sigma(N-1)$, is the optimistic view: bigger machines run bigger problems, so the serial part shrinks relative to the parallel part. The **Universal Scalability Law**, $X(N) = N / (1 + \alpha(N-1) + \beta N(N-1))$, keeps a contention term $\alpha$ (Amdahl's serial fraction) and adds a coherence cost $\beta N(N-1)$ for cores that must agree with each other (locks, shared cache lines); throughput peaks near $N = \sqrt{(1-\alpha)/\beta} \approx 31$ and then *falls*. Measured scaling curves that bend downwards fit the USL, not Amdahl.
 
 ```exercise
 id: amdahl-speedup
@@ -259,23 +277,78 @@ hints:
   - "Speed-up = 1 / new time. Round with round(x, 2) in Python or Math.round(x * 100) / 100 in JavaScript."
 ```
 
+## USE and RED: where to look first
+
+Before a profiler, find the saturated resource. Brendan Gregg's **USE method** checks every resource for **U**tilisation, **S**aturation (work queued) and **E**rrors; Tom Wilkie's **RED method** checks every service for **R**ate, **E**rrors and **D**uration (as a distribution).
+
+| Resource | Utilisation | Saturation | Errors |
+|---|---|---|---|
+| CPU | `mpstat -P ALL 1` per-core busy % | Run queue above core count (`vmstat` `r`); `/proc/pressure/cpu` | Throttling in `cpu.stat` (`nr_throttled`) |
+| Memory | Used versus limit | Swapping, `/proc/pressure/memory`, reclaim | OOM kills in `dmesg` |
+| Disk | `iostat -x` `%util` | `aqu-sz` (queue depth), `await` | Device errors in `dmesg` |
+| Network | Throughput versus line rate | Socket backlog, TCP retransmits | Drops (`ip -s link`) |
+| Connection pool | In use ÷ max | Pending waiters, acquisition time | Acquisition timeouts |
+
+`/proc/pressure/*` (Linux 4.20+) prints lines like `some avg10=0.02 avg60=0.10`: the percentage of time over the last 10 and 60 seconds that at least one task was stalled waiting for that resource. It is saturation measured directly. USE on the resources and RED on the services turn "it is slow" into a short list, and often find the answer before a profiler starts. The [observability lesson](/learn/system-design/building-blocks/observability) covers how these metrics are collected at fleet scale.
+
+## Failure modes in production
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| p99 doubles after a deploy; mean and CPU flat | Time moved off-CPU: pool acquisition, lock waits, a slower dependency. Compare `real` with `user + sys`, pool wait metrics, trace spans, an off-CPU or `--idle` profile | Shorten the hold time or the dependency; do not optimise the CPU flame graph's top frame |
+| Flame graph shows `[unknown]` frames or stacks two frames deep | Missing frame pointers, or JIT code with no symbol map | Build with frame pointers, `--call-graph dwarf`, `--perf-basic-prof`, `-X perf`, `-XX:+PreserveFramePointer` |
+| Latency rises the moment profiling starts | Instrumenting profiler in production (cProfile cost 73% here), or sampling at 1 kHz (20%) | Sample at about 100 Hz; profile one canary host |
+| Fleet dashboard p99 looks fine while one region complains | Per-host p99s averaged together | Merge histograms, then compute the percentile |
+| p99 pinned at exactly a bucket boundary | The rank fell in the `+Inf` bucket, or buckets are far from the SLO | Add buckets around the SLO, or use native or HDR histograms |
+| CPU per request climbs 40% as customers grow past a few hundred | A cache sized for tests (`re._MAXCACHE` is 512) thrashes in production; the flame graph shows `re._compiler` under `validate` | Compile once at import; size caches from production cardinality |
+
+## Trade-offs: how to store latency
+
+| Approach | Memory | Error | Mergeable across hosts | Typical home |
+|---|---|---|---|---|
+| Raw samples | Grows with request count | None | Yes (concatenate) | Short load tests |
+| Fixed buckets (Prometheus classic) | One counter per bucket, 10–20 typical | Up to a whole bucket width | Yes, if boundaries match | Prometheus, OpenMetrics |
+| HdrHistogram | About 26 KB for 1 µs–1 h at 2 digits | Relative, ≤1% at 2 digits | Yes, exactly | wrk2, JVM services |
+| t-digest | A few hundred centroids | Smallest at extreme quantiles | Approximately | Elasticsearch percentiles |
+| DDSketch | Grows with log of the range | Relative, guaranteed | Yes, exactly | Datadog |
+| Mean and max only | Two numbers | Total loss of shape | Mean yes, shape no | Nowhere you debug latency |
+
 ## A workflow that works
 
 1. **Name the metric and the target.** "p99 of checkout under 200 ms at 2,000 requests per second", not "make it faster".
-2. **Measure a baseline under realistic load** and keep the distribution, not just a summary.
-3. **Find the saturated resource** with USE, and decide whether the time is on-CPU or off-CPU (`time`, `vmstat`, tracing).
-4. **Profile the right way.** A CPU flame graph for on-CPU time; off-CPU profiles, block profiles or traces for waiting.
-5. **Estimate the payoff with Amdahl** before writing code, and pick the change with the best payoff per unit of effort and risk.
-6. **Change one thing and re-measure identically.** Keep the before and after profiles; a differential flame graph is the best evidence in a pull request.
+2. **Measure a baseline under realistic load** and keep the histogram, not a summary.
+3. **Find the saturated resource** with USE and RED, and decide whether the time is on-CPU or off-CPU (`time`, pressure stall information, traces).
+4. **Profile the right way.** A sampling CPU profile for on-CPU time; an off-CPU or wall-clock profile, block profile or trace for waiting.
+5. **Estimate the payoff with Amdahl** against the metric you named, and pick the change with the best payoff per unit of effort and risk.
+6. **Change one thing and re-measure identically.** Keep the before and after profiles; a differential flame graph is the best evidence in a pull request. [Benchmarking pitfalls](/learn/systems/performance-engineering/benchmarking-pitfalls) covers how to make the comparison trustworthy.
+
+## Interviewer follow-ups
+
+**"p99 doubled after a deploy, but CPU and the mean are flat. Walk me through it."** Model answer: compare latency histograms before and after, split by endpoint and host, to see whether the whole tail moved or one host did; check on-CPU against wall-clock (`time`, CPU per request); look at pool acquisition time and trace spans for a dependency that got slower; take an off-CPU or wall-clock profile; and diff flame graphs across the deploy. Common wrong answer: "profile the CPU and speed up the hottest function", which cannot touch time spent waiting.
+
+**"Why can't you average p99s, and what do you store instead?"** Model answer: percentiles are order statistics, so a host with 10 ms and a host with 800 ms average to 405 ms while the merged p99 is 800 ms. Store mergeable histograms (HdrHistogram, DDSketch, Prometheus buckets with identical boundaries), add the counts, then compute. Common wrong answer: "weight each host's p99 by its request count", which is still an average of order statistics.
+
+**"How does a sampling profiler work, and how accurate is it?"** Model answer: a timer or hardware counter interrupts the thread at a fixed rate, the handler (or an external reader such as py-spy) records the stack, and counts per stack become the flame graph. The error on a share $p$ from $n$ samples is $\sqrt{p(1-p)/n}$, under a percentage point for 3,500 samples. Its real errors are biases: safepoint bias, missing frame pointers, and idle-state classification. Common wrong answer: "it records every call exactly", which describes an instrumenting profiler and its overhead.
+
+**"The job scales 10× on 64 cores. What does that tell you?"** Model answer: solving $1/(\sigma + (1-\sigma)/64) = 10$ gives $\sigma \approx 8.6\%$ effective serial work; measure throughput at 1, 2, 4 … 64 cores, and if it peaks and falls, fit the USL, because a coherence cost (a lock, a shared counter) is growing with $N$. Then profile for the serial part. Common wrong answer: "buy more cores", which Amdahl caps at under 12× here.
+
+## What mid-level engineers get wrong
+
+- **Reporting the mean.** Consequence: an SLO dashboard that stays green while one request in a hundred takes seconds.
+- **Averaging percentiles across hosts or minutes.** Consequence: one bad host disappears into a number that describes no request.
+- **Leaving histogram buckets at library defaults.** Consequence: a p99 that reads as a bucket boundary and cannot show a regression inside it.
+- **Profiling CPU for a latency problem that is waiting.** Consequence: a week spent speeding up code that was 11% of the wall-clock time.
+- **Trusting an instrumenting profiler's percentages.** Consequence: optimising the call-heavy function the probe effect inflated (54% in cProfile, 30% in reality) while the real top frame is untouched.
+- **Promising the CPU speed-up as a latency speed-up.** Consequence: "1.4× faster" ships as 3% faster requests.
 
 ## Senior signals
 
-- You report latency as percentiles from merged histograms, never as a mean and never as an average of per-host percentiles, and you can compute how fan-out turns backend p99 into user-facing median.
-- You check `real` versus `user + sys` before profiling, and you know a CPU profiler cannot see time spent waiting.
-- You choose sampling for production and know its statistical resolution; you know instrumentation's probe effect and safepoint bias on the JVM.
-- You read IPC from `perf stat` as a first split between compute-bound and memory-bound code, and you make sure stacks are walkable (frame pointers, JIT symbol maps).
-- You read a flame graph by width and self time, not by position or height, and you name the widest frame you own.
-- You bound every proposed optimisation with Amdahl's law, applied to wall-clock time, before anyone writes code.
+- You report latency as percentiles from merged histograms, never as a mean or an average of per-host percentiles, and you place bucket boundaries around the SLO.
+- You can compute how fan-out turns backend p99 into user-facing median, and you know HdrHistogram's relative-error bucketing and what it costs in memory.
+- You check `real` against `user + sys` before profiling, and you know a CPU profiler cannot see waiting; you reach for off-CPU, wall-clock or block profiles when it is waiting.
+- You choose sampling at about 100 Hz for production, know its statistical resolution, and recognise the probe effect, safepoint bias and missing frame pointers as the ways profiles lie.
+- You read a flame graph by width and self time, not position or height, and you name the widest frame you own and why it is there.
+- You bound every proposed optimisation with Amdahl's law against the metric you named (latency or cost), and you know when the USL, not Amdahl, explains a scaling curve.
 
 ## Check yourself
 
@@ -285,29 +358,35 @@ hints:
   options: ["About 5% of the time", "About 1% of the time", "About 99% of the time", "About 40% of the time"]
   answer: 3
   explanation: >-
-    The page is slow if any call is slow: 1 - 0.99^50 is about 0.39. Tail latency compounds under fan-out, which is why backends that serve fan-out traffic need tight p99 or p99.9 targets, not good averages.
+    The page is slow if any call is slow: 1 - 0.99^50 is about 0.39. Tail latency compounds under fan-out, which is why backends that serve fan-out traffic need tight p99 or p99.9 targets, not good averages. 1% would be right only for a single call.
 - q: >-
-    A batch job reports real 60 s, user 10 s, sys 2 s on a machine with 16 idle cores. A teammate proposes rewriting its hottest function, which takes 50% of the samples in a CPU profile. What is the most the rewrite can save?
-  options: ["About 6 s", "About 30 s", "About 12 s", "About 24 s"]
-  answer: 0
+    cProfile says validate() is 54% of a request's time; py-spy at 1,000 Hz says 30%. validate makes about 330 Python calls per request, while the other hot path makes one call into a C extension. Which figure should drive your priorities?
+  options: ["cProfile's, since sampling misses functions shorter than a tick", "cProfile's, since it records every call instead of a sample", "Neither, since both profilers distort the shares equally", "py-spy's, since per-call probe cost inflates call-heavy code"]
+  answer: 3
   explanation: >-
-    Only 12 s of the 60 is on-CPU, and the function is half of that, about 6 s. The other 48 s is off-CPU waiting, which a CPU profile does not show; 30 s would be right only if the profile covered wall-clock time. Look at what the job waits on first.
+    An instrumenting profiler adds a fixed cost to every call and return, so code that makes hundreds of small calls looks far more expensive than it is, while one call into C looks cheap. Sampling overhead depends on the rate, not the call count, so shares stay proportional. Short functions are not missed by sampling in aggregate; they appear in proportion to the time they take.
+- q: >-
+    Host A serves all requests in 10 ms. Host B serves 90% in 10 ms and 10% in 800 ms. Traffic is split evenly. What is the fleet's p99?
+  options: ["About 10 ms, since most requests are fast", "About 90 ms, the traffic-weighted mean latency", "About 800 ms, from the merged distribution", "About 405 ms, the mean of the two hosts' p99s"]
+  answer: 2
+  explanation: >-
+    Merged, 5% of all requests take 800 ms, so the 99th percentile is 800 ms. Averaging the per-host p99s (10 and 800) gives 405 ms, a latency no request had. Percentiles must be computed from merged histograms, not averaged.
+- q: >-
+    A Prometheus p99 panel has read exactly 1.0 s for days. The histogram's finite buckets are 0.1, 0.25, 0.5 and 1 second. What does that most likely mean?
+  options: ["Interpolation rounds the p99 to the nearest bucket", "The p99 is stable, so the service is behaving well", "A 1 s client timeout is cutting the slow requests off", "Over 1% of requests exceed the 1 s top bucket"]
+  answer: 3
+  explanation: >-
+    When the target rank falls in the +Inf bucket, histogram_quantile returns the largest finite boundary, so a flat 1.0 s means more than 1% of requests are slower than 1 s and the true p99 is unknown. Inside a finite bucket the function interpolates linearly rather than rounding. Add buckets above the SLO or use exponential histograms.
+- q: >-
+    A service spends 11% of each request on-CPU and the rest waiting on a database. A function taking 30% of CPU samples is deleted entirely. Roughly how much faster do requests get?
+  options: ["About 11% faster", "About 30% faster", "About 3% faster", "About 43% faster"]
+  answer: 2
+  explanation: >-
+    The function is 30% of the 11% on-CPU slice, about 3.3% of wall-clock time, so latency improves by about 3%. 43% (1 / 0.7) is the CPU-time speed-up, which is real for cost and throughput per core but not for latency. Apply Amdahl's law to the metric you care about.
 - q: >-
     In a flame graph, function A is drawn wide at the bottom with a tall narrow tower above it, and function B is a wide flat box at the top of a short stack. Where is the CPU actually spending time?
   options: ["Leftmost first, because the x-axis shows time", "In B, because its wide flat top is self time", "In A, because it is the widest box in the graph", "In the tower, because it is the tallest stack"]
   answer: 1
   explanation: >-
-    Width includes callees, so A is wide because of what it calls. Self time is the exposed top edge, and B's wide flat top is where the CPU was sampled. Height is only stack depth and the x-axis is alphabetical, not time.
-- q: >-
-    Why do sampling profilers commonly use 99 Hz rather than 100 Hz?
-  options: ["To stay out of lockstep with 10 ms timers", "99 is prime, so stack hashes collide less often", "99 Hz costs measurably less overhead than 100 Hz", "Kernel limits forbid sampling at exactly 100 Hz"]
-  answer: 0
-  explanation: >-
-    If the sampling period aligns with a periodic task such as a 10 ms timer, samples systematically land on (or miss) that task, biasing the profile. An odd frequency decorrelates them. 99 is not prime (9 times 11); the point is avoiding alignment, not primality.
-- q: >-
-    A service is 10% serial work and 90% perfectly parallel. Going from 8 to 32 cores changes the maximum speed-up from about what to about what?
-  options: ["4.7x to 7.8x", "7.2x to 28.8x", "4.7x to 10x", "8x to 32x"]
-  answer: 0
-  explanation: >-
-    1 / (0.1 + 0.9/8) is about 4.7, and 1 / (0.1 + 0.9/32) is about 7.8. Quadrupling cores gains less than 1.7x, and the ceiling is 10x no matter how many cores you add. Real contention usually makes it worse.
+    Width includes callees, so A is wide because of what it calls. Self time is the exposed top edge, and B's wide flat top is where the CPU was sampled. Height is only stack depth, and the x-axis is sorted alphabetically, not by time.
 ```

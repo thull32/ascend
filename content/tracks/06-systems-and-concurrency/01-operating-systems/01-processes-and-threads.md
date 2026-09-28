@@ -1,14 +1,14 @@
 ---
 slug: processes-and-threads
 title: "Processes and threads: what the scheduler is doing to your code"
-description: Address spaces, context switches, the Linux scheduler, why threads share memory and processes do not, and what a container really is.
+description: The task_struct behind every process and thread, the clone flags that decide what is shared, what fork copies and what copy-on-write defers, measured context-switch and fork costs, how the Linux scheduler shares a core, and what a container really is.
 minutes: 30
 difficulty: medium
 tags: [operating-systems, processes, threads, scheduling, containers, context-switch]
 ---
-Your API server handles 2,000 requests per second on an 8-core box at 40% CPU. You double the traffic. CPU goes to 95%, but throughput only reaches 3,100 requests per second and p99 latency triples. Nothing in your code is slow. What changed is that the kernel is now spending a meaningful fraction of every core deciding which of your 400 threads gets to run next, and each of those decisions throws away the cache state the previous thread built up.
+Your API server handles 2,000 requests per second on an 8-core box at 40% CPU. You double the traffic. CPU goes to 95%, but throughput only reaches 3,100 requests per second and p99 latency triples. Nothing in your code is slow. What changed is that the kernel is now spending a meaningful fraction of every core deciding which of your 400 threads runs next, and each of those decisions throws away the cache state the previous thread built up.
 
-To reason about that you need a precise model of what a process is, what a thread is, what the scheduler does with them, and what each switch costs. Most engineers carry a vague version ("threads are lightweight processes"). The precise version is not much longer and it explains a surprising number of production graphs.
+The precise model is short: one kernel structure, a handful of flags that say what is shared, a page-table trick that makes `fork` cheap until it is not, and a scheduler whose fairness rule you can trace by hand. Every number below was measured on a Ryzen 9 9950X3D running Linux 6.18 under WSL2, and the lesson says where the virtual machine changes the answer.
 
 ## A process is an address space plus resources
 
@@ -16,20 +16,21 @@ A process is the kernel's unit of isolation. It owns:
 
 - An **address space**: a private mapping from virtual addresses to physical memory (the [next lesson](/learn/systems/operating-systems/virtual-memory) covers how). Two processes can both use address `0x7ffd1000` and they refer to different bytes of RAM.
 - A table of **file descriptors**: small integers that index open files, sockets, pipes and devices.
-- **Credentials** (user, group, capabilities), a working directory, signal handlers, resource limits.
+- **Credentials** (user, group, capabilities), a working directory, signal handlers, resource limits, namespaces and a cgroup.
 - One or more **threads**.
 
-The address space is what makes processes safe from each other. A bug that writes through a wild pointer in one process cannot corrupt another. That safety costs something: to share data between processes you have to go through the kernel (pipes, sockets, shared-memory segments), and every byte crossing that boundary is at least one copy and often one system call.
+The address space makes processes safe from each other: a wild pointer in one cannot corrupt another. The price is that sharing data between processes goes through the kernel (pipes, sockets, shared-memory segments), at least one copy and often one system call per exchange.
 
 ## A thread is a schedulable stack inside a process
 
 A thread is the kernel's unit of *execution*. It has its own:
 
-- **Stack** (typically 8 MiB of reserved virtual address space on Linux, committed lazily one page at a time).
-- **Register state**, including the instruction pointer and stack pointer.
-- Scheduling state: runnable, running, sleeping, and a priority.
+- **User stack**: 8 MiB of reserved address space by default for glibc threads, backed by physical pages only as they are touched.
+- **Kernel stack**: 16 KiB on x86-64, used while the thread is inside a system call or an interrupt.
+- **Register state**, including the instruction pointer, the stack pointer and the thread-local-storage base register (`fs` on x86-64).
+- **Scheduling state**: runnable, running, sleeping, a weight and the CPUs it may run on.
 
-Everything else, most importantly the heap and the global variables, is shared with every other thread in the process. That is the entire reason threads exist and the entire reason they are dangerous.
+Everything else, most importantly the heap and the global variables, is shared with every other thread in the process. That is the reason threads exist and the reason they are dangerous.
 
 ```viz
 {"type": "memory", "algorithm": "stack-heap", "values": [4, 8, 15],
@@ -37,28 +38,56 @@ Everything else, most importantly the heap and the global variables, is shared w
  "caption": "Stack frames are private to the thread that pushed them. Anything reachable through a heap pointer is visible to every thread in the process, which is what makes sharing cheap and races possible."}
 ```
 
-On Linux the distinction is thinner than the textbook suggests. The kernel schedules *tasks*; a process is just a group of tasks that share an address space, and `clone()` takes flags saying what to share. A "thread" is a task created with `CLONE_VM | CLONE_FILES | CLONE_SIGHAND`. A "process" is a task created without them. This is why `ps -eLf` shows threads with their own IDs and why a thread can pin itself to a core with `sched_setaffinity` independently of its siblings.
+## Under the hood: one task_struct, many clone flags
+
+Linux has no separate "process" and "thread" objects. It has one structure, `struct task_struct` (several kilobytes, the exact size depends on the kernel configuration), per schedulable entity. The fields that matter here are pointers to separately reference-counted resources:
+
+| `task_struct` field | Points to | Holds |
+|---|---|---|
+| `mm` | `struct mm_struct` | The address space: the list of mapped regions and the root of the page tables (`pgd`) |
+| `files` | `struct files_struct` | The file descriptor table |
+| `fs` | `struct fs_struct` | Current directory, root directory, umask |
+| `sighand`, `signal` | Handler table, shared signal state | Signal dispositions, pending process-wide signals |
+| `cred` | `struct cred` | UIDs, GIDs, capabilities |
+| `nsproxy`, `cgroups` | Namespaces, cgroup set | What the task can see, what it is charged to |
+| `se` | `struct sched_entity` (embedded) | Weight and virtual runtime for the scheduler |
+| `thread` | `struct thread_struct` (embedded) | Saved kernel stack pointer and segment bases during a switch |
+| `pid`, `tgid` | Integers | The task's own ID, and its thread group's ID |
+
+## Clone flags decide what is shared
+
+Creating a task is `clone()`, and its flags decide, pointer by pointer, whether the child *shares* the parent's structure (bumps a reference count) or gets a *copy*. Here is `strace` on this machine, catching CPython 3.14 starting a thread and then calling `os.fork()`:
+
+```text
+clone3({flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYSVSEM|
+        CLONE_SETTLS|CLONE_PARENT_SETTID|CLONE_CHILD_CLEARTID,
+        stack=0x7a391e8de000, stack_size=0x7fff80, tls=0x7a391f0de6c0}) = 515106
+clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD) = 515107
+```
+
+`CLONE_VM` shares `mm` (same address space, same page tables). `CLONE_FILES` shares the descriptor table, so a socket opened by one thread is usable by all. `CLONE_FS` and `CLONE_SIGHAND` share the directory state and handler table. `CLONE_THREAD` puts the child in the parent's thread group, so `getpid()` returns the group ID (`tgid`) in both and `gettid()` returns the task's own ID. `CLONE_SETTLS` loads the new thread's `fs` base, which is how thread-local variables work. The glibc-allocated stack (`stack_size=0x7fff80`, 8 MiB minus a guard page) is passed in from user space. `CLONE_CHILD_CLEARTID` tells the kernel to zero a word and wake a futex on it when the thread exits, and that futex is what `pthread_join` sleeps on.
+
+The second line is `fork`: no sharing flags at all, only `SIGCHLD` as the exit signal. Every resource is copied. Container runtimes use a third set of flags on the same call: `CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWNET` and friends give the child new namespaces. CPython's `subprocess` uses a fourth variant, `vfork` (`CLONE_VM|CLONE_VFORK`), which lends the child the parent's address space until it calls `execve`.
+
+This is why `ps -eLf` and `top -H` list threads individually, each with its own ID.
 
 ```mermaid
 flowchart LR
-  subgraph P1[Process 4212]
-    AS1[Address space<br/>heap, globals, code]
-    FD1[fd table]
-    T1[Thread 4212<br/>stack + registers]
-    T2[Thread 4213<br/>stack + registers]
-    T3[Thread 4214<br/>stack + registers]
-  end
-  subgraph P2[Process 4300]
-    AS2[Address space]
-    T4[Thread 4300]
-  end
-  T1 --- AS1
-  T2 --- AS1
-  T3 --- AS1
-  T4 --- AS2
+  T1[task 4212<br/>tgid 4212] --> MM[mm_struct<br/>page tables]
+  T2[task 4213<br/>tgid 4212] --> MM
+  T1 --> FT[files_struct<br/>fd table]
+  T2 --> FT
+  T3[task 4300<br/>tgid 4300, forked] --> MM2[mm_struct copy<br/>COW page tables]
+  T3 --> FT2[files_struct copy]
+  FT --> OF[open file description<br/>offset, flags]
+  FT2 --> OF
 ```
 
-Here is what sharing looks like in practice, and the price of it, in the three languages this track keeps returning to:
+The last arrow is worth staring at: after `fork` the descriptor *table* is copied, but each entry points at the same kernel open file description, so parent and child share file offsets.
+
+## The same bug in three languages
+
+Sharing the address space is what makes this code wrong:
 
 ```python
 import threading
@@ -67,157 +96,355 @@ counter = 0
 def work():
     global counter
     for _ in range(100_000):
-        counter += 1          # read-modify-write on shared memory
+        counter += 1          # load, add, store: three steps on shared memory
 
 threads = [threading.Thread(target=work) for _ in range(4)]
 for t in threads: t.start()
 for t in threads: t.join()
-print(counter)                # frequently < 400000 on free-threaded builds
+print(counter)                # can be < 400000; free-threaded builds lose updates far more often
 ```
 
 ```go
-var counter int
-var wg sync.WaitGroup
-for i := 0; i < 4; i++ {
-    wg.Add(1)
-    go func() {               // a goroutine, multiplexed onto OS threads
-        defer wg.Done()
-        for j := 0; j < 100_000; j++ { counter++ }
-    }()
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+func main() {
+	var counter int
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() { // a goroutine, multiplexed onto OS threads
+			defer wg.Done()
+			for j := 0; j < 100_000; j++ {
+				counter++
+			}
+		}()
+	}
+	wg.Wait()
+	fmt.Println(counter) // data race; go run -race flags it
 }
-wg.Wait()
-fmt.Println(counter)          // data race; go run -race will flag it
 ```
 
 ```rust
 use std::thread;
-let mut counter = 0;
-let handles: Vec<_> = (0..4).map(|_| {
-    thread::spawn(move || { for _ in 0..100_000 { counter += 1; } })
-}).collect();
-// This does not compile: `counter` is moved into the first closure and the
-// borrow checker refuses to let four threads mutate it. You are forced to
-// reach for Arc<Mutex<i32>> or AtomicI32 before the program runs.
+
+fn main() {
+    let mut counter = 0;
+    let handles: Vec<_> = (0..4)
+        .map(|_| thread::spawn(|| { for _ in 0..100_000 { counter += 1; } }))
+        .collect();
+    for h in handles { h.join().unwrap(); }
+    println!("{counter}");
+}
+// Does not compile: the closure borrows `counter` mutably, and `thread::spawn`
+// requires 'static data that is safe to send. You must reach for
+// Arc<Mutex<i32>> or AtomicI32 before the program runs.
 ```
 
-Python's classic build has the global interpreter lock, which serialises bytecode execution and hides this race most of the time; Go lets it happen and gives you a race detector; Rust refuses to compile it. The [races lesson](/learn/systems/concurrency/races-mutexes-and-invariants) goes into the mechanism. For now, the point is that threads are the OS's way of giving you shared memory, and every language then has to decide how much to protect you from it.
+CPython's GIL hides this race most of the time, Go ships a race detector, and Rust refuses to compile it; the [races lesson](/learn/systems/concurrency/races-mutexes-and-invariants) traces the lost update instruction by instruction.
 
-## What a context switch actually costs
+## What fork copies and what copy-on-write defers
 
-The scheduler runs a thread until one of three things happens: the thread blocks (waiting on I/O, a lock, a sleep), a higher-priority thread becomes runnable, or the thread's time slice expires (a few milliseconds on Linux by default). Then it performs a context switch:
+`fork` must give the child a private copy of a possibly huge address space, and copying gigabytes would take seconds. The kernel copies the *page tables* instead and makes both copies read-only.
 
-1. Save the running thread's registers into its kernel-side task struct.
-2. Pick the next thread to run.
-3. If the next thread belongs to a different process, switch page tables by loading a new root into the `CR3` register on x86. This invalidates most of the TLB (the cache of virtual-to-physical translations), unless the CPU supports tagged TLB entries.
-4. Restore the new thread's registers and jump to its instruction pointer.
+### Copy-on-write, one page at a time
 
-The direct cost of steps 1, 2 and 4 is on the order of 1–2 microseconds. The *indirect* cost is bigger and is the one that shows up in your graphs: the new thread starts with cold L1 and L2 caches and a partly flushed TLB. Its first few thousand memory accesses miss. A thread that would have finished a request in 200 µs of hot-cache execution might take 300 µs after being switched in.
+Here is one page through its life:
 
-A useful order-of-magnitude table, for a modern server CPU:
+1. Before `fork`, the parent's page-table entry for virtual page `0x7f00a000` points at physical frame 5000, writable. Frame 5000's map count is 1.
+2. `fork` copies the entry into the child's page table and clears the writable bit in *both* entries. Frame 5000's map count is 2. No data has moved.
+3. The child writes to the page. The MMU sees a write to a present, read-only page and raises a page fault.
+4. The kernel checks the region: it is private and writable in principle, so this is a copy-on-write fault, not a bug. The frame is shared (count 2), so it allocates frame 7311, copies 4 KiB, points the child's entry at 7311 with the writable bit set, and drops frame 5000's count to 1.
+5. The parent writes to the same page later. Another fault; this time the count is 1, so the kernel sets the writable bit on the existing entry and copies nothing.
 
-| Event | Approximate cost |
+What `fork` does with each resource:
+
+| Resource | After `fork` |
 |---|---|
-| Function call | ~1 ns |
-| System call (enter and return, no work) | ~100–300 ns |
-| Thread context switch, same process | ~1–2 µs direct, plus cache warm-up |
-| Process context switch | ~2–5 µs direct, plus TLB refill |
-| Thread creation | ~10–50 µs plus an 8 MiB stack reservation |
-| Process creation (`fork` + `exec`) | ~100 µs to milliseconds |
+| Private memory (heap, stacks, globals) | Page tables copied, pages shared read-only until written |
+| Shared file mappings (`MAP_SHARED`) | Shared; page tables often not copied at all, refaulted on demand |
+| File descriptor table | Copied; entries point at the *same* open file descriptions (shared offsets) |
+| Other threads | Not copied: the child has exactly one thread, the one that called `fork` |
+| Locks held by other threads | Copied in the locked state, with no thread left to unlock them |
+| Pending signals, timers, `fcntl` record locks | Not inherited |
 
-Now redo the maths from the opening. 400 threads on 8 cores, each blocking on a database call every few hundred microseconds, means tens of thousands of context switches per second per core. `vmstat 1` will show that in the `cs` column, and `perf stat -e context-switches` will confirm it. At 20,000 switches per second per core with a 2 µs direct cost, you are spending 4% of the core on switching and considerably more on cache misses caused by switching. That is where the missing throughput went.
+### What it costs
 
-The fix is not "fewer threads" as a slogan; it is matching the number of runnable threads to the number of cores and using non-blocking I/O to wait, which is exactly what [I/O and system calls](/learn/systems/operating-systems/io-and-syscalls) and [thread pools](/learn/systems/concurrency/thread-pools-and-work-stealing) are about.
+Measured on this machine with a C program (`fork` plus `_exit` plus `waitpid`, averaged over thousands of iterations):
 
-## The scheduler's actual policy
+| Operation | Time |
+|---|---|
+| `fork` + exit + wait, small process | 207 µs |
+| `fork` + `exec /bin/true` + wait | 542 µs |
+| `posix_spawn /bin/true` + wait | 461 µs |
+| `fork` + exit + wait, parent has 1 GiB touched in 4 KiB pages | 31 ms |
+| `posix_spawn`, same 1 GiB parent | 486 µs |
+| `fork`, then the child writes every page of the 1 GiB | 530 ms |
 
-Linux has used variants of a fair scheduler for years (CFS, replaced by EEVDF in recent kernels). Ignoring the details, the policy is: every runnable thread should get a share of CPU proportional to its weight, and the scheduler picks the thread that has received the least CPU time relative to its share. Priorities (`nice` values) adjust the weight, not the ordering.
+The fourth row is the page-table copy: 262,144 entries to duplicate and 262,144 frame reference counts to bump, about 120 ns per page. The last row is 262,144 copy-on-write faults at roughly 2 µs each. `posix_spawn` (glibc implements it with `CLONE_VM|CLONE_VFORK`) does not copy page tables, so it costs the same with a 1 GiB parent as with a tiny one. Launch programs from a large process with `posix_spawn` or `subprocess`, not raw `fork`.
 
-Three consequences matter for a service owner:
+Redis is the textbook victim. Its background snapshot forks: at the rate measured here a 25 GiB dataset spends around three quarters of a second in `fork` with the main thread stopped (Redis reports it as `latest_fork_usec`), and a write-heavy workload during the snapshot copies page after page until memory use approaches double.
 
-**Runnable versus running.** `top` shows load average, which counts threads that are runnable *or* in uninterruptible sleep, not threads actually consuming CPU. A load average of 24 on an 8-core box means an average of 16 threads were waiting for a core at any moment. Requests spend that wait time doing nothing, and it goes straight into your latency distribution. Load average is a queue length, and queue length is the number that tail latency is made of.
+### Locks held by threads that no longer exist
 
-**Wake-up latency.** When a thread blocks on a socket and data arrives, the kernel marks it runnable, but it does not run until a core is free. Under load that gap is tens to hundreds of microseconds. Latency-sensitive systems (trading, real-time audio) avoid it by never blocking: they pin a thread to a core and spin.
+The locks row is the other trap. If another thread holds the `malloc` arena lock or a logging lock at the instant of `fork`, the child inherits the lock held by a thread that does not exist in the child, and the child's first `malloc` or log call hangs forever. This is why POSIX only allows async-signal-safe calls between `fork` and `exec` in a multithreaded program, why CPython 3.12 started warning when you fork a process that has threads, and why CPython 3.14 changed `multiprocessing`'s default start method on Linux from `fork` to `forkserver`.
 
-**CPU quotas in containers.** A container with a CPU limit of 2 on a 32-core host does not get two dedicated cores. It gets 200 ms of CPU time per 100 ms period, across all cores. If your 32 threads all become runnable, they burn the quota in the first ~6 ms of the period and the whole container is throttled for the remaining 94 ms. `cat /sys/fs/cgroup/cpu.stat` shows `nr_throttled` climbing. The symptom is a service that looks idle (average CPU 30%) but has a p99 of 100 ms with a suspicious flat top. Either set the quota generously, size your thread pool to the quota rather than to `nproc`, or use `cpuset` pinning.
+## What a context switch costs
 
-## fork, exec and copy-on-write
+The scheduler runs a thread until it blocks (on I/O, a lock, a sleep), a waking thread should preempt it, or its slice expires. Then `schedule()` calls `context_switch()`:
 
-`fork()` creates a new process that is a copy of the caller. Copying a 4 GiB address space would be absurd, so the kernel copies only the page tables and marks every page **copy-on-write**: both processes share the physical pages read-only, and the first write to a page by either side triggers a fault that copies that one page. `exec()` then throws the whole address space away and loads a new program.
+1. Save the outgoing thread's user registers (already on its kernel stack from the syscall or interrupt entry).
+2. Pick the next task from the run queue.
+3. If the next task has a different `mm`, write the new page-table root to `CR3`. With PCID (process-context identifiers) the CPU keeps TLB entries tagged by address space, so the switch need not flush the TLB. Two threads of one process share `mm`, so this step is skipped.
+4. Switch kernel stacks (`__switch_to`), load the new thread's `fs` base; the floating-point and vector registers are restored lazily on the way back to user mode.
+5. Return to user space in the new thread.
 
-This is why `fork` is fast in the common `fork`-then-`exec` case and why it is a trap in a large process. A 20 GiB Redis instance that forks to write a snapshot shares everything at first, but as the parent keeps taking writes it copies pages one at a time; under a write-heavy load the child can end up duplicating a large fraction of the heap, and the fork itself takes hundreds of milliseconds just to copy 20 GiB worth of page tables. `posix_spawn` and `vfork` exist to skip the page-table copy when you only want to launch a program.
+### Measured
 
-Python's `multiprocessing` on Linux uses `fork` by default (the default is changing to `forkserver` because forking a multithreaded process is unsafe: any lock held by another thread at the moment of the fork is held forever in the child, whose copy of that thread does not exist).
+Two tasks bounce one byte through a pair of pipes. Each hop is a `write`, a wake-up, a switch and a `read` returning:
 
-## Threads versus processes: the real decision
+| Measurement (this machine) | Per hop |
+|---|---|
+| `getppid()` system call, no switch | 128 ns |
+| `clock_gettime` (vDSO, no kernel entry) | 15 ns |
+| Pipe ping-pong, two threads pinned to one CPU | 2.07 µs |
+| Pipe ping-pong, two processes pinned to one CPU | 2.26 µs |
+| Pipe ping-pong, threads on different CPUs | 25.4 µs |
+| Go channel ping-pong between two goroutines | 90–98 ns |
+| `pthread_create` + `pthread_join` | 78 µs |
 
-| | Threads | Processes |
-|---|---|---|
-| Share memory | Yes, by default | Only via explicit shared mappings |
-| Failure isolation | One segfault kills all | One crash kills one |
-| Creation cost | ~tens of µs | ~hundreds of µs and up |
-| Communication cost | A pointer | A syscall and a copy |
-| Parallelism in CPython | Limited by the GIL (unless free-threaded build) | Full |
-| Memory footprint | Shared heap, one stack each | Full copy after writes |
+Three readings. The direct cost of a switch on one core is around 2 µs including the two system calls, and a process switch costs only about 10% more than a thread switch here because PCID avoids the TLB flush and the working set is tiny. The cross-CPU row is the virtual machine talking: waking a thread on another vCPU sends an inter-processor interrupt through the hypervisor to a vCPU that is halted, so the hop costs 25 µs. On bare metal the same test typically lands in single-digit microseconds, depending on how deeply the idle core sleeps. And a goroutine switch is 20 times cheaper than a kernel switch because it never enters the kernel.
 
-The senior-level heuristic: use threads (or goroutines, or Tokio tasks) when the work shares state or needs cheap coordination; use processes when you want a crash to be contained, when you need to run untrusted or leak-prone code (browser tabs, worker pools that get recycled every N jobs), or when your runtime cannot parallelise threads. Nginx and PostgreSQL are process-per-worker for isolation; the JVM and Go are thread-per-everything for sharing.
+### The indirect cost
+
+The indirect cost is larger than any of these and harder to see: the incoming thread starts with cold L1 and L2 caches and, after a process switch without PCID, a cold TLB. A thread that would finish a request in 200 µs hot may take 300 µs after being switched in. Now redo the opening's arithmetic: 400 threads on 8 cores, each blocking every few hundred microseconds, is tens of thousands of switches per second per core. At 20,000 switches per second and 2 µs each, 4% of the core goes to switching directly and more to the cache misses that follow. `vmstat 1` shows the rate in the `cs` column, and `/proc/<pid>/status` splits it into `voluntary_ctxt_switches` (the thread blocked) and `nonvoluntary_ctxt_switches` (it was preempted, a sign of CPU contention).
+
+## The scheduler's policy, traced
+
+Linux's fair scheduler (CFS from 2.6.23, replaced by EEVDF in 6.6; this machine runs EEVDF) gives each runnable task CPU in proportion to its **weight**. `nice 0` is weight 1024, and each nice step changes the weight by about 1.25×, so `nice 3` is 526 and `nice 19` is 15. The mechanism is a per-task **virtual runtime**: when a task runs for $\Delta t$, its vruntime grows by
+
+$$\Delta v = \Delta t \times \frac{1024}{w}$$
+
+and the scheduler prefers the runnable task with the smallest vruntime (EEVDF refines "smallest" into "earliest virtual deadline among tasks that are owed time", which mainly helps latency-sensitive tasks with short slices). A heavy task's clock runs slowly, so it keeps being the smallest and gets picked more often.
+
+### A hand trace
+
+Trace three CPU-bound tasks on one core with 3 ms slices: A and B at `nice 0` (weight 1024, vruntime grows 3.00 per slice) and C at `nice 3` (weight 526, grows 3 × 1024 / 526 = 5.84 per slice). Ties go to the earlier task.
+
+| Time (ms) | vruntime A / B / C before | Runs | vruntime after |
+|---|---|---|---|
+| 0 | 0 / 0 / 0 | A | A = 3.00 |
+| 3 | 3.00 / 0 / 0 | B | B = 3.00 |
+| 6 | 3.00 / 3.00 / 0 | C | C = 5.84 |
+| 9 | 3.00 / 3.00 / 5.84 | A | A = 6.00 |
+| 12 | 6.00 / 3.00 / 5.84 | B | B = 6.00 |
+| 15 | 6.00 / 6.00 / 5.84 | C | C = 11.68 |
+| 18 | 6.00 / 6.00 / 11.68 | A | A = 9.00 |
+| 21 | 9.00 / 6.00 / 11.68 | B | B = 9.00 |
+| 24 | 9.00 / 9.00 / 11.68 | A | A = 12.00 |
+| 27 | 12.00 / 9.00 / 11.68 | B | B = 12.00 |
+
+Over a long run C gets 526 / (1024 + 1024 + 526) ≈ 20% of the core and A and B about 40% each. A task that wakes after sleeping is placed near the current minimum vruntime rather than at its old small value, so a thread that slept for an hour cannot monopolise the CPU on return. The base slice is 0.75 ms, scaled up with the CPU count to 3 ms on machines with eight or more CPUs. The exercise at the end asks you to implement this pick-the-minimum loop.
+
+### Consequences for a service owner
+
+**Load average is a queue length.** Linux's load average counts tasks that are runnable *or* in uninterruptible sleep (state `D`, usually waiting on disk or NFS). A load of 24 on 8 cores means about 16 tasks waiting at any moment, and that waiting is added to request latency.
+
+**Wake-up latency is real.** A thread woken by an arriving packet does not run until a core is free and, if it lands on an idle core, until that core wakes (25 µs per hop measured above under WSL2). Trading systems and packet processors avoid it by pinning a thread to a core and spinning.
+
+**The slice is not the latency.** A CPU-bound neighbour at equal weight can delay your thread by a whole slice, 3 ms here, per wake-up when the core is contended.
+
+## CPU quotas in containers
+
+A container with a CPU limit of 2 does not get two cores. The CFS bandwidth controller gives its cgroup 200 ms of CPU time per 100 ms period, spent on any cores. To see what that does, a C program started N threads that spin for 3 seconds, each recording the longest gap between two consecutive clock reads, run under `systemd-run --user --scope -p CPUQuota=200%`:
+
+| Threads | Longest stall | Stalls over 5 ms per thread | `nr_throttled` / `nr_periods` | `throttled_usec` |
+|---|---|---|---|---|
+| 2 | 3.1 ms | 0 | 3 / 30 | 6,304 |
+| 32 | 290 ms | 30.6 | 31 / 31 | 88,728,033 |
+
+With 32 runnable threads the quota is gone after about 200 / 32 ≈ 6 ms of each period and every thread freezes for the remaining ~94 ms; some threads miss whole periods, hence the 290 ms worst case. Average CPU for the container is exactly its limit and looks healthy. The request-level symptom is a p99 with a flat top near the period length.
+
+The fix is to size concurrency to the quota, and runtimes disagree about what the quota is. Under the same `CPUQuota=200%` on this 32-CPU machine:
+
+| Runtime call | Reported |
+|---|---|
+| `nproc` | 32 |
+| Python 3.14 `os.cpu_count()` and `os.process_cpu_count()` | 32 and 32 |
+| Node 24 `os.cpus().length` / `os.availableParallelism()` | 32 / 2 |
+| Go 1.27 `runtime.NumCPU()` / `GOMAXPROCS` default | 32 / 2 |
+
+Go reads the cgroup limit for `GOMAXPROCS` since Go 1.25, and the JVM has read it for `availableProcessors()` since JDK 10 (and 8u191). Python does not, so a `ProcessPoolExecutor()` with the default worker count starts 32 processes to share two CPUs' worth of time. `cat /sys/fs/cgroup/cpu.stat` inside the container shows `nr_throttled` climbing; the fixes are an explicit worker count, a higher limit, or no CPU limit with a request-based share.
 
 ## Green threads, goroutines and M:N scheduling
 
-A goroutine, a Java virtual thread, an Erlang process and a Tokio task are all **user-space threads**: a stack (often starting at a few KiB) and a saved register set managed by the language runtime, not the kernel. The runtime multiplexes many of them (M) onto a small pool of OS threads (N, usually one per core). Switching between them costs roughly 100 ns because it is a function call inside the runtime, not a trip into the kernel.
+A goroutine, a Java virtual thread, an Erlang process and a Tokio task are **user-space threads**: a small stack or state object plus saved registers, managed by the language runtime rather than the kernel. The runtime multiplexes many of them (M) onto a small set of OS threads (N, about one per core). Measured with Go 1.27: a channel hop between goroutines costs 90–98 ns, spawning and finishing a goroutine about 100 ns, and a parked goroutine's stack about 2 KiB. The kernel-thread equivalents above are 2 µs, 78 µs and 8 MiB of reserved address space.
 
-The catch is that the kernel cannot see them. If a goroutine makes a blocking system call, the OS thread carrying it blocks, and the runtime has to notice and hand the other goroutines to a different OS thread. Go does this with a monitor thread; Java's virtual threads do it by "unmounting" at known blocking points; Node and Tokio avoid the problem by never making blocking calls on the loop thread at all. The [async lesson](/learn/systems/concurrency/async-and-event-loops) covers what goes wrong when you break that rule.
+The catch is that the kernel cannot see them. When a goroutine makes a blocking system call, the OS thread carrying it blocks. Go's scheduler detaches that thread's logical processor (a "P") and hands it, with its queue of runnable goroutines, to another OS thread; its `sysmon` monitor thread does this for calls that unexpectedly take long. Java virtual threads "unmount" from their carrier at blocking points in the JDK; Node and Tokio avoid the problem by never making blocking calls on the loop thread. Since Go 1.14 a goroutine that computes in a tight loop for more than about 10 ms is preempted with a signal, so one busy goroutine cannot starve the others on its thread. The [async lesson](/learn/systems/concurrency/async-and-event-loops) covers what goes wrong when code breaks the "do not block" rule.
 
 ## What a container is
 
-A container is not a virtual machine and not a process type. It is an ordinary process (or tree of processes) started with:
+A container is an ordinary process tree started with:
 
-- **Namespaces**: separate views of process IDs, mount points, network interfaces, hostnames and users. The process sees itself as PID 1 in a filesystem that is its image.
-- **cgroups**: accounting and limits on CPU time, memory, I/O bandwidth and PIDs.
+- **Namespaces**: separate views of process IDs, mounts, network interfaces, hostnames, IPC, users, cgroups and clocks. On this machine `unshare -Urpf --mount-proc ps` prints a process list containing one line, `ps` as PID 1.
+- **cgroups**: accounting and limits on CPU time, memory, I/O and number of tasks (`pids.max`).
 - A **root filesystem** assembled from image layers with an overlay filesystem.
-- Optionally seccomp and capability filters that restrict which system calls it may make.
+- Optionally seccomp filters and dropped capabilities restricting which system calls it may make.
 
-Nothing about the kernel's scheduling or memory management changes. The scheduler sees your container's threads as threads; the memory limit is a cgroup number; the OOM killer respects the cgroup's limit rather than the host's. This is why a container with a 512 MiB memory limit can be killed while the host has 200 GiB free, and why `nproc` inside the container reports the host's core count unless you configure it otherwise, which is how JVMs and thread pools end up creating 64 threads to run under a quota of 2 cores.
+Nothing about scheduling or memory management changes: container threads are threads, and the memory limit is a cgroup number that the OOM killer enforces even when the host has 200 GiB free. PID 1 inside a PID namespace is also special: the kernel installs no default signal actions for it, so a `SIGTERM` it has no handler for is ignored, and it is expected to reap orphaned children.
+
+## Threads, processes and user-space threads compared
+
+| | OS threads | Processes | Goroutines / virtual threads / async tasks |
+|---|---|---|---|
+| Creation (measured) | 78 µs create + join | 207 µs `fork`, 461 µs spawn + exec | ~100 ns |
+| Switch (measured) | ~2 µs same core | ~2.3 µs same core, more with TLB misses | ~90 ns |
+| Memory per unit | 8 MiB reserved stack, pages touched | Full address space, copy-on-write | ~2 KiB stack or a state object |
+| Failure isolation | One segfault kills all | One crash kills one | None beyond the process |
+| Communication | A pointer, plus locks | Syscall and copy, or shared mapping | A pointer or a channel |
+| Parallelism in CPython | Limited by the GIL unless free-threaded | Full | Single loop per thread |
+| Blocking syscalls | Block only that thread | Block only that process | Must be detected or offloaded by the runtime |
+
+Use threads (or goroutines, or tasks) when work shares state and needs cheap coordination. Use processes when a crash must be contained, when code is untrusted or leaks (browser tabs, worker pools recycled every N jobs), or when the runtime cannot run threads in parallel. PostgreSQL and nginx are process-per-worker for isolation; the JVM and Go put everything in one process for sharing.
+
+## Failure modes in production
+
+**Symptom: `multiprocessing` workers occasionally hang at start-up, forever, with 0% CPU.** Diagnosis: `py-spy dump` or `gdb` on the child shows it blocked in a lock acquire inside `malloc`, logging or an SSL library; the parent had other threads (a metrics exporter, a gRPC client) when it forked. Fix: use the `forkserver` or `spawn` start method (the default on Linux since 3.14), or fork before starting any thread.
+
+**Symptom: every few minutes all requests to a Redis primary stall for several hundred milliseconds.** Diagnosis: the stalls line up with background saves, and `INFO` shows `latest_fork_usec` in the hundreds of thousands: the page-table copy scales with resident memory, about 31 ms per GiB here. Fix: persist from a replica, keep instances smaller, and make sure transparent huge pages are off so copy-on-write copies 4 KiB rather than 2 MiB.
+
+**Symptom: a JVM or Go service logs `pthread_create failed: Resource temporarily unavailable` while memory is free.** Diagnosis: count threads with `grep Threads /proc/<pid>/status` and compare `/sys/fs/cgroup/pids.current` against `pids.max`; Kubernetes pod PID limits, `ulimit -u` and `kernel.threads-max` all count threads, not processes. Fix: bound the pools that create threads per request or per connection.
+
+**Symptom: p99 latency with a flat top near 100 ms while average CPU is well under the limit.** Diagnosis: `nr_throttled` rising in the container's `cpu.stat`, and a worker count derived from the host's cores. Fix: size pools to the quota, or raise the limit.
+
+**Symptom: a container takes exactly 30 seconds to stop on every deploy, and `ps` inside it shows `<defunct>` entries.** Diagnosis: the application runs as PID 1, ignores `SIGTERM` because PID 1 has no default handlers, and never reaps orphans, so Kubernetes waits out the grace period and sends `SIGKILL`. Fix: handle `SIGTERM` explicitly, or run a minimal init (`tini`, `docker run --init`) as PID 1.
+
+## Interviewer follow-ups
+
+**"What is the difference between a process and a thread on Linux?"** Model answer: both are `task_struct`s created by `clone`; a thread is created with flags that share the address space, descriptor table and signal handlers (`CLONE_VM`, `CLONE_FILES`, `CLONE_SIGHAND`, `CLONE_THREAD`), a process without them, so the difference is which resources are shared, not a different kind of object. Common wrong answer: "a thread is a lightweight process with its own memory".
+
+**"Why is `fork` slow in a large process, and what would you use instead?"** Model answer: `fork` copies page tables and bumps a count per resident page (about 31 ms per GiB measured here), then pays a fault per page the child or parent writes; to run another program use `posix_spawn` or `vfork`-based spawning, which does not copy page tables. Common wrong answer: "fork copies all of memory", which ignores copy-on-write.
+
+**"A service at 30% average CPU in Kubernetes has 100 ms latency spikes. What do you check first?"** Model answer: CFS throttling in `cpu.stat`, the pool sizes against the quota, and whether the runtime derives its worker count from the host's cores. Common wrong answer: "garbage collection", which does not produce a ceiling at the period length.
+
+**"What happens when a goroutine makes a blocking system call?"** Model answer: the OS thread blocks in the kernel; the Go scheduler hands that thread's P and its run queue to another OS thread so other goroutines keep running, and the thread rejoins later. Common wrong answer: "all goroutines on that core stop".
+
+**"Is a process context switch much slower than a thread switch?"** Model answer: directly, only a little on CPUs with PCID (2.26 µs versus 2.07 µs measured here); the real difference is the TLB and cache state the next task must rebuild, which grows with its working set. Common wrong answer: "processes flush the whole cache on every switch".
+
+## What mid-level engineers get wrong
+
+- **Sizing pools from `os.cpu_count()` inside a container.** Consequence: 32 workers on a 2-CPU quota, throttled every period.
+- **Forking a process that already has threads.** Consequence: children that hang on an inherited lock, only in production where the extra threads exist.
+- **Reading load average as CPU percentage.** Consequence: missing a run queue of 16 waiting tasks because "CPU is only 60%".
+- **Launching subprocesses with raw `fork` from a multi-gigabyte service.** Consequence: tens of milliseconds of stall per launch, plus copy-on-write growth.
+- **Treating goroutines or virtual threads as free.** Consequence: an unbounded fan-out that holds a million stacks, sockets and downstream requests at once.
+- **Running the application as PID 1 without signal handling.** Consequence: slow deploys and zombie accumulation until `pids.max` is hit.
+
+## Exercise
+
+```exercise
+id: fair-scheduler
+title: Trace a fair scheduler
+prompt: |
+  Simulate a single core running CPU-bound tasks under a simplified fair
+  scheduler. `tasks` is a list of `[name, weight]` pairs (nice 0 is weight
+  1024). Every task starts with virtual runtime 0 and is always runnable.
+
+  Repeat `slices` times: pick the task with the smallest virtual runtime
+  (break ties by the task's position in `tasks`, earliest first), run it for
+  one slice of `slice_us` microseconds, and add
+  `floor(slice_us * 1024 / weight)` to its virtual runtime.
+
+  Return the list of task names in the order they ran.
+languages: [python, javascript]
+entry: fair_schedule
+starter:
+  python: |
+    def fair_schedule(tasks, slice_us, slices):
+        order = []
+        # your code here
+        return order
+  javascript: |
+    function fair_schedule(tasks, slice_us, slices) {
+      const order = [];
+      // your code here
+      return order;
+    }
+tests:
+  - args: [[["A", 1024], ["B", 1024], ["C", 526]], 3000, 10]
+    expected: ["A", "B", "C", "A", "B", "C", "A", "B", "A", "B"]
+    label: the lesson's trace
+  - args: [[["A", 1024]], 3000, 3]
+    expected: ["A", "A", "A"]
+    label: one task
+  - args: [[["A", 1024], ["B", 1024]], 1000, 0]
+    expected: []
+    label: zero slices
+  - args: [[["hi", 2048], ["lo", 1024]], 1000, 6]
+    expected: ["hi", "lo", "hi", "hi", "lo", "hi"]
+    label: double weight runs twice as often
+  - args: [[["x", 15], ["y", 1024]], 1000, 5]
+    expected: ["x", "y", "y", "y", "y"]
+    hidden: true
+    label: nice 19 against nice 0
+  - args: [[["a", 1024], ["b", 820], ["c", 1277]], 1000, 8]
+    expected: ["a", "b", "c", "c", "a", "b", "c", "a"]
+    hidden: true
+hints:
+  - "Keep a list of virtual runtimes parallel to `tasks`; each step, scan for the index with the smallest value, taking the first on ties."
+  - "Use integer arithmetic: Python `slice_us * 1024 // weight`, JavaScript `Math.floor(slice_us * 1024 / weight)`."
+```
 
 ## Senior signals
 
-- You describe a process as an address space plus resources and a thread as a schedulable stack, and you know Linux implements both as tasks created by `clone` with different sharing flags.
-- You can quote the order of magnitude of a syscall, a context switch and a thread creation, and you know the indirect cache cost of a switch usually exceeds the direct cost.
-- You read load average as a run-queue length, not a CPU percentage, and you connect it to tail latency.
-- You know what CPU quota throttling looks like (`nr_throttled`, flat-topped p99 at low average CPU) and that thread-pool sizing must follow the quota, not the host core count.
-- You can explain copy-on-write fork, why forking a large or multithreaded process is a trap, and why Python is moving away from `fork` as the default start method.
-- You choose processes for isolation and threads for sharing, and you can say which one nginx, Postgres, Go and the JVM chose and why.
+- You describe processes and threads as `task_struct`s that differ in which resources `clone` shares, and you can read a `clone3` line from `strace` flag by flag.
+- You know what `fork` copies (page tables, descriptor table, one thread, held locks) and what copy-on-write defers, and you quote its cost in terms of resident memory.
+- You quote measured orders of magnitude: a syscall around 100 ns, a same-core switch around 2 µs, a goroutine switch around 100 ns, a thread creation in tens of microseconds, and you know a VM inflates cross-CPU wake-ups.
+- You can trace vruntime by hand, read load average as a run-queue length, and connect wake-up latency and slices to tail latency.
+- You check CPU throttling first when a container's p99 has a flat top, and you know which runtimes read the cgroup quota (Go, the JVM, Node's `availableParallelism`) and which do not (Python's `os.cpu_count`).
+- You choose processes for isolation and threads for sharing, you know why forking a threaded process is unsafe, and you run a real init as PID 1.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    Two threads in the same process each call malloc and receive pointers with the same numeric value. Two processes each call malloc and receive pointers with the same numeric value. Which statement is correct?
-  options: ["The processes' pointers share memory; the threads' pointers do not", "The threads' pointers share memory, but the processes' pointers do not", "Neither pair shares memory; every malloc gets private pages", "Both pairs point at the same bytes of physical memory"]
+    strace shows a new task created with clone3 and the flags CLONE_VM, CLONE_FILES, CLONE_SIGHAND and CLONE_THREAD. What was created?
+  options: ["A thread sharing memory and descriptors", "A container with its own PID namespace", "A vfork child that borrows memory until exec", "A process with a copy-on-write address space"]
+  answer: 0
+  explanation: >-
+    CLONE_VM shares the mm_struct, CLONE_FILES the descriptor table, CLONE_SIGHAND the handlers, and CLONE_THREAD puts the task in the caller's thread group so getpid returns the same value: that is pthread_create. fork passes none of these and copies everything; a container adds CLONE_NEW* namespace flags; vfork uses CLONE_VM with CLONE_VFORK, not CLONE_THREAD.
+- q: >-
+    A 1 GiB process forks a child that exits immediately. Measured here, that takes about 31 ms, while posix_spawn takes about 0.5 ms from the same parent. Where does fork spend the time?
+  options: ["Writing the parent's dirty pages to swap first", "Copying 1 GiB of memory into the child's new frames", "Copying page-table entries for every resident page", "Flushing every CPU's TLB for the parent's pages"]
+  answer: 2
+  explanation: >-
+    fork duplicates the page tables and bumps a reference count per resident page, about 120 ns for each of 262,144 pages here; no data is copied until someone writes (copy-on-write). posix_spawn uses CLONE_VM with CLONE_VFORK, so there are no page tables to copy. There is no swap involvement, and TLB work is small compared with the per-page walk.
+- q: >-
+    A service runs 300 threads on an 8-core host, and each thread blocks on a downstream call roughly every 200 µs. What is the most likely dominant cost?
+  options: ["Context switches and the cache misses that follow them", "Run-queue insertion, which is O(n) in the thread count", "Stack memory, with 300 threads each committing 8 MiB", "Page-table copies on every switch between the threads"]
+  answer: 0
+  explanation: >-
+    Thousands of switches per core per second cost about 2 µs each directly and more in cold caches. Stacks are reserved virtually and committed lazily, so they do not commit 8 MiB each; threads of one process share page tables, so nothing is copied on a switch; and run-queue operations are logarithmic and cheap at this scale.
+- q: >-
+    A Python service in a container with a CPU limit of 2 on a 32-core host uses ProcessPoolExecutor() with its default worker count. Latency spikes with a flat top near 100 ms while average CPU looks fine. Why?
+  options: ["The GIL serialises the 32 worker processes onto one core", "It sees 32 CPUs, so 32 busy workers burn the quota early", "The kernel swaps the idle workers out between requests", "Each worker's fork copies the parent's page tables per request"]
   answer: 1
   explanation: >-
-    Threads share one address space, so equal virtual addresses are the same bytes (and malloc would never hand out the same live block twice). Processes have private address spaces, so equal virtual addresses map to different physical pages.
+    CPython's CPU count ignores the cgroup quota, so the pool starts 32 processes. Together they burn 200 ms of CPU per 100 ms period within a few milliseconds, and the whole cgroup is throttled until the period ends. Processes do not share a GIL, idle workers are not swapped out by the quota, and a pool forks once at start-up, not per request.
 - q: >-
-    A service runs 300 threads on an 8-core host. Each thread blocks on a downstream call roughly every 200 µs. The most likely dominant cost is:
-  options: ["Stack memory, with 300 threads each reserving an 8 MiB stack", "Copying the process's page tables on every thread switch", "Context switches and the cache misses that follow each one", "The scheduler's O(log n) run-queue insertion on every wake-up"]
+    Tasks A (weight 1024) and C (weight 526) are both CPU-bound on one core under a fair scheduler. Why does C run less often?
+  options: ["C is only picked when A blocks or its slice expires early", "C gets a slice about half as long each time it is picked", "C's vruntime grows about 1.95 times faster per ms of CPU", "C is placed at the back of a FIFO queue after each slice"]
   answer: 2
   explanation: >-
-    Thousands of switches per core per second cost a few µs each directly and far more in cold caches. Stacks are reserved virtually and committed lazily, so 300 of them do not exhaust memory; the run-queue cost is negligible at this scale; and threads in one process share page tables, so nothing is copied on a switch between them.
+    vruntime grows by runtime times 1024 divided by weight, so C's virtual clock advances 5.84 per 3 ms slice against A's 3.00. The scheduler picks the smallest vruntime, so C is chosen about half as often and gets about a third of the core against A's two thirds. Slices are not halved, and there is no FIFO order or strict priority.
 - q: >-
-    A container has a CPU limit of 2 on a 48-core host. Its Java thread pool is sized from Runtime.availableProcessors() and shows p99 latency spikes with a flat top near 100 ms, while average CPU looks low. What is happening?
-  options: ["About 48 threads burn the 2-core quota early and are throttled", "Stop-the-world GC pauses, which average CPU does not reveal", "The kernel is swapping the container's heap out to disk", "Two cores are too few for the JVM's own background threads"]
-  answer: 0
+    Why is a goroutine switch around 90 ns when an OS-thread switch on the same core is around 2 µs?
+  options: ["Goroutine switches skip saving floating-point registers only", "Go pins every goroutine to a core, so caches stay warm", "Goroutines share one stack, so no registers are saved", "The Go runtime switches it in user space with no kernel entry"]
+  answer: 3
   explanation: >-
-    availableProcessors() reports the host's 48 cores, so the pool starts ~48 threads. CFS bandwidth control gives 200 ms of CPU per 100 ms period across all cores; many runnable threads burn it in a few ms and everything stalls until the period resets, and that stall is the flat top. GC pauses vary in length and would not cap neatly at the period length. Sizing the pool to the quota fixes it.
-- q: >-
-    Why is fork() usually fast even for a process with a multi-gigabyte heap?
-  options: ["The kernel compresses the heap and copies it in the background", "Only the calling thread's stack is copied; heap writes stay shared", "Pages are shared copy-on-write, so only page tables are copied", "Modern kernels implement fork as a thread sharing the address space"]
-  answer: 2
-  explanation: >-
-    Copy-on-write marks shared pages read-only and copies a page only when one side writes to it, so after fork the two heaps diverge rather than staying shared. The page-table copy itself still scales with heap size, which is why very large processes see fork take hundreds of milliseconds.
-- q: >-
-    Which of these is true of a goroutine but not of an OS thread?
-  options: ["Switching between them does not enter the kernel", "It can run in parallel with others on another core", "It has its own stack, allocated when it is created", "It can make blocking system calls such as read()"]
-  answer: 0
-  explanation: >-
-    Goroutines are user-space threads multiplexed by the Go runtime; switching between them is a runtime function call. They do have stacks, can run in parallel on the runtime's OS threads, and can make syscalls (which the runtime has to work around).
+    Goroutines are user-space threads: the runtime saves a few registers and swaps stack pointers inside the process, with no system call, no scheduler entry and no page-table work. Each goroutine has its own small, growable stack, goroutines migrate between OS threads freely, and a kernel switch's cost is dominated by the kernel entry, wake-up and scheduling, not by floating-point state alone.
 ```
