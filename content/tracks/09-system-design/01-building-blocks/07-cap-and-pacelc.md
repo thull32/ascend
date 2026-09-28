@@ -1,190 +1,250 @@
 ---
 slug: cap-and-pacelc
 title: "CAP and PACELC: what the theorem actually says and how to choose per operation"
-description: Why "pick two of three" is wrong, what CAP really constrains during a partition, how PACELC adds the latency trade-off you pay every day, and how to choose per operation instead of per system.
+description: What CAP constrains and what it does not, a network partition traced step by step through a CP store (etcd's Raft) and an AP store (Cassandra's hinted handoff and last-write-wins), PACELC's everyday latency cost simulated for local, majority and all-replica writes, real systems classified with their caveats, and choosing per operation.
 minutes: 25
 difficulty: hard
 tags: [system-design, cap-theorem, pacelc, availability, partitions, trade-offs]
 ---
-An interviewer asks "is your system CP or AP?" and the answer they are listening for is not two letters. They are checking whether you know that the question is malformed. CAP is about one moment: the network has split, a node has a request in hand, and it must either answer with what it has (and risk being wrong) or refuse (and be unavailable). Everything else people attribute to CAP, the "pick two", the "CA databases", the idea that it describes normal operation, is folklore.
+An interviewer asks "is your system CP or AP?" and the answer they are listening for is not two letters. They are checking whether you know the question is malformed. CAP is about one moment: the network has split, a node has a request in hand, and it must either answer with what it has (and risk being wrong) or refuse (and be unavailable). Everything else attributed to CAP, "pick two", "CA databases", the idea that it describes normal operation, is folklore.
 
-The reason this matters at the senior bar is that the real decision is made per operation, not per database, and it is made with numbers: how long a partition lasts, how much a quorum round trip costs, what the user sees in each case. This lesson gives you the precise version of the theorem, its extension PACELC that covers the 99.9% of time when there is no partition, and a method for choosing.
+The real decision is made per operation, with numbers: how long partitions last, what a quorum round trip costs, what the user sees either way. This lesson states the theorem precisely, traces a partition through a real CP store and a real AP store, adds PACELC for the 99.9% of the time when nothing is partitioned, and gives a method for choosing.
 
 ## What CAP says
 
-The formal statement (Gilbert and Lynch, 2002) concerns a single register replicated across nodes in an asynchronous network. Three properties:
+Gilbert and Lynch's formal statement (2002) concerns a single register replicated across nodes in an asynchronous network:
 
-- **Consistency** here means linearizability: every read returns the most recent acknowledged write, as if there were one copy. This is the strong meaning from [Consistency models](/learn/system-design/building-blocks/consistency-models), not ACID consistency.
-- **Availability** means every request to a non-failed node eventually gets a non-error response. Not "fast", and not "the service as a whole is up": every node must answer.
-- **Partition tolerance** means the system keeps operating when messages between nodes are dropped or delayed indefinitely.
+- **Consistency** means linearizability: every read returns the latest acknowledged write, as if there were one copy ([Consistency models](/learn/system-design/building-blocks/consistency-models)). Not ACID's C.
+- **Availability** means every request to a non-failed node eventually gets a non-error response. Not "fast", and not "the service is up": every node must answer.
+- **Partition tolerance** means operating while messages between nodes are dropped or delayed indefinitely.
 
-The theorem: no system can provide all three. The proof is one paragraph. Split the nodes into two groups that cannot talk. A client writes `x = 1` to group one. Another client reads `x` from group two. Group two has not heard of the write. If it answers, it answers `x = 0`, which violates linearizability. If it refuses or waits until the partition heals, it violates availability. There is no third option.
+The proof is one paragraph. Split the nodes into two groups that cannot talk. A client writes `x = 1` to group one; another reads `x` from group two, which has not heard of the write. If group two answers, it answers 0 and violates linearizability; if it refuses or waits for the partition to heal, it violates availability.
 
-Now the consequences that most descriptions get wrong.
+The consequences most descriptions get wrong:
 
-**P is not a choice.** Networks partition. Switches fail, cables get cut, a misconfigured firewall drops one direction of traffic, a garbage-collection pause of 20 seconds makes a node look partitioned even though no packet was lost. A system that "chooses CA" is a system that has not decided what to do when a partition happens, which means it will do something arbitrary. In a real deployment you are choosing between C and A *during a partition*.
+- **P is not a choice.** Switches fail, a firewall drops one direction, a 20-second GC pause makes a node look partitioned with no packet lost. A system that "chose CA" has not decided what it does during a partition, so it does something arbitrary.
+- **It says nothing about normal operation.** With a healthy network nothing stops a system being both. The everyday trade-off is PACELC's.
+- **It is per operation.** A store can refuse writes to a key whose leader is unreachable and serve every other key; "is Cassandra AP?" is only answerable per consistency level and query.
+- **Availability is binary in the theorem and continuous for users.** A node that answers after 30 s is available to the theorem and down to users. The moment you set a timeout you have chosen: a CP store returns errors, an AP store returns stale data.
 
-**It says nothing about normal operation.** When the network is healthy, nothing in CAP stops a system from being both consistent and available. The trade-off you pay every day is a different one, and CAP does not name it. That gap is what PACELC fills.
+## A partition, traced through a CP store: etcd
 
-**It is per operation and per request.** The register in the proof is one key. A system can refuse writes to a key whose leader is unreachable while serving reads for other keys. It can serve stale reads on one endpoint and block on another. "Is Cassandra AP?" is answerable only with "at which consistency level, for which query?".
+Three etcd members, n1 (leader), n2, n3, with the defaults: heartbeats every 100 ms, election timeout 1,000 ms, and Raft's CheckQuorum on. At t = 0 a switch failure isolates n1:
 
-**Availability is binary in the theorem and continuous in reality.** A node that answers after 30 seconds is "available" to Gilbert and Lynch and down to your users. The moment you introduce a timeout, you have already picked: a CP system with a 1-second timeout returns errors during a partition; an AP system returns stale data. Both are decisions your product experiences.
+| t | n1 (minority side) | n2, n3 (majority side) | Client on n1's side | Client on the majority side |
+|---|---|---|---|---|
+| 0 | Leader, term 5; its heartbeats stop arriving | Followers | `PUT x=1` appended to n1's log, cannot reach a majority, not committed | Requests forwarded to n1 time out |
+| 0–1.0 s | Still believes it leads | No heartbeat for an election timeout (randomised, 1–2 s) | Waits | Waits |
+| ~1.0 s | CheckQuorum: no majority heard for an election timeout, so steps down to follower | n2 times out, starts pre-vote then an election for term 6; n3 votes | `PUT` fails: no leader, request timed out | – |
+| ~1.2 s | Follower with no leader | n2 leads term 6 | All reads and writes fail; serializable (stale) reads still answer | Writes commit on n2 + n3 again |
+| 5 min | Partition heals; hears term 6 and follows n2 | Leader n2 | – | – |
+| 5 min + | Truncates its uncommitted `x=1` entry, catches up from n2 | | The client was never told `x=1` succeeded, so nothing acknowledged is lost | |
 
-## The partition, step by step
+Majority-side clients lost about 1–2 s to the election; minority-side clients lost the whole partition. That is what CP means: refuse on the side that cannot reach a quorum, never acknowledge what might be lost. Pre-vote keeps n1 from disrupting the cluster with a higher term when it rejoins.
+
+## A partition, traced through an AP store: Cassandra
+
+Three replicas of a key, A and B in region 1 and C in region 2, clients reading and writing at consistency level `ONE`. At t = 0 the inter-region link fails:
+
+| t | Region 1 (A, B) | Region 2 (C) | Notes |
+|---|---|---|---|
+| 0 | `settings.theme = dark`, timestamp 1000; A and B apply it | – | The coordinator stores a *hint* for C |
+| 30 s | Reads return `dark` | Reads return `light` (old) | Both sides available; region 2 is stale |
+| 60 s | – | `settings.theme = blue`, timestamp 998 (C's clock runs 5 ms slow) | The coordinator in region 2 stores hints for A and B |
+| 20 min | Link heals; hints replay in both directions | | Hints are stored only while a replica has been unreachable for less than `max_hint_window` (3 hours by default) |
+| 20 min + | Every replica compares cell timestamps: 1000 beats 998 | | Last write wins per cell |
+| Result | `dark` everywhere | The user in region 2 who chose `blue` a minute later sees `dark` | No error was ever returned |
+
+Both sides stayed available and the replicas converged, to the wrong answer: the later write lost because its node's clock was behind. A partition longer than the hint window leaves replicas divergent until an anti-entropy repair (`nodetool repair`, Merkle-tree comparison) runs, and a repair skipped for longer than `gc_grace_seconds` (10 days) can resurrect deleted data. Choosing AP is half a decision; the merge rule is the other half.
+
+## Which clients a CP choice actually affects
+
+A CP store is unavailable only to clients that can reach nothing but the minority. If a partition splits off a single rack, the balancer routes around it and nobody notices; if it splits a region from the rest, that region's users lose writes for the duration. Budget it with orders of magnitude (your own incident history is the real input):
+
+| Event | How often | How long | A CP store refuses | An AP store serves |
+|---|---|---|---|---|
+| A node pauses or its NIC saturates | Weekly | Seconds | That node's clients until an election, 1–2 s | Stale reads from that node |
+| An availability zone is isolated | A few times a year | Minutes | Nobody, if each quorum spans three zones | Stale reads in that zone |
+| A region is isolated | Rarely | Minutes to an hour | Writers in that region, if their quorum lives elsewhere | Everyone, with conflicting writes to merge on heal |
+
+Put numbers on the worst row: a region holding a third of the users, isolated for 30 minutes a year, costs a CP design 30 minutes of writes for those users, 99.994% write availability for them over the year; it costs an AP design 30 minutes of writes that may conflict. Place quorums so that the common events never cost a quorum: three replicas in three zones survive any single-zone loss.
 
 ```viz
 {"type": "system", "scenario": "quorum", "replicas": 3,
  "title": "A write during a partition", "caption": "With N=3 and W=2, the side of the partition holding two replicas can still commit; the side with one replica cannot reach a quorum and must either reject the write (C) or accept it locally and reconcile later (A)."}
 ```
 
-Take three replicas and a quorum of two. A partition isolates one replica from the other two. The majority side keeps a quorum, so it can keep accepting linearizable reads and writes. The minority side cannot. A CP design makes the minority replica return errors (or redirect); every client that can reach the majority is served, and clients that can only reach the minority are not. An AP design lets the minority replica accept writes locally and answer reads from its own state; those writes are reconciled when the partition heals, which requires a conflict-resolution rule.
+## PACELC: the latency you pay every day
 
-Note that the CP system is not "unavailable". It is unavailable *for clients stuck on the minority side*. If your partitions split a data centre from the rest of the world, that may be one region's users for a few minutes. If they split a single rack, it may be nobody, because the load balancer routes around it. Quantify which partitions you actually expect before you decide what to give up.
+Abadi's extension: if there is a **P**artition, choose **A** or **C**; **E**lse, choose **L**atency or **C**onsistency. A write that waits for a majority is consistent and pays the round trip to the second-fastest replica; a write acknowledged locally and replicated asynchronously is fast and allows stale reads and lost writes on failover. Simulated, with a coordinator co-located with one replica, 10% jitter on every round trip and an assumed 2% chance per replica per request of a 50–300 ms stall (a GC pause or disk hiccup):
 
-## PACELC: the trade-off you pay every day
+```python
+import math, random
 
-Daniel Abadi's extension: **if** there is a **P**artition, choose **A**vailability or **C**onsistency; **E**lse, choose **L**atency or **C**onsistency. The "else" branch is the one that costs you in production every second of every day.
+rng = random.Random(11)
 
-The mechanism behind EL vs EC is replication: a write that waits for acknowledgement from a quorum of replicas before returning is consistent and slow; a write that returns after one replica and propagates asynchronously is fast and allows stale reads. The number attached is the round trip to the second-fastest replica.
+def ack_ms(base_ms):
+    t = base_ms * math.exp(rng.gauss(0, 0.1))       # round trip with 10% jitter
+    if rng.random() < 0.02:                         # assumed: 2% of acks hit a stall
+        t += rng.uniform(50, 300)
+    return t
 
-| Deployment | Consistent write latency (wait for quorum) | Latency-first write (local ack) |
+def pct(values, q):
+    values = sorted(values)
+    return values[int(q * (len(values) - 1))]
+
+for label, bases in (("3 AZs", (1.0, 1.6, 2.1)), ("3 regions", (1.0, 65.0, 75.0))):
+    local, majority, everyone = [], [], []
+    for _ in range(200_000):
+        acks = [ack_ms(b) for b in bases]           # acks[0] is the coordinator's own replica
+        local.append(acks[0])
+        majority.append(sorted(acks)[1])            # second-fastest of three
+        everyone.append(max(acks))
+    for name, v in (("local", local), ("majority", majority), ("all", everyone)):
+        print(label, name, round(pct(v, .5), 1), round(pct(v, .99), 1))
+```
+
+| Write waits for | 3 AZs: p50 / p99 | 3 regions (US East, US West, EU West): p50 / p99 |
 |---|---|---|
-| Three replicas in one availability zone | ~1 ms (0.5 ms RTT plus fsync) | ~0.5 ms |
-| Three availability zones in one region | 1 to 3 ms | ~0.5 ms |
-| Three regions (US-East, US-West, EU) | 60 to 80 ms (second-fastest cross-region RTT) | ~0.5 ms |
+| The local replica only (EL) | 1.0 / 179 ms | 1.0 / 175 ms |
+| A majority, 2 of 3 (EC) | 1.6 / 2.3 ms | 64.7 / 82.0 ms |
+| All three | 2.1 / 261 ms | 76.2 / 309 ms |
 
-A cross-region EC system costs roughly 100 times the latency of an EL one on every write. That is why multi-region databases that are strongly consistent (Spanner, CockroachDB in multi-region mode) either accept ~100 ms commits or use placement rules that keep a row's quorum in the region that mostly writes it.
+Two readings. Across regions a consistent write costs about 65× a local one at the median, every time, which is why Spanner-style systems keep a row's quorum inside the region that writes it. And a majority hides one slow replica while waiting for all three exposes you to every stall, so with any non-trivial stall rate a 2-of-3 quorum can have a better tail than a single node; the exact p99s depend on the stall assumption, the shape does not.
 
-Classifying systems by their defaults:
+## Real systems, classified, with caveats
 
-| System | During a partition | Normal operation | Note |
+| System | During a partition | Else | Caveat |
 |---|---|---|---|
-| DynamoDB (default reads) | PA | EL | Strongly consistent reads make it EC per read |
-| Cassandra (`ONE`/`LOCAL_QUORUM`) | PA | EL | `EACH_QUORUM` cross-DC pushes it toward EC at a large latency cost |
-| Riak, Dynamo-style stores | PA | EL | Conflict resolution via vector clocks or CRDTs |
-| MongoDB (primary reads, majority write concern) | PC | EC | Reads from secondaries are EL |
-| Single-leader Postgres/MySQL with sync replica | PC | EC | Async replica reads move reads to EL |
-| Spanner, CockroachDB | PC | EC | TrueTime / HLC keep EC latency bounded by regional placement |
-| etcd, ZooKeeper | PC | EC | Minority side refuses writes; ZK reads are EL unless `sync()` |
-| Cosmos DB | tunable | tunable | Five named consistency levels, per request |
+| etcd, ZooKeeper, Consul | PC | EC | ZooKeeper reads are local and may be stale unless preceded by `sync()`; etcd serializable reads likewise |
+| Spanner, CockroachDB | PC | EC | Write latency is set by quorum placement; follower or stale reads trade freshness for latency |
+| Postgres or MySQL with a synchronous standby | PC | EC | Only if failover is fenced; reads from asynchronous replicas are EL |
+| MongoDB, majority write concern | PC | EC | The default since 5.0; with `w: 1`, a primary that loses its seat rolls back unreplicated writes |
+| Cassandra at `ONE` or `LOCAL_QUORUM` | PA | EL | `QUORUM` both ways gives overlap, not linearizability; lightweight transactions are PC per partition |
+| DynamoDB | PC within a region | EL by default | Strongly consistent reads make a read EC; global tables replicate between regions with last-writer-wins, and a newer multi-Region strong consistency mode makes writes wait for a second Region |
+| Riak, Dynamo-style stores | PA | EL | Merge by siblings, vector clocks or CRDTs |
+| Cosmos DB | Tunable | Tunable | Five named levels from strong to eventual, chosen per request |
 
-The table's real lesson is the tunable rows. Modern systems expose the choice per request, so "what database" is the wrong level to decide at.
+The real lesson is the "tunable" rows: modern stores expose the choice per request, so "which database" is the wrong level to decide at.
 
 ## Choose per operation
 
-The method: list the operations, and for each ask two questions. What does the user see if this returns stale data? What does the user see if this returns an error for the duration of a partition, say two minutes? Then pick the cheaper failure.
+For each operation ask what the user sees if it returns stale data, and what they see if it errors for the duration of a partition, say two minutes. Pick the cheaper failure.
 
-### A shopping cart
-
-| Operation | Stale answer costs | Error for 2 minutes costs | Choice |
+| Operation | Stale answer costs | Two minutes of errors costs | Choice |
 |---|---|---|---|
-| Add to cart | Nothing; the item shows up on the next sync | A lost sale on a large share of sessions | PA/EL: accept locally, merge later |
-| View cart | An item appears missing briefly | Cart page down | PA/EL |
-| Apply coupon | Coupon applied twice across replicas | User waits or retries | PC/EC on the coupon counter |
-| Checkout: reserve inventory | Oversold item | User retries checkout | PC/EC with a conditional write on the leader |
+| Add to cart | Nothing; the item shows on the next sync | Lost sales | PA/EL: accept locally, merge by union |
+| View cart | An item briefly missing | Cart page down | PA/EL |
+| Apply a single-use coupon | Coupon used twice | A retry | PC/EC on the coupon's counter |
+| Reserve inventory at checkout | An oversold item | A retry | PC/EC: conditional write on the leader |
+| Show balance | Wrong by a recent transaction | Page down | PA/EL, labelled "as of 10:32" |
+| Transfer money | Overdraft from a stale balance | The transfer fails and can be retried | PC/EC |
+| Like counter | A few likes briefly missing | Buttons fail | PA/EL with a CRDT counter that sums both sides ([CRDTs](/learn/system-design/distributed-systems/crdts-and-collaboration)) |
 
-Amazon's original Dynamo paper made exactly this call for the cart: never refuse an add, and merge concurrent cart versions by union, accepting that a deleted item might occasionally reappear. That is a product decision expressed as a consistency choice.
-
-### A bank ledger
-
-Balance display: PA/EL is acceptable if the display says "as of 10:32". Transfer: PC/EC; a transfer that cannot reach the ledger's leader must fail, because a stale balance can be overdrawn twice. The ledger's leader lives in one region; a partition isolating that region makes transfers fail there for its duration, and the design says so explicitly with an error the app can show.
-
-### A social feed
-
-Post: accept locally (PA/EL) with read-your-writes for the author. Feed read: PA/EL. Like counter: PA/EL with a CRDT-style counter so that concurrent increments on both sides of a partition sum correctly on heal ([CRDTs](/learn/system-design/distributed-systems/crdts-and-collaboration)). Account deletion: PC, because a partition must not let a deleted account keep posting.
+Amazon's Dynamo paper made the cart call: never refuse an add, merge concurrent versions by union, and accept that a deleted item occasionally reappears.
 
 ```mermaid
 flowchart TD
     Op["Operation"] --> Q1{"Is a stale or duplicated result harmful?"}
     Q1 -- "No" --> AP["PA/EL: local ack, async replicate, merge on heal"]
     Q1 -- "Yes" --> Q2{"Can the client wait or retry?"}
-    Q2 -- "Yes" --> CP["PC/EC: quorum or leader, error on partition"]
+    Q2 -- "Yes" --> CP["PC/EC: quorum or leader, fail fast on partition"]
     Q2 -- "No" --> Redesign["Redesign: reserve ahead, escrow, or make it idempotent and PA"]
 ```
 
-The bottom-right box is the senior move. Some operations look like they need consistency and can be redesigned not to: ticket sales that hand each region a pre-allocated block of seats (escrow), rate limits that tolerate a few per cent overshoot, ID generation that pre-allocates ranges per node. Each removes a cross-region coordination point from the hot path.
+The bottom-right box is the senior move: remove the coordination instead of paying for it. Ticket sales can give each region a pre-allocated block of seats (escrow); rate limits can tolerate a few per cent of overshoot; ID generation can pre-allocate ranges per node.
 
 ## Multi-leader: the honest AP design
 
 ```viz
 {"type": "system", "scenario": "replication-multi-leader", "nodes": 2,
- "title": "Two leaders accept writes to the same key", "caption": "Each region commits locally in under a millisecond and ships the write asynchronously. When the same key is written on both sides, the system needs a merge rule; last-writer-wins silently discards one of them."}
+ "title": "Two leaders accept writes to the same key", "caption": "Each region commits locally in about a millisecond and ships the write asynchronously. When the same key is written on both sides, the system needs a merge rule; last-writer-wins silently discards one of them."}
 ```
 
-Choosing PA is only half a decision. The other half is the reconciliation rule for writes that happened on both sides of a partition. The options, from worst to best: last-writer-wins with wall-clock timestamps (drops data, and the clock skew decides which; see [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering)); keep both versions as siblings and make the application merge (Riak, early Dynamo); use a data type whose merge is defined, a CRDT; or partition the key space so each key has exactly one home region and cross-region writes are forwarded, which is PA only for keys whose home is reachable. If you pick PA in an interview and cannot say which of these you use, the interviewer has found the gap.
+Merge rules, worst to best: last-writer-wins on wall-clock timestamps (loses data, and clock skew picks which, as the Cassandra trace showed; [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering)); keep both versions as siblings and let the application merge (Riak, the original Dynamo); a data type whose merge is defined (CRDTs); or give each key a home region and forward writes to it, which is AP only for keys whose home is reachable. Choosing AP without naming one of these is the gap interviewers look for.
+
+## Under the hood
+
+- **etcd** runs Raft with CheckQuorum, so a leader cut off from a majority steps down after an election timeout rather than accepting writes it can never commit, and with pre-vote (the default since 3.5), so a rejoining member cannot force an election by bumping its term. Linearizable reads go through ReadIndex, which needs a majority heartbeat; serializable reads answer locally.
+- **Cassandra** lets the coordinator acknowledge at the requested consistency level and store hints for unreachable replicas; hints do not count towards the level (except `ANY`). Each cell carries a microsecond write timestamp, and reconciliation keeps the highest. Read repair fixes divergence the reads touch; scheduled repair fixes the rest.
+- **DynamoDB** keeps three replicas of each partition across availability zones with a leader per partition, so a single-zone partition does not stop writes. Global tables replicate asynchronously between regions and resolve concurrent writes by last-writer-wins, unless configured for multi-Region strong consistency.
+- **MongoDB** elects primaries with a Raft-like protocol; with majority write concern an acknowledged write survives any election, while `w: 1` writes can be rolled back into rollback files when a deposed primary rejoins.
 
 ## Failure modes
 
-**Consistency for everything, availability for nothing.** A team declares the whole platform "CP" because payments need it. A cross-region link flaps for 90 seconds; product browsing, search and the cart all return errors, because they share the strongly consistent store. Revenue lost far exceeds anything a stale catalogue page could have cost. Detect: an outage review that finds unrelated features down together. Mitigate: classify operations; isolate the few PC operations in their own store or endpoint.
-
-**Availability with no reconciliation path.** A team declares "AP" and configures last-writer-wins because it was the default. A partition lasts 20 minutes; both sides accept writes to user settings; on heal, half of one side's changes vanish, chosen by clock skew. Nobody notices for a week. Detect: count sibling or conflicting versions on heal, and alert when it is non-zero. Mitigate: choose a merge rule per data type before you choose AP.
-
-**Assuming partitions are rare.** Full network splits are rare. Things that look identical to one node are not: a 15-second stop-the-world GC, a saturated NIC, an asymmetric routing failure where A can reach B but B cannot reach A. Detect: failure-detector false-positive rate from [Failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases). Mitigate: design the partition behaviour, then inject it in a game day.
-
-**Timeouts that turn CP into "neither".** A CP store with a 30-second client timeout during a partition means every request holds a thread for 30 seconds. Thread pools fill; the callers of the callers time out; the outage spreads to services that never touched the partitioned store. Detect: thread-pool saturation on services upstream of the partition. Mitigate: fail fast with a short timeout and a circuit breaker; see [Resilience patterns](/learn/system-design/building-blocks/resilience-patterns).
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| CP for everything | A 90-second cross-region flap takes down browsing, search and cart, not just payments | Unrelated features share one strongly consistent store | Classify operations; isolate the few PC ones |
+| AP with no merge rule | Settings changed during a partition silently revert | Last-writer-wins by default; clocks skewed | Choose a merge rule per data type; count conflicts on heal |
+| Timeouts that make CP "neither" | Services that never touched the partitioned store run out of threads | 30-second client timeouts hold threads during a partition | Short timeouts and circuit breakers ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)) |
+| Partitions assumed rare | A GC pause triggers an election and a burst of failed writes | Failure detector timeouts shorter than real pauses | Tune detection to observed pauses; game-day the partition behaviour |
+| Zombie data after repair lapses | Deleted rows reappear | Repair not run within `gc_grace_seconds` after a long partition | Scheduled repair shorter than the grace period |
 
 ## Interviewer follow-ups
 
-**Q: "Is your design CP or AP?"**
+**"Is your design CP or AP?"** Model answer: neither as a whole. Checkout and inventory reservation refuse rather than oversell during a partition: PC, a leader with a conditional write. Browsing, cart edits and the feed keep serving: PA, with a named merge rule (union for carts, CRDT counters for likes). In normal operation, reads take the latency side and the two critical writes take consistency, about 2 ms in-region and 65 ms cross-region, so their leaders stay near their users. Common wrong answer: "AP, because availability matters more", with no merge rule.
 
-Neither as a whole. During a partition, checkout and inventory reservation refuse rather than oversell: they are CP, served by a single-leader store with a conditional write. Browsing, cart edits and the feed keep serving from whatever replica is reachable: AP, with a merge rule I can name (cart is a union with tombstones; counters are CRDTs). In normal operation I take the latency side for reads and the consistency side for the two writes that matter, and I can put a number on it: a quorum write in-region is about 2 ms, cross-region about 70 ms, so the CP writes stay in-region by keeping their leader near the user.
+**"Which partitions do you expect, and for how long?"** Model answer: seconds-long single-node partitions from pauses, frequently; zone-level events occasionally; cross-region partitions of minutes to an hour a few times a year. Three replicas in three zones keep a quorum through any single-zone loss at about 2 ms; cross-region replicas are for disaster recovery unless the product requires zero data loss when a region is lost, which I would confirm first because it puts ~65 ms on every write. Common wrong answer: "partitions are rare in the cloud".
 
-**Q: "Which partitions do you expect, and how long do they last?"**
+**"How do you keep multi-region writes fast without losing data on a partition?"** Model answer: give each key a home region near its writer, commit with an in-region quorum, replicate asynchronously for reads elsewhere; a partition makes that key's writes fail on the far side rather than fork. Where that is unacceptable, make the data mergeable. Common wrong answer: multi-leader with last-writer-wins, called "availability".
 
-Intra-region partitions from a bad switch or a GC pause: seconds, frequent, handled by the load balancer and a failure detector with a few seconds of timeout. Cross-region partitions: minutes to an hour, a few times a year, and this is the case I design for. AZ-level partitions in between. My quorum placement follows that: three replicas in three AZs of one region give me a quorum through any single-AZ failure at ~2 ms; I add cross-region replicas for disaster recovery, not for the write quorum, unless the product requires surviving a regional loss with zero data loss, which is a much more expensive requirement I would confirm before assuming.
+**"Can a system be CA?"** Model answer: only a single node, whose availability is one machine's. With two nodes and a network, the partition behaviour is C or A whether chosen or not; "CA" usually means "undecided". Common wrong answer: "yes, a single-region relational database".
 
-**Q: "Your write-heavy service is multi-region. How do you keep writes fast without losing data on a partition?"**
+## What mid-level engineers get wrong
 
-Give every key a home region chosen by the user's location, so writes commit with an in-region quorum in a few milliseconds and replicate asynchronously to other regions for reads. A partition that isolates a home region makes writes for those users fail or degrade rather than fork; their reads elsewhere serve slightly stale data. If the product cannot tolerate that failure, I make the affected write types mergeable (CRDT or append-only event with a merge) and accept that a rare conflict is resolved by a rule I can explain. What I would not do is turn on multi-leader last-writer-wins and call it availability.
-
-**Q: "Why does DynamoDB charge double for strongly consistent reads?"**
-
-Because an eventually consistent read can be served by any one replica, while a strongly consistent one must consult the leader or a quorum, doubling the replica work and adding a round trip. The price tells you the mechanism. It also tells you the design: use eventual reads for display and strongly consistent reads only before a conditional write, and remember that global secondary indexes cannot do strongly consistent reads at all.
-
-**Q: "Can a system be CA?"**
-
-Only if it never partitions, which means a single node, and a single node's availability is bounded by one machine. As soon as there are two nodes with a network between them, a partition is possible, and the system's behaviour during it is either C or A whether the designers chose it or not. When I hear "CA" I read it as "we have not decided", and I ask what happens when the replica cannot reach the primary.
+- Answering "CP or AP" with two letters for a whole system.
+- Treating CAP's C as ACID's C.
+- Choosing AP and leaving last-writer-wins on, with clocks deciding which user's write survives.
+- Assuming CP means the whole system is down during a partition, rather than the minority side.
+- Ignoring PACELC: putting cross-region quorums on every write "for safety" and paying 65 ms each time.
+- Letting long client timeouts turn a CP refusal into a cascading outage.
 
 ## Senior signals
 
-- You state that **P is not a choice** and that CAP constrains behaviour only **during** a partition, and you reach for PACELC to name the latency cost paid every day.
-- You choose **per operation**, and you can list the two or three operations in a design that must be CP and why every other one is better off AP.
-- You attach a **number** to each side: quorum latency in-region vs cross-region, expected partition duration, replication lag.
-- When you choose AP you name the **merge rule** for concurrent writes, and you refuse last-writer-wins for anything users care about.
-- You know that a **timeout** is where CP becomes an outage, and that a slow node is indistinguishable from a partitioned one.
-- You look for ways to **remove coordination** from the hot path (escrow, pre-allocation, idempotent appends) instead of paying cross-region quorum on every write.
+- You state that P is not optional, that CAP constrains only behaviour during a partition, and that PACELC names the everyday cost.
+- You can trace what a Raft store and a Dynamo-style store each do minute by minute through a partition and its healing.
+- You choose per operation and name the few that must be PC.
+- You attach numbers: election time, partition durations, in-region versus cross-region quorum latency.
+- When you choose AP you name the merge rule and refuse last-writer-wins for anything users care about.
+- You look for ways to remove coordination from the hot path: escrow, pre-allocation, idempotent appends.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     A three-replica system with a quorum of two suffers a partition that isolates one replica. Under a CP design, which clients are affected?
-  options: ["All clients, since the system refuses requests during any partition", "Only clients that can reach just the isolated replica", "Only writing clients; reads continue everywhere", "No clients, because a quorum of two still exists"]
+  options: ["All clients, since the system refuses requests during any partition", "Only clients that can reach the isolated replica alone", "Only writing clients; reads continue everywhere", "No clients, because a quorum of two still exists"]
   answer: 1
   explanation: >-
-    The majority side still has a quorum and serves both reads and writes. The isolated minority replica cannot reach a quorum and refuses. CP does not mean global unavailability; it means the minority side stops answering. Reads on the minority side must also refuse or they could return stale data.
+    The majority side keeps a quorum and serves reads and writes after at most an election. The isolated replica cannot reach a quorum and refuses. Linearizable reads on the minority side must also refuse, or they could return stale data.
 - q: >-
-    Which statement about CAP is correct?
-  options: ["The theorem only constrains behaviour while a partition is occurring", "CAP's consistency is the same property as the C in ACID", "Systems choose two of consistency, availability and partition tolerance", "A single-region system can be CA because partitions do not happen there"]
-  answer: 0
+    An etcd leader is cut off from both followers. What does it do, given etcd's defaults?
+  options: ["Keeps accepting and committing writes until the partition heals", "Steps down after an election timeout with no majority contact", "Forces a new election by raising its term on every heartbeat", "Promotes itself to a single-node cluster to stay available"]
+  answer: 1
   explanation: >-
-    The proof is about a partition in progress; when the network is healthy nothing prevents a system being both consistent and available. Partitions happen in every multi-node deployment (including GC pauses that look like them), so P is not optional, and CAP's C is linearizability, not ACID's integrity constraints.
+    With CheckQuorum, a leader that has not heard from a majority for an election timeout steps down, so it stops appearing available for writes it can never commit. Its uncommitted entries are truncated when it rejoins, and pre-vote stops it disrupting the cluster with a higher term.
 - q: >-
-    A checkout service must not oversell inventory. During a cross-region partition, the correct behaviour under a deliberate CP choice is:
-  options: ["Fail fast with a retryable error until the leader is reachable", "Switch the inventory store to last-writer-wins for the duration", "Accept locally and reconcile inventory once the partition heals", "Reserve against the local cache copy of the inventory count"]
-  answer: 0
+    During a partition, two Cassandra replicas accept different values for the same cell. The later write came from a node whose clock ran 5 ms slow. After the partition heals, what is stored?
+  options: ["Both values, kept as siblings for the application to merge", "The later write, since hinted handoff replays in arrival order", "An error, since reconciliation detects the conflicting writes", "The earlier write, since its timestamp is higher"]
+  answer: 3
   explanation: >-
-    Overselling is the harmful stale outcome, so this operation is CP: refuse rather than guess until the inventory leader is reachable, and refuse fast so threads are not held. Local accept, cache, or LWW all risk two regions reserving the same unit; reconciling after the heal means discovering the oversell after it happened.
+    Cassandra reconciles per cell by write timestamp, highest wins. The slow clock gave the later write a lower timestamp, so it silently loses. Siblings are a Riak-style design; Cassandra reports no conflict.
 - q: >-
-    Why does a strongly consistent write in a three-region deployment cost roughly 100 times the latency of a local acknowledgement?
-  options: ["Each cross-region hop needs a fresh TLS handshake per write", "Cross-region links have far lower bandwidth than local ones", "It waits for a quorum, which needs a cross-region round trip", "It must fsync to disk three times, once in each region"]
+    Why does a strongly consistent write in a three-region deployment cost around 65 times the median latency of a local acknowledgement?
+  options: ["Each cross-region hop needs a fresh TLS handshake per write", "Cross-region links have far lower bandwidth than local ones", "It waits for a majority, which needs a cross-region round trip", "It must fsync to disk three times, once in each region"]
   answer: 2
   explanation: >-
-    Quorum acknowledgement waits for the second-fastest replica; if that replica is in another region, the wait is a 60 to 80 ms RTT versus about 0.5 ms locally. Bandwidth, disk writes and TLS are unchanged; a small write is latency-bound, not bandwidth-bound.
+    A majority of three waits for the second-fastest acknowledgement; with replicas in other regions that is a 60–80 ms round trip versus about 1 ms locally. A small write is latency-bound, not bandwidth-bound, and each replica fsyncs in parallel.
 - q: >-
-    A team chooses AP for user settings with default last-writer-wins. What is the most likely production consequence after a 20-minute partition?
+    In the simulation, waiting for 2 of 3 replicas had a far better p99 than waiting for all 3. Why?
+  options: ["A majority write sends less data to each replica", "Waiting for any two hides a single stalled replica", "Majority writes skip the fsync on the slowest replica", "Waiting for all three adds extra round trips per write"]
+  answer: 1
+  explanation: >-
+    The write completes at the second-fastest acknowledgement, so one replica stalling (a GC pause, a disk hiccup) does not delay it; waiting for all three makes every replica's stall your stall. The exact p99 depends on the stall rate assumed, but the shape holds for any non-trivial rate.
+- q: >-
+    A team chooses AP for user settings with default last-writer-wins. What is the most likely consequence after a 20-minute partition?
   options: ["Both sides' writes conflict on heal and the merge step deadlocks", "Some writes are silently discarded, with clock skew picking which", "Nothing; LWW guarantees convergence to the truly newest value", "Settings are unavailable on the minority side during the partition"]
   answer: 1
   explanation: >-
-    LWW converges, but to the value with the highest timestamp, which under clock skew may be the older write. Data is lost without an error. AP requires choosing a merge rule that preserves both sides' intent (siblings, CRDTs, per-field merge). An AP design keeps both sides available, so unavailability is the CP outcome, not this one.
+    Last-writer-wins converges, but to the highest timestamp, which under skew may be the older write, and no error is raised. AP requires a merge rule that preserves both sides' intent. Unavailability on the minority side is the CP outcome, not this one.
 ```

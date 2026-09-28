@@ -1,88 +1,172 @@
 ---
 slug: consistency-models
 title: "Consistency models: what a client can actually observe"
-description: Linearizability, sequential, causal and eventual consistency explained as promises about what reads can return, with the session guarantees that stop users seeing their own writes vanish.
+description: Linearizable, sequential, causal and eventual consistency as rules about which histories are legal, with concrete histories judged step by step, the anomaly each model allows, session guarantees such as read-your-writes implemented with log positions, and how etcd, ZooKeeper, DynamoDB, Spanner and MongoDB implement their promises.
 minutes: 25
 difficulty: hard
 tags: [system-design, consistency, linearizability, causal-consistency, replication]
 ---
-A user posts a comment, refreshes the page, and the comment is gone. Two seconds later it is back. Nothing crashed, nothing was lost, and every engineer on the team will say the system is "eventually consistent" as if that explained it. It does not. The comment went to the primary; the refresh was served by a replica that was 400 ms behind. The system kept every promise it made, because it never promised the user would see their own write.
+A user posts a comment, refreshes the page, and the comment is gone. Two seconds later it is back. Nothing crashed and nothing was lost, and every engineer on the team will say the system is "eventually consistent" as if that explained it. It does not. The comment went to the primary; the refresh was served by a replica 400 ms behind. The system kept every promise it made, because it never promised the user would see their own write.
 
-A consistency model is exactly that: a promise about which values a read is allowed to return, given the writes that happened around it. Every replicated system has one, whether or not anyone wrote it down. The senior skill is naming the model your product needs per operation, knowing what it costs in latency and availability, and knowing which of the weaker models you can afford where.
+A consistency model is exactly that: a rule about which values reads may return, given the writes around them. Every replicated system has one, written down or not. The senior skill is naming the model each operation needs, knowing its price in latency and availability, and knowing where a weaker one is safe. This lesson makes the models concrete by judging histories, the way Jepsen does.
 
-## The question every model answers
+## How to judge a history
 
-Take one register `x`, three replicas, and two clients. Client A writes `x = 1` at 10:00:00.000; the write is acknowledged at 10:00:00.020. Client B reads `x` at 10:00:00.010, while A's write is in flight, and again at 10:00:00.050, after it was acknowledged.
+A **history** is a list of operations on a register `x` (initially 0), each with the client that issued it, what it did, and its real-time interval from invocation to response:
 
-Which values may B's reads return? The first read overlaps the write, so any model lets it return 0 or 1. The second read starts after the write completed. Whether it must return 1, or is allowed to return 0, is the entire difference between the models below.
-
-```viz
-{"type": "system", "scenario": "replication-leader-follower", "replicas": 2,
- "title": "One leader, two async followers", "caption": "The leader acknowledges the write before followers apply it. A read routed to a follower in that window returns the old value; that window is the replication lag."}
+```text
+A: w(1)   [0, 20]      client A wrote 1; the call started at t=0 and returned at t=20
+B: r → 0  [50, 60]     client B read and got 0
 ```
+
+A model is legal for a history if you can find **one total order** of all the operations that (a) respects the model's ordering rule and (b) is *legal*: every read returns the value of the latest write before it in that order. The models differ only in the ordering rule:
+
+| Model | The total order must respect | In words |
+|---|---|---|
+| Linearizable | Real time: if one operation returned before another began, it comes first | As if there were one copy and each operation took effect at an instant inside its interval |
+| Sequential | Each client's own program order | One order everybody agrees on, but it may disagree with the clock |
+| Causal | Happens-before: program order plus "read the value written by" | Causes before effects; concurrent writes may be seen in different orders |
+| Eventual | Nothing, while writes continue | Replicas converge once writes stop |
 
 ## Linearizability: one copy, real time
 
-Linearizability says the system behaves as if there were a single copy of the data and every operation took effect atomically at some instant between its start and its completion. Once a write has been acknowledged, every subsequent read anywhere returns it or something newer. B's second read must return 1.
+**History H1** (a stale read after an acknowledged write):
 
-The mechanism that pays for this is coordination on every operation. A single-leader database gives you linearizable reads and writes only when reads go to the leader (or to a follower that first confirms it has caught up to the leader's latest commit). A quorum system gives it only with extra work: read repair before returning, or a read that waits for the write it observed to reach a quorum. A consensus system (etcd, ZooKeeper with `sync()`) gives it by routing reads through the leader's log position.
+```text
+A: w(1)   [0, 20]
+B: r → 0  [50, 60]
+```
 
-The cost is latency, and it scales with distance. Same-availability-zone coordination costs on the order of 0.5 to 1 ms per round trip; cross-region, 60 to 80 ms for US-East to US-West and more to Europe. A linearizable write that must reach a majority of replicas spread across three regions pays the second-fastest cross-region RTT on every commit, which is why Spanner-style systems put regional replicas close together and accept ~10 ms writes rather than 100 ms ones.
+1. A's write returned at 20; B's read began at 50. Real time forces `w(1)` before `r`.
+2. In that order the read must return 1. It returned 0. **Not linearizable.**
+3. Sequential only needs program order, and A and B each did one thing: the order `r → 0`, `w(1)` is legal. **Sequentially consistent.** A replica that had not yet applied the write produced it.
+
+**History H3** (concurrent reads that disagree):
+
+```text
+A: w(1)   [0, 30]
+B: r → 1  [10, 20]
+C: r → 0  [15, 25]
+```
+
+1. Nothing finished before anything else began, so real time imposes no order.
+2. Choose instants inside each interval: C at 15, the write at 16, B at 17. C reads 0, then the write, then B reads 1. **Linearizable.** Reads overlapping a write may return either value, even in "opposite" order.
+
+**History H3b**: the same, but C's read is at [25, 35], after B's returned.
+
+1. B returned 1 at 20, so the write took effect before 20. C began at 25, after B finished, so it must come after B and after the write.
+2. C returned 0. **Not linearizable**; still sequentially consistent (put C's read before the write). This is the new-then-old inversion across clients that linearizability exists to forbid.
+
+The mechanism that pays for it is coordination on every operation: a single leader serving reads only after confirming it is still the leader, or a quorum protocol with read repair before returning. Its cost is a round trip to a majority, which is 1–2 ms across availability zones and 60–80 ms across US regions. Adding a read replica to a Postgres primary and routing `SELECT`s to it leaves linearizability without changing one line of application code.
 
 ```viz
 {"type": "system", "scenario": "quorum", "replicas": 3,
- "title": "Quorum reads and writes (W=2, R=2, N=3)", "caption": "R + W > N guarantees the read set overlaps the write set, so at least one replica in every read has the latest write. Step through and notice that overlap alone does not fix the moment when a write has reached one replica but not two: a read can still return the old value, which is why quorums are not automatically linearizable."}
+ "title": "Quorum reads and writes (W=2, R=2, N=3)", "caption": "R + W > N guarantees the read set overlaps the write set, so some replica in every read has the latest write. Step through and notice that overlap alone does not fix the moment when a write has reached one replica but not two: a read can still return the old value, which is why quorums are not automatically linearizable."}
 ```
-
-It is also the model most engineers assume they have when they do not. A Postgres primary behind a connection pool is linearizable per key. The moment you add a read replica and route `SELECT`s to it, you have left linearizability without changing a line of application code.
 
 ## Sequential consistency: one order, not real time
 
-Sequential consistency keeps "a single total order that every client agrees on, consistent with each client's own program order", but drops the real-time requirement. B's second read may return 0 as long as B never later sees a history that contradicts it: once B sees 1, it can never see 0 again, and every client agrees on the order of writes.
+**History H4** (writes reordered against the clock):
 
-This is what ZooKeeper offers by default. Writes go through the leader and are totally ordered by `zxid`; reads are served from whichever server the client is connected to, which may lag. The client always sees a prefix of the true history, and the prefix only grows. That is sequential (plus the FIFO client order ZooKeeper adds), and it is the reason ZooKeeper reads scale linearly with servers while its writes do not.
+```text
+A: w(1)   [0, 10]
+B: w(2)   [20, 30]
+C: r → 2  [40, 50]
+C: r → 1  [60, 70]
+```
 
-## Causal consistency: if it could have caused it, you see it
+1. Linearizable? The write of 1 finished before the write of 2 began, so the final value is 2 and C's second read must return 2. **No.**
+2. Sequential? Only C has two operations, and they stay in order. The order `w(2)`, `r → 2`, `w(1)`, `r → 1` is legal. **Yes**: every client sees one agreed order, it is not the clock's.
 
-Causal consistency requires that writes related by *happens-before* are seen in that order by everyone. Concurrent writes may be seen in different orders by different replicas.
+ZooKeeper offers this by default: writes are totally ordered through the leader by `zxid`, and each server answers reads from its own state, a prefix of that order. Reads scale with servers; writes do not.
 
-The canonical example: Alice posts "Anyone want my spare ticket?" and Bob replies "Yes please". Bob's reply was caused by Alice's post; Bob read the post before writing his reply. Under causal consistency no replica may show Bob's reply without Alice's post. Under eventual consistency, a replica that received Bob's reply first (they went to different partitions, or a different region) shows an orphaned "Yes please" for a few hundred milliseconds.
+## Causal consistency: causes before effects
 
-The mechanism is dependency tracking. Each write carries the versions it depended on (a vector clock, or a per-session "I have read up to here" token), and a replica delays applying a write until its dependencies have been applied. That is a real cost: metadata per write and the possibility of holding a write back. It is why most production systems implement a narrower subset, the session guarantees, rather than full causal consistency across all clients. [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering) covers how happens-before is tracked.
+**History H6** uses two registers. Alice posts; Bob reads the post and replies; Carol reads the reply, then the post:
 
-## Eventual consistency: convergence, eventually
+```text
+Alice: w(post = "spare ticket?")   [0, 10]
+Bob:   r(post) → "spare ticket?"   [20, 30]
+Bob:   w(reply = "yes please")     [40, 50]
+Carol: r(reply) → "yes please"     [60, 70]
+Carol: r(post) → (nothing)         [80, 90]
+```
 
-Eventual consistency promises only that if writes stop, all replicas converge to the same value. It says nothing about what any read returns in the meantime. The honest description of "eventually" is a number: replication lag.
+1. Bob read Alice's post before writing his reply, so the post *happens before* the reply.
+2. Carol saw the reply, so the post is in her causal past; her later read of the post must return it. It did not. **Not causal**, and therefore not sequential or linearizable either.
+3. Eventual consistency allows it: the reply's partition replicated first. On a timeline it looks like an orphaned "yes please".
 
-| Setting | Typical lag when healthy | Lag under stress |
+The mechanism is dependency tracking: each write carries the versions it depended on (a vector clock, or a session's "I have seen up to here" token), and a replica delays applying a write until its dependencies are applied. That metadata and the held-back writes are why few systems offer full causal consistency; MongoDB's causally consistent sessions do it per session by tagging reads with `afterClusterTime`, so a secondary waits until it has applied everything the session has seen. [Time and ordering](/learn/system-design/distributed-systems/time-and-ordering) covers vector clocks.
+
+## Eventual consistency: convergence, sometime
+
+Eventual consistency promises only that replicas converge if writes stop. The honest description of "eventually" is a number:
+
+```viz
+{"type": "system", "scenario": "replication-leader-follower", "replicas": 2,
+ "title": "One leader, two asynchronous followers", "caption": "The leader acknowledges the write before followers apply it. A read routed to a follower in that window returns the old value; that window is the replication lag."}
+```
+
+| Setting | Lag when healthy | Lag under stress |
 |---|---|---|
-| Postgres streaming replica, same AZ | 1 to 10 ms | Seconds to minutes during a long transaction, DDL or a replica I/O stall |
-| Cross-region async replica | 50 to 200 ms | Minutes if the link saturates |
-| DynamoDB eventually consistent read | Typically under a second | The documentation only promises "usually within a second" |
-| Cassandra with `ONE` reads | Milliseconds | Until anti-entropy repair runs, which can be hours for a dropped write |
+| Postgres streaming replica, same AZ | 1–10 ms | Seconds to minutes during bulk loads, long transactions or replay conflicts |
+| Cross-region asynchronous replica | 50–200 ms | Minutes if the link saturates |
+| DynamoDB eventually consistent read | Usually under a second | Not bounded by the documentation |
+| Cassandra read at `ONE` | Milliseconds | Until repair, possibly hours, for a write a replica missed |
 
-Eventual consistency is fine for data where a stale read is invisible or harmless: view counts, recommendation rows, search indexes, dashboards. It is a bug for anything the user just changed and is about to look at, which brings us to the guarantees that fix that.
+It is right for view counts, recommendations, search indexes and dashboards, and a bug for anything a user just changed and is about to look at.
 
-## Session guarantees: the ones you actually implement
+## Session guarantees: the ones you implement
 
-Full causal consistency is expensive. The four session guarantees give you the cases users notice, scoped to a single client session, and each has a cheap implementation.
+Four guarantees scoped to one client's session cover the anomalies users notice, each cheaply:
 
-| Guarantee | What it promises | How to get it |
+| Guarantee | Promise | Implementation |
 |---|---|---|
-| Read-your-writes | After you write, your reads see it | Route reads to the leader for N seconds after a write; or carry the write's LSN/version and only read from a replica that has applied it |
-| Monotonic reads | Once you see version 5 you never see version 4 | Stick a session to one replica; or carry the highest version seen and reject older replicas |
-| Monotonic writes | Your writes apply in the order you issued them | Single leader does this; multi-leader needs per-session sequencing |
-| Writes-follow-reads | A write you issue after reading `v` is ordered after `v` | Attach the versions read to the write as dependencies |
+| Read-your-writes | After you write, your reads see it | Carry the write's log position; read from a replica that has applied it, else the primary |
+| Monotonic reads | Once you see version 5 you never see version 4 | Carry the highest position seen; reject replicas behind it (or stick to one replica) |
+| Monotonic writes | Your writes apply in the order you issued them | Free with a single leader; per-session sequence numbers with several |
+| Writes-follow-reads | A write issued after reading `v` is ordered after `v` | Attach the positions read as the write's dependencies |
 
-Read-your-writes is the one to remember. The comment-vanishes bug at the top of this lesson is a missing read-your-writes guarantee. Two implementations are common. The simple one is time-based: after any write, the client (or the gateway, keyed on the user) sends reads to the primary for, say, 5 seconds, which comfortably exceeds normal lag. The precise one is token-based: the primary returns the write's log position (Postgres `pg_current_wal_lsn()`, MySQL GTID); the client sends it with the next read; the replica compares it with `pg_last_wal_replay_lsn()` and either serves the read or forwards it to the primary. The token version costs one extra header and gives you correctness rather than probability.
+**History H2** is time travel for one reader: `A: w(1) [0, 10]`, then `B: r → 1 [20, 30]` and `B: r → 0 [40, 50]`. B's two reads must stay in order, the first needs the write before it and the second needs the write after it, so no order exists under sequential or causal consistency; only eventual allows it, and it happens whenever a balancer sends B's second request to a replica further behind. Monotonic reads forbids it.
+
+**History H5** is the vanishing comment: `A: w(1) [0, 10]`, then `A: r → 0 [20, 30]`. Program order puts A's write before A's read, so every model except eventual forbids it, and read-your-writes is exactly the guarantee that does. Implemented with log positions:
 
 ```python
-def read_user_profile(user_id, session):
-    replica = pick_replica()
-    if session.last_write_lsn and replica.replayed_lsn() < session.last_write_lsn:
-        replica = primary          # replica has not caught up to this session's write
-    return replica.query("SELECT ... WHERE id = %s", user_id)
+class Primary:
+    def __init__(self):
+        self.log, self.state = [], {}
+
+    def write(self, key, value):
+        self.log.append((key, value))
+        self.state[key] = value
+        return len(self.log)                     # the commit's log position (its LSN)
+
+class Replica:
+    def __init__(self, primary):
+        self.primary, self.applied, self.state = primary, 0, {}
+
+    def replay(self, upto):                      # apply the primary's log up to a position
+        for key, value in self.primary.log[self.applied:upto]:
+            self.state[key] = value
+        self.applied = max(self.applied, upto)
+
+def read(key, replica, primary, token=0):
+    if replica.applied >= token:                 # replica has seen this session's last write
+        return replica.state.get(key), "replica"
+    return primary.state.get(key), "primary"     # behind the token: go to the primary
+
+p = Primary()
+r = Replica(p)
+p.write("name", "Adelaide")
+r.replay(1)
+token = p.write("name", "Ada")                   # the API returns this position to the client
+print(read("name", r, p))                        # ('Adelaide', 'replica'): stale, no token
+print(read("name", r, p, token))                 # ('Ada', 'primary'): the token forces freshness
+r.replay(token)
+print(read("name", r, p, token))                 # ('Ada', 'replica'): caught up, replica serves it
 ```
+
+In Postgres the position is `pg_current_wal_lsn()` on the primary and `pg_last_wal_replay_lsn()` on the replica; [Database scaling](/learn/system-design/building-blocks/database-scaling) traces it with real LSNs. Other users still see the stale replica, which is usually fine: they cannot know a write happened.
 
 ```mermaid
 sequenceDiagram
@@ -97,110 +181,185 @@ sequenceDiagram
     P-->>C: fresh profile
 ```
 
-Note what this does not fix. Another user reading Alice's profile still sees the stale replica. That is usually fine: they have no way of knowing a write just happened.
+## Which anomalies each model allows
 
-## A worked timeline
+| Anomaly | History | Linearizable | Sequential | Causal | Session guarantees | Eventual |
+|---|---|---|---|---|---|---|
+| Another client reads stale data after the write was acknowledged | H1 | No | Yes | Yes | Yes | Yes |
+| A read returns old after another client's read returned new | H3b | No | Yes | Yes | Yes | Yes |
+| Writes observed in an order contradicting real time | H4 | No | Yes | Yes, if concurrent | Yes | Yes |
+| Two observers see two concurrent writes in different orders | | No | No | Yes | Yes | Yes |
+| An effect visible before its cause (another client's chain) | H6 | No | No | No | Yes | Yes |
+| New then old for the same reader | H2 | No | No | No | No (monotonic reads) | Yes |
+| Your own write missing from your next read | H5 | No | No | No | No (read-your-writes) | Yes |
 
-Three replicas R1 (leader), R2, R3, with async replication. Client A writes `x = 1` at t = 0, acknowledged by R1 at t = 5 ms. R2 applies it at t = 20 ms, R3 at t = 400 ms (it is in another region).
+Read the table bottom-up when designing: session guarantees remove the two anomalies a user can see about their own actions; causal adds the "reply before question" anomaly across users (DDIA calls the fix consistent prefix reads); only linearizability removes the real-time anomalies that matter when clients coordinate, such as two users both booking the last seat.
 
-| Read | Time | Served by | Linearizable | Sequential | Causal | Read-your-writes (A) | Eventual |
-|---|---|---|---|---|---|---|---|
-| A reads x | 10 ms | R2 | must be 1 | 0 or 1 | 0 or 1 | must be 1 | 0 or 1 |
-| B reads x | 10 ms | R3 | must be 1 | 0 or 1 | 0 or 1 | 0 or 1 | 0 or 1 |
-| B reads x after seeing 1 | 30 ms | R3 | must be 1 | must be 1 | must be 1 | 0 or 1 | 0 or 1 |
-| B reads x | 500 ms | R3 | must be 1 | must be 1 | must be 1 | 0 or 1 | must be 1 (converged) |
+```exercise
+id: history-checker
+title: Check a history for linearizability or sequential consistency
+prompt: |
+  Implement `check_history(history, model)` for a single register whose initial
+  value is 0. Each operation is `[client, kind, value, start, end]`: `kind` is
+  `"w"` (wrote `value`) or `"r"` (read and got `value`); `start < end` are real
+  times. Written values are distinct.
 
-The third row is the one that separates sequential and causal from eventual: once B has seen 1, a system that lets B see 0 again has broken monotonic reads. The first row is the one that separates read-your-writes from everything weaker: A must not see its own write missing.
+  Return `true` if there is a total order of all operations in which every read
+  returns the value of the most recent write before it (0 if none), and which
+  respects:
 
-## Where real systems sit
+  - `"linearizable"`: if operation a's `end` is less than b's `start`, a comes before b.
+  - `"sequential"`: operations by the same client stay in order of their `start`.
 
-| System | Default reads | Strongest available | Cost of the strongest |
+  Histories have at most 10 operations, so a backtracking search is fine.
+languages: [python, javascript]
+entry: check_history
+starter:
+  python: |
+    def check_history(history, model):
+        # your code here
+        return False
+  javascript: |
+    function check_history(history, model) {
+      // your code here
+      return false;
+    }
+tests:
+  - args: [[["A", "w", 1, 0, 20], ["B", "r", 0, 50, 60]], "linearizable"]
+    expected: false
+    label: stale read after an acknowledged write
+  - args: [[["A", "w", 1, 0, 20], ["B", "r", 0, 50, 60]], "sequential"]
+    expected: true
+  - args: [[["A", "w", 1, 0, 30], ["B", "r", 1, 10, 20], ["C", "r", 0, 15, 25]], "linearizable"]
+    expected: true
+    label: reads overlapping a write may split
+  - args: [[["A", "w", 1, 0, 30], ["B", "r", 1, 10, 20], ["C", "r", 0, 25, 35]], "linearizable"]
+    expected: false
+    label: old after new across clients
+  - args: [[["A", "w", 1, 0, 10], ["B", "w", 2, 20, 30], ["C", "r", 2, 40, 50], ["C", "r", 1, 60, 70]], "sequential"]
+    expected: true
+    label: sequential ignores real time between clients
+  - args: [[], "linearizable"]
+    expected: true
+    label: empty history
+  - args: [[["A", "w", 1, 0, 10], ["B", "r", 1, 20, 30], ["B", "r", 0, 40, 50]], "sequential"]
+    expected: false
+    hidden: true
+  - args: [[["A", "w", 1, 0, 100], ["B", "r", 0, 10, 20], ["B", "r", 1, 30, 40], ["C", "r", 1, 50, 60]], "linearizable"]
+    expected: true
+    hidden: true
+hints:
+  - "Precompute, for each operation, the set of operations that must come before it under the chosen model; an operation can be placed next only when all of those are placed."
+  - "Search depth-first carrying the register's current value; memoise on (set of placed operations, current value) to prune repeated states."
+```
+
+## What each model costs
+
+| Model | Read cost | Write cost | During a partition | Metadata | Typical implementation |
+|---|---|---|---|---|---|
+| Linearizable | Leader confirmation or quorum round trip | Majority round trip | Only the majority side answers | The replicated log | etcd, Spanner, a single leader serving all reads |
+| Sequential | Local | Through the leader | Reads may be stale anywhere; writes on the majority side | A log position | ZooKeeper |
+| Causal | Local, sometimes waiting for dependencies | Local, replicated asynchronously | Both sides keep working | Dependencies per write | COPS (research), MongoDB causal sessions |
+| Session guarantees | Local, or the primary when behind the token | The leader | Mostly, while the session reaches its side | One token per session | LSN or version tokens |
+| Eventual | Local | Local, replicated asynchronously | Both sides keep working | A version per value for merging | Dynamo-style stores, asynchronous replicas |
+
+The dividing line is the partition column. Mahajan, Alvisi and Dahlin showed (2011) that no model stronger than a real-time variant of causal consistency can be offered by a system that stays available on both sides of a partition and still converges. Everything above causal in the table pays for its guarantee by refusing some requests when the network splits.
+
+## Under the hood: how systems implement their promises
+
+| System | Default | Mechanism | Stronger option and its cost |
 |---|---|---|---|
-| Postgres primary + replicas | Linearizable on primary, eventual on replicas | Linearizable (route to primary or LSN-check) | Primary read load; replica pinning |
-| DynamoDB | Eventually consistent | Strongly consistent read (`ConsistentRead=true`) | Twice the read capacity units, slightly higher latency, not available on global secondary indexes |
-| Cassandra | Tunable per query (`ONE`, `QUORUM`, `ALL`) | `QUORUM` reads and writes give overlap, not linearizability; lightweight transactions (Paxos) give linearizable per partition at roughly 4x the round trips | Latency and throughput |
-| Spanner | Externally consistent (linearizable across the whole database) | Same | Commit wait tied to TrueTime uncertainty, ~ several ms; regional configuration matters |
-| ZooKeeper / etcd | Sequential (ZK) / serializable-from-any-member (etcd) | Linearizable via `sync()` / linearizable read through leader | One extra round trip to the leader |
-| Redis replica | Eventual | Reads from the primary | Primary load |
+| Postgres + replicas | Linearizable on the primary, eventual on replicas | Physical WAL streaming | `synchronous_commit = remote_apply`: commits wait until standbys replay, so every replica read sees them; each commit pays the slowest standby's apply time |
+| etcd | Linearizable reads | ReadIndex: the leader notes its commit index, confirms leadership with a heartbeat round to a majority, waits until that index is applied, then answers | Serializable reads (`--consistency=s`) skip the round and may be stale |
+| ZooKeeper | Sequential, with each client's operations in FIFO order | Writes ordered by the leader (ZAB); reads from the connected server | `sync()` before a read: the server catches up with the leader first |
+| DynamoDB | Eventually consistent reads | Three replicas per partition across AZs, one leader | `ConsistentRead=true`: served by the leader, twice the read units, not available on global secondary indexes |
+| Cassandra | Per query: `ONE`, `QUORUM`, `ALL` | Leaderless replicas, timestamps per cell | `QUORUM` reads and writes overlap but are not linearizable; lightweight transactions run Paxos per partition at about four round trips |
+| Spanner | External consistency (linearizable, transactional) | TrueTime: a commit waits until the clock's uncertainty interval (a few ms) has passed its timestamp | Already the strongest; latency depends on replica placement |
+| MongoDB | Reads from the primary | Replica-set oplog | Causally consistent sessions (`afterClusterTime`), with majority read and write concerns for the full guarantee |
 
-Two things to notice. First, "strong" is not one thing: DynamoDB's strongly consistent read is linearizable for a single item, not for a query spanning items. Second, the price is always expressed in the same currencies: an extra round trip, a heavier read unit, or less availability during a partition, which is the subject of [CAP and PACELC](/learn/system-design/building-blocks/cap-and-pacelc).
+"Strong" is not one thing: DynamoDB's strongly consistent read is linearizable for one item, not for a query spanning items. And the price is always paid in the same currencies: an extra round trip, a heavier read unit, or refusing requests during a partition, which is the subject of [CAP and PACELC](/learn/system-design/building-blocks/cap-and-pacelc). To test a claim rather than read the documentation, record histories like the ones above from concurrent clients and search for a legal order; Jepsen's Knossos (linearizability) and Elle (transactional isolation) checkers have found documented guarantees violated in many widely used databases.
 
 ## Consistency is not isolation
 
-Interviewers deliberately conflate these to see if you separate them. Isolation (the I in ACID) is about concurrent *transactions* on one database: dirty reads, write skew, phantoms; see [Isolation levels and anomalies](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies). Consistency in the replication sense is about *copies* of data on different machines. A serializable database with an async replica gives you serializable transactions on the primary and eventual consistency on the replica, at the same time, and the two do not interact. Spanner's "external consistency" is the combination: serializable isolation plus linearizable ordering across replicas.
+Interviewers conflate them on purpose. Isolation (the I in ACID) is about concurrent *transactions* on one database: dirty reads, write skew, phantoms ([Isolation levels and anomalies](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies)). Replication consistency is about *copies* on different machines. A serializable primary with an asynchronous replica gives serializable transactions on the primary and eventual reads on the replica at the same time. Spanner's external consistency is both: serializable isolation plus linearizable ordering across replicas.
 
 ## Failure modes
 
-**Stale read after failover.** The primary dies; a replica 2 seconds behind is promoted. Every write in those 2 seconds is gone, and clients that had read them now see an older state. This is a consistency violation even a linearizable-in-normal-operation system can commit if failover is asynchronous. Detect: monitor replication lag and alert before failover, not after. Mitigate: synchronous or semi-synchronous replication to at least one replica, or accept the loss window explicitly and make it visible in the postmortem template.
-
-**Lost update via replica read.** Service reads a counter from a replica (value 10, stale; primary is at 12), increments, writes 11 to the primary. Two updates lost. Detect: compare-and-set on write (`UPDATE ... WHERE version = 10`) fails loudly. Mitigate: never read-modify-write from a replica; do it in one statement on the primary, or use a conditional write.
-
-**The vanishing comment.** Missing read-your-writes. Detect: user reports and a test that writes then immediately reads through the replica path. Mitigate: primary pinning for N seconds or LSN tokens, as above.
-
-**Linearizability where it is not needed.** A team routes every read through the leader "to be safe". The leader saturates at roughly 10k queries per second while three replicas sit idle, and p99 latency doubles under load. Detect: leader CPU and connection saturation with idle replicas. Mitigate: classify reads; move eventual-tolerant reads to replicas, keep read-your-writes for the session that just wrote.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Vanishing edit | "My comment disappeared, then came back" | Reads after writes routed to lagging replicas; no session token | Read-your-writes with LSN tokens or primary pinning after writes |
+| Time travel between replicas | A user sees a new value, then an old one, on consecutive requests | Balancer spreads a session over replicas with different lag; log replica ID and position per response | Carry the highest position seen (monotonic reads) or pin sessions to a replica |
+| Lost update via replica read | Counters and stock levels drift below reality | Read-modify-write computed from a replica value | Atomic `UPDATE ... SET n = n - 1` or a conditional write on the primary |
+| Stale reads after failover | Previously read data "un-happens" | Asynchronous replica promoted while behind | Synchronous standby for data that must survive; alert on lag before failover |
+| Linearizability everywhere | Leader saturated at ~10,000 queries/s while replicas idle | Every read pinned to the leader "to be safe" | Classify reads; only the ones that feed decisions need the leader |
 
 ## Interviewer follow-ups
 
-**Q: "You said the feed is eventually consistent. What does the user see when they post and refresh?"**
+**"The feed is eventually consistent. What does a user see when they post and refresh?"** Model answer: their post, because the posting session gets read-your-writes: the write returns its log position and the next read is served only by a replica that has applied it, otherwise by the primary. Other users may miss it for up to the lag, under 100 ms in region, which is invisible to them. Common wrong answer: "eventually they see it", which is the bug.
 
-They see their post, because I implement read-your-writes for the posting session: the write returns the primary's log position, the client sends it on the next read, and the replica either has applied that position or the read is forwarded to the primary. Other users may not see the post for up to the replication lag, which I would budget at under 100 ms in region and under a second cross-region, and which is invisible to them. I would not route all feed reads to the primary; that throws away the read scaling that was the reason for replicas.
+**"Which operations here need linearizability?"** Model answer: those where two clients acting on a stale value produce a wrong outcome: the last seat, an inventory decrement, a lock, a balance before a transfer. They go to the leader or through a conditional write that fails on a version mismatch; everything else, usually over 95% of reads, tolerates staleness. Common wrong answer: "all writes", which confuses durability with ordering.
 
-**Q: "Which operations in this design need linearizability?"**
+**"How would you test that a store is linearizable?"** Model answer: record a history of concurrent operations with real-time intervals from many clients, including through partitions and failovers, and search for a legal total order that respects real time, as Knossos does; any history with none is a counterexample. In CI, a smaller version: a few clients on one key, checking that no client reads a value older than one already observed. Common wrong answer: "check that all replicas end with the same value", which only tests convergence.
 
-The ones where two clients acting on a stale value produce a wrong outcome: checking out the last seat, decrementing inventory, acquiring a lock, reading a balance before a transfer. Those go to the leader, or through a conditional write that fails on version mismatch. Everything else, which is usually over 95% of reads by volume, tolerates staleness. I would say out loud that I am choosing consistency per operation, not per system.
+**"Causal consistency sounds ideal. Why is it rare?"** Model answer: tracking dependencies across all clients means metadata on every write and replicas holding writes back until dependencies arrive, so one slow partition stalls unrelated writes. Session guarantees give the user-visible part (causality within one client) with one token. Common wrong answer: "it is too slow", with no mechanism.
 
-**Q: "How would you test that a system is actually linearizable?"**
+**"DynamoDB strongly consistent reads cost twice as much. When are they worth it?"** Model answer: when the read feeds a decision that writes: reading a cart before applying a coupon, reading an item's version before a conditional update. The extra read unit is trivial next to a wrong decision. Display reads stay eventual, and anything served through a global secondary index is eventual whatever the flag says. Common wrong answer: "always, to be safe", which doubles the read bill for pages nobody can tell are a second stale.
 
-Not by reading the docs. Record a history of concurrent operations with their start and end times from many clients, then check whether there exists a single sequential order consistent with real time that explains every result. That is what Jepsen does with its Knossos and Elle checkers, and it has found violations in most databases that claimed the property. In practice I would run a smaller version in CI: a few clients hammering one key, with a checker that flags any read returning a value older than one previously observed by the same client.
+## What mid-level engineers get wrong
 
-**Q: "Causal consistency sounds ideal. Why does almost nobody run it?"**
-
-Because tracking causality across all clients means shipping dependency metadata with every write and holding writes back on replicas until dependencies arrive, which turns one slow partition into stalled writes everywhere. Systems that offer it (COPS in research, some MongoDB session modes) restrict the scope. The pragmatic version is session guarantees: causal consistency for one client's own operations, which covers the anomalies users notice, implemented with a token or a sticky route rather than a vector clock per write.
-
-**Q: "DynamoDB strongly consistent reads cost twice as much. When is that worth paying?"**
-
-When the read feeds a decision that writes: read the current cart before applying a coupon, read the item version before a conditional update. For those the doubling in read units is trivial next to the cost of a wrong decision. For display reads I use eventual reads, and I remember that global secondary indexes only offer eventual reads, so if a query goes through a GSI, it is eventually consistent regardless of the flag.
+- Adding read replicas and not noticing that the application's consistency model changed.
+- Saying "eventually consistent" without a lag number or a session guarantee.
+- Read-modify-write from a replica, losing updates.
+- Believing `QUORUM` reads and writes are linearizable.
+- Confusing isolation levels with replication consistency.
+- Pinning every read to the leader instead of classifying reads.
 
 ## Senior signals
 
-- You describe consistency as a promise about **what reads may return**, and you can draw the timeline where linearizable, sequential, causal and eventual give different answers.
-- You know that adding a **read replica changes the consistency model** of an existing system without any code change, and you say so during the design.
-- You reach for **read-your-writes** by name, and you can implement it with an LSN token rather than "route everything to the primary".
-- You choose consistency **per operation**, and you can name the two or three operations in a design that actually need linearizability.
-- You never confuse replication consistency with **transaction isolation**, and you can say what Spanner's external consistency combines.
-- You quote replication lag as a **number with a distribution**, and you know failover can violate a guarantee the healthy system keeps.
+- You define a model by the histories it allows and can judge a small history by hand.
+- You know the anomaly each model admits, and pick the weakest model that forbids the anomalies your product cannot tolerate.
+- You implement read-your-writes and monotonic reads with log positions rather than routing everything to the primary.
+- You choose consistency per operation and name the two or three operations that need linearizability.
+- You quote lag as a number with a distribution, and know failover can break a guarantee the healthy system keeps.
+- You can explain how etcd, ZooKeeper, DynamoDB and Spanner pay for their guarantees.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A write to x = 1 is acknowledged at t = 20 ms. A different client starts a read of x at t = 50 ms and receives 0. Which models permit this?
+    A write of x = 1 returns at t = 20 ms. A different client starts a read at t = 50 ms and receives 0. Which models permit this history?
   options: ["Only eventual consistency, since the others forbid stale reads", "None, because an acknowledged write must be visible to all", "Sequential, causal and eventual, but not linearizable", "All of them, because reads overlapping writes may return either value"]
   answer: 2
   explanation: >-
-    Linearizability alone requires real-time ordering: a read that starts after the write completes must return it. Sequential and causal consistency allow a lagging replica to return the old value as long as the client never later sees a contradiction. The read does not overlap the write, so the "either value" option does not apply.
+    Linearizability orders operations by real time, so a read that begins after the write returned must see it. Sequential and causal consistency only need an order consistent with each client's program order, and the read can be placed before the write. The read does not overlap the write, so the "either value" rule does not apply.
 - q: >-
-    A user updates their display name and immediately reloads their profile page, which is served from a replica. They see the old name. Which guarantee is missing?
-  options: ["Linearizability across all users", "Monotonic writes", "Read-your-writes", "Serializable isolation"]
+    A writes 1 during [0, 30]. B reads 1 during [10, 20]. C reads 0 during [15, 25]. Is the history linearizable?
+  options: ["No, because B has already seen 1 before C's read", "No, because C's read ended after B's read ended", "Yes: C's read, then the write, then B's read", "Yes, but only if C's read began before the write"]
   answer: 2
   explanation: >-
-    The user's own read did not reflect their own write: that is read-your-writes. Full linearizability would fix it but is far more than needed; isolation is about concurrent transactions on one node and is unrelated.
+    No operation finished before another began, so real time imposes no order; choosing C's instant at 15, the write at 16 and B at 17 gives a legal order. If C had started after B returned (say at 25), C would have to see 1 and the history would not be linearizable.
 - q: >-
-    The cheapest correct way to give read-your-writes with Postgres replicas is:
-  options: ["Wait two seconds after each write so replicas can catch up", "Use synchronous replication so every replica has each write first", "Return the write's LSN; serve reads only from replicas past it", "Route every read to the primary, where the write landed"]
+    Client C reads a reply to a post, then reads the post and finds nothing. Which is the weakest model that forbids this?
+  options: ["Causal consistency", "Linearizability", "Eventual consistency", "Read-your-writes"]
+  answer: 0
+  explanation: >-
+    The reply was written by someone who had read the post, so the post happens before the reply; causal consistency requires anyone who sees the reply to see the post. Linearizability also forbids it but is stronger than needed. Read-your-writes covers only a client's own writes, and eventual consistency allows it.
+- q: >-
+    A user sees a new profile value on one request and the old one on the next, as the balancer alternates between two replicas with different lag. Which guarantee is missing, and what is the cheap fix?
+  options: ["Linearizability; route all reads through the leader", "Read-your-writes; add more replicas to cut the lag", "Monotonic reads; carry the highest log position seen", "Monotonic writes; number every write in the session"]
   answer: 2
   explanation: >-
-    Returning the write's WAL position (LSN) to the client and serving its next reads only from a replica that has replayed at least that position costs one header and keeps replicas in use. Routing all reads to the primary throws away read scaling; synchronous replication to all replicas makes every write wait for the slowest replica; a sleep is a probabilistic guess that fails under lag spikes.
+    Seeing a newer state and then an older one violates monotonic reads. Carrying the highest position seen and refusing replicas behind it (or pinning the session to one replica) fixes it with one token. The user did not write anything, so read-your-writes and monotonic writes are not the issue; routing everything to the leader works but gives up the replicas.
 - q: >-
     A service reads an inventory count from a replica, subtracts one, and writes the result to the primary. The likely bug is:
   options: ["A lost update, from computing on a stale replica value", "A phantom read, from rows inserted during the transaction", "Write amplification, from updating the primary and replicas", "A deadlock, from reading and writing on two different nodes"]
   answer: 0
   explanation: >-
-    This is a read-modify-write on stale data. The replica value may be behind the primary; writing a computed result overwrites updates the replica had not seen. A conditional write (WHERE version = expected) or a single atomic UPDATE on the primary prevents it. No locks are held across the two nodes, so there is nothing to deadlock.
+    The replica value may lag the primary; writing a value computed from it overwrites decrements the replica had not seen. An atomic UPDATE on the primary or a conditional write (WHERE version = expected) prevents it. No locks span the two nodes, so there is nothing to deadlock.
 - q: >-
-    Why is linearizability more expensive in a three-region deployment than in a single region?
-  options: ["Each operation needs a majority, so it waits on a cross-region RTT", "Each replica needs synchronous fsyncs, which are slower in far regions", "Each region must store a full copy, tripling disk space", "Caches must be disabled because they would serve stale data"]
-  answer: 0
+    How does etcd serve a linearizable read without writing to its log?
+  options: ["The follower that receives it answers from its locally applied state", "The client reads from a majority and takes the newest value", "The read waits for the next log compaction to finish", "The leader confirms it still leads, then waits for its commit index"]
+  answer: 3
   explanation: >-
-    The single-copy illusion needs coordination on each operation; when the majority spans regions, each commit waits on cross-region RTTs (60 to 150 ms). Disk usage is unchanged, caching is unaffected in principle, and fsync costs the same in one region as in three.
+    ReadIndex: the leader records its commit index, confirms with a heartbeat round that a majority still follows it (so no newer leader has committed anything), waits until its state machine has applied that index, and answers. A follower answering locally is etcd's serializable read, which may be stale.
 ```

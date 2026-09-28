@@ -1,272 +1,399 @@
 ---
 slug: caching-strategies
 title: "Caching strategies: levels, write policies, invalidation and stampedes"
-description: How each cache level and write policy actually moves data, the specific inconsistency each one permits, the arithmetic of hit ratios, and how a cache stampede takes down a database.
+description: Each write policy's race traced as a timeline (the cache-aside stale set, write-through with two writers, write-behind loss), hit ratios simulated on Zipf workloads, a stampede simulated under four defences, TTL jitter, eviction choice under scans, and how Redis, Memcached and Facebook's leases implement it.
 minutes: 30
 difficulty: hard
 tags: [system-design, caching, redis, cache-aside, invalidation, stampede]
 ---
-A product page takes 20 ms to assemble from the database and is requested 15,000 times a second. That is 300 database-seconds of work every second, or roughly 300 cores of database, for data that changes a few times a day. A cache turns that into a 1 ms lookup and a database that sees 150 requests a second. It also introduces the two hardest problems in the system: what happens when the cached copy is wrong, and what happens when it is missing at the moment everyone wants it.
+A product page takes 20 ms to assemble from the database and is requested 15,000 times a second: 300 database-seconds of work every second, roughly 300 cores, for data that changes a few times a day. A cache turns that into a sub-millisecond lookup and a database that sees 150 requests a second. It also introduces the two hardest problems in the system: what happens when the cached copy is wrong, and what happens when it is missing at the moment everyone wants it.
 
-Every cache decision is a decision about staleness and about failure. This lesson works through where caches sit, how each write policy moves data and what inconsistency it permits, how to invalidate, and how stampedes happen and are prevented, with the numbers you need to size and defend the design.
+Every cache decision is a decision about staleness and about failure. This lesson traces each write policy's race on a timeline, simulates hit ratios and stampedes to put numbers on them, and ends with how Redis, Memcached and Facebook's memcache deployment implement the pieces.
 
-## The levels and their latencies
+## Levels and the hit-ratio arithmetic
 
-Requests pass through a hierarchy of caches before touching a database, and each level has a different owner, scope and staleness model.
+| Level | Latency to hit | Scope | Who invalidates |
+|---|---|---|---|
+| Browser | 0 | One user | `Cache-Control`, `ETag` |
+| CDN edge | 10–30 ms (the user's RTT to the edge) | Users near one point of presence | TTL, purge API, versioned URLs |
+| In-process | ~100 ns | One replica | TTL only; no coherent invalidation across replicas |
+| Distributed (Redis, Memcached, EVCache) | 0.2–0.5 ms | Every replica in a region | TTL, explicit delete, change data capture |
+| Database buffer pool | ~0.1 ms including the query | The database | The database, transparently |
 
-| Level | Where | Latency to hit | Scope | Who invalidates |
-|---|---|---|---|---|
-| Browser / client | User's device | 0 (no network) | One user | `Cache-Control`, `ETag`, the user |
-| CDN / edge | PoP near the user | 10–30 ms (the user's RTT to the edge) | All users near that PoP | TTL, purge API, versioned URLs |
-| API gateway / reverse proxy | Your edge | ~1 ms | All users, one region | TTL, explicit purge |
-| In-process | Inside each service replica | ~100 ns | One replica | TTL; cannot be invalidated coherently |
-| Distributed (Redis, Memcached, EVCache) | Shared cluster | ~0.5–1 ms | All replicas in a region | TTL, explicit delete, CDC |
-| Database buffer pool | Inside Postgres | ~100 µs (memory) vs ~100 µs–10 ms (disk) | The database | The database, transparently |
+The CDN carries public and static content ([CDNs and edge](/learn/networking/application-protocols/cdns-and-edge)); the distributed cache carries per-user and fast-changing data and is this lesson's subject. The in-process cache is three orders of magnitude faster and the hardest to keep correct, so it suits reference data with a short TTL (feature flags, configuration) and not data users edit.
 
-The two that carry most of the load in a typical design are the CDN, for anything static or public, and the distributed cache, for per-user or fast-changing data. The in-process cache is the fastest by three orders of magnitude and the hardest to keep correct, because every replica has its own copy and there is no mechanism to update them all at once; it is right for reference data with a short TTL (feature flags, config, a lookup table) and wrong for anything users edit. [CDNs and edge](/learn/networking/application-protocols/cdns-and-edge) covers the edge tier; this lesson concentrates on the distributed cache in front of the database.
+With hit ratio $h$, effective latency is $L = h \cdot L_{cache} + (1-h) \cdot L_{db}$ and database load is $(1-h)$ times traffic. With 1 ms hits, 20 ms misses and 15,000 reads/s:
 
-```mermaid
-flowchart LR
-  B["Browser cache"] --> E["CDN edge, 10-30 ms"]
-  E --> G["API gateway, ~1 ms"]
-  G --> S["Service + in-process cache, ~100 ns"]
-  S --> R["Redis cluster, ~1 ms"]
-  R -->|"miss"| DB["Postgres, buffer pool then disk"]
-```
-
-### Hit-ratio arithmetic
-
-The effective read latency of a cache-fronted store is
-
-$$L = h \cdot L_{cache} + (1 - h) \cdot L_{db}$$
-
-With $L_{cache}$ = 1 ms and $L_{db}$ = 20 ms:
-
-| Hit ratio | Effective mean latency | Database QPS at 15,000 reads/s |
+| Hit ratio | Mean latency | Database reads/s |
 |---|---|---|
 | 0.80 | 4.8 ms | 3,000 |
 | 0.95 | 1.95 ms | 750 |
 | 0.99 | 1.19 ms | 150 |
 | 0.999 | 1.02 ms | 15 |
 
-Two things to say about this table in an interview. The mean is dominated by misses once the hit rate is over 90%, so the p99 is a miss and improving hit latency does nothing for it. And the database load is $(1-h)$ times the traffic: going from 95% to 99% cuts database load by 5×, which is the difference between one primary and a sharded cluster. The hit ratio is the design parameter, and it is set by the TTL, the cache size relative to the working set, and the access distribution (Zipfian access, where 1% of keys get most of the reads, caches well; uniform access does not).
+Going from 95% to 99% cuts database load 5×, which can be the difference between one primary and a sharded cluster. Above 90% the p99 is a miss, so faster hits do nothing for it.
 
-## Write policies
+## What the hit ratio depends on: a Zipf workload, simulated
 
-The read side of a cache is straightforward: look in the cache, fall through on a miss. The write side decides consistency, and there are four policies with different mechanisms.
+Real access is skewed: the $k$-th most popular key is requested with probability proportional to $1/k^s$ (a Zipf distribution, $s$ near 1 for many web workloads). Simulated: 100,000 keys, 600,000 requests, the first 100,000 discarded as warm-up, an LRU cache of various sizes, against the best any policy could do without knowing the future (always holding the most popular keys):
 
-### Cache-aside (lazy loading)
+| Skew $s$ | Cache = 1% of keys | 5% | 10% | 20% |
+|---|---|---|---|---|
+| 0.8 | LRU 0.20 (best 0.34) | 0.37 (0.51) | 0.47 (0.60) | 0.59 (0.70) |
+| 1.0 | 0.51 (0.62) | 0.67 (0.75) | 0.74 (0.81) | 0.81 (0.87) |
+| 1.2 | 0.79 (0.85) | 0.89 (0.92) | 0.92 (0.94) | 0.94 (0.96) |
 
-The application owns both the cache and the database. On read: get from cache; on miss, read the database, write the value into the cache, return. On write: write the database, then **delete** the cache key.
+Three things to take into a design review. Skew matters more than size: at 5% of the keys, the hit ratio ranges from 37% to 89% depending on $s$. Each doubling of the cache adds a roughly constant few points, so the last points are expensive. And LRU leaves 6–14 points on the table against perfect frequency knowledge, which is the gap frequency-aware policies (below) recover. Measure your workload's skew before promising a hit ratio.
+
+## Write policies, traced
+
+### Cache-aside
+
+The application owns both stores. Read: get from the cache; on a miss, read the database and set the value. Write: update the database, then **delete** the key.
 
 ```viz
 {"type": "system", "scenario": "cache-aside", "title": "Cache-aside: the application does the work",
- "caption": "A miss reads the database and populates the cache; a write updates the database and deletes the key. Watch the window between the database write and the delete: a concurrent reader can see the old value."}
+ "caption": "A miss reads the database and populates the cache; a write updates the database and deletes the key. Watch the window between the database read and the cache set: a concurrent write can land in it."}
 ```
 
-```python
-def get_product(pid):
-    v = cache.get(f"product:{pid}")
-    if v is None:
-        v = db.query_one("SELECT ... FROM products WHERE id = %s", pid)
-        cache.set(f"product:{pid}", v, ttl=3600 + random.randint(0, 300))
-    return v
+Delete rather than set on write, because two writers setting values can interleave and leave the older one cached, while two deletes cannot disagree. Delete does not close every hole. Trace the stale-set race with a reader that pauses between its database read and its cache set:
 
-def update_product(pid, fields):
-    db.execute("UPDATE products SET ... WHERE id = %s", pid)
-    cache.delete(f"product:{pid}")          # delete, do not set
-```
+| t (ms) | Reader A | Writer B | Database | Cache |
+|---|---|---|---|---|
+| 0 | `GET product:42`: miss | | price 10 | – |
+| 1 | `SELECT`: price 10 | | 10 | – |
+| 2 | GC pause begins (50 ms) | `UPDATE price = 12; COMMIT` | 12 | – |
+| 3 | | `DEL product:42` (nothing to delete) | 12 | – |
+| 52 | `SET product:42 10 EX 3600` | | 12 | **10** |
+| 52 → 3,600,052 | | | 12 | 10 for every reader until TTL or the next write |
 
-Why delete rather than set the new value on write? Two reasons. First, setting means computing the cached form on the write path, which may need data the writer does not have. Second, and more important, two concurrent writers setting the cache can interleave so the cache ends with the older value while the database has the newer; two concurrent deletes cannot disagree.
+At 15,000 reads a second the window (a reader paused across an entire write) will be hit. Three fixes: a short TTL bounds the damage; a **versioned set** writes only if the value's version is newer than the cached one (a Redis Lua script comparing a version field); or **leases**, Memcached-style, which make B's delete invalidate A's right to set (under the hood, below).
 
-Cache-aside is the default for a reason: the cache holds only what is read, a cache failure degrades to slower reads rather than lost writes, and the policy is simple. Its inconsistency window is real, though. Consider:
+The other ordering, delete then write, is worse, because its window is the whole write transaction rather than a pause:
 
-1. Reader A misses the cache and reads `price = 10` from the database.
-2. Writer B updates the database to `price = 12` and deletes the cache key (which is not there yet).
-3. Reader A, delayed by a garbage-collection pause, writes `price = 10` into the cache.
+| t (ms) | Writer W | Reader R | Database | Cache |
+|---|---|---|---|---|
+| 0 | `DEL key` | | 10 | – |
+| 1 | `BEGIN; UPDATE → 12` (uncommitted) | `GET`: miss; `SELECT`: 10 | 10 | – |
+| 2 | | `SET key 10` | 10 | 10 |
+| 3 | `COMMIT` | | 12 | **10** |
 
-The cache now serves 10 until the TTL expires, and no subsequent write will fix it unless another update happens. The window is narrow (a reader has to be paused between its database read and its cache set while a write completes) but at 15,000 reads/s it will happen. Mitigations: a short TTL bounds the damage; a *versioned* set (compare the row's `updated_at` or version against what is in the cache before writing) closes it; or write the cache with a short "tentative" TTL of a few seconds on miss-fill and a long TTL only on an authoritative path.
+Some teams add a second, delayed delete a few hundred milliseconds after the write to catch both races; it narrows the window but does not close it.
 
-The related ordering question is "delete cache then write database" versus "write then delete". Delete-first leaves a window where a reader misses, reads the old database value, and repopulates the cache with it before the write lands; write-first leaves the smaller window above. Write-then-delete is the right default, and some teams add a second delayed delete (a few hundred milliseconds later) to clean up the race.
+### Write-through and read-through
 
-### Read-through and write-through
-
-In read-through the cache itself loads from the database on a miss; the application only talks to the cache. In write-through, the application writes to the cache and the cache synchronously writes to the database before acknowledging.
+Read-through moves the miss-load into the cache layer. Write-through writes the cache and the database synchronously before acknowledging, so a read after a write through the cache hits.
 
 ```viz
 {"type": "system", "scenario": "write-through", "title": "Write-through: cache and database updated together",
- "caption": "Every write goes through the cache to the database before the client gets an acknowledgement. Reads never miss for recently written data, at the cost of write latency equal to the sum of both."}
+ "caption": "Every write goes through the cache to the database before the client gets an acknowledgement. Reads never miss for recently written data, at the cost of write latency equal to both writes."}
 ```
 
-Write-through's property is that the cache is never stale with respect to writes that went through it, so reads after writes hit. Its cost is write latency (cache write plus database write, sequentially) and cache pollution: every written row is cached whether or not anyone will read it. The inconsistency it permits: writes that bypass the cache (a batch job, a migration, another service) are invisible to it until TTL. With one writer, write-through is close to consistent; with many, it is a trap.
+With two writers and no per-key serialisation, the two stores can order the writes differently:
 
-### Write-around
+| t | Writer A (price 11) | Writer B (price 12) | Cache | Database |
+|---|---|---|---|---|
+| 0 | cache ← 11 | | 11 | 10 |
+| 1 | | cache ← 12 | 12 | 10 |
+| 2 | | database ← 12 | 12 | 12 |
+| 3 | database ← 11 | | **12** | **11** |
 
-Write to the database only; do not touch the cache (or delete the key). Reads populate on miss. This is cache-aside's write path, and it is the right choice when written data is rarely read soon after (logs, audit rows, bulk imports), because it avoids filling the cache with cold data.
+The cache and the database now disagree until the TTL, and neither writer saw an error. Write-through is close to consistent with one writer per key; with many it needs per-key ordering (a lock, or writing the database first and caching the committed row with its version). Writes that bypass the cache (a batch job, a migration) are invisible to it until TTL.
 
-### Write-behind (write-back)
+### Write-behind
 
-Write to the cache and acknowledge immediately; the cache flushes to the database asynchronously, batched, seconds later.
+Write to the cache, acknowledge, flush to the database asynchronously in batches. It coalesces 1,000 increments of a counter into one database write, which is how CPU caches and the database's own buffer pool work. As an application pattern the cache becomes the system of record for unflushed data:
+
+| t (s) | Event | Acknowledged | In the database |
+|---|---|---|---|
+| 0.0 | 300 view increments | 300 | 0 |
+| 1.0 | Flush | 300 | 300 |
+| 1.0–1.9 | 250 more increments | 550 | 300 |
+| 1.9 | Cache node dies before the next flush | 550 | 300 |
+| after failover | | – | 300: 250 acknowledged writes are gone |
 
 ```viz
 {"type": "system", "scenario": "write-behind", "title": "Write-behind: acknowledge now, persist later",
- "caption": "Writes land in the cache and are flushed to the database in batches. Throughput is high and write latency is a cache write; a cache node crash before the flush loses every unflushed write."}
+ "caption": "Writes land in the cache and are flushed to the database in batches. Throughput is high and write latency is a cache write; a node crash before the flush loses every unflushed write."}
 ```
 
-Write-behind gives the lowest write latency and the highest throughput (coalescing 1,000 increments to a counter into one database update), and it is how a CPU cache and a database buffer pool work internally. As an application pattern its failure mode is severe: the cache is now the system of record for unflushed data, and a Redis node loss drops it. It is appropriate for data you can afford to lose a few seconds of (view counters, "last seen" timestamps, rate-limit state) and inappropriate for anything with the word "order" or "payment" in it, unless the cache is itself durably replicated, at which point you have built a database.
+For view counts that loss is noise. For orders, balances or anything a user was told succeeded, it is a silent data-loss bug; if you need the throughput, put a durable log in front of the database instead.
 
-### Summary
+| Policy | Read miss | Write latency | Inconsistency it permits | Loss if the cache dies | Use when |
+|---|---|---|---|---|---|
+| Cache-aside | App loads | Database only | Stale set race; bypassing writes until TTL | None | Default; read-heavy; many writers |
+| Read-through | Cache loads | Per write policy | As the write policy | As the write policy | Cache as a data-access layer |
+| Write-through | Cache loads | Cache + database | Two-writer reordering; bypassing writes | None | Read-after-write must hit; one writer per key |
+| Write-around | App loads | Database only | Stale until TTL | None | Written data rarely read soon (logs, imports) |
+| Write-behind | Cache loads | Cache only | Database behind by the flush interval | Everything unflushed | Counters, presence, tolerable loss |
 
-| Policy | Read miss | Write path | Inconsistency permitted | Use when |
-|---|---|---|---|---|
-| Cache-aside | App loads and fills | DB, then delete key | Narrow race on concurrent read/write; stale until TTL after bypassing writes | Default; read-heavy; many writers |
-| Read-through | Cache loads | (pair with a write policy) | Same as the write policy | Want the cache as a data-access abstraction |
-| Write-through | Cache loads | Cache writes DB synchronously | Bypassing writes invisible | Read-after-write must hit; single writer |
-| Write-around | App loads and fills | DB only | Stale until TTL after write | Written data rarely read soon |
-| Write-behind | Cache loads | Cache, async flush | Data loss on cache failure | Counters, telemetry, tolerable loss |
+## TTLs, jitter and invalidation
 
-## TTLs and invalidation
+A TTL is the maximum staleness you accept and a floor on misses: with a one-hour TTL every key misses at least hourly. Say the number and the reason: a price may be a minute stale; a user's own profile edit may not be stale to that user at all.
 
-A TTL is the maximum staleness you accept, and it is also the miss rate you accept: with a 1-hour TTL, every key misses at least once an hour regardless of load. Choosing it is a product decision phrased as a number. A product price can be a minute stale; a user's own profile edit cannot be stale to that user at all; a leaderboard can be 30 seconds stale. Say the number and the reason.
+**Jitter.** A deploy warms 100,000 keys within 60 s, all with a 3,600 s TTL, and each key is read at least once a second, so it is refilled the second it expires. Simulated over three hourly cycles:
 
-**Jitter the TTL.** If a deploy warms 100,000 keys at once with a 3,600 s TTL, they all expire together an hour later. Add a random 5–10% to each TTL and the expiry spreads.
+| Cycle | Peak refills per second, fixed TTL | Peak refills per second, TTL + uniform 0–10% |
+|---|---|---|
+| Hour 1 | 1,743 | 328 |
+| Hour 2 | 1,744 | 314 |
+| Hour 3 | 1,765 | 236 |
 
-**Invalidation strategies**, from simplest to most precise:
+Without jitter the keys expire together, refill together and therefore expire together again, every hour, forever. With jitter the first cycle spreads over about 420 s instead of 60 s and each later cycle spreads further.
 
-1. **TTL only.** Accept staleness up to the TTL. Simple, and correct for most read-mostly data.
-2. **Explicit delete on write.** The writer knows the key and deletes it. Requires every writer to know every derived key, which is the maintenance burden: a product update must invalidate `product:42`, `category:7:page:1`, `search:...`. Missed keys are the most common cache bug.
-3. **Versioned keys.** Include a version in the key (`product:42:v17`) and bump the version on write; old entries expire naturally. Readers need to find the current version, usually from a small, separately cached record.
-4. **CDC-driven.** A change-data-capture stream from the database's WAL feeds an invalidator that deletes or updates keys. This removes the burden from writers and catches bypassing writes, at the cost of a pipeline and a lag of tens to hundreds of milliseconds. [Change data capture](/learn/big-data/streaming/change-data-capture) covers the mechanism; [Caching layers](/learn/databases/data-modeling-and-evolution/caching-layers) has the database-side view.
+**Invalidation**, from simplest to most precise:
 
-## Stampedes
+1. **TTL only.** Correct for most read-mostly data.
+2. **Delete on write.** Every writer must know every derived key (`product:42`, `category:7:page:1`, search results); the missed derived key is the commonest cache bug.
+3. **Versioned keys.** `product:42:v17`; bump the version on write and let old entries expire. Readers need the current version from a small, separately cached record.
+4. **Change data capture.** An invalidator tails the database's WAL and deletes keys, catching writes that bypass the application, with tens to hundreds of milliseconds of lag ([Change data capture](/learn/big-data/streaming/change-data-capture)).
 
-A cache stampede (thundering herd, dog-pile) happens when a popular key expires or is evicted and every request that would have hit it misses at the same moment. At 15,000 reads/s on a key whose recompute takes 20 ms, 300 requests are in flight before the first one has repopulated the cache, and all 300 go to the database for the same 20 ms query. If the recompute is expensive (a 500 ms aggregation), 7,500 identical queries land on the database, it slows, the recompute takes longer, more requests miss, and the cache never repopulates because the database is now too slow to answer. This is the mechanism behind "the cache expired and the site went down".
+Cache negative results ("no such ID") too, or random-ID requests all reach the database, but for seconds, and delete the negative entry on create.
 
-```viz
-{"type": "system", "scenario": "cache-stampede", "requests": 40, "title": "One expiry, forty identical database queries",
- "caption": "Every request that arrives during the recompute window misses and recomputes. The database sees the same query forty times; with a slow recompute this feedback loop keeps the cache empty."}
-```
+## Stampedes, simulated
 
-The fixes, in rough order of preference:
+When a hot key expires, every request in the refill window misses. Simulated: a key read 10,000 times a second (Poisson) across 50 service replicas, expiring at t = 0; the database has 16 worker slots and the recompute needs 50 ms of one; a hit costs 1 ms. Two seconds of traffic:
 
-**Request coalescing (single-flight).** Only one request per key per replica recomputes; the others wait for its result. Go's `singleflight`, or a per-key mutex with a promise. This cuts the stampede from N to (number of replicas), which is usually enough.
+| Defence | Identical database queries | Database saturated for | Reader p99 |
+|---|---|---|---|
+| None | 489 | 1.55 s | 872 ms |
+| Single-flight per replica | 50 | 0.2 s | 83 ms |
+| Fleet-wide lock (`SET lock NX EX 5`) | 1 | 0.05 s | 29 ms |
+| Stale-while-revalidate | 1 | 0.05 s | 1 ms |
+
+With a 500 ms recompute the undefended case issued 5,055 queries and kept the database saturated for 158 s, so every other query waited behind them: the cache "expired and the site went down". Single-flight (Go's `singleflight`) cuts duplicates to one per replica with no network coordination:
 
 ```python
-inflight = {}                              # key -> Future, per process
-def get_coalesced(key, loader):
+import threading
+import time
+from concurrent.futures import Future
+
+class SingleFlight:
+    """At most one in-flight load per key in this process; other callers wait for it."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._inflight: dict[str, Future] = {}
+
+    def do(self, key, fn):
+        with self._lock:
+            fut = self._inflight.get(key)
+            leader = fut is None
+            if leader:
+                fut = self._inflight[key] = Future()
+        if not leader:
+            return fut.result()                   # piggyback on the leader's load
+        try:
+            fut.set_result(fn())
+        except BaseException as exc:              # waiters see the same error
+            fut.set_exception(exc)
+        finally:
+            with self._lock:
+                del self._inflight[key]
+        return fut.result()
+
+cache: dict[str, dict] = {}
+db_calls = 0
+flights = SingleFlight()
+
+def load_product(key):
+    global db_calls
+    db_calls += 1
+    time.sleep(0.05)                              # a 50 ms query
+    return {"id": 42, "price": 12}
+
+def get(key):
     v = cache.get(key)
     if v is not None:
         return v
-    fut = inflight.get(key)
-    if fut is None:
-        fut = inflight[key] = executor.submit(loader)
-        try:
-            v = fut.result()
-            cache.set(key, v, ttl=ttl_with_jitter())
-        finally:
-            inflight.pop(key, None)
+    def fill():
+        v = cache.get(key)                        # re-check: a previous leader may have just filled it
+        if v is None:
+            v = load_product(key)
+            cache[key] = v                        # fill before the in-flight entry is removed
         return v
-    return fut.result()                    # piggyback on the in-flight load
+    return flights.do(key, fill)
+
+threads = [threading.Thread(target=get, args=("product:42",)) for _ in range(50)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print("database calls:", db_calls)                # 1, not 50
 ```
 
-**A distributed lock on recompute.** `SET lock:key NX EX 5`; the winner recomputes, the losers either wait briefly and re-read or serve stale. Cuts the stampede to one across the whole fleet; adds a Redis round trip to every miss and a failure mode if the lock holder dies (the TTL handles it).
+The two commented lines matter: filling the cache before removing the in-flight entry, and re-checking inside `fill`, stop a late caller from starting a second load just after the first finished.
 
-**Stale-while-revalidate.** Store the value with a logical expiry earlier than the physical TTL. When the logical expiry passes, the first reader triggers a background refresh and *everyone keeps serving the stale value* until the refresh completes. Nobody waits, nobody stampedes, and staleness grows only by the refresh time. This is what CDNs do with `stale-while-revalidate` and it is the best default for anything that tolerates a few seconds of staleness.
+```viz
+{"type": "system", "scenario": "cache-stampede", "requests": 40, "title": "One expiry, forty identical database queries",
+ "caption": "Every request that arrives during the recompute window misses and recomputes. With a slow recompute the database backs up and the cache stays empty."}
+```
 
-**Probabilistic early expiration.** Each reader independently decides, with a probability that rises as expiry approaches, to refresh early (the XFetch formula: refresh when $\text{now} - \Delta \beta \ln(\text{rand}) \ge \text{expiry}$, where $\Delta$ is the recompute time). On average one reader refreshes shortly before expiry and the key never actually expires under load, with no coordination.
+**Stale-while-revalidate** stores a logical expiry before the physical TTL; after it passes, one reader refreshes in the background while everyone keeps getting the old value, so nobody waits. **Probabilistic early expiration** (XFetch) has each reader refresh early with rising probability, when $\text{now} - \Delta\beta\ln(\text{rand}) \ge \text{expiry}$ with $\Delta$ the recompute time, so under load one reader refreshes shortly before expiry without coordination.
 
 ## Hot keys
 
-A cache cluster partitions keys across nodes by hash; one node handles one key. A key read 500,000 times a second (a live event's scoreboard, a celebrity's profile) exceeds one Redis node's ~100,000 ops/s and no amount of cluster size helps, because it is one key. Fixes: replicate the key under N suffixes (`score:1`, `score:2`, …) and have readers pick one at random, spreading the load N ways at the cost of N writes per update; put an in-process cache with a 1-second TTL in front, which turns 500,000 reads/s across 50 replicas into 50 reads/s at the distributed cache; or serve it from the CDN. Detection is the hard part: per-key metrics are expensive, so sample, or watch for one node's CPU far above the others.
+A cluster puts each key on one node, and a single Redis instance tops out around 100,000–200,000 simple operations a second, so a key read 500,000 times a second (a live score, a celebrity profile) saturates its node whatever the cluster size. Fixes: an in-process cache with a 1 s TTL in front (50 replicas turn 500,000 reads into 50 a second, for a second of staleness); or replicate the key under N suffixes and read one at random (N writes per update); or serve it from the CDN. Detect it by one node's CPU far above its peers, or by sampling keys (`redis-cli --hotkeys` needs an LFU eviction policy).
 
-## Sizing and eviction
+## Eviction: choosing a policy
 
-Memory for a Redis cache is roughly entries × (key bytes + value bytes + ~50–100 bytes of overhead per key for the dictionary entry, expiry and allocator rounding). Ten million product entries with a 20-byte key and a 500-byte JSON value need about 10 million × 600 B = 6 GB, plus fragmentation; plan for 8–10 GB. Small values dominated by overhead argue for packing (one hash per user rather than a hundred keys per user); values over ~100 KB argue for compression or for not caching them at all, because a single 5 MB value blocks a single-threaded Redis for milliseconds and takes 40 ms to move over a 1 Gbps link.
+When memory is full the cache evicts. Simulated on the Zipf workload ($s = 1.0$, cache = 5% of keys), with and without a batch job that reads 20,000 cold keys once each every 50,000 requests:
 
-When memory is full the cache evicts. **LRU** is the default and it is fooled by scans: one batch job touching a million keys once evicts the entire hot set. **LFU** resists scans and adapts slowly to a changing working set. **TinyLFU** with a small admission window (Caffeine's design) gets most of both: a new key must beat the least-valuable resident's frequency to be admitted, so a scan cannot pollute the cache. Redis implements approximate LRU and LFU by sampling a few keys rather than keeping an exact order; the approximation costs almost nothing in hit rate.
+| Policy | Steady hit ratio | With scans | First 1,000 requests after a scan |
+|---|---|---|---|
+| Exact LRU | 0.666 | 0.646 | 0.38 |
+| Sampled LRU (evict the oldest of 5 random keys; Redis adds a candidate pool) | 0.662 | 0.641 | – |
+| LRU with TinyLFU-style admission | 0.722 | 0.711 | 0.71 |
+
+A scan flushes an LRU cache: the hot set is evicted by keys that will never be read again, and the hit ratio falls to 38% until it rewarms. Frequency-based admission (a newcomer is admitted only if it has been seen more often than the victim) ignores the scan and recovers most of the gap to perfect frequency knowledge. Sampling five keys instead of keeping an exact order cost less than half a point. [LFU and modern policies](/learn/advanced-data-structures/caches-and-eviction/lfu-and-modern-policies) builds these structures.
+
+```exercise
+id: cache-eviction-sim
+title: Simulate LRU and LFU eviction
+prompt: |
+  Implement `simulate_cache(capacity, policy, accesses)`. `accesses` is a list
+  of string keys read in order from a cache holding at most `capacity` keys
+  (`capacity >= 1`). A read of a resident key is a hit. A miss admits the key;
+  if the cache is full it first evicts one resident key:
+
+  - `"lru"`: the key whose most recent access is oldest.
+  - `"lfu"`: the key with the fewest accesses since it was admitted (a newly
+    admitted key has 1), ties broken by the oldest most recent access.
+
+  Return `{"hits": <number of hits>, "evicted": [<evicted keys in order>]}`.
+languages: [python, javascript]
+entry: simulate_cache
+starter:
+  python: |
+    def simulate_cache(capacity, policy, accesses):
+        hits = 0
+        evicted = []
+        # your code here
+        return {"hits": hits, "evicted": evicted}
+  javascript: |
+    function simulate_cache(capacity, policy, accesses) {
+      let hits = 0;
+      const evicted = [];
+      // your code here
+      return { hits, evicted };
+    }
+tests:
+  - args: [2, "lru", ["a", "b", "a", "c", "b", "a"]]
+    expected: {"hits": 1, "evicted": ["b", "a", "c"]}
+  - args: [2, "lfu", ["a", "b", "a", "c", "b", "a"]]
+    expected: {"hits": 2, "evicted": ["b", "c"]}
+  - args: [3, "lru", ["h", "h", "h", "s1", "s2", "s3", "h"]]
+    expected: {"hits": 2, "evicted": ["h", "s1"]}
+    label: a scan evicts the hot key under LRU
+  - args: [3, "lfu", ["h", "h", "h", "s1", "s2", "s3", "h"]]
+    expected: {"hits": 3, "evicted": ["s1"]}
+    label: LFU keeps the hot key
+  - args: [1, "lru", []]
+    expected: {"hits": 0, "evicted": []}
+    label: no accesses
+  - args: [2, "lfu", ["x", "y", "z", "x", "y", "z"]]
+    expected: {"hits": 0, "evicted": ["x", "y", "z", "x"]}
+    label: a loop one larger than the cache never hits
+    hidden: true
+  - args: [3, "lfu", ["a", "b", "c", "a", "b", "d", "e", "a", "d", "d", "c"]]
+    expected: {"hits": 4, "evicted": ["c", "d", "e", "b"]}
+    hidden: true
+  - args: [3, "lru", ["a", "b", "c", "a", "b", "d", "e", "a", "d", "d", "c"]]
+    expected: {"hits": 4, "evicted": ["c", "a", "b", "e"]}
+    hidden: true
+hints:
+  - "Track, per resident key, the time of its last access and its access count; the victim is the minimum of (last) for LRU and of (count, last) for LFU."
+  - "An evicted key that comes back starts again with a count of 1."
+```
+
+## Under the hood: Redis, Memcached and Facebook's leases
+
+**Redis** evicts only when `maxmemory` is set. `allkeys-lru` does not keep a global LRU list: it samples `maxmemory-samples` keys (5 by default) and evicts the oldest, keeping a small pool of good candidates between evictions, which is why the sampled simulation above lands within a point of exact LRU. `allkeys-lfu` (Redis 4.0 and later) stores an 8-bit logarithmic counter per key that is incremented probabilistically and decays each minute (`lfu-decay-time`), so it tracks recent popularity rather than lifetime counts. Expired keys are removed lazily when touched and by an active cycle that samples keys with TTLs several times a second, so memory held by expired keys lags a little. Each key costs roughly 50–100 bytes of overhead (dictionary entry, object header, expiry entry, allocator rounding) on top of its bytes, which is why many tiny keys should be packed into hashes.
+
+**Memcached** allocates memory in 1 MB pages split into fixed-size chunks per *slab class*, classes growing by a factor of 1.25. Eviction is per class, so when value sizes drift, memory stays assigned to classes that no longer need it (slab calcification) until the slab rebalancer moves pages. Since 1.5 each class has a segmented LRU (hot, warm, cold) so one-hit items age out before touching the warm set, a built-in defence against scans. It is multi-threaded, whereas Redis executes commands on one thread.
+
+**Netflix's EVCache** is memcached with client-side replication: every write goes to a copy of the cache in each availability zone, and reads are served from the local zone, falling back to another zone on a miss, so losing a zone's cache nodes does not send that zone's reads to the database.
+
+**Facebook's memcache leases** (NSDI 2013) close both the stale-set race and the stampede. On a miss the server hands the client a lease token; a delete of that key invalidates outstanding tokens, so reader A's late `SET` in the first trace is rejected. The server also issues a token for a key only once every 10 seconds; other missing clients are told to wait briefly and retry, by which time the value is usually present. The paper reports peak database query rates for a hot key-set falling from 17,000/s to 1,300/s.
 
 ## Failure modes
 
-**Stampede on expiry.** Described above. Detection: database QPS spikes at regular intervals matching a TTL; identical queries in the slow log. Mitigation: coalescing, stale-while-revalidate, jittered TTLs.
-
-**Stale reads after a cache failover.** Redis primary fails; the replica promoted was lagging by 200 ms; every delete-on-write in that 200 ms is lost, so those keys serve stale data until TTL. Detection: hard, which is the problem; user reports of "my edit disappeared" clustered after a failover event. Mitigation: short TTLs on user-editable data, versioned reads on critical paths, and a post-failover flush of keys written in the last few seconds if writers can enumerate them.
-
-**The cache becomes the source of truth.** Someone writes data into the cache that is not in the database (a write-behind without a flush, a "temporary" counter). A cache flush or node loss deletes it. Detection: code review; a grep for `cache.set` with no corresponding database write. Mitigation: policy, and treating a cache flush as a routine operation you actually perform, so the assumption is tested.
-
-**A cache node failure lands on the database.** With 99% hit rate and 15,000 reads/s, the database serves 150/s. Lose the cache and it serves 15,000/s, which it cannot; latency climbs, the service's thread pools fill, and the outage is total rather than partial. Detection: cache availability alarms are obvious; the question is whether the database survives the minute before failover. Mitigation: replicated cache with automatic failover (Redis Sentinel or Cluster; EVCache's zone replication), load shedding at the service so that the database sees a bounded rate and the rest fail fast, and a warm-up plan that repopulates the hottest keys before taking full traffic.
-
-**Negative caching gone wrong.** Caching "not found" prevents repeated database lookups for missing keys (a real attack vector: request random IDs and every one misses to the database). But cache the negative result for an hour and a newly created item is invisible for an hour. Detection: "I just created it and it says not found". Mitigation: short negative TTL (seconds), and delete the negative entry on create.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Stampede on expiry | Database load spikes at intervals matching a TTL | Identical queries in the slow log, clustered in time | Single-flight, a fleet lock or leases, stale-while-revalidate, jittered TTLs |
+| Stale value after a cache failover | "My edit disappeared", clustered after a Redis failover | The promoted replica missed the last deletes (asynchronous replication) | Short TTLs on editable data; versioned sets; flush recently written keys after failover |
+| Cache as source of truth | Data vanishes after a flush or node loss | A write-behind or "temporary" value never persisted | Persist first; flush the cache routinely so the assumption is tested |
+| Cache loss lands on the database | Total outage, not a 1% degradation, when the cache cluster fails | Database load jumps from $(1-h)$ to all of traffic | Replicated cache with failover, concurrency limits that shed load, a warm-up plan |
+| Scan pollution | Hit ratio collapses every night | A batch job reading through the cache | Bypass the cache for scans, or frequency-based admission |
+| Negative entry too long | "I just created it and it says not found" | Negative results cached with a long TTL | Seconds of negative TTL; delete on create |
 
 ## Interviewer follow-ups
 
-**Q: "You chose cache-aside with delete-on-write. Walk me through the race that leaves the cache stale forever, and what you would do about it."**
+**"Walk me through the race that leaves cache-aside stale, and fix it."** Model answer: a reader misses and reads the old row, pauses; a writer commits and deletes; the reader sets the old value, which lives until the TTL or the next write. Fix with a short TTL, a versioned conditional set, or Memcached-style leases that invalidate the reader's right to set. I would not switch to write-through, which with two writers can leave cache and database disagreeing. Common wrong answer: "delete then write instead", which widens the window to the whole transaction.
 
-A reader misses, reads the old row, is delayed; a writer commits the new row and deletes the key; the delayed reader then sets the old value. The cache now serves the old value until TTL, and further writes will delete it, so "forever" is really "until the next write or the TTL", which for a rarely written row can be the whole TTL. I would keep the TTL short enough that this is tolerable (minutes for product data), and for data where it is not tolerable, I would make the miss-fill conditional: store the row's version alongside the value and only set if the version is not older than what is already there, which Redis can do with a small Lua script. I would not switch to write-through to fix this, because with multiple writers write-through has a bigger hole.
+**"Your hit ratio is 99% and the cache cluster dies. What happens in the first minute?"** Model answer: database reads go from 150 to 15,000 a second; if it can serve 5,000, queues form, service threads fill (Little's law) and every request times out, not only the misses. With a per-replica concurrency limit on database calls, the 5,000 it can serve succeed and the rest fail fast while the cache fails over; then warm the hottest keys before full traffic. Common wrong answer: "a 1% degradation", from reading the hit ratio as the blast radius.
 
-**Q: "Your cache hit rate is 99%. The cache cluster goes down. What happens in the first sixty seconds?"**
+**"How big should the cache be?"** Model answer: from the access distribution, not the dataset. On a Zipf workload with $s = 1$, 5% of keys gave 67% hits under LRU and 20% gave 81%; with $s = 1.2$ the same sizes gave 89% and 94%. I would sample real keys, replay them through a simulator at candidate sizes, and buy the size at which the next doubling adds too little. Common wrong answer: "the working set", without saying how that is measured.
 
-Database load goes from 150 to 15,000 reads/s in one second. If the database can do 5,000/s of this query, two thirds of requests queue; service thread pools fill within a few seconds (Little's law: 15,000/s × a latency that is now climbing past 100 ms is over 1,500 in flight); the service starts timing out all requests, not just the ones that would have missed. So without protection, a cache outage is a total outage, not a 1% degradation. With protection: a concurrency limit on database calls per replica sheds the excess as fast 503s so the 5,000/s the database can serve still succeed; the cache fails over to a replica in 10–30 s; and a warm-up job repopulates the top keys. I would design for "a cache loss is a partial outage lasting the failover time" and I would test it by killing a cache node in production during business hours, once I trust the protection.
+**"A single key is read 400,000 times a second on a 20-node cluster. What do you do?"** Model answer: one key lives on one node, which saturates near 100,000–200,000 operations a second, so cluster size is irrelevant. An in-process cache with a 1 s TTL turns 400,000 reads into one per replica per second; if a second of staleness is unacceptable, replicate the key under ten suffixes. Common wrong answer: "add nodes".
 
-**Q: "Why not put the cache in-process and skip the network hop entirely? 100 ns versus 1 ms."**
+**"Where would you use write-behind, and where would you refuse?"** Model answer: where losing the last flush interval is a metrics problem: views, presence, rate-limit state. Refuse for orders and balances, where acknowledged writes would vanish with the node; a durable log gives the same decoupling with a replicated acknowledgement. Common wrong answer: "Redis persistence makes it safe", when `appendfsync everysec` can still lose a second and replicas are asynchronous.
 
-For read-only reference data with a short TTL, yes, and I would do both: an in-process cache with a 1–5 s TTL in front of the distributed cache, which also solves hot keys. For anything a user edits, an in-process cache means each of 50 replicas has its own stale copy and there is no way to invalidate all of them on a write short of a pub/sub broadcast, which is a distributed cache with extra steps. The user would see their edit on one request and not on the next, depending on which replica the load balancer chose. The 1 ms is buying coherence, and coherence is worth 1 ms.
+## What mid-level engineers get wrong
 
-**Q: "A single key is being read 400,000 times a second. Your cluster has 20 nodes. What is the problem and what do you do?"**
-
-The problem is that one key lives on one node, and that node caps out around 100,000 operations a second, so the cluster size is irrelevant. I would first put an in-process cache with a 1-second TTL in front, which turns 400,000 reads/s into one read per replica per second and costs a second of staleness; for a live scoreboard that is fine. If it were not fine, I would replicate the key under ten suffixes and read a random one, accepting ten writes per update. I would also want to know why the key is that hot, because it may belong on the CDN.
-
-**Q: "Write-behind gives you 10× the write throughput. Where would you use it and where would you refuse?"**
-
-Where losing the last few seconds of writes is a metrics problem rather than a money problem: view counts, presence, rate-limit buckets, the "last active" timestamp. For those, coalescing 1,000 increments into one database write is the whole point. I would refuse it for orders, balances, inventory and anything with a legal record, because a cache node loss silently drops committed-looking writes and the users have already been told "success". If someone insists on the throughput for such data, the correct design is a durable log (Kafka) in front of the database, which gives the same decoupling with an acknowledged, replicated write.
+- Setting the cache on write instead of deleting, and debugging the two-writer race for weeks.
+- Promising a hit ratio without measuring skew; the same cache size gives 37% or 89%.
+- Identical TTLs on everything warmed by a deploy, then a stampede on the hour.
+- Treating a 99% hit ratio as a 1% dependency on the database.
+- Write-behind for data a user was told is saved.
+- Forgetting derived keys when invalidating.
+- Letting batch jobs read through an LRU cache.
 
 ## Senior signals
 
-- You name the write policy and the specific inconsistency it permits, and you can describe the cache-aside race step by step.
-- You compute the hit ratio's effect on database load and you know that going from 95% to 99% is a 5× reduction.
-- You treat the TTL as a product decision and you jitter it.
-- You have a stampede answer ready (coalescing plus stale-while-revalidate) and you know what a stampede does to the database.
-- You know the cache-loss scenario is a total outage without load shedding, and you have a warm-up plan.
-- You know that hot keys defeat cluster size and that in-process caches fix them at the cost of coherence.
-
-The [distributed cache case study](/learn/system-design/case-studies/distributed-cache) builds a cache cluster from these pieces, including consistent hashing and replication across zones.
+- You name the write policy and trace its specific race, with the fix (versioned sets, leases) rather than a switch to another policy with a different race.
+- You compute database load as $(1-h)$ of traffic and know hit ratio depends on skew more than size.
+- You treat TTL as a product decision and jitter it.
+- You have a stampede answer with numbers: single-flight to one query per replica, leases or a lock to one per fleet, stale-while-revalidate to none waiting.
+- You choose eviction for the workload (LRU is fooled by scans; frequency admission is not) and know how Redis approximates it.
+- You design for cache loss as a partial outage with load shedding and a warm-up plan. The [distributed cache case study](/learn/system-design/case-studies/distributed-cache) builds a cluster from these parts.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A cache-fronted read path has a 1 ms cache hit and a 25 ms database read. Raising the hit ratio from 96% to 99% mostly changes which of these?
+    A cache-fronted read path has 1 ms hits and 25 ms database reads. Raising the hit ratio from 96% to 99% mostly changes which of these?
   options: ["The p99 latency, which falls from 25 ms to 1 ms", "Neither load nor latency; both rates are high", "The p50 latency, which falls by about 20 ms", "The database load, which falls by about 4x"]
   answer: 3
   explanation: >-
-    Database QPS is proportional to the miss rate: 4% to 1% is a 4x reduction. The mean drops only from about 1.96 ms to 1.24 ms. The p99 remains a miss (25 ms) in both cases because more than 1% of requests still miss at 96%, and at 99% the p99 sits right at the boundary; the p50 was already a hit.
+    Database load is proportional to the miss rate: 4% to 1% is a 4x reduction. The mean drops only from about 1.96 ms to 1.24 ms. The p99 is still a miss at 96% and sits at the boundary at 99%; the p50 was already a hit.
 - q: >-
-    In cache-aside, a writer updates the database and then deletes the cache key. Which interleaving leaves the cache serving stale data until the TTL?
+    In cache-aside, a writer updates the database and then deletes the key. Which interleaving leaves the cache serving stale data until the TTL?
   options: ["A slow reader fetches the old row and sets it after the delete", "Two readers miss together and both set the freshly written row", "Two writers update the row and both delete the key at once", "A reader hits the cache while the writer is updating the database"]
   answer: 0
   explanation: >-
-    The reader misses and reads the old row before the update; its delayed set lands after the writer's delete and installs the pre-write value, which nothing will remove until the TTL or the next write. Concurrent deletes are harmless (that is why delete is preferred over set); a hit during the update simply returns the old value once, which is expected.
+    The reader misses and reads the old row before the update; its delayed set lands after the delete and installs the pre-write value, which nothing removes until the TTL or the next write. Concurrent deletes are harmless, and a hit during the update returns the old value once, which is expected.
 - q: >-
-    A popular key with a 500 ms recompute expires under 10,000 reads/s. Without protection, roughly how many identical database queries are started before the cache is repopulated?
-  options: ["About 10", "Exactly 1", "About 10,000", "About 5,000"]
-  answer: 3
+    Two writers use write-through without per-key locking. Writer A caches 11 then writes the database; writer B caches 12 and writes the database in between. What is the end state?
+  options: ["Cache 12 and database 12, since the last cache write wins", "Cache 11 and database 11, since A finished last", "Cache 12 and database 11, which now disagree", "An error, since write-through detects the conflict"]
+  answer: 2
   explanation: >-
-    Every request during the 500 ms recompute window misses: 10,000 x 0.5 = 5,000, not the full 10,000 of a whole second. If those queries slow the database so the recompute takes longer, the window grows and the feedback loop can keep the key empty, which is why coalescing or stale-while-revalidate is needed.
+    The cache saw A then B, so it holds 12; the database saw B then A, so it holds 11. Nothing detects the disagreement, which lasts until the TTL. Write-through needs one writer per key or per-key ordering to stay consistent.
 - q: >-
-    Which data is an acceptable candidate for write-behind caching?
-  options: ["User password hashes", "A per-video view counter", "Customer account balances", "Order line items at checkout"]
-  answer: 1
+    A key read 10,000 times a second across 50 replicas expires; the recompute takes 50 ms. With per-replica single-flight, roughly how many identical database queries does the expiry cause?
+  options: ["About 500, one per request in the window", "Exactly one for the whole fleet", "About 50, one per replica", "About 10, one per database worker"]
+  answer: 2
   explanation: >-
-    Write-behind acknowledges before persisting, so a cache node loss drops unflushed writes. A view counter tolerates losing a few seconds of increments and benefits from coalescing thousands of them; balances and orders do not tolerate silent loss.
+    Single-flight coalesces within a process, so each replica that sees a miss during the window starts one load: about 50, matching the simulation. A fleet-wide lock or leases reduce it to one; with no defence it is about 10,000 x 0.05 = 500.
 - q: >-
-    A single cache node's CPU is at 95% while the other 19 nodes sit at 10%. The most likely cause and fix is:
-  options: ["Uneven hash ranges; rebalance by adding more nodes", "One hot key on that node; replicate it or cache it in-process", "Slower hardware on that node; replace it with a larger instance", "Too many client connections to it; put a connection pool in front"]
-  answer: 1
+    A nightly batch job reads a million rarely used keys through an LRU cache, and the daytime hit ratio takes an hour to recover. What fixes it most directly?
+  options: ["Admit new keys only if seen more often than the victim", "Double the cache size so the scan fits beside the hot set", "Lower every TTL so scanned keys expire more quickly", "Switch the eviction policy to random replacement"]
+  answer: 0
   explanation: >-
-    Keys are partitioned by hash, so a single very hot key saturates its node regardless of cluster size. Adding nodes does not split one key. A short-TTL in-process cache or replicating the key under several suffixes spreads the reads.
+    A scan evicts the hot set because LRU admits every miss. Frequency-based admission (TinyLFU-style) refuses keys seen once, so the hot set survives; in the simulation it kept a 71% hit ratio through scans while LRU fell to 38%. Doubling the cache still would not hold a million-key scan, and TTLs do not stop admission.
 - q: >-
     You cache "not found" results to stop repeated lookups of missing IDs. Which TTL choice is safest?
   options: ["No TTL, since an ID that is missing now will stay missing", "A few seconds, and delete the entry when the item is created", "The same TTL as positive entries, so both expire consistently", "A one-day TTL, since lookups of missing IDs are rare anyway"]
   answer: 1
   explanation: >-
-    Negative caching protects the database from lookups of non-existent keys, but a long TTL makes newly created items invisible. A short TTL bounds the damage and deleting on create removes it entirely; reusing the positive TTL applies a freshness budget meant for existing data to data that is about to exist.
+    Negative caching protects the database from lookups of non-existent keys, but a long TTL makes newly created items invisible. A short TTL bounds the damage and deleting on create removes it; reusing the positive TTL applies a freshness budget meant for existing data to data about to exist.
 ```

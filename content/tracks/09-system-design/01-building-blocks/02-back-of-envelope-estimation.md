@@ -1,194 +1,320 @@
 ---
 slug: back-of-envelope-estimation
 title: "Back-of-envelope estimation: the numbers that decide the design"
-description: The latency, throughput and storage figures every senior engineer carries in their head, and three fully worked estimates that turn a vague prompt into an architecture.
+description: A reference table of latencies and throughputs with where each number comes from (including fsync, commit and lookup rates measured on Postgres 17), the four-step derivation, and three estimates worked to a final count of servers, storage and bandwidth.
 minutes: 25
 difficulty: medium
 tags: [system-design, estimation, latency-numbers, capacity, qps]
 ---
-Two candidates are asked to design a photo-sharing service. One says "we'll need a CDN and a sharded database". The other says "300 million photos a day at 2 MB each is 600 TB a day of ingest, so the object store is the whole design; the metadata is 300 million rows a day at 500 bytes, which is 150 GB a day and fits on a single Postgres for a year before I'd think about sharding it." The second candidate has not said anything cleverer. They have said something checkable, and the checkable sentence tells the interviewer where their design will spend its complexity budget and where it will not.
+Two candidates are asked to design a photo-sharing service. One says "we'll need a CDN and a sharded database". The other says "20 million uploads a day at 3 MB is 60 TB a day of originals, so the object store is the whole storage design; the metadata is 10 GB a day and fits one Postgres for years". The second candidate has not said anything cleverer. They have said something checkable, and the checkable sentence tells the interviewer where the design will spend its complexity budget and where it will not.
 
-Estimation is not about getting the number right. It is about getting the order of magnitude right fast enough that the design can depend on it, and stating the assumptions so the interviewer can correct one and watch you re-derive.
+Estimation is not about the right number. It is about the right order of magnitude, fast enough for the design to depend on it, with the assumptions stated so the interviewer can change one and watch you re-derive.
 
-## The numbers you must carry
+## The reference numbers, and where they come from
 
-You will not be given these; you are expected to know them. They are orders of magnitude, not benchmarks, and hardware moves, so treat each as "about" and be ready to say so.
+Carry these as orders of magnitude. The provenance column is what lets you defend a number when challenged, and tells you what it depends on.
 
-| Operation | Rough cost | Why it matters |
+| Operation | Rough cost | Where the number comes from |
 |---|---|---|
-| L1 cache reference | ~1 ns | The floor; everything else is measured in multiples of it |
-| Main memory reference | ~100 ns | A pointer chase costs 100 L1 hits |
-| Compress 1 KB (fast codec) | ~2–5 µs | Compression is cheap relative to network; compress before sending |
-| SSD random read (4 KB) | ~100 µs | A database index probe that misses the buffer pool |
-| Read 1 MB sequentially from memory | ~10–50 µs | Sequential beats random by two orders of magnitude |
-| Read 1 MB sequentially from SSD | ~1 ms | Streaming a page-sized scan |
-| HDD seek | ~5–10 ms | Why spinning disks lose for random access |
-| Round trip, same availability zone | ~0.3–0.5 ms | One RPC hop |
-| Round trip, cross-AZ same region | ~1–2 ms | Why "just call the other service" adds up |
-| Round trip, US East to US West | ~60–70 ms | Cross-continent replication cost |
-| Round trip, US to Europe | ~80–100 ms | Multi-region consistency cost |
-| Round trip, US to Asia-Pacific | ~150–250 ms | Why a single-region site feels slow from Sydney |
-| Send 1 MB over 1 Gbps | ~10 ms | Payload size matters once it exceeds a few hundred KB |
-| Redis GET over the network | ~0.5–1 ms | Dominated by the RTT, not by Redis |
-| Postgres indexed point read (warm) | ~1–5 ms | Includes connection, parse, buffer-pool hit |
-| Postgres write with fsync | ~5–10 ms | The WAL flush to disk bounds single-row commit latency |
+| L1 cache hit | ~1 ns | About 4 cycles at 3–4 GHz; the "latency numbers every programmer should know" table (Norvig, 2001; popularised by Jeff Dean) |
+| Main memory reference | ~100 ns | DRAM latency of 60–100 ns on current servers; a pointer chase costs about 100 L1 hits |
+| Compress 1 KB (LZ4, Snappy) | ~1–2 µs | These codecs run at 0.5–1 GB/s per core |
+| Read 1 MB sequentially from memory | ~50 µs | 10–20 GB/s for one thread |
+| NVMe random 4 KB read | ~20–100 µs | Local flash; cloud network block storage is 0.5–1 ms |
+| Durable write (write + fsync) | 0.05–5 ms | Measured 4.2 ms median on this lesson's workstation (WSL2 virtual disk, snippet below); NVMe with power-loss protection acknowledges in tens of µs; cloud block volumes ~1 ms |
+| Read 1 MB sequentially from NVMe | ~0.3–1 ms | 1–3 GB/s sequential |
+| HDD seek | ~5–10 ms | Half a rotation at 7,200 rpm is 4.2 ms, plus arm movement |
+| Round trip, same availability zone | ~0.1–0.5 ms | Switch hops plus both kernels' network stacks |
+| Round trip, across AZs in a region | ~0.5–2 ms | AWS places AZs within about 100 km of each other |
+| Round trip, US East to US West | ~60–70 ms | ~4,000 km; light in fibre covers ~200 km per ms, so 40 ms is the floor and real routes are longer |
+| Round trip, US East to Western Europe | ~70–90 ms | New York to London is 5,570 km: a 56 ms floor |
+| Round trip, US to Australia | ~150–200 ms | Pacific cable paths of 12,000+ km |
+| Send 1 MB over 1 Gbps | ~8 ms | Serialisation alone, before RTTs and TCP slow start |
+| Redis `GET` from a service | ~0.2–0.5 ms | The RTT; Redis executes a `GET` in about a microsecond |
+| Postgres primary-key lookup | 0.13 ms | Measured: one connection over a Unix socket, warm buffer pool, Postgres 17 |
+| Postgres single-row commit | 2.9 ms | Measured: one connection, `synchronous_commit = on`; 0.1 ms with it off |
 
-Two derived facts fall out of this table and you should say them when relevant. First, the network round trip dominates almost every request: a service that makes five sequential same-region calls spends 5 ms in RTT before doing any work. Second, a cross-region call costs as much as a hundred same-AZ calls, which is why multi-region designs replicate data rather than call across the ocean on the hot path. [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) derives these from first principles.
+Two facts fall out and are worth saying when relevant. The round trip dominates almost every request: five sequential same-AZ calls cost 1–2 ms before any work. And a cross-region call costs as much as a hundred same-AZ calls, which is why multi-region designs replicate data rather than call across an ocean on the hot path. [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) derives the network numbers.
 
 ```viz
 {"type": "system", "scenario": "request-flow", "title": "Where a request spends its time",
- "caption": "Load balancer to service ~0.5 ms, service to cache ~1 ms, cache miss to database ~5 ms, and the client's own RTT of 20–200 ms on top. The database is rarely the slowest hop; the geography is."}
+ "caption": "Load balancer to service ~0.5 ms, service to cache ~0.5 ms, cache miss to database ~1 ms, and the client's own RTT of 20–200 ms on top. The database is rarely the slowest hop; the geography is."}
 ```
 
-### Powers and units
+### Units
 
-- $2^{10} \approx 10^3$ (a thousand), $2^{20} \approx 10^6$ (a million), $2^{30} \approx 10^9$ (a billion), $2^{40} \approx 10^{12}$ (a trillion). KB, MB, GB, TB, PB.
-- A day is 86,400 seconds. Round to $10^5$; you lose 14% and gain speed. A month is about $2.6 \times 10^6$ s; a year is about $3 \times 10^7$ s.
-- A character is 1 byte in ASCII, up to 4 in UTF-8; a UUID is 16 bytes binary or 36 as text; a timestamp is 8 bytes; a 64-bit integer is 8 bytes; an IPv4 address is 4 bytes.
-- A thumbnail is ~10–50 KB; a phone photo ~2–5 MB; a minute of 1080p video ~50–100 MB at streaming bitrates; a tweet-sized text is ~300 bytes with metadata.
+- $2^{10} \approx 10^3$, $2^{20} \approx 10^6$, $2^{30} \approx 10^9$, $2^{40} \approx 10^{12}$.
+- A day is 86,400 s: round to $10^5$ and you are 14% low, which is within the noise. A month is $2.6 \times 10^6$ s; a year $3.2 \times 10^7$ s.
+- A UUID is 16 bytes binary or 36 as text; a timestamp or 64-bit integer 8 bytes; an IPv4 address 4.
+- A thumbnail is 10–50 KB; a phone photo 2–5 MB; a minute of 1080p streaming video 50–100 MB; a short post with metadata ~500 B.
 
 ### Throughput ceilings
 
-These are the numbers that tell you when one machine stops being enough. They are deliberately conservative; real systems tuned by experts beat them, and untuned ones miss them.
-
-| Component | Comfortable ceiling per node | Notes |
+| Component | Ceiling per node | Provenance and what it depends on |
 |---|---|---|
-| Stateless HTTP service | 1,000–10,000 rps | Depends entirely on work per request; JSON-over-HTTP with one DB call is at the low end |
-| Postgres primary, simple indexed writes | ~5,000–10,000 writes/s | Bounded by WAL fsync and lock contention; batching raises it |
-| Postgres, indexed reads | ~10,000–50,000/s | Buffer-pool hits; more with replicas |
-| Redis / Memcached | ~100,000 ops/s | Single-threaded command execution; pipelining helps |
-| Kafka partition | tens of MB/s | Partitions are the parallelism unit; a broker handles many |
-| Object store (S3-class) | effectively unbounded aggregate | Per-prefix rate limits of thousands of requests/s |
+| Stateless HTTP service | 1,000–10,000 rps | CPU per request: 1 ms of CPU on 8 vCPUs is 8,000 rps at 100% |
+| Postgres primary-key reads | 53,000/s at 32 connections, 69,000/s at 90 | Measured with `pgbench -S` on a 32-thread workstation; scales with cores, so roughly a quarter on 8 vCPUs |
+| Postgres single-row commits | 343/s on 1 connection, 3,800/s on 16, 16,000/s on 64 | Measured; concurrent commits share one fsync (group commit); batching many rows per transaction goes far higher |
+| Redis / Memcached | ~100,000–200,000 simple ops/s per instance | One read and one write system call per unpipelined request; pipelining reaches over a million |
+| Kafka partition | tens of MB/s | A partition is a sequential log on one broker; a broker carries hundreds of MB/s across partitions |
+| S3 | 3,500 writes/s and 5,500 reads/s per key prefix | AWS's documented per-prefix rates; aggregate throughput scales with prefixes |
 
-The rule of thumb: if the estimate is within 3× of a ceiling, design for it; if it is 10× under, do not.
+Rule of thumb: within 3× of a ceiling, design for it; 10× under, do not.
+
+## Under the hood: why these numbers are what they are
+
+**Commits cost an fsync.** A database acknowledges a commit only when its write-ahead log record is on stable storage, so the floor for serial commits is one device flush. Measure it yourself:
+
+```python
+import os, statistics, tempfile, time
+
+def fsync_latency(n=500, size=4096):
+    """Append `size` bytes and fsync, n times; return (median_ms, p99_ms)."""
+    fd, path = tempfile.mkstemp(dir=".")
+    buf = os.urandom(size)
+    samples = []
+    try:
+        for _ in range(n):
+            t0 = time.perf_counter()
+            os.write(fd, buf)
+            os.fsync(fd)                 # returns when the device reports the data durable
+            samples.append((time.perf_counter() - t0) * 1000)
+    finally:
+        os.close(fd)
+        os.remove(path)
+    samples.sort()
+    return statistics.median(samples), samples[int(0.99 * (n - 1))]
+
+med, p99 = fsync_latency()
+print(f"median {med:.2f} ms, p99 {p99:.2f} ms -> at most {1000 / med:,.0f} serial commits/s")
+```
+
+On this lesson's workstation it printed a 4.2 ms median: at most about 240 serial durable writes a second. Postgres's measured 2.9 ms commit matches that order.
+
+**Group commit is why concurrency raises write throughput.** When a backend flushes the WAL up to its commit record, every other commit record already in the WAL buffer becomes durable in the same flush. The measurement shows it: 1 connection, 343 commits/s at 2.9 ms each; 16 connections, 3,800/s at 4.2 ms; 64 connections, 16,000/s at 4.0 ms. Latency stayed flat while throughput grew 47×, because each flush carried more commits. `commit_delay` makes a backend wait briefly to gather more, which helps only on slow devices.
+
+**Reads saturate CPU, then queue.** One connection did 7,700 primary-key lookups a second, 0.13 ms each; 32 connections did 53,000/s at 0.6 ms; 90 connections did 69,000/s at 1.3 ms. Past about one connection per hardware thread, throughput grew 30% while latency doubled. That is Little's law (in flight = rate × latency) meeting a CPU limit, and it is the numeric argument for small connection pools in [Database scaling](/learn/system-design/building-blocks/database-scaling).
+
+**Redis is bounded by system calls, not data structures.** Commands execute on one thread in microseconds, but each unpipelined request costs a read and a write system call plus a network round trip. Pipelining amortises the calls, and I/O threads (Redis 6 and later) move socket work off the main thread.
+
+**Distance is physics.** Light in fibre travels at about two-thirds of its vacuum speed, 200 km per millisecond, so every 100 km of path adds at least 1 ms of round trip. No protocol removes it; only moving data closer does.
 
 ## The derivation pattern
 
-Every estimate follows the same four steps. Practise the steps until they are automatic, because the interviewer is watching the method as much as the result.
+1. **Get the driving number.** DAU, writes per day, events per second. If it is not given, ask; if the answer is "you tell me", say "I'll assume 10 million DAU; tell me if that is off by 10×".
+2. **Convert to per second, then peak.** Divide by $10^5$; multiply by a peak factor: 2–3× for global consumer traffic, 5–10× for a daily spike or a broadcast event.
+3. **Multiply out each dimension separately.** Reads and writes; storage as items × bytes × replication × retention; bandwidth as requests × payload.
+4. **Compare to a ceiling and name the consequence.** "400 writes/s: one Postgres. 40,000 writes/s: shard or use a log-structured store."
 
-1. **Get the driving number.** DAU, or writes per day, or events per second. If it is not given, ask; if the interviewer says "you tell me", pick something defensible and say "I'll assume 10 million DAU; tell me if that is off by 10×".
-2. **Convert to per-second.** Divide by $10^5$. State average, then multiply by a peak factor: 2–3× for global consumer traffic, 5–10× for anything with a daily spike (lunchtime, a broadcast event).
-3. **Multiply out the dimension you care about.** Reads and writes separately; storage as rows × bytes × replication × retention; bandwidth as requests × payload.
-4. **Compare to a ceiling and say what it means for the design.** "That is 400 writes/s; one Postgres. That is 40,000 writes/s; sharded or a log-structured store."
+Round at every step: 1.7 becomes 2, $2.6 \times 10^6$ becomes $3 \times 10^6$. Precision you cannot defend slows you down.
 
-Round aggressively at every step. $86{,}400$ becomes $10^5$; $2.6 \times 10^6$ becomes $3 \times 10^6$; 1.7 becomes 2. Precision you cannot defend is noise, and it slows you down.
+## Estimate 1: a social feed
 
-## Worked estimate 1: a Twitter-like feed
+| Assumption | Value |
+|---|---|
+| Users | 300M monthly, 150M daily |
+| Behaviour | 0.5 posts and 10 feed loads per daily user per day; 20 posts per feed page |
+| Graph | 200 followers on average; accounts above a threshold are fanned out on read |
+| Sizes | 1 KB stored per post with indexes; 8-byte post IDs in feeds, ~10 B each in a Redis list |
+| Capacity | 1,000 feed loads/s per 8-vCPU app server; 50 GB usable per 64 GB Redis node |
+| Peak factor | 2.5 |
 
-Prompt: 300 million monthly users, 50% daily active, each posts 0.5 times a day on average and reads their feed 10 times a day, 100 posts per feed page.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Posts | 75M/day ÷ 86,400 × 2.5 | 870/s average, 2,200/s peak |
+| Feed loads | 1.5B/day ÷ 86,400 × 2.5 | 17,000/s average, 43,000/s peak |
+| Fan-out inserts | 2,200 × 200 | 434,000/s peak: an in-memory number, not a Postgres one |
+| Post reads | 43,000 × 20 | 870,000/s: a post cache with multi-get, never joins |
+| Feed memory | 150M users × 800 entries × 10 B | 1.2 TB |
+| Post storage | 75M × 1 KB | 75 GB/day, 27 TB/year, 82 TB with 3 copies |
+| Egress | 43,000 × 20 × 1 KB | 870 MB/s, 7 Gbit/s before gzip, ~2 Gbit/s after |
 
-**Writes.** DAU = 150 million. Posts per day = $1.5 \times 10^8 \times 0.5 = 7.5 \times 10^7$. Per second = $7.5 \times 10^7 / 10^5 = 750$. Peak ~2,000 posts/s. A single Postgres can take that; the interesting write is the *fan-out*, not the post.
+**Bill of materials:** 44 app servers for peak, 66 so that losing one of three zones still carries it; 24 Redis primaries plus 24 replicas for feeds (1.2 TB ÷ 50 GB), each primary taking ~20,000 ops/s; about 6 post-cache nodes; posts sharded across 8 Postgres primaries with 2 replicas each for the first year, at about 4 TB per shard, and 7 more shards' worth of data every year. The feed cache is the most expensive line, so say it: capping feeds for inactive users, and not fanning out to users absent for 30 days, is the first cost cut.
 
-**Reads.** Feed loads per day = $1.5 \times 10^8 \times 10 = 1.5 \times 10^9$. Per second = 15,000. Peak ~40,000 feed loads/s. Each feed load returns 100 posts, so it is 4 million post-reads per second at peak. That number cannot be served by joining at read time; it demands a precomputed feed (fan-out on write) or a cache of hot posts, and now you know why the design is what it is.
+## Estimate 2: photo uploads
 
-**Fan-out arithmetic.** If the average user has 200 followers, each post produces 200 feed inserts: $2{,}000 \times 200 = 400{,}000$ inserts/s at peak. That is a Redis-class number, not a Postgres number, so the feed store is an in-memory list per user. A user with 20 million followers would produce 20 million inserts for one post; the celebrity case gets a different path (fan-out on read for accounts over a follower threshold). You have derived the hybrid design that real feed systems use, from arithmetic.
+| Assumption | Value |
+|---|---|
+| Users | 10M daily; 2 uploads and 50 views per user per day |
+| Sizes | 3 MB original; 30 KB thumbnail and 200 KB display rendition |
+| Peaks | 5× for uploads (evenings), 3× for views |
+| Processing | ~0.2 s of CPU to decode a 12 MP JPEG and write two renditions with a libvips-class library |
+| Prices | Object storage on the order of $0.02 per GB-month at list price |
 
-**Storage.** A post is ~300 bytes of text plus ~200 bytes of metadata: 500 B. $7.5 \times 10^7 \times 500 = 37.5$ GB/day, ~14 TB/year, ~40 TB with 3× replication. Sharded, but not enormous. Feeds: 150 million users × 800 recent post IDs × 8 bytes = ~1 TB of Redis across a cluster. That is 10–20 large nodes, and it is the single largest infrastructure cost in the design; say so.
-
-## Worked estimate 2: a photo upload service
-
-Prompt: 10 million DAU, each uploads 2 photos a day and views 50.
-
-**Ingest.** $2 \times 10^7$ photos/day = 200/s average, ~1,000/s peak. At 3 MB per original that is 3 GB/s peak ingest bandwidth, or 24 Gbps. That number is the design: uploads go directly from the client to object storage via pre-signed URLs, never through your application servers, because 24 Gbps through a fleet of app servers is a fleet you do not want to run.
-
-**Storage.** $2 \times 10^7 \times 3$ MB = 60 TB/day of originals. Per year, ~22 PB. Object storage at roughly $0.02 per GB-month makes that on the order of $400k per month by year end, so the cost line item is the originals, and tiering to cold storage after 30 days is a design requirement, not an optimisation. Thumbnails at 30 KB are 600 GB/day; trivial by comparison.
-
-**Metadata.** One row per photo at ~500 bytes: 10 GB/day, 3.6 TB/year. Fits on one primary for a year or two; shard by `user_id` when it does not, because every query is "photos for user X".
-
-**Reads.** $5 \times 10^8$ views/day = 5,000/s average, 15,000/s peak, each ~50 KB (a display-sized rendition): 750 MB/s. Served from a CDN; the origin sees only misses. At an 95% CDN hit rate the origin sees 750 requests/s and 37 MB/s, a single-node number.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Uploads | 20M/day ÷ 86,400 × 5 | 230/s average, 1,200/s peak |
+| Ingest bandwidth | 1,200 × 3 MB | 3.5 GB/s, 28 Gbit/s: clients upload straight to object storage with pre-signed URLs |
+| Storage | 20M × (3 MB + 230 KB) | 65 TB/day, 24 PB/year |
+| Storage cost | 24 PB × $0.02/GB-month | ~$470,000/month by year end |
+| Resize CPU | 1,200 × 0.2 s | 240 cores at peak: 30 workers of 8 vCPUs, 40 with headroom, scaled on queue depth |
+| Metadata | 20M rows × 500 B | 10 GB/day, 3.7 TB/year: one primary with replicas |
+| Views | 500M/day ÷ 86,400 × 3 × 200 KB | 17,000/s peak, 3.5 GB/s (28 Gbit/s) at the CDN edge |
+| Origin | 5% CDN misses | 870 req/s, 174 MB/s (1.4 Gbit/s) |
 
 ```viz
 {"type": "network", "scenario": "cdn-cache", "title": "The CDN absorbs the read bandwidth",
- "caption": "At 15,000 image reads per second and 50 KB each, the edge serves 700+ MB/s while the origin sees only the 5% that miss. The origin's capacity requirement is set by the miss rate, not the user count."}
+ "caption": "At 17,000 image reads per second and 200 KB each, the edge serves about 3.5 GB/s while the origin sees only the 5% that miss. The origin's capacity is set by the miss rate, not the user count."}
 ```
 
-## Worked estimate 3: a metrics ingestion pipeline
+**Bill of materials:** ~10 API servers (signing URLs and writing metadata), 40 resize workers, one Postgres primary and two replicas, 28 Gbit/s of CDN edge at peak and 1.4 Gbit/s of origin, and an object store growing 65 TB a day. The dominant cost is storage: moving originals to an infrequent-access or archive tier after 30 days (a quarter to a tenth of the price) is a requirement, not an optimisation.
 
-Prompt: 50,000 hosts, each emitting 200 metrics every 10 seconds; retain raw data for 15 days and 1-minute rollups for 13 months.
+## Estimate 3: a metrics pipeline
 
-**Ingest rate.** $50{,}000 \times 200 / 10 = 1{,}000{,}000$ data points/s, continuously. There is no peak factor; it is a flat firehose. One million points/s is far beyond a relational database's write ceiling and squarely in the territory of a partitioned log (Kafka) feeding a time-series store.
+| Assumption | Value |
+|---|---|
+| Sources | 50,000 hosts × 200 metrics every 10 s; flat, no peak factor |
+| Wire format | ~40 B per point uncompressed (series ID, timestamp, value, framing); 4× compression in Kafka |
+| Stored size | Facebook's Gorilla paper reports 1.37 B per point with delta-of-delta timestamps and XOR-encoded floats; plan 2 B with index overhead |
+| Rollups | 1-minute min, max, sum, count per series at ~2 B per value |
+| Retention | Raw 15 days, rollups 13 months, 3 copies of each |
+| Capacity | ~250,000 points/s per ingest node, an order-of-magnitude figure that varies widely by engine |
 
-**Point size.** A point is a timestamp (8 B), a value (8 B), and a series identifier. If the series ID is a 4-byte integer resolved from a tag dictionary, a point is ~20 bytes raw. With a time-series compression codec (delta-of-delta timestamps, XOR floats), real stores get this to ~1.5–2 bytes per point; assume 2.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Ingest | 50,000 × 200 ÷ 10 | 1,000,000 points/s, continuously |
+| Kafka | 1M × 40 B ÷ 4 × 3 copies | 30 MB/s of broker disk writes; 2.6 TB for 24 h of retention |
+| Raw tier | 1M × 2 B × 86,400 × 15 × 3 | 2 MB/s; 7.8 TB |
+| Rollup tier | 10M series ÷ 60 s × 4 values × 2 B × 13 months × 3 | 1.3 MB/s; 137 TB |
+| Dashboard reads | 100 dashboards × 20 panels × 360 points ÷ 30 s | 24,000 points/s, 40× below ingest |
 
-**Raw storage.** $10^6 \times 2$ B = 2 MB/s = 170 GB/day. 15 days = 2.6 TB, times 2× replication = ~5 TB. Manageable on a small cluster.
+The rollup tier writes less per second than the raw tier and still holds 18× the data, because it keeps data 26× longer. The estimate caught what intuition misses: design the rollup schema to store only what dashboards query, and put it on object storage.
 
-**Rollups.** 1-minute rollups reduce 6 points to 1 (with min/max/avg/count, ~5 values, so say 20 bytes compressed per rollup): $10^6/6 \times 20$ B ≈ 3.3 MB/s... which is *larger* than the raw stream because the rollup stores five aggregates. Interesting, and the kind of thing an estimate catches: 13 months of rollups is $3.3 \text{ MB/s} \times 3.4 \times 10^7 \text{ s} \approx 110$ TB. The rollup tier, not the raw tier, is the storage problem, and you now design the rollup schema to store only what dashboards query.
-
-**Query side.** A dashboard rendering 20 panels over the last hour touches 20 series × 360 points = 7,200 points; at 100 dashboards refreshing every 30 s that is 24,000 points/s of reads, negligible next to ingest. The pipeline is write-dominated by three orders of magnitude, which tells you to optimise the storage format for writes and accept slower ad-hoc queries.
+**Bill of materials:** 6 Kafka brokers, 6 ingest nodes (4 for throughput plus headroom), 7.8 TB of raw storage and 137 TB of rollups after 13 months, 40 MB/s of ingress.
 
 ```mermaid
 flowchart LR
-  H["50k hosts, 1M points/s"] --> K["Kafka (partitioned by series id)"]
-  K --> W["Writers: compress, batch"]
-  W --> R["Raw store: 170 GB/day, 15-day TTL"]
+  H["50k hosts, 1M points/s"] --> K["Kafka, partitioned by series id"]
+  K --> W["Ingest nodes: compress, batch"]
+  W --> R["Raw tier: 173 GB/day, 15-day TTL"]
   K --> A["Rollup jobs: 1-min windows"]
-  A --> L["Rollup store: 110 TB / 13 months"]
+  A --> L["Rollup tier: 137 TB at 13 months"]
   Q["Dashboards, 24k points/s"] --> L
   Q --> R
 ```
 
+```exercise
+id: capacity-estimate
+title: Build the estimate calculator
+prompt: |
+  Implement `estimate(dau, writes_per_user, read_write_ratio, peak_factor,
+  bytes_per_write, retention_days, replication, rps_per_server)` returning an
+  object with integer fields. Compute in this order so both languages agree:
+
+  - `daily_writes = dau * writes_per_user`
+  - `write_rps = ceil(daily_writes / 86400)`
+  - `read_rps = ceil(daily_writes * read_write_ratio / 86400)`
+  - `peak_rps = ceil(daily_writes * (1 + read_write_ratio) / 86400 * peak_factor)`
+  - `storage_gb = ceil(daily_writes * bytes_per_write * retention_days * replication / 1e9)`
+  - `servers = ceil(peak_rps / rps_per_server) + 1` (one spare so losing a server
+    still carries the peak; use the integer `peak_rps`)
+
+  Return `{"write_rps", "read_rps", "peak_rps", "storage_gb", "servers"}`.
+languages: [python, javascript]
+entry: estimate
+starter:
+  python: |
+    import math
+
+    def estimate(dau, writes_per_user, read_write_ratio, peak_factor,
+                 bytes_per_write, retention_days, replication, rps_per_server):
+        # your code here
+        return {}
+  javascript: |
+    function estimate(dau, writes_per_user, read_write_ratio, peak_factor,
+                      bytes_per_write, retention_days, replication, rps_per_server) {
+      // your code here
+      return {};
+    }
+tests:
+  - args: [10000000, 2, 10, 3, 500, 365, 3, 2000]
+    expected: {"write_rps": 232, "read_rps": 2315, "peak_rps": 7639, "storage_gb": 10950, "servers": 5}
+  - args: [150000000, 0.5, 20, 2.5, 1000, 365, 3, 1000]
+    expected: {"write_rps": 869, "read_rps": 17362, "peak_rps": 45573, "storage_gb": 82125, "servers": 47}
+    label: feed-sized service
+  - args: [1000000, 100, 0, 1, 200, 30, 2, 5000]
+    expected: {"write_rps": 1158, "read_rps": 0, "peak_rps": 1158, "storage_gb": 1200, "servers": 2}
+    label: write-only ingestion
+  - args: [1000, 1, 1, 10, 100, 1, 1, 1000]
+    expected: {"write_rps": 1, "read_rps": 1, "peak_rps": 1, "storage_gb": 1, "servers": 2}
+    label: a tiny service still needs two servers
+  - args: [86400, 1, 0, 1, 1000000, 1, 1, 1]
+    expected: {"write_rps": 1, "read_rps": 0, "peak_rps": 1, "storage_gb": 87, "servers": 2}
+    hidden: true
+  - args: [500000000, 3, 50, 4, 300, 1825, 3, 4000]
+    expected: {"write_rps": 17362, "read_rps": 868056, "peak_rps": 3541667, "storage_gb": 2463750, "servers": 887}
+    hidden: true
+hints:
+  - "Round up with ceil at each step; a fractional server or request per second still needs a whole one."
+  - "Compute servers from the already-rounded peak_rps, then add the spare."
+```
+
+## Presenting estimates in the room
+
+- **State assumptions as you make them and invite correction:** "500 bytes per row; if URLs are longer, storage scales linearly and nothing else changes."
+- **Round loudly:** "call it $10^5$ seconds a day" shows you know what precision is worth.
+- **Sanity-check against something known:** a billion 8-byte IDs is 8 GB, fine on one Redis node; a billion 500-byte values is 500 GB, not on one node.
+- **End with the consequence:** "so one Postgres, no sharding" or "so feeds cannot be joins at read time".
+- **Keep it to five minutes:** two or three numbers that choose the architecture, not ten.
+
 ## Cost per request
 
-Interviewers at companies with large infrastructure bills increasingly ask "what does this cost?" You do not need cloud price sheets memorised; you need a way to reason.
+You do not need price sheets memorised; you need a way to reason.
 
-- A mid-sized cloud VM (8 vCPU, 32 GB) costs on the order of $300 per month. If it serves 2,000 rps, that is 5 billion requests per month, or about $0.06 per million requests for compute.
-- Object storage is on the order of $0.02 per GB-month; memory (Redis) roughly 100× that per byte. Keeping 1 TB in Redis costs a few thousand dollars a month; on S3 it costs $20. That ratio is why caches hold the hot 1%, not everything.
-- Internet egress is charged per GB, often $0.05–0.10, so the photo service's 750 MB/s of reads is ~2 PB/month of egress and a six-figure monthly bill; the CDN's hit ratio becomes a business decision.
+- An 8 vCPU, 32 GB cloud VM costs on the order of $300 a month. At 2,000 rps that is 5 billion requests a month, about $0.06 per million requests of compute.
+- Object storage is on the order of $0.02 per GB-month; RAM in a managed cache is roughly 100× that per byte. A terabyte in Redis costs thousands a month; in S3, about $20. That ratio is why caches hold the hot few per cent, not everything.
+- Internet egress is charged per GB, often $0.05–0.09 at list price. The photo service's edge traffic averages 1.2 GB/s (a third of its peak), about 3 PB a month: a CDN contract, not a line item.
 
-The sentence to say: "The dominant cost is X; the design should minimise X even at the expense of Y." For the photo service, X is storage and egress; for the feed, X is the Redis fleet; for metrics, X is rollup storage.
+The sentence to say: "The dominant cost is X; the design minimises X even at the expense of Y." For the photo service X is storage, for the feed the Redis fleet, for metrics the rollup tier.
 
-## Presenting estimates in the interview
+## Ways to get a number
 
-- **State assumptions as you make them, and invite corrections.** "I'll assume 500 bytes per row; if the URLs are longer, the storage scales linearly and nothing else changes."
-- **Round to one significant figure, loudly.** "Call it 10^5 seconds per day." Interviewers do not want precision; they want to see you know what precision is worth.
-- **Sanity-check against something you know.** If your estimate says a single Redis holds a billion feed entries, compare: a billion × 8 bytes is 8 GB, fine; a billion × 500 bytes is 500 GB, not on one node.
-- **End every estimate with its design consequence.** An estimate that does not change a decision was not worth making. "So: one Postgres, no sharding" or "so: this cannot be served by joins at read time."
-- **Do it in five minutes.** Two or three numbers, not ten. If the interviewer asks for more, you can go deeper; if you spend twelve minutes here you have taken them from the deep dive.
+| Source | Time to get | Typical accuracy | Use when |
+|---|---|---|---|
+| Arithmetic from DAU and behaviour | Minutes | Within 3× | Interviews, first design review |
+| A comparable system's telemetry | An hour | Within 2–5× | A new product shaped like an existing one |
+| Component microbenchmark (`pgbench`, `redis-benchmark`) | Hours | Good for the component, optimistic for the system | Before trusting a ceiling |
+| Load test of the real service | Days | Within 20–30% | Before a launch or a large event |
+| Production telemetry | Continuous | Exact for today's traffic | Capacity planning and cost work |
 
 ## Failure modes
 
-Estimation mistakes are failure modes of the interview and, later, of the system that was built on them.
-
-**Designing for the average, not the peak.** A system sized for 4,000 rps average falls over at the 15,000 rps lunchtime peak. Detection: the estimate never mentions a peak factor. Mitigation: always state average and peak, and design for peak with headroom (typically 2× peak, because you need to survive losing a zone).
-
-**Forgetting replication and indexes in storage.** 600 GB of rows becomes 1.8 TB with three replicas, and the indexes on a table are commonly 30–100% of the table's size. Detection: storage estimate equals rows × bytes and nothing else. Mitigation: multiply by replication factor and add an index allowance before comparing to a disk size.
-
-**Confusing mean with tail latency.** A hop that averages 2 ms has a p99 of 20 ms; five sequential hops with independent tails give you a request whose p99 is far worse than 5 × 2 ms. Detection: latency budget uses averages. Mitigation: budget with p99 per hop and remember that a fan-out to N services has a p99 roughly equal to the worst p99 among them, seen more often.
-
-**Forgetting that fan-out multiplies.** One post at 2,000/s is fine; one post × 200 followers is 400,000/s. Detection: writes are counted once when the design duplicates them. Mitigation: trace one write through every component and count every copy.
-
-**Getting the unit wrong.** Bits versus bytes (a factor of 8), per-day versus per-second (a factor of 10^5). Detection: the number is absurd (a 1 Gbps link carrying 10 GB/s) and nobody noticed. Mitigation: sanity check against the ceilings table.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Sized for the average | Falls over at the lunchtime or broadcast peak | The estimate has no peak factor | State average and peak; design for peak with a zone's worth of headroom |
+| Storage without copies | Disks fill a year early | Rows × bytes only, no replicas, indexes or bloat | Multiply by replication; add 30–100% for indexes; the measured `links` table carried 18% index overhead with a single key |
+| Means in latency budgets | p99 target missed with every hop "at 2 ms" | Averages summed | Budget per-hop p99s; five calls each slow 1% of the time make about 5% of requests slow |
+| Fan-out counted once | The feed store melts on launch | Writes counted per post, not per copy | Trace one write through every component and count copies |
+| Wrong unit | A 1 Gbps link "carrying" 10 GB/s | Bits versus bytes (8×), per day versus per second (86,400×) | Sanity-check every result against the ceilings table |
+| Benchmarks as ceilings | Production does a third of the benchmark | Microbenchmark on warm cache, local socket, no contention | Treat benchmarks as upper bounds; load test the real path |
 
 ## Interviewer follow-ups
 
-**Q: "Your feed estimate gives 400,000 fan-out inserts per second. How would you actually serve that, and what does it cost?"**
+**"Your feed needs 434,000 fan-out inserts a second. How do you serve that, and what does it cost?"** Model answer: per-user lists in a Redis cluster partitioned by user ID; each fan-out is `LPUSH` plus `LTRIM`, microseconds of Redis work, pipelined from fan-out workers. Spread over 24 primaries that is about 20,000 ops/s each with the feed reads, so memory (1.2 TB), not throughput, sets the node count, and it is the largest cost; skipping dormant users cuts both. Common wrong answer: "Postgres with a good index", at 434,000 inserts a second.
 
-In-memory lists per user, in a Redis cluster partitioned by user ID: each fan-out is an `LPUSH` plus an `LTRIM` to cap the list, which is a few microseconds of Redis work, so 400k/s needs 5–10 nodes for throughput before considering memory. Memory is the bigger cost: 150 million users × 800 entries × 8 bytes is about a terabyte, plus per-key overhead, so around 15–20 nodes of 64 GB. That is a few thousand dollars per month per node, so the feed cache is the most expensive line in the design; I would cap feeds at fewer entries for inactive users, and I would not fan out at all for users who have not logged in for 30 days, which cuts the write load by whatever fraction of users are dormant, typically half.
+**"You assumed a 95% CDN hit ratio. What if it's 70%?"** Model answer: origin requests go from 870/s to 5,200/s and origin egress from 174 MB/s to 1 GB/s; the origin fleet grows about 6× and viewers' p99 rises by the origin round trip. The ratio depends on how long-tailed viewing is: a feed of recent photos stays above 95%, archive browsing does not. Measure it in week one. Common wrong answer: "about the same, 70% is still most of it", ignoring that origin load scales with the miss rate, which went from 5% to 30%.
 
-**Q: "You assumed a 95% CDN hit rate for photos. What if it is 70%?"**
+**"Where does your Postgres write ceiling come from, and when is it wrong?"** Model answer: from the WAL flush: one connection is bounded by fsync latency (measured 2.9 ms, 343 commits/s), and group commit lets concurrent commits share a flush (16,000/s at 64 connections on the same machine). It is wrong upwards for batched inserts (thousands of rows per commit) and downwards for contended rows or many secondary indexes. Common wrong answer: a single number with no mechanism, such as "Postgres does 10,000 writes a second".
 
-Origin load goes from 750 requests/s to 4,500/s and from 37 MB/s to 225 MB/s. That is still a modest origin fleet, so the design survives, but the egress bill roughly triples because the CDN is fetching more from origin, and the p99 for viewers rises because more requests take the origin path (adding 50–100 ms). The hit rate is a function of how long-tailed the access pattern is; a social feed where most views are of photos posted in the last hour will be over 95%, an archive browsing pattern would not be. I would measure it in the first week and treat it as an input to the CDN contract, not as a fixed assumption.
+**"Give me the cost per user per month."** Model answer: take the dominant cost and divide: photo storage at year end is ~$470,000/month for 10 million daily users, about 5 cents each, before egress, which decides whether the product can be ad-funded. Common wrong answer: summing every component to the dollar, which takes ten minutes and hides the one line that matters.
 
-**Q: "The metrics pipeline is a million points per second. Why not write them straight to the time-series database?"**
+## What mid-level engineers get wrong
 
-Because the database's ingest rate is not the only constraint: the writers need to batch and compress, the store needs to be restartable without losing data, and the rollup jobs need to read the same stream. A log in between gives durability (a broker with replication acknowledges in a few ms), decoupling (the store can be down for ten minutes and catch up), and fan-out to multiple consumers. The cost is one more system, and roughly 2 MB/s of extra disk writes per replica, which is nothing. Below perhaps 50,000 points/s I would skip the log and write directly, because the operational cost of a broker cluster is real.
-
-**Q: "You said a Postgres primary can do about 10,000 writes per second. Where does that number come from and when is it wrong?"**
-
-It comes from the WAL: every commit has to be durable, and a single fsync to an SSD takes on the order of a millisecond, so serial commits are bounded around a thousand per second; group commit lets many transactions share one fsync, which lifts it to several thousand or tens of thousands for small rows. It is wrong in both directions: batched inserts inside one transaction can reach hundreds of thousands of rows per second, and a workload with contended rows or heavy secondary indexes can fall well under 1,000. The number I quote is the one for "many small independent transactions", which is what a web service generates, and I would say that caveat out loud.
-
-**Q: "Give me the cost of this system per user per month."**
-
-Take the dominant cost and divide. For the photo service, storage is roughly 22 PB at the end of year one; at $0.02 per GB-month that is about $440,000 per month, and with 10 million DAU, roughly 4–5 cents per active user per month for storage alone, before egress, which is likely similar. That is the number that decides whether the product can be free with ads or needs a subscription tier, and it is why tiering originals to cold storage (roughly a quarter of the price) after 30 days is the first optimisation I would ship. [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost) goes further into growth modelling.
+- Quoting numbers without a unit of time ("a million requests") or without the peak.
+- Carrying a 2009 latency table uncritically: cloud block storage is closer to 1 ms than to the table's SSD figure.
+- Treating a benchmark on a Unix socket with a warm cache as production capacity.
+- Forgetting replication and indexes, then running out of disk.
+- Spending twelve minutes on precise arithmetic that changes no decision.
+- Estimating everything instead of the two or three numbers that choose the architecture.
 
 ## Senior signals
 
-- You know the latency table as orders of magnitude and you know which two facts matter most: the RTT dominates, and cross-region costs a hundred same-AZ calls.
-- Every estimate ends with a design consequence; you never estimate for its own sake.
-- You count every copy of a write through the system, and you always state a peak factor.
-- You can name the dominant cost of a design and say what you would sacrifice to reduce it.
-- You state your assumptions as invitations to correct them and re-derive instantly when one changes.
-- You know when the estimate says "one machine", and you say it, rather than sharding to look sophisticated.
+- You know the latency table as orders of magnitude and say where a number comes from and what it depends on.
+- You can explain a write ceiling from fsync and group commit, and a read ceiling from cores and Little's law.
+- Every estimate ends in a bill of materials and a design consequence; you never estimate for its own sake.
+- You count every copy of a write, state a peak factor, and name the dominant cost.
+- You state assumptions as invitations to correct them and re-derive instantly.
+- You say "one machine" when the numbers say so. [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost) extends this into growth modelling.
 
 ## Check yourself
 
@@ -198,29 +324,35 @@ Take the dominant cost and divide. For the photo service, storage is roughly 22 
   options: ["About 5,000/s, so design for exactly 5,000/s to avoid waste", "About 5,000/s average, so design for roughly 15,000/s peak", "About 500/s average, so design for roughly 1,500/s peak", "About 50,000/s average, so design for roughly 150,000/s peak"]
   answer: 1
   explanation: >-
-    500 million / 10^5 seconds ≈ 5,000/s average. Consumer traffic peaks at 2–5× average, so you design for the peak, not the mean; designing for exactly the average fails at lunchtime. The 500/s and 50,000/s options are off by a factor of ten in the seconds-per-day conversion.
+    500 million / 10^5 seconds is about 5,000/s average. Consumer traffic peaks at 2–5× average, so you design for the peak; exactly the average fails at lunchtime. The 500/s and 50,000/s options are off by ten in the seconds-per-day conversion.
 - q: >-
-    A table has 2 billion rows of 200 bytes each. Which storage figure should you compare against a disk size?
-  options: ["About 1.5–2 TB, with replication and indexes", "About 400 GB of raw rows, since indexes are negligible", "About 4 TB, since indexes are usually 10x the table size", "About 1.2 TB, allowing for 3x replication"]
+    One Postgres connection commits 343 single-row transactions a second with fsync on. With 64 connections it commits about 16,000 a second at nearly the same latency. What explains this?
+  options: ["Concurrent commits share one WAL flush to disk", "The operating system caches the WAL and skips fsync", "Postgres switches to asynchronous commit under load", "The 64 connections write to 64 separate WAL files"]
   answer: 0
   explanation: >-
-    Raw data is 400 GB; three replicas make it 1.2 TB; indexes commonly add 30–100% of the table size, not 10x. Forgetting replication and indexes is the most common storage-estimation error, and the 1.2 TB figure is the tempting half-way answer that still leaves out indexes.
+    Group commit: when one backend flushes the WAL up to its commit record, every commit record already in the buffer becomes durable in the same flush, so throughput grows with concurrency while latency stays near one flush. Postgres never silently drops durability, and there is a single WAL stream.
 - q: >-
-    A request makes five sequential calls to services in the same availability zone, each with a p50 of 2 ms and a p99 of 20 ms. What is the best statement about the request's latency?
+    A request makes five sequential calls, each with a p50 of 2 ms and a p99 of 20 ms. What is the best statement about the request's latency?
   options: ["p99 is exactly 100 ms, because five calls at 20 ms each add up", "p99 is 20 ms or more; about 5% of requests hit a slow call", "p99 is about 10 ms, because five calls at 2 ms each add up", "p99 is under 20 ms, since the tails average out over five calls"]
   answer: 1
   explanation: >-
-    Tails compound: with five independent calls, the probability that at least one is in its worst 1% is roughly 5%, so the request's tail is at least one slow call and worse than any single call's. Budget with p99s, not means; the naive 5 x 2 ms answer is the mistake, and summing five p99s assumes every call is slow at once.
+    With five independent calls, the chance that at least one is in its slowest 1% is about 5%, so the request's tail contains at least one slow call. Budget with p99s; summing means is the mistake, and summing five p99s assumes every call is slow at once.
 - q: >-
-    An estimate for a feed system shows 2,000 posts per second and 200 average followers. Which conclusion follows?
+    A feed estimate shows 2,000 posts per second and 200 average followers. Which conclusion follows?
   options: ["Storage is the bottleneck, so the posts table must be sharded first", "The system is read-dominated, so a CDN is the main component to size", "Postgres handles 2,000 writes/s, so a single database is enough", "Fan-out makes it ~400,000 inserts/s, so feeds need an in-memory store"]
   answer: 3
   explanation: >-
-    Counting every copy of a write reveals the real load: 2,000 x 200 = 400,000/s, an in-memory number. Users with millions of followers would produce millions of inserts per post, which is why real systems add a fan-out-on-read path for them. The 2,000 writes/s figure alone is misleading, and post storage (tens of GB a day) is not the constraint.
+    Counting every copy of a write gives 2,000 x 200 = 400,000 inserts a second, an in-memory number. Users with millions of followers would produce millions of inserts per post, which is why real feeds fan out on read for them. The 2,000 posts/s figure alone is misleading.
+- q: >-
+    A metrics pipeline writes 2 MB/s of raw points kept 15 days and 1.3 MB/s of rollups kept 13 months. Which tier dominates storage?
+  options: ["Neither, since both tiers end up at about the same size", "The raw tier, because it writes more bytes every second", "The raw tier, because raw points compress worse than rollups", "The rollup tier, because it is kept 26 times longer"]
+  answer: 3
+  explanation: >-
+    Stored bytes are rate times retention: 2 MB/s for 15 days is about 2.6 TB, while 1.3 MB/s for 395 days is about 46 TB before replication. Retention, not write rate, decides storage, which is why the rollup schema should keep only what dashboards query.
 - q: >-
     Which is the most useful sentence to end an estimate with?
   options: ["\"So we need to scale horizontally across several regions.\"", "\"So the total is exactly 4,217 requests per second at peak.\"", "\"So one replicated Postgres with a cache fits; no sharding.\"", "\"So the numbers are large enough to need careful design.\""]
   answer: 2
   explanation: >-
-    An estimate exists to change a decision. Naming the decision (and the thing you will not do) is the senior move; a precise number with no consequence, or a vague "scale horizontally", shows the arithmetic was ritual.
+    An estimate exists to change a decision. Naming the decision and the thing you will not do is the senior move; a precise number with no consequence, or a vague "scale horizontally", shows the arithmetic was ritual.
 ```
