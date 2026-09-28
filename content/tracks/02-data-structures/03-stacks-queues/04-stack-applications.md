@@ -1,10 +1,10 @@
 ---
 slug: stack-applications
 title: Stack applications
-description: Bracket matching, postfix evaluation and shunting-yard parsing, undo/redo, DFS with an explicit stack, the min-stack design, and what the call stack does for you until it overflows.
+description: Bracket matching, postfix evaluation and shunting-yard parsing, nested decoding, undo/redo, DFS with an explicit stack and the min-stack design, each traced step by step, plus what the call stack does for you, what a frame costs in CPython, the JVM, V8 and native code, and what actually happens when it overflows.
 minutes: 45
 difficulty: medium
-tags: [stack, parsing, expression-evaluation, dfs, call-stack, undo, min-stack]
+tags: [stack, parsing, expression-evaluation, dfs, call-stack, undo, min-stack, stack-machine]
 problems: [valid-parentheses, evaluate-rpn, decode-string, min-stack, generate-parentheses]
 ---
 A JSON parser, a text editor's undo, a depth-first crawl of a file system, and every function call you have ever made share one data structure. Each involves *nesting*: something opens, other things happen inside it, and it must close in reverse order. A stack is the minimal structure that tracks nesting, and most "stack problems" in interviews are one of four shapes: match things that nest, evaluate things that nest, remember state you must return to, or replace the call stack because it is too small.
@@ -27,17 +27,30 @@ def balanced(s):
     return not stack
 ```
 
+Trace `{[()]}(]`:
+
+| Char | Action | Stack after | Result |
+|---|---|---|---|
+| `{` | push | `{` | |
+| `[` | push | `{ [` | |
+| `(` | push | `{ [ (` | |
+| `)` | pop `(`, matches | `{ [` | |
+| `]` | pop `[`, matches | `{` | |
+| `}` | pop `{`, matches | (empty) | |
+| `(` | push | `(` | |
+| `]` | pop `(`, needs `[` | | **invalid** |
+
 ```viz
 {"type": "stack-queue", "algorithm": "balanced-parentheses", "input": "{[()]}(]", "title": "Openers push, closers must match the top"}
 ```
 
-Three failure modes, and every test set should include each: a closer with an empty stack (`)(`), a closer that does not match the top (`(]`), and leftover openers at the end (`((`). The last is the one people forget, and it is why the function returns `not stack` rather than `True`.
+Three failure modes, and every test set should include each: a closer with an empty stack (`)(`), a closer that does not match the top (`(]`, the last row above), and leftover openers at the end (`((`). The last is the one people forget, and it is why the function returns `not stack` rather than `True`.
 
 The same skeleton validates HTML tags, checks that `BEGIN`/`END` blocks in a config nest correctly, and, with the stack holding indices instead of characters, finds the *longest valid parentheses substring* (push indices; the distance from the current index to the top after a successful pop is a valid span). [Valid Parentheses](/practice/valid-parentheses) is the practice problem; its follow-up "now also handle escaped characters and string literals" is the first step toward a real tokenizer.
 
 ## Evaluating things that nest
 
-### Postfix (reverse Polish) evaluation
+## Postfix (reverse Polish) evaluation
 
 Postfix notation writes the operator after its operands: `3 4 + 2 *` means `(3 + 4) × 2`. It needs no parentheses and no precedence rules, and it evaluates with a single stack: push numbers; on an operator, pop two operands, apply, push the result.
 
@@ -57,13 +70,25 @@ def eval_rpn(tokens):
     return stack[0]
 ```
 
-Trace `["2", "1", "+", "3", "*"]`: push 2, push 1; `+` pops 1 and 2, pushes 3; push 3; `*` pops 3 and 3, pushes 9. Result 9.
+Trace `["5", "1", "2", "+", "4", "*", "+", "3", "-"]`, which is `5 + (1 + 2) × 4 − 3`:
 
-Two details that separate a working solution from a passing one. Operand order: `a` is the *second* pop; `5 3 -` must be `2`, not `−2`. Division: the problem convention is usually truncation toward zero, and Python's `//` floors (`-7 // 2 == -4`), so use `int(a / b)` or `math.trunc`; JavaScript's `Math.trunc(a / b)`. This is a real bug class in interpreters that assume C semantics.
+| Token | Action | Stack after |
+|---|---|---|
+| 5 | push | `5` |
+| 1 | push | `5 1` |
+| 2 | push | `5 1 2` |
+| + | pop 2, pop 1, push 3 | `5 3` |
+| 4 | push | `5 3 4` |
+| * | pop 4, pop 3, push 12 | `5 12` |
+| + | pop 12, pop 5, push 17 | `17` |
+| 3 | push | `17 3` |
+| − | pop 3, pop 17, push 14 | `14` |
 
-Postfix is not an interview curiosity: it is how stack-based virtual machines work. Python bytecode, the JVM and WebAssembly are all stack machines; `a + b * c` compiles to `LOAD a; LOAD b; LOAD c; MUL; ADD`, and the interpreter is the loop above with more opcodes. [Evaluate Reverse Polish Notation](/practice/evaluate-rpn) is the practice problem.
+Two details separate a working solution from a passing one. Operand order: `a` is the *second* pop; `5 3 -` must be `2`, not `−2`. Division: the problem convention is usually truncation toward zero, and Python's `//` floors (`-7 // 2 == -4`), so use `int(a / b)` or `math.trunc`; JavaScript's `Math.trunc(a / b)`. This is a real bug class in interpreters that assume C semantics.
 
-### Infix to postfix: the shunting-yard algorithm
+Postfix is not an interview curiosity: it is how stack-based virtual machines work. Python bytecode, the JVM and WebAssembly are all stack machines; `a + b * c` compiles in CPython 3.11+ to `LOAD_FAST a; LOAD_FAST b; LOAD_FAST c; BINARY_OP *; BINARY_OP +`, in the JVM to `iload_1; iload_2; iload_3; imul; iadd`, and in WebAssembly to `local.get 0; local.get 1; local.get 2; i32.mul; i32.add`. The interpreter's main loop is the function above with a few hundred opcodes. [Evaluate Reverse Polish Notation](/practice/evaluate-rpn) is the practice problem.
+
+## Infix to postfix: the shunting-yard algorithm
 
 Humans write infix (`3 + 4 * 2`), and precedence plus parentheses make it ambiguous without rules. Dijkstra's shunting-yard algorithm converts infix to postfix with an operator stack:
 
@@ -72,19 +97,56 @@ Humans write infix (`3 + 4 * 2`), and precedence plus parentheses make it ambigu
 - `(`: push. `)`: pop to output until the matching `(`, discard both.
 - End: pop everything to output.
 
-For `3 + 4 * 2`: output 3; push `+`; output 4; `*` has higher precedence than `+` so push; output 2; end: pop `*`, pop `+`. Postfix `3 4 2 * +` = 11. For `(3 + 4) * 2`: `(` pushed, 3, `+` pushed, 4, `)` pops `+`; `*` pushed; 2; end pops `*`: `3 4 + 2 *` = 14.
+Trace `3 + 4 * (2 - 1)`:
 
-The operator stack is a monotonic stack over precedence (the [Monotonic stack](/learn/data-structures/stacks-queues/monotonic-stack) lesson's invariant, with "greater precedence" as the comparison). A two-stack variant (operands and operators) evaluates directly without producing postfix; either is the expected answer to "implement a calculator" in an interview, and recursive descent (a function per precedence level, using the call stack) is the third.
+| Token | Action | Operator stack | Output |
+|---|---|---|---|
+| 3 | output | | `3` |
+| + | stack empty, push | `+` | `3` |
+| 4 | output | `+` | `3 4` |
+| * | top `+` binds less tightly, push | `+ *` | `3 4` |
+| ( | push | `+ * (` | `3 4` |
+| 2 | output | `+ * (` | `3 4 2` |
+| − | top is `(`, push | `+ * ( −` | `3 4 2` |
+| 1 | output | `+ * ( −` | `3 4 2 1` |
+| ) | pop `−` to output, discard `(` | `+ *` | `3 4 2 1 −` |
+| end | pop `*`, pop `+` | | `3 4 2 1 − * +` |
 
-### Nested structures
+Evaluating the postfix gives `3 + 4 × (2 − 1) = 7`. Without the parentheses, `*` would still have been pushed above `+` and the output would be `3 4 2 * +`; with `3 * 4 + 2`, the `+` would first pop the `*` because `*` binds at least as tightly, giving `3 4 * 2 +`. The operator stack is a monotonic stack over precedence (the [Monotonic stack](/learn/data-structures/stacks-queues/monotonic-stack) lesson's invariant, with "binds at least as tightly" as the comparison). A two-stack variant (operands and operators) evaluates directly without producing postfix; either is the expected answer to "implement a calculator" in an interview, and recursive descent (a function per precedence level, using the call stack) is the third.
 
-Decode `3[a2[c]]` into `accaccacc`: push the current string and repeat count when you see `[`, pop and combine at `]`. Nested JSON, S-expressions and XML follow the same push-on-open, pop-and-combine-on-close shape; every hand-written parser has a stack, either explicit or in the recursion. [Decode String](/practice/decode-string).
+## Nested structures
+
+Decode `3[a2[c]]` into `accaccacc`: keep the current string and the current number; push both when you see `[`, pop and combine at `]`:
+
+| Char | Action | Stack (saved string, count) | `cur` | `num` |
+|---|---|---|---|---|
+| 3 | digit | | `""` | 3 |
+| [ | push (`""`, 3), reset | `("", 3)` | `""` | 0 |
+| a | append | `("", 3)` | `"a"` | 0 |
+| 2 | digit | `("", 3)` | `"a"` | 2 |
+| [ | push (`"a"`, 2), reset | `("", 3) ("a", 2)` | `""` | 0 |
+| c | append | `("", 3) ("a", 2)` | `"c"` | 0 |
+| ] | pop (`"a"`, 2): `cur = "a" + "c" × 2` | `("", 3)` | `"acc"` | 0 |
+| ] | pop (`""`, 3): `cur = "" + "acc" × 3` | | `"accaccacc"` | 0 |
+
+Nested JSON, S-expressions and XML follow the same push-on-open, pop-and-combine-on-close shape; every hand-written parser has a stack, either explicit or in the recursion. [Decode String](/practice/decode-string).
 
 ## Remembering state you must return to
 
 ### Undo and redo
 
-Two stacks. Every edit pushes an *inverse operation* onto `undo`. Undo pops it, applies it, and pushes the inverse of that onto `redo`. A new edit after an undo clears `redo` (the branch is abandoned). This is the command pattern, and it is how editors, image tools and database transaction rollback (the undo log) work. Storing inverse operations rather than full snapshots keeps memory linear in the number of edits; storing snapshots is simpler and is what small apps do until the document is large.
+Two stacks. Every edit pushes an *inverse operation* onto `undo`. Undo pops it, applies it, and pushes the inverse of that onto `redo`. A new edit after an undo clears `redo` (the branch is abandoned).
+
+| Action | Document | `undo` stack | `redo` stack |
+|---|---|---|---|
+| type `a` | `a` | `del a` | |
+| type `b` | `ab` | `del a`, `del b` | |
+| undo | `a` | `del a` | `ins b` |
+| undo | (empty) | | `ins b`, `ins a` |
+| redo | `a` | `del a` | `ins b` |
+| type `c` | `ac` | `del a`, `del c` | (cleared) |
+
+This is the command pattern, and it is how editors, image tools and database transaction rollback (the undo log) work. Storing inverse operations rather than full snapshots keeps memory linear in the number of edits; storing snapshots is simpler and is what small apps do until the document is large. Collaborative editors cannot use a plain stack, because another user's edits arrive between yours; [CRDTs and collaboration](/learn/system-design/distributed-systems/crdts-and-collaboration) covers what replaces it.
 
 ### The min-stack
 
@@ -102,9 +164,9 @@ Generating all valid bracket sequences, permutations or subsets keeps a partial 
 
 ## Replacing the call stack
 
-### DFS with an explicit stack
+## DFS with an explicit stack, traced
 
-Recursive DFS is elegant and overflows. Python's default recursion limit is 1,000 frames; a graph with a path of 10,000 nodes, a deeply nested JSON document or a degenerate tree crashes it. The iterative version pushes the start node and loops:
+Recursive DFS is elegant and overflows. Python's default recursion limit is 1,000 frames; a graph with a path of 10,000 nodes, a deeply nested document or a degenerate tree crashes it. The iterative version pushes the start node and loops:
 
 ```python
 def dfs_iterative(graph, start):
@@ -121,17 +183,81 @@ def dfs_iterative(graph, start):
     return order
 ```
 
-Two things change compared with the recursive version. The visit order differs unless you push neighbours in reverse, because the stack pops the *last* pushed neighbour first. And "mark seen when pushed" versus "mark seen when popped" gives different behaviour: marking on push (above) never pushes a node twice, so the stack is bounded by the number of edges, but it is not a faithful reproduction of recursive DFS's discovery order. For algorithms that depend on exact recursive semantics (finish times for topological sort, Tarjan's SCC), you push `(node, iterator over its neighbours)` frames and advance the top frame's iterator one neighbour at a time, which is literally simulating the call stack. [Depth-first search](/learn/data-structures/graphs/depth-first-search) works through both.
+Graph `A: [B, C]`, `B: [D]`, `C: [D]`, `D: []`:
 
-### Any recursion, mechanically
+| Step | Pop | Order so far | Push (reversed, unseen) | Stack after | Seen |
+|---|---|---|---|---|---|
+| 1 | A | A | C, then B | `C B` | A B C |
+| 2 | B | A B | D | `C D` | A B C D |
+| 3 | D | A B D | – | `C` | |
+| 4 | C | A B D C | D already seen | (empty) | |
+
+Order `A B D C`, which is what the recursive version produces. Without `reversed`, step 1 would push B then C and the pop would visit C first. Marking on push (above) never pushes a node twice, so the stack is bounded by the number of nodes, but it is not a faithful reproduction of recursive DFS's discovery order in every graph: a node can be marked seen via one edge and later popped after a node that the recursion would have visited first. For algorithms that depend on exact recursive semantics (finish times for topological sort, Tarjan's SCC), you push `(node, iterator over its neighbours)` frames and advance the top frame's iterator one neighbour at a time, which is literally simulating the call stack. [Depth-first search](/learn/data-structures/graphs/depth-first-search) works through both.
+
+## Any recursion, mechanically
 
 Any recursive function can be converted by pushing what a stack frame would hold: the arguments plus a "where am I" marker for code after the recursive call. In-order tree traversal is the classic: push nodes going left, pop and visit, then go right. Morris traversal removes even that stack by temporarily threading the tree; [Binary tree traversals](/learn/data-structures/trees/binary-tree-traversals) covers it.
 
-### The call stack itself
+| | Recursion | Explicit stack, mark on push | Frame simulation (node + iterator) |
+|---|---|---|---|
+| Depth limit | Runtime's (1,000 frames in CPython by default) | Heap memory | Heap memory |
+| Visit order | Reference | Same only with reversed pushes; can diverge in graphs | Identical |
+| Finish times / post-order | Free | Not available | Available |
+| Memory per pending node | A frame (~100 bytes or more in CPython, more with locals) | One reference (8 bytes) | A reference plus an iterator |
+| Code | Shortest | Short | Longest, and easy to get subtly wrong |
 
-Each function call pushes a frame holding the return address, saved registers, parameters and locals. Return pops it. The frame size is fixed per function and known at compile time, which is why the stack is fast (a pointer bump) and why deep recursion is dangerous: main-thread stacks are typically 8 MB on Linux and 1 MB on Windows, and each frame may be tens to hundreds of bytes, so tens of thousands of frames is the practical ceiling in native code and about a thousand by default in CPython (which allocates its frames on the heap but caps depth to protect the C stack). Tail-call elimination lets some languages (Scheme, Erlang, and some cases in Rust/C via the optimiser) reuse the frame; Python and JavaScript engines in practice do not. [Stack, heap and the call stack](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
+## Under the hood: the call stack
 
-The senior instinct: if the recursion depth is bounded by the input (a list length, a tree depth in an unbalanced tree, a graph path), it is a stack overflow waiting for the right input. If it is bounded by `log n` (balanced trees, divide-and-conquer halving), recursion is fine.
+Each function call pushes a frame holding the return address, saved registers, parameters and locals. Return pops it. The frame size is fixed per function and known at compile time, which is why the stack is fast (a pointer bump) and why deep recursion is dangerous: the stack is a fixed reservation, and running off its end hits a guard page that the kernel deliberately left unmapped, which is the `SIGSEGV` (or "stack overflow") you see. The sizes differ by runtime:
+
+| Runtime | Stack | Practical depth for a small function | What overflow looks like |
+|---|---|---|---|
+| Native (C, Rust, Go cgo) on Linux | 8 MB main thread (`ulimit -s`, measured 8,388,608 here); glibc threads inherit it; Rust spawned threads 2 MB | 10⁴–10⁵ frames, depending on frame size | Guard page fault: `SIGSEGV`; Rust prints "thread has overflowed its stack" |
+| Go goroutines | Start at a few KB, grown by copying the whole stack to a larger block | Effectively bounded by memory (default 1 GB max stack on 64-bit) | Fatal "stack overflow" after the maximum |
+| JVM | 1 MB per thread by default (`-Xss`) | ~10,000–20,000 frames | `StackOverflowError`, catchable, thrown when a yellow-zone guard page is touched |
+| V8 / Node | ~1 MB by default (`--stack-size`) | About 10,000 frames on Node 24 for a trivial function (measured ~9,600) | `RangeError: Maximum call stack size exceeded`, catchable |
+| CPython 3.11+ | Python frames live in 16 KiB heap chunks, not on the C stack; the C stack is used only when C code calls back into Python | `sys.getrecursionlimit()`, 1,000 by default; raised to 60,000, a 50,000-deep pure-Python recursion ran fine on 3.14 | `RecursionError`, catchable; 3.12+ tracks C recursion separately so a raised limit no longer risks a real segfault in pure-Python recursion |
+
+## What a frame costs, and when recursion is safe
+
+A CPython frame in 3.11+ is a fixed header plus one 8-byte slot per local, cell and evaluation-stack entry, on the order of a hundred bytes for a small function; the 1,000 default is a sanity limit, not a memory one. Tail-call elimination lets some languages (Scheme, Erlang, and some cases in Rust/C via the optimiser) reuse the frame; CPython and V8 do not, so a "tail-recursive" Python function still consumes a frame per call.
+
+The senior instinct: if the recursion depth is bounded by the input (a list length, a tree depth in an unbalanced tree, a graph path, the nesting of a document a user uploads), it is a stack overflow waiting for the right input. If it is bounded by `log n` (balanced trees, divide-and-conquer halving), recursion is fine. [Stack, heap and the call stack](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
+
+## Production failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A service crashes on one specific request body; the body is `[[[[…` thousands deep | Recursive-descent parser with no depth limit: a nesting-depth denial of service | Depth limit at parse time (Jackson defaults to 1,000 since 2.15; CPython's `json` raises `RecursionError` at the recursion limit) or an iterative parser |
+| Calculator returns −4 for `-7 / 2` | Floor division used where the specification truncates toward zero | `int(a / b)` / `Math.trunc`; add the negative-division test |
+| RPN result has the wrong sign on subtraction | Operands popped in the wrong order | The first pop is the right operand |
+| Undo works, redo replays the wrong edit after a new change | `redo` not cleared when a new edit follows an undo | Clear `redo` on every new edit |
+| Editor memory grows by the document size per keystroke | Snapshot-per-edit undo | Inverse operations, or coalesce keystrokes into one command |
+| Iterative DFS pushes the same node thousands of times on a dense graph | Marking on pop instead of on push | Mark on push (or frame simulation), and bound the stack by nodes, not edges |
+| Recursive traversal passes every test and overflows in production | Depth bounded by an input the tests never made deep (a 100,000-node linked list, a 5,000-deep directory tree) | Explicit stack when depth is input-bounded; a test with a degenerate input |
+| Min-stack reports the wrong minimum after popping a duplicate | Space-optimised auxiliary stack pushed only on strictly smaller values | Push on less-than-or-equal, or use the parallel version |
+
+## Interviewer follow-ups
+
+**"How would you protect a JSON parser from deeply nested input?"** Model answer: count depth as you push and reject past a limit (hundreds is generous for any real document), and prefer an explicit-stack parser so the limit is a policy rather than a crash; the same applies to XML, YAML and expression evaluators. Common wrong answer: "raise the recursion limit".
+
+**"Implement a calculator with `+ − × ÷` and parentheses. Which approach?"** Model answer: two stacks (operands and operators) with shunting-yard precedence for a single pass over tokens, or recursive descent with one function per precedence level if the grammar will grow (unary minus, exponent, function calls); name the tie rules for associativity. Common wrong answer: evaluating left to right and patching precedence afterwards.
+
+**"Why does CPython cap recursion at 1,000 if its frames are on the heap?"** Model answer: since 3.11 Python-to-Python calls do not consume C stack, so the limit is a guard against runaway recursion rather than a memory constraint, and it is adjustable; before 3.11 each Python call recursed in C, so a high limit could overflow the real 8 MB stack and segfault, which is why 3.12 separated the C recursion limit. Common wrong answer: "because each frame is huge".
+
+**"What actually happens at a stack overflow in native code?"** Model answer: the stack pointer crosses into an unmapped guard page below the reservation; the next push faults, the kernel delivers `SIGSEGV`, and runtimes that want a clean message (Rust, the JVM) install a signal handler on an alternate stack that recognises the guard-page address. Common wrong answer: "the stack grows into the heap".
+
+**"Undo for a collaborative editor where two people type at once?"** Model answer: a plain inverse-operation stack breaks because the document changed under you; you need operations that can be transformed against concurrent edits (operational transformation) or a data structure whose operations commute (a CRDT), and "undo" means "invert *my* operations in the current state". Common wrong answer: "lock the document during undo".
+
+## What mid-level engineers get wrong
+
+- **Returning `True` at the end of bracket matching** without checking that the stack is empty.
+- **Popping operands in the wrong order** and using floor division in an evaluator.
+- **Writing a recursive parser for user-supplied input** with no depth limit.
+- **Converting recursion to a stack by marking on pop**, and shipping an algorithm that is exponential on dense graphs.
+- **Assuming `reversed()` on push is enough to reproduce recursive DFS** for finish-time-dependent algorithms.
+- **Raising `sys.setrecursionlimit` as the fix** for a depth that is bounded by the input.
+- **Snapshotting the whole document per edit** for undo and wondering where the memory went.
 
 ## Exercises
 
@@ -254,11 +380,11 @@ hints:
 ## Senior signals
 
 - You list the three bracket-matching failure modes and test each.
-- You know postfix operand order and truncation-toward-zero semantics, and you know Python's `//` floors.
-- You can describe shunting-yard as a monotonic stack over precedence and name recursive descent as the alternative.
-- You implement undo/redo as inverse operations on two stacks and explain why a new edit clears redo.
+- You know postfix operand order and truncation-toward-zero semantics, you know Python's `//` floors, and you can name the three stack machines that run your code.
+- You can trace shunting-yard on an expression with parentheses, describe it as a monotonic stack over precedence, and name recursive descent as the alternative.
+- You implement undo/redo as inverse operations on two stacks, explain why a new edit clears redo, and know why a collaborative editor cannot use it unchanged.
 - You keep a parallel prefix-summary stack for min-stack and can generalise it to any associative summary.
-- You convert recursion to an explicit stack when depth is input-bounded, and you know the visit-order and mark-on-push subtleties.
+- You convert recursion to an explicit stack when depth is input-bounded, you know the visit-order and mark-on-push subtleties, and you can say what each runtime's stack limit is and what an overflow physically does.
 
 ## Check yourself
 
@@ -268,7 +394,7 @@ hints:
   options: ["\"([)]\"", "\"((\"", "\"{}\"", "\")(\""]
   answer: 1
   explanation: >-
-    Leftover openers never trigger a mismatch inside the loop; the function must also check that the stack is empty at the end. The first two inputs are rejected by the empty-stack and mismatch checks.
+    Leftover openers never trigger a mismatch inside the loop; the function must also check that the stack is empty at the end. The mismatched and closer-first inputs are rejected by the empty-stack and mismatch checks, and the balanced pair is correctly accepted.
 - q: >-
     Evaluating the postfix expression 6 −132 / in a language whose integer division floors gives:
   options: ["−22, because the top operand is divided by the one below", "0, because the true quotient −0.045 truncates to zero", "−1, because floor division rounds toward negative infinity", "−0.045, because / on two integers returns a float here"]
@@ -292,5 +418,11 @@ hints:
   options: ["Switch to BFS, since it visits nodes in the same order as DFS", "Use an explicit stack, since depth is bounded by the input", "Memoise the recursive calls, since each node is visited once", "Raise sys.setrecursionlimit to 100,000, since frames are cheap"]
   answer: 1
   explanation: >-
-    Raising the limit only postpones the crash and risks overflowing the C stack. Iterative DFS uses heap memory for the stack and handles any depth. Memoisation does not reduce recursion depth, and BFS is not equivalent when DFS order or finish times matter.
+    Raising the limit works on 3.12+ for pure-Python recursion, but it only postpones the problem to the next larger input and still fails inside C-implemented callbacks. Iterative DFS uses heap memory for the stack and handles any depth. Memoisation does not reduce recursion depth, and BFS is not equivalent when DFS order or finish times matter.
+- q: >-
+    In shunting-yard, reading the operator `+` when the operator stack's top is `*` causes:
+  options: ["Both operators to be output, because the stack must hold one operator", "The `+` to be pushed on top, because later operators always go on top", "The `*` to be popped to the output first, because it binds at least as tightly", "The `*` to be discarded, because `+` has lower precedence and replaces it"]
+  answer: 2
+  explanation: >-
+    An incoming operator pops every stacked operator of greater or equal precedence (for left-associative operators) before being pushed, so `3 * 4 + 2` becomes `3 4 * 2 +`. That "pop while the top binds at least as tightly" rule is the monotonic-stack invariant applied to precedence. Nothing is ever discarded except parentheses.
 ```

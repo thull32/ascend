@@ -1,7 +1,7 @@
 ---
 slug: indexed-heaps-and-decrease-key
 title: "Indexed heaps, decrease-key and lazy deletion"
-description: The one operation a plain binary heap cannot do, the two ways to get it (stale entries you skip, or a position map you maintain), what Fibonacci heaps promise and why nobody ships them, and when a balanced tree is the honest answer.
+description: The one operation a plain binary heap cannot do, the two ways to get it (stale entries you skip, or a position map you maintain) traced by hand, who ships each in production, what Fibonacci heaps promise and why nobody uses them, and when a balanced tree is the honest answer.
 minutes: 40
 difficulty: hard
 tags: [heaps, decrease-key, indexed-heap, lazy-deletion, dijkstra, priority-queue]
@@ -15,7 +15,7 @@ There are two engineering answers, a theoretical one that mostly is not used, an
 
 Do not touch the entry in the heap at all. Push a *new* entry with the new key. When you pop, check whether the entry is still current; if not, discard it and pop again.
 
-For Dijkstra, "current" means "this distance equals the best known distance for this vertex", or more simply "this vertex has not been finalised yet":
+For Dijkstra, "current" means "this vertex has not been finalised yet":
 
 ```python
 import heapq
@@ -37,7 +37,13 @@ def dijkstra(adj, source):
     return dist
 ```
 
-The heap may contain several entries for the same vertex; only the one with the smallest distance matters, and it pops first because the heap orders by distance. The others surface later, fail the `done` check, and are discarded. Total pushes are bounded by the number of edge relaxations, so the heap holds O(E) entries instead of O(V), and the running time is O(E log E) = O(E log V) since log E ≤ 2 log V. Memory is the price: a dense graph can have E ≈ V², so the heap holds a million entries for a thousand vertices where an indexed heap would hold a thousand.
+The heap may contain several entries for the same vertex; only the one with the smallest distance matters, and it pops first because the heap orders by distance. The others surface later, fail the `done` check, and are discarded. The [priority queues lesson](/learn/data-structures/heaps/priority-queues-in-practice) traces this on a four-vertex graph: six pushes, two stale pops.
+
+### How much garbage, really
+
+Total pushes are bounded by the number of *successful* relaxations, so the heap holds O(E) entries in the worst case instead of O(V), and the running time is O(E log E) = O(E log V) since log E ≤ 2 log V. The bound is loose on typical inputs. Measured on a random directed graph with V = 1,000 and E ≈ 5 × 10⁵ (every edge present with probability one half, weights uniform in 1 to 1,000): 5,490 pushes, 4,490 stale pops, and the heap peaked at 4,824 entries, about 5V and nowhere near E. On a sparse random graph with E = 4V the peak was 567 entries and one pop in four was stale. An adversary can order the weights so that almost every edge relaxation succeeds and the heap really does reach E, which is the case to quote in an interview, with the measured numbers as the honest expectation.
+
+### Deletion as a multiset of pending removals
 
 For **deletion** rather than decrease-key, the same trick is a multiset of pending removals. `remove(x)` records `pending[x] += 1`. `pop()` discards roots while `pending[root] > 0`, decrementing as it goes. `size()` must report live elements, so track `live = pushes − removals` separately. This is exactly how a sliding-window median works with two heaps: the element leaving the window is marked, not removed, and each heap's *logical* size (live elements) drives the rebalancing while the stale entries sit harmlessly until they reach a root.
 
@@ -47,13 +53,15 @@ For **deletion** rather than decrease-key, the same trick is a multiset of pendi
  "title": "Lazy decrease-key by duplicate push", "caption": "The second push of 3 stands in for a decrease from 7 to 3. Both entries sit in the heap; the caller keeps a record of which one is current and skips the stale one when it surfaces."}
 ```
 
-The trap with lazy deletion: a `remove(x)` for a value that is **not present** must be a no-op, or a later `push(x)` will be silently eaten. The exercise below tests exactly that. Track live counts per value, and only record a pending removal when `live[x] > 0`.
+The trap with lazy deletion: a `remove(x)` for a value that is **not present** must be a no-op, or a later `push(x)` will be silently eaten. Track live counts per value, and only record a pending removal when `live[x] > 0`. The exercise below tests exactly that.
 
-Lazy deletion is the right default. It is a few lines, needs no changes to the heap, and its memory overhead is bounded by the number of updates, which in most workloads is small. It becomes the wrong choice when updates vastly outnumber pops (a timer system where 99% of timers are cancelled would carry 100× dead weight) or when memory is tight.
+### Garbage needs a bound
+
+Lazy deletion is the right default: a few lines, no changes to the heap, and memory overhead bounded by the number of updates. It becomes the wrong choice when updates vastly outnumber pops. Measured on CPython 3.14: a heap of 10⁶ timer entries of which 99% are cancelled holds about 124 MB of tuples to deliver 10,000 timers, and draining it takes 1.65 s of pure stale-skipping. Python's asyncio bounds this: it counts cancelled handles and, once more than 100 handles are scheduled and over half are cancelled, rebuilds the heap without them in one O(n) pass. That pair of constants is what "lazy deletion with a garbage threshold" looks like in shipped code, and any lazy heap you write for a cancel-heavy workload needs the same guard.
 
 ## Option 2: the indexed heap (a position map)
 
-Give the heap a second array, `pos`, that maps each *key* (a vertex id, a timer id, a job id) to its current index in the heap array. Every swap in sift-up and sift-down updates `pos` for both elements moved. Now the heap can locate any key in O(1), which makes three new operations O(log n):
+Give the heap a second map, `pos`, from each *key* (a vertex id, a timer id, a job id) to its current index in the heap array. Every swap in sift-up and sift-down updates `pos` for both elements moved. Now the heap can locate any key in O(1), which makes three new operations O(log n):
 
 - `decrease_key(k, new_priority)`: update the priority at `pos[k]`, sift up.
 - `increase_key(k, new_priority)`: update, sift down.
@@ -107,23 +115,70 @@ class IndexedMinPQ:
         if self.keys:
             self._down(0)
         return top
+
+    def delete(self, key):
+        i = self.pos[key]
+        self._swap(i, len(self.keys) - 1)
+        self.keys.pop()
+        del self.pos[key]; del self.pri[key]
+        if i < len(self.keys):
+            self._up(i)
+            self._down(i)
 ```
 
-The two data structures must stay consistent through every operation, which is why the indexed heap is about three times the code of a plain one and where the bugs live. Go's `container/heap` exposes this design directly: your `Swap` method is where you update the index field on your items, and `heap.Fix(h, i)` sifts item `i` in whichever direction it needs after you have changed its priority. Rust's `BinaryHeap::peek_mut` gives you the same for the *top* element only, which covers the common "adjust the minimum" case.
+The two structures must stay consistent through every operation, which is why the indexed heap is about three times the code of a plain one and where the bugs live. Every write to the array goes through `_swap`, so there is exactly one place where `pos` can be forgotten.
 
 ### A worked decrease-key
 
-Insert `a:5`, `b:3`, `c:8`. After sift-ups the heap array is `[b, a, c]` with `pos = {b: 0, a: 1, c: 2}`. Now `decrease(c, 1)`: set `pri[c] = 1` and sift up from `pos[c] = 2`. Parent of index 2 is index 0 (`b`, priority 3); 1 < 3, so swap: array `[c, a, b]`, and the swap writes `pos[c] = 0`, `pos[b] = 2`. Index 0 has no parent; done, two array writes and two map writes. A `pop` now returns `c`: swap root with last (`[b, a, c]`, `pos[b] = 0`, `pos[c] = 2`), drop `c`, sift `b` down: its only child `a` has priority 5 > 3, so it stays. The map is consistent after every operation, which is the invariant the tests below check by interleaving `decrease` with `pop` and `contains`.
+Insert `a:5`, `b:3`, `c:8`, then `decrease(c, 1)`, then `pop()`:
 
-The subtle case is `delete` of a middle element: after swapping it with the last element and shrinking, the swapped-in element may need to go *up* (it came from a different branch and may be smaller than its new parent) or *down*. Calling both sift-up and sift-down is correct because at most one of them will move it.
+| Operation | Sift steps | `keys` (priorities) | `pos` |
+|---|---|---|---|
+| insert a:5 | root | `[a]` (5) | a→0 |
+| insert b:3 | 3 < 5, swap with parent | `[b, a]` (3, 5) | b→0, a→1 |
+| insert c:8 | 8 ≥ 3, stays | `[b, a, c]` (3, 5, 8) | b→0, a→1, c→2 |
+| decrease c→1 | from index 2: 1 < 3, swap with root | `[c, a, b]` (1, 5, 3) | c→0, a→1, b→2 |
+| pop → c | swap root with last, drop c, sift b down: child a is 5 > 3, stays | `[b, a]` (3, 5) | b→0, a→1 |
 
-Dijkstra with an indexed heap holds exactly V entries and runs in O(E log V) with V pushes, V pops and up to E decrease-keys. Compared with lazy deletion, memory drops from O(E) to O(V), the number of heap operations drops (decrease-key does not add an entry), and the constant per operation rises (the `pos` updates on every swap). Benchmarks on sparse road-network graphs typically show the two within 20% of each other; on dense graphs the indexed version wins on memory.
+Two array writes and two map writes for the decrease. The map is consistent after every row, which is the invariant the exercise checks by interleaving `decrease` with `pop` and `contains`.
 
-The indexed heap is also what a **cancellable timer wheel** needs when it is a heap: libuv keeps timers in a heap with a stored index so `uv_timer_stop` can remove one in O(log n) rather than marking it dead.
+### Delete from the middle: why both sifts
+
+The swapped-in element comes from the bottom of a *different* branch, so it may need to move either way. Build a heap by inserting `a:1, b:10, c:2, d:11, e:12, f:3, g:4` (no insert ever swaps, so the array is insertion order) and delete `d`:
+
+| Step | `keys` (priorities) |
+|---|---|
+| before | `[a, b, c, d, e, f, g]` (1, 10, 2, 11, 12, 3, 4) |
+| swap d (index 3) with last g (index 6), pop d | `[a, b, c, g, e, f]` (1, 10, 2, 4, 12, 3) |
+| sift up from index 3: parent b is 10 > 4, swap | `[a, g, c, b, e, f]` (1, 4, 2, 10, 12, 3) |
+| sift down from index 1: no children below index 1 in range with smaller priority | unchanged |
+
+Had the code called only `_down`, `g:4` would have stayed under `b:10` and the heap would be silently invalid. Calling both is correct because at most one of them moves the element.
+
+### Dijkstra with an indexed heap
+
+Dijkstra with an indexed heap holds exactly V entries and runs in O(E log V) with V pushes, V pops and up to E decrease-keys. Compared with lazy deletion, memory drops from O(E) worst case to O(V), the number of heap operations drops (decrease-key does not add an entry), and the constant per operation rises (two map updates on every swap, and a hash lookup per comparison in the Python version above; a systems-language version uses an array indexed by vertex id and pays almost nothing). Benchmarks on sparse road-network graphs typically show the two within about 20% of each other, and the measured garbage numbers above explain why: on realistic graphs lazy deletion carries far fewer stale entries than the bound suggests. On dense graphs the indexed version wins on memory.
+
+## Under the hood: who ships an indexed heap
+
+- **Go's `container/heap`** is the indexed design with the index left to you: your `Swap` method is where you write `items[i].index = i`, and `heap.Fix(h, i)` sifts item `i` in whichever direction it needs, calling `down` first and `up` only if `down` did not move it, which is the both-ways sift from the delete trace. `heap.Remove(h, i)` is `delete`.
+- **libuv** (Node's event loop) stores timers in a binary heap built from left, right and parent *pointers* embedded in each `uv_timer_t`, so the timer *is* its own position record and `uv_timer_stop` removes it in O(log n) with no lookup at all. That is an intrusive indexed heap: the "map" is a field in the element.
+- **Java's `ScheduledThreadPoolExecutor`** keeps a `DelayedWorkQueue`, an array heap whose `ScheduledFutureTask` entries store their own `heapIndex`, giving O(log n) cancellation. `java.util.PriorityQueue.remove(Object)` has no index and is O(n): a cancellation storm on a plain `PriorityQueue` is quadratic.
+- **Rust's `BinaryHeap::peek_mut`** is decrease-key (or increase-key) for the *root* only: the guard re-sifts on drop. Boost.Heap's `d_ary_heap<T, mutable_<true>>` returns handles that act as the position map for arbitrary elements.
+- **Graph libraries** mostly pick lazy deletion: NetworkX's Dijkstra pushes `(dist, counter, node)` tuples and skips finalised nodes. SciPy's `csgraph` Dijkstra is one of the few mainstream Fibonacci-heap users, and JGraphT's defaults to a pairing heap; both are Dijkstra-specific choices where decrease-key is the hot operation.
+
+The pattern across all of them: an index must be updated in exactly one place (`Swap`, the pointer fix-up, `siftUp`/`siftDown`), and the API either owns that place or makes you write it.
 
 ## What Fibonacci heaps promise, and why they are not used
 
-The textbook says Dijkstra is O(E + V log V) with a Fibonacci heap, because decrease-key becomes O(1) *amortised*. That is a real asymptotic improvement over O(E log V) for dense graphs. The catch is in the constants: a Fibonacci heap node has four pointers and a mark bit, the structure is a forest of trees that is consolidated lazily on pop, and every operation involves pointer chasing across scattered allocations. On real hardware, for real graphs, a binary or 4-ary heap with lazy deletion is faster until E is enormous, and even then a **pairing heap** (simpler, same amortised bounds in practice though not all proven) is what you would reach for. Knowing the Fibonacci bound is an interview point; having implemented one is a curiosity. If an interviewer asks "can you do better than E log V?", the senior answer names the Fibonacci heap bound and then says why you would not use it.
+| Heap | insert | find-min | delete-min | decrease-key | merge | node size (pointers) |
+|---|---|---|---|---|---|---|
+| Binary (array) | O(log n) | O(1) | O(log n) | O(log n) with an index | O(n) rebuild | 0, one array slot |
+| d-ary (array) | O(log_d n) | O(1) | O(d log_d n) | O(log_d n) with an index | O(n) | 0 |
+| Pairing | O(1) | O(1) | O(log n) amortised | o(log n) amortised, exact bound open | O(1) | 3 |
+| Fibonacci | O(1) | O(1) | O(log n) amortised | O(1) amortised | O(1) | 4 plus a mark bit |
+
+The textbook says Dijkstra is O(E + V log V) with a Fibonacci heap, because decrease-key becomes O(1) *amortised*. That is a real asymptotic improvement over O(E log V) for dense graphs, where E ≈ V². The catch is in the constants and the memory: a Fibonacci heap node carries four pointers and a mark bit, the structure is a forest of trees that is consolidated lazily on delete-min, and every operation involves pointer chasing across scattered allocations, each a likely cache miss of around 100 ns against a few nanoseconds for an array index. On real hardware, for real graphs, a binary or 4-ary heap with lazy deletion is faster until E is enormous, and even then a **pairing heap** (a simpler multiway tree with the same practical behaviour, though its decrease-key bound is not fully proven) is what you would reach for. Knowing the Fibonacci bound is an interview point; having implemented one is a curiosity. If an interviewer asks "can you do better than E log V?", the senior answer names the bound and then says why you would not use it.
 
 ## When to stop using a heap
 
@@ -136,12 +191,46 @@ The heap's contract is *find-min fast, everything else slow*. Each workaround ab
 | delete by key | O(n) | O(log n) lazily, garbage | O(log n) | O(log n) |
 | find-min after deletes | O(1) | O(1) amortised, may skip stale | O(1) | O(log n), or O(1) with a cached pointer |
 | iterate in order, floor/ceiling, range | no | no | no | yes |
-| pop-max *and* pop-min | no (one kind) | no | no | yes |
-| memory per element | 1 slot | up to updates × 1 slot | 1 slot + index entry | node + 2–3 pointers |
+| pop-max *and* pop-min | no (one kind) | no | no (or a min-max heap) | yes |
+| memory per element | 1 slot | up to updates × 1 slot | 1 slot + index entry | node + 2–3 pointers + colour |
 
-The Linux CFS scheduler needs delete-by-key (a task blocks), find-min (leftmost runnable), and ordered iteration for load balancing, so it uses a red-black tree. A leaderboard needs rank queries and both ends, so it uses a skip list (Redis) or an order-statistic tree. A queue of futures sorted by deadline that are frequently cancelled is where Tokio chose a timing wheel: O(1) insert and cancel, approximate ordering, because exact ordering was not a requirement.
+The Linux scheduler needs delete-by-key (a task blocks), find-min (leftmost runnable), and ordered iteration for load balancing, so it uses a red-black tree with a cached leftmost pointer; the [balanced trees lesson](/learn/data-structures/trees/balanced-trees) covers what that costs. A leaderboard needs rank queries and both ends, so it uses a skip list (Redis) or an order-statistic tree. A queue of futures sorted by deadline that are frequently cancelled is where Tokio chose a timing wheel: O(1) insert and cancel, approximate ordering, because exact ordering was not a requirement.
 
-The decision rule: if the *only* things you do are push and pop-min, plus occasional decrease-key, use a heap with lazy deletion. If you need decrease-key on most operations and memory matters, use an indexed heap. If you need any ordered query beyond the minimum, or deletes dominate, use a tree. If ordering can be approximate and the volume is huge, use a wheel or a bucket structure.
+The decision rule: if the *only* things you do are push and pop-min, plus occasional decrease-key, use a heap with lazy deletion and a garbage threshold. If you need decrease-key on most operations and memory matters, use an indexed heap. If you need any ordered query beyond the minimum, or deletes dominate, use a tree. If ordering can be approximate and the volume is huge, use a wheel or a bucket structure.
+
+## Production failure modes
+
+**A pushed value vanishes.** Symptom: a lazy-deletion queue occasionally drops an element that was pushed after an unrelated `remove`. Diagnosis: `remove(x)` recorded a pending removal for a value that was not present; the next `push(x)` was eaten when it reached the root. Fix: consult the live count before recording a removal, and test the sequence `remove(9), push(9), pop()`.
+
+**Decrease-key moves the wrong element.** Symptom: an indexed heap returns non-minimal keys, or a `KeyError` appears in `pos` long after the offending operation. Diagnosis: one code path writes the array without going through `_swap`, usually a hand-inlined `pop` or `delete`, so `pos` drifted. Fix: route every array write through the one swap helper and assert `pos[keys[i]] == i` for all `i` in tests.
+
+**Memory grows in a timer-heavy service.** Symptom: heap size climbs steadily although few timers ever fire; RSS follows. Diagnosis: cancelled timers are marked but never removed and there is no compaction threshold; the 99%-cancelled measurement above is the extreme. Fix: asyncio's rule (rebuild when over half the entries are dead), an indexed heap with real removal, or a timing wheel.
+
+**Cancellation storms turn quadratic.** Symptom: a service that cancels thousands of pending tasks per second pegs a core in `PriorityQueue.remove`. Diagnosis: `remove(Object)` is a linear scan; 10⁴ cancels over a 10⁴-entry queue is 10⁸ comparisons. Fix: `ScheduledThreadPoolExecutor` (indexed) or a cancel flag checked on poll (lazy).
+
+**Increase-key handled with the decrease-key path.** Symptom: an item whose priority was *raised* (made less urgent) still pops early. Diagnosis: the code updated the priority and sifted up only; the element needed to sift down. Fix: sift both ways after any priority change, as `heap.Fix` does.
+
+## Interviewer follow-ups
+
+**"Your Dijkstra pushes duplicates. How big can the heap get, and does it matter?"** Model answer: O(E) entries in the worst case, O(E log V) time either way since log E ≤ 2 log V; on realistic graphs the peak is a small multiple of V, and on dense graphs an indexed heap brings it to exactly V. Common wrong answer: "V, because each vertex is visited once".
+
+**"Implement delete of an arbitrary element in O(log n)."** Model answer: a position map updated on every swap; swap the element with the last, shrink, then sift the swapped-in element up and down, because it came from a different branch. Common wrong answer: sift down only.
+
+**"Why not a Fibonacci heap for the O(E + V log V) bound?"** Model answer: four pointers per node, lazy consolidation and cache-hostile pointer chasing make its constants large; binary or pairing heaps win until graphs are extremely dense, and even SciPy's choice to use one is the exception. Common wrong answer: "Fibonacci heaps are always faster for Dijkstra".
+
+**"Millions of timers, nearly all cancelled. Lazy heap, indexed heap or something else?"** Model answer: a hierarchical timing wheel, O(1) insert and cancel at slot precision; if exact ordering is required, an indexed heap so cancellation actually frees memory; a lazy heap only with a compaction threshold like asyncio's. Common wrong answer: "a lazy heap, cancellations are cheap", which ignores the memory.
+
+**"The queue needs pop-min and pop-max."** Model answer: a balanced tree, or a min-max heap (alternating min and max levels, both extremes in O(log n)), or two indexed heaps that delete from each other; a plain heap gives one end only. Common wrong answer: "keep a max-heap and a min-heap and push to both", which leaks the popped element in the other heap unless it is indexed.
+
+## What mid-level engineers get wrong
+
+- **`heap.remove(x)` followed by `heapify`** inside a loop: O(n) per operation, and the loop makes it quadratic.
+- **Unconditional `pending[x] += 1`** in a lazy queue, which eats a future push.
+- **Reporting `len(heap)` as the size** of a lazy queue, which counts dead entries and breaks any balance invariant built on it.
+- **Updating a priority in place and sifting one direction**, or not sifting at all.
+- **Keeping the position map only in `insert` and `pop`** and forgetting it in `delete`, which works until the first middle deletion.
+- **Quoting the Fibonacci bound as the reason to implement one.**
+- **Reaching for a heap when the requirements say "list in order" or "cancel by id"**, then bolting on workarounds until a tree would have been shorter.
 
 ## Exercises
 
@@ -303,9 +392,10 @@ hints:
 ## Senior signals
 
 - You know that a plain heap cannot change or delete an arbitrary element in O(log n), and you say so before the interviewer asks.
-- You default to **lazy deletion** with a staleness check, and you can state its memory cost (O(E) for Dijkstra) and its failure mode (removing an absent value).
-- You can describe the **indexed heap**: a position map updated on every swap, and the three operations it unlocks.
-- You can quote the Fibonacci heap bound for Dijkstra and explain why binary or pairing heaps win in practice.
+- You default to **lazy deletion** with a staleness check, you can state its memory cost (O(E) worst case for Dijkstra, a small multiple of V on realistic graphs) and its two failure modes (removing an absent value; unbounded garbage), and you know asyncio's threshold as the shipped example of a fix.
+- You can describe the **indexed heap**: a position map updated in exactly one place, and the three operations it unlocks, including why delete sifts both ways.
+- You can name who ships which design: Go's `heap.Fix`, libuv's pointer heap, the JDK's `heapIndex`, Rust's `peek_mut`, NetworkX's lazy tuples.
+- You can quote the Fibonacci heap bound for Dijkstra and explain, in terms of pointers and cache misses, why binary or pairing heaps win on real hardware.
 - You recognise when the requirements have outgrown a heap (ordered iteration, delete-heavy, both ends) and switch to a balanced tree without ceremony.
 - You know at least one runtime (Go, libuv, Tokio) and what it chose for timers, and why.
 
@@ -317,7 +407,7 @@ hints:
   options: ["Max degree, since one vertex relaxes at a time", "E, since each relaxation can push an entry", "V log V, since each vertex re-enters log V times", "V, since each vertex is finalised only once"]
   answer: 1
   explanation: >-
-    Each successful relaxation pushes an entry and there are at most E relaxations, so the heap can hold O(E) entries even though each vertex is finalised once; the indexed heap variant holds at most V. Running time stays O(E log V) because log E ≤ 2 log V.
+    Each successful relaxation pushes an entry and there are at most E relaxations, so the heap can hold O(E) entries even though each vertex is finalised once; the indexed heap variant holds at most V. Running time stays O(E log V) because log E ≤ 2 log V. On random graphs the measured peak is a small multiple of V, but the bound is what an adversary can force.
 - q: >-
     In an indexed heap, what must every swap during sift-up or sift-down do in addition to swapping the two array slots?
   options: ["Recompute the priorities of both moved keys", "Update the position map for both moved keys", "Re-heapify the array so the positions stay valid", "Nothing, as the position map is rebuilt on each pop"]
@@ -325,15 +415,21 @@ hints:
   explanation: >-
     The position map is what makes decrease-key O(log n); it is only correct if it is updated at every move. Priorities do not change during a swap, and rebuilding the map or re-heapifying would be O(n) per operation, which defeats the purpose.
 - q: >-
+    Deleting a middle element of an indexed heap swaps it with the last element and shrinks the array. The swapped-in element must then be:
+  options: ["Sifted up only, since the deleted slot was above it", "Left in place, since the heap shape is already restored", "Sifted both up and down, since it came from another branch", "Sifted down only, since it came from the bottom level"]
+  answer: 2
+  explanation: >-
+    The last element belongs to some other branch, so relative to its new parent and children it may be too small or too large; the trace in the lesson shows a value of 4 landing under a parent of 10 and needing to move up. Calling both sifts is correct because at most one of them moves it. Shape is restored by the shrink, but order is not.
+- q: >-
     A lazy-deletion queue implements remove(x) as pending[x] += 1 unconditionally. Sequence: remove(7), push(7), pop(). What is returned?
   options: ["An error, since removing an absent 7 raises", "7, since the removal came before the push", "None, as the pending removal eats the push", "7, since each push clears pending removals"]
   answer: 2
   explanation: >-
     The unconditional remove records a pending removal without error, and nothing clears it. The pending count for 7 is 1 when the push happens; on pop, the root 7 matches a pending removal and is discarded. remove must check that a live copy exists before recording a pending removal.
 - q: >-
-    Why is Dijkstra with a Fibonacci heap (O(E + V log V)) rarely faster than with a binary heap (O(E log V)) in practice?
-  options: ["Fibonacci heaps cannot handle negative edge weights at all", "Binary heaps also get O(1) decrease-key through the index map", "The bound is misquoted; it is really O(E log V) as well", "Pointer-heavy forests mean large constants and cache misses"]
-  answer: 3
+    Why is Dijkstra with a Fibonacci heap (O(E + V log V)) rarely faster than with a binary heap (O(E log V)) on real hardware?
+  options: ["Pointer-heavy forests mean large constants and cache misses", "The bound is misquoted; it is really O(E log V) as well", "Binary heaps also get O(1) decrease-key through the index map", "Fibonacci heaps cannot handle negative edge weights at all"]
+  answer: 0
   explanation: >-
     The bound is real, but the asymptotic win requires dense graphs and ignores constants. Fibonacci heap nodes carry four pointers and scattered allocations, and on sparse graphs E is only a few times V, so the difference between E and E log V is small and the binary heap's array layout wins on real hardware. An indexed binary heap's decrease-key is O(log n), not O(1).
 - q: >-

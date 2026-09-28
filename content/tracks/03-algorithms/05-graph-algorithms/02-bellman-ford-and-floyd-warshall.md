@@ -9,7 +9,7 @@ problems: [cheapest-flights-k-stops, network-delay-time]
 ---
 Dijkstra's proof needed one thing: extending a path never makes it cheaper. Currency exchange rates break that immediately. Convert the rate `r` into an edge weight `−log r` and the sum of weights along a path is the negative log of the product of rates, so a *negative cycle* is a sequence of trades that ends with more money than it started with. Dijkstra cannot find it; it cannot even compute correct distances when a single edge is negative. The same shape shows up in schedules with slack, in "cost minus rebate" networks, and in any problem where you have reduced costs by subtracting a potential.
 
-Two algorithms handle this. Bellman-Ford drops the priority queue and simply relaxes every edge, `V − 1` times, then uses one more round to detect a negative cycle. Floyd-Warshall answers a different question, the shortest path between *every* pair, with a three-line dynamic program. Both are slower than Dijkstra by an amount you must be able to justify, and both are correct on graphs where Dijkstra is wrong.
+Two algorithms handle this. Bellman-Ford drops the priority queue and relaxes every edge, `V − 1` times, then uses one more round to detect a negative cycle. Floyd-Warshall answers a different question, the shortest path between *every* pair, with a three-line dynamic program. Both are slower than Dijkstra by an amount you must be able to justify, and both are correct on graphs where Dijkstra is wrong.
 
 ## Relaxation is the only primitive
 
@@ -65,13 +65,46 @@ This is the standard textbook example, with a negative edge into E and a negativ
  "edges": [{"from":"A","to":"B","w":6},{"from":"A","to":"D","w":7},{"from":"B","to":"C","w":5},{"from":"B","to":"D","w":8},{"from":"B","to":"E","w":-4},{"from":"C","to":"B","w":-2},{"from":"D","to":"C","w":-3},{"from":"D","to":"E","w":9},{"from":"E","to":"A","w":2},{"from":"E","to":"C","w":7}]}
 ```
 
-The final distances are A = 0, B = 2, C = 4, D = 7, E = −2. Follow the path to E: A → D (7) → C (7 − 3 = 4) → B (4 − 2 = 2) → E (2 − 4 = −2). Dijkstra would have settled B at 6 as soon as it popped it, then discovered too late that going the long way round through D and C is cheaper.
+By hand, with the edges relaxed in place and in the order they are listed above (A→B, A→D, B→C, B→D, B→E, C→B, D→C, D→E, E→A, E→C). Each row is the distance vector after a full round; the last column lists the relaxations that fired.
+
+| Round | A | B | C | D | E | Improvements in this round |
+|---|---|---|---|---|---|---|
+| start | 0 | ∞ | ∞ | ∞ | ∞ | |
+| 1 | 0 | 6 | 4 | 7 | 2 | A→B 6, A→D 7, B→C 11, B→E 2, D→C 4 (11 → 4, later in the same round) |
+| 2 | 0 | 2 | 4 | 7 | 2 | C→B 2 (4 − 2 < 6) |
+| 3 | 0 | 2 | 4 | 7 | −2 | B→E −2 (2 − 4 < 2) |
+| 4 | 0 | 2 | 4 | 7 | −2 | none: early exit |
+
+Round 1 did more than "one edge per node" because relaxation is in place: D→C used the `dist[D] = 7` set moments earlier in the same round, so C reached 4 after one round even though its shortest path A→D→C has two edges. The check round (a fifth pass) fires nothing, so there is no reachable negative cycle. `prev` at the end reads B←C, C←D, D←A, E←B: the path to E is A → D (7) → C (7 − 3 = 4) → B (4 − 2 = 2) → E (2 − 4 = −2). Dijkstra would have settled B at 6 as soon as it popped it, then discovered too late that going the long way round through D and C is cheaper.
+
+The same graph relaxed against a **copy** of the previous round's vector gives a different table, and the difference is the point of the copy:
+
+| Round `k` | A | B | C | D | E | Meaning |
+|---|---|---|---|---|---|---|
+| 1 | 0 | 6 | ∞ | 7 | ∞ | cheapest using at most 1 edge |
+| 2 | 0 | 6 | 4 | 7 | 2 | at most 2 edges (C via A→D→C, E via A→B→E) |
+| 3 | 0 | 2 | 4 | 7 | 2 | at most 3 edges (B via A→D→C→B) |
+| 4 | 0 | 2 | 4 | 7 | −2 | at most 4 edges (E via A→D→C→B→E) |
+
+In-place relaxation converges in fewer rounds (three instead of four here) because improvements chain inside a round; the copied version converges more slowly but every row means something exact, which is what the "at most k stops" problems need.
 
 ## Detecting and extracting a negative cycle
 
 After `V − 1` rounds every distance is final *if* there is no negative cycle. So run the relaxation loop once more: if any edge still improves, some node's "shortest path" has `V` or more edges, which means it repeats a node, which means there is a cycle with negative total weight reachable from `src`.
 
 Reporting "there is a cycle" is usually enough. Extracting it takes one more idea: when the V-th round improves `dist[v]`, `v` is either on the cycle or downstream of it. Follow `prev` pointers from `v` exactly `V` times; after that many steps you are guaranteed to be *on* the cycle (you cannot walk `V` steps through `V` nodes without repeating one, and `prev` chains lead into the cycle). Then walk `prev` from there until you return to the same node, and that list is your cycle. This is how an arbitrage detector reports the actual sequence of trades.
+
+Trace it on five nodes with edges 0→1 (4), 1→2 (−2), 2→3 (1), 3→1 (−1), 2→4 (3). The cycle 1→2→3→1 weighs −2, and node 4 hangs off it.
+
+| Round | dist[0..4] | Improvements | prev[1..4] |
+|---|---|---|---|
+| 1 | 0, 2, 2, 3, 5 | 0→1 4, 1→2 2, 2→3 3, 3→1 2, 2→4 5 | 3, 1, 2, 2 |
+| 2 | 0, 0, 0, 1, 3 | every cycle edge again, and 2→4 | 3, 1, 2, 2 |
+| 3 | 0, −2, −2, −1, 1 | the same four | 3, 1, 2, 2 |
+| 4 | 0, −4, −4, −3, −1 | the same four | 3, 1, 2, 2 |
+| 5 (check) | 0, −6, −6, −5, −3 | still improving: negative cycle | 3, 1, 2, 2 |
+
+Every round lowers the cycle's nodes by exactly the cycle weight, 2, which is the signature of the fault: distances that keep falling by a constant. Note that `prev` stopped changing after round 1; it already describes the cycle. Now extract it. The check round's last improvement was 2→4, so start at `v = 4` and walk `prev` five times: 4 → 2 → 1 → 3 → 2 → 1. The walk entered the cycle at the second step and the node you land on after `V` steps, 1, is on it. Walk `prev` from 1 until it comes back: 1 → 3 → 2 → 1. Reverse that and you have the cycle in edge direction, 1 → 2 → 3 → 1, weight −2 − 1 + 1 = −2. Had you started the walk at node 4 and stopped as soon as you saw a repeat, you would also have found it; walking exactly `V` steps is the version that needs no visited set.
 
 A subtlety that catches people: the V-th round detects a negative cycle *reachable from `src`*. If the source cannot reach the cycle, the guard on `INF` means no edge on the cycle ever relaxes and the cycle is invisible. To find negative cycles anywhere in the graph, add a virtual source with a 0-weight edge to every node, or run Floyd-Warshall and check the diagonal.
 
@@ -119,7 +152,25 @@ def floyd_warshall(n, edges):
  "edges": [{"from":"A","to":"B","w":3},{"from":"B","to":"C","w":1},{"from":"A","to":"C","w":7},{"from":"C","to":"D","w":2},{"from":"D","to":"A","w":6}]}
 ```
 
-Work the example by hand for one pair. `d[A][C]` starts at 7 (the direct edge). When `k = B`, the update checks `d[A][B] + d[B][C] = 3 + 1 = 4 < 7` and sets `d[A][C] = 4`. When `k = C`, `d[A][D]` becomes `d[A][C] + d[C][D] = 4 + 2 = 6`, and it uses the *already improved* `d[A][C]`, which is legal because C's row and column were finalised with respect to intermediates `{A, B}` before this iteration began.
+Work the whole example by hand, one matrix per stage. Rows are sources, columns are targets, and the entries that changed at each stage are listed above the matrix.
+
+```text
+start (edges only)        k = A: D gains DB=9, DC=13
+     A  B  C  D                A  B  C  D
+  A  0  3  7  ∞             A  0  3  7  ∞
+  B  ∞  0  1  ∞             B  ∞  0  1  ∞
+  C  ∞  ∞  0  2             C  ∞  ∞  0  2
+  D  6  ∞  ∞  0             D  6  9 13  0
+
+k = B: AC=4, DC=10        k = C: AD=6, BD=3         k = D: BA=9, CA=8, CB=11
+     A  B  C  D                A  B  C  D                A  B  C  D
+  A  0  3  4  ∞             A  0  3  4  6             A  0  3  4  6
+  B  ∞  0  1  ∞             B  ∞  0  1  3             B  9  0  1  3
+  C  ∞  ∞  0  2             C  ∞  ∞  0  2             C  8 11  0  2
+  D  6  9 10  0             D  6  9 10  0             D  6  9 10  0
+```
+
+Read the stages as a story. With A allowed as an intermediate, only D benefits, because D→A is the only edge into A: `d[D][B] = 6 + 3`, `d[D][C] = 6 + 7`. With B allowed, `d[A][C]` drops from the direct 7 to `3 + 1 = 4`, and `d[D][C]` improves to `9 + 1 = 10` through the `d[D][B]` computed one stage earlier. With C allowed, A and B finally reach D (`4 + 2` and `1 + 2`), using the already improved `d[A][C] = 4`, which is legal because C's row and column were finalised with respect to intermediates `{A, B}` before this stage began. With D allowed, the cycle closes: B and C can reach A through D, and C reaches B through D and A. Twelve entries were finite at the start and sixteen at the end; every improvement used exactly one intermediate stage's row and column, which is the invariant the loop order protects.
 
 **The loop order matters.** If `k` is the inner loop, the recurrence you are computing is "shortest path from `i` to `j` using at most one intermediate", which is wrong. Interviewers who ask you to write Floyd-Warshall are mostly checking that you know which loop goes outside and can say why: `k` is the *stage* of the DP, and every stage must complete before the next begins.
 
@@ -129,21 +180,90 @@ Work the example by hand for one pair. `d[A][C]` starts at 7 (the direct edge). 
 
 **Same shape, different algebra.** Replace `min` and `+` with `or` and `and` and you get transitive closure (can `i` reach `j`?), which is Warshall's original algorithm and runs sixty-four times faster with bitsets. Replace them with `max` and `min` and you get the widest path between every pair. The three loops are a template for any semiring.
 
+## Under the hood
+
+**Distance-vector routing is Bellman-Ford with no round counter.** In RIP each router advertises its whole distance table to its neighbours every 30 seconds and on change; a neighbour relaxes `dist[dest] = min(dist[dest], dist[via] + 1)` for every destination. Convergence after a link failure exposes the missing invariant. Suppose A reaches X directly (cost 1) and B reaches X via A (cost 2). The A–X link dies. A now hears B advertising X at cost 2 and relaxes to 3 through B; B hears A at 3 and moves to 4; and so on, one hop per exchange, each router relaxing through the other's stale entry. That is **count to infinity**, and RIP caps it by defining 16 as unreachable, so a loop lasts at most about 15 exchanges. Two mitigations are also Bellman-Ford facts in disguise: **split horizon** (never advertise a route back over the interface you learned it from, so B stops telling A about "X via A") and **poison reverse** (advertise it back with cost 16 so the stale entry is overwritten immediately). Link-state protocols replaced this for large networks because Dijkstra on a complete topology converges in one computation instead of one hop per exchange; the [routing algorithms lesson](/learn/networking/network-algorithms/routing-algorithms) has both protocol families.
+
+**SciPy.** `scipy.sparse.csgraph` exposes `bellman_ford`, `floyd_warshall` and `johnson` in Cython over a CSR matrix. `floyd_warshall` densifies the input into an `n × n` `float64` array and runs the three loops in C: `n = 1,000` is 8 MB and about a second of arithmetic (`10⁹` inner steps at roughly one nanosecond each, more if the matrix does not sit in cache); `n = 10,000` is 800 MB and `10¹²` steps, hours. `johnson` is the function to reach for on sparse inputs with negative weights; it raises `NegativeCycleError` when the Bellman-Ford phase detects one.
+
+**NumPy makes Floyd-Warshall three lines.** For each `k`, the whole `i, j` update is one broadcast:
+
+```python
+import numpy as np
+
+def floyd_warshall_np(d):
+    d = d.copy()                                     # d: n × n float array, np.inf for no edge
+    n = d.shape[0]
+    for k in range(n):
+        d = np.minimum(d, d[:, k, None] + d[None, k, :])
+    return d
+```
+
+`d[:, k, None]` is column `k` as an `n × 1` array, `d[None, k, :]` is row `k` as `1 × n`, and their sum is the `n × n` matrix of "go through `k`" costs. The Python loop runs `n` times, each iteration a vectorised `n²` operation; for `n = 2,000` that is 2,000 iterations of a 4-million-element op, a few seconds, against minutes for the pure-Python triple loop. The loop over `k` cannot be vectorised away, because stage `k + 1` depends on the finished stage `k`.
+
+**Bitsets for transitive closure.** When the question is reachability rather than distance, each row of the matrix is a bitset and the inner loop becomes `row[i] |= row[k]` whenever bit `k` of `row[i]` is set: 64 entries per machine word, so `n = 5,000` closes in `5,000 × 5,000 × 80` word operations, about `2 × 10⁹`, a couple of seconds in C or with Python's big-int `|` doing the words for you. The [bit tricks lesson](/learn/algorithms/technique-mastery/bit-tricks-in-algorithms) covers the same 64× factor elsewhere.
+
 ## Choosing the algorithm
 
-| Situation | Algorithm | Cost |
-|---|---|---|
-| Non-negative weights, one source | Dijkstra | `O((V + E) log V)` |
-| Negative edges possible, one source | Bellman-Ford | `O(VE)` |
-| Need to detect or extract a negative cycle | Bellman-Ford (from a virtual source) or Floyd-Warshall diagonal | `O(VE)` / `O(V³)` |
-| Paths limited to `k` edges | `k` rounds of Bellman-Ford with a copied array | `O(kE)` |
-| All pairs, dense graph or `V ≲ 500` | Floyd-Warshall | `O(V³)` |
-| All pairs, sparse graph, non-negative | Dijkstra from every node | `O(V · E log V)` |
-| All pairs, sparse graph, negative edges | Johnson: one Bellman-Ford to reweight, then `V` Dijkstras | `O(V · E log V)` |
+| Situation | Algorithm | Time | Memory | Negative edges | Finds negative cycles |
+|---|---|---|---|---|---|
+| Non-negative weights, one source | [Dijkstra](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra) | `O((V + E) log V)` | `O(V + E)` | no | no |
+| Negative edges possible, one source | Bellman-Ford | `O(VE)` | `O(V + E)` | yes | reachable ones |
+| Any negative cycle anywhere | Bellman-Ford from a virtual source, or Floyd-Warshall diagonal | `O(VE)` / `O(V³)` | `O(V + E)` / `O(V²)` | yes | yes |
+| Paths limited to `k` edges | `k` rounds of Bellman-Ford with a copied array | `O(kE)` | `O(V + E)` | yes | not needed |
+| All pairs, dense or `V ≲ 500` | Floyd-Warshall | `O(V³)` | `O(V²)` | yes | yes |
+| All pairs, sparse, non-negative | Dijkstra from every node | `O(V · E log V)` | `O(V + E)` per run | no | no |
+| All pairs, sparse, negative edges | Johnson: one Bellman-Ford to reweight, then `V` Dijkstras | `O(V · E log V)` | `O(V + E)` per run | yes | yes (in the Bellman-Ford phase) |
 
-Johnson's algorithm is worth a sentence: run Bellman-Ford once from a virtual source to get a potential `h(v)` for every node, reweight each edge as `w + h(u) − h(v)` (which is provably non-negative and preserves shortest paths), then run Dijkstra from every node. It is the technique behind "reduced costs" in optimisation generally and comes up when an interviewer asks "all pairs, sparse, negative edges, faster than V³".
+**Johnson's reweighting** deserves more than a name. Add a virtual source `s` with a 0-weight edge to every node and run Bellman-Ford once; call the result `h(v)`. Because Bellman-Ford ends with every edge satisfying `h(v) ≤ h(u) + w(u, v)` (that is the definition of "no edge still relaxes"), the reweighted cost `w'(u, v) = w(u, v) + h(u) − h(v)` is never negative. Along any path from `a` to `b`, the `h` terms telescope: `w'(path) = w(path) + h(a) − h(b)`, a constant shift for every path between the same pair, so the cheapest path under `w'` is the cheapest under `w`. Now run Dijkstra from every node on `w'` and subtract `h(a) − h(b)` from each answer. It is the technique behind "reduced costs" in optimisation generally and comes up when an interviewer asks "all pairs, sparse, negative edges, faster than V³".
 
-`O(VE)` sounds terrible next to Dijkstra, and on a large sparse graph it is: `V = 10⁶, E = 10⁷` is `10¹³` operations. In practice the early exit makes Bellman-Ford converge in a handful of rounds on graphs without adversarial edge order, and the queue-based variant (SPFA, which only re-relaxes edges out of nodes whose distance changed) is often as fast as Dijkstra, until someone feeds it a grid graph and it degrades to its `O(VE)` worst case. Do not use SPFA in anything with an SLA.
+`O(VE)` sounds terrible next to Dijkstra, and on a large sparse graph it is: `V = 10⁶, E = 10⁷` is `10¹³` operations. The early exit makes Bellman-Ford converge in a handful of rounds on graphs whose edge order is not adversarial (on the five-node example, three rounds instead of four), and the queue-based variant **SPFA** (re-relax only the out-edges of nodes whose distance changed, with an in-queue flag so a node is queued at most once at a time) often runs in a small multiple of `E` on random graphs. Its worst case is still `O(VE)`, and there are known grid-shaped constructions with weights arranged so that every node's distance improves `Θ(V)` times, each improvement re-queueing it; on such inputs SPFA is exactly Bellman-Ford with queue overhead. Contest problem setters build those inputs deliberately. Do not use SPFA in anything with an SLA; use it as a fast path with Bellman-Ford's round counter as the backstop.
+
+## When n³ is fine
+
+Floyd-Warshall's cost is the same on every input, which makes it easy to budget. The inner step is one addition, one comparison and (sometimes) one store.
+
+| `n` | Inner steps `n³` | Matrix (`float64`) | C, roughly | Pure Python, roughly | Verdict |
+|---|---|---|---|---|---|
+| 100 | `10⁶` | 80 KB | under a millisecond | half a second | fine anywhere, even per request |
+| 400 | `6.4 × 10⁷` | 1.3 MB | tens of milliseconds | tens of seconds | fine offline or with NumPy |
+| 2,000 | `8 × 10⁹` | 32 MB | several seconds | hours | batch only, NumPy or C |
+| 10,000 | `10¹²` | 800 MB | hours | never | wrong tool: use Johnson or `V` Dijkstras |
+
+The Python column assumes about 50–100 nanoseconds per interpreted inner step; the C column assumes one to a few nanoseconds and a matrix that fits in cache for the small sizes. Both are order-of-magnitude figures that move with the machine. The rule they give: Floyd-Warshall is the right answer up to a few hundred nodes in any language and a couple of thousand with a compiled inner loop, and above that the `n²` memory is the wall before the `n³` time is.
+
+## Failure modes
+
+**Symptom: an unreachable node reports a finite distance, or a negative cycle is reported that the source cannot reach.** Diagnosis: infinity is a big integer and the `dist[u] != INF` guard is missing, so `BIG + (−3) < BIG` relaxes from nowhere. Fix: keep the guard, or use a float infinity, or use a sentinel that the relaxation checks explicitly.
+
+**Symptom: "at most k stops" returns a route with more than k flights.** Diagnosis: relaxation is in place, so a round chained several edges (the in-place table above reaches C in round 1 through a two-edge path). Fix: relax against a copy of the previous round's vector, and run exactly `k + 1` rounds.
+
+**Symptom: Floyd-Warshall returns a matrix where some pairs are `∞` although a path exists.** Diagnosis: `k` is not the outer loop, so only paths with one intermediate were considered. Fix: `for k: for i: for j`, and add a test with a three-hop path whose intermediate nodes have larger indices than the endpoints.
+
+**Symptom: an arbitrage detector fires on cycles with profit `10⁻¹⁵`.** Diagnosis: weights are `−log(rate)` as floats and the sum around a cycle that should be exactly zero comes out at `−2 × 10⁻¹⁶` from rounding. Fix: compare with a tolerance (`dist[u] + w < dist[v] − 1e-9`), or scale rates to fixed-point integers before taking logs, or keep the rates as exact rationals for small graphs.
+
+**Symptom: the queue-based version is fast in tests and times out on one customer's graph.** Diagnosis: SPFA on a grid-like input; count how many times each node is dequeued and you will see numbers close to `V`. Fix: cap the per-node dequeue count at `V − 1` and fall back to reporting a negative cycle, or switch to plain Bellman-Ford with the early exit, or to Johnson when weights allow.
+
+**Symptom: an all-pairs job is killed for memory at `n = 10⁵`.** Diagnosis: `n²` doubles is 80 GB before the algorithm starts. Fix: the question is almost never really all pairs; compute distances from the handful of sources that matter, or run Johnson with sparse Dijkstras and stream the rows out.
+
+## Interviewer follow-ups
+
+**"Detect arbitrage among 200 currencies given a rate table."** Model answer: weight each edge `−log(rate)`, so a cycle with product of rates above 1 has negative total weight; run Bellman-Ford from a virtual source (or Floyd-Warshall, since `200³ = 8 × 10⁶` is instant) and check for a still-improving edge or a negative diagonal; extract the cycle by walking `prev`; compare with a tolerance because the logs are floats. Common wrong answer: Dijkstra on the rates, which cannot represent "going around makes money".
+
+**"All pairs on a sparse graph with 10⁵ nodes and 10⁶ edges, some negative."** Model answer: Johnson: one Bellman-Ford (`O(VE) = 10¹¹` worst case, far less with early exit) to compute potentials, reweight, then `V` Dijkstras at `O(E log V)` each, about `10⁵ × 10⁶ × 17`, which is still huge, so ask whether all pairs is really needed and offer per-source queries. Common wrong answer: Floyd-Warshall, which needs `10¹⁰` matrix entries.
+
+**"Why can RIP be distributed but OSPF's Dijkstra cannot be run the same way?"** Model answer: Bellman-Ford's correctness does not depend on relaxation order, so each router can relax with whatever its neighbours send and the global result still converges; Dijkstra needs a single global priority order, so every router must hold the whole topology and run the algorithm locally. Common wrong answer: "OSPF is distributed too", which confuses distributing the topology with distributing the computation.
+
+**"Prove that k rounds against a copy gives the cheapest path with at most k edges."** Model answer: induction on `k`; round `k` reads only round `k − 1` values, and the best path with at most `k` edges is either a path with at most `k − 1` edges or a path with at most `k − 1` edges plus one final edge, which is exactly the `min` the round computes. Common wrong answer: quoting the `V − 1` bound without noticing it is the special case `k = V − 1`.
+
+## What mid-level engineers get wrong
+
+- **Running Dijkstra anyway because "the negative edges are rare".** One negative edge on the shortest path is enough for a wrong answer, and the failure is silent.
+- **Always running all `V − 1` rounds.** Without the early exit, Bellman-Ford on a well-ordered graph does `V − 1` full passes where three would do; on a `10⁵`-node graph that is the difference between milliseconds and minutes.
+- **Reporting a negative cycle the source cannot reach as an error, or missing one it can.** Both come from the `INF` guard; understand what it protects and the two cases separate.
+- **Reaching for Floyd-Warshall on a large sparse graph.** `n = 10⁴` is 800 MB and `10¹²` steps; `V` Dijkstras are `10⁴ × E log V` and stream.
+- **Using SPFA in production because it was fast in the benchmark.** Its worst case is the algorithm it was meant to replace, and adversarial inputs exist.
+- **Comparing float distances with `<`.** Rounding turns zero-weight cycles into "negative" ones and makes two equal paths compare unequal.
 
 ## Exercises
 
@@ -260,12 +380,14 @@ hints:
 
 ## Senior signals
 
-- You can prove the `V − 1` bound by induction on path length and notice that the proof never uses the sign of a weight.
-- You know the V-th round detects only cycles *reachable from the source*, and you add a virtual source or check the Floyd-Warshall diagonal when you need a global answer.
+- You can prove the `V − 1` bound by induction on path length, notice that the proof never uses the sign of a weight, and show on a five-node table why in-place relaxation converges in fewer rounds than the copied version.
+- You know the V-th round detects only cycles *reachable from the source*, and you add a virtual source or check the Floyd-Warshall diagonal when you need a global answer; you can extract the cycle by walking `prev` exactly `V` times.
 - You relax against a copy when the round count carries meaning (k stops), and in place when it does not.
-- You can explain why `k` is Floyd-Warshall's outer loop in terms of DP stages, and you see `min/+` as one instance of a semiring that also gives transitive closure and widest paths.
-- You know that distance-vector routing is distributed Bellman-Ford, that count-to-infinity is its failure mode, and that link-state protocols replaced it for that reason.
-- You treat SPFA as a benchmark trick with an adversarial worst case, not a production algorithm, and you can name Johnson's reweighting for the sparse all-pairs case.
+- You can explain why `k` is Floyd-Warshall's outer loop in terms of DP stages, write out the matrix after each stage, and see `min/+` as one instance of a semiring that also gives transitive closure and widest paths.
+- You budget `n³` with numbers: a few hundred nodes anywhere, a couple of thousand with NumPy or C, and Johnson or repeated Dijkstra beyond that because the `n²` matrix runs out of memory first.
+- You know that distance-vector routing is distributed Bellman-Ford, that count-to-infinity is its failure mode and split horizon and poison reverse are the patches, and that link-state protocols replaced it for that reason.
+- You treat SPFA as a benchmark trick with an adversarial worst case, not a production algorithm, and you can derive Johnson's reweighting from the "no edge still relaxes" condition.
+- You compare `−log(rate)` weights with a tolerance, because floating-point rounding manufactures negative cycles of `10⁻¹⁶`.
 
 ## Check yourself
 
@@ -300,4 +422,11 @@ hints:
   answer: 2
   explanation: >-
     The diagonal starts at 0 and can only decrease if some cycle through i has negative total weight, so shortest paths through node 3 are undefined. This is the global negative-cycle check Bellman-Ford from a single source cannot provide.
+- q: >-
+    Johnson's algorithm reweights every edge as w + h(u) − h(v), where h comes from one Bellman-Ford run. Why are the new weights never negative, and why are shortest paths preserved?
+  options: ["Bellman-Ford ends with h(v) ≤ h(u) + w; the h terms telescope along paths", "The reweighting is a heuristic; it preserves paths only when h is admissible", "h is the shortest distance to v, so w + h(u) − h(v) is at most zero", "h is the node degree, so the shift cancels out on every cycle"]
+  answer: 0
+  explanation: >-
+    When Bellman-Ford terminates no edge relaxes, which is exactly h(v) ≤ h(u) + w, so w + h(u) − h(v) ≥ 0. Along any path from a to b the intermediate h values cancel, leaving w(path) + h(a) − h(b), a constant shift for that pair, so the ordering of paths between a and b is unchanged. Admissibility is an A* concept and does not apply.
 ```
+

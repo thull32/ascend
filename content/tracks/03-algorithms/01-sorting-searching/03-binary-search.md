@@ -19,7 +19,7 @@ Binary search maintains a range that is guaranteed to contain the answer and hal
 {"type": "array", "algorithm": "binary-search", "values": [1, 3, 4, 7, 9, 12, 15, 20], "target": 12, "title": "Binary search for 12", "caption": "Each probe eliminates half the remaining range; three probes settle eight elements."}
 ```
 
-Each probe removes half the candidates, so after `k` probes at most `n / 2^k` remain, and the search ends after $\lceil \log_2 (n+1) \rceil$ probes. For a billion elements that is 30 probes. That is the whole reason the algorithm exists.
+Each probe removes half the candidates, so after `k` probes at most `n / 2^k` remain, and the search ends after at most $\lceil \log_2 (n+1) \rceil$ probes. For a thousand elements that is 10; for a million, 20; for a billion, 30. That is the whole reason the algorithm exists.
 
 ## The invariant, and the code it forces
 
@@ -41,7 +41,24 @@ def binary_search(nums, target):
     return -1
 ```
 
-Each line is forced by the invariant:
+Trace it on `[1, 3, 4, 7, 9, 12, 15, 20]`, first for `target = 12`, then for `target = 5`, which is absent:
+
+| iteration | lo | hi | mid | nums[mid] | decision |
+|---|---|---|---|---|---|
+| 1 | 0 | 8 | 4 | 9 | `9 < 12` → `lo = 5` |
+| 2 | 5 | 8 | 6 | 15 | `15 > 12` → `hi = 6` |
+| 3 | 5 | 6 | 5 | 12 | found, return 5 |
+
+| iteration | lo | hi | mid | nums[mid] | decision |
+|---|---|---|---|---|---|
+| 1 | 0 | 8 | 4 | 9 | `9 > 5` → `hi = 4` |
+| 2 | 0 | 4 | 2 | 4 | `4 < 5` → `lo = 3` |
+| 3 | 3 | 4 | 3 | 7 | `7 > 5` → `hi = 3` |
+| 4 | 3 | 3 | — | — | `lo == hi`, return −1 |
+
+In the second trace the loop ends with `lo == hi == 3`, and 3 is where 5 would be inserted to keep the array sorted. That is not a coincidence; it is the invariant doing its job, and the next section makes it the main event.
+
+Each line of the code is forced by the invariant:
 
 - `hi = len(nums)`, not `len(nums) - 1`, because `hi` is exclusive.
 - `while lo < hi`, because `lo == hi` means the range `[lo, lo)` is empty and there is nothing left to examine.
@@ -49,9 +66,11 @@ Each line is forced by the invariant:
 - When `nums[mid] < target`, everything up to and including `mid` is too small, so the new range starts at `mid + 1`.
 - When `nums[mid] > target`, everything from `mid` upwards is too large, so the new range ends *before* `mid`, and because `hi` is exclusive that is `hi = mid`.
 
+**Correctness.** The invariant holds at the start (`[0, n)` is the whole array, nothing ruled out). Each branch rules out only indices whose value is known to be on the wrong side of the target, because the array is sorted, so the invariant is preserved. When the loop ends the range is empty and nothing remains that could hold the target, so `-1` is right; when it returns early, `nums[mid] == target` was checked directly.
+
 **Termination.** Because `mid < hi`, setting `hi = mid` strictly shrinks the range; because `mid >= lo`, setting `lo = mid + 1` strictly shrinks it too. A strictly shrinking non-negative integer quantity must reach zero. There is no input on which this loops forever.
 
-The `lo + (hi - lo) // 2` form instead of `(lo + hi) // 2` is not pedantry. In a language with fixed-width integers, `lo + hi` overflows when both are above `2³¹ − 1`, which for arrays of a billion elements is reachable. This bug sat in Java's `Arrays.binarySearch` for nine years before it was noticed in 2006. Python integers do not overflow; JavaScript numbers are doubles and do not overflow at these sizes either. Write the safe form anyway, because the interviewer will ask, and because you will write it in Go or Rust one day.
+The `lo + (hi - lo) // 2` form instead of `(lo + hi) // 2` is not pedantry. In a language with fixed-width integers, `lo + hi` overflows when both are above `2³¹ − 1`, which for arrays of a billion elements is reachable. This bug sat in Java's `Arrays.binarySearch` for nine years before Joshua Bloch reported it in 2006, and it was in Bentley's *Programming Pearls* before that. Python integers do not overflow; JavaScript numbers are doubles and represent integers exactly up to 2⁵³. Write the safe form anyway, because the interviewer will ask, and because you will write it in Go or Rust one day, where `(lo + hi) / 2` on `usize` panics in debug builds and wraps in release.
 
 ## Off-by-one taxonomy
 
@@ -88,7 +107,7 @@ def first_true(n, pred):
     return lo
 ```
 
-The only difference from the earlier code is that a `True` at `mid` does not end the search; it narrows the range to `[lo, mid]` (still half-open: `hi = mid` keeps `mid` reachable as the eventual `lo`). After the loop `lo == hi`, and `lo` is the first index where the predicate holds, or `n` if it never does.
+The only difference from the earlier code is that a `True` at `mid` does not end the search; it narrows the range to `[lo, mid]` (still half-open: `hi = mid` keeps `mid` reachable as the eventual `lo`). The invariant is now "`pred` is false for every index below `lo` and true for every index at or above `hi`". After the loop `lo == hi`, so `lo` is the first index where the predicate holds, or `n` if it never does.
 
 Now the variants are one-liners:
 
@@ -100,9 +119,31 @@ Now the variants are one-liners:
 | Count of `t` | both | `upper - lower` |
 | First bad version | `is_bad(i)` | `first_true` over version numbers |
 
-Trace `lower_bound([1, 2, 2, 2, 3], 2)`: `lo=0, hi=5, mid=2`, `nums[2]=2 >= 2` so `hi=2`; `mid=1`, `nums[1]=2 >= 2` so `hi=1`; `mid=0`, `nums[0]=1 < 2` so `lo=1`; loop ends with `lo == hi == 1`. Index 1 is the first 2. Note that the search kept going after finding a 2 at index 2; that is the point.
+Trace `lower_bound([1, 2, 2, 2, 3], 2)`:
 
-Python has this built in: `bisect.bisect_left(nums, t)` is `lower_bound` and `bisect.bisect_right(nums, t)` is the index after the last `t`. Use them in interviews when allowed and say what they compute.
+| iteration | lo | hi | mid | nums[mid] >= 2? | decision |
+|---|---|---|---|---|---|
+| 1 | 0 | 5 | 2 | yes | `hi = 2` |
+| 2 | 0 | 2 | 1 | yes | `hi = 1` |
+| 3 | 0 | 1 | 0 | no (`1 < 2`) | `lo = 1` |
+| 4 | 1 | 1 | — | — | return 1 |
+
+Index 1 is the first 2. Note that the search kept going after finding a 2 at index 2; that is the point.
+
+## Under the hood: `bisect`, `lower_bound` and friends
+
+Python's `bisect` module is the `first_true` template in C. Its exact semantics are worth memorising because they are asked in interviews and misused in code review:
+
+- `bisect_left(a, x, lo=0, hi=len(a))` returns the first index `i` with `a[i] >= x`; every element before it is `< x`. That is `lower_bound`. If `x` is present it is the index of its first occurrence.
+- `bisect_right(a, x)` (alias `bisect`) returns the first index with `a[i] > x`; every element before it is `<= x`. That is `upper_bound`, the index *after* the last occurrence.
+- `bisect_right - bisect_left` is the count of `x`; `bisect_right(a, x) - 1` is the last occurrence, or `-1` past the start.
+- Both accept `key=` since Python 3.10, applied to the *array elements only*, so you pass `x` already in key form: `bisect_left(records, "m", key=lambda r: r.name)`.
+- `insort_left`/`insort_right` do the search and then `list.insert`, which shifts every later element, so maintaining a sorted list by repeated `insort` is $O(n)$ per insert and $O(n^2)$ overall; for that job you want a balanced tree or `sortedcontainers`.
+- `bisect` never checks that the list is sorted. On an unsorted list it returns an index that satisfies nothing, silently.
+
+The same template appears as C++ `std::lower_bound` / `std::upper_bound` / `std::partition_point` (all half-open, all taking a predicate or a comparator), Rust `slice::partition_point` and `binary_search` (which returns `Ok(index)` for *some* matching index, not necessarily the first, or `Err(insertion_point)`), and Java `Arrays.binarySearch`, which returns `-(insertion point) - 1` when the key is absent so that the sign carries the "found" bit and the magnitude carries the position. Go's `sort.Search(n, f)` is `first_true` exactly, and `slices.BinarySearch` returns `(index, found)`.
+
+What a probe costs is decided by memory, not arithmetic. On an array of 10⁹ 8-byte integers (8 GB), the first probes land in different pages every time; roughly the first 20 of the 30 probes miss every cache level, at around 100 ns each, so a single lookup costs 2–3 µs while the arithmetic is under 30 ns. The last 8–10 probes are within one 4 KB page and hit. Two techniques address that in real systems: **Eytzinger layout**, which stores the array in breadth-first heap order so that the probe sequence is contiguous and prefetchable and runs 2–3× faster on large arrays; and B-tree-style node layout, which is what databases use for the same reason ([B-trees](/learn/advanced-data-structures/balanced-trees/b-trees-and-b-plus-trees)). Branch prediction matters too: `mid`'s comparison is unpredictable by construction (that is what "one bit per probe" means), so compilers turn the update into a conditional move, and hand-written **branchless** binary search (`lo = cond ? mid + 1 : lo`) with an explicit prefetch is another 20–50% on arrays that fit in cache. All those numbers depend on the CPU and the array size; the ordering of costs does not.
 
 ## Rotated sorted arrays
 
@@ -128,9 +169,15 @@ def search_rotated(nums, target):
     return -1
 ```
 
-Trace for target `0`: `lo=0, hi=7, mid=3` (`7`). `nums[0]=4 <= 7`, left half sorted; is `4 <= 0 < 7`? No, so `lo=4`. `mid=5` (`1`); `nums[4]=0 <= 1`, left sorted; is `0 <= 0 < 1`? Yes, `hi=5`. `mid=4` (`0`), found. Three probes.
+Trace for target `0`:
 
-The `<=` in `nums[lo] <= nums[mid]` matters: when the range has one element, `lo == mid` and the "left half" is that single element, which is trivially sorted. Use `<` and the single-element case goes to the wrong branch. With duplicates allowed, `nums[lo] == nums[mid]` no longer tells you which half is sorted (`[1, 1, 1, 0, 1]`), and the honest answer is to advance `lo` by one and retry, which makes the worst case $O(n)$. Say that if asked. [Find minimum in rotated array](/practice/find-min-rotated) is the same idea with the predicate `nums[i] <= nums[n-1]`.
+| iteration | lo | hi | mid | nums[mid] | sorted half | target inside it? | decision |
+|---|---|---|---|---|---|---|---|
+| 1 | 0 | 7 | 3 | 7 | left (`4 <= 7`) | `4 <= 0 < 7`? no | `lo = 4` |
+| 2 | 4 | 7 | 5 | 1 | left (`0 <= 1`) | `0 <= 0 < 1`? yes | `hi = 5` |
+| 3 | 4 | 5 | 4 | 0 | found | | return 4 |
+
+Why one half is always sorted: the array is two ascending pieces, and the rotation point lies in at most one of `[lo, mid]` and `[mid, hi)`; the other contains no rotation point and is therefore sorted. The `<=` in `nums[lo] <= nums[mid]` matters: when the range has one element, `lo == mid` and the "left half" is that single element, which is sorted. Use `<` and the single-element case goes to the wrong branch. With duplicates allowed, `nums[lo] == nums[mid]` no longer tells you which half is sorted (`[1, 1, 1, 0, 1]`), and the honest answer is to advance `lo` by one and retry, which makes the worst case $O(n)$. Say that if asked. [Find minimum in rotated array](/practice/find-min-rotated) is the same idea with the predicate `nums[i] <= nums[n-1]`.
 
 ## Searching real numbers
 
@@ -148,7 +195,7 @@ def sqrt(x, iterations=100):
     return lo
 ```
 
-Two decisions here that separate working code from a bug report. First, the loop runs a **fixed number of iterations** instead of `while hi - lo > eps`. Each iteration halves the interval, so 100 iterations give 2⁻¹⁰⁰ of the starting range, far below double precision; an epsilon loop, by contrast, can spin forever when `lo` and `hi` are adjacent doubles whose difference is bigger than `eps` and cannot be halved. Second, `hi = max(1, x)` because for `x < 1` the root is *larger* than `x`. Integer square root ([sqrt-x](/practice/sqrt-x)) is `first_true` over integers with the predicate `i * i > x`, minus one.
+Two decisions here that separate working code from a bug report. First, the loop runs a **fixed number of iterations** instead of `while hi - lo > eps`. Each iteration halves the interval, so 100 iterations give 2⁻¹⁰⁰ of the starting range, far below double precision; an epsilon loop, by contrast, can spin forever when `lo` and `hi` are adjacent doubles whose difference is bigger than `eps` and cannot be halved. That happens sooner than you expect: doubles near 10¹⁶ are spaced 2 apart, so `while hi - lo > 1e-9` never exits there. Second, `hi = max(1, x)` because for `x < 1` the root is *larger* than `x`. Integer square root ([sqrt-x](/practice/sqrt-x)) is `first_true` over integers with the predicate `i * i > x`, minus one; `math.isqrt` does it exactly for arbitrary-size integers.
 
 ## Binary search on implicit structure
 
@@ -157,8 +204,40 @@ The pattern extends to anything you can index and that is monotone along the ind
 - A **2D matrix** whose rows are sorted and each row starts after the previous ends is a sorted array of `rows * cols` elements; index `i` maps to `(i // cols, i % cols)`. That is [search-2d-matrix](/practice/search-2d-matrix).
 - A **time-versioned key-value store** ([time-based-kv](/practice/time-based-kv)) keeps, per key, a list of `(timestamp, value)` appended in timestamp order; `get(key, t)` is "last index with timestamp `<= t`", which is `bisect_right - 1`.
 - A **function call**, such as `is_bad(version)`, where each call is expensive; binary search minimises calls, and the problem statement's "minimise API calls" is the signal.
+- An **unbounded** sorted sequence (a stream, a file of unknown length, an API with `get(i)` that fails past the end): probe indices `1, 2, 4, 8, ...` until the value exceeds the target, then binary search the last doubling interval. That is exponential (galloping) search, $O(\log i)$ where `i` is the answer's position, and it is the same galloping Timsort uses inside its merge.
 
 The next lesson, [binary search on the answer](/learn/algorithms/sorting-searching/binary-search-on-the-answer), takes this to its conclusion: the "array" is the space of possible answers, and the predicate is "is this answer feasible".
+
+## Failure modes
+
+**`ArrayIndexOutOfBoundsException` at index −1,073,741,824 on a large array.** Symptom: a binary search that has worked for years fails once the array passes about 2³⁰ elements. Diagnosis: `mid = (lo + hi) / 2` overflowed `int`, producing a negative `mid`. Fix: `lo + (hi - lo) / 2`, or `(lo + hi) >>> 1` in Java (unsigned shift reinterprets the overflowed sum correctly).
+
+**The search returns different answers for the same key on different days.** Symptom: `bisect_left` on a list of records finds the key sometimes and not others; no exceptions. Diagnosis: the list is not sorted by the key being searched (sorted case-sensitively, searched case-insensitively; sorted by one field, searched by another; or a `NaN` in a float array, which compares false to everything and breaks the `F...F T...T` shape). `bisect` does not check sortedness. Fix: an `assert all(a[i] <= a[i+1])` in tests, sort with the same key function you search with, and strip or reject `NaN` before sorting.
+
+**A request hangs at 100% CPU.** Symptom: one input never returns; a thread dump shows it inside the search loop. Diagnosis: `lo = mid` with `mid` rounded down, so a range of size 2 never shrinks; or a real-valued search with an epsilon that is below the double spacing at that magnitude. Fix: `lo = mid + 1`, or round `mid` up when `lo = mid` is the update you need; use a fixed iteration count for floats.
+
+**The version bisection blames the wrong commit.** Symptom: `git bisect` (or your own `first_true` over builds) lands on a commit that cannot be the cause. Diagnosis: the predicate is not monotone: the test is flaky, or the bug was introduced, fixed and re-introduced, so the sequence is `F T F T` and binary search assumes a single boundary. Fix: make the predicate deterministic (retry and majority-vote, pin the environment), and when the history is genuinely non-monotone, a linear scan of the suspicious range is the only correct tool.
+
+## Interviewer follow-ups
+
+**"How many comparisons for a billion elements, and what does each cost?"** Model answer: at most 30, but the first 20 or so are cache misses at around 100 ns each, so a lookup is a few microseconds, dominated by memory rather than arithmetic; on disk-resident data that is why B-trees with high fan-out replace binary search. Common wrong answer: "30, so it is instant."
+
+**"The array is sorted but you do not know its length and can only call `get(i)`, which throws past the end."** Model answer: exponential search: probe `1, 2, 4, ...` until `get` throws or exceeds the target, then binary search the last interval; $O(\log i)$ calls where `i` is the answer's index. Common wrong answer: binary search with `hi = 2⁶³`, which wastes ~63 probes and treats an exception as a comparison.
+
+**"Find a peak element (any index `i` with `nums[i] > nums[i-1]` and `nums[i] > nums[i+1]`) in O(log n)."** Model answer: compare `nums[mid]` with `nums[mid+1]`; if the slope is up, a peak exists to the right, else at or to the left. The predicate "slope is down at `i`" is not globally monotone, but the argument that each half kept contains a peak is what binary search needs. Common wrong answer: "the array is not sorted, so binary search does not apply".
+
+**"Count occurrences of a value in a sorted array of 10 million."** Model answer: `bisect_right(a, x) - bisect_left(a, x)`, two searches, $O(\log n)$. Common wrong answer: find one occurrence and scan outward, which is $O(\text{count})$ and linear when the array is mostly that value.
+
+**"Why does Rust's `binary_search` return `Result` and not `-1`?"** Model answer: `Err(i)` carries the insertion point, which callers need for insert-in-order and for `lower_bound`-style logic, and the type forces the caller to handle the absent case. Java packs the same information as `-(insertion) - 1`. Common wrong answer: "it is a style choice".
+
+## What mid-level engineers get wrong
+
+- **Mixing conventions**: `hi = len(nums)` with `while lo <= hi`, or `hi = mid - 1` with an exclusive `hi`. Consequence: an out-of-bounds read or a missed boundary element that only shows up on certain inputs.
+- **Assigning `mid` back to the side it came from** (`lo = mid`). Consequence: an infinite loop on a two-element range, which is exactly the range a random test rarely hits.
+- **Stopping at the first match.** Consequence: a wrong first-occurrence, and a wrong count, whenever duplicates exist.
+- **Calling `bisect` on data sorted by a different key.** Consequence: silent garbage, no exception.
+- **Epsilon loops over doubles.** Consequence: a hang at large magnitudes.
+- **Treating monotonicity as given.** Consequence: a binary search over a flaky test or a non-monotone history that confidently returns the wrong answer.
 
 ## Exercises
 
@@ -262,12 +341,13 @@ hints:
 
 ## Senior signals
 
-- You write binary search from a stated **invariant** and a half-open range, and you can explain why each boundary update is `mid + 1` or `mid`.
-- You reach for the **first-true** formulation and express first/last occurrence, insertion point and count as predicates over it.
+- You write binary search from a stated **invariant** and a half-open range, and you can explain why each boundary update is `mid + 1` or `mid`, and why the loop terminates.
+- You reach for the **first-true** formulation and express first/last occurrence, insertion point and count as predicates over it; you know `bisect_left`/`bisect_right` exactly and that `bisect` never checks sortedness.
 - You know the `(lo + hi) / 2` **overflow** bug, which languages it affects, and write `lo + (hi - lo) / 2` regardless.
+- You know a probe on a large array is a **cache miss**, put numbers on it, and can name Eytzinger layout and B-trees as the responses.
 - You search real numbers with a **fixed iteration count**, and can say why an epsilon loop can fail to terminate.
 - You explain why rotated-array search works ("one half is always sorted") and why duplicates break the $O(\log n)$ guarantee.
-- You recognise binary search on **implicit** structures: matrices, versioned stores, expensive monotone function calls.
+- You recognise binary search on **implicit** structures (matrices, versioned stores, expensive monotone calls, unbounded sequences via exponential search) and you verify the predicate is monotone before trusting the answer.
 
 ## Check yourself
 
@@ -302,4 +382,10 @@ hints:
   answer: 0
   explanation: >-
     One half is still sorted, but when nums[lo] == nums[mid] you cannot tell which, so the safe move is to shrink the range by one. That always makes progress, so it terminates, but an adversarial all-equal array with one odd element forces n such steps: O(n) worst case.
+- q: >-
+    a = [1, 2, 2, 2, 3]. What do bisect_left(a, 2) and bisect_right(a, 2) return, and what does bisect_right(a, 4) return?
+  options: ["1, 3 and 5: first and last occurrence of 2, and len(a) when absent", "1, 4 and 5: first index >= 2, first index > 2, and len(a) when nothing is greater", "2, 2 and -1: any matching index twice, and -1 when absent", "1, 4 and 4: first index >= 2, first index > 2, and the last valid index when absent"]
+  answer: 1
+  explanation: >-
+    bisect_left returns the first index whose element is >= 2, which is 1; bisect_right returns the first index whose element is > 2, which is 4, one past the last 2. For a value larger than everything both return len(a) = 5, never -1 and never a last valid index. The last occurrence is bisect_right - 1 = 3, not bisect_right itself.
 ```

@@ -23,46 +23,73 @@ There are three families of answer to "is this reachable?":
 
 CPython uses the first with a tracing collector as a backup. V8, the JVM and Go use the second. Rust uses the third with the first available as an opt-in. Each choice explains observable behaviour of the language.
 
-## Reference counting: CPython and Swift
+## Under the hood: the CPython object and its cycle collector
 
-Every CPython object begins with a header containing `ob_refcnt` and a type pointer. Binding a name, storing into a list, passing an argument: each increments the count. Rebinding, deleting, returning from a function: each decrements. When a decrement reaches zero, the object is freed *immediately*, and its own references to other objects are decremented in turn, which can cascade.
+Every CPython object starts with a 16-byte header on 64-bit builds: `ob_refcnt` (8 bytes) and `ob_type` (8 bytes, a pointer to the type object). Objects that can contain references to other objects (lists, dicts, class instances, functions; not ints, strings or bytes, which cannot form cycles) are *GC-tracked* and carry a second 16-byte `PyGC_Head` *before* the header, two pointers that link the object into the collector's generation list. That is why `sys.getsizeof([])` is 56: 16 bytes of GC head, 16 of object header, and 24 for the list's `ob_size`, `ob_item` pointer and `allocated` capacity. The free-threaded build (3.13+) widens the header further for *biased reference counting*: a thread id plus a local count the owning thread updates without atomics and a shared count other threads update atomically, because plain atomic increments on every assignment would have cost a large fraction of single-thread throughput.
+
+Every operation that creates or drops a pointer adjusts the count. Trace a snippet that ends in a cycle:
 
 ```python
-import sys
-a = [1, 2, 3]
-print(sys.getrefcount(a))   # 2: the name a, plus the temporary argument to getrefcount
-b = a
-print(sys.getrefcount(a))   # 3
-del b                       # count drops to 1
-del a                       # count drops to 0: the list is freed right here
+class Node:
+    def __init__(self):
+        self.other = None
+
+a = Node()
+b = Node()
+a.other = b
+b.other = a
+del a
+del b
 ```
+
+| Step | Statement | `a`'s object count | `b`'s object count | Reachable from a root? |
+|---|---|---|---|---|
+| 1 | `a = Node()` | 1 (name `a`) | – | Yes |
+| 2 | `b = Node()` | 1 | 1 (name `b`) | Yes |
+| 3 | `a.other = b` | 1 | 2 (`b`, `a.other`) | Yes |
+| 4 | `b.other = a` | 2 (`a`, `b.other`) | 2 | Yes |
+| 5 | `del a` | 1 (`b.other`) | 2 | Yes, via `b` |
+| 6 | `del b` | 1 (`b.other`) | 1 (`a.other`) | **No**, and neither count is zero |
+
+After step 6 the two nodes keep each other alive forever as far as counting is concerned. Reference counting alone cannot free a cycle, and cycles are common: doubly linked lists, trees with parent pointers, an exception that holds a traceback that holds the frame that holds the exception.
 
 ```viz
 {"type": "memory", "scenario": "reference-counting", "title": "Counts rising and falling", "caption": "Each new reference bumps the count; the object is freed at the instant the count reaches zero, with no separate collection phase."}
 ```
 
-The strengths are immediacy and predictability. Memory is reclaimed the moment it becomes garbage, so a Python process's memory tracks its live data closely, and `with open(...)` style cleanup is prompt. There are no long pauses, because work is spread across every assignment.
+The `gc` module's cycle collector finds them with a subtraction trick. For every tracked object in the generation being collected it copies `ob_refcnt` into a scratch field `gc_refs`; then it walks every tracked object's outgoing references and decrements the *referent's* `gc_refs`. What remains in `gc_refs` is the number of references coming from *outside* the tracked set: from roots, from untracked objects, or from other generations. Run it on the two nodes: both start at 1; `a.other` decrements `b` to 0; `b.other` decrements `a` to 0. Anything left above zero is reachable from outside and is marked reachable along with everything it points at; everything else, including both nodes, is garbage. The collector then calls each type's `tp_clear` to break the references, which lets ordinary counting free the memory.
 
-The costs are just as concrete:
+Through 3.13 the collector is generational with three generations and default thresholds `(700, 10, 10)`: generation 0 is collected when tracked allocations minus deallocations since the last collection exceed 700; generation 1 after every 10 generation-0 collections; generation 2 after every 10 generation-1 collections, and only when the objects promoted since the last full collection exceed 25% of the long-lived set, a guard that stops full collections from becoming quadratic on a growing heap. Since 3.12 collection is triggered from the interpreter loop between bytecodes rather than from inside the allocator. In 3.14 the collector became **incremental**: two generations (young and old), a young threshold of 2,000, and old-generation work done in slices so that no single pause scans the whole heap. Check `gc.get_threshold()` on the version you run before quoting numbers.
 
-- **Every reference operation writes to memory.** `x = y` is not a register move; it touches the object's header, which pulls that cache line in and dirties it. On a multi-core machine with shared objects this is why free-threaded CPython had to invent *biased reference counting* (a fast path for the owning thread, atomics for others): plain atomic increments on every assignment would have halved throughput.
-- **Cycles never reach zero.** Two objects that point at each other have count 1 each forever, even when nothing else references them. A doubly linked list, a parent pointer in a tree, an exception holding a traceback holding the frame that holds the exception: all cycles.
+The pause is proportional to the number of tracked objects in the generation, which is what shows up as `gc.collect` in a profile of code that builds millions of small containers. The standard mitigations are `gc.disable()` around a bulk-build phase and `gc.freeze()` after loading a large static dataset, which moves everything currently tracked into a permanent generation the collector stops rescanning. Swift and Objective-C use the same counting idea (ARC) with no backup collector, so cycles leak unless one edge is `weak`.
 
-CPython handles cycles with a separate **generational cyclic collector** in the `gc` module. It tracks container objects (lists, dicts, instances; not ints or strings, which cannot form cycles) and runs when allocations minus deallocations since the last run cross a threshold (700 by default for the youngest generation). It finds cycles by temporarily subtracting internal references and seeing which counts drop to zero. That run is a pause proportional to the number of tracked objects in the generation, and it is what shows up as `gc.collect` in a profile of code that allocates millions of small containers. The standard mitigation for a bulk-build phase is `gc.disable()` around it, or `gc.freeze()` after loading a large static dataset so the collector stops rescanning it.
+## Tracing collectors: a mark-sweep walk
 
-Swift and Objective-C use the same idea (ARC) without the backup collector, so cycles leak unless you mark one edge `weak`. Rust's `Rc`/`Arc` are the same again, and `Weak` exists for the same reason.
+A tracing collector ignores counts entirely. When it decides to run, it marks every object reachable from the roots, then sweeps the heap freeing everything unmarked. Walk it on a concrete graph. Roots: a stack variable pointing at `A` and a global pointing at `B`. Edges: `A → C`, `C → D`, `B → D`, `E → F`, `F → E` (an unreachable cycle), and `G` with no references at all.
 
-## Tracing collectors: mark, sweep, and the generational hypothesis
+| Step | Action | Marked so far | Work list |
+|---|---|---|---|
+| 1 | Push the roots | – | `A`, `B` |
+| 2 | Pop `A`, mark it, push its children | `A` | `B`, `C` |
+| 3 | Pop `B`, mark it, push `D` | `A B` | `C`, `D` |
+| 4 | Pop `C`, mark it, push `D` (already queued) | `A B C` | `D`, `D` |
+| 5 | Pop `D`, mark it; no children | `A B C D` | `D` |
+| 6 | Pop `D` again: already marked, skip | `A B C D` | empty |
+| 7 | Sweep: free every unmarked object | – | `E`, `F`, `G` freed |
 
-A tracing collector ignores counts entirely. When it decides to run, it marks every object reachable from the roots, then sweeps the heap freeing everything unmarked.
+`E` and `F` point at each other and are freed anyway, because reachability, not counting, is the test. The cost of the mark phase is proportional to the *live* heap (four objects here), and the sweep is proportional to the whole heap; garbage is free to find in the mark phase and only costs in the sweep.
 
 ```viz
 {"type": "memory", "scenario": "gc-mark-sweep", "title": "Mark from the roots, sweep the rest", "caption": "Objects not reached during the mark phase are garbage even if they point at each other. Cycles are free."}
 ```
 
-Cycles cost nothing, and assignments are plain pointer writes, so the mutator (your program) runs faster between collections. The price is the collection itself: its cost is proportional to the *live* heap, not to the garbage, and the naive version stops every thread while it runs.
+Cycles cost nothing, and assignments are plain pointer writes, so the mutator (your program) runs faster between collections. The price is the collection itself, and the naive version stops every thread while it runs.
 
-The single most important optimisation is the **generational hypothesis**: most objects die young. A temporary string, a loop's tuple, a request's parsed body: all garbage within microseconds. So collectors split the heap into a small **young generation** collected very frequently and a large **old generation** collected rarely. A young-generation collection only has to trace objects that survived a short window, which is few, and copies them into survivor space or promotes them. Objects that live through a couple of young collections are promoted to the old generation and mostly left alone.
+## The generational hypothesis, with numbers
+
+The single most important optimisation rests on an empirical observation: most objects die young. A temporary string, a loop's tuple, a request's parsed body: all garbage within microseconds. Measurements since Ungar's 1984 work on Smalltalk have put the fraction of objects that die before the first collection at 80–98% depending on the workload; in web-service code under V8 or HotSpot, typically under 10% of a young generation survives a minor collection, and the figure falls further the larger the nursery is, because objects get longer to die.
+
+So collectors split the heap into a small **young generation** collected very frequently and a large **old generation** collected rarely. A young collection only has to trace objects that survived a short window, which is few, and copies them into survivor space or promotes them. Objects that live through a couple of young collections are promoted to the old generation and mostly left alone.
 
 ```mermaid
 flowchart LR
@@ -72,25 +99,77 @@ flowchart LR
     old -->|"eventually"| freed2["Reclaimed in a major GC"]
 ```
 
-One subtlety makes generational collection work: an old object may point at a young one (you append a fresh item to a long-lived list). Young collections must know about those pointers without scanning the whole old generation, so the runtime inserts a **write barrier** on every pointer store that records old-to-young references. That is a small tax on every field write in V8 and the JVM, invisible in source but present in the machine code.
+One subtlety makes it work: an old object may point at a young one (you append a fresh item to a long-lived list). Young collections must know about those pointers without scanning the whole old generation, so the runtime inserts a **write barrier** on every pointer store that records old-to-young references in a remembered set. That is a small tax on every field write in V8 and the JVM, invisible in source but present in the machine code.
 
 ### V8 (Node, Chrome)
 
-V8's young generation ("new space", tens of megabytes) uses a semi-space copying **scavenger**: live objects are copied to the other half, the old half is declared empty in O(1). Scavenges typically take on the order of a millisecond and run in parallel on helper threads. The old generation uses mark-sweep with compaction, and marking is incremental and concurrent so that the main thread pauses only briefly. The default old-space limit is a few gigabytes; `--max-old-space-size` raises it, and a heap that grows steadily towards it is the signature of a leak.
+V8's young generation is two semi-spaces of up to 16 MiB each by default in current Node. Allocation is a pointer bump in the active semi-space. When it fills, the **scavenger** copies live objects into the other semi-space (in parallel on helper threads), and the old semi-space is declared empty in O(1); an object that survives a second scavenge is promoted to old space. A scavenge is on the order of a millisecond and its cost is proportional to survivors, not to garbage. Old space uses **mark-compact**: marking runs concurrently on helper threads with the main thread paused only briefly at the start and end, sweeping is lazy, and pages with heavy fragmentation are compacted by moving objects and updating pointers. The old-space limit defaults to a few gigabytes depending on Node version and system memory; `--max-old-space-size` raises it, and a heap that grows steadily towards it is the signature of a leak.
 
 ### JVM
 
-HotSpot's default collector, G1, divides the heap into regions and collects the ones with most garbage first, aiming at a configurable pause target. ZGC and Shenandoah do almost all work concurrently with the application and hold pauses under a millisecond even on heaps of hundreds of gigabytes, at the cost of throughput (load barriers on every reference read) and memory overhead. The choice is a real design decision: a batch job wants throughput, a trading gateway wants ZGC.
+HotSpot's default collector, G1, divides the heap into regions and collects the ones with most garbage first, aiming at a pause target (`MaxGCPauseMillis`, default 200 ms). ZGC and Shenandoah do almost all work concurrently with the application and hold pauses under a millisecond even on heaps of hundreds of gigabytes, at the cost of throughput (load barriers on every reference read, typically a 10–20% tax) and memory overhead. The choice is a real design decision: a batch job wants throughput, a trading gateway wants ZGC.
 
 ### Go
 
-Go's collector is a **concurrent, non-generational, non-compacting tri-colour mark-sweep**. Objects are white (unvisited), grey (visited, children pending) or black (done); the collector runs on its own goroutines alongside the program, and a write barrier keeps the invariant that a black object never points at a white one. Pauses are on the order of tens to hundreds of microseconds. The cost moves elsewhere: while a cycle runs, the collector takes roughly a quarter of the CPU, and if allocation outruns marking, the allocating goroutines are made to assist. The `GOGC` knob (default 100) starts a cycle when the heap grows 100% over the live size after the last collection, which produces the saw-tooth: heap climbs to twice the live set, drops, climbs again. `GOMEMLIMIT` adds a hard ceiling so a container does not get OOM-killed while waiting for the next proportional trigger.
+Go's collector is a **concurrent, non-generational, non-compacting tri-colour mark-sweep**. Objects are white (unvisited), grey (visited, children pending) or black (done); the collector runs on its own goroutines alongside the program, and a write barrier (active only during marking) keeps the invariant that a black object never points at a white one without the collector hearing about it. There are two stop-the-world pauses per cycle, to start marking and to finish it, each typically tens of microseconds. The cost moves elsewhere: during a cycle, dedicated workers take 25% of `GOMAXPROCS`, and if allocation outruns marking, the allocating goroutines are made to *assist*, which is where GC shows up in a latency profile.
 
-The reason Go is not generational is deliberate: the write barrier a generational scheme needs was judged too expensive, and Go's escape analysis already keeps many short-lived objects on the stack, where they cost nothing to reclaim.
+`GOGC=100` means: start the next cycle when the heap has grown 100% over the live heap measured at the end of the last one. With 1 GB live, the trigger is near 2 GB, the collection drops it back to 1 GB, and the graph is a saw-tooth between those lines. `GOGC=200` trades memory for fewer cycles; `GOGC=off` disables collection. `GOMEMLIMIT` (Go 1.19+) adds a ceiling: as the total heap approaches it the collector runs more often regardless of `GOGC`, so a container does not get OOM-killed while waiting for the next proportional trigger. Go is not generational on purpose: the write barrier a generational scheme needs was judged too expensive, and escape analysis already keeps many short-lived objects off the heap.
+
+## Escape analysis: reading `-gcflags=-m`
+
+Go and V8 avoid a great deal of collection by never allocating on the heap in the first place. The compiler decides per variable, and Go prints its decisions:
+
+```go
+package main
+
+import "fmt"
+
+type Point struct{ X, Y int }
+
+func newPoint() *Point {
+    p := Point{1, 2}
+    return &p
+}
+
+func sum(ps []Point) int {
+    t := 0
+    for _, p := range ps {
+        t += p.X
+    }
+    return t
+}
+
+func show(p Point) {
+    fmt.Println(p)
+}
+
+func main() {
+    small := make([]byte, 64)
+    large := make([]byte, 1<<20)
+    n := len(small) + len(large)
+    show(*newPoint())
+    fmt.Println(sum([]Point{{n, 0}}))
+}
+```
+
+`go build -gcflags=-m` prints one line per decision (exact line and column prefixes vary by version):
+
+```text
+./main.go:8:2:   moved to heap: p
+./main.go:13:10: ps does not escape
+./main.go:21:11: leaking param: p
+./main.go:22:13: ... argument does not escape
+./main.go:26:15: make([]byte, 64) does not escape
+./main.go:27:15: make([]byte, 1 << 20) escapes to heap
+```
+
+Read it decision by decision. `p` in `newPoint` is **moved to heap** because its address is returned: the frame that holds it dies at the return, so the value cannot live there. `ps` in `sum` **does not escape**: the function only reads through it and stores the pointer nowhere, so the caller's slice header can stay on the caller's stack. `p` in `show` is a **leaking param** because `fmt.Println` takes `...any`, and converting a struct to an interface stores it behind a pointer the callee may keep; every value passed through an interface boundary the compiler cannot see through is a heap allocation, which is why `fmt` calls appear in allocation profiles. `make([]byte, 64)` stays on the stack, `make([]byte, 1<<20)` does not: the compiler stack-allocates only constant-size `make` calls up to 64 KiB, and any `make` with a non-constant size escapes because the frame size must be known at compile time.
+
+The consequences for a hot path: return values rather than pointers to small structs, avoid interface conversions in inner loops, and pass slices into functions rather than allocating inside them. V8 performs the same analysis inside its optimising compiler for objects that never leave a function, but it cannot print its decisions, so in JavaScript the evidence is an allocation profile.
 
 ## Ownership: Rust
 
-Rust has no collector and no reference counts by default. Every value has exactly one owner; when the owner goes out of scope the value is dropped, which frees its heap memory and recursively drops what it owned. The compiler inserts those drops at compile time, so the cost is exactly what C's `free` costs, placed automatically and impossible to forget or double up.
+Rust has no collector and no reference counts by default. Every value has exactly one owner; when the owner goes out of scope the value is **dropped**, which frees its heap memory and recursively drops what it owned. The compiler inserts those drops at compile time, in reverse declaration order for locals and in declaration order for a struct's fields, so the cost is exactly what C's `free` costs, placed automatically and impossible to forget or double up.
 
 ```rust
 fn build() -> Vec<String> {
@@ -105,48 +184,118 @@ fn build() -> Vec<String> {
 {"type": "memory", "scenario": "ownership-borrowing", "title": "One owner, many borrows", "caption": "Borrows come and go without touching ownership; the value is freed exactly once, when its owner leaves scope."}
 ```
 
-What you give up is the freedom to have two owners. Shared ownership must be explicit (`Rc<T>` single-threaded, `Arc<T>` across threads, both reference-counted, both with `Weak` for cycles), and interior mutability must be explicit (`RefCell`, `Mutex`). Data structures with cycles or back-pointers (doubly linked lists, graphs with parent links) are famously awkward and usually built on indices into a `Vec` or arena instead. The trade is compile-time effort for zero runtime cost and no pauses, which is why Rust is chosen for latency-critical paths and why it is not the fastest language to prototype in.
+What you give up is the freedom to have two owners, and that is where reference counting comes back. `Rc<T>` allocates a block holding a strong count, a weak count and the value (16 bytes of counts on 64-bit); `Rc::clone` increments the strong count with a plain add, and the value is dropped when it reaches zero. `Arc<T>` is the same with atomic counts, safe across threads; an uncontended atomic increment costs tens of cycles, and a hot `Arc` cloned from many cores bounces its cache line between them, which is the same cost CPython's free-threaded build had to engineer around. Neither detects cycles, so a parent pointer in a tree must be a `Weak<T>`, which does not keep the value alive and must be upgraded before use. Interior mutation through a shared owner needs `RefCell` (checked at run time) or `Mutex`. Data structures with cycles or back-pointers are usually built on indices into a `Vec` or an arena instead. The trade is compile-time effort for zero pauses, which is why Rust is chosen for latency-critical paths and why it is not the fastest language to prototype in. The [Rust essentials lesson](/learn/senior-craft/languages-for-senior-engineers/rust-essentials) develops the borrow rules.
 
 Rust also does not compact, and neither do most allocators. Long-running processes with many differently sized allocations can fragment, holding more memory than they use. jemalloc and mimalloc mitigate this with size-class bins; a compacting GC avoids it entirely, which is the one memory-related advantage the JVM holds over Rust.
 
-## What it costs, in numbers
+## Trade-offs
 
-| Runtime | Strategy | Typical pause | Where the cost hides |
-|---|---|---|---|
-| CPython | Refcount + generational cycle collector | Cycle collection: milliseconds, proportional to tracked containers | Cache-line writes on every reference op; the GIL makes refcounts safe |
-| V8 | Generational; scavenger + concurrent mark-sweep-compact | Scavenge ~1 ms; major GC pauses usually under 10 ms | Write barriers; heap limit; deopts during GC |
-| JVM (G1) | Generational, region-based | Configurable target, ~10–200 ms | Throughput and memory overhead; tuning |
-| JVM (ZGC) | Concurrent, non-generational or generational depending on version | Under 1 ms | Load barriers on reads; ~10–20% throughput |
-| Go | Concurrent tri-colour mark-sweep | Tens to hundreds of microseconds | 25% CPU during cycles; assist pressure; heap 2× live by default |
-| Rust | Ownership; allocator only | None | Compile-time design; explicit `Arc`; fragmentation |
+| Runtime | Strategy | Typical pause | Cycles | Where the cost hides |
+|---|---|---|---|---|
+| CPython | Refcount + generational cycle collector | Cycle collection: milliseconds, proportional to tracked containers | Backup collector | Cache-line writes on every reference op; the GIL makes counts safe |
+| V8 | Generational; scavenger + concurrent mark-compact | Scavenge ~1 ms; major GC pauses usually under 10 ms | Free | Write barriers; heap limit; young-generation churn from closures |
+| JVM (G1) | Generational, region-based | Target 200 ms by default, tunable | Free | Throughput and memory overhead; tuning |
+| JVM (ZGC) | Concurrent, generational since JDK 21 | Under 1 ms | Free | Load barriers on reads; ~10–20% throughput |
+| Go | Concurrent tri-colour mark-sweep | Two pauses of tens of microseconds per cycle | Free | 25% CPU during cycles; assists; heap 2× live by default |
+| Rust | Ownership; allocator only | None | `Weak` by hand | Compile-time design; explicit `Arc`; fragmentation |
 
-The numbers are orders of magnitude, and they move with heap size and hardware, but the shape is stable: reference counting spreads cost thinly everywhere, tracing concentrates it into cycles, ownership pays at compile time.
+The numbers are orders of magnitude that move with heap size and hardware, but the shape is stable: reference counting spreads cost thinly everywhere, tracing concentrates it into cycles, ownership pays at compile time.
 
-A rule that follows from all of them: **allocation rate is the knob**. A tracing collector's total work is proportional to how often it runs, which is proportional to how fast you allocate. A Go handler that allocates 10 MB per request at 1,000 requests per second forces a GC cycle several times a second; the same handler reusing buffers via `sync.Pool` might collect once a minute. In V8, keeping objects monomorphic and avoiding per-iteration closures reduces young-generation churn. In CPython, `__slots__` on hot classes and avoiding needless tuple creation help for the same reason. Escape analysis in Go and V8 does some of this for you, but only for objects the compiler can prove never leave the function.
+A rule that follows from all of them: **allocation rate is the knob**. A tracing collector's total work is proportional to how often it runs, which is proportional to how fast you allocate. A Go handler that allocates 10 MB per request at 1,000 requests per second forces a cycle several times a second; the same handler reusing buffers via `sync.Pool` might collect once a minute. In V8, keeping objects monomorphic and avoiding per-iteration closures reduces young-generation churn. In CPython, `__slots__` on hot classes and avoiding needless tuple creation help for the same reason. The [stack and heap lesson](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) explains why allocation count, not object size, is the number to watch.
 
-## Leaks in garbage-collected languages
+## Failure modes in production: leaks in garbage-collected languages
 
-A collector frees what is unreachable. It cannot free what is reachable but unwanted, and that is what a leak looks like in Python, JavaScript, Java and Go: not a `malloc` without a `free`, but a reference somebody forgot to drop.
+A collector frees what is unreachable. It cannot free what is reachable but unwanted, and that is what a leak looks like in Python, JavaScript, Java and Go: not a `malloc` without a `free`, but a reference somebody forgot to drop. The diagnostic method is the same everywhere: take two heap snapshots minutes apart under steady load and look at what grew (Chrome DevTools or `node --heapsnapshot-signal`, `tracemalloc` in Python, `pprof` heap profiles in Go, a JVM heap dump read as a dominator tree).
 
-The catalogue is short and recurs everywhere:
+**Symptom: heap grows linearly with traffic and never plateaus; a snapshot diff shows one `Map`, `dict` or `HashMap` holding most of the growth.** Diagnosis: a cache or registry keyed by request ID, session ID or user ID with no eviction; it grows by definition. Fix: bound it with an LRU (the [LRU cache lesson](/learn/advanced-data-structures/caches-and-eviction/lru-cache) builds one) or a TTL, and add a metric for its size.
 
-- **Unbounded caches and maps.** A dictionary keyed by request ID, session ID or user ID with no eviction. Grows forever by definition. Use an LRU with a size cap or a TTL.
-- **Event listeners and callbacks.** In browsers and Node, `emitter.on(...)` from a component that is later discarded keeps the component alive through the listener; Node even warns at 11 listeners on one event for this reason.
-- **Closures capturing more than they need.** A closure that references one field of a large object keeps the whole object alive in most runtimes, because the closure captures the variable, not the field.
-- **Timers.** `setInterval` without `clearInterval` holds its callback and everything it captures until the process exits.
-- **Thread-locals and statics.** Java `ThreadLocal` values on pooled threads outlive the request that set them. Module-level lists in Python that accumulate.
-- **Sub-slices of large buffers.** In Go, a 20-byte slice of a 10 MB read keeps the whole 10 MB alive. Copy the small part out.
-- **Cycles with finalisers.** Historically, Python objects in a cycle with `__del__` were uncollectable; since 3.4 they are collected, but finalisers that resurrect objects still cause trouble.
+**Symptom: a Node process prints `MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 listeners added`, and snapshots show components retained through an `_events` array.** Diagnosis: a handler registered with `emitter.on(...)` per request or per component mount is never removed, and the emitter is long-lived, so every closure and everything it captured stays reachable. Fix: remove the listener on teardown, use `once` for one-shot handlers, or pass an `AbortSignal` so the runtime removes it for you.
 
-Diagnosing them is a skill with a standard toolkit: heap snapshots diffed across time (Chrome DevTools, `node --heapsnapshot-signal`), `tracemalloc` in Python to attribute allocations to source lines, `pprof` heap profiles in Go, and JVM heap dumps read with a dominator-tree view. In every tool the method is the same: take two snapshots minutes apart under steady load, and look at what grew.
+**Symptom: a small callback keeps a large buffer alive; the snapshot's retainer path goes through a closure that never mentions the buffer.** Diagnosis: V8 gives all closures created in one scope a single shared context object, so if *any* closure in that scope references the buffer, every closure from the scope retains it. Fix: set the variable to `null` when done, or create the callback in its own function so it gets its own context.
+
+**Symptom: a Go service's goroutine count (`runtime.NumGoroutine`, `/debug/pprof/goroutine`) climbs steadily, along with memory.** Diagnosis: goroutines blocked forever on a channel send with no receiver, a receive with no sender, or a `select` with no cancellation path; each holds its stack and everything reachable from it. Fix: give every goroutine a `context.Context` and a `select` on `ctx.Done()`, size buffered channels deliberately, and assert the goroutine count in integration tests.
+
+**Symptom: a Python worker's RSS grows though `gc.collect()` frees nothing, and `tracemalloc` points at a module-level list or a `functools.lru_cache` on a method.** Diagnosis: module globals live as long as the process, and `lru_cache` on a method keys the cache on `self`, so every instance ever passed stays alive. Fix: move the accumulation into a request-scoped object, use `cachetools` with a bound, or cache on a standalone function keyed by an ID rather than an instance.
+
+**Symptom: a Java service leaks across requests only when running on a thread pool.** Diagnosis: `ThreadLocal` values set per request on pooled threads outlive the request that set them. Fix: `remove()` in a `finally`, or scoped values.
+
+## Interviewer follow-ups
+
+**"Why does CPython need a cycle collector if it already reference-counts?"** Model answer: two objects that point at each other hold each other's count at one after every outside reference is gone, so counting never frees them; the `gc` module finds such groups by subtracting internal references from the counts and treating whatever is left as the outside world. Common wrong answer: "the collector is for objects Python forgot to count", which does not exist; every reference is counted.
+
+**"What does `GOGC=100` mean, and what would you change if a Go service was OOM-killed at 2 GB with a 1 GB live heap?"** Model answer: the next cycle starts when the heap reaches twice the live size, so 1 GB live legitimately peaks near 2 GB; set `GOMEMLIMIT` a little under the container limit so the collector runs earlier as it approaches, and only then consider a lower `GOGC`, which costs CPU. Common wrong answer: "lower `GOGC` to 50", which halves the peak at the price of twice as many cycles, when the limit knob was designed for exactly this.
+
+**"Why is Go's collector not generational when every other major collector is?"** Model answer: generational collection needs a write barrier on every pointer store to record old-to-young references, and Go's designers judged the barrier's cost and complexity too high given that escape analysis already keeps most short-lived values on the stack; Go pays instead with a 25% CPU share during concurrent marking. Common wrong answer: "Go's collector is generational, that is why it is fast".
+
+**"Where does reference counting come back in Rust, and what does it cost?"** Model answer: `Rc` and `Arc`, when a value needs more than one owner; `Rc::clone` is a plain increment and `Arc::clone` an atomic one, and neither detects cycles, so back-pointers must be `Weak`. Common wrong answer: "Rust has no reference counting", or "`Arc` is free because it is a smart pointer".
+
+## What mid-level engineers get wrong
+
+- Reading a saw-tooth memory graph as a leak. Consequence: a page, a "fix" that lowers `GOGC`, and a slower service; the troughs rising over time is the leak signal, not the teeth.
+- Optimising heap size when GC dominates a profile. Consequence: no change, because the collector's work is proportional to allocation rate and survivors, not to the heap limit.
+- Assuming a garbage-collected language cannot leak. Consequence: an unbounded map or a listener registry grows for days and the container is OOM-killed with no error in the logs.
+- Calling `gc.collect()` in a request handler "to be safe". Consequence: a full collection per request, milliseconds of pause each time, for garbage that reference counting already freed.
+- Passing structs through interfaces in a Go hot loop. Consequence: an allocation per call that `-gcflags=-m` would have shown as `escapes to heap`.
+- Storing an `Rc` parent pointer in a Rust tree. Consequence: a reference cycle that is never freed, in a language advertised as leak-free by construction.
+
+```exercise
+id: mark-sweep-garbage
+title: Find the garbage with mark and sweep
+prompt: |
+  `objects` is a list of object ids. `edges` maps an object id (as a
+  string key) to the list of ids it references. `roots` is the list of ids
+  directly reachable from the program. Return the sorted list of ids that
+  a mark-sweep collector would free: every object not reachable from any
+  root by following edges. Objects that reference each other but are not
+  reachable from a root are garbage. Ids with no entry in `edges` reference
+  nothing.
+languages: [python, javascript]
+entry: garbage
+starter:
+  python: |
+    def garbage(objects, edges, roots):
+        # your code here
+        return []
+  javascript: |
+    function garbage(objects, edges, roots) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [[1, 2, 3, 4, 5, 6], {"1": [2], "2": [3], "4": [5], "5": [4]}, [1]]
+    expected: [4, 5, 6]
+    label: unreachable cycle and an orphan are garbage
+  - args: [[1, 2], {"1": [2], "2": [1]}, [1]]
+    expected: []
+    label: a reachable cycle is live
+  - args: [[1, 2, 3], {}, []]
+    expected: [1, 2, 3]
+    label: no roots means everything is garbage
+  - args: [[], {}, []]
+    expected: []
+    label: empty heap
+  - args: [[1, 2, 3, 4, 5], {"1": [2, 3], "2": [4], "3": [4]}, [1]]
+    expected: [5]
+    label: diamond reaches 4 once
+  - args: [[1, 2, 3], {"3": [3]}, [1]]
+    expected: [2, 3]
+    hidden: true
+  - args: [[1, 2, 3, 4], {"1": [2], "3": [4]}, [1, 3]]
+    expected: []
+    hidden: true
+hints:
+  - "Breadth-first or depth-first from every root, keeping a visited set; then return the sorted objects not in it."
+  - "Look up edges with the string form of the id: `edges.get(str(x), [])` in Python, `edges[String(x)] ?? []` in JavaScript."
+```
 
 ## Senior signals
 
 - You can name your runtime's collector and its pause characteristics, and you know which knob (`GOGC`, `GOMEMLIMIT`, `--max-old-space-size`, `-Xmx`, `gc.freeze`) is the right first move for a given symptom.
-- You treat allocation rate, not heap size, as the thing to optimise when GC shows up in a profile, and you can point at the allocating line.
-- You explain leaks in GC languages as "reachable but unwanted" and list the usual suspects (unbounded maps, listeners, closures, timers) before opening a profiler.
-- You know why CPython needs a cycle collector on top of refcounts and what kinds of objects it tracks.
-- You can say what Rust's ownership model gives up (shared mutable graphs are awkward) as well as what it gains (no pauses, no leaks of the GC kind).
+- You treat allocation rate, not heap size, as the thing to optimise when GC shows up in a profile, and you can point at the allocating line, in Go by reading `-gcflags=-m`.
+- You explain leaks in GC languages as "reachable but unwanted" and list the usual suspects (unbounded maps, listeners, shared closure contexts, timers, blocked goroutines, thread-locals) before opening a profiler.
+- You can trace reference counts through a cycle, explain the subtraction trick the cycle collector uses, and say what the generation thresholds mean on the Python version you run.
+- You can walk a mark phase on a small graph and state that its cost is proportional to live data while the sweep is proportional to the heap.
+- You can say what Rust's ownership model gives up (shared mutable graphs are awkward, `Rc` cycles leak) as well as what it gains (no pauses, no leaks of the GC kind).
 - You recognise a saw-tooth memory graph as normal collector behaviour and a monotonic climb as a leak, and you do not page anyone for the former.
 
 ## Check yourself
@@ -157,7 +306,7 @@ Diagnosing them is a skill with a standard toolkit: heap snapshots diffed across
   options: ["Never freed, because reference counting cannot see cycles", "Kept at count 1 until the cyclic collector finds them", "Freed at once, when the last outside reference is dropped", "Rejected, because CPython raises an error on cycles"]
   answer: 1
   explanation: >-
-    Reference counting alone cannot see that the cycle is unreachable, because each object still has a count of 1, so nothing is freed immediately. That is why CPython has a backup: the gc module's generational collector periodically scans container objects and reclaims such cycles, so they are not leaked forever.
+    Reference counting alone cannot see that the cycle is unreachable, because each object still has a count of 1, so nothing is freed immediately. The gc module's collector subtracts internal references from the counts, finds both at zero, breaks the cycle with tp_clear and lets counting free them.
 - q: >-
     A Go service's memory graph rises to about 2 GB, drops to 1 GB, and repeats every few seconds under steady load. Latency is fine. What is the most likely explanation?
   options: ["Goroutine stacks growing and shrinking under steady load", "The kernel reclaiming page cache every few seconds", "Normal GOGC=100 cycles around a live heap of about 1 GB", "A leak that the garbage collector is only partly fixing"]
@@ -176,6 +325,12 @@ Diagnosing them is a skill with a standard toolkit: heap snapshots diffed across
   answer: 3
   explanation: >-
     V8 is a tracing collector; unreachable cycles are collected without special handling. The other three keep objects reachable from a root, which is what a leak in a garbage-collected language looks like.
+- q: >-
+    `go build -gcflags=-m` prints `moved to heap: p` for a local struct in a function that returns `&p`. Why did the compiler decide that?
+  options: ["The address outlives the frame, so the value cannot stay there", "The struct is larger than the 64 KiB stack allocation limit", "Taking any address in Go forces a heap allocation", "Structs in Go are always allocated on the heap"]
+  answer: 0
+  explanation: >-
+    Escape analysis moves a value to the heap when a pointer to it can survive the function, and a returned address does. Taking an address that stays inside the function does not escape, small structs normally live on the stack, and the 64 KiB rule applies to constant-size make calls, not to a two-field struct.
 - q: >-
     Which statement about Rust's memory management is accurate?
   options: ["Rust reference-counts every value, preventing data races", "Rust frees each value once, at a point fixed at compile time", "Rust compacts its heap periodically to avoid fragmentation", "Rust runs a lightweight garbage collector at each scope exit"]

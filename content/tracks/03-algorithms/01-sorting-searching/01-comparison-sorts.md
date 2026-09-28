@@ -1,7 +1,7 @@
 ---
 slug: comparison-sorts
 title: "Comparison sorts: insertion, merge, quick and heap"
-description: How the four comparison sorts move data, why quicksort beats merge sort in practice despite the worse worst case, and what stability and memory really cost.
+description: How the four comparison sorts move data, why quicksort beats merge sort on real hardware despite the worse worst case, and what stability and memory really cost.
 minutes: 40
 difficulty: medium
 tags: [sorting, quicksort, merge-sort, heap-sort, insertion-sort, stability, partition]
@@ -31,9 +31,21 @@ def insertion_sort(a):
     return a
 ```
 
-Trace `[5, 2, 4, 6, 1, 3]`: inserting 2 shifts 5 (1 move), inserting 4 shifts 5 (1 move), 6 shifts nothing, 1 shifts 6, 5, 4, 2 (4 moves), 3 shifts 6, 5, 4 (3 moves). Nine moves in all. The number of moves equals the number of **inversions**, pairs `(i, j)` with `i < j` and `a[i] > a[j]`. A random permutation has about `n²/4` inversions, so insertion sort is $\Theta(n^2)$ on average. A nearly-sorted array has few inversions, so it is $O(n + \text{inversions})$, which is close to linear.
+Trace `[5, 2, 4, 6, 1, 3]`, showing the array after each element is inserted:
 
-That second property is why insertion sort is not a toy. Every production sort switches to it for small subarrays (typically below 16–32 elements) because its inner loop is a tight sequence of compares and moves over memory that is already in cache, with no recursion and no allocation. For `n = 10`, it beats quicksort.
+| i | x | shifts | array after |
+|---|---|---|---|
+| 1 | 2 | 5 moves right (1) | `[2, 5, 4, 6, 1, 3]` |
+| 2 | 4 | 5 moves right (1) | `[2, 4, 5, 6, 1, 3]` |
+| 3 | 6 | none (0) | `[2, 4, 5, 6, 1, 3]` |
+| 4 | 1 | 6, 5, 4, 2 move right (4) | `[1, 2, 4, 5, 6, 3]` |
+| 5 | 3 | 6, 5, 4 move right (3) | `[1, 2, 3, 4, 5, 6]` |
+
+Nine moves in all. The number of moves equals the number of **inversions**, pairs `(i, j)` with `i < j` and `a[i] > a[j]`: each shift removes exactly one inversion. A random permutation has `n(n-1)/4` inversions on average (each pair is inverted with probability ½), so insertion sort is $\Theta(n^2)$ on average, about `n²/4` comparisons and `n²/4` moves. A nearly-sorted array has few inversions, so it is $O(n + \text{inversions})$, close to linear.
+
+**Why the invariant makes it correct.** Before iteration `i`, `a[0..i)` is sorted. The inner loop shifts every element greater than `x` one slot right and stops at the first element `<= x` (or at the left end), so `x` lands after everything `<= x` and before everything `> x`: `a[0..i]` is sorted. After the last iteration the whole array is. Because the loop uses strict `>`, an element equal to `x` is never moved past it, which is what makes the sort stable.
+
+That second property is why insertion sort is not a toy. Every production sort switches to it for small subarrays (the cutoff sits between about 8 and 32 elements depending on the library and element size) because its inner loop is a tight sequence of compares and moves over memory already in cache, with no recursion and no allocation. At `n = 16` the `n²/4 = 64` moves cost less than the bookkeeping of a partition or a merge.
 
 ## Merge sort: split, sort halves, merge
 
@@ -59,9 +71,25 @@ def merge_sort(a):
     return out
 ```
 
-The recurrence is `T(n) = 2T(n/2) + Θ(n)`, which the [master theorem](/learn/foundations/complexity/recurrences-and-master-theorem) solves as $\Theta(n \log n)$. The important word is *theta*: merge sort does the same work on every input. Sorted, reversed, random, all-equal; it does not care, because the split never looks at the values.
+### The merge, step by step
 
-The cost is memory. The merge step needs somewhere to write its output that is not the input, so a straightforward merge sort allocates $O(n)$ extra space. In-place merging exists but is slow enough that nobody uses it; the practical trick is a single auxiliary buffer of size `n/2` reused at every level, which is what Timsort does.
+For `[38, 27, 43, 3, 9, 82, 10]` the split is `[38, 27, 43]` and `[3, 9, 82, 10]`, which the recursive calls return as `left = [27, 38, 43]` and `right = [3, 9, 10, 82]`. The final merge:
+
+| compare | take | out |
+|---|---|---|
+| 27 vs 3 | 3 | `[3]` |
+| 27 vs 9 | 9 | `[3, 9]` |
+| 27 vs 10 | 10 | `[3, 9, 10]` |
+| 27 vs 82 | 27 | `[3, 9, 10, 27]` |
+| 38 vs 82 | 38 | `[3, 9, 10, 27, 38]` |
+| 43 vs 82 | 43 | `[3, 9, 10, 27, 38, 43]` |
+| left empty | copy 82 | `[3, 9, 10, 27, 38, 43, 82]` |
+
+Six comparisons to merge seven elements; a merge of `m + n` elements never needs more than `m + n − 1`. The invariant: `out` is sorted and every element in it is `<=` both current heads. Each step appends the smaller head, which is `<=` everything still unconsumed on either side because both sides are sorted; when one side runs out, the rest of the other is already `>=` everything in `out` and is copied without comparing.
+
+The recurrence is `T(n) = 2T(n/2) + Θ(n)`, which the [master theorem](/learn/foundations/complexity/recurrences-and-master-theorem) solves as $\Theta(n \log n)$. The important word is *theta*: merge sort does the same work on every input. Sorted, reversed, random, all-equal; it does not care, because the split never looks at the values. The exact worst-case comparison count is $n\lceil\log_2 n\rceil - 2^{\lceil\log_2 n\rceil} + 1$, which for `n = 8` is `24 − 8 + 1 = 17`.
+
+The cost is memory. The merge step needs somewhere to write its output that is not the input, so a straightforward merge sort allocates $O(n)$ extra space. In-place merging exists but is slow enough that nobody uses it; the practical trick is a single auxiliary buffer of size `n/2` reused at every level: copy the shorter half out, then merge back into the original array from the left. That is what Timsort does.
 
 Merge sort's second selling point is that it is naturally **stable**: when `left[i] == right[j]`, taking from `left` first keeps equal elements in their original order. Change `<=` to `<` and stability is gone.
 
@@ -91,9 +119,9 @@ def lomuto(a, lo, hi):
 
 Trace on `[3, 8, 2, 5, 1, 4, 7, 6]`, pivot 6:
 
-| j | a[j] | ≤ 6? | i after | array |
+| j | a[j] | ≤ 6? | i after | array after the swap |
 |---|---|---|---|---|
-| 0 | 3 | yes | 0 | `[3, 8, 2, 5, 1, 4, 7, 6]` |
+| 0 | 3 | yes | 0 | `[3, 8, 2, 5, 1, 4, 7, 6]` (swapped with itself) |
 | 1 | 8 | no | 0 | unchanged |
 | 2 | 2 | yes | 1 | `[3, 2, 8, 5, 1, 4, 7, 6]` |
 | 3 | 5 | yes | 2 | `[3, 2, 5, 8, 1, 4, 7, 6]` |
@@ -101,9 +129,11 @@ Trace on `[3, 8, 2, 5, 1, 4, 7, 6]`, pivot 6:
 | 5 | 4 | yes | 4 | `[3, 2, 5, 1, 4, 8, 7, 6]` |
 | 6 | 7 | no | 4 | unchanged |
 
-Final swap puts the pivot at index 5: `[3, 2, 5, 1, 4, 6, 7, 8]`. Everything left of 6 is smaller, everything right is larger, and 6 is exactly where it will be in the sorted output.
+Final swap puts the pivot at index 5: `[3, 2, 5, 1, 4, 6, 7, 8]`. Everything left of 6 is smaller, everything right is larger, and 6 is exactly where it will be in the sorted output. Seven comparisons, five swaps plus the final one.
 
-Lomuto is easy to get right and easy to explain at a whiteboard. It has two weaknesses. It does `n - 1` comparisons and up to `n - 1` swaps per pass even when many elements are already on the correct side, and it is quadratic on arrays of **equal keys**: every element is `<= pivot`, so `i` walks all the way to the end and the pivot lands at the last position, splitting `n` elements into `n - 1` and `0`.
+**The invariant.** At the top of each iteration the range is in four zones: `a[lo..i]` is `<= pivot`, `a[i+1..j-1]` is `> pivot`, `a[j..hi-1]` is unexamined, and `a[hi]` is the pivot. Initially `i = lo − 1` and `j = lo`, so the first two zones are empty and the invariant holds vacuously. If `a[j] > pivot`, advancing `j` grows the `>` zone by one. If `a[j] <= pivot`, incrementing `i` and swapping `a[i]` with `a[j]` moves the first element of the `>` zone to the end (it is still `>`) and puts `a[j]` at the end of the `<=` zone. At `j = hi` the unexamined zone is empty; the final swap moves the first `>` element to the end and the pivot to `i + 1`, between the two zones. Every recursive call is on a strictly shorter range, so the recursion terminates, and an array whose every element sits between its neighbours' final positions is sorted.
+
+Lomuto is easy to get right and easy to explain at a whiteboard. It has two weaknesses. It does `n − 1` comparisons and up to `n − 1` swaps per pass even when many elements are already on the correct side, and it is quadratic on arrays of **equal keys**: every element is `<= pivot`, so `i` walks all the way to the end and the pivot lands at the last position, splitting `n` elements into `n − 1` and `0`.
 
 ### Hoare partition
 
@@ -123,15 +153,23 @@ def hoare(a, lo, hi):
         a[i], a[j] = a[j], a[i]
 ```
 
-Hoare does about three times fewer swaps on average than Lomuto and, because both inner loops stop on elements *equal* to the pivot, equal keys get swapped across the middle and the split stays balanced. The price is subtlety: the pivot does not end up in a known position, so the recursion is `quicksort(lo, j)` and `quicksort(j + 1, hi)`, not `j - 1` and `j + 1`, and getting that wrong produces either an infinite loop or a lost element. If an interviewer asks you to write quicksort, write Lomuto and *say* Hoare exists and why it is better.
+Trace on the same `[3, 8, 2, 5, 1, 4, 7, 6]`, pivot `a[3] = 5`:
+
+| step | i stops at | j stops at | action | array after |
+|---|---|---|---|---|
+| 1 | 1 (`8 ≥ 5`) | 5 (`4 ≤ 5`) | swap | `[3, 4, 2, 5, 1, 8, 7, 6]` |
+| 2 | 3 (`5 ≥ 5`) | 4 (`1 ≤ 5`) | swap | `[3, 4, 2, 1, 5, 8, 7, 6]` |
+| 3 | 4 (`5 ≥ 5`) | 3 (`1 ≤ 5`) | `i >= j`, return 3 | unchanged |
+
+Two swaps where Lomuto needed six, and the return value 3 says `a[0..3] = [3, 4, 2, 1]` is `<= 5` and `a[4..7] = [5, 8, 7, 6]` is `>= 5`. On random input Hoare does roughly a third as many swaps as Lomuto and, because both inner loops stop on elements *equal* to the pivot, equal keys get swapped across the middle and the split stays balanced. The price is subtlety: the pivot does not end up in a known position, so the recursion is `quicksort(lo, j)` and `quicksort(j + 1, hi)`, not `j − 1` and `j + 1`, and getting that wrong produces either an infinite loop or a lost element. If an interviewer asks you to write quicksort, write Lomuto and *say* Hoare exists and why it is better.
 
 ### Three-way partition
 
-When duplicates are common the right tool is a three-way (Dutch national flag) partition into `< pivot`, `== pivot`, `> pivot`, which then recurses only on the outer two regions. With `k` distinct keys quicksort becomes $O(n \log k)$; on an array of a single repeated value it is linear.
+When duplicates are common the right tool is a three-way (Dutch national flag) partition into `< pivot`, `== pivot`, `> pivot`, which then recurses only on the outer two regions. With `k` distinct keys quicksort becomes $O(n \log k)$; on an array of a single repeated value it is linear. [Sort Colors](/practice/sort-colors) is one three-way partition with the pivot fixed at 1.
 
 ### Pivot choice and the O(n²) adversary
 
-Quicksort is $O(n \log n)$ *expected* and $O(n^2)$ worst case, and the gap between those is entirely about the pivot. If the pivot is always the smallest or largest element, each partition peels off one element and the recursion depth is `n`: `T(n) = T(n-1) + n = Θ(n²)`. With a first-element pivot, that happens on sorted input, which is not exotic; it is the most common input in the world.
+Quicksort is $O(n \log n)$ *expected* and $O(n^2)$ worst case, and the gap between those is entirely about the pivot. If the pivot is always the smallest or largest element, each partition peels off one element and the recursion depth is `n`: `T(n) = T(n−1) + n = Θ(n²)`. With a first-element pivot, that happens on sorted input, which is not exotic; it is the most common input in the world.
 
 The fixes, in increasing order of paranoia:
 
@@ -140,7 +178,7 @@ The fixes, in increasing order of paranoia:
 - **Random pivot.** Now no fixed input is bad; only an unlucky sequence of random choices is, and the probability of the depth exceeding `c log n` shrinks exponentially in `c`.
 - **Introsort.** Track the recursion depth; if it exceeds `2 log₂ n`, switch to heap sort for that subarray. This guarantees $O(n \log n)$ worst case while keeping quicksort's speed on the common path. C++ `std::sort` has done this since the late 1990s.
 
-The adversary is real. In 1999 McIlroy published "A Killer Adversary for Quicksort", a procedure that, given any quicksort with a deterministic pivot rule, produces an input that makes it quadratic by answering comparisons lazily. If you sort attacker-controlled data with a deterministic pivot, you have handed them a CPU-exhaustion attack, for the same reason unsalted hash tables hand them a [HashDoS attack](/learn/data-structures/hashing/hash-tables).
+The adversary is real. In 1999 McIlroy published "A Killer Adversary for Quicksort", a procedure that, given any quicksort with a deterministic pivot rule, produces an input that makes it quadratic by answering comparisons lazily. Sorting attacker-controlled data with a deterministic pivot hands them a CPU-exhaustion attack, for the same reason unsalted hash tables hand them a [HashDoS attack](/learn/data-structures/hashing/hash-tables).
 
 ## Heap sort: a priority queue in disguise
 
@@ -150,7 +188,63 @@ Build a max-heap over the array in $O(n)$ (sift down from the last internal node
 {"type": "heap", "algorithm": "heap-sort", "values": [4, 10, 3, 5, 1, 8], "kind": "max", "title": "Heap sort", "caption": "The maximum is swapped to the end and the heap shrinks; the sorted suffix grows."}
 ```
 
-On paper heap sort is the best of both worlds: merge sort's worst-case guarantee and quicksort's memory. In practice it is the slowest of the three on large inputs, usually by a factor of two or more, and the reason is worth understanding because it applies to everything you build. Sift-down touches `a[i]`, then `a[2i+1]`, then `a[4i+3]`: the addresses double each step, so after the first few levels every comparison is a cache miss. Quicksort's partition and merge sort's merge stream through memory sequentially, and the hardware prefetcher keeps them fed. Heap sort survives as the fallback inside introsort and in situations where a hard $O(n \log n)$ bound with no allocation is worth more than speed. See [binary heap mechanics](/learn/data-structures/heaps/binary-heap-mechanics) for the heap itself.
+Trace the first phase on `[4, 10, 3, 5, 1, 8]` (`n = 6`, children of `i` at `2i+1` and `2i+2`, last internal node is index 2):
+
+| step | action | array |
+|---|---|---|
+| sift 2 | 3 vs child 8: swap | `[4, 10, 8, 5, 1, 3]` |
+| sift 1 | 10 vs children 5, 1: stays | unchanged |
+| sift 0 | 4 vs children 10, 8: swap with 10; then 4 vs children 5, 1: swap with 5 | `[10, 5, 8, 4, 1, 3]` |
+| extract | swap root with `a[5]`, heap size 5, sift 3 down: children 5, 8 → swap with 8 | `[8, 5, 3, 4, 1 · 10]` |
+| extract | swap root with `a[4]`, heap size 4, sift 1 down: children 5, 3 → swap with 5; then children 4 → swap | `[5, 4, 3, 1 · 8, 10]` |
+
+The heapify phase did three sifts for six elements, which is the $O(n)$ build: a node at height `h` sifts at most `h` levels and there are about `n / 2^{h+1}` nodes at that height, so the sum is `n · Σ h / 2^{h+1} < 2n` swaps. Each extraction then sifts through up to `log₂ n` levels, and each level costs **two** comparisons (pick the larger child, then compare it with the parent), so the sort phase does about `2 n log₂ n` comparisons. Floyd's variant sifts the hole all the way to a leaf first and then bubbles the element back up, cutting that to about `n log₂ n + O(n)`, and library heap sorts use it.
+
+On paper heap sort is the best of both worlds: merge sort's worst-case guarantee and quicksort's memory. On real hardware it is the slowest of the three on large inputs, typically by a factor of two or more. Sift-down touches `a[i]`, then `a[2i+1]`, then `a[4i+3]`: the addresses double each step, so after the first few levels every comparison is a cache miss, while partition and merge stream through memory sequentially and the hardware prefetcher keeps them fed. Heap sort survives as the fallback inside introsort and wherever a hard $O(n \log n)$ bound with no allocation is worth more than speed. See [binary heap mechanics](/learn/data-structures/heaps/binary-heap-mechanics) for the heap itself.
+
+## Counting the work: comparisons, moves and cache misses
+
+Big-O hides the constants that decide which sort wins. These are the standard analyses (Knuth volume 3 and Sedgewick's quicksort papers) for `n` distinct random keys:
+
+| Sort | Comparisons | Data moves | Access pattern |
+|---|---|---|---|
+| Insertion | `n²/4` | `n²/4` | sequential, cache-resident for small `n` |
+| Merge | `n log₂ n − n + 1` (worst) | `n log₂ n` copies, plus the buffer | two sequential input streams, one output |
+| Quick (random pivot) | `≈ 1.39 n log₂ n` (`2n ln n`) | `≈ 0.33 n log₂ n` swaps with Hoare | two sequential scans per partition |
+| Heap | `≈ 2 n log₂ n` (`≈ n log₂ n` with Floyd's trick) | `≈ n log₂ n` swaps | addresses double each level: random after the first few levels |
+
+For `n = 10⁷`, `log₂ n ≈ 23`: merge sort makes roughly 2.2 × 10⁸ comparisons, quicksort 3.2 × 10⁸, heap sort 4.6 × 10⁸. Quicksort does *more* comparisons than merge sort and still wins because comparing two integers in registers costs a cycle or less, while a DRAM miss costs about 100 ns.
+
+Where the misses come from: an L1 data cache is 32–48 KB on current x86 and Arm cores, which is 4,000–6,000 8-byte keys. A heap of `10⁷` keys is 80 MB. The top 12 levels (`2¹² = 4,096` keys) stay hot; the remaining 11 levels of every sift-down are misses, so an extraction costs of the order of ten DRAM round trips, around a microsecond, and there are 10⁷ of them. Quicksort's partition touches elements in address order, so the prefetcher has the next line ready before the loop reaches it; the same 80 MB streams at bandwidth (of the order of 10 GB/s, about 10 ms per pass) rather than latency. That gap in access pattern, not the comparison count, is the factor of two to three you measure. The exact ratio depends on cache sizes, key width and whether the branch predictor can guess the comparisons; on random data it cannot, which is why the branchless partition in the next lesson matters.
+
+The crossover with insertion sort follows from the same table. At `n = 16`, insertion sort's 64 moves and 64 comparisons sit within two cache lines with no calls; a quicksort call on 16 elements spends more than that on partition overhead and two recursive calls. Between roughly 8 and 32 elements the quadratic sort is faster, and that is where every library sets its cutoff.
+
+## Memory: buffers and stack depth
+
+Three different memory costs hide behind "extra space":
+
+- **Merge sort** needs a buffer. The textbook version allocates `n` per level or `n` once; Timsort's merge copies the *shorter* run out (at most `n/2` elements) and merges back into place, so the buffer is bounded by `n/2` and usually much smaller.
+- **Quicksort** needs a stack. Naive recursion on both sides has depth equal to the recursion tree's height: about `3 log₂ n` for random pivots (the tree is a random binary search tree, expected height about `4.3 ln n`), but `n` in the worst case, which for `n = 10⁶` overflows every default thread stack. The fix is to **recurse on the smaller side and loop on the larger**: the smaller side is at most `n/2`, so the depth is at most `log₂ n` regardless of pivot quality. The worst case is still $O(n^2)$ time, but it no longer crashes.
+- **Heap sort** needs neither: the heap is the array and the sift-down is a loop.
+
+```python
+def quicksort(a):
+    lo, hi = 0, len(a) - 1
+    stack = []                              # explicit stack of (lo, hi) ranges
+    while True:
+        while hi - lo > 16:                 # insertion-sort cutoff
+            p = lomuto(a, lo, hi)           # or hoare, with the range fix
+            if p - lo < hi - p:             # left side smaller: push the larger right side
+                stack.append((p + 1, hi)); hi = p - 1
+            else:
+                stack.append((lo, p - 1)); lo = p + 1
+        insertion_sort_range(a, lo, hi)
+        if not stack:
+            return a
+        lo, hi = stack.pop()
+```
+
+The stack holds at most `log₂ n` ranges because every push is for the larger side while the loop continues into the smaller one, and the smaller side halves the range at least. `insertion_sort_range` is the earlier insertion sort restricted to `[lo, hi]`.
 
 ## Stability: sorting by two keys
 
@@ -160,18 +254,56 @@ Stability matters whenever you sort by one key after another. To order the event
 
 If you ever need a stable sort out of an unstable one, append the original index as a tiebreaker. That is the universal fallback and it costs one integer per element.
 
+## Under the hood: what a library quicksort looks like
+
+Nobody ships the twelve-line quicksort. libstdc++'s `std::sort` is introsort: median-of-three pivot, a Hoare-style partition, a depth limit of `2·⌊log₂ n⌋` after which the range is heap-sorted, and a cutoff of 16 elements below which the range is *left unsorted*; one final insertion-sort pass over the whole array finishes the job, linear because every element is within 16 slots of its place. libc++ and the Rust and Go unstable sorts are variants of the same design with the pattern-defeating additions covered in the [next lesson](/learn/algorithms/sorting-searching/non-comparison-sorts-and-lower-bounds).
+
+CPython's `list.sort` is a merge sort (Timsort), but what decides your call's cost is the comparison. Every `a < b` on arbitrary objects goes through `PyObject_RichCompare`, which dispatches on both types, and that dispatch dominates. Since Python 3.7 the sort starts with a pre-pass that checks whether every element has the same exact type; if all are `int`, `str` or `float` it swaps in a specialised comparison that skips the dispatch, measured by its author as tens of percent up to roughly 2× faster depending on the type (treat it as an order of magnitude; it depends on version and key type). A list mixing `int` and `float` loses the fast path for the whole sort. The `key=` argument computes each key once, so `key=str.lower` costs `n` calls where a comparator via `cmp_to_key` costs `n log₂ n` calls, roughly 20× more at `n = 10⁶`.
+
+V8's `Array.prototype.sort` used an unstable quicksort for arrays longer than 10 elements until V8 7.0 in 2018, when it switched to Timsort to meet ES2019's stability requirement. Code that relied on secondary order surviving a sort worked by accident in Firefox (stable for years) and broke in Chrome; that is the canonical example of why stability must be a stated contract.
+
 ## Putting the four side by side
 
 | Sort | Best | Average | Worst | Extra space | Stable | Why you would pick it |
 |---|---|---|---|---|---|---|
 | Insertion | $O(n)$ | $O(n^2)$ | $O(n^2)$ | $O(1)$ | yes | Tiny arrays, nearly-sorted data, base case of everything else |
 | Merge | $O(n \log n)$ | $O(n \log n)$ | $O(n \log n)$ | $O(n)$ | yes | Stability, linked lists, external sorting, predictable time |
-| Quick | $O(n \log n)$ | $O(n \log n)$ | $O(n^2)$ | $O(\log n)$ stack | no | Fastest in practice on arrays; in-place |
+| Quick | $O(n \log n)$ | $O(n \log n)$ | $O(n^2)$ | $O(\log n)$ stack | no | Fastest on arrays in memory; in-place |
 | Heap | $O(n \log n)$ | $O(n \log n)$ | $O(n \log n)$ | $O(1)$ | no | Guaranteed bound with no allocation; introsort fallback |
 
-Quicksort wins in practice because its inner loop is a sequential scan doing one compare and occasionally one swap, its data fits the cache, and it moves each element about `1.4 log₂ n` times versus merge sort's `log₂ n` copies *plus* a full write of the output buffer at each level. The constant factor is smaller by around 2 in careful measurements, and merge sort's allocation shows up on the profile too. The $O(n^2)$ worst case is handled by pivot randomisation or introsort, not by avoiding quicksort.
+Quicksort wins on arrays because its inner loop is a sequential scan doing one compare and occasionally one swap, and its working set streams through the cache. The $O(n^2)$ worst case is handled by pivot randomisation or introsort, not by avoiding quicksort.
 
-The honest caveat: this is about arrays. On a linked list, merge sort wins outright because it needs no random access and no auxiliary array, and the "cache locality" argument does not apply because a linked list has none to begin with.
+The honest caveat: this is about arrays. On a linked list, merge sort wins outright because it needs no random access and no auxiliary array, and a linked list has no cache locality to lose. When the data does not fit in memory, merge sort is the only one of the four that works at all: sort runs that fit in RAM, write them out, then k-way merge them with a [heap](/learn/data-structures/heaps/binary-heap-mechanics) of run heads. Spark's shuffle and every database's `ORDER BY` on a large table do exactly that, spilling sorted runs to disk and merging.
+
+## Failure modes
+
+**A sort that took 2 s takes 20 minutes after a data change.** Symptom: CPU pegged in the sort, time growing with the square of the input. Diagnosis: a hand-written or legacy quicksort with a first- or last-element pivot, and the input changed from random to sorted (an export that started coming out of a database with `ORDER BY`, for instance); profile the recursion depth and it will be near `n`. Fix: a random or median-of-three pivot as a patch, the library sort as the real fix, three-way partitioning if keys repeat.
+
+**Stack overflow or `RecursionError` inside a sort.** Symptom: a crash on a large or degenerate input, fine on small ones. Diagnosis: quicksort recursing on both partitions, so the depth equals the recursion tree height, which is `n` under a bad pivot sequence; CPython's default limit is 1,000 frames. Fix: recurse on the smaller side and loop on the larger (depth `<= log₂ n`), plus the introsort depth check so time is capped too.
+
+**`Comparison method violates its general contract!`** Symptom: an intermittent `IllegalArgumentException` from Java's `Collections.sort`, only on some inputs. Diagnosis: the comparator is not a strict weak ordering, most often `return a.value - b.value` on ints that overflow, a `compare` that is not antisymmetric, or a field that changes during the sort. Timsort's merge invariants detect the inconsistency and throw; C++ `std::sort` with the same comparator reads outside the array (undefined behaviour); other libraries return a silently misordered list. Fix: `Integer.compare`, a comparator that reads no mutable state, and an explicit rule for NaN.
+
+**Rows reorder after a runtime upgrade.** Symptom: a table sorted by one column shows rows within each group in a different order than last week, and no code changed. Diagnosis: the sort was unstable and the platform's algorithm changed, or the input order changed and the unstable sort exposed it. Fix: a composite key, or the stable sort with the secondary order documented as a contract.
+
+## Interviewer follow-ups
+
+**"You have 1 TB of records on a machine with 16 GB of RAM. How do you sort them?"** Model answer: external merge sort. Read chunks of about 10 GB, sort each in memory with the library sort, write ~100 sorted runs, then merge them in one pass with a min-heap of 100 run heads. Two full passes over the data; at 1 GB/s of disk bandwidth about 35 minutes, so the cost is I/O, not comparisons. Common wrong answer: "quicksort, it is the fastest", which needs random access to the whole array.
+
+**"Your comparator calls a locale-aware collation that costs 2 µs. What changes?"** Model answer: comparisons now dominate, so use the sort with the fewest (merge sort or Timsort, `n log₂ n` rather than quicksort's `1.39 n log₂ n`), and better still precompute one sort key per element (`key=` in Python, ICU collation keys) so the expensive function runs `n` times instead of `n log n`. Common wrong answer: switching to a "faster" algorithm while keeping the comparator.
+
+**"Why recurse on the smaller partition first?"** Model answer: the smaller side is at most half the range, so the stack depth is bounded by `log₂ n` even when the pivot is terrible; the larger side is handled by the loop. Common wrong answer: "for cache locality"; it is a stack-depth guarantee.
+
+**"Is heap sort ever the right choice?"** Model answer: yes, when you need a hard $O(n \log n)$ bound with no allocation and no randomness: introsort's fallback, an embedded or real-time system, or extracting only the smallest `k` elements in $O(n + k \log n)$. Common wrong answer: "never, it is the slowest".
+
+**"Can you sort faster than n log n?"** Model answer: not by comparing ([the lower bound](/learn/algorithms/sorting-searching/non-comparison-sorts-and-lower-bounds)); with integer keys of bounded width, radix sort does it in a few linear passes. Common wrong answer: "yes, with a hash table", which orders nothing.
+
+## What mid-level engineers get wrong
+
+- **Believing quicksort's O(n²) is theoretical.** A first-element pivot on sorted input hits it, and sorted input is the most common input there is: a 1000× slowdown that appears only on production data.
+- **Reasoning about speed from the comparison count alone.** Heap sort has the better worst case and loses by 2–3× because of cache misses; the consequence is picking algorithms that benchmark badly.
+- **Treating stability as a detail.** Two-key sorts silently break on an unstable sort; the bug appears after a runtime upgrade or a data change.
+- **Writing a comparator that is not a strict weak order** (`a - b` on ints, a `<` that is not antisymmetric). Timsort throws, `std::sort` corrupts memory, other sorts return wrong output.
+- **Recursing on both sides of the partition.** Works until the input is adversarial and the stack overflows.
 
 ## Exercises
 
@@ -272,12 +404,13 @@ hints:
 
 ## Senior signals
 
-- You say which **partition scheme** you are writing and why: Lomuto for clarity, Hoare for fewer swaps and duplicate-friendliness, three-way when keys repeat.
+- You say which **partition scheme** you are writing and why: Lomuto for clarity, Hoare for fewer swaps and duplicate-friendliness, three-way when keys repeat; and you can state Lomuto's four-zone invariant.
 - You know quicksort's $O(n^2)$ is a **pivot-choice** problem, that sorted input triggers it under a naive rule, and that random pivots or introsort remove it; you can name the adversary attack on deterministic pivots.
-- You explain why heap sort loses in practice using **cache behaviour**, not big-O.
+- You explain why heap sort loses using **cache behaviour** and the comparison constants (`2 n log₂ n` versus `1.39 n log₂ n`), not big-O.
+- You bound quicksort's stack at `log₂ n` by **recursing on the smaller side**, and you know why that matters on adversarial input.
 - You treat **stability** as a contract: you know which of your language's sorts are stable and you use it instead of building composite keys.
 - You know every real sort switches to **insertion sort** below a small threshold and can say why that helps.
-- You reach for merge sort on **linked lists** and for external sorting, and for quicksort on arrays, without hesitation.
+- You reach for merge sort on **linked lists** and for external sorting, and for quicksort on arrays, without hesitation; and you know a comparator must be a **strict weak ordering** or the library sort may throw or corrupt.
 
 ## Check yourself
 
@@ -312,4 +445,10 @@ hints:
   answer: 3
   explanation: >-
     A straightforward merge needs an output area; a single reusable buffer of size n (or n/2 with care) suffices, so O(n), not one buffer per level. In-place merging exists but is impractically slow. The recursion stack is O(log n) on top of that buffer, not instead of it.
+- q: >-
+    A quicksort recurses on the smaller partition and loops on the larger one instead of recursing on both. What does this change?
+  options: ["Worst-case time drops from O(n²) to O(n log n)", "Stack depth is capped at about log₂ n on any input", "Equal keys stop causing lopsided partitions", "The partition step no longer needs a pivot choice"]
+  answer: 1
+  explanation: >-
+    The recursive call is always on a side of at most n/2 elements, so the depth of nested calls cannot exceed log₂ n, even with the worst pivot sequence. The time bound is unchanged (a bad pivot still costs O(n²); that is what introsort's depth limit fixes), the pivot rule is untouched, and equal keys are a partition-scheme issue, solved by three-way partitioning.
 ```

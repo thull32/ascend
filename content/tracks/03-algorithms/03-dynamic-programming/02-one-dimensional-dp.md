@@ -9,7 +9,7 @@ problems: [house-robber, house-robber-ii, coin-change, coin-change-ii, decode-wa
 ---
 A row of houses holds cash: `[2, 7, 9, 3, 1]`. You may rob any subset, but robbing two adjacent houses trips the alarm. What is the most you can take? Greedy ("take the biggest, skip its neighbours") picks 9, then 2 and 1, for 12; here that happens to be right, but on `[3, 5, 3]` the same greedy takes the 5, which forbids both 3s, and ends with 5 while the optimum is 3 + 3 = 6. "Take every other house" fails on `[2, 1, 1, 2]` if you start at the wrong parity, and "take the house with the best value minus its neighbours" fails on longer chains. Every plausible local rule has a counterexample. The problem needs DP, and it is the cleanest possible introduction to one-dimensional state.
 
-One-dimensional DP means the state is a single index into a sequence: "the best answer for the prefix ending at `i`" or "the number of ways to make amount `a`". This lesson derives three canonical recurrences, fills each table by hand, and covers the one subtlety, loop order, that produces wrong counts even when the recurrence is right.
+One-dimensional DP means the state is a single index into a sequence: "the best answer for the prefix ending at `i`" or "the number of ways to make amount `a`". This lesson derives the canonical recurrences with the four-step procedure from [the DP mindset](/learn/algorithms/dynamic-programming/the-dp-mindset), fills each table by hand, proves why increasing order is enough, and covers the one subtlety, loop order, that produces wrong counts even when the recurrence is right.
 
 ## House robber: a state with a decision
 
@@ -30,9 +30,11 @@ Trace `[2, 7, 9, 3, 1]`:
 | `i` | 0 | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|---|
 | `nums[i]` | 2 | 7 | 9 | 3 | 1 |
-| `dp[i-2] + nums[i]` | – | – | 2 + 9 = 11 | 7 + 3 = 10 | 11 + 1 = 12 |
-| `dp[i-1]` | – | 2 | 7 | 11 | 11 |
+| rob: `dp[i-2] + nums[i]` | – | – | 2 + 9 = 11 | 7 + 3 = 10 | 11 + 1 = 12 |
+| skip: `dp[i-1]` | – | 2 | 7 | 11 | 11 |
 | `dp[i]` | 2 | 7 | **11** | **11** | **12** |
+
+Two cells in full: `dp[2] = max(dp[1], dp[0] + nums[2]) = max(7, 2 + 9) = 11` (rob wins), and `dp[3] = max(dp[2], dp[1] + nums[3]) = max(11, 7 + 3) = 11` (skip wins; the 3 is never worth losing the 9). Then `dp[4] = max(11, 11 + 1) = 12`: houses 0, 2 and 4.
 
 ```viz
 {"type": "dp", "algorithm": "house-robber", "values": [2, 7, 9, 3, 1], "title": "House robber: dp[i] = max(dp[i-1], dp[i-2] + nums[i])", "caption": "Each cell compares 'skip this house' against 'rob it plus the best from two houses back'."}
@@ -71,7 +73,7 @@ Trace `coins = [1, 3, 4]`, `amount = 6`:
 | candidates `1 + dp[a-c]` | – | 1+dp[0]=1 | 1+dp[1]=2 | 1+dp[2]=3, 1+dp[0]=1 | 1+dp[3]=2, 1+dp[1]=2, 1+dp[0]=1 | 1+dp[4]=2, 1+dp[2]=3, 1+dp[1]=2 | 1+dp[5]=3, 1+dp[3]=2, 1+dp[2]=3 |
 | `dp[a]` | 0 | 1 | 2 | 1 | 1 | 2 | **2** |
 
-`dp[6] = 2` via `dp[3] + 1`, that is, coin 3 then coin 3. The greedy path (4, then 1, then 1) is one of the candidates the DP considers, `1 + dp[2] = 3`, and it loses.
+Two cells in full: `dp[4] = 1 + min(dp[3], dp[1], dp[0]) = 1 + min(1, 1, 0) = 1` (the 4-coin alone), and `dp[6] = 1 + min(dp[5], dp[3], dp[2]) = 1 + min(2, 1, 2) = 2` via `dp[3]`, that is, coin 3 then coin 3. The greedy path (4, then 1, then 1) is one of the candidates the DP considers, `1 + dp[2] = 3`, and it loses.
 
 ```viz
 {"type": "dp", "algorithm": "coin-change", "coins": [1, 3, 4], "amount": 6, "title": "Coin change (minimum coins): dp[a] = 1 + min over coins of dp[a - c]", "caption": "Amount 6 resolves to 2 coins through dp[3], not through the greedy 4 + 1 + 1."}
@@ -88,16 +90,27 @@ def coin_change(coins: list[int], amount: int) -> int:
     return dp[amount] if dp[amount] <= amount else -1
 ```
 
-Time `O(amount × |coins|)`, space `O(amount)`. Using `amount + 1` as infinity instead of `float('inf')` keeps the array all-integer, which matters for speed in Python and for avoiding `Infinity` leaking into JSON in JavaScript.
+Time `O(amount × |coins|)`, space `O(amount)`. The complexity is *pseudo-polynomial*: polynomial in the numeric value of `amount`, not in the number of bits needed to write it. For `amount = 10⁹` this DP needs `10⁹` cells (8 GB as a typed array, about 36 GB as a Python list) and `10⁹ × |coins|` steps, which is why the general problem is NP-hard while the DP is fine for the `amount ≤ 10⁴` an interviewer gives you. Saying "pseudo-polynomial" unprompted is a senior signal; the [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family) returns to it.
 
-Note the complexity is *pseudo-polynomial*: it is polynomial in the numeric value of `amount`, not in the number of bits needed to write it. For `amount = 10⁹` this DP is hopeless, which is exactly why the general problem is NP-hard while the DP is fine for the `amount ≤ 10⁴` an interviewer gives you. Saying "pseudo-polynomial" unprompted is a senior signal; the [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family) returns to it.
+### The "unreachable" sentinel
+
+`dp[a]` must hold something for amounts no coin combination makes, and that something must lose every `min`. Four candidates:
+
+| Sentinel | Array stays all-`int` | `sentinel + 1` still loses | Transition needs a guard | Survives JSON |
+|---|---|---|---|---|
+| `float('inf')` / `Infinity` | No (mixed types) | Yes | No | No (`JSON.stringify(Infinity)` is `null`) |
+| `amount + 1` | Yes | Yes (at most `amount + 2`, no overflow) | No | Yes |
+| `-1` | Yes | **No** (`-1 + 1 = 0` wins every `min`) | Yes (`if dp[a-c] != -1`) | Yes |
+| `None` / `null` | No | Raises `TypeError` in Python; `null + 1` is `1` in JavaScript | Yes | Yes |
+
+`amount + 1` works because every coin is at least 1, so any amount `a` that can be made at all uses at most `a ≤ amount` coins; a value of `amount + 1` can never be a real answer and therefore never wins a `min` against one. Adding 1 to it gives at most `amount + 2`, far from any overflow. `-1` without a guard is the classic bug: run `coins = [2]`, `amount = 3` with the unguarded transition and you get `dp = [0, -1, 1, 0]`, because `dp[3] = dp[1] + 1 = 0` claims that zero coins make 3. The poison then spreads: `dp[5] = dp[3] + 1 = 1`. If you must use `-1`, guard the read; if you can choose, use `amount + 1`, which keeps the array all-integer (faster in CPython, packed small integers in V8) and JSON-clean.
 
 ## Counting ways: the loop-order rule
 
 Change the question: *how many* ways are there to make the amount? Two versions exist, and they have different answers:
 
-- **Combinations** (the usual "Coin Change II"): `{1, 3}` and `{3, 1}` are the same way. For `coins = [1, 2]`, `amount = 3`, there are 2 ways: `1+1+1` and `1+2`.
-- **Ordered sequences** (like climbing stairs): `1+2` and `2+1` are different. Same input gives 3 ways.
+- **Combinations** (the usual "Coin Change II"): `{1, 3}` and `{3, 1}` are the same way. For `coins = [1, 2]`, `amount = 4`, there are 3 ways: `1+1+1+1`, `1+1+2` and `2+2`.
+- **Ordered sequences** (like climbing stairs): `1+1+2`, `1+2+1` and `2+1+1` are different. Same input gives 5 ways.
 
 The recurrences look almost identical and differ only in loop order.
 
@@ -118,11 +131,31 @@ def count_combinations(coins, amount):     # multisets: 1+2 == 2+1
     return dp[amount]
 ```
 
-Why does swapping the loops change the meaning? In `count_combinations`, when the outer loop is on coin `c`, the table holds "number of ways using only the coins considered so far". Adding coin `c` extends those ways in a fixed order (all 1s, then all 2s, …), so each multiset is built exactly once. In `count_ordered`, every amount considers every coin as the *last* coin, so each ordering is a distinct path through the table.
+Fill both tables for `coins = [1, 2]`, `amount = 4` and watch the numbers diverge. Combinations, showing the row after each outer pass over a coin:
 
-Trace `coins = [1, 2]`, `amount = 3` for combinations. After the `c = 1` pass: `dp = [1, 1, 1, 1]` (one way each, all ones). During the `c = 2` pass: `dp[2] += dp[0]` → 2; `dp[3] += dp[1]` → 2. Answer 2. For ordered: `dp[1] = dp[0] = 1`; `dp[2] = dp[1] + dp[0] = 2`; `dp[3] = dp[2] + dp[1] = 3`. Answer 3.
+| after | `dp[0]` | `dp[1]` | `dp[2]` | `dp[3]` | `dp[4]` |
+|---|---|---|---|---|---|
+| initialisation | 1 | 0 | 0 | 0 | 0 |
+| coin 1 pass | 1 | 1 | 1 | 1 | 1 |
+| coin 2 pass | 1 | 1 | 2 | 2 | **3** |
 
-This is the single most common DP bug in interviews: right recurrence, wrong loop nesting, off by a factor that grows with the input. When you write a counting DP, say which version the problem wants and then say which loop is outer and why.
+In the coin-2 pass, `dp[2] += dp[0]` gives `1 + 1 = 2` (`{1,1}` and `{2}`), and `dp[4] += dp[2]` gives `1 + 2 = 3`, where the `dp[2]` read is *already the updated value*. That in-pass read is deliberate: it is what lets `{2, 2}` use the coin twice.
+
+Ordered sequences, showing the row after each amount:
+
+| after | `dp[0]` | `dp[1]` | `dp[2]` | `dp[3]` | `dp[4]` |
+|---|---|---|---|---|---|
+| initialisation | 1 | 0 | 0 | 0 | 0 |
+| `a = 1` | 1 | 1 | 0 | 0 | 0 |
+| `a = 2` | 1 | 1 | 2 | 0 | 0 |
+| `a = 3` | 1 | 1 | 2 | 3 | 0 |
+| `a = 4` | 1 | 1 | 2 | 3 | **5** |
+
+`dp[4] = dp[3] + dp[2] = 3 + 2 = 5`: the sequences `1111`, `112`, `121`, `211`, `22`. The three sequences `112`, `121`, `211` are one multiset, which is the whole difference between 5 and 3.
+
+Why does swapping the loops change the meaning? Each version keeps a different invariant. Coins-outer: *after processing coins `c₁..cₖ`, `dp[a]` is the number of multisets of those coins summing to `a`*. Adding coin `cₖ` preserves it because a multiset either contains no `cₖ` (already counted in the old `dp[a]`) or contains at least one; remove one `cₖ` and you have a multiset for `a − cₖ` over the same `k` coins, which is the new `dp[a − cₖ]`. Disjoint, exhaustive, so each multiset is counted once. Amount-outer: *`dp[a]` is the number of sequences summing to `a`*; the last element is any coin `c`, and the rest is a sequence for `a − c`, so `dp[a] = Σ_c dp[a − c]` counts every ordering separately.
+
+This is the single most common DP bug in interviews: right recurrence, wrong loop nesting, off by a factor that grows with the input. When you write a counting DP, say which version the problem wants and then say which loop is outer and why. The [combinatorics lesson](/learn/foundations/math-for-engineers/counting-and-combinatorics) is where multisets versus sequences is defined.
 
 ## Decode ways: a state with validity constraints
 
@@ -138,15 +171,15 @@ where `[·]` is 1 if the condition holds and 0 otherwise.
 
 **Order.** Increasing `i`. **Answer.** `dp[n]`.
 
-Trace `"1201234"`:
+Trace `"120127"`, which contains both a zero and a `27`-style pair (two digits above 26):
 
-| `i` | 1 (`1`) | 2 (`2`) | 3 (`0`) | 4 (`1`) | 5 (`2`) | 6 (`3`) | 7 (`4`) |
-|---|---|---|---|---|---|---|---|
-| single digit valid? | yes | yes | **no** | yes | yes | yes | yes |
-| two-digit valid? | – | `12` yes | `20` yes | `01` no | `12` yes | `23` yes | `34` no |
-| `dp[i]` | 1 | 2 | 1 | 1 | 2 | 3 | **3** |
+| `i` | 1 (`1`) | 2 (`2`) | 3 (`0`) | 4 (`1`) | 5 (`2`) | 6 (`7`) |
+|---|---|---|---|---|---|---|
+| single digit valid? | yes | yes | **no** | yes | yes | yes |
+| two-digit valid? | – | `12` yes | `20` yes | `01` no | `12` yes | `27` **no** |
+| `dp[i]` | 1 | 2 | 1 | 1 | 2 | **2** |
 
-Read `dp[3]`: the `0` cannot stand alone, but `20` is valid, so `dp[3] = dp[1] = 1`. Read `dp[4]`: `1` alone is fine (`dp[3] = 1`), `01` is not, so 1. The table tells you exactly why zeros are dangerous: a `0` contributes nothing on its own and only survives if the digit before it is 1 or 2.
+Two cells in full: `dp[3] = [0 ≠ 0]·dp[2] + [10 ≤ 20 ≤ 26]·dp[1] = 0·2 + 1·1 = 1`, and `dp[6] = [7 ≠ 0]·dp[5] + [10 ≤ 27 ≤ 26]·dp[4] = 1·2 + 0·1 = 2`. The two decodings are `1|20|1|2|7` and `1|20|12|7`. The table tells you exactly why zeros are dangerous: a `0` contributes nothing on its own and only survives if the digit before it is 1 or 2, and why `27` is harmless: the pair fails but the single digit `7` carries `dp[5]` forward.
 
 ```python
 def num_decodings(s: str) -> int:
@@ -163,9 +196,21 @@ def num_decodings(s: str) -> int:
 
 The `dp[0] = 1` base is a common stumbling point. It is not "one way to decode nothing" in any physical sense; it is the value that makes the transition produce `dp[2] = 1` for `"12"`'s two-digit reading. When a base case feels arbitrary, check it by asking what the transition needs it to be.
 
+## Why increasing order is enough: the invariant
+
+Every 1-D DP in this lesson is proved the same way, with the loop [invariant](/learn/foundations/problem-solving/invariants-and-loop-reasoning):
+
+**Invariant.** When the loop is about to compute `dp[i]`, every cell `dp[0..i-1]` holds the exact answer for its prefix (or amount).
+
+- *Initially*: the base cells are set by hand and checked against the state sentence (`dp[0] = 1` decodings of the empty string; `dp[0] = 0` coins for amount 0; `prev2 = prev1 = 0` for house robber).
+- *Preserved*: the transition for `dp[i]` reads only cells with a smaller index: `i-1` and `i-2` for house robber and decode ways, `a − c` with `c ≥ 1` for coin change. Increasing order therefore guarantees that every cell read is already final. The transition itself is exact because it partitions the objects being counted or optimised by their last decision (last house robbed or skipped; last coin; last code width) into disjoint, exhaustive cases, each a smaller instance of the same state.
+- *At the end*: the invariant at `i = n` (or `a = amount`) says the last cell is the answer.
+
+The one place the argument needs care is the coins-outer counting loop, whose inner loop reads `dp[a − c]` *from the current pass*. That is not a violation: the invariant for that loop is per pass ("multisets over the coins seen so far"), and reading the updated cell is exactly what lets a coin be reused. If the coins were use-once, the same read would be a bug, and the inner loop must run downwards so `dp[a − c]` is still the previous pass's value; that sweep-direction rule is the centre of the [knapsack lesson](/learn/algorithms/dynamic-programming/knapsack-family).
+
 ## The shape of every 1-D DP
 
-Step back and look at the three recurrences side by side:
+Step back and look at the recurrences side by side:
 
 | Problem | State `dp[i]` | Transition | Combine with |
 |---|---|---|---|
@@ -178,6 +223,52 @@ Step back and look at the three recurrences side by side:
 Counting problems combine with `+`; optimisation problems combine with `min`/`max`. The "last decision" in each is: the last step size, whether to rob the last house, the last coin, the last letter's width. If you can enumerate the possible last decisions and each leaves a smaller instance of the same problem, you have a 1-D DP, and the state is the size of the remaining instance.
 
 When the last decision leaves something that is *not* a smaller instance of the same problem (for example, "best profit so far" depends on whether you currently hold a share), you need to add that information to the state, which is the topic of [sequence DP](/learn/algorithms/dynamic-programming/sequence-dp).
+
+## Under the hood: integers, overflow and rolling variables
+
+### JavaScript numbers above 2⁵³
+
+A JavaScript `number` is an IEEE 754 double with a 53-bit significand, so every integer up to `Number.MAX_SAFE_INTEGER = 2⁵³ − 1 = 9,007,199,254,740,991` is exact and above it only every second integer exists, then every fourth. Counting DPs get there fast: climbing stairs gives `ways(n) = fib(n+1)`; `ways(77) = 8,944,394,323,791,464` is exact, but `ways(78) = 14,472,334,024,676,221` is odd and above `2⁵³`, and the double arithmetic returns `14,472,334,024,676,220`. Off by one, no exception, no warning, and `Number.isSafeInteger` is the only thing that would have told you. Decode ways on a string of 78 ones hits the same wall. Two fixes: reduce modulo a prime such as `10⁹ + 7` at every addition (the sum of two residues stays below `2 × 10⁹`, safe), or use `BigInt` (`1n`, `a + b`), accepting arithmetic that is roughly an order of magnitude slower and cannot mix with `number`. A DP that *multiplies* residues needs `BigInt` even with the modulus, because `(10⁹ + 6)² ≈ 10¹⁸` is above `2⁵³`. [Numbers, strings and Unicode](/learn/foundations/how-code-runs/numbers-strings-unicode) has the bit layout.
+
+### Python's arbitrary precision and its cost
+
+Python ints never overflow: `ways(78)` is exact and `fib(1000)` (209 decimal digits, 694 bits) is a single object of 120 bytes, a 28-byte object holding the first 30-bit digit plus 4 bytes for each of the other 23 digits. The price is that addition is linear in the digit count, so a counting DP whose answers grow exponentially costs `O(n × digits)`, not `O(n)`: `fib(10⁵)` has about 20,900 digits, and by then each add touches roughly 700 machine words. When the problem hands you a modulus, use it; it keeps every cell a one-digit int (28 bytes, or a shared singleton for values in `-5..256`).
+
+### Rolling variables
+
+A `dp` list for `n = 10⁶` distinct values costs 36–40 MB in CPython (an 8-byte slot plus a 28-byte int object per cell, plus up to 12.5% list over-allocation), 8 MB as `array('q')`, and two ints as rolling variables, since every transition above reads at most two earlier cells. `prev2, prev1 = prev1, max(prev1, prev2 + x)` allocates no tuple: CPython compiles two- and three-target unpacking into stack operations, and the bytecode contains no `BUILD_TUPLE`. The order matters: the right-hand side is evaluated in full before either name is bound, so the `prev1` read inside `max` is the old value. Coin change cannot roll to `O(1)` because its transition reads `dp[a − c]` for every coin; it rolls to `O(max coin)` at best.
+
+## Production and interview failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| The count is too large, by a factor that grows with the amount (5 instead of 3 for `[1, 2]`, amount 4) | The amount loop is outer, so each ordering of the same multiset is counted separately | Coins outer, amounts inner, upward |
+| `coin_change([2], 3)` returns `0`; larger unreachable amounts return small positive numbers | `-1` sentinel read without a guard: `-1 + 1 = 0` wins the `min` and the zero propagates | Use `amount + 1` as the sentinel, or guard `dp[a-c] != -1` |
+| `num_decodings` returns `0` for every input | `dp[0] = 0`, so the two-digit term never contributes and the single-digit term multiplies zeros forward | `dp[0] = 1`; check the base by asking what the transition needs |
+| A JavaScript counting service is correct for small inputs and silently wrong for large ones; the wrong answers are always even | The count passed `2⁵³` and the double rounded | Reduce modulo a prime, or `BigInt`; assert `Number.isSafeInteger` in tests |
+| Coin change times out and the process is killed for memory on `amount = 10⁹` | Pseudo-polynomial: one cell per unit of amount, 36 GB as a Python list, 8 GB as a typed array | Say "pseudo-polynomial" and renegotiate: bounded amounts, a canonical coin system (greedy), or a different formulation |
+| House robber on a ring returns the linear answer, robbing both the first and the last house | The ring constraint is not in the state | Run the linear DP on `nums[0..n-2]` and `nums[1..n-1]` and take the max |
+
+## Interviewer follow-ups
+
+**"Why does swapping the two loops in Coin Change II change the answer?"** Model answer: each nesting keeps a different invariant; coins-outer builds each multiset in one canonical coin order, amount-outer sums over every possible last coin and so counts orderings. Common wrong answer: "it should not; addition is commutative", which confuses the order of additions with what is being added.
+
+**"Why `amount + 1` rather than `float('inf')` for impossible amounts?"** Model answer: every coin is at least 1, so a real answer never exceeds `amount`; the sentinel can never win a `min`, `+ 1` on it cannot overflow, the array stays all-integer, and it serialises to JSON. Common wrong answer: "`inf` is safer because it is truly infinite", which ignores the mixed-type and JSON costs and is not more correct.
+
+**"Your JavaScript counting DP must return an 18-digit number. What breaks?"** Model answer: doubles are exact only to `2⁵³ ≈ 9 × 10¹⁵`; use modular arithmetic if the problem gives a modulus, otherwise `BigInt`. Common wrong answer: "use `Math.round` / `parseInt`", which cannot restore bits that were never stored.
+
+**"House robber, but the houses form a circle."** Model answer: the only new constraint is that houses 0 and `n-1` cannot both be robbed, so run the linear DP twice, excluding each end, and take the max. Common wrong answer: adding a wraparound term such as "`dp[n-1]` also reads `dp[0]`", which breaks the acyclic dependency order the proof relies on.
+
+**"Can you make coin change `O(1)` memory like house robber?"** Model answer: no; the transition reads `dp[a − c]` for every coin, so you need at least the last `max(coins)` cells, a ring buffer of that size. Common wrong answer: "yes, keep two variables", which only works when the transition reads a fixed pair of offsets.
+
+## What mid-level engineers get wrong
+
+- **Nesting loops by habit.** Consequence: a combination count that is actually a permutation count, wrong by a factor that grows with the input and passes the smallest test.
+- **Using `-1` for "impossible" and adding 1 to it.** Consequence: zero coins "make" unreachable amounts, and the zero poisons every larger cell that routes through it.
+- **Hand-writing `n = 0` and `n = 1` cases.** Consequence: three branches instead of one transition, and an `IndexError` on the empty array the special cases forgot.
+- **Reading `O(amount × coins)` as linear.** Consequence: proposing the DP for `amount = 10⁹` and discovering the 8–36 GB table in production.
+- **Trusting `number` for counts in JavaScript.** Consequence: answers that are off by one above `2⁵³` with no error to catch.
+- **Rolling to two variables before the array version works.** Consequence: no table to inspect when the answer is wrong, and no path to reconstruct when the interviewer asks which houses.
 
 ## Exercises
 
@@ -281,11 +372,13 @@ hints:
 
 ## Senior signals
 
-- You derive each transition by naming the **last decision** (last coin, rob-or-skip, one-or-two digits) and can say why the branches are exhaustive.
+- You derive each transition by naming the **last decision** (last coin, rob-or-skip, one-or-two digits) and can say why the branches are disjoint and exhaustive.
+- You can state the **invariant** ("`dp[i]` is the exact answer for the prefix of length `i`") and explain why increasing order guarantees every dependency is final.
 - You pick **base values that make the transition produce the first cells**, so the code has no special cases for `n = 0` or `n = 1`.
-- You know that **loop order changes meaning** in counting DPs (coins-outer counts combinations; amount-outer counts ordered sequences) and you say which one the problem wants before coding.
+- You know that **loop order changes meaning** in counting DPs (coins-outer counts combinations; amount-outer counts ordered sequences), you can fill both tables for a tiny input, and you say which one the problem wants before coding.
 - You call coin change **pseudo-polynomial** and can explain why the DP is fine for `amount ≤ 10⁴` and useless for `10⁹`.
-- You use an integer sentinel (`amount + 1`) rather than `inf` for "impossible", and you know why.
+- You use an integer sentinel (`amount + 1`) rather than `inf` or `-1` for "impossible", and you can show the input on which unguarded `-1` returns 0.
+- You know that JavaScript counts are exact only to `2⁵³` and reach for a modulus or `BigInt`, and that Python's big ints cost 4 bytes per 30-bit digit and linear-time additions.
 - You reduce `O(n)` memory to `O(1)` with rolling variables **only after** the `O(n)` version is correct, and you can say which cells the transition reads to justify it.
 
 ## Check yourself
@@ -321,4 +414,10 @@ hints:
   answer: 3
   explanation: >-
     The table has one cell per unit of amount. Polynomial in the numeric value means exponential in the input's bit length, so "linear in amount" is exactly the problem; you need a different approach or a restriction on the coin system. Memoisation does not reduce the number of reachable states meaningfully here, and sorting does not change the count.
+- q: >-
+    A JavaScript climbing-stairs function returns 14472334024676220 for n = 78; the exact answer ends in 1. What happened, and what is the fix?
+  options: ["The base cases were off by one; start from dp[0] = dp[1] = 1 rather than 0", "The value wrapped past 2^31; switch the table to a Float64Array", "The sum passed 2^53 and the double rounded; reduce modulo a prime or use BigInt", "The rolling variables were bound in the wrong order; compute the sum first"]
+  answer: 2
+  explanation: >-
+    ways(78) = fib(79) = 14,472,334,024,676,221 is above Number.MAX_SAFE_INTEGER = 2^53 - 1, where doubles can represent only every second integer, so the odd answer rounds to its even neighbour with no error raised. A wrong base case would be wrong for every n, not only above 77; JavaScript numbers do not wrap at 2^31; and the two-target assignment evaluates its right-hand side before binding. Reduce modulo a prime at each addition, or use BigInt.
 ```

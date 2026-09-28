@@ -1,7 +1,7 @@
 ---
 slug: top-k-and-k-way-merge
 title: "Top-k, k-way merge and the streaming median"
-description: The three problem families a heap owns outright, why the top-k heap is the size of k and not n, how to merge a thousand sorted streams in one pass, and the two-heap trick that tracks a median online.
+description: The three problem families a heap owns outright, why the top-k heap is the size of k and not n, how to merge a thousand sorted streams in one pass and how external sorts and LSM compactions size that merge, the two-heap trick that tracks a median online, and what breaks when you distribute any of them.
 minutes: 40
 difficulty: medium
 tags: [heaps, top-k, k-way-merge, two-heaps, median, streaming]
@@ -32,20 +32,37 @@ def top_k(items, k):
     return sorted(heap, reverse=True)
 ```
 
-Cost: each of `n` items does at most one O(log k) operation, so O(n log k) time and O(k) space. For `k = 10` and `n = 2 × 10⁸`, that is about 4 comparisons per item and 10 words of memory, versus sorting 200 million items. The comparison `x > heap[0]` rejects most items in O(1) without touching the heap at all; for random input, after the first few thousand items almost nothing gets in.
+Trace with `k = 3` on the stream 4, 9, 1, 7, 3, 8, 2, 6. The heap is shown in array order; the root is the current eviction candidate:
+
+| Item | Root before | Decision | Heap after |
+|---|---|---|---|
+| 4 | — | fewer than 3, push | `[4]` |
+| 9 | 4 | fewer than 3, push | `[4, 9]` |
+| 1 | 4 | fewer than 3, push | `[1, 9, 4]` |
+| 7 | 1 | 7 > 1, replace root | `[4, 9, 7]` |
+| 3 | 4 | 3 ≤ 4, reject in O(1) | `[4, 9, 7]` |
+| 8 | 4 | 8 > 4, replace root | `[7, 9, 8]` |
+| 2 | 7 | reject | `[7, 9, 8]` |
+| 6 | 7 | reject | `[7, 9, 8]` |
+
+Result 9, 8, 7. Three of the eight items touched the heap after it filled; the rest cost one comparison each.
 
 ```viz
 {"type": "heap", "algorithm": "top-k", "kind": "min", "k": 3, "values": [4, 9, 1, 7, 3, 8, 2, 6],
  "title": "Top-3 with a min-heap of size 3", "caption": "The root is the weakest of the current best three. An incoming value either loses to it in O(1) or replaces it in O(log k)."}
 ```
 
+### How few items actually enter the heap
+
+Cost: each of `n` items does at most one O(log k) operation, so O(n log k) time and O(k) space. On a stream in random order the real count is far lower. The `i`-th item enters the heap only if it is among the `k` largest of the first `i`, which has probability `k / i` for random order, so the expected number of heap operations is about `k · ln(n / k) + k`. For `n = 2 × 10⁸` and `k = 10` that is about 180 heap operations in total; the other 200 million items cost a single comparison against `heap[0]`. Measured: 105 heap operations for 100,000 random floats with `k = 10` (the formula gives 102), and 744 for `k = 100` (formula 791). The worst case is an **ascending** stream, where every item beats the root and the cost is the full `n log k`; a feed sorted by the very key you rank on, such as a timestamp-ordered log ranked by timestamp, is that worst case.
+
 ### Variants that are the same problem
 
 - **k smallest**: max-heap of size `k`.
-- **k most frequent**: count with a hash map (O(n)), then top-k over the `(count, value)` pairs (O(m log k) for `m` distinct values). Two passes, and the counting pass usually dominates.
+- **k most frequent**: count with a hash map (O(n)), then top-k over the `(count, value)` pairs (O(m log k) for `m` distinct values). Two passes, and the counting pass usually dominates. When the values are bounded (counts are at most `n`), bucket sort by count is O(n) and needs no heap.
 - **k closest points to the origin**: max-heap of size `k` keyed by squared distance (skip the square root; it is monotonic and slow).
 - **k-th largest element**: same heap, answer is the root at the end. But if all `n` are in memory, **quickselect** finds it in O(n) average; the heap is for streams or when `k` is tiny relative to `n`.
-- **Python shortcut**: `heapq.nlargest(k, items)` and `nsmallest` implement exactly this loop in C, with a `key=` parameter. For `k` close to `n` they switch to sorting.
+- **Python shortcut**: `heapq.nlargest(k, items, key=…)` and `nsmallest` implement exactly this loop in C. See "Under the hood" for what they do differently from the code above.
 
 When `k` is close to `n`, the log k advantage disappears and sorting is simpler; when `k = 1`, a single running maximum is O(n) and no heap is needed. The heap is for `1 < k ≪ n`.
 
@@ -74,11 +91,28 @@ def merge_k(lists):
     return out
 ```
 
-The tuple `(val, i, j)` carries the sequence index and the position, and `i` also serves as the tiebreaker so that equal values never fall through to comparing something unorderable. Trace on `[1, 4, 5]`, `[1, 3, 4]`, `[2, 6]`: heap starts `{(1,0,0), (1,1,0), (2,2,0)}`. Pop (1,0,0), push (4,0,1). Pop (1,1,0), push (3,1,1). Pop (2,2,0), push (6,2,1). Pop (3,1,1), push (4,1,2). Pop (4,0,1), push (5,0,2). Pop (4,1,2), nothing left in list 1. Pop (5,0,2). Pop (6,2,1). Output 1 1 2 3 4 4 5 6.
+The tuple `(val, i, j)` carries the sequence index and the position, and `i` also serves as the tiebreaker so that equal values never fall through to comparing something unorderable. Trace on `[1, 4, 5]`, `[1, 3, 4]`, `[2, 6]`; the heap column is the sorted view of its contents:
+
+| Pop | Push (next from that list) | Heap after | Output so far |
+|---|---|---|---|
+| (1, list 0, pos 0) | (4, 0, 1) | `(1,1,0) (2,2,0) (4,0,1)` | 1 |
+| (1, 1, 0) | (3, 1, 1) | `(2,2,0) (3,1,1) (4,0,1)` | 1 1 |
+| (2, 2, 0) | (6, 2, 1) | `(3,1,1) (4,0,1) (6,2,1)` | 1 1 2 |
+| (3, 1, 1) | (4, 1, 2) | `(4,0,1) (4,1,2) (6,2,1)` | 1 1 2 3 |
+| (4, 0, 1) | (5, 0, 2) | `(4,1,2) (5,0,2) (6,2,1)` | 1 1 2 3 4 |
+| (4, 1, 2) | list 1 exhausted | `(5,0,2) (6,2,1)` | … 4 4 |
+| (5, 0, 2) | list 0 exhausted | `(6,2,1)` | … 5 |
+| (6, 2, 1) | list 2 exhausted | empty | 1 1 2 3 4 4 5 6 |
+
+Eight pops, five pushes, and the heap never held more than three entries.
+
+### External sort: sizing the merge
+
+This is the merge step of **external sorting**: sort chunks that fit in memory, write each as a sorted *run*, then k-way merge the runs reading one buffer per run. Size it for a 100 GB file with 1 GB of memory: 100 runs of 1 GB each, then a 100-way merge. Each run needs a read buffer; at 4 MB per buffer the merge holds 400 MB of buffers plus a heap of 100 entries, and every byte is read twice and written twice, once to make runs and once to merge them. If the buffers do not fit (10,000 runs at 4 MB is 40 GB), the merge becomes multi-pass: merge groups of runs into larger runs, then merge those, each pass reading and writing the whole file again. GNU `sort` merges 16 temporary files at a time by default (`--batch-size`), so more than 16 runs means a second pass. PostgreSQL spills a sort to disk when it exceeds `work_mem` (default 4 MB) and merges the runs with the same heap loop, which is why raising `work_mem` for a big `ORDER BY` can remove a pass from the plan.
 
 ### Where it runs in production
 
-This is the merge step of **external sorting**: sort chunks that fit in memory, write each to disk, then k-way merge the chunks reading one buffer per chunk. It is how databases sort result sets larger than memory, how `sort(1)` handles multi-gigabyte files, and how LSM-tree databases (RocksDB, Cassandra) **compact** several sorted SSTables into one. The same loop merges `k` sorted Kafka partitions by timestamp, `k` sorted posting lists in a search engine, and `k` per-shard result pages in a distributed query (each shard returns its top 100 sorted; the coordinator merges and stops after 100). Python exposes it as `heapq.merge`, which is lazy: it yields elements without materialising the output, so you can merge streams that do not fit in memory.
+LSM-tree databases (RocksDB, Cassandra) **compact** several sorted SSTables into one with exactly this loop; RocksDB's `MergingIterator` is a min-heap over the input iterators, and the [LSM lesson](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) covers when compaction runs. The same loop merges `k` sorted Kafka partitions by timestamp, `k` sorted posting lists in a search engine, and `k` per-shard result pages in a distributed query. Elasticsearch has each shard return its top `from + size` hits and the coordinator merge them with a heap; that is why deep pagination is bounded by `index.max_result_window` (10,000 by default): page 1,000 of size 10 over 5 shards means each shard returns 10,010 hits and the coordinator merges 50,050 entries to discard all but 10. Python exposes the loop as `heapq.merge`, which is lazy: it yields elements without materialising the output, so you can merge streams that do not fit in memory.
 
 The variants: **k-th smallest in a sorted matrix** is a k-way merge over rows that stops after `k` pops. **Smallest range covering one element from each list** is a k-way merge that tracks the current maximum alongside the heap minimum; the range is `[min, max]` and it shrinks as you advance the minimum's list.
 
@@ -115,7 +149,20 @@ class RunningMedian:
         return (-self.low[0] + self.high[0]) / 2
 ```
 
-Trace on 5, 16, 1, 4. Add 5: low {5}, move 5 to high, high is bigger, move back: low {5}, high {}. Median 5. Add 16: low {16, 5}, move 16 to high: low {5}, high {16}. Median (5 + 16)/2 = 10.5. Add 1: low {5, 1}, move 5 to high: low {1}, high {5, 16}, high is bigger, move 5 back: low {5, 1}, high {16}. Median 5. Add 4: low {5, 4, 1}, move 5 to high: low {4, 1}, high {5, 16}. Median (4 + 5)/2 = 4.5.
+### Six inserts, traced
+
+Trace on 5, 16, 1, 4, 9, 2. Each row shows the heaps after the three-step insert, largest of `low` first and smallest of `high` first:
+
+| Add | Step 1: push to low | Step 2: move low's max to high | Step 3: rebalance | low / high | Median |
+|---|---|---|---|---|---|
+| 5 | low {5} | low {}, high {5} | high bigger, move 5 back | {5} / {} | 5 |
+| 16 | low {16, 5} | low {5}, high {16} | sizes 1 and 1, nothing | {5} / {16} | 10.5 |
+| 1 | low {5, 1} | low {1}, high {5, 16} | move 5 back | {5, 1} / {16} | 5 |
+| 4 | low {5, 4, 1} | low {4, 1}, high {5, 16} | sizes 2 and 2 | {4, 1} / {5, 16} | 4.5 |
+| 9 | low {9, 4, 1} | low {4, 1}, high {5, 9, 16} | move 5 back | {5, 4, 1} / {9, 16} | 5 |
+| 2 | low {5, 4, 2, 1} | low {4, 2, 1}, high {5, 9, 16} | sizes 3 and 3 | {4, 2, 1} / {5, 9, 16} | 4.5 |
+
+Row 5 shows why the push-then-move sequence matters: 9 belongs in `high`, and it gets there without a comparison, because pushing it into `low` and moving `low`'s maximum across sends whichever value is largest, which is 9.
 
 ```viz
 {"type": "heap", "algorithm": "two-heaps-median", "values": [5, 16, 1, 4, 9, 2],
@@ -124,15 +171,65 @@ Trace on 5, 16, 1, 4. Add 5: low {5}, move 5 to high, high is bigger, move back:
 
 The generalisation is the **two-heaps pattern**: any time you need the boundary between the "smaller" and "larger" parts of a changing set (a percentile, the k-th smallest in a stream, the split in a scheduling problem), two heaps facing each other maintain that boundary in O(log n). The [two heaps pattern lesson](/learn/interview-patterns/sequence-patterns/two-heaps) works through the variants. The limitation is deletion: a **sliding-window median** must remove the element leaving the window, which a plain heap cannot do; the fix is lazy deletion, the subject of the [next lesson](/learn/data-structures/heaps/indexed-heaps-and-decrease-key).
 
+## Under the hood
+
+### `heapq.nlargest`, `nsmallest` and `merge`
+
+CPython's `nlargest(k, it)` special-cases `k == 1` to `max()` and `k >= len(it)` to `sorted(it, reverse=True)[:k]`, then runs the size-`k` heap loop over `(value, order)` tuples where `order` is a counter that *decreases* for `nlargest` and increases for `nsmallest`. The counter makes the result **stable**: among equal values, earlier items win, and ties never fall through to comparing the payload. It heapifies the first `k` entries in O(k) rather than pushing them, and the `key=` function is called once per item, not once per comparison. The result is sorted before return, so the total is O(n log k + k log k).
+
+`heapq.merge(*iterables, key=None, reverse=False)` builds one `[value, order, next_method]` list per input, heapifies, and after each yield calls `heapreplace` with the input's next value, or `heappop` when the input is exhausted. It holds `k` small lists and nothing else, so merging a thousand multi-gigabyte sorted files through it costs a thousand file buffers and a heap of a thousand entries. A single input short-circuits to yielding it directly.
+
+### Selection instead of a heap
+
+When all `n` items are in memory and you need the `k` largest without ordering them, **quickselect** partitions around a pivot and recurses into one side: expected O(n) with roughly 2–3 comparisons per element, against the heap's `n log k`. Every systems library ships it with a worst-case guard (introselect: switch to a median-of-medians or heap-based selection when recursion gets deep): C++ `std::nth_element`, Rust `select_nth_unstable`, NumPy `np.partition`. The [order statistics lesson](/learn/algorithms/sorting-searching/selection-and-order-statistics) has the mechanics. For `k = 10` out of 10⁸ in memory, the heap does 10⁸ comparisons against the root plus about 170 heap operations, and quickselect does about 2–3 × 10⁸ comparisons plus writes for the partition; the heap wins, streams or not. For `k = n/2`, quickselect's O(n) beats the heap's O(n log n).
+
+### Sketches for percentiles
+
+A latency dashboard that shows p50 and p99 does not keep every sample in two heaps. It keeps a **t-digest** (clusters of samples whose sizes shrink toward the tails, a few kilobytes at the default compression of 100, more accurate at the extremes than in the middle) or an **HdrHistogram** (fixed buckets with a configured number of significant digits, tens to hundreds of kilobytes depending on the value range and precision, exact within the configured precision). Both are **mergeable**: two machines' digests combine into one that answers global quantiles, which two exact heaps cannot do without shipping every sample. Netflix's Spectator metrics library records percentile timers as a fixed set of bucket counters for the same reason: counters add across thousands of instances, medians do not. The two-heap median is exact and unmergeable. Know both and say which you would ship.
+
 ## Choosing between the three, and their alternatives
 
-| Problem | Heap solution | Complexity | When something else is better |
-|---|---|---|---|
-| k largest of n | Min-heap of size k | O(n log k), O(k) space | Quickselect O(n) if all in memory and you do not need them sorted; sort if k ≈ n |
-| Merge k sorted streams | Min-heap of k heads | O(N log k), O(k) space | k = 2: plain two-pointer merge; tiny k: linear scan of heads |
-| Running median / percentile | Two heaps | O(log n) per insert, O(n) space | Approximate sketches (t-digest, HdrHistogram) when n is huge and exactness is not required; sorted list with bisect for small n |
+| Problem | Heap solution | Time | Space | Exact | Streaming | Mergeable across machines | When something else is better |
+|---|---|---|---|---|---|---|---|
+| k largest of n | min-heap of size k | O(n log k), about k ln(n/k) heap ops on random order | O(k) | yes | yes | yes for top-k by score; no for top-k by frequency | quickselect O(n) if all in memory and k is large; sort if k ≈ n; bucket sort for bounded counts |
+| merge k sorted streams | min-heap of k heads | O(N log k) | O(k) plus one buffer per stream | yes | yes | n/a | k = 2: two-pointer merge; tiny k: linear scan of heads |
+| running median or percentile | two heaps | O(log n) per insert | O(n) | yes | yes | no | t-digest or HdrHistogram when n is huge or results must merge; sorted list with bisect for small n |
 
-The last row is the honest production note. A latency dashboard that shows p50 and p99 does not keep every sample in two heaps; it keeps a **t-digest** or an HdrHistogram, which use kilobytes, merge across machines, and are accurate to a fraction of a percent. The two-heap median is exact and unmergeable. Know both and say which you would ship.
+## Production failure modes
+
+**Top-k over a feed sorted by the ranking key.** Symptom: a "top 10 by timestamp" job takes several times longer than the same job over a different field, with no error. Diagnosis: ascending input makes every item beat the root, so the loop performs `n` heap replacements instead of about `k ln(n/k)`. Fix: none needed for correctness; budget for `n log k`, or if the input is known sorted, take the last `k` directly.
+
+**Wrong answers from distributed top-k by frequency.** Symptom: the global "most frequent" list misses items that are popular everywhere but top-k nowhere. Diagnosis: with shard 1 counting a:5, b:4, c:3 and shard 2 counting d:5, c:3, b:1, each shard's local top-2 is {a, b} and {d, c}; the true global leader is c with 6, present in both shards' data but in neither's top-2 with the count needed. Local top-k by an *additive* score is not composable. Fix: each shard returns its full count table, or a mergeable sketch such as [Count-Min](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog) plus candidates, or a second round that asks every shard for the counts of the union of candidates. Top-k by a per-item score (the 10 highest-rated videos) *is* composable: the global top-k is within the union of local top-ks.
+
+**Head-of-line blocking in a scatter-gather merge.** Symptom: p99 query latency equals the slowest shard's latency, every time. Diagnosis: the k-way merge cannot emit an element until every stream has offered its head, so one slow shard stalls the output. Fix: per-shard timeouts with partial results and a flag in the response, or adaptive replica selection so a slow shard is bypassed.
+
+**Averaging medians across machines.** Symptom: a global p50 that is smooth and wrong. Diagnosis: quantiles are not additive; the mean of 500 per-machine medians is not the median of the union. Fix: a mergeable sketch per machine, merged at the coordinator.
+
+**Sliding-window median with plain heaps.** Symptom: either O(n) per step (rebuilding) or a median that drifts after the first eviction. Diagnosis: the value leaving the window cannot be removed from a plain heap, so it stays in the partition and skews the balance. Fix: lazy deletion with live counts driving the balance invariant, or a balanced multiset.
+
+**External merge that thrashes.** Symptom: a sort job's disk reads jump to several times the input size. Diagnosis: more runs than the merge fan-in allows, so the merge went multi-pass, or the per-run buffers exceeded memory and the OS started paging. Fix: larger in-memory runs (fewer of them), a larger fan-in with smaller buffers, or, for a database, raising `work_mem` for that query.
+
+## Interviewer follow-ups
+
+**"k-th largest of an unsorted array of 10⁷ integers in memory: heap or quickselect?"** Model answer: quickselect, expected O(n) with a worst-case guard; the size-k heap is O(n log k) and only wins when the data is a stream or `k` is tiny. Common wrong answer: "sort it", O(n log n) for a question that has an O(n) answer.
+
+**"Each of 100 shards returns its top 10 by score. Is the merged top 10 correct?"** Model answer: yes, because any item in the global top 10 is in the top 10 of its own shard; but the same argument fails for top 10 by *count*, where an item's global count is spread across shards. Common wrong answer: "yes for both".
+
+**"Merge 1,000 sorted files of 1 GB each with 4 GB of RAM."** Model answer: one pass needs 1,000 buffers; at 1 MB each that fits with room for the heap, so a single 1,000-way merge reads and writes the 1 TB once; if buffers must be larger for throughput, merge in two passes of about 32 files each. Common wrong answer: "merge them pairwise", which copies early data a thousand times.
+
+**"The window slides and the oldest element must leave the two-heap median. How?"** Model answer: record it as pending removal, skip it when it reaches a root, and keep live counts per heap so the balance invariant counts only live elements. Common wrong answer: "search the heap and delete it", O(n) per step.
+
+**"Median latency across 500 machines, a billion samples an hour?"** Model answer: a mergeable sketch per machine (t-digest or HdrHistogram) merged at the coordinator, with a stated error bound; exact two-heap medians cannot be combined. Common wrong answer: "average the per-machine medians".
+
+## What mid-level engineers get wrong
+
+- **A max-heap of size k for the k largest.** Its root is the strongest candidate, useless for eviction; the code either grows unbounded or evicts the wrong item.
+- **`sorted(items)[:k]` on a stream.** Materialises all `n` and pays O(n log n) for an O(n log k) job.
+- **Pairwise merging of k lists.** O(N k), and the reviewer who asks "why not a heap" is asking about this lesson.
+- **Taking the square root in k-closest-points.** Monotonic, slow, and a source of float ties.
+- **Averaging medians** or otherwise treating quantiles as additive.
+- **Trusting local top-k by count across shards.** Correct for per-item scores, wrong for aggregated counts.
+- **Routing the new value to a heap by comparison in the running median** and then getting the balance cases wrong. Push-then-move needs no cases.
 
 ## Exercises
 
@@ -239,10 +336,11 @@ hints:
 ## Senior signals
 
 - You keep a **min**-heap for the k largest and can explain why in one sentence (the root is the eviction candidate).
-- You state top-k as O(n log k) with O(k) space, and you know when quickselect or a plain sort is the better tool.
-- You recognise k-way merge as the engine of external sort, LSM compaction and scatter-gather query merging, and you know it is O(N log k), not O(N log N).
+- You state top-k as O(n log k) with O(k) space, you know only about k ln(n/k) items enter the heap on random input and that a feed sorted by the ranking key is the worst case, and you know when quickselect or a plain sort is the better tool.
+- You recognise k-way merge as the engine of external sort, LSM compaction and scatter-gather query merging, you know it is O(N log k), and you can size the buffers and passes for a merge that does not fit in memory.
 - You can write the two-heap median with the "push to low, rebalance" trick and no case analysis, and you know its limitation (no deletion).
-- You know that production percentiles use sketches (t-digest, HdrHistogram) and can say what the two-heap approach cannot do that they can (merge, bounded memory).
+- You know that top-k by score composes across shards and top-k by count does not, and you can produce the counterexample.
+- You know that production percentiles use mergeable sketches (t-digest, HdrHistogram, bucketed timers) and can say what the two-heap approach cannot do that they can.
 - You put a tiebreaker in every heap tuple without being asked.
 
 ## Check yourself
@@ -267,11 +365,17 @@ hints:
   explanation: >-
     Whatever was pushed, the largest of low is then moved across, so max of low <= min of high holds unconditionally; one size check then restores the balance invariant. Routing by comparison is also correct (ties included) but needs cases for which heap is larger and which side x belongs to. Push-then-move does more heap operations, not fewer.
 - q: >-
-    A sliding-window median needs to remove the element leaving the window. With two plain heaps this is hard because:
-  options: ["Heaps cannot store duplicates, and windows often repeat values", "Both heaps would shrink at once, breaking the size invariant", "A heap cannot remove an arbitrary element without an index", "Removal would change the median, which heaps cannot recompute"]
+    A top-10 job over 200 million random-order items does far fewer than 200 million heap operations. About how many, and what input makes it do the full amount?
+  options: ["About 200 heap operations; input sorted ascending by the ranking key", "About 200 heap operations; input with many duplicate keys", "About 20 million heap operations; input with many duplicate keys", "About 2 million heap operations; input sorted descending by the key"]
+  answer: 0
+  explanation: >-
+    The i-th item enters the heap with probability k/i on random order, so the expected count is about k ln(n/k) + k, around 180 for k = 10 and n = 2 × 10^8; every other item costs one comparison against the root. Ascending input makes every item beat the root and forces the full n log k. Descending input is the best case, and duplicates are rejected by the comparison.
+- q: >-
+    Each of 100 shards returns its local top 10. For which ranking is the merged result guaranteed to be the true global top 10?
+  options: ["Only for an aggregated count, because counts add across shards", "For neither, because shards can hold different numbers of items", "Only for a per-item score, because a global leader must lead its own shard", "For both, because the union of local top-10s always contains the global top-10"]
   answer: 2
   explanation: >-
-    Removal by value is O(n) in a plain heap because it must search first. The standard fix is lazy deletion: record the value to remove with a count of pending removals and discard it when it reaches a root, adjusting the logical sizes so the balance invariant is computed on live elements only.
+    An item with the highest per-item score globally has that score in its own shard, so it is in that shard's top 10. An item's global count is spread across shards, so it can rank below the local top 10 everywhere while leading overall; the fix is to return full counts, a mergeable sketch, or a second round that fetches counts for the union of candidates.
 - q: >-
     A metrics service reports p50 and p99 latency across 500 machines. The engineer proposes each machine keep an exact two-heap median and the coordinator average them. The problem is:
   options: ["Heaps cannot hold floating-point latencies, only integers", "Averaging 500 numbers per query is too slow for a dashboard", "The mean of medians is not the global median; use a sketch", "Two-heap medians cost O(n) per insert, too slow at scale"]

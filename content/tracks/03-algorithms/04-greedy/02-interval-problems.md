@@ -33,16 +33,20 @@ The pattern in the table: problems that *combine* intervals sort by start, becau
 
 Sort by start, walk the list keeping a `current` block. If the next interval starts before (or, for closed intervals, at) `current.end`, extend `current.end = max(current.end, next.end)`. Otherwise emit `current` and start a new one.
 
-Trace `[[1,3],[2,6],[8,10],[15,18]]` (closed intervals, as [Merge Intervals](/practice/merge-intervals) uses):
+Trace `[[8,10],[1,3],[15,18],[2,6],[9,12],[16,17]]` (closed intervals, as [Merge Intervals](/practice/merge-intervals) uses). After the sort: `[1,3],[2,6],[8,10],[9,12],[15,18],[16,17]`.
 
-| next | current before | overlap? | current after |
+| next | current before | `next.start ≤ current.end`? | current after |
 |---|---|---|---|
 | `[1,3]` | (none) | | `[1,3]` |
-| `[2,6]` | `[1,3]` | `2 ≤ 3` yes | `[1,6]` |
+| `[2,6]` | `[1,3]` | `2 ≤ 3` yes, extend | `[1,6]` |
 | `[8,10]` | `[1,6]` | `8 ≤ 6` no, emit `[1,6]` | `[8,10]` |
-| `[15,18]` | `[8,10]` | `15 ≤ 10` no, emit `[8,10]` | `[15,18]` |
+| `[9,12]` | `[8,10]` | `9 ≤ 10` yes, extend | `[8,12]` |
+| `[15,18]` | `[8,12]` | `15 ≤ 12` no, emit `[8,12]` | `[15,18]` |
+| `[16,17]` | `[15,18]` | `16 ≤ 18` yes, `max(18, 17)` keeps 18 | `[15,18]` |
 
-Emit the last block: `[[1,6],[8,10],[15,18]]`.
+Emit the last block: `[[1,6],[8,12],[15,18]]`. The last row is the one that matters: `[16,17]` sits inside `[15,18]`, and without the `max` the block would shrink to `[15,17]`.
+
+Why is the walk correct? Invariant: after processing the first `i` sorted intervals, `out` is the exact merge of those `i` intervals, and `out[-1]` is the only block the `(i+1)`-th interval can touch. The second half holds because every earlier block ended before `out[-1]` started, and the next interval starts at or after `out[-1].start` (that is what sorting by start gave you), so it cannot reach back past `out[-1]`. Each step therefore either extends the last block or opens a new one, and the invariant survives.
 
 ```python
 def merge(intervals):
@@ -83,7 +87,17 @@ Trace `[[1,2],[2,3],[3,4],[1,3]]` with half-open semantics (touching is fine). S
 | `[1,3]` | 3 | `1 < 3` no, remove |
 | `[3,4]` | 3 | `3 ≥ 3` yes, end = 4 |
 
-Three kept, one removed. Why end and not start? Sorting by start and keeping greedily fails on `[[1,100],[2,3],[4,5]]`: you keep `[1,100]` and remove two, when removing `[1,100]` alone is optimal. Sorting by end keeps `[2,3]` first, then `[4,5]`, and removes only the long one. The exchange argument is the activity-selection one: the earliest-ending interval can replace the first interval of any optimal solution.
+Three kept, one removed. Why end and not start? Sorting by start and keeping greedily fails on `[[1,100],[2,3],[4,5]]`: you keep `[1,100]` and remove two, when removing `[1,100]` alone is optimal. Sorting by end keeps `[2,3]` first, then `[4,5]`, and removes only the long one.
+
+The exchange argument is the activity-selection one, and it is worth running once on data where an alternative optimum exists. Take `[[1,3),[2,4),[3,5),[4,6)]`. Greedy keeps `[1,3)` then `[3,5)`: two. The set `{[2,4), [4,6)}` is also a feasible pair, so it is also optimal, and it disagrees with greedy at the first pick:
+
+| step | solution | greedy differs at | swap | still feasible because |
+|---|---|---|---|---|
+| 0 | `[2,4), [4,6)` | first: greedy has `[1,3)` | `[1,3)` in, `[2,4)` out | `[1,3)` ends at 3 ≤ 4, and `[4,6)` starts at 4 ≥ 3 |
+| 1 | `[1,3), [4,6)` | second: greedy has `[3,5)` | `[3,5)` in, `[4,6)` out | ends at 5 ≤ 6, nothing follows |
+| 2 | `[1,3), [3,5)` | none | | greedy's answer, still two intervals |
+
+The swap never shrinks the set and never pushes an end time later, so it never breaks feasibility for whatever follows. That is the entire reason "earliest end" is the right key, and it is why "earliest start" has no such argument: swapping in the earliest-*starting* interval can push the end time later and knock out everything behind it.
 
 Minimum arrows to burst balloons is the same sort with a different loop. Balloons are intervals on a line; an arrow at `x` pops every balloon whose interval contains `x`. Sort by end; shoot at the end of the first balloon; skip every balloon that starts at or before that point; shoot again at the end of the next survivor. For `[[10,16],[2,8],[1,6],[7,12]]` sorted by end: `[1,6],[2,8],[7,12],[10,16]`. Arrow at 6 pops `[1,6]` and `[2,8]` (2 ≤ 6). `[7,12]` starts after 6, so arrow at 12, which also pops `[10,16]`. Two arrows. The greedy choice is "place the arrow as far right as possible without missing the current balloon", and any optimal solution can be shifted to agree with it.
 
@@ -137,7 +151,26 @@ def min_rooms(intervals):
 
 The other solution treats each interval as two *events*: `+1` at `start`, `−1` at `end`. Sort the events by time and keep a running count; the maximum count is the answer. With half-open intervals, ties are broken so that `−1` comes before `+1` at the same time (a room freed at 4 is available for a meeting starting at 4). Flip that tie-break for closed intervals.
 
-For the same five meetings the events are `(1,+1),(2,+1),(3,+1),(4,−1),(4,+1),(5,−1),(5,+1),(6,−1),(7,−1),(8,−1)`; the running count goes `1,2,3,2,3,2,3,2,1,0`, peaking at 3.
+For the same five meetings, here are the heap and the sweep side by side, one row per event. The heap only acts at start events (that is when a meeting asks for a room); the sweep acts at both.
+
+| time | event | sweep count after | heap action at this start | heap after |
+|---|---|---|---|---|
+| 1 | start `[1,4)` | 1 | no room free, push 4 | `[4]` |
+| 2 | start `[2,5)` | 2 | `4 ≤ 2`? no, push 5 | `[4,5]` |
+| 3 | start `[3,6)` | **3** | `4 ≤ 3`? no, push 6 | `[4,5,6]` |
+| 4 | end `[1,4)` | 2 | (nothing; the heap notices at the next start) | `[4,5,6]` |
+| 4 | start `[4,7)` | 3 | `4 ≤ 4`? yes, pop 4, push 7 | `[5,6,7]` |
+| 5 | end `[2,5)` | 2 | | `[5,6,7]` |
+| 5 | start `[5,8)` | 3 | `5 ≤ 5`? yes, pop 5, push 8 | `[6,7,8]` |
+| 6 | end `[3,6)` | 2 | | |
+| 7 | end `[4,7)` | 1 | | |
+| 8 | end `[5,8)` | 0 | | |
+
+Both report 3, and you can see they are the same computation: the sweep count at a start event equals the heap size after that start, because a heap pop happens exactly when an end event has already brought the count down.
+
+Why is the peak the *minimum* number of rooms and not only a lower bound? Lower bound: at time 3 three meetings are in progress, and no two of them can share a room, so any schedule needs three. Achievability: the heap version opens a new room only when no room is free at that instant, so it never holds more rooms than there are meetings in progress, which is never more than the peak. Lower bound equals what one construction achieves, so the peak is the answer.
+
+**The tie-break, and the bug it prevents.** Take two meetings `[1,4)` and `[4,5)`. With ends before starts at equal times, the events are `(1,+1),(4,−1),(4,+1),(5,−1)` and the count goes `1,0,1,0`: one room. With starts first, `(1,+1),(4,+1),(4,−1),(5,−1)` gives `1,2,1,0`: two rooms for meetings that never overlap. In a room-booking system that is a phantom conflict on every back-to-back pair, which is most pairs in a real calendar. Sorting events as `(time, delta)` tuples with `delta = −1` for ends and `+1` for starts gets the half-open tie-break for free, because `−1 < +1`.
 
 If times are small integers you can skip the sort entirely with a difference array: `diff[start] += 1`, `diff[end] -= 1`, then a prefix sum. The prefix-sum viz shows the count materialising from the difference array for these five meetings (index = time 0..8):
 
@@ -148,6 +181,35 @@ If times are small integers you can skip the sort entirely with a difference arr
 ```
 
 Which to use? The heap generalises: if meetings need *specific* rooms or you must report which room each meeting gets, the heap holds (end, room-id) pairs and answers that directly. The sweep line generalises the other way: it answers "how many at time t?" for *every* t in one pass, which is what you want for a load graph, and it is what production calendar and capacity systems actually run. Say both in an interview; implement whichever the follow-up favours.
+
+## Under the hood
+
+**What the sort compares.** `sorted(intervals)` on a list of two-element lists needs no key: CPython compares lists lexicographically in C (`start` first, then `end` on ties), so `[[2,5],[2,3]]` sorts with `[2,3]` first. A `key=lambda iv: iv[0]` adds `n` Python calls and buys nothing here. JavaScript's `sort()` without a comparator converts each element to a string and compares those, so `[[10,12],[2,3],[9,11]].sort()` yields `[[10,12],[2,3],[9,11]]` (`"1" < "2" < "9"`): pass `(a, b) => a[0] - b[0]`, always.
+
+**What the heap costs.** `heapq.heapreplace(ends, e)` is one sift-down of at most $\log_2 k$ comparisons where `k` is the number of rooms in use, and it is cheaper than `heappop` followed by `heappush` (two sifts). For `10⁵` meetings and a peak of 50 rooms that is about `10⁵ × 6` comparisons, well under the `1.7 × 10⁶` the sort already spent. Memory: a two-element Python list is 72 bytes (56-byte header plus two 8-byte slots) and a 2-tuple 56 bytes on 64-bit CPython 3.12, so `10⁵` intervals plus their `2 × 10⁵` events is on the order of 20 MB. That is why the difference array is a trap on real timestamps: meeting times in milliseconds over one day are `8.64 × 10⁷` slots, about 0.7 GB of pointers alone in a Python list, for a problem whose sorted-events version needs a few megabytes.
+
+**Where the sweep runs online.** The batch sweep answers "rooms at peak" for a report. The live path of a calendar or booking service does not re-sweep on every insert; it asks a database. PostgreSQL's range types (`tsrange`, `int4range`) support the overlap operator `&&`, a GiST index answers `WHERE during && '[start, end)'` in $O(\log n)$, and an exclusion constraint `EXCLUDE USING gist (room_id WITH =, during WITH &&)` rejects a double-booking at insert time without any application code. That constraint is the interval-overlap test from the table above, enforced with a lock. In memory the equivalent is an interval tree (a balanced BST augmented with the maximum end in each subtree), which answers "which intervals contain `t`" in $O(\log n + k)$ for `k` results.
+
+**At scale.** "Concurrent streams at peak" for a region is a sweep over session start and stop events; capacity planners run it per minute over a day of sessions, which is a sort of `2n` events and a linear pass, not a heap. The heap version is what you write when each stream needs a specific transcoder slot and you must say which one.
+
+## Failure modes
+
+**Symptom: the room count is one too high on back-to-back meetings, and only there.** *Diagnosis:* the sweep processes starts before ends at equal times, or the heap uses `heap[0] < s` instead of `<=`. Test `[1,4), [4,5)`: a correct implementation returns 1. *Fix:* sort events as `(time, delta)` with `−1` before `+1`, and write the convention as a comment next to the comparison.
+
+**Symptom: the caller's list of intervals is corrupted after `merge` returns.** *Diagnosis:* `out.append(iv)` stored a reference to the caller's inner list and the later `out[-1][1] = max(...)` mutated it in place; with input `[[1,3],[2,6]]` the caller's first interval silently becomes `[1,6]`. *Fix:* append a copy (`[s, e]`), or build tuples, and never mutate function arguments in a helper that looks pure.
+
+**Symptom: a "load over time" job that worked on integer minutes exhausts memory on millisecond timestamps.** *Diagnosis:* it allocates a difference array indexed by time; a day of milliseconds is `8.64 × 10⁷` entries. *Fix:* sort the `2n` events instead, or compress coordinates (map the distinct endpoints to `0..2n−1`, then use the difference array over that index).
+
+**Symptom: intervals merge wrongly in the JavaScript port but not in Python.** *Diagnosis:* `intervals.sort()` compared arrays as strings, so `[10, 12]` sorted before `[2, 3]` and the start-ordered walk saw a start of 2 after a block ending at 12. *Fix:* `intervals.sort((a, b) => a[0] - b[0])`; add a test whose starts have different digit counts.
+
+## Which representation, when
+
+| Approach | Time | Extra memory | Answers | Online updates? |
+|---|---|---|---|---|
+| Sorted events, running count | $O(n \log n)$ | $O(n)$ events | peak load, load at every event time | no, re-sort |
+| Min-heap of end times | $O(n \log n)$ | $O(\text{peak})$ | peak rooms, and which room each meeting gets | append-only in start order |
+| Difference array | $O(n + T)$ | $O(T)$ for `T` time slots | load at every time slot | yes, if `T` is small |
+| Interval tree, or a range type with a GiST index | $O(\log n + k)$ per query | $O(n)$ | overlaps of any query interval | yes, inserts and deletes |
 
 ## Minimum interval query: sort the queries too
 
@@ -261,6 +323,28 @@ hints:
   - "Heap: for each meeting in start order, if heap[0] <= start pop it, then push end. The heap's final size is the answer."
 ```
 
+## Interviewer follow-ups
+
+**"Now return which room each meeting uses."** Model answer: keep the heap of `(end, room_id)` plus a stack of freed room ids; when the earliest-ending room is free by this start, pop it and reuse its id, otherwise allocate `room_id = number of rooms so far`. Still $O(n \log n)$, and the room count is unchanged. Common wrong answer: rebuilding the assignment from the sweep's counts, which knows how many rooms are busy but not which.
+
+**"Meetings arrive one at a time and must be accepted or rejected immediately."** Model answer: the batch sort is gone; keep the accepted intervals in an ordered structure keyed by start (a balanced BST, or a database range column with a GiST index) and test the new interval against its predecessor and successor, $O(\log n)$ per arrival. Wrong answer: re-running the merge on every insert, which is $O(n \log n)$ per arrival and $O(n^2 \log n)$ over the day.
+
+**"Each meeting has a value; maximise the total value that fits in one room."** Model answer: that is weighted interval scheduling, a DP over meetings sorted by end with a binary search for the last compatible meeting, $O(n \log n)$; earliest-end greedy maximises the *count*, not the value. Wrong answer: greedy by value or by value per minute, both of which have three-interval counterexamples.
+
+**"The intervals are closed. What changes?"** Model answer: exactly the three comparisons in the convention list: merge on `s <= end`, keep on `s > last_end`, and sweep starts before ends at equal times. Wrong answer: "nothing", which produces off-by-one room counts on every touching pair.
+
+**"You have 10⁹ intervals in object storage. Peak load?"** Model answer: the sweep needs the events globally sorted, so sort externally (or shard by time range with an overlap margin, sweep each shard, and carry the count across shard boundaries); memory per shard is what you can afford, and the answer is exact. Wrong answer: sampling and calling the peak approximate when the question asked for the capacity you must provision.
+
+## What mid-level engineers get wrong
+
+- **Sorting by start for a selection problem.** One long early interval hides two short ones; the answer is wrong and the tests with three intervals catch it.
+- **Getting the tie-break backwards.** Starts before ends at equal times reports a phantom overlap on every back-to-back pair; in a booking system that is most pairs.
+- **Forgetting the `max` when merging.** A contained interval shrinks the block and loses everything after it.
+- **Mutating the input.** Appending the caller's inner list and then extending it in place corrupts data the caller still holds.
+- **Reaching for a difference array on real timestamps.** Milliseconds over a day is `8.64 × 10⁷` slots; sort the events.
+- **Using JavaScript's default sort on numeric intervals.** `[10, 12]` sorts before `[2, 3]` as strings.
+- **Treating the heap as the only solution to Meeting Rooms II.** The sweep is shorter, needs no heap in JavaScript, and answers load-over-time; the heap answers room assignment. Knowing both is the expected level.
+
 ## Senior signals
 
 - You say **which endpoint you sort by and why** before writing the loop: start for combining, end for selecting.
@@ -269,6 +353,8 @@ hints:
 - You know **two solutions to Meeting Rooms II**, the heap and the sweep line, and which one generalises to room assignment versus load-over-time.
 - You reach for **difference arrays** when times are small integers and for **sorting the queries** when the problem is offline.
 - You notice that every problem in this lesson is $O(n \log n)$ because of the sort, and you say when an already-sorted input makes it $O(n)$.
+- You can give the **lower-bound plus construction** argument for why the peak of the sweep is the minimum number of rooms, not only a bound on it.
+- You know that the online version of every interval problem lives in a **range index** (PostgreSQL `tsrange` with GiST, or an interval tree), and that an exclusion constraint is the overlap test enforced by the database.
 
 ## Check yourself
 
@@ -303,4 +389,10 @@ hints:
   answer: 3
   explanation: >-
     Sorting queries makes the problem offline: sweep queries in increasing order with a min-heap of (size, end); every interval enters the candidate heap once (when its start is passed) and leaves once (when its end is passed), giving O((n + m) log n). Binary search alone cannot handle nested intervals; per-query scans are quadratic, and a point-to-interval map is unbounded when coordinates are large.
+- q: >-
+    A "concurrent sessions at peak" job ran fine on per-minute data and now runs out of memory on millisecond timestamps over a day. What happened, and what is the fix?
+  options: ["It used a heap of end times; switch to a difference array", "It sorted by end time; sorting by start would halve the memory", "It kept every session in memory; sample 10% and scale the peak", "It used a difference array over time; sort the 2n events instead"]
+  answer: 3
+  explanation: >-
+    A difference array is indexed by time, so a day of milliseconds is 8.64 × 10⁷ slots regardless of how many sessions there are, on the order of 0.7 GB of pointers in a Python list. Sorting the 2n start and end events costs memory proportional to the sessions, not the clock, and gives the same exact peak. A heap is not the culprit, the sort key does not change memory, and sampling turns a capacity number you must provision into an estimate.
 ```

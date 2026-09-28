@@ -1,10 +1,10 @@
 ---
 slug: monotonic-deque
 title: Monotonic deque
-description: Sliding window maximum in O(n) with a deque that evicts from both ends, the invariant that makes it work, why it beats a heap, and the prefix-sum extension to shortest subarray with sum at least k.
+description: Sliding window maximum in O(n) with a deque that evicts from both ends, the invariant traced on count-based, expiry-only, time-based and two-deque windows, why it beats a heap and when the heap is required, the prefix-sum extension to shortest subarray with sum at least k, and where the same idea runs inside the Linux TCP stack.
 minutes: 45
 difficulty: medium
-tags: [deque, monotonic-deque, sliding-window, sliding-window-maximum, heap, prefix-sum]
+tags: [deque, monotonic-deque, sliding-window, sliding-window-maximum, heap, prefix-sum, time-window]
 problems: [sliding-window-maximum, max-consecutive-ones-iii]
 ---
 A metrics pipeline reports the maximum request latency over the last 60 seconds, updated every second. The naive implementation rescans the last 60 samples each second; at one sample per millisecond that is 60,000 comparisons per update, and a p99 that jumps every time garbage collection lands during the scan. A heap gets it down to logarithmic per sample but has to deal with samples that expire while buried in the middle of the heap. The right structure does it in constant amortised time per sample with a handful of comparisons, and the idea is the monotonic stack with one addition: the window's *left* edge can now evict too.
@@ -45,9 +45,9 @@ def sliding_max(a, k):
 
 Step 3 uses `<=` because the window `[i−k+1, i]` excludes index `i−k`. At most one index expires per step, because indices enter one per step and the window advances one per step, so a single `if` (not a `while`) is enough. The `<=` in step 1 is a choice: with `<`, equal values would coexist in the deque; both are correct for the maximum, but `<=` keeps the deque shorter and means the front is the *latest* index holding the max, which matters in problems that ask "where" as well as "what".
 
-## A full trace
+## Two full traces
 
-`a = [1, 3, -1, -3, 5, 3, 6, 7]`, `k = 3`.
+`a = [1, 3, -1, -3, 5, 3, 6, 7]`, `k = 3`:
 
 | i | a[i] | back pops | deque (indices) | deque (values) | expire front? | output |
 |---|---|---|---|---|---|---|
@@ -60,34 +60,73 @@ Step 3 uses `<=` because the window `[i−k+1, i]` excludes index `i−k`. At mo
 | 6 | 6 | pop 5, pop 4 | `[6]` | `[6]` | – | 6 |
 | 7 | 7 | pop 6 | `[7]` | `[7]` | – | 7 |
 
-Output `[3, 3, 5, 5, 6, 7]`. Notice that index 1 (value 3) survived from `i = 1` to `i = 3` as the front while smaller values queued behind it, then was evicted by value at `i = 4` before it would have expired at `i = 5`. Both eviction rules are needed; try `[5, 1, 1, 1, 1]` with `k = 2` to see the expiry rule fire (5 must leave at `i = 2` even though nothing bigger arrives).
+Output `[3, 3, 5, 5, 6, 7]`. Index 1 (value 3) survived from `i = 1` to `i = 3` as the front while smaller values queued behind it, then was evicted by the value at `i = 4` before it would have expired at `i = 5`. In this input the expiry rule never fires, which is why a second trace is needed. `a = [5, 1, 1, 1, 1]`, `k = 2`:
+
+| i | a[i] | back pops | deque (indices) | expire front? | output |
+|---|---|---|---|---|---|
+| 0 | 5 | – | `[0]` | – | – |
+| 1 | 1 | – | `[0, 1]` | 0 ≤ −1? no | 5 |
+| 2 | 1 | pop 1 (1 ≤ 1) | `[0, 2]` | 0 ≤ 0: **yes**, drop 0 | 1 |
+| 3 | 1 | pop 2 | `[3]` | – | 1 |
+| 4 | 1 | pop 3 | `[4]` | – | 1 |
+
+Output `[5, 1, 1, 1]`. At `i = 2` nothing bigger than 5 ever arrives, yet 5 must leave because the window `[1, 2]` no longer contains index 0. Both eviction rules are needed; a solution with only back-pops reports 5 forever.
 
 ```viz
 {"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3, "title": "Monotonic deque: evict dominated from the back, expired from the front"}
 ```
 
-## Why O(n)
+## Under the hood: why O(n), and what it costs
 
-Same accounting as the stack: each index is appended once and removed at most once (from either end). Total deque operations ≤ 2n, and each is O(1) on a real deque (`collections.deque`, `ArrayDeque`, `VecDeque`, or an array with two indices in JavaScript). O(n) time, O(k) space, because the deque never holds more than `k` indices.
+Same accounting as the stack: each index is appended once and removed at most once (from either end). Total deque operations ≤ 2n, and each is O(1) on a real deque. O(n) time, O(k) space, because the deque never holds more than `k` indices: for a 60-second window at one sample per millisecond that is at most 60,000 indices, 480 KB of 8-byte slots, and in a typical latency series the deque holds a few dozen because each new high evicts everything behind it.
 
-In JavaScript, do not use `shift()` for the front removal (it is O(n)); keep a `head` index into a plain array and let the array grow. In Python, `collections.deque` is the right tool and `list.pop(0)` is the wrong one, as [Stacks and queues](/learn/data-structures/stacks-queues/stacks-and-queues) explains.
+The constant depends on the deque. `collections.deque` does `popleft`/`append` in about 30–35 ns each on CPython 3.14 (measured in [Stacks and queues](/learn/data-structures/stacks-queues/stacks-and-queues)); a Python `list` used as a deque with `pop(0)` costs O(k) per expiry and turns the algorithm into O(nk). In JavaScript, `shift()` is the same trap (212 ms to drain 100,000 elements on Node 24): keep a `head` index into a plain array and let the array grow. In Rust and Java, `VecDeque` and `ArrayDeque` are ring buffers and the whole pass runs at a few nanoseconds per element.
 
 ## Deque versus heap
 
 The heap solution keeps `(value, index)` pairs in a max-heap; for each window, pop the top while its index is expired ("lazy deletion"), then report the top. Each element is pushed once and popped at most once, so it is O(n log n) time and O(n) space in the worst case (expired entries linger until they reach the top).
 
-| | Monotonic deque | Max-heap with lazy deletion |
-|---|---|---|
-| Time | O(n) | O(n log n) |
-| Space | O(k) | O(n) worst case (expired entries linger) |
-| Handles arbitrary removals? | No: only the oldest can expire | Yes, with lazy deletion or an indexed heap |
-| Handles windows that shrink and grow non-uniformly? | Yes, as long as removals are from the front (oldest) | Yes |
-| Handles "k-th largest in window"? | No | Not directly either; needs two heaps or a balanced BST |
-| Code size | ~10 lines | ~15 lines |
+| | Monotonic deque | Max-heap with lazy deletion | Two heaps / balanced BST | Sparse table |
+|---|---|---|---|---|
+| Time | O(n) | O(n log n) | O(n log n) | O(n log n) build, O(1) per window |
+| Space | O(k) | O(n) worst case (expired entries linger) | O(k) | O(n log n) |
+| Arbitrary removals (cancellations) | No: only the oldest can expire | Yes, lazily | Yes | No (static) |
+| Windows of varying width | Yes, if removals are from the front | Yes | Yes | Yes (any range) |
+| k-th largest in window, median | No | No | Yes | No |
+| Streaming (unbounded n) | Yes | Yes | Yes | No |
 
 The deque wins whenever the elements leave in the same order they arrived, which is exactly what "window" means. The heap is the fallback when expiry is not in arrival order (elements with individual deadlines, for example), or when you need more than the extremum. [Priority queues in practice](/learn/data-structures/heaps/priority-queues-in-practice) covers the heap side and the lazy-deletion idiom.
 
 The senior answer to "sliding window maximum" is: "O(n log n) with a heap and lazy deletion is the safe first answer; the O(n) deque exists because expiry is in arrival order, so we never need to delete from the middle."
+
+## Time-based windows
+
+Production windows are measured in seconds, not samples, and samples arrive irregularly. The deque changes in two places. Expiry compares timestamps: pop the front while `t[front] <= now − W`. And it is a **`while`**, not an `if`: after a two-second gap in a one-second window, several front entries have expired at once. Trace a 3-second window (`W = 3`, expire while `t ≤ now − 3`) over timestamped latencies:
+
+| Sample (t, ms) | back pops | deque `(t, ms)` after push | front expiry | max now |
+|---|---|---|---|---|
+| (0, 40) | – | `[(0,40)]` | – | 40 |
+| (1, 25) | – | `[(0,40), (1,25)]` | – | 40 |
+| (2, 30) | pop (1,25) | `[(0,40), (2,30)]` | – | 40 |
+| (5, 10) | – | `[(0,40), (2,30), (5,10)]` | 0 ≤ 2: drop; 2 ≤ 2: drop | 10 |
+| (6, 35) | pop (5,10) | `[(6,35)]` | – | 35 |
+
+At `t = 5` two entries expired in one step because no sample arrived at 3 or 4; an `if` would have left `(2, 30)` at the front and reported 30 for a window that contains only the sample at 5.
+
+The Linux kernel runs this shape in its TCP stack: `lib/win_minmax.c` tracks the windowed maximum bandwidth and minimum RTT for the BBR congestion controller, keeping only the best three samples with their timestamps rather than a full deque, a bounded approximation of the same invariant chosen because it needs constant memory per socket. [Congestion control](/learn/networking/fundamentals/congestion-control) covers what BBR does with the numbers.
+
+## Two deques: max and min together
+
+"Longest subarray in which `max − min ≤ limit`" needs both extremes of a window whose left edge moves only when the constraint breaks. Keep a decreasing deque for the max, an increasing deque for the min, and a left pointer `l`. Trace `a = [8, 2, 4, 7]`, `limit = 4`:
+
+| r | a[r] | max deque (values) | min deque (values) | max − min | action | window | best |
+|---|---|---|---|---|---|---|---|
+| 0 | 8 | `[8]` | `[8]` | 0 | – | `[0, 0]` | 1 |
+| 1 | 2 | `[8, 2]` | `[2]` | 6 > 4 | `l = 1`; drop index 0 from max deque | `[1, 1]` | 1 |
+| 2 | 4 | `[4]` | `[2, 4]` | 2 | – | `[1, 2]` | 2 |
+| 3 | 7 | `[7]` | `[2, 4, 7]` | 5 > 4 | `l = 2`; drop index 1 from min deque | `[2, 3]` | 2 |
+
+Answer 2. Front expiry here is "index < l" rather than a count, and it can remove from either deque depending on which extreme the departing element was. The same two-deque window with a running sum solves [Max Consecutive Ones III](/practice/max-consecutive-ones-iii)-style constraints when the constraint depends on extremes rather than counts.
 
 ## Extension: shortest subarray with sum at least k
 
@@ -115,16 +154,55 @@ def shortest_subarray_at_least(a, k):
     return best if best <= n else -1
 ```
 
-Trace `a = [2, −1, 2]`, `k = 3`: `P = [0, 2, 1, 3]`. `j = 0`: deque `[0]`. `j = 1`: `P[1] − P[0] = 2 < 3`; `P[0] = 0 < 2`, append: `[0, 1]`. `j = 2`: `P[2] − P[0] = 1 < 3`; back `P[1] = 2 ≥ 1`, pop; `P[0] = 0 < 1`, append: `[0, 2]`. `j = 3`: `P[3] − P[0] = 3 ≥ 3`: best = 3, pop front; `P[3] − P[2] = 2 < 3`; back `P[2] = 1 < 3`, append: `[2, 3]`. Result 3 (the whole array). Each index enters and leaves the deque at most once: O(n).
+Trace `a = [2, −1, 2]`, `k = 3`, `P = [0, 2, 1, 3]`:
 
-This is a monotonic deque over prefix sums, and it is the clean way to handle "at least k" with negatives. If all numbers are non-negative the ordinary two-pointer sliding window suffices, because then the prefix sums are already increasing and the deque degenerates into a single moving left pointer.
+| j | P[j] | front check `P[j] − P[front] ≥ 3` | back pops (`P[back] ≥ P[j]`) | deque after | best |
+|---|---|---|---|---|---|
+| 0 | 0 | – | – | `[0]` | – |
+| 1 | 2 | 2 − 0 = 2, no | – | `[0, 1]` | – |
+| 2 | 1 | 1 − 0 = 1, no | pop 1 (2 ≥ 1) | `[0, 2]` | – |
+| 3 | 3 | 3 − 0 = 3: **yes**, best = 3, pop 0; then 3 − 1 = 2, no | – | `[2, 3]` | 3 |
+
+Result 3 (the whole array). Each index enters and leaves the deque at most once: O(n). If all numbers are non-negative the ordinary two-pointer sliding window suffices, because then the prefix sums are already increasing and the deque degenerates into a single moving left pointer.
 
 ## Other members of the family
 
 - **Sliding window minimum**: flip the comparison; increasing deque.
-- **Both max and min of every window** (for "longest subarray with max − min ≤ limit"): two deques over the same window, one increasing and one decreasing, plus a left pointer that advances while the constraint is violated.
-- **DP with a window constraint** (jump game VI, constrained subsequence sum): `dp[i] = a[i] + max(dp[i−k..i−1])`. The `max` over the last `k` values is a sliding window maximum over the `dp` array as it is produced, which turns an O(nk) DP into O(n). The deque is the standard optimisation for any DP whose transition takes the extremum over a fixed-length window of previous states.
+- **DP with a window constraint** (jump game VI, constrained subsequence sum): `dp[i] = a[i] + max(dp[i−k..i−1])`. The `max` over the last `k` values is a sliding window maximum over the `dp` array as it is produced, which turns an O(nk) DP into O(n). The deque is the standard optimisation for any DP whose transition takes the extremum over a fixed-length window of previous states; [Sequence DP](/learn/algorithms/dynamic-programming/sequence-dp) uses it.
 - **Rolling max/min in streams**: exactly the opening example; the deque holds at most `k` timestamps and each sample costs O(1) amortised.
+
+## Production failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| Window maximum stays at an old spike long after it should have dropped | Time-based expiry written as `if` instead of `while`; a gap in samples left stale entries | `while front.t <= now − W` |
+| Rolling max never decreases at all | Only the back-pop rule implemented; front expiry missing | Add the expiry rule; test `[5, 1, 1, 1, 1]`, `k = 2` |
+| Dashboard's rolling max is wrong after a clock adjustment | Timestamps went backwards, so newer samples "expired" older ones incorrectly | Use a monotonic clock for windowing, never wall-clock |
+| A JavaScript or Python job is O(nk) although the code is "the deque algorithm" | `shift()` / `list.pop(0)` for the front | Head index or `collections.deque` |
+| Memory grows without bound in a streaming max | Deque fed by a loop that never expires (window larger than the stream so far is fine; window never applied is not) | Bound the deque by `k` or by time and assert its length in tests |
+| Wrong answer with equal values in a "where is the max" variant | `<` instead of `<=` on the back pop keeps the earliest index rather than the latest | Choose the comparison from the problem's tie rule |
+| Prefix-sum variant returns nonsense on large inputs in JavaScript | Prefix sums exceeded 2⁵³ | `BigInt` or a language with 64-bit integers |
+
+## Interviewer follow-ups
+
+**"Make it a 60-second window with irregular samples."** Model answer: store `(timestamp, value)`, expire from the front with a `while` on timestamps, and use a monotonic clock; the deque holds as many entries as there are still-relevant local maxima, not one per second. Common wrong answer: keeping the `if`, which breaks after any gap.
+
+**"Now the caller can cancel a sample that is still in the window."** Model answer: the deque cannot delete from the middle, so switch to a heap with lazy deletion (a set of cancelled ids checked when an entry reaches the top) or a balanced BST; O(log n) per operation. Common wrong answer: scanning the deque for the id, which is O(k) per cancellation.
+
+**"Report the window median instead of the max."** Model answer: two heaps (a max-heap for the lower half, a min-heap for the upper) with lazy deletion for expired entries, or an order-statistics tree; the monotonic deque only tracks extremes. Common wrong answer: "sort the window", O(k log k) per step.
+
+**"Why can the DP `dp[i] = a[i] + max(dp[i−k..i−1])` use a deque when the values are produced as you go?"** Model answer: the window slides over `dp` in index order and each `dp[i]` is final when computed, so it is a standard sliding window maximum interleaved with the DP; the deque stores indices into `dp`. Common wrong answer: "the deque needs the whole array up front".
+
+**"What is the space bound, and when is it reached?"** Model answer: O(k), reached on a strictly decreasing input where nothing is ever dominated; on random data it is O(log k) expected, because each element evicts everything smaller behind it. Common wrong answer: O(n).
+
+## What mid-level engineers get wrong
+
+- **Implementing only the back-pop rule**, so the max never expires; the standard test data happens not to exercise expiry.
+- **Writing the time-based expiry with `if`**, which passes tests with regular samples and fails on the first gap in production.
+- **Using `shift()` or `pop(0)`** and reporting the O(n) algorithm as slow.
+- **Reaching for a heap first** without being able to say why the deque suffices, or reaching for the deque when cancellations make the heap necessary.
+- **Storing values rather than indices**, which makes expiry impossible.
+- **Applying the plain two-pointer window to "sum at least k" with negatives**, where the monotone shrink/extend rule no longer holds.
 
 ## Exercises
 
@@ -226,12 +304,12 @@ hints:
 
 ## Senior signals
 
-- You state both eviction rules (dominated from the back, expired from the front) and why a stack cannot do the second.
-- You give the O(n) argument and note that a JavaScript `shift()` would silently make it O(nk).
-- You compare the deque with the lazy-deletion heap and say precisely when the heap is required (expiry not in arrival order, or more than the extremum).
+- You state both eviction rules (dominated from the back, expired from the front), why a stack cannot do the second, and you test the expiry-only input.
+- You give the O(n) argument, quote the O(k) space bound and when it is reached, and note that a JavaScript `shift()` would silently make it O(nk).
+- You can convert the count-based window to a time-based one, know why expiry becomes a `while`, and insist on a monotonic clock.
+- You compare the deque with the lazy-deletion heap and say precisely when the heap is required (cancellations, expiry not in arrival order, medians).
 - You recognise "shortest subarray with sum ≥ k and negatives" as prefix sums plus a monotonic deque, and know the non-negative case degenerates to two pointers.
-- You know the deque optimisation for DPs with a fixed-window max/min transition.
-- You choose `<=` vs `<` in the back-pop deliberately.
+- You know the two-deque max-and-min window and the deque optimisation for DPs with a fixed-window extremum transition.
 
 ## Check yourself
 
@@ -241,7 +319,7 @@ hints:
   options: ["Expired indices are removed from the back, not the front", "One index enters and the window slides by one each step", "Back pops have already removed every index older than the window", "The front is the newest index, so it is the last to expire"]
   answer: 1
   explanation: >-
-    Indices enter one per step and the window's left edge moves by exactly one each iteration, and the deque's indices are increasing, so at most one index (the front) can have just crossed the edge. Back pops remove dominated indices, not old ones, so an old maximum can still sit at the front until it expires. A while loop is harmless but unnecessary.
+    Indices enter one per step and the window's left edge moves by exactly one each iteration, and the deque's indices are increasing, so at most one index (the front) can have crossed the edge in this step. Back pops remove dominated indices, not old ones, so an old maximum can still sit at the front until it expires. In a time-based window with gaps several entries can expire at once, and there a while loop is required.
 - q: >-
     An element a[j] is popped from the back of the deque when a[i] >= a[j] arrives with i > j. Why is it safe to forget a[j] entirely?
   options: ["It has already been reported as the maximum of its window", "The deque must stay within k entries, so something must go", "It can be recovered from the prefix maxima if needed again", "Every future window containing j also contains the larger a[i]"]
@@ -266,4 +344,10 @@ hints:
   answer: 2
   explanation: >-
     The transition is exactly a sliding window maximum over the dp values as they are produced. The deque gives O(1) amortised per step. Memoisation only avoids recomputing dp[i]; each state still scans k predecessors, so it is O(nk). A heap with lazy deletion would also work at O(n log k).
+- q: >-
+    A rolling 60-second maximum built on a monotonic deque of (timestamp, value) pairs sometimes reports a spike from minutes ago. The most likely bug is:
+  options: ["Back pops use `<=`, so equal values evict the newer sample", "The deque stores values only, so timestamps cannot be compared", "The window is count-based, so 60 samples are kept instead of 60 seconds", "Front expiry uses `if`, so after a gap in samples stale entries remain"]
+  answer: 3
+  explanation: >-
+    With irregular samples, several front entries can cross the window edge between two arrivals; an `if` removes only one of them and the next stale entry becomes the reported maximum. Expiry must loop. The other options would produce different symptoms: a count-based window would be wrong constantly, not sometimes, and a value-only deque could not expire at all.
 ```

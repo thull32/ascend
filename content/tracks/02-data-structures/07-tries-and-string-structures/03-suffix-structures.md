@@ -1,7 +1,7 @@
 ---
 slug: suffix-structures
 title: "Suffix arrays, LCP and suffix trees"
-description: Index every suffix of a text once and answer any substring question by binary search; how prefix doubling builds the array in O(n log² n), what the LCP array adds, and what suffix trees and the BWT buy on top.
+description: Index every suffix of a text once and answer any substring question by binary search; prefix doubling, Kasai's LCP and the binary search traced by hand; what a suffix tree costs and what the FM-index and Burrows-Wheeler transform buy on top; and why code search chose trigrams instead.
 minutes: 45
 difficulty: hard
 tags: [strings, suffix-array, lcp, suffix-tree, indexing]
@@ -38,7 +38,7 @@ flowchart TD
 
 The suffix tree of `banana$`. Leaves are labelled with the suffix's starting index; the `$` terminator guarantees no suffix is a prefix of another, so every suffix ends at a leaf.
 
-In practice the suffix tree is rarely built. Each node needs a child map, a parent pointer, a suffix link and an edge label as a (start, end) pair; real implementations cost 20–40 bytes per node and 2n nodes, so 40–80 bytes per text character, and the pointer-chasing construction is cache-hostile. For a human genome that is well over 100 GB. The suffix array holds the same ordering in 4–8 bytes per character.
+The suffix tree is rarely built. Each node needs a child map, a parent pointer, a suffix link and an edge label as a (start, end) pair; real implementations cost 20–40 bytes per node and 2n nodes, so 40–80 bytes per text character, and the pointer-chasing construction is cache-hostile. For a human genome that is well over 100 GB. The suffix array holds the same ordering in 4–8 bytes per character.
 
 ## The suffix array
 
@@ -55,7 +55,9 @@ Sort all suffixes lexicographically; the suffix array `sa` lists their starting 
 
 `sa = [5, 3, 1, 0, 4, 2]`. Six integers; the text itself supplies the characters. This is the suffix tree's leaves read left to right.
 
-**Substring search** is binary search: the suffixes starting with `P` form a contiguous block in sorted order, so two binary searches (first suffix ≥ P, first suffix > P with its last character incremented, or equivalently the first suffix that does not start with P) find the block in O(m log n) comparisons; every position in the block is an occurrence. With the LCP array and some care that drops to O(m + log n).
+### Substring search, traced
+
+The suffixes starting with `P` form a contiguous block in sorted order, so two binary searches find the block: the first suffix ≥ P, then the first suffix that does not start with P. Every position in the block is an occurrence, and the block width is the occurrence count.
 
 ```python
 def search(text, sa, pattern):
@@ -77,9 +79,21 @@ def search(text, sa, pattern):
     return sa[start:lo]                     # occurrences, in suffix order
 ```
 
+Search `ana` in `banana`:
+
+| Phase | lo | hi | mid | suffix at sa[mid] | comparison | next |
+|---|---|---|---|---|---|---|
+| lower | 0 | 6 | 3 | banana | `ban` < `ana`? no | hi = 3 |
+| lower | 0 | 3 | 1 | ana | `ana` < `ana`? no | hi = 1 |
+| lower | 0 | 1 | 0 | a | `a` < `ana`? yes | lo = 1 |
+| upper | 1 | 6 | 3 | banana | starts with `ana`? no | hi = 3 |
+| upper | 1 | 3 | 2 | anana | starts with `ana`? yes | lo = 3 |
+
+The block is ranks 1 and 2, so `ana` occurs twice, at positions `sa[1] = 3` and `sa[2] = 1`. Five comparisons, each reading at most three characters: O(m log n). Note the slice `text[sa[mid]:sa[mid] + m]`: comparing the *whole* suffix instead would cost O(n) per comparison on repetitive text. With the LCP array and some care the search drops to O(m + log n), because characters already known to match need not be re-read.
+
 ### Construction: prefix doubling
 
-The naive build sorts `n` suffixes with a comparison sort, and each comparison can cost O(n), so O(n² log n); on `aaaa…a` every comparison really does scan to the end. The standard practical algorithm is **prefix doubling** (Manber and Myers): sort suffixes by their first character, then by their first 2 characters, then 4, 8, …, and each round is a sort of *pairs of ranks from the previous round*, which are integers.
+The naive build sorts `n` suffixes with a comparison sort, and each comparison can cost O(n), so O(n² log n); on `aaaa…a` every comparison really does scan to the end. In Python the naive `sorted(range(n), key=lambda i: s[i:])` has a worse problem than time: the key slices materialise every suffix, n²/2 characters, which is 32 MB at n = 8,000 and would be 500 GB at n = 10⁶. The standard practical algorithm is **prefix doubling** (Manber and Myers): sort suffixes by their first character, then by their first 2 characters, then 4, 8, …, and each round is a sort of *pairs of ranks from the previous round*, which are small integers.
 
 The key observation: the first `2k` characters of suffix `i` are the first `k` characters of suffix `i` followed by the first `k` characters of suffix `i + k`. If you already know the rank of every suffix by its first `k` characters, the rank by `2k` characters is the rank of the pair `(rank_k[i], rank_k[i + k])`, with a sentinel for `i + k ≥ n`.
 
@@ -102,20 +116,31 @@ def suffix_array(s):
     return sa
 ```
 
-Trace on `banana`. Round 0 (single characters): ranks by character are `b=1, a=0, n=2`, so `rank = [1, 0, 2, 0, 2, 0]`. Round `k = 1`, pairs `(rank[i], rank[i+1])`:
+### Doubling, traced on banana
 
-| i | pair | |
-|---|---|---|
-| 0 | (1, 0) | ba |
-| 1 | (0, 2) | an |
-| 2 | (2, 0) | na |
-| 3 | (0, 2) | an |
-| 4 | (2, 0) | na |
-| 5 | (0, −1) | a |
+Round 0 (single characters): ranks by character are `b = 1, a = 0, n = 2`, so `rank = [1, 0, 2, 0, 2, 0]`. Round `k = 1`, pairs `(rank[i], rank[i + 1])`:
 
-Sorted: 5 (0,−1), then 1 and 3 (0,2), then 0 (1,0), then 2 and 4 (2,0). New ranks `[2, 1, 3, 1, 3, 0]`, with ties between 1/3 and 2/4. Round `k = 2`, pairs `(rank[i], rank[i+2])`: 0:(2,3), 1:(1,1), 2:(3,3), 3:(1,0), 4:(3,−1), 5:(0,−1). Sorted: 5, 3, 1, 0, 4, 2. All distinct, done: `sa = [5, 3, 1, 0, 4, 2]`.
+| i | pair | covers | sorted position | new rank |
+|---|---|---|---|---|
+| 5 | (0, −1) | a | 0 | 0 |
+| 1 | (0, 2) | an | 1 | 1 |
+| 3 | (0, 2) | an | 2 | 1 (tie) |
+| 0 | (1, 0) | ba | 3 | 2 |
+| 2 | (2, 0) | na | 4 | 3 |
+| 4 | (2, 0) | na | 5 | 3 (tie) |
 
-Each round is a sort of `n` integer pairs, O(n log n) with a comparison sort or O(n) with radix sort, and there are O(log n) rounds, so O(n log² n) or O(n log n). Linear-time constructions exist (SA-IS, DC3) and SA-IS is what production libraries use; prefix doubling is what you write by hand.
+New ranks `[2, 1, 3, 1, 3, 0]`, with ties between 1/3 and 2/4. Round `k = 2`, pairs `(rank[i], rank[i + 2])`:
+
+| i | pair | covers | sorted position |
+|---|---|---|---|
+| 5 | (0, −1) | a | 0 |
+| 3 | (1, 0) | ana | 1 |
+| 1 | (1, 1) | anan | 2 |
+| 0 | (2, 3) | bana | 3 |
+| 4 | (3, −1) | na | 4 |
+| 2 | (3, 3) | nana | 5 |
+
+All distinct, done: `sa = [5, 3, 1, 0, 4, 2]`. Each round is a sort of `n` integer pairs, O(n log n) with a comparison sort or O(n) with radix sort. The number of rounds is not log n but about log₂ of the longest repeated substring plus one, because ranks stay tied as long as suffixes agree: `banana` needs 2 rounds, `a` × 64 needs 6, and a genome with long repeats needs many. Total O(n log² n) with `sort`, O(n log n) with radix sort. Linear-time constructions exist (SA-IS, DC3) and SA-IS is what production libraries use; prefix doubling is what you write by hand.
 
 ## The LCP array
 
@@ -153,26 +178,102 @@ def lcp_array(s, sa):
     return lcp
 ```
 
-With `sa` and `lcp` the suffix tree's questions come back:
+### Kasai, traced
+
+| text position i | suffix | rank | predecessor in sorted order | h at start | characters compared | lcp | h carried |
+|---|---|---|---|---|---|---|---|
+| 0 | banana | 3 | anana | 0 | b vs a | 0 | 0 |
+| 1 | anana | 2 | ana | 0 | a, n, a match, then n vs end | 3 | 2 |
+| 2 | nana | 5 | na | 2 | skip 2, then n vs end | 2 | 1 |
+| 3 | ana | 1 | a | 1 | skip 1, then n vs end | 1 | 0 |
+| 4 | na | 4 | banana | 0 | n vs b | 0 | 0 |
+| 5 | a | 0 | none | | reset | 0 | 0 |
+
+Row 2 is the algorithm's saving: `nana` is `anana` minus its first character, `anana` shared 3 with its predecessor, so `nana` shares at least 2 with its own predecessor and the scan starts at 2 instead of 0. `lcp = [0, 1, 3, 0, 0, 2]`.
+
+### What LCP gives back
 
 - **Longest repeated substring**: the maximum LCP value. For `banana` it is 3, `ana`, at `sa[2]` and `sa[1]`.
 - **Number of distinct substrings**: n(n + 1)/2 − Σ lcp. `banana` has 21 − 6 = 15 distinct substrings.
-- **Longest common substring of two texts**: build the array of `A + "#" + B`, then take the maximum LCP between adjacent suffixes that start on different sides of the separator.
+- **Longest common substring of two texts**: build the array of `A + "#" + B`, then take the maximum LCP between adjacent suffixes that start on different sides of the separator. For `banana` and `bandana` the generalised array has 14 entries, the maximum cross-text LCP is 3, and the substring is `ana`.
 - **Count occurrences of P**: the width of the block found by binary search.
 - **Longest substring occurring at least k times**: maximum over windows of `k − 1` consecutive LCP values of the window minimum, which is a sliding-window minimum with a [monotonic deque](/learn/data-structures/stacks-queues/monotonic-deque).
 
+## Under the hood: the Burrows-Wheeler transform and the FM-index
+
+Sort all *rotations* of `banana$` and read the last column:
+
+| Sorted rotation | Last character |
+|---|---|
+| `$banana` | a |
+| `a$banan` | n |
+| `ana$ban` | n |
+| `anana$b` | b |
+| `banana$` | $ |
+| `na$bana` | a |
+| `nana$ba` | a |
+
+The last column, `annb$aa`, is the **Burrows-Wheeler transform**. Because `$` is unique and smallest, sorting rotations is the same as sorting suffixes, so the BWT is `text[sa[i] − 1]` for each rank: one byte per character, derived from the suffix array. It has two properties that make it an index. First, it clusters characters that share a right context (the `n`s that precede `a` sit together), which is why `bzip2` applies it to 900 KB blocks and then compresses the runs. Second, the **LF mapping**: the k-th occurrence of a character `c` in the last column is the same text character as the k-th occurrence of `c` in the first column, and the first column is implicit (a count table `C[c]` = number of characters smaller than `c`: `$` 0, `a` 1, `b` 4, `n` 5).
+
+That gives **backward search**, which counts a pattern without the text and without the suffix array. Process `ana` from its last character. The rows starting with `a` are `[C[a], C[b]) = [1, 4)`. Prepend `n`: the new rows are `[C[n] + occ(n, 1), C[n] + occ(n, 4)) = [5 + 0, 5 + 2) = [5, 7)`, where `occ(c, i)` counts `c` in the first `i` characters of the BWT. Prepend `a`: `[C[a] + occ(a, 5), C[a] + occ(a, 7)) = [1 + 1, 1 + 3) = [2, 4)`. Two rows, so two occurrences, in O(m) steps with O(1) each if `occ` is answered from precomputed checkpoints. Locating them needs the suffix array, which the **FM-index** samples (every 32nd entry, say) and reconstructs by walking the LF mapping to the nearest sample. The result stores a genome's suffix ordering in roughly one byte per base plus the samples, a few gigabytes for a human genome instead of the 25 GB a 64-bit suffix array would need, and read aligners such as BWA and Bowtie answer "where does this 100-base read occur" in microseconds against it.
+
 ## Where these structures run
 
-- **Bioinformatics.** Read alignment against a reference genome (BWA, Bowtie) uses the **FM-index**, a compressed form of the suffix array built on the Burrows-Wheeler transform, which stores the genome's suffix ordering in about 1 byte per base and answers "where does this 100-base read occur" in microseconds.
-- **Compression.** `bzip2` applies the Burrows-Wheeler transform, which is the last column of the sorted rotations, essentially the suffix array of the block; the transform groups similar contexts together so that a simple move-to-front and Huffman stage compresses well.
-- **Code and log search** mostly does not use suffix arrays. Google Code Search and its descendants (Zoekt, ripgrep's `-F` planning) use **trigram indexes**: a posting list per 3-character sequence, intersected to find candidate documents, then verified by a regex. Trigram indexes update incrementally and shard trivially; suffix arrays are static and monolithic. Suffix arrays win when the text is fixed and queries are arbitrary substrings with exact counts.
+- **Bioinformatics.** Read alignment against a reference genome uses the FM-index above; genome assemblers use suffix arrays and their LCP for overlap detection.
+- **Compression.** `bzip2` is the BWT plus move-to-front and Huffman coding; the sort of each block is a suffix array build.
+- **Code and log search** mostly does not use suffix arrays. Google Code Search and its descendants (Zoekt, the index behind Sourcegraph) use **trigram indexes**: a posting list per 3-character sequence, intersected to find candidate documents, then verified by a regex. Trigram indexes update incrementally and shard trivially; suffix arrays are static and monolithic. Suffix arrays win when the text is fixed and queries are arbitrary substrings with exact counts.
 - **Plagiarism and near-duplicate detection** use the generalised suffix array or, at scale, winnowed rolling hashes (the [Rabin-Karp idea](/learn/data-structures/tries-and-string-structures/string-matching)).
 
 The honest caveat: suffix structures index a **static** text. Append one character and, in general, the whole array must be rebuilt. Dynamic variants exist and are research-grade. If the text changes, the answer is usually a trigram or n-gram index, or a re-index on a schedule.
 
+## Costs and trade-offs
+
+| Structure | Build | Memory per character | Substring query | Extra queries | Updates |
+|---|---|---|---|---|---|
+| Suffix trie | O(n²) | O(n) nodes per character | O(m) | all | none |
+| Suffix tree | O(n) Ukkonen | 40–80 bytes | O(m) | longest repeat, LCS, in O(n) | none |
+| Suffix array | O(n) SA-IS, O(n log² n) doubling | 4 bytes (`int32`, n < 2³¹) or 8 | O(m log n), O(m + log n) with LCP | with LCP: the tree's questions | rebuild |
+| FM-index | O(n) plus BWT | about 1 byte plus sampled array | O(m) count, locate via samples | count, locate | rebuild |
+| Trigram index | O(n) | posting lists, a few bytes per position | candidate set then verify | regex over candidates | per document |
+
+Memory arithmetic matters in Python: a `list` of 10⁶ ints is about 36 MB (8-byte slot plus a 28-byte int object each) against 4 MB for `array('i')` or a NumPy `int32` array, so a suffix array of a 100 MB text is 3.6 GB as a list and 400 MB as an array.
+
+## Production failure modes
+
+**The index build eats memory and dies.** Symptom: building a suffix array for a few-megabyte text takes gigabytes. Diagnosis: the naive build slices every suffix (n²/2 characters), or the array is a Python list of ints at 36 bytes per entry. Fix: prefix doubling or a library build (SA-IS), and an `array`/NumPy `int32` for the result.
+
+**Queries are slow on repetitive text.** Symptom: substring search over a log file with long repeated lines takes far longer than O(m log n) predicts. Diagnosis: the binary search compares whole suffixes, O(n) each on repeats, or the doubling build runs many rounds on long repeats. Fix: compare only `m` characters per probe, use LCP to skip known matches, and use a linear-time build.
+
+**Indices overflow at 2³¹.** Symptom: garbage positions once the text exceeds about 2.1 GB. Diagnosis: 32-bit suffix array entries. Fix: 40-bit or 64-bit entries, or an FM-index with sampled positions.
+
+**The index is stale.** Symptom: new documents are not found; old matches point into deleted text. Diagnosis: a static structure over a changing corpus with no rebuild schedule. Fix: a trigram index with per-document updates, or scheduled rebuilds with the old index serving until the new one is ready.
+
+**A hash-based shortcut gives a wrong answer.** Symptom: "longest duplicate substring" returns a non-duplicate on one input. Diagnosis: the binary-search-on-length solution compared rolling hashes without verification. Fix: verify candidates, or use the exact LCP maximum.
+
 ## In interviews
 
-Suffix arrays appear in "hard" string problems and in the follow-up to a hash-based solution: "your rolling hash could collide; can you make it exact?" Recognise the shape: a fixed string, many substring questions, or a question about *all* substrings (longest repeated, count distinct, longest common). Say "suffix array plus LCP" and give the complexity of prefix doubling. Then, unless the interviewer wants the construction, use the O(n² log n) naive sort and spend the time on the LCP-based reasoning, which is where the insight is. `longest-palindromic-substring` is usually solved by expand-around-centre or Manacher, but the suffix-array solution (LCP between `s` and `reverse(s)` at mirrored positions) is a legitimate O(n log n) answer and shows range.
+Suffix arrays appear in "hard" string problems and in the follow-up to a hash-based solution: "your rolling hash could collide; can you make it exact?" Recognise the shape: a fixed string, many substring questions, or a question about *all* substrings (longest repeated, count distinct, longest common). Say "suffix array plus LCP" and give the complexity of prefix doubling. Then, unless the interviewer wants the construction, use the naive sort and spend the time on the LCP-based reasoning, which is where the insight is. `longest-palindromic-substring` is usually solved by expand-around-centre or [Manacher](/learn/advanced-data-structures/advanced-strings/manacher-and-palindromes), but the suffix-array solution (LCP between `s` and `reverse(s)` at mirrored positions) is a legitimate O(n log n) answer and shows range. The [advanced suffix array lesson](/learn/advanced-data-structures/advanced-strings/suffix-arrays-and-lcp) covers the O(m + log n) search and range-minimum queries over LCP.
+
+## Interviewer follow-ups
+
+**"Longest duplicate substring of a 10⁵-character string."** Model answer: suffix array plus LCP, the maximum LCP value, O(n log n) exact; or binary search on the length with rolling hashes, O(n log n) expected, verified. Common wrong answer: try every pair of positions, O(n²) or worse.
+
+**"How many distinct substrings does the string have?"** Model answer: n(n + 1)/2 minus the sum of the LCP array, in one pass after the build. Common wrong answer: insert every substring into a set, O(n²) memory.
+
+**"Smallest rotation of a string."** Model answer: the suffix array of `s + s` restricted to starts below `n` gives it, or Booth's algorithm in O(n). Common wrong answer: generate all rotations and sort, O(n² log n).
+
+**"The corpus receives a thousand edits an hour. Suffix array?"** Model answer: no; a trigram or n-gram index with per-document updates, verifying candidates with a regex or exact search. Common wrong answer: "rebuild the array on each edit".
+
+**"A 3-billion-base genome and millions of short reads."** Model answer: an FM-index (BWT plus sampled suffix array, about a byte per base), backward search for counting in O(m), locate via samples. Common wrong answer: a suffix tree, which needs well over 100 GB.
+
+## What mid-level engineers get wrong
+
+- **Building with `key=lambda i: s[i:]`** on anything larger than a test string.
+- **Comparing whole suffixes** in the binary search, which is O(n) per probe on repetitive text.
+- **Storing the array as a Python list**, nine times the memory of an `int32` array.
+- **Presenting the suffix tree as the practical structure** when the array holds the same ordering in a tenth of the memory.
+- **Proposing a suffix array for a corpus that changes** without a rebuild strategy.
+- **Assuming the number of doubling rounds is log n** when it is governed by the longest repeat.
 
 ## Exercises
 
@@ -280,9 +381,10 @@ hints:
 ## Senior signals
 
 - You explain suffix structures as "preprocess the text, not the pattern" and know when that is the right direction.
-- You know the suffix trie is O(n²), the suffix tree is O(n) but 40–80 bytes per character, and the suffix array is the same ordering in 4–8 bytes per character.
-- You can describe prefix doubling in two sentences and give its O(n log² n) bound, and you know linear-time builds (SA-IS) exist.
+- You know the suffix trie is O(n²), the suffix tree is O(n) but 40–80 bytes per character, the suffix array is the same ordering in 4–8 bytes per character, and the FM-index gets to about one byte.
+- You can trace the binary search and Kasai's carry by hand, describe prefix doubling in two sentences, give its bound, and say that the number of rounds is set by the longest repeat.
 - You know the LCP array is what turns the array back into a tree, and you can name three questions it answers (longest repeat, distinct substrings, longest common substring).
+- You can explain the BWT as the last column of sorted rotations and backward search as two table lookups per pattern character.
 - You know real code search uses trigram indexes, real genomics uses the FM-index, and you can say why suffix arrays lost one battle and won the other.
 - You state the static-text limitation before anyone asks.
 
@@ -313,6 +415,12 @@ hints:
   answer: 0
   explanation: >-
     Dropping the first character from both suffixes of a matching pair leaves a pair that still matches for h-1 characters and is still ordered, so the true predecessor of suffix i+1 matches at least that much. That is why Kasai processes suffixes in text order, not sorted order: neighbouring entries in the sorted array have no such relationship. h decreases by at most 1 per step, so total increases are bounded by 2n.
+- q: >-
+    Backward search on the BWT of banana$ for the pattern ana narrows the row range as [1, 4), then [5, 7), then [2, 4). What does the final range mean?
+  options: ["The pattern occurs twice, at rows 2 and 3 of the sorted suffixes", "The pattern's first character sits in rows 2 and 3 of the last column", "The pattern occurs once, spanning rows 2 through 4", "The pattern occurs at text positions 2 and 3"]
+  answer: 0
+  explanation: >-
+    Each step prepends a pattern character using the C table and an occurrence count, and the range is the block of sorted suffixes (rows) that start with the pattern processed so far; its width, 2, is the occurrence count. Turning rows into text positions needs the sampled suffix array, which here gives positions 3 and 1.
 - q: >-
     A team wants substring search over a repository that receives hundreds of commits per hour. A suffix array over the whole repository is a poor fit because:
   options: ["Its queries cost O(n) each, because every search must scan the whole array", "Its memory is 40-80 bytes per character, which is too much for a large repository", "It cannot index binary files, which most repositories contain in large numbers", "It indexes a static text, so every commit forces a rebuild of the whole array"]
