@@ -1,43 +1,70 @@
 ---
 slug: jvm-essentials
-title: "JVM essentials: memory, garbage collection and concurrency in Java services"
-description: How the JVM compiles, lays out and collects memory, what the Java Memory Model guarantees, which concurrency utilities to reach for, and why it all matters in Netflix-scale Java services.
+title: "JVM essentials: JIT tiers, heap layout, G1 and ZGC, and concurrency in Java services"
+description: How the JVM compiles code through its JIT tiers, lays out and collects memory with G1 and ZGC, what the Java Memory Model guarantees, what the collections really cost, and which concurrency utilities to reach for, all measured on JDK 21, with why it matters in Netflix-scale Java services.
 minutes: 30
 difficulty: hard
-tags: [java, jvm, garbage-collection, java-memory-model, concurrency, virtual-threads, languages]
+tags: [java, jvm, jit, garbage-collection, g1, zgc, java-memory-model, concurrency, virtual-threads, languages]
 ---
 A Java service runs at a steady 2,000 requests per second with a p99 of 40 ms. Every few minutes the p99 jumps to 900 ms for a few seconds, while CPU and traffic stay flat. The GC log lines up exactly: a full collection of a 6 GB heap that a new in-memory cache has filled with long-lived objects. A week later the same service, moved to Kubernetes with a 4 GiB memory limit and `-Xmx4g`, is OOM-killed by the kernel with no Java exception anywhere.
 
-Neither bug is in the business logic. Both come from not knowing what the runtime underneath is doing. The JVM runs a large share of the world's backend fleets, and Netflix in particular runs a very large fleet of Java services. At the senior bar you are expected to reason about JIT warm-up after a deploy, which collector is running and why it pauses, how much memory the process really uses, and what the Java Memory Model promises about concurrent code. This lesson covers each by mechanism.
+Neither bug is in the business logic. Both come from not knowing what the runtime underneath is doing. The JVM runs a large share of the world's backend fleets, and Netflix in particular runs a large fleet of Java services. At the senior bar you are expected to reason about JIT warm-up after a deploy, which collector is running and why it pauses, how much memory the process really uses, and what the Java Memory Model promises about concurrent code. Every number below was measured on OpenJDK 21.0.12 on a 32-thread Ryzen 9 9950X3D under WSL2; treat them as orders of magnitude elsewhere.
 
-## How the JVM runs your code
+## How the JVM runs your code: tiers, measured
 
-`javac` compiles Java to platform-independent **bytecode**. At runtime the JVM loads classes lazily, starts executing bytecode in an interpreter, and profiles it. Hot methods are compiled by the **tiered JIT**: C1 compiles quickly with profiling instrumentation, and C2 later recompiles the hottest code aggressively using what the profile revealed (inlining, escape analysis that can eliminate allocations, devirtualising interface calls that only ever see one implementation). If a later event breaks an assumption, for example a second implementation of that interface gets loaded, the JVM *deoptimises* back to the interpreter and recompiles.
+`javac` compiles Java to bytecode. At run time the JVM loads classes lazily, interprets bytecode, and profiles it. Hot methods climb the **tiers**: tier 0 is the interpreter; tier 3 is C1, a fast compiler, emitting code that still collects profiles; tier 4 is C2, which recompiles using the profile (inlining, escape analysis that removes allocations, devirtualising calls that have only ever seen one class). Here is a method summing `area()` over 10,000 shapes, timed per call as the JVM warms up:
 
-Two production consequences:
+```java
+static double work(Shape[] shapes) {
+    double total = 0;
+    for (Shape s : shapes) total += s.area();   // an interface call per element
+    return total;
+}
+```
 
-- **Warm-up.** A freshly started instance is interpreted and cold. For its first seconds to minutes it is slower and allocates more, so every rolling deploy shows a latency bump. Mitigations: ramp traffic to new instances gradually (load-balancer slow start, canaries), send synthetic warm-up requests before marking the instance healthy, and use class-data sharing to cut class-loading time.
-- **Benchmarks lie by default.** A naive timing loop measures the interpreter, then the JIT, then possibly a loop the JIT deleted because its result was unused. Use JMH, which handles warm-up, dead-code elimination and forking. The [benchmarking pitfalls](/learn/systems/performance-engineering/benchmarking-pitfalls) lesson covers why.
+| Calls | Time per call | What the JVM is doing |
+|---|---|---|
+| 1 | 229 µs | Interpreting; loading and linking classes |
+| 3–10 | 125 µs | Interpreting (with `-Xint`, every call stayed at 110–118 µs) |
+| 11–100 | 11.8 µs | C1 code at tier 3, still profiling |
+| 1,001–2,000 | 3.7 µs | C2 code at tier 4: `area()` inlined, one receiver class seen |
+| A `Circle` class appears; call 2,001 | 441 µs | Deoptimised: C2's assumption broke, back to the interpreter |
+| 2,011–3,000 | 4.6 µs | Recompiled for two receiver classes |
 
-Kotlin, Scala and Clojure compile to the same bytecode and run on the same runtime, so everything below applies to them too.
+`-XX:+PrintCompilation` shows the same story in the runtime's words. Among its lines were `Warm2::work @ 11 (42 bytes)` at tier 3 and then 4 with a `%` flag (on-stack replacement: the running loop at bytecode 11 was swapped for compiled code mid-call), then `Warm2::work (42 bytes)` at tier 4, and after `Circle` loaded, `Warm2::work (42 bytes) made not entrant` (the compiled code was invalidated) followed by a fresh tier-4 compile. C1 alone (`-XX:TieredStopAtLevel=1`) plateaued at 4.9 µs, so C2's profile-driven work bought the last 25%, while interpreter to compiled was a factor of 30.
+
+Two production consequences. **Warm-up**: a fresh instance is up to 30 times slower on its hot paths for its first seconds, and every rolling deploy shows a latency bump unless traffic ramps gradually (load-balancer slow start, canaries, synthetic warm-up requests before the instance is marked healthy). **Benchmarks lie by default**: a timing loop measures the interpreter, then C1, then C2, or a loop C2 deleted because its result was unused. Use JMH, which handles warm-up, dead-code elimination and forking ([benchmarking pitfalls](/learn/systems/performance-engineering/benchmarking-pitfalls)). Kotlin, Scala and Clojure compile to the same bytecode, so all of this applies to them.
 
 ## Memory layout: the process is bigger than the heap
 
 | Region | Holds | Sized by |
 |---|---|---|
 | Java heap | Objects and arrays | `-Xmx`, or `-XX:MaxRAMPercentage` of the container limit |
-| Thread stacks | One per platform thread; frames with locals | `-Xss` (about 1 MiB reserved per thread by default on 64-bit Linux) |
-| Metaspace | Class metadata | Grows with loaded classes; `-XX:MaxMetaspaceSize` |
+| Thread stacks | One per platform thread | `-Xss` (1 MiB reserved per thread by default on 64-bit Linux) |
+| Metaspace, class space | Class metadata | Grows with loaded classes; `-XX:MaxMetaspaceSize` |
 | Code cache | JIT-compiled machine code | `-XX:ReservedCodeCacheSize` |
+| GC data structures | Remembered sets, card tables, mark bitmaps | Proportional to heap size and collector |
 | Direct buffers | Off-heap I/O buffers (NIO, Netty) | `-XX:MaxDirectMemorySize` |
 
-The heap is only part of the process. A service with `-Xmx4g`, 400 threads, 200 MB of metaspace and a Netty pool of direct buffers uses well over 4 GiB of resident memory, so in a 4 GiB container the kernel kills it without any `OutOfMemoryError`. The rule: set the heap to roughly 50 to 75% of the container limit. The JVM has been container-aware since JDK 10 (backported to 8u191), but its default maximum heap is only 25% of the container's memory, so an untuned 4 GiB pod gets a 1 GiB heap. Set `-XX:MaxRAMPercentage=70` or an explicit `-Xmx`.
+Native Memory Tracking makes it concrete. A JVM with a 1 GB heap, about 320 threads and 64 MB of direct buffers (`-XX:NativeMemoryTracking=summary`, then `jcmd <pid> VM.native_memory summary`) reported 1,248 MB committed: the 1,024 MB heap, 102 MB of G1's own data structures, 64 MB of direct buffers, 33 MB of thread stacks actually touched (347 MB reserved) and a few MB of code and class data. A real service loads far more classes and code than this toy, so the gap grows. A heap equal to the container limit is therefore an OOM kill waiting to happen, with no `OutOfMemoryError`, because the kernel kills the process from outside. Set the heap to roughly 50 to 75% of the limit. The JVM has been container-aware since JDK 10 (backported to 8u191), but its default maximum heap is 25% of the container's memory, so an untuned 4 GiB pod gets a 1 GiB heap: set `-XX:MaxRAMPercentage=70` or an explicit `-Xmx`.
 
-**Object sizes** on a 64-bit HotSpot JVM with compressed pointers: a 12-byte header (mark word plus class pointer), fields, then padding to a multiple of 8. `new Object()` is 16 bytes, an `Integer` is 16 bytes, a `Long` is 24. An `ArrayList<Integer>` of a million elements is a 4 MB array of references plus a million 16-byte `Integer` objects, about 20 MB, against 4 MB for an `int[]`. Boxing is a memory and GC cost, not just syntax.
+## Object sizes and the collections' real costs
 
-**Compressed oops.** Below about 32 GB of heap, the JVM stores references as 32-bit offsets scaled by 8, halving the size of every pointer. Cross that line and references become 64-bit, so a 34 GB heap can hold *fewer* objects than a 31 GB one. This is why you see heaps capped at 31 GB in production.
+On 64-bit HotSpot with compressed pointers (the default below about 32 GB of heap), an object is a 12-byte header, its fields, then padding to a multiple of 8. A class histogram (`jcmd <pid> GC.class_histogram`) of a program holding a million-element `ArrayList<Integer>`, a million-entry `HashMap<Integer, Integer>`, an `int[1_000_000]` and a `long[1_000_000]` reported:
 
-**The `Integer` cache** is the boxing bug every Java interviewer knows. `Integer.valueOf` caches -128 to 127:
+| Class | Instances | Bytes each | What it is |
+|---|---|---|---|
+| `java.lang.Integer` | 3,000,262 | 16 | Every boxed value outside the cache, keys and values both |
+| `java.util.HashMap$Node` | 1,001,015 | 32 | Hash, key, value, next pointer, header |
+| `HashMap$Node[]` (the table) | 1 large | 4 per slot | 2²¹ slots for a million entries at load factor 0.75: 8.4 MB |
+| `int[]` | 1 | 4 per element | 4.0 MB |
+| `long[]` | 1 | 8 per element | 8.0 MB |
+
+Add it up: the `ArrayList<Integer>` costs about 5 MB of references (capacity grows by half each time, so some slots are empty) plus 16 MB of `Integer` objects, about 21 MB against 4 MB for the `int[]`. The `HashMap<Integer, Integer>` costs 32 MB of nodes, 8 MB of table and 32 MB of boxed keys and values, about 72 bytes per entry, strikingly close to the 74 bytes CPython's dict measured. Boxing is a memory and GC cost, not only syntax; primitive collections (fastutil, Eclipse Collections) or arrays remove it on hot paths.
+
+**Compressed oops** store references as 32-bit offsets scaled by 8. Cross about 32 GB of heap and references double to 64 bits, so a 34 GB heap can hold *fewer* objects than a 31 GB one, which is why production heaps are often capped at 31 GB.
+
+**The `Integer` cache** is the boxing bug every Java interviewer knows. `Integer.valueOf` caches −128 to 127, and `==` on boxed values compares references:
 
 ```java
 Integer a = 127, b = 127, c = 128, d = 128;
@@ -50,11 +77,9 @@ need.put('x', 1000); have.put('x', 1000);
 if (need.get('x') == have.get('x')) { /* never runs: compares references */ }
 ```
 
-The map version is a classic failure in sliding-window solutions: the code passes every small test and fails once a count exceeds 127.
+## Garbage collection: G1 and ZGC, measured
 
-## Garbage collection
-
-JVM collectors rely on the **generational hypothesis**: most objects die young. The young generation (Eden plus two survivor spaces) is collected by *copying* the few live objects out and discarding the rest wholesale, so its cost is proportional to what survives, not to what was allocated. Allocation itself is a pointer bump inside a thread-local buffer, a few nanoseconds. Objects that survive several young collections are promoted to the old generation, which is collected less often and more expensively.
+JVM collectors rely on the generational hypothesis: most objects die young. Allocation is a pointer bump inside a thread-local buffer; a young collection copies the few live objects out of Eden and discards the rest wholesale, so its cost is proportional to survivors, not to garbage. Survivors of several young collections are promoted to the old generation. A worked frequency: 500 MB/s of allocation into a 1 GB Eden means a young collection about every 2 seconds; double Eden and it runs every 4, each copying roughly the same live data, so total young-GC work halves. Allocation rate and young-generation size are the first two levers. The [memory management lesson](/learn/foundations/how-code-runs/memory-management) covers the tracing mechanics.
 
 ```viz
 {"type": "memory", "algorithm": "gc-mark-sweep",
@@ -62,47 +87,53 @@ JVM collectors rely on the **generational hypothesis**: most objects die young. 
  "caption": "Roots are thread stacks, static fields and JNI handles. Everything reachable is live and everything else is garbage, cycles included. JVM collectors then copy or compact live objects instead of only sweeping, which is what keeps allocation a pointer bump."}
 ```
 
-A worked frequency calculation: a service allocates 500 MB/s and has a 1 GB Eden, so a young collection runs about every 2 seconds. Double Eden to 2 GB and it runs every 4 seconds, while each collection copies roughly the same amount of surviving data (requests in flight). Total young-GC work halves. That is why reducing the **allocation rate** and giving the young generation room are the first two levers, long before exotic flags.
+**G1**, the default since JDK 9, splits the heap into equal regions (1 MB each for a 1 GB heap, as `-Xlog:gc+init` reported) and collects the regions with the most garbage first against a pause-time goal, 200 ms by default. **ZGC** marks *and* relocates concurrently using load barriers, so its pauses do not grow with the heap; it became generational in JDK 21 behind `-XX:+ZGenerational`, generational by default in JDK 23 and generational-only in JDK 24. The same program (512 MB of long-lived data, then 4.2 GB of short-lived 112-byte arrays, one thread, a 2 GB heap) under each collector with `-Xlog:gc`:
 
-| Collector | Design | Choose it for |
-|---|---|---|
-| Serial | Single-threaded, stop-the-world | Tiny heaps, one-CPU containers |
-| Parallel | Multi-threaded, stop-the-world, maximises throughput | Batch jobs where pauses do not matter |
-| G1 (default since JDK 9) | Heap split into regions; collects the regions with most garbage first against a pause-time goal (200 ms by default) | General-purpose services with heaps up to tens of GB |
-| ZGC | Concurrent marking *and* compaction using load barriers; pauses typically well under a millisecond regardless of heap size; generational since JDK 21 | Latency-sensitive services, large heaps |
-| Shenandoah | Concurrent compaction with a different barrier design | Similar goals to ZGC |
+| Collector | Stop-the-world pauses | Median | Longest | Wall time, two runs |
+|---|---|---|---|---|
+| Parallel | 9 | 5.1 ms | 52 ms (promoting the live set) | 257, 253 ms |
+| G1 | 12 | 3.7 ms | 15.8 ms | 1,082, 670 ms |
+| Generational ZGC | 38 | 0.010 ms | 0.017 ms | 442, 474 ms |
+| Serial | not logged | | | 236, 238 ms |
 
-Concurrent collectors still fail in one way: if the application allocates faster than the collector can reclaim, threads stall waiting for memory (ZGC calls this an allocation stall; G1 falls back to a full, stop-the-world collection). Low-pause collectors trade CPU and memory headroom for latency; they do not make allocation free.
+Read the table as a trade, not a ranking. ZGC's pauses were three orders of magnitude shorter; Parallel and Serial finished this single-threaded allocation loop fastest because they do no concurrent work and need no barriers on every reference; G1 sits between on pauses and paid the most here for its barriers and concurrent refinement. One synthetic loop is not your service, which is exactly why you measure with your own GC logs.
 
-The diagnosis order a senior engineer follows: turn on GC logging (`-Xlog:gc*:file=gc.log`), measure allocation rate and the live set (heap size right after a full or old collection), size the heap at a few times the live set, pick the collector for the goal (throughput or tail latency), and only then touch tuning flags.
+## When low-pause collectors still hurt
+
+Two failure shapes, both measured. **Humongous objects in G1**: an object of half a region or more gets whole regions to itself. With a 1 GB heap, 1,048,576-byte arrays (a 1 MiB payload plus a 16-byte header) each needed two 1 MB regions, so only 511 fit (511 MB of data) before `OutOfMemoryError`, while 1,000,000-byte arrays fit 1,022 times and Parallel fit 995 of the 1 MiB arrays. **Allocation stalls in ZGC**: with the same 512 MB live set in a 700 MB heap, ZGC's pauses stayed sub-millisecond but the log showed 33 `Allocation Stall (main)` events totalling 22.5 ms, the longest 1.9 ms: the application thread waited because the concurrent collector could not free memory fast enough. G1 in the same squeeze ran 96 young pauses. Low-pause collectors trade CPU and headroom for latency; they do not make allocation free.
+
+The diagnosis order a senior follows: turn on GC logging (`-Xlog:gc*:file=gc.log`), measure allocation rate and the live set (heap after a full or old collection), size the heap at a few times the live set, pick the collector for the goal (throughput or tail latency), and only then touch tuning flags.
 
 ## The Java Memory Model
 
-Without synchronisation, one thread may never see another thread's write. The JIT can keep a field in a register, and CPUs buffer and reorder stores. This loop may spin forever:
+Without synchronisation, one thread may never see another thread's write. The JIT may keep a field in a register, and CPUs buffer and reorder stores. This is not theoretical:
 
 ```java
-class Worker implements Runnable {
-    private boolean running = true;          // BUG: must be volatile
-    public void run() { while (running) { /* work with no synchronisation */ } }
-    public void stop() { running = false; }  // called from another thread; may never be observed
-}
+static boolean running = true;             // BUG: must be volatile
+
+// worker thread
+while (running) spins++;
+
+// main thread, 500 ms later
+running = false;
 ```
 
-The JIT is allowed to read `running` once and hoist it out of the loop, because nothing in the loop tells it another thread is involved. Declaring the field `volatile` forbids that: every read sees the most recent write, and the write *happens-before* the read that observes it.
+Measured: with a plain field the worker was still spinning three seconds after `main` cleared the flag, because C2 had hoisted the read out of the loop. With `-Xint` (no JIT) the same code stopped. Declared `volatile`, it stopped at once, after 2.75 billion spins. `volatile` forbids caching the value and makes the write *happen-before* any read that observes it.
 
-**Happens-before** is the contract. If action A happens-before B, everything A's thread did before A is visible to B's thread after B. The edges that create it:
+**Happens-before** is the contract: if A happens-before B, everything A's thread did before A is visible to B's thread after B. The edges that create it: program order within a thread; unlocking a monitor before any later lock of it; a `volatile` write before later reads of that field; `Thread.start()` before everything in the started thread; everything in a thread before another thread's `join()` on it returns; and `final` fields written in a constructor, visible to any thread that sees the object if `this` did not escape during construction. Two consequences come up constantly. Double-checked locking works only with a `volatile` instance field; without it another thread can see a partly constructed object. And `volatile` does not make compound actions atomic: `count++` is a read, an add and a write that two threads can interleave. The hardware side is in [atomics and lock-free programming](/learn/systems/concurrency/atomics-and-lock-free).
 
-- Program order within one thread.
-- Unlocking a monitor (`synchronized` exit) happens-before every later lock of the same monitor.
-- A `volatile` write happens-before every later read of that field.
-- `Thread.start()` happens-before everything in the started thread; everything in a thread happens-before another thread's `join()` on it returning.
-- Values written to `final` fields in a constructor are visible to any thread that sees the object, provided `this` did not escape during construction.
+## Concurrency utilities, and how the pool really grows
 
-Two consequences come up constantly. Double-checked locking works only if the instance field is `volatile`; without it, another thread can see a non-null reference to a partially constructed object. And `volatile` does not make compound actions atomic: `count++` on a volatile field is still a read, an add and a write that two threads can interleave. Use `AtomicLong`, `LongAdder` or a lock. The hardware side of this story is in [atomics and lock-free programming](/learn/systems/concurrency/atomics-and-lock-free).
+`ThreadPoolExecutor` has four decisions: core size, maximum size, the queue and the rejection policy, and one rule that surprises most engineers: **it grows past the core size only when the queue is full.** Submitting seven blocking tasks to a pool with core 2, maximum 4 and an `ArrayBlockingQueue` of 2, the JDK reported:
 
-## Concurrency utilities you should reach for
+| Task | Pool size after | Queue after | Why |
+|---|---|---|---|
+| 0, 1 | 1, 2 | 0 | Below core: start a thread |
+| 2, 3 | 2 | 1, 2 | At core: queue it |
+| 4, 5 | 3, 4 | 2 | Queue full: start a thread up to the maximum |
+| 6 | 4 | 2 | Queue full and at maximum: `RejectedExecutionException` |
 
-**Thread pools.** `ThreadPoolExecutor` has four decisions: core size, maximum size, the queue, and the rejection policy. The trap is the convenience factory: `Executors.newFixedThreadPool(n)` uses an *unbounded* queue, so under overload tasks pile up in memory, every queued request's latency grows without limit, and the process eventually runs out of heap. Build pools explicitly:
+So `Executors.newFixedThreadPool(4)`, whose queue is an unbounded `LinkedBlockingQueue`, never grows and never rejects: after 100,000 submissions of blocking tasks it had 4 threads and 99,996 queued tasks, each holding memory while its caller's latency grows. Build pools explicitly:
 
 ```java
 ThreadPoolExecutor pool = new ThreadPoolExecutor(
@@ -113,7 +144,7 @@ ThreadPoolExecutor pool = new ThreadPoolExecutor(
 );
 ```
 
-Sizing follows the work: roughly the number of cores for CPU-bound tasks, and cores × (1 + wait time / compute time) for I/O-bound ones (a task that waits 90 ms and computes 10 ms on 8 cores suggests about 80 threads). A separate pool per downstream dependency is the **bulkhead** pattern: a slow dependency exhausts its own pool, not the whole service. That is exactly what Netflix's Hystrix library did with thread-pool isolation.
+Size CPU-bound pools near the core count and I/O-bound ones at about cores × (1 + wait time / compute time): a task waiting 90 ms and computing 10 ms on 8 cores suggests about 80 threads. A separate pool per downstream dependency is the **bulkhead** pattern, the thread-pool isolation Netflix's Hystrix library popularised: a slow dependency exhausts its own pool, not the service.
 
 ```viz
 {"type": "concurrency", "algorithm": "thread-pool", "threads": 3,
@@ -121,46 +152,48 @@ Sizing follows the work: roughly the number of cores for CPU-bound tasks, and co
  "caption": "The pool bounds concurrency and the queue absorbs bursts. Give the queue a bound too, or overload turns into unbounded memory growth and latency instead of a visible rejection."}
 ```
 
-**CompletableFuture** composes asynchronous work: `thenCompose` for sequencing, `thenCombine` and `allOf` for fan-in, `orTimeout` for deadlines, `exceptionally` for fallbacks. Its hidden default is the shared `ForkJoinPool.commonPool()`, sized for CPU work; blocking I/O in `supplyAsync(...)` without an executor starves every other user of that pool. Always pass your own executor for I/O:
+**`CompletableFuture`** composes asynchronous work (`thenCompose`, `thenCombine`, `allOf`, `orTimeout`, `exceptionally`). Its hidden default is the shared `ForkJoinPool.commonPool()`, sized for CPU work, so blocking I/O in `supplyAsync(...)` without an executor starves every other user of that pool; pass your own executor for I/O.
 
-```java
-CompletableFuture<String> user = CompletableFuture.supplyAsync(() -> loadUser(id), ioPool);
-CompletableFuture<Integer> score = CompletableFuture.supplyAsync(() -> loadScore(id), ioPool);
-String summary = user.thenCombine(score, (u, s) -> u + ":" + s)
-    .orTimeout(200, TimeUnit.MILLISECONDS)
-    .exceptionally(e -> "fallback")
-    .join();
-```
+**Counters and maps.** `ConcurrentHashMap.merge(key, 1, Integer::sum)` is an atomic per-key counter; keep slow work out of `computeIfAbsent`, which holds the bin's lock. With 8 threads incrementing one counter, `AtomicLong` took 47.6 ns per increment per thread and `LongAdder`, which stripes the count across cells and sums on read, 6.8 ns.
 
-**Concurrent collections and counters.** `ConcurrentHashMap.computeIfAbsent` and `merge` are atomic per key, so `counts.merge(key, 1, Integer::sum)` is a correct concurrent counter. Do not put slow work inside `computeIfAbsent`; it holds a lock on that bin. Under heavy contention, `LongAdder` beats `AtomicLong` by striping the count across cells and summing on read. Beyond those: `ReentrantLock` (with `tryLock(timeout)`), `ReadWriteLock`, `Semaphore` for limiting concurrency, and `CountDownLatch` for "wait until N things finish".
+## Virtual threads and pinning
 
-**Virtual threads** (final in JDK 21) are threads scheduled by the JVM onto a small pool of carrier threads. When a virtual thread blocks on I/O, it unmounts and the carrier runs another, so you can write simple thread-per-request code at 100,000 concurrent requests:
-
-```java
-try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-    List<Future<Response>> calls = backends.stream()
-        .map(b -> executor.submit(() -> client.call(b)))   // one cheap thread per call
-        .toList();
-    // ...
-}
-```
-
-Their caveats are the new senior-level questions. Until JDK 24, blocking inside a `synchronized` block *pinned* the carrier thread, so a few pinned threads could stall the whole scheduler; recent JDKs lift that restriction for `synchronized`, but native calls still pin. Never pool virtual threads, since they are cheap to create; limit concurrency against a downstream with a `Semaphore` instead. And code that stores large objects in `ThreadLocal` multiplies that memory by the number of virtual threads.
+Virtual threads (final in JDK 21) are scheduled by the JVM onto a small pool of carrier threads; a virtual thread that blocks on I/O unmounts and frees its carrier. 100,000 tasks each sleeping 100 ms finished in 832 ms on virtual threads; 10,000 of them on a 200-thread platform pool took 5,041 ms, as 10,000 / 200 × 100 ms predicts. The caveat is **pinning**: on JDK 21, a virtual thread that blocks while holding a `synchronized` monitor cannot unmount. With 4 carriers, 64 virtual threads each sleeping 100 ms inside `synchronized` took 1,615 ms (64 / 4 × 100 ms), and the same code with `ReentrantLock` took 101 ms. JDK 24 (JEP 491) removed pinning for `synchronized`; native calls still pin. Never pool virtual threads, since they are cheap to create; bound concurrency against a downstream with a `Semaphore`, and beware large `ThreadLocal` values multiplied by the number of threads.
 
 ## Why this matters at Netflix
 
-Netflix runs a large fleet of Java services, historically built on its own open-source JVM libraries (Hystrix for circuit breaking and bulkheads, Eureka for discovery, Zuul at the edge, RxJava for reactive composition) and more recently on Spring Boot. At that scale the runtime is part of the design:
+Netflix runs a large fleet of Java services and writes publicly about its runtime choices, which is the right material to prepare with:
 
-- **Tail latency is a GC question.** At 2,000 requests per second, a 200 ms pause stalls about 400 requests on that instance alone. Choosing a collector, sizing the heap and cutting allocation are routine senior work there, not specialist tuning.
-- **Deploys are warm-up events.** Continuous delivery with canary analysis means cold JVMs join the fleet constantly; a canary compared against the warm production fleet will look worse for reasons that have nothing to do with the code, which is why canary analysis usually compares it with a freshly started baseline of the old version.
-- **Isolation is thread pools.** The bulkhead and circuit-breaker patterns Netflix popularised are, on the JVM, concrete thread pools, queue bounds and timeouts. The [Netflix microservices case study](/learn/system-design/case-studies/netflix-microservices-and-resilience) covers the architecture.
-- **Containers change the arithmetic.** Heap percentage, thread stacks and direct memory decide whether a pod is OOM-killed.
+- **Tail latency is a GC question.** Netflix's tech blog described switching its default from G1 to generational ZGC on JDK 21, with more than half of its critical streaming video services running it at the time, because GC pauses were a significant source of tail latency in its gRPC and DGS services, and reported that timeouts during GC pauses went away. At 2,000 requests per second, a 200 ms pause stalls about 400 requests on that instance alone.
+- **New runtime features have new failure modes.** The same blog published a post-mortem ("Java 21 Virtual Threads - Dude, Where's My Lock?") in which services on Spring Boot 3 and embedded Tomcat became unresponsive after enabling virtual threads: virtual threads pinned in `synchronized` code occupied every carrier, so the thread that would release the lock could not be scheduled.
+- **Deploys are warm-up events.** With continuous delivery and canary analysis, cold JVMs join the fleet constantly; a canary compared against a warm production fleet looks worse for reasons that have nothing to do with the code, which is why canary analysis compares it with a freshly started baseline.
+- **Isolation is thread pools.** Bulkheads and circuit breakers are, on the JVM, concrete pools, queue bounds and timeouts. The [Netflix microservices case study](/learn/system-design/case-studies/netflix-microservices-and-resilience) covers the architecture.
+
+## Failure modes in production
+
+**Symptom: p99 spikes to hundreds of milliseconds every few minutes; CPU and traffic flat.** Diagnosis: the GC log shows long old-generation or full pauses as the live set approaches the heap. Fix: measure the live set; give the heap headroom of a few times it, or move to generational ZGC if the goal is tail latency, then cut allocation.
+
+**Symptom: the pod is OOM-killed; no `OutOfMemoryError` in the logs.** Diagnosis: native memory outside the heap; NMT shows GC structures, thread stacks, metaspace and direct buffers pushing committed memory past the limit. Fix: heap at 50 to 75% of the limit, bounded direct memory, fewer platform threads.
+
+**Symptom: `OutOfMemoryError: Java heap space` while the heap looks half empty.** Diagnosis: G1 humongous allocations; objects of half a region or more waste the rest of their regions (511 of 1,022 possible arrays fitted in the measurement). Fix: raise `-XX:G1HeapRegionSize`, or allocate slightly smaller buffers.
+
+**Symptom: latency grows without bound under overload and heap usage climbs; nothing is rejected.** Diagnosis: `newFixedThreadPool` with its unbounded queue. Fix: a bounded queue and an explicit rejection policy, with a metric on queue depth.
+
+**Symptom: after enabling virtual threads on JDK 21, the service hangs intermittently; thread dumps show no lock owner.** Diagnosis: pinned carriers, virtual threads blocked inside `synchronized`. Fix: `-Djdk.tracePinnedThreads=short` to find the sites, replace `synchronized` around blocking calls with `ReentrantLock`, or move to JDK 24 or later.
+
+**Symptom: a flag set by one thread is never seen by another, only in production builds.** Diagnosis: a missing happens-before edge; the JIT hoisted the read. Fix: `volatile`, an atomic, or a lock.
 
 ## Java in coding interviews
 
-Java is verbose but predictable, and its collections cover every interview need. The toolkit: `ArrayDeque` for stacks and queues (not the legacy `Stack` or `LinkedList`), `PriorityQueue` with a comparator, `TreeMap` with `floorKey`, `ceilingKey`, `headMap` and `tailMap` for ordered queries, `HashMap` with `getOrDefault` and `merge`, and `StringBuilder`. `Arrays.sort` on primitives uses a dual-pivot quicksort (not stable); on objects it uses TimSort (stable).
-
-Two traps beyond the `Integer` cache:
+| Interview need | Java idiom | Trap |
+|---|---|---|
+| Stack and queue | `ArrayDeque` (`push`/`pop`, `offer`/`poll`) | Legacy `Stack` is synchronised; `LinkedList` allocates a node per element |
+| Heap | `PriorityQueue` with `Comparator.comparingInt(...)` | A subtraction comparator overflows |
+| Floor and ceiling | `TreeMap.floorKey`, `ceilingKey`, `headMap`, `tailMap` | Returns `null`, which unboxes to an NPE |
+| Counting | `map.merge(k, 1, Integer::sum)`, `getOrDefault` | `==` on boxed counts fails above 127 |
+| Sorting | `Arrays.sort(int[])` dual-pivot quicksort, not stable; objects use TimSort, stable | Sorting `Integer[]` boxes every value |
+| Arithmetic | `long` for sums and products; `Math.addExact` to throw on overflow | `Integer.MAX_VALUE + 1` printed −2147483648 |
+| Strings | `StringBuilder` in loops | `+` in a loop copies each time |
 
 ```java
 // Comparator by subtraction overflows: MAX_VALUE - (-5) wraps negative.
@@ -169,54 +202,149 @@ PriorityQueue<int[]> bad = new PriorityQueue<>((x, y) -> x[0] - y[0]);
 PriorityQueue<int[]> pq = new PriorityQueue<>((x, y) -> Integer.compare(x[0], y[0]));
 ```
 
-With the subtraction comparator, a heap containing `Integer.MAX_VALUE` and `-5` reports `MAX_VALUE` as the minimum. And `int` arithmetic overflows silently: sums of large arrays and products need `long`, or `Math.addExact` if you want an exception instead of a wrong answer.
+With `Integer.MAX_VALUE` and −5 in the queue, the subtraction comparator's `peek()` returned 2147483647 as the minimum; `Integer.compare` returned −5.
+
+## Interviewer follow-ups
+
+**"Why is a freshly deployed instance slower?"** Model answer: it is interpreting and compiling: measured, a hot method went from about 125 µs a call interpreted to 3.7 µs after C2, and a new receiver class caused a deoptimisation back to 441 µs; ramp traffic and warm up before taking load. Common wrong answer: "caches are cold", which is part of it but misses the JIT.
+
+**"G1 or ZGC?"** Model answer: ZGC when tail latency matters, since its pauses stayed around 10 µs against G1's milliseconds, at the cost of throughput and headroom (a tight heap produced allocation stalls); G1 for general services with a pause goal; Parallel for batch throughput. Decide from GC logs and the live set. Common wrong answer: "ZGC is strictly better now".
+
+**"Is `volatile` enough to make a counter thread-safe?"** Model answer: no; it gives visibility and ordering, not atomicity; `count++` is three steps; use `AtomicLong`, or `LongAdder` under contention (6.8 against 47.6 ns measured with 8 threads). Common wrong answer: "yes, volatile makes it thread-safe".
+
+**"When does a `ThreadPoolExecutor` create threads beyond the core size?"** Model answer: only when the queue rejects the task, so with an unbounded queue never, which is why a fixed pool queues forever. Common wrong answer: "whenever all core threads are busy".
+
+**"What goes wrong with virtual threads?"** Model answer: pinning in `synchronized` blocks or native calls on JDK 21 can occupy every carrier (Netflix published exactly this post-mortem), `ThreadLocal` memory multiplies, and pooling them defeats the point; bound downstream concurrency with a semaphore. Common wrong answer: "nothing, they are cheaper threads and that is all".
+
+## What mid-level engineers get wrong
+
+- **Setting `-Xmx` equal to the container limit.** Consequence: kernel OOM kills with no Java error.
+- **Benchmarking with a timing loop.** Consequence: numbers from the interpreter or a deleted loop, and a wrong decision.
+- **Using `==` on boxed values and subtraction comparators.** Consequence: code that passes small tests and fails above 127 or near `MAX_VALUE`.
+- **Assuming a thread pool grows under load.** Consequence: four threads and a hundred thousand queued tasks.
+- **Treating `volatile` as a lock.** Consequence: lost updates in counters and check-then-act races.
+- **Blocking in the common pool or inside `synchronized` on virtual threads.** Consequence: starvation of unrelated work, or a hung service.
+- **Tuning GC flags before measuring the live set.** Consequence: pauses move around while the real cause, allocation rate or heap headroom, stays.
+
+## Exercise
+
+The pool's growth rule is easier to believe once you have simulated it. Every expected output below follows the rules `ThreadPoolExecutor.execute` applies, and the first test is the run from the table above.
+
+```exercise
+id: thread-pool-growth
+title: Simulate how a ThreadPoolExecutor grows
+prompt: |
+  Simulate `ThreadPoolExecutor.execute` for a pool with `core` core
+  threads, at most `max_threads` threads, and a queue holding at most
+  `queue_capacity` waiting tasks (null means unbounded). Threads are never
+  removed. `tasks` is a list of `[submit_time, duration]` in
+  non-decreasing submit order; a task runs for `duration` once a thread
+  starts it.
+
+  Before each submission, process every completion with finish time at or
+  before the submit time, in time order: a thread that finishes takes the
+  oldest queued task at that moment (finishing duration later), or becomes
+  idle if the queue is empty.
+
+  Then apply the rules in order and record the outcome:
+  1. fewer than `core` threads exist: start a new thread for the task ("thread"),
+     even if another thread is idle;
+  2. else, if the queue has room: "queued" (an idle thread, if any, takes it at once);
+  3. else, if fewer than `max_threads` threads exist: start a new thread ("thread");
+  4. else: "rejected".
+
+  Return the list of outcomes. `core` is at least 1.
+languages: [python, javascript]
+entry: simulate_pool
+starter:
+  python: |
+    def simulate_pool(core, max_threads, queue_capacity, tasks):
+        # your code here
+        return []
+  javascript: |
+    function simulate_pool(core, max_threads, queue_capacity, tasks) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [2, 4, 2, [[0, 10], [0, 10], [0, 10], [0, 10], [0, 10], [0, 10], [0, 10]]]
+    expected: ["thread", "thread", "queued", "queued", "thread", "thread", "rejected"]
+    label: grows past core only when the queue is full
+  - args: [2, 8, null, [[0, 10], [0, 10], [0, 10], [0, 10], [0, 10]]]
+    expected: ["thread", "thread", "queued", "queued", "queued"]
+    label: an unbounded queue never reaches max
+  - args: [1, 1, 1, [[0, 5], [1, 5], [2, 5], [6, 5]]]
+    expected: ["thread", "queued", "rejected", "queued"]
+    label: a completion frees the queue
+  - args: [3, 5, 2, []]
+    expected: []
+    label: no tasks
+  - args: [1, 2, 1, [[0, 100]]]
+    expected: ["thread"]
+  - args: [2, 3, 1, [[0, 10], [0, 1], [5, 10], [5, 10], [5, 10]]]
+    expected: ["thread", "thread", "queued", "queued", "thread"]
+    hidden: true
+    label: an idle thread takes a queued task at once
+  - args: [1, 1, 1, [[0, 5], [5, 5], [5, 5], [5, 5]]]
+    expected: ["thread", "queued", "queued", "rejected"]
+    hidden: true
+    label: completions at the submit time happen first
+  - args: [1, 2, 1, [[0, 3], [1, 3], [2, 3], [3, 3], [4, 3]]]
+    expected: ["thread", "queued", "thread", "queued", "rejected"]
+    hidden: true
+hints:
+  - "Track the number of threads, the idle count, a FIFO of queued durations, and a min-heap (or sorted list) of finish times for running tasks."
+  - "Before each submission, pop every finish time <= submit_time; each finishing thread either starts the next queued task at its finish time or becomes idle."
+  - "The rule order matters: a pool at its core size queues before it grows, which is why an unbounded queue means the maximum is never used."
+```
 
 ## Senior signals
 
-- You explain a latency spike with the GC log and a live-set measurement before proposing flags, and you know which collector suits which goal.
-- You size JVM memory against the container limit, accounting for thread stacks, metaspace, code cache and direct buffers, not just `-Xmx`.
-- You state concurrency correctness in happens-before terms: which `volatile`, lock, start/join or final-field edge makes a write visible.
-- You build thread pools with bounded queues and explicit rejection, size them from the wait-to-compute ratio, and isolate dependencies with bulkheads.
-- You never block in the common pool, and you know the virtual-thread caveats (pinning, pooling, `ThreadLocal`).
-- You avoid `==` on boxed values and subtraction comparators by reflex.
+- You explain warm-up with the JIT tiers and deoptimisation, and ramp traffic to new instances instead of blaming the code.
+- You size JVM memory against the container limit from Native Memory Tracking, not from `-Xmx` alone.
+- You read a GC log, measure the live set and allocation rate first, and pick G1, ZGC or Parallel for a stated goal, knowing each one's failure mode (humongous objects, allocation stalls, long pauses).
+- You state concurrency correctness in happens-before terms and never treat `volatile` as atomicity.
+- You build thread pools with bounded queues and explicit rejection, knowing they grow past core only when the queue is full.
+- You know the virtual-thread caveats (pinning before JDK 24, `ThreadLocal`, no pooling) and can cite a public post-mortem of them.
+- You avoid `==` on boxed values and subtraction comparators by reflex, and know what boxing costs in memory.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A JVM with -Xmx4g runs in a container with a 4 GiB memory limit and is killed by the kernel with no OutOfMemoryError logged. What is the most likely explanation?
-  options: ["Compressed oops switch off at 4 GB, so every object reference doubles in size", "The heap is too small for the live set, so the GC thrashes until the kernel steps in", "Native memory outside the heap (stacks, metaspace, buffers) pushes RSS past 4 GiB", "The garbage collector is disabled in containers, so the heap never shrinks"]
-  answer: 2
-  explanation: >-
-    -Xmx bounds only the Java heap. Thread stacks, metaspace, the code cache and direct buffers are native memory, so a heap equal to the container limit guarantees an OOM kill. A heap too small for the live set would throw OutOfMemoryError, which is logged. Size the heap at roughly 50 to 75% of the limit.
-- q: >-
-    Your service allocates 800 MB/s and runs a young collection every second with a 800 MB Eden. You double Eden. What happens to total young-GC work, assuming the amount of live data per collection stays similar?
-  options: ["It doubles, because each collection scans twice as much memory", "It is unchanged, because the same bytes are allocated per second", "It drops to zero, because objects now die before Eden ever fills", "It roughly halves, because there are half as many collections"]
-  answer: 3
-  explanation: >-
-    Copying collectors pay for survivors, not for garbage. A larger Eden means collections happen half as often, each copying about the same surviving data, so total work roughly halves. Allocation continues at the same rate, so Eden still fills and collections do not stop. That is why allocation rate and young-generation sizing are the first levers.
-- q: >-
-    A `running` flag is a plain boolean read in a worker loop and set to false by another thread. The worker never stops. Why, and what fixes it?
-  options: ["The worker never yields the CPU; call Thread.yield() so the write propagates", "No happens-before edge lets the JIT hoist the read; declare the field volatile", "A primitive is copied per thread; make the flag a shared Boolean object", "The flag must be static to be shared; make it a static field of the class"]
-  answer: 1
-  explanation: >-
-    The memory model only guarantees visibility across threads through happens-before edges; without one, the JIT may hoist the read out of the loop. A volatile write happens-before subsequent reads of that field, and it forbids caching the value in a register. yield() gives no visibility guarantee, and boxing or making the field static changes nothing about visibility.
-- q: >-
-    Why is Executors.newFixedThreadPool(32) a risky default for a request-handling service?
-  options: ["Its queue is unbounded, so overload piles up tasks instead of rejecting them", "Its threads are daemon threads, so in-flight requests die on shutdown", "It cannot run Callable tasks, so errors from handlers are silently lost", "It creates all 32 threads eagerly, so idle services waste memory on their stacks"]
+    A hot method ran at 3.7 µs per call after warm-up. A new implementation of the interface it calls is loaded, and the next call takes 441 µs. What happened?
+  options: ["C2's single-receiver assumption broke, so the code was deoptimised", "A full garbage collection ran to unload the classes no longer used", "The code cache filled up, so the JIT stopped compiling for a while", "The new class was compiled by C2 before the method could continue"]
   answer: 0
   explanation: >-
-    The fixed pool uses an unbounded LinkedBlockingQueue, so under overload tasks accumulate in memory and latency grows without limit. A bounded queue with an explicit rejection policy such as CallerRunsPolicy turns overload into visible backpressure. The pool creates threads lazily and runs Callables fine.
+    C2 had inlined the only receiver it had seen; loading a second class invalidated that code ("made not entrant"), so execution fell back to the interpreter until the method was recompiled for two receivers at about 4.6 µs. Class loading does not trigger a full GC, and compilation happens in the background rather than blocking the call.
 - q: >-
-    In a sliding-window solution you compare counts with `need.get(c) == have.get(c)` on two HashMap<Character, Integer>. Small tests pass and a large test fails. Why?
-  options: ["Character keys collide in the HashMap once the window holds many distinct letters", "The counts overflow Integer once the input is large enough to exceed its range", "== compares Integer references, and only values from -128 to 127 are cached", "HashMap iteration order changes as the map grows past its resize threshold"]
+    With a 1 GB G1 heap (1 MB regions), only 511 byte arrays of exactly 1,048,576 bytes fit before OutOfMemoryError, but 1,022 arrays of 1,000,000 bytes fit. Why?
+  options: ["G1 compresses arrays below one megabyte, doubling their capacity", "The larger arrays trigger the default 200 ms pause goal sooner", "Each 1 MiB array plus its header needs two humongous regions", "Arrays larger than 1 MiB are stored twice for concurrent copying"]
   answer: 2
   explanation: >-
-    Autoboxing uses Integer.valueOf, which caches values from -128 to 127, so == happens to work until a count exceeds 127 and the two sides become different objects. Use equals() or compare unboxed ints. Key collisions affect performance, not correctness, and counts nowhere near 2^31 cannot overflow.
+    Objects of half a region or more are humongous and get whole contiguous regions; a 1 MiB payload plus the 16-byte header is slightly more than one region, so each takes two and wastes almost half. Nothing is compressed or stored twice. Raising the region size or allocating slightly smaller buffers fixes it.
 - q: >-
-    You move a blocking-I/O service to virtual threads on JDK 21 and throughput collapses under load. Which cause is most plausible?
-  options: ["Virtual threads cannot do blocking I/O, so each call falls back to a platform thread", "Blocking inside synchronized blocks pins the carrier threads, starving the carrier pool", "Virtual threads use more stack memory than platform threads, so the heap fills", "Virtual threads disable JIT compilation, so hot paths run in the interpreter"]
+    Generational ZGC kept every pause under 0.02 ms, yet with a 512 MB live set in a 700 MB heap the log showed 33 allocation stalls. What does that mean?
+  options: ["ZGC fell back to a stop-the-world full collection on every stall", "Application threads waited because reclamation fell behind allocation", "The heap is fragmented, because ZGC does not compact the old generation", "The stalls are pauses of the collector that ZGC does not report as pauses"]
   answer: 1
   explanation: >-
-    On JDK 21, a virtual thread that blocks while holding a monitor cannot unmount, tying up its carrier. With carriers roughly equal to cores, a handful of pinned threads stalls everything. Replace synchronized around blocking calls with ReentrantLock or upgrade to a JDK that removes this pinning.
+    ZGC's pauses are tiny because marking and relocation are concurrent, but if the application allocates faster than the collector frees memory, the allocating thread must wait. The fix is headroom or lower allocation, not a different pause setting. ZGC relocates (compacts) concurrently and did not fall back to full collections here.
+- q: >-
+    A worker loops on a plain boolean field that another thread sets to false. Measured, it was still spinning three seconds later, but stopped at once under -Xint. What explains the difference?
+  options: ["The write stays in the other thread's cache until that thread terminates", "Compiled loops run too fast for the operating system to deliver the update", "The interpreter flushes CPU caches on every bytecode, which compiled code skips", "The JIT hoisted the read out of the loop; no happens-before edge forbade it"]
+  answer: 3
+  explanation: >-
+    Without volatile, a lock or another happens-before edge, C2 may read the field once and keep it in a register, so the loop never sees the write; the interpreter happens to re-read the field each iteration. Hardware cache coherence would deliver the write; the problem is the compiled code never loads it again. Declaring the field volatile fixed it.
+- q: >-
+    A pool has core 2, max 4 and an ArrayBlockingQueue of capacity 2. Seven long tasks arrive at once. How does it respond?
+  options: ["Four threads at once, two queued, then one rejection", "Four threads, three queued, since the maximum is reached first", "Two threads, two queued, two more threads, then one rejection", "Two threads, then five tasks queued, with no rejection"]
+  answer: 2
+  explanation: >-
+    execute starts threads up to the core size, then queues, and only starts threads beyond the core when the queue refuses the task; at the maximum with a full queue it rejects. The JDK reported exactly this sequence. With an unbounded queue the pool would never grow past two threads, which is the fixed-pool trap.
+- q: >-
+    On JDK 21, 64 virtual threads each sleep 100 ms inside a synchronized block, with 4 carrier threads. It took 1,615 ms; with ReentrantLock, 101 ms. Why?
+  options: ["synchronized uses a slower lock that adds 25 ms to each acquisition", "Blocking inside synchronized pins the carrier, so only 4 run at once", "ReentrantLock creates new carriers on demand, up to one per thread", "Virtual threads cannot sleep, so each call falls back to a platform thread"]
+  answer: 1
+  explanation: >-
+    A virtual thread blocked while holding a monitor cannot unmount on JDK 21, so it occupies its carrier and the 64 sleeps run 4 at a time: 16 rounds of 100 ms. With ReentrantLock the sleeping threads unmount and all 64 overlap. JDK 24 removed this pinning for synchronized; the carrier pool does not grow per thread.
 ```

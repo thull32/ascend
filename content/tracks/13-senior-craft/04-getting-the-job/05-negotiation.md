@@ -1,62 +1,196 @@
 ---
 slug: negotiation
 title: "Negotiation: levelling, compensation structures and the offer"
-description: Why level is the biggest lever, how base, bonus, equity and sign-on bonuses actually pay out, a worked comparison of two offers with different vesting shapes, the step-by-step offer process, and a negotiation email template.
+description: How levels and bands set your range before any negotiation starts, how each component really pays (bonus payout, RSU conversion, cliffs and vesting shapes, refreshers stacking into layers, tax at vest, startup options and preferences), how an offer is built and approved, the order of conversations, a verified year-by-year offer comparison, scripts and an email template.
 minutes: 17
 difficulty: easy
 tags: [career, negotiation, compensation, equity, levelling, offers]
 ---
-Most engineers negotiate the wrong thing, at the wrong time, with the wrong tool. They push for a few percent more base salary, which is usually the least flexible part of an offer. They do it after saying "that sounds great" on the phone, when the company already believes the deal is done. And they use a vague "is there any flexibility?" that is easy to answer with a small, token increase. Meanwhile the choices that can be worth six figures over four years (the level, the equity grant, the sign-on bonus, the vesting shape) go unexamined.
+Most engineers negotiate the wrong thing, at the wrong time, with the wrong tool. They push for a few percent more base salary, which is usually the least flexible part of an offer. They do it after saying "that sounds great" on the phone, when the company already believes the deal is done. And they use a vague "is there any flexibility?", which is easy to answer with a token increase. Meanwhile the choices that move a four-year total most (the level, the equity grant, the sign-on bonus, the vesting shape, the refresher practice) go unexamined.
 
-Negotiating well is not about being aggressive. Recruiters negotiate every week and you do it a few times a decade, so the goal is to close that gap with preparation: understand what you are being offered, know what you want and why, get competing information, and ask clearly and specifically for things the company can actually give. This lesson walks through each of those steps. It uses US-style compensation terms because that is where most published data comes from; structures, taxes and norms differ by country, so adapt the specifics.
+Negotiating well is not about being aggressive. Recruiters negotiate every week and you do it a few times a decade, so the goal is to close that gap with mechanism: how bands are built, how an RSU grant turns into shares and then into income, how refreshers stack, who approves what behind the scenes, and in which order the conversations should happen. This lesson uses US-style terms because most public compensation data uses them; structures, taxes and norms differ by country. **Every number below is an illustrative round number, not market data.** Where a real value matters to you, the lesson says what it depends on and where to look.
 
 ## Level is the biggest lever
 
-Before any number, there is the level. Compensation bands are set per level, and although adjacent bands often overlap at the edges, their midpoints are far apart.
+Before any number there is the level, set from your interview packet as [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop) describes. Compensation is organised by level. For each level (and job family and location), a company typically keeps a range for base salary, a guideline for the equity grant and a bonus target. Each range has a minimum, a midpoint and a maximum; compensation teams build them from purchased market surveys and review them periodically, commonly once a year. Adjacent bands overlap, but their midpoints sit well apart.
 
-An illustrative example: suppose a company's senior level pays around \$350k a year in total compensation and the level below around \$250k. A strong in-band negotiation at the lower level might add 10–15%, roughly \$25–40k. Being levelled correctly is worth about \$100k a year, and refreshers and future promotions, which are also set by level, compound the difference. No amount of negotiating within a band beats being in the right band.
+An illustrative pair of bands, in index points where the mid-level midpoint is 100:
 
-Levelling is decided mostly in the loop, by your system design depth and the scope of your behavioural stories (see [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop)). You can still influence it:
+| | Mid-level band | Senior band |
+|---|---|---|
+| Minimum | 80 | 105 |
+| Midpoint | 100 | 130 |
+| Maximum | 120 | 155 |
 
-- **Before the loop,** tell the recruiter the level you are targeting and why, with evidence: "I'm currently leading a team of five and own a system at this scale; I'm looking at senior roles." Ask what the level means at their company.
-- **During the loop,** tell stories that show the scope of the target level.
-- **After a down-level offer,** ask which feedback drove it, and whether the decision can be revisited with more information, such as an extra system design round. If it cannot, ask what the concrete path to the next level looks like and on what timeline, and decide whether the lower level still beats your alternatives. Sometimes it does: a strong team at the level below, with a real promotion case, can be the better career move. Make that a deliberate choice, not a default.
+Trace what negotiation can and cannot do:
 
-## How compensation is structured
+1. The company offers mid-level at its midpoint: 100.
+2. A strong in-band negotiation moves it to 112, a 12% gain. Going above 120 needs an exception that is rarely granted.
+3. Levelled senior instead, at that band's midpoint: 130. That is 30% above the mid-level midpoint and above the mid-level maximum.
+4. The overlap (105 to 120) means a new senior at the bottom of their band can earn less than a mid-level engineer at the top of theirs. The senior is still ahead: future raises, refreshers and bonus targets are keyed to the senior level, and the next promotion is to staff, not to senior.
 
-| Component | How it works | How negotiable | Watch out for |
+The spread between adjacent midpoints varies by company and level. The direction does not: no in-band negotiation beats being in the right band.
+
+**Influencing level.** Before the loop, tell the recruiter your target level on their ladder with two lines of scope evidence. During the loop, tell stories at that scope ([Behavioural interviews for seniors](/learn/senior-craft/getting-the-job/behavioral-interviews-for-seniors)). After a down-level, ask which rounds drove it and whether one more design or leadership round could revisit it. If it cannot, ask what the promotion path looks like and on what timeline, and decide deliberately whether a strong team at the lower level beats your alternatives. Sometimes it does.
+
+## Under the hood: how an offer is built and approved
+
+What happens between "the committee approved you" and the phone call, in general terms (companies differ in names and thresholds):
+
+1. **Level.** Set from the packet, separately from the hire decision.
+2. **Band lookup.** Job family, level and location select the ranges. Many companies use location tiers or pay zones, so the same level pays differently in different cities, and a remote role is priced to a zone.
+3. **Draft package.** The recruiter, or a separate offer team, builds a package inside the guidelines: a base position in the range (commonly below the maximum, to leave room for raises), an equity grant from the level's guideline, and sometimes a sign-on bonus.
+4. **Approval.** A package inside the guidelines is approved quickly, often within recruiting. Anything outside them (base above the maximum, equity above the guideline, a large sign-on) is an **exception** and goes to a compensation team or a senior leader with a written justification.
+5. **Evidence.** The justification is where your information goes. A competing offer (its level, components and deadline), unvested equity you would forfeit, or a bonus you would lose are facts an approver can act on. "The candidate wants more" is not.
+6. **Revision.** Each counter goes back through the same chain, which is why a revised number takes days, and why a second or third round costs goodwill with the people approving it.
+
+**Why base is the least flexible component.** It recurs every year, raises and the bonus are percentages of it, and it is compared with colleagues at the same level. A new hire paid above the team's existing seniors creates compression, which compensation teams guard against and which pay-equity rules in some jurisdictions make a legal risk. An equity grant is paid once from a budget, and a sign-on bonus is one-off cash that can be clawed back. So the same year-one cost is easier to approve as equity or sign-on than as base, and specific asks for those components reach "yes" faster.
+
+The recruiter's job is to close the hire. That makes them the person who carries your evidence to the approvers, not your opponent: give them something they can write down.
+
+## The components, and what each really pays
+
+| Component | How it pays | How negotiable | What to ask |
 |---|---|---|---|
-| **Base salary** | Fixed annual pay within a band for your level | Somewhat; bands have limits | The band's top; base drives bonus and some benefits |
-| **Annual bonus** | Usually a target percentage of base, scaled by company and individual performance | Rarely; usually formulaic | Target versus what is actually paid historically |
-| **Equity (RSUs at public companies)** | A grant valued in dollars, vesting over years, often four, frequently with a one-year cliff | Often the most negotiable part | The vesting schedule's shape; stock price movement; refresher policy |
-| **Sign-on bonus** | One-off cash, sometimes split over the first two years | Very negotiable | Clawback if you leave within a set period, often a year |
-| **Refreshers** | Additional equity grants in later years | Not negotiated at the offer, but ask about typical practice | Without them, pay falls sharply once the first grant vests |
-| **Startup options** | The right to buy shares at a strike price | Negotiable, but valuing them is hard | Preferred versus common stock, dilution, the exercise window after leaving, liquidity |
+| Base salary | Fixed pay within the level's range | Somewhat, up to the range maximum | Where in the range is this, and what is the maximum? |
+| Annual bonus | Base × target % × company and individual multipliers | Rarely; the target is set by level | What has the typical payout been against target? Is year one prorated? |
+| RSUs (public companies) | A grant value converted to shares, vesting over years | Often the most negotiable | Conversion method, vesting schedule, cliff, refresher practice |
+| Sign-on bonus | One-off cash, sometimes split over two years | Very negotiable | Clawback period, pro-rata or full, gross or net |
+| Relocation | Lump sum or a managed service | Moderately | Clawback terms; is it grossed up for tax? |
+| Stock options (startups) | The right to buy shares at a fixed strike price | Negotiable; hard to value | Fully diluted shares, strike, latest preferred price, exercise window |
 
-Some companies depart from this template. Netflix, for example, has described paying mostly in salary and letting employees choose how much to take as stock options; see [Netflix: culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews). Always ask for the full breakdown and the vesting schedule in writing.
+**Target is not payout.** A 15% bonus target paid at a 0.8 multiplier is 12% of base. Ask what the multiplier has been in recent years, whether year one is prorated by your start date, and whether you must be employed on the payout date.
 
-## Comparing offers: the vesting shape matters
+**Sign-on clawbacks.** Leaving within the clawback period (commonly twelve months, sometimes more) means repaying all of the bonus or a pro-rata share. Some agreements demand the gross amount, which is more than you received after tax withholding. Read the clause before you sign.
 
-Two illustrative offers for the same role:
+**Relocation.** In the US, relocation support is generally taxable income; some companies gross it up to cover the tax and some do not. It usually has a clawback too.
 
-- **Offer A:** base \$210k, 15% target bonus, \$400k of RSUs vesting evenly over four years, \$30k sign-on.
-- **Offer B:** base \$230k, no bonus, \$360k of RSUs vesting back-loaded (5%, 15%, 40%, 40%), sign-on of \$75k in year one and \$50k in year two.
+Some companies depart from this template entirely. Netflix has described paying mostly in salary at the top of each person's market, with optional stock options ([Netflix: culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)). Always ask for the full breakdown and the vesting schedule in writing.
 
-Some large companies have used back-loaded schedules like B's, paired with a two-year sign-on to smooth the early years. Compute both year by year:
+## How an RSU grant becomes shares
+
+A restricted stock unit is a promise of one share, delivered when it vests. Trace one illustrative grant:
+
+1. **The offer states a value:** \$400,000 of RSUs over four years.
+2. **Conversion.** Value ÷ conversion price = share count. The price is set by the company's own method, which varies: an average of closing prices over a window (for example the 30 days before the grant, or the month of your start), or the price on a specific date. At a conversion price of \$200: 2,000 shares.
+3. **Day one.** If the stock trades at \$220 when you start, your grant is worth \$440,000; at \$180, \$360,000. The share count does not change. A trailing average works in your favour when the price has been rising and against you when it has been falling.
+4. **Vesting start.** Usually your start date, or a fixed grant date shortly after it.
+5. **Cliff.** Nothing vests for the first twelve months, then 25% at once: 500 shares.
+6. **After the cliff.** The remaining 1,500 shares vest quarterly (125 a quarter for twelve quarters) or monthly, depending on the company.
+7. **Leaving.** Leave in month 11 and you keep nothing; leave in month 13 and you keep 500 shares.
+
+The even 25/25/25/25 shape is common, not universal. Back-loaded schedules such as 5/15/40/40 and front-loaded ones such as 33/33/22/12 have both been publicly reported at large companies, and some companies drop the cliff. A back-loaded schedule is often paired with a two-year sign-on to smooth the early years, as offer B below shows.
+
+## Refreshers stack into layers
+
+After you join, most large public companies grant **refreshers**: new grants, commonly yearly and sized by level and performance, each with its own vesting schedule. Because every grant vests over several years, your equity in any year is the sum of layers from several different grants. Trace an illustrative case in thousands: an initial grant of 400 vesting evenly over four years, and a refresher of 100 at the end of each year, each vesting evenly over the following four.
+
+| Year | Initial | R1 | R2 | R3 | R4 | R5 | Equity vesting |
+|---|---|---|---|---|---|---|---|
+| 1 | 100 | | | | | | 100 |
+| 2 | 100 | 25 | | | | | 125 |
+| 3 | 100 | 25 | 25 | | | | 150 |
+| 4 | 100 | 25 | 25 | 25 | | | 175 |
+| 5 | | 25 | 25 | 25 | 25 | | 100 |
+| 6 | | | 25 | 25 | 25 | 25 | 100 |
+
+Three things fall out of the table. Equity grows through year 4 as layers pile up. In year 5 the initial grant ends and annual equity drops from 175 to 100: this is the **four-year cliff** that surprises people who never modelled it. And in steady state, annual equity equals the annual refresher, because four overlapping quarter-slices of equal grants add up to one grant. With refreshers of 50 instead of 100, year 4 is 137.5 and year 5 is 50.
+
+So the refresher practice matters as much as the initial grant. Ask each company what a typical refresher is for a solid performer at your level, and when the first one is granted.
+
+```exercise
+id: equity-by-year
+title: Stack RSU grants into yearly equity
+prompt: |
+  Model the equity that vests each year from several RSU grants.
+
+  Each grant is `[start_year, value, conversion_price, schedule]`:
+  - `start_year` is the 1-based year in which the grant's first tranche vests;
+  - the grant converts to whole shares once: `value // conversion_price`, rounded down;
+  - `schedule` lists the percentage of those shares vesting in each consecutive year, starting at `start_year`.
+
+  `prices[i]` is the share price when shares vest in year `i + 1`. Return one number per year in `prices`: the value of all shares vesting that year (shares times price). Fractional shares are allowed in this model. Ignore tranches that fall after the last year.
+languages: [python, javascript]
+entry: equity_by_year
+starter:
+  python: |
+    def equity_by_year(grants, prices):
+        # your code here
+        return [0] * len(prices)
+  javascript: |
+    function equity_by_year(grants, prices) {
+      // your code here
+      return prices.map(() => 0);
+    }
+tests:
+  - args: [[[1, 400000, 200, [25, 25, 25, 25]]], [200, 200, 200, 200]]
+    expected: [100000, 100000, 100000, 100000]
+    label: one grant, flat price
+  - args: [[[1, 400000, 200, [25, 25, 25, 25]]], [200, 150, 250, 200]]
+    expected: [100000, 75000, 125000, 100000]
+    label: the share count is fixed while the price moves
+  - args: [[[1, 400000, 200, [25, 25, 25, 25]], [2, 100000, 200, [25, 25, 25, 25]], [3, 100000, 200, [25, 25, 25, 25]], [4, 100000, 200, [25, 25, 25, 25]], [5, 100000, 200, [25, 25, 25, 25]], [6, 100000, 200, [25, 25, 25, 25]]], [200, 200, 200, 200, 200, 200]]
+    expected: [100000, 125000, 150000, 175000, 100000, 100000]
+    label: refreshers stack, then the initial grant ends
+  - args: [[[1, 360000, 180, [5, 15, 40, 40]]], [180, 180, 180, 180]]
+    expected: [18000, 54000, 144000, 144000]
+    label: back-loaded schedule
+  - args: [[], [100, 100]]
+    expected: [0, 0]
+    label: no grants
+  - args: [[[3, 1000, 10, [50, 50]]], [10, 10, 10]]
+    expected: [0, 0, 500]
+    hidden: true
+  - args: [[[1, 100000, 30, [50, 50]]], [30, 36]]
+    expected: [49995, 59994]
+    hidden: true
+hints:
+  - "Convert each grant to shares once, with integer division, before applying the schedule."
+  - "Tranche i of a grant vests in year start_year + i, which is index start_year + i - 1 in prices; skip it if that index is past the end."
+```
+
+## Comparing offers year by year
+
+Two illustrative offers for the same role, in round numbers:
+
+- **Offer A:** base \$210k, 15% bonus target, \$400k of RSUs vesting evenly over four years, \$30k sign-on.
+- **Offer B:** base \$230k, no bonus, \$360k of RSUs vesting 5/15/40/40, sign-on of \$75k in year one and \$50k in year two.
 
 ```python
-def yearly_tc(base, bonus_pct, equity_total, vest, signon=()):
-    """Cash and vested equity per year, ignoring raises, refreshers and stock price moves."""
+def yearly_tc(base, bonus_pct, equity_total, vest, signon=(),
+              bonus_payout=1.0, price_ratio=1.0):
+    """Cash plus vested equity per year, ignoring raises, refreshers and tax.
+
+    bonus_payout scales the bonus target (1.0 = paid at target).
+    price_ratio is the stock price at vest divided by the conversion price.
+    """
     years = []
     for year, fraction in enumerate(vest):
         sign_on = signon[year] if year < len(signon) else 0
-        years.append(base + base * bonus_pct + equity_total * fraction + sign_on)
+        bonus = base * bonus_pct * bonus_payout
+        equity = equity_total * fraction * price_ratio
+        years.append(round(base + bonus + equity + sign_on))
     return years
 
-a = yearly_tc(210_000, 0.15, 400_000, [0.25, 0.25, 0.25, 0.25], signon=[30_000])
-b = yearly_tc(230_000, 0.00, 360_000, [0.05, 0.15, 0.40, 0.40], signon=[75_000, 50_000])
-# a -> [371500, 341500, 341500, 341500], total 1,396,000
-# b -> [323000, 334000, 374000, 374000], total 1,405,000
+
+EVEN, BACK = [0.25, 0.25, 0.25, 0.25], [0.05, 0.15, 0.40, 0.40]
+a = yearly_tc(210_000, 0.15, 400_000, EVEN, signon=[30_000])
+b = yearly_tc(230_000, 0.00, 360_000, BACK, signon=[75_000, 50_000])
+print(a, sum(a), sum(a[:2]))  # [371500, 341500, 341500, 341500] 1396000 713000
+print(b, sum(b), sum(b[:2]))  # [323000, 334000, 374000, 374000] 1405000 657000
+
+# A bad scenario: stock 30% below the conversion price, A's bonus paid at 80%
+a_down = yearly_tc(210_000, 0.15, 400_000, EVEN, signon=[30_000],
+                   bonus_payout=0.8, price_ratio=0.7)
+b_down = yearly_tc(230_000, 0.00, 360_000, BACK, signon=[75_000, 50_000],
+                   price_ratio=0.7)
+print(sum(a_down), sum(b_down))  # 1250800 1297000
+
+# A good scenario: stock 30% above the conversion price
+a_up = yearly_tc(210_000, 0.15, 400_000, EVEN, signon=[30_000], price_ratio=1.3)
+b_up = yearly_tc(230_000, 0.00, 360_000, BACK, signon=[75_000, 50_000],
+                 price_ratio=1.3)
+print(sum(a_up), sum(b_up))  # 1516000 1513000
 ```
 
 | Year | Offer A | Offer B |
@@ -66,66 +200,86 @@ b = yearly_tc(230_000, 0.00, 360_000, [0.05, 0.15, 0.40, 0.40], signon=[75_000, 
 | 3 | \$341,500 | \$374,000 |
 | 4 | \$341,500 | \$374,000 |
 | **4-year total** | **\$1,396,000** | **\$1,405,000** |
-| Total if you leave after 2 years | \$713,000 | \$657,000 |
+| If you leave after 2 years | \$713,000 | \$657,000 |
+| 4 years, stock 30% down, A's bonus at 80% | \$1,250,800 | \$1,297,000 |
+| 4 years, stock 30% up | \$1,516,000 | \$1,513,000 |
 
-The four-year totals are within 1% of each other, but the offers are very different:
+The four-year totals are within 1% of each other, and the offers are very different:
 
-- **A pays more up front.** If there is a real chance you will leave within two years, A is worth about \$56k more.
-- **B pays more only if you stay.** Its advantage depends on years three and four, and on the stock price then.
-- **The bonus is a target, not a promise.** A's \$31.5k a year depends on performance and company results.
-- **Refreshers change everything after year one.** A company with generous refreshers can overtake one with a bigger initial grant by year three. Ask each company what a typical refresher looks like for a solid performer at your level.
-- **Equity is volatile.** A \$400k grant is \$400k at today's price. Think about how much of your pay you want exposed to one company's stock.
+- **A pays earlier.** If there is a real chance you leave within two years, A is worth \$56,000 more.
+- **B pays more only if you stay,** and its advantage sits in years three and four.
+- **The ranking depends on the stock.** A holds more equity (\$400k against \$360k) and a bonus that can pay under target, so a bad scenario puts B \$46,200 ahead, while a 30% rise puts A \$3,000 ahead. The lower the stock, the more B's cash protects it.
+- **Neither includes refreshers,** which by year three can outweigh the difference between the initial grants.
 
-Always compare offers year by year, and under a "leave after two years" scenario, not just by the headline number.
+## When the stock moves, and tax at vest
 
-## The process, step by step
+Your share count is fixed at conversion; everything after that is exposure to one company's stock. If a large part of your pay vests in shares and you also keep what vests, your income and your savings rise and fall together. Decide deliberately how much you hold after each vest.
 
-### 1. Before the offer: build your position
+**Tax, in general terms.** In the US, RSUs are generally taxed as ordinary income when they vest, on the shares' market value that day. Employers withhold, commonly by selling or holding back some of the shares, at a flat supplemental rate (the federal rate has been 22% for most amounts in recent years) that can be below your marginal rate. An illustrative quarter: 125 shares vest at \$200, which is \$25,000 of income; \$5,500 is withheld at 22%; at a 35% marginal federal rate you owe \$8,750, so \$3,250 arrives as a bill at filing, before state and other taxes. If you keep the shares, a later sale produces a gain or loss relative to the vest-day value. Sign-on bonuses are usually withheld at the same supplemental rate. Other countries tax equity at different moments and rates, and rules change: check with a tax professional where you live.
 
-- **Run processes in parallel** so offers arrive within a couple of weeks of each other. This matters more than anything else in this lesson.
-- **Research the market.** Public, self-reported compensation data such as levels.fyi gives you ranges by company, level and location. Treat it as indicative rather than exact.
-- **Avoid naming a number first** where you can (see [Resumes, referrals and screens](/learn/senior-craft/getting-the-job/resume-and-screens) for the recruiter-screen script).
+## Startup options: strike, 409A, preferences and dilution
 
-### 2. When the offer arrives
+An option is the right to buy a share at a fixed **strike price**. US companies commonly set the strike at the fair market value of common stock from a **409A valuation**, an independent appraisal that is typically well below the price investors paid for **preferred** stock. Preferred shares usually carry a **liquidation preference**: in a sale, investors get their money back before common shareholders, including you, receive anything. Each funding round issues new shares, **diluting** your percentage.
 
-Offers usually arrive by phone. Your only goals on that call are to show enthusiasm, gather information and buy time.
+An illustrative grant, in round numbers: 40,000 options at a \$1.00 strike in a company with 100 million fully diluted shares, so 0.04%. A later round adds 25 million shares: you now hold 0.032% of 125 million. Investors hold 50 million preferred shares with a \$150 million, 1× non-participating preference, which means they take the larger of their preference or converting to common.
 
-> "Thank you, I'm really excited about this team. Could you send the full details in writing, including the level, the equity grant and vesting schedule, the bonus target and the sign-on terms? I'd like to review everything properly, and I'll come back to you by Friday."
+| Company sold for | What preferred does | Per common share | Your 40,000 options, after strike |
+|---|---|---|---|
+| \$100M | Takes its preference: everything | \$0 | \$0 |
+| \$200M | Takes \$150M; \$50M is shared by 75M common shares | about \$0.67 | \$0 (below the strike) |
+| \$400M | Converts: 40% of \$400M beats \$150M | \$3.20 | \$88,000 |
+| \$1B | Converts | \$8.00 | \$280,000 |
 
-Do not accept, reject or negotiate on that call. Ask your questions: vesting schedule and cliff; refresher practice; bonus target and typical payout; sign-on clawback terms; level and title; start date; remote or location policy.
+A \$200M sale sounds like success and leaves your options worth nothing. Real cap tables have several share classes and terms, so ask for the fully diluted share count, the latest preferred price, the preference terms and the 409A value.
 
-### 3. Decide your numbers before you counter
+**Leaving.** Suppose you leave after two years with 20,000 vested options. You typically have 90 days to exercise (the US tax rule for incentive stock options is tied to three months after leaving; some companies extend the window, which converts the options to non-qualified ones). Exercising costs \$20,000 in cash, and if the 409A value is then \$2.00, non-qualified options create \$20,000 of taxable income on the spread, for shares you cannot sell yet. Incentive stock options avoid regular tax at exercise but can trigger the alternative minimum tax.
 
-Write down three numbers: your **walk-away** (below this you decline), your **target** (what you would be happy with), and your **ask** (a justified number above your target). The ask should be grounded in data or a competing offer, not invented.
+## The order of conversations
 
-### 4. Counter specifically, with a reason and a commitment
+| Step | Who | What you do | What you avoid |
+|---|---|---|---|
+| 1. Recruiter screen | Recruiter | State your target level with evidence; ask for the range | Naming a number first ([Resumes, referrals and screens](/learn/senior-craft/getting-the-job/resume-and-screens)) |
+| 2. Loop | Interviewers | Produce level evidence | Treating it as pass or fail only |
+| 3. Level decision | Recruiter | "Which level is the offer at, and what drove it?" | Discussing numbers before the level is settled |
+| 4. Verbal offer | Recruiter | Enthusiasm, questions, a date to respond | Accepting, rejecting or countering on the call |
+| 5. Written offer | You | Model it year by year; check vesting, clawbacks, refreshers | Comparing headline totals |
+| 6. Competing offers | Recruiter | Timelines early; numbers with the counter | Inventing or inflating anything |
+| 7. Counter | Recruiter, by email | One specific, evidenced ask | A vague "any flexibility?" |
+| 8. Final offer | Recruiter | Accept in writing | Re-trading once your ask is met |
+| 9. Conditions cleared | You | Resign; agree the start date | Resigning before the written offer and checks |
 
-A counter has three parts: what you want, why it is reasonable, and what happens if you get it. Ask for the components with the most flexibility, which are usually equity and the sign-on bonus rather than base.
+Say that you have other processes as soon as they exist, because timelines move packets. Share numbers when you counter, when they are evidence for a specific ask. Expect one counter round and occasionally a second; a third reads as re-trading.
 
-### 5. Iterate once or twice, then close
+**Recruiter or hiring manager?** Numbers go through the recruiter, who owns the offer and the approval case. With the hiring manager, talk about scope, level and enthusiasm. A manager can advocate for a level review or an exception, but numbers negotiated with them come back through the recruiter anyway, and they spend goodwill with the person you will work for.
 
-Most negotiations take one or two rounds. When you get what you asked for, accept promptly and graciously. Do not re-open the deal with a new request after they have met your ask. Get the final terms in writing before you resign from your current job.
+## Scripts and the email
 
-## The negotiation email
+**Before numbers:** "Before we get to numbers, could you confirm the level, and which parts of the feedback drove it?"
 
-Email gives you time to be precise and gives the recruiter something concrete to take to the people who approve exceptions.
+**On the verbal offer call:** "Thank you, I'm excited about this team. Could you send the full details in writing: level, base and where it sits in the range, bonus target and recent payouts, the RSU value, conversion method and vesting schedule, typical refreshers, and sign-on and clawback terms? I'll come back to you by Friday."
+
+**"Do you have other offers?"** "I'm in the final stages with two other companies and expect offers this week. This role is my first choice if we can make the numbers work." With none: "I'm early in other processes, and I want this to reflect the market for the level."
+
+**An exploding offer:** "I understand you need an answer soon. My other processes finish by the 20th; could we extend to then, so I can say yes with full confidence?"
+
+**Making yourself whole:** "I'll forfeit about \$60k of unvested equity and a bonus that pays out in March. Could a sign-on bonus cover that?"
 
 ```text
 Subject: Offer: Senior Software Engineer, <Team>
 
 Hi Dana,
 
-Thank you again for the offer, and for walking me through the details on
-Tuesday. I'm excited about the <Team> role, especially <specific thing>,
-and I'd like to make this work.
+Thank you again for the offer, and for walking me through it on Tuesday.
+I'm excited about the <Team> role, especially <specific thing>, and I'd
+like to make this work.
 
-I'm finalising another offer at a similar level. It comes to roughly
-$<X> in year one and $<Y> a year on average over four years, compared
-with $<A> and $<B> here.
+I've received another offer at the senior level. It comes to about $<X>
+in year one and $<Y> a year on average over four years, against $<A> and
+$<B> here, and I'd forfeit $<F> of unvested equity by leaving.
 
-If you can bring the equity grant to $<N> over four years and add a
-$<S> sign-on bonus, I'm ready to sign this week and withdraw from my
-other processes.
+If you can bring the RSU grant to $<N> over four years and add a $<S>
+sign-on bonus, I'm ready to sign this week and withdraw from my other
+processes.
 
 Happy to talk it through on a call if that's easier.
 
@@ -133,93 +287,105 @@ Best,
 Sam
 ```
 
-What makes it work: it opens with genuine enthusiasm; it gives a factual reason; it asks for specific amounts on specific components; and it includes a conditional commitment ("if you can…, I'm ready to sign"). Only make that commitment if it is true. Recruiters take it seriously, and so should you.
+It opens with enthusiasm, gives facts an approver can use, asks for specific amounts on the flexible components, and makes a conditional commitment. Only make the commitment if it is true.
 
-## Scripts for the hard moments
+## Trade-offs: which lever to pull
 
-**"What would it take for you to sign today?"**
+Two decisions sit under every counter: which component to ask for, and how much of your pay you want in which shape. The first table follows from how offers are approved; the second from the vesting and preference mechanics above.
 
-> "I'm not in a position to sign today. I want to review the written offer properly, and I'll have an answer by Friday."
+| Lever | Recurs? | Approval needed beyond guidelines | Worth it if you leave in year 1–2 | Relationship cost of asking |
+|---|---|---|---|---|
+| Level | Yes, and compounds through refreshers and promotions | Hiring committee or manager review | High | Low if evidenced |
+| Base | Yes | Often, above the range maximum | Moderate | Moderate: least flexible, so a big ask stalls |
+| RSU grant | Only through its vesting years | Moderate | Low: vests slowly, cliff first | Low |
+| Sign-on | No | Usually easy; clawback protects the company | High, if past the clawback | Low |
+| Start date, remote, relocation | Partly | Usually the manager | Varies | Low |
 
-**"Do you have other offers?"**
+| Pay shape | Certainty | Liquidity | Exposure to one company | Lock-in |
+|---|---|---|---|---|
+| Salary-heavy | High | Immediate | Low | Low |
+| Public-company RSUs | Moderate: share count fixed, price moves | At each vest | High if you hold | Moderate: unvested layers |
+| Startup options | Low: preferences, dilution, exit | Only at a sale or listing | Very high | High: exercise cost on leaving |
 
-Answer honestly without disclosing more than you need to:
+## Failure modes
 
-> "I'm in the final stages with two other companies and expect offers this week. This role is my first choice if we can get the numbers right."
+**Symptom: your counter produced a small base increase and nothing else.** Diagnosis: a vague ask aimed at the least flexible component, with no evidence the recruiter could put in an exception request. Fix: ask for specific amounts on equity and sign-on, with a competing offer or forfeited compensation as the justification.
 
-If you have none, do not invent one. "I'm early in other processes, but I want to make sure this reflects the market for the level" is honest and still gives a reason.
+**Symptom: in your fifth year your pay drops though nothing changed.** Diagnosis: the initial grant finished vesting and your refreshers are smaller layers, as in the stacking table. Fix: ask about refresher practice before signing, model the layers, and raise it with your manager in years three and four while there is time to act.
 
-**An exploding offer** ("this expires in 48 hours"):
+**Symptom: a tax bill at filing that you did not plan for.** Diagnosis: RSU income was withheld at the flat supplemental rate while your marginal rate is higher. Fix: estimate the gap each year, adjust withholding or set cash aside, and ask a tax professional.
 
-> "I understand you need an answer soon. I'm expecting to finish my other processes by the 20th; could we extend the deadline to then? I want to be able to say yes with full confidence."
+**Symptom: you leave a startup and have 90 days to find the cash to exercise.** Diagnosis: nobody checked the exercise window, the strike cost or the tax on the spread when joining. Fix: ask about extended windows and early exercise at offer time, and compute the cost of leaving before you accept.
 
-Reasonable companies usually grant several days to a couple of weeks. A company that will not allow any time to make a major life decision is telling you something about how it operates.
+**Symptom: you accepted a down-level after winning a better number, and promotion takes two review cycles.** Diagnosis: you negotiated within a band instead of the band. Fix: settle the level first; if it cannot move, weigh the promotion timeline against your other offers explicitly.
 
-## Competing offers, and negotiating without them
+## Follow-ups you will face
 
-A competing offer at a similar level is the strongest lever there is, because it replaces an argument with a fact. Offers from companies the recruiter considers peers carry the most weight, but any real offer helps. Never invent or inflate one. Recruiters sometimes ask to see the offer letter, and the industry is small.
+**"What would it take for you to sign today?"** Model answer: "I'm not in a position to sign today. I'll review the written offer and give you an answer by Friday." Common wrong answer: naming a number on the spot, before you have the written details or have modelled the vesting.
 
-Without a competing offer you can still negotiate, just more modestly:
+**"If we meet your ask, will you sign?"** Model answer: yes, if true, stated with the exact terms and a date, because the recruiter will use your commitment to get the exception approved. Common wrong answer: "probably", followed by a new request once they meet it, which is re-trading.
 
-- **Market data** for the level and location.
-- **Level evidence:** your scope, and how the interviews went.
-- **What you give up by leaving:** unvested equity, a bonus you would forfeit, or a retention grant. Asking for a sign-on bonus to "make me whole" on those is standard and usually well received:
+**"Can you share the competing offer letter?"** Model answer: share the level and the components, and the letter too if you are comfortable, with personal details removed. Common wrong answer: refusing in a way that suggests the offer is inflated, or inflating it, which collapses when checked.
 
-> "I'll be forfeiting about \$60k of unvested equity and my annual bonus, which pays out in March. Could we add a sign-on bonus to cover that?"
+**"This is already at the top of the band."** Model answer: "Understood. Is there room on the equity grant or a sign-on, which sit outside the base range? And given the scope feedback, is a level review possible?" Common wrong answer: pushing harder on base, which cannot move without an exception.
 
-## What not to do
+**"What matters most to you in the offer?"** Model answer: a ranked answer, such as the level, the team, then the two-year and four-year totals. Common wrong answer: "base salary", which invites a small base increase and closes the conversation.
 
-- **Lie** about offers, current pay or deadlines.
-- **Issue ultimatums** you will not carry out.
-- **Negotiate after accepting.** A verbal "yes" is treated as a yes.
-- **Re-trade:** asking for more after the company has met your stated ask.
-- **Treat the recruiter as an opponent.** They are often your advocate with the people who approve exceptions, and they will remember how the process felt.
-- **Optimise only for year one** without looking at vesting shape, refreshers and the leave-after-two-years case.
+## What mid-level engineers get wrong
 
-## Beyond money
-
-Some of the most valuable terms are not in the compensation table: the level and title, the team, the start date (time off between jobs is worth a lot), remote or location flexibility, relocation support, and sometimes the vesting start date. If the company cannot move on money, one of these may be easy for them and valuable for you.
+- **Negotiating numbers before the level is settled.** They win 10% inside the wrong band and lose far more over four years.
+- **Comparing headline totals.** They pick the bigger four-year number and leave in year two with less.
+- **Ignoring refreshers.** Their pay drops in year five, and nobody warned them because nobody was asked.
+- **Treating the bonus target as income.** A payout below target leaves a gap in the budget they built on it.
+- **Accepting on the phone.** A verbal yes is treated as a yes, and the negotiation is over.
+- **Inventing an offer.** The recruiter asks for details, the story fails, and so does the relationship.
 
 ## Senior signals
 
-- You treat level as the first negotiation and influence it before, during and after the loop.
-- You compare offers year by year, including a leave-after-two-years scenario, and ask about refreshers and vesting shape.
-- You run processes in parallel so that offers overlap.
-- On the offer call you express enthusiasm, gather information and buy time, and never accept or negotiate on the spot.
-- Your counter is specific, justified and conditionally committed, and aimed at the flexible components.
-- You never misrepresent offers, and you close cleanly once your ask is met.
+- You settle the level before numbers and influence it before, during and after the loop.
+- You know how the offer is approved, and you give the recruiter evidence an approver can act on.
+- You model offers year by year, under leave-early and stock-down scenarios, including refresher layers.
+- You understand RSU conversion, cliffs, vesting shapes and withholding, and you ask the questions they imply.
+- You value startup options against preferences, dilution and the cost of exercising when you leave.
+- Your counter is one specific, evidenced, conditionally committed email aimed at the flexible components.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    Why is level usually a bigger lever than negotiating within an offer?
-  options: ["Because level sets your title, and title is what future employers pay for", "Because pay bands are set per level, and adjacent midpoints are far apart", "Because recruiters cannot change an offer's numbers once it has been approved", "Because base salary is fixed by the band, so only the level can raise your pay"]
-  answer: 1
-  explanation: >-
-    Bands are set per level with midpoints far apart, so a 10–15% in-band improvement is small next to the gap between adjacent levels' bands, and the difference compounds because future refreshers and promotions start from your level. Base salary is negotiable but limited by the band, and equity and sign-on bonuses are usually more flexible still.
-- q: >-
-    Offer A pays $371.5k, $341.5k, $341.5k and $341.5k over four years; Offer B pays $323k, $334k, $374k and $374k. There is a good chance you will leave after two years. Which is better on these numbers?
-  options: ["A, because it pays about $56k more over the two years you are most likely to stay", "B, because its four-year total is higher, and that is what the offer is worth", "They are equivalent, because the sign-on bonuses offset the vesting shape", "Neither; they cannot be compared until you know the stock's future price"]
-  answer: 0
-  explanation: >-
-    B's small four-year advantage is concentrated in years three and four and disappears if you leave early. Over two years A pays $713k against B's $657k. That is why you compare year by year and under a leave-early scenario.
-- q: >-
-    The recruiter calls with a verbal offer. What should you do on that call?
-  options: ["Ask for a month to decide, so they know you are seriously weighing other options", "Counter on the spot with a higher base, while the recruiter is still engaged", "Accept on the call to show enthusiasm, then negotiate the details in writing", "Show enthusiasm, ask for the details in writing, and give a date to respond by"]
+    In the illustrative bands, the mid-level band runs 80 to 120 and the senior band 105 to 155 (index points). A strong negotiation takes a mid-level offer from 100 to 112. Why does levelling still matter more?
+  options: ["Titles are what future employers pay for, not the pay figure itself", "Base is fixed by band, so only a level change can move the offer", "The overlap means the two levels pay the same in most cases anyway", "The senior midpoint of 130 sits above the entire mid-level range"]
   answer: 3
   explanation: >-
-    The call is for gathering information and buying reasonable time: express enthusiasm, ask for the full details in writing, ask your questions, and say when you will respond. A verbal yes is treated as a yes, so accepting ends the negotiation; countering without the written details means negotiating blind, and an unreasonably long delay damages goodwill.
+    Negotiation moves you within a range; levelling moves the range. The senior midpoint exceeds the mid-level maximum, and raises, refreshers and bonus targets are keyed to level, so the gap compounds. The overlap is real but narrow at the edges, and base can move within its band.
 - q: >-
-    Which counter-offer is strongest?
-  options: ["A polite, open-ended question about whether there is any flexibility at all on the numbers", "Specific equity and sign-on figures, backed by a competing offer, with a promise to sign", "A comparison with what engineers you know earn, to show that the offer is below market", "A firm ultimatum on base salary, making it clear you will walk away without the raise"]
+    A grant of $400,000 is converted at a 30-day average price of $200. On your first day the stock trades at $220. What do you hold?
+  options: ["About 1,818 shares, with the gap paid in cash", "2,000 shares, worth $400,000 until they vest", "2,000 shares, worth $440,000 at today's price", "About 1,818 shares, worth exactly $400,000"]
+  answer: 2
+  explanation: >-
+    The share count is fixed at conversion: 400,000 divided by 200 is 2,000 shares. From then on their value moves with the price, so on day one they are worth 2,000 times 220. Conversion does not happen at the first-day price, and no cash top-up covers price movements.
+- q: >-
+    An initial grant of 400 vests evenly over four years, and a refresher of 50 is granted each year, each vesting evenly over the next four. Why does annual equity fall sharply in year five?
+  options: ["The cliff restarts for each new refresher layer that is granted", "The initial grant ends; steady state is one refresher a year", "Refreshers are forfeited at the four-year work anniversary", "The refreshers only begin vesting after the initial grant ends"]
   answer: 1
   explanation: >-
-    For example: "If you can bring the equity to $N and add a $S sign-on, I'm ready to sign this week", backed by a competing offer's numbers. It is specific, targets flexible components, gives a factual reason and makes a conditional commitment the recruiter can take to approvers. Vague requests invite token increases, ultimatums create conflict, and anecdotes are weak evidence.
+    Grants overlap: through year four the initial 100 a year sits on top of refresher slices, reaching 137.5. When it ends, only four slices of 12.5 remain, so equity drops to 50. In steady state annual equity equals the annual refresher, which is why refresher practice matters as much as the initial grant.
 - q: >-
-    You have no competing offer, and you will forfeit $60k of unvested equity by leaving. What is a reasonable ask?
-  options: ["Ask for a sign-on bonus to make you whole for the equity you would forfeit", "Accept the offer as it stands, since without a competing offer you have no leverage", "Mention an unnamed competing offer to create leverage, since it cannot be checked", "Ask for $60k more base salary, so the loss is covered within the first year"]
-  answer: 0
+    Your RSUs vest and the employer withholds at the flat supplemental rate. Your marginal federal rate is higher. What happens?
+  options: ["The employer's withholding settles it, so nothing more is owed", "The employer must refund the difference in the next payroll", "The shortfall is due when you file, as a separate tax bill", "Tax is deferred until you sell the shares, so none is due yet"]
+  answer: 2
   explanation: >-
-    Asking to be made whole for forfeited compensation is standard and usually well received, even without a competing offer, and a one-off loss is naturally matched by one-off cash. Base is the least flexible component and a raise recurs every year, so it is a much bigger ask. Inventing an offer is dishonest and risky, and you can still negotiate without one.
+    In the US, vested RSUs are ordinary income at vest, and withholding at a flat supplemental rate can fall short of your marginal rate, so the gap is owed at filing. Selling later creates a separate gain or loss relative to the vest-day value. Rules differ by country, so check with a tax professional.
+- q: >-
+    Investors hold preferred shares with a $150M 1x non-participating preference and 40% of the company. The company sells for $200M. What do common shareholders receive?
+  options: ["60% of $200M, since preferred converts at any sale", "$200M, since the preference applies only in failure", "Nothing, since all proceeds go to the investors", "$50M, since preferred takes its $150M first"]
+  answer: 3
+  explanation: >-
+    Converting would give preferred 40% of 200M, which is 80M, less than the 150M preference, so it takes the preference and common shares the remaining 50M. In the illustrative example that is about 0.67 per common share, below a 1.00 strike, so options are worth nothing despite the sale.
+- q: >-
+    Why do compensation approvers usually agree to a sign-on bonus or a larger equity grant more readily than a higher base?
+  options: ["Sign-on bonuses are not taxed, so they cost the company less", "Base increases need board approval at most public companies", "Equity is free to the company, since it is only newly issued shares", "Base recurs, drives raises and bonus, and is compared with peers"]
+  answer: 3
+  explanation: >-
+    Base is paid every year, raises and bonus are percentages of it, and paying a new hire above existing peers at the level creates compression. A sign-on is one-off and protected by a clawback, and an equity grant comes from a budget. Both have real costs and tax treatment, but not the recurring and internal-equity cost of base.
 ```
