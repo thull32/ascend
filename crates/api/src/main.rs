@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
             let mut tick = tokio::time::interval(Duration::from_secs(3600));
             loop {
                 tick.tick().await;
-                limiter.prune();
+                limiter.prune().await;
                 match auth.sweep_expired().await {
                     Ok(n) if n > 0 => tracing::info!(removed = n, "swept expired sessions"),
                     Ok(_) => {}

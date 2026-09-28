@@ -15,6 +15,8 @@ pub struct Config {
     pub public_origin: String,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
+    /// Sessions unused for this long are signed out (`SESSION_IDLE_DAYS`).
+    pub session_idle: Duration,
     pub ai: AiConfig,
     pub log_json: bool,
     pub env: Environment,
@@ -83,6 +85,7 @@ impl Config {
         let public_origin = var_or("PUBLIC_ORIGIN", &format!("http://localhost:{port}"));
         let cookie_secure = parse_or::<bool>("COOKIE_SECURE", public_origin.starts_with("https://"))?;
         let session_ttl_days = parse_or::<u64>("SESSION_TTL_DAYS", 30)?;
+        let session_idle_days = parse_or::<u64>("SESSION_IDLE_DAYS", 14)?;
 
         let api_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.trim().is_empty()).map(SecretString::from);
 
@@ -92,6 +95,7 @@ impl Config {
             public_origin,
             cookie_secure,
             session_ttl: Duration::from_secs(session_ttl_days * 86_400),
+            session_idle: Duration::from_secs(session_idle_days * 86_400),
             ai: AiConfig {
                 api_key,
                 model: var_or("AI_MODEL", "claude-opus-5-5"),

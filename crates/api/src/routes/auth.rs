@@ -9,7 +9,7 @@ use axum::{Json, Router};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 
 use crate::error::ApiResult;
-use crate::extractors::{AppJson, CurrentUser, SESSION_COOKIE};
+use crate::extractors::{AppJson, CurrentUser, DEVICE_COOKIE, SESSION_COOKIE};
 use crate::middleware::rate_limit::{Bucket, limit};
 use crate::state::AppState;
 
@@ -36,6 +36,29 @@ fn session_cookie(state: &AppState, token: String, expires_at: chrono::DateTime<
         .build()
 }
 
+/// Marks this browser as a known device for the account (see
+/// `migration::m0010_login_devices`). Scoped to the auth routes, the only
+/// place it is read, and strict: it is only ever sent by our own pages.
+fn device_cookie(state: &AppState, token: String) -> Cookie<'static> {
+    Cookie::build((DEVICE_COOKIE, token))
+        .path("/api/auth")
+        .http_only(true)
+        .secure(state.config.cookie_secure)
+        .same_site(SameSite::Strict)
+        .max_age(time::Duration::days(365))
+        .build()
+}
+
+/// The device cookie's hash when it belongs to this account, else `None`.
+async fn known_device(state: &AppState, jar: &CookieJar, email: &str) -> ApiResult<Option<String>> {
+    let raw = jar.get(DEVICE_COOKIE).map(|c| c.value().to_string());
+    if state.auth.is_known_device(email, raw.as_deref()).await? {
+        Ok(raw.map(|t| ascend_core::auth::token::hash(&t)))
+    } else {
+        Ok(None)
+    }
+}
+
 fn time_duration(secs: i64) -> time::Duration {
     time::Duration::seconds(secs)
 }
@@ -51,7 +74,8 @@ async fn register(
     AppJson(input): AppJson<RegisterInput>,
 ) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
     let (user, session) = state.auth.register(input, user_agent(&headers)).await?;
-    let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
+    let device = state.auth.remember_device(user.id).await?;
+    let jar = jar.add(session_cookie(&state, session.token, session.expires_at)).add(device_cookie(&state, device));
     Ok((jar, Json(user)))
 }
 
@@ -61,11 +85,15 @@ async fn login(
     headers: HeaderMap,
     AppJson(input): AppJson<LoginInput>,
 ) -> ApiResult<Response> {
-    if let Some(throttled) = state.limiter.check_password_attempt(&input.email) {
+    let device = known_device(&state, &jar, &input.email).await?;
+    if let Some(throttled) = state.limiter.check_password_attempt(&input.email, device.as_deref()).await {
         return Ok(throttled);
     }
     let (user, session) = state.auth.login(input, user_agent(&headers)).await?;
-    let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
+    let mut jar = jar.add(session_cookie(&state, session.token, session.expires_at));
+    if device.is_none() {
+        jar = jar.add(device_cookie(&state, state.auth.remember_device(user.id).await?));
+    }
     Ok((jar, Json(user)).into_response())
 }
 
@@ -111,7 +139,8 @@ async fn delete_account(
     AppJson(body): AppJson<DeleteAccount>,
 ) -> ApiResult<Response> {
     // A stolen session must not become a password-guessing oracle.
-    if let Some(throttled) = state.limiter.check_password_attempt(&user.email) {
+    let device = known_device(&state, &jar, &user.email).await?;
+    if let Some(throttled) = state.limiter.check_password_attempt(&user.email, device.as_deref()).await {
         return Ok(throttled);
     }
     state.auth.delete_account(user.id, body.password).await?;

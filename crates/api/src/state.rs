@@ -109,7 +109,7 @@ impl AppState {
         );
         let coach = CoachService::new(db.clone(), curriculum.clone(), client, budget, config.ai.model.clone());
         Ok(Self {
-            auth: AuthService::new(db.clone(), config.session_ttl),
+            auth: AuthService::new(db.clone(), config.session_ttl, config.session_idle),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone()),
@@ -117,7 +117,7 @@ impl AppState {
             roadmap: Arc::new(RoadmapService::new(curriculum.clone())),
             interviews: InterviewService::new(db.clone(), curriculum.clone()),
             coach,
-            limiter: Arc::new(crate::middleware::rate_limit::Limiters::new()),
+            limiter: Arc::new(crate::middleware::rate_limit::Limiters::new(SharedLimiter::new(db.clone()))),
             tasks: tokio_util::task::TaskTracker::new(),
             content_etag: crate::build_info::content_etag(&curriculum.version, crate::app::index_html()).into(),
             config,

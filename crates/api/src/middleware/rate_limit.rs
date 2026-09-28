@@ -1,16 +1,23 @@
-//! In-process rate limiting. Auth and general traffic are keyed by client
-//! IP; model-calling routes are keyed by session, so learners sharing one
-//! NAT address do not throttle each other. Per-user AI spend is capped
-//! separately by the daily budget in `ascend_core::ai::budget`.
+//! Rate limiting in two tiers.
 //!
-//! In-memory is the right call for a single-instance deployment; the state
-//! is per process. If we scale horizontally the same interface can be backed
-//! by Redis. Limits are deliberately generous for normal use and tight for
-//! abuse-prone endpoints (auth, AI).
+//! **Shared (Postgres), for everything security-relevant.** Sign-up and
+//! login per IP, password attempts per account (or per known device), and
+//! model calls per session live in `ascend_core::services::rate_limit`, so
+//! every replica charges the same allowance. With in-process state, two
+//! replicas would have doubled each of these.
+//!
+//! **Local (memory), for the general bucket.** 1,200 requests a minute per
+//! IP only stops one client flooding cheap reads, so a per-replica
+//! approximation is fine, and it avoids a database round trip on every
+//! request.
+//!
+//! Per-user AI spend is capped separately by the daily budget in
+//! `ascend_core::ai::budget`.
 use std::net::{IpAddr, SocketAddr};
 use std::num::NonZeroU32;
-use std::sync::Arc;
+use std::time::Duration;
 
+use ascend_core::services::rate_limit::{Quota as SharedQuota, SharedLimiter};
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{ConnectInfo, State};
@@ -26,90 +33,96 @@ use crate::state::AppState;
 
 type Keyed<K> = RateLimiter<K, DefaultKeyedStateStore<K>, DefaultClock>;
 
+/// Sign-up and login: 30 per minute per IP. Loose enough for a class
+/// signing up together behind one NAT address.
+pub const AUTH_PER_IP: SharedQuota = SharedQuota::per_minute(30);
+/// Password attempts: 10 per minute per account for unknown devices, and 10
+/// per minute per known device. The per-account limit is what stops a
+/// distributed attacker guessing one learner's password; the per-device one
+/// means that attacker cannot spend the owner's allowance.
+pub const PASSWORD_ATTEMPTS: SharedQuota = SharedQuota::per_minute(10);
+/// Model-calling routes: 20 per minute per session (IP when there is no
+/// session cookie). The daily budget is enforced separately.
+pub const AI_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
+
 pub struct Limiters {
-    /// Login/register: 30 per minute per IP. Loose enough for a class
-    /// signing up together behind one NAT address.
-    pub auth: Keyed<IpAddr>,
-    /// Password attempts: 10 per minute per account (login and account
-    /// deletion). This, not the per-IP bucket, is what stops a distributed
-    /// attacker guessing one learner's password.
-    pub password_attempts: Keyed<String>,
-    /// Everything else: 1,200 per minute per IP. Deliberately loose: a whole
-    /// class or office can share one NAT address, and every route that is
-    /// expensive (password hashing, AI) has its own tight bucket. This one
-    /// only stops a single client from flooding cheap reads.
+    /// Everything else: 1,200 per minute per IP, per replica.
     pub general: Keyed<IpAddr>,
-    /// Model-calling routes: 20 per minute per session (IP when there is no
-    /// session cookie). The daily budget is enforced separately.
-    pub ai: Keyed<ClientKey>,
+    pub shared: SharedLimiter,
 }
 
 impl Limiters {
-    pub fn new() -> Self {
+    pub fn new(shared: SharedLimiter) -> Self {
         let per_min = |n: u32| Quota::per_minute(NonZeroU32::new(n).expect("non-zero"));
-        Self {
-            auth: RateLimiter::keyed(per_min(30)),
-            password_attempts: RateLimiter::keyed(per_min(10)),
-            general: RateLimiter::keyed(per_min(1200)),
-            ai: RateLimiter::keyed(per_min(20)),
+        Self { general: RateLimiter::keyed(per_min(1200)), shared }
+    }
+
+    /// Drops local state for keys whose quota has fully replenished and
+    /// sweeps shared keys whose time has passed. Called periodically.
+    pub async fn prune(&self) {
+        self.general.retain_recent();
+        self.general.shrink_to_fit();
+        if let Err(e) = self.shared.sweep().await {
+            tracing::warn!(error = %e, "rate-limit sweep failed");
+        }
+    }
+
+    /// Charges one password attempt, to the device when it is known for this
+    /// account and to the account otherwise. Returns the response to send
+    /// when the attempt is refused.
+    pub async fn check_password_attempt(&self, email: &str, known_device: Option<&str>) -> Option<Response> {
+        let key = match known_device {
+            Some(device_hash) => format!("pw:device:{device_hash}"),
+            // Bounded key: the address is not validated yet at this point.
+            None => format!("pw:account:{}", email.trim().to_lowercase().chars().take(254).collect::<String>()),
+        };
+        self.charge(&key, PASSWORD_ATTEMPTS).await
+    }
+
+    async fn charge(&self, key: &str, quota: SharedQuota) -> Option<Response> {
+        match self.shared.check(key, quota).await {
+            Ok(Ok(())) => None,
+            Ok(Err(wait)) => Some(throttled(wait)),
+            Err(e) => {
+                // Fail closed: these limits guard passwords and spend, and a
+                // request that cannot reach Postgres would fail anyway.
+                tracing::error!(error = %e, "shared rate limit unavailable");
+                Some(
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        Json(ErrorBody {
+                            code: "unavailable",
+                            message: "temporarily unavailable; retry shortly".into(),
+                        }),
+                    )
+                        .into_response(),
+                )
+            }
         }
     }
 }
 
-impl Limiters {
-    /// Drops per-IP state for keys whose quota has fully replenished, so the
-    /// maps do not grow with every IP ever seen. Called periodically.
-    pub fn prune(&self) {
-        for l in [&self.auth, &self.general] {
-            l.retain_recent();
-            l.shrink_to_fit();
-        }
-        self.ai.retain_recent();
-        self.ai.shrink_to_fit();
-        self.password_attempts.retain_recent();
-        self.password_attempts.shrink_to_fit();
-    }
-
-    /// Charges one password attempt to `email`'s account. Returns the 429 to
-    /// send when the account is out of attempts.
-    pub fn check_password_attempt(&self, email: &str) -> Option<Response> {
-        // Bounded key: the address is not validated yet at this point.
-        let key: String = email.trim().to_lowercase().chars().take(254).collect();
-        self.password_attempts.check_key(&key).err().map(|not_until| throttled(&not_until))
-    }
-}
-
-impl Default for Limiters {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Who a request is charged to. Sessions are identified by a digest of the
-/// cookie so raw tokens never sit in the limiter's memory. A forged cookie
-/// earns its own bucket but is then rejected by authentication, and still
-/// counts against the per-IP general bucket.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ClientKey {
-    Ip(IpAddr),
-    Session([u8; 16]),
-}
-
-fn session_key(req: &Request<Body>) -> Option<[u8; 16]> {
+/// The part of a session cookie that identifies it to the limiter: a digest,
+/// so raw tokens are never stored. A forged cookie earns its own bucket but
+/// is then rejected by authentication, and still counts against the per-IP
+/// general bucket.
+fn session_key(req: &Request<Body>) -> Option<String> {
     use sha2::{Digest, Sha256};
-    let token = req
-        .headers()
+    let token = cookie(req, crate::extractors::SESSION_COOKIE)?;
+    let digest = Sha256::digest(token.as_bytes());
+    Some(digest[..16].iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Reads one cookie from the request headers.
+pub fn cookie<'a>(req: &'a Request<Body>, name: &str) -> Option<&'a str> {
+    req.headers()
         .get_all(http::header::COOKIE)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
         .filter_map(|pair| pair.trim().split_once('='))
-        .find(|(name, _)| *name == crate::extractors::SESSION_COOKIE)
-        .map(|(_, value)| value)?;
-    let digest = Sha256::digest(token.as_bytes());
-    let mut key = [0u8; 16];
-    key.copy_from_slice(&digest[..16]);
-    Some(key)
+        .find(|(n, _)| *n == name)
+        .map(|(_, value)| value)
 }
 
 #[derive(Clone, Copy)]
@@ -123,7 +136,7 @@ pub enum Bucket {
 /// sets (and overwrites) is trustworthy: `X-Forwarded-For`'s first entry is
 /// whatever the client sent. Railway sets `X-Real-IP`, so production is
 /// configured with `CLIENT_IP_HEADER=x-real-ip`.
-fn client_ip(req: &Request<Body>, header: Option<&str>) -> IpAddr {
+pub fn client_ip(req: &Request<Body>, header: Option<&str>) -> IpAddr {
     if let Some(name) = header
         && let Some(ip) = req.headers().get(name).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse().ok())
     {
@@ -134,22 +147,27 @@ fn client_ip(req: &Request<Body>, header: Option<&str>) -> IpAddr {
 
 pub async fn limit(bucket: Bucket, State(state): State<AppState>, req: Request<Body>, next: Next) -> Response {
     let ip = client_ip(&req, state.config.client_ip_header.as_deref());
-    let limiters: &Arc<Limiters> = &state.limiter;
-    let result = match bucket {
-        Bucket::Auth => limiters.auth.check_key(&ip),
-        Bucket::General => limiters.general.check_key(&ip),
-        Bucket::Ai => limiters.ai.check_key(&session_key(&req).map_or(ClientKey::Ip(ip), ClientKey::Session)),
+    let limiters = &state.limiter;
+    let refused = match bucket {
+        Bucket::General => limiters.general.check_key(&ip).err().map(|not_until| {
+            let wait = not_until.wait_time_from(DefaultClock::default().now());
+            throttled(wait)
+        }),
+        Bucket::Auth => limiters.charge(&format!("auth:ip:{ip}"), AUTH_PER_IP).await,
+        Bucket::Ai => {
+            let key = session_key(&req).map_or_else(|| format!("ai:ip:{ip}"), |s| format!("ai:session:{s}"));
+            limiters.charge(&key, AI_PER_SESSION).await
+        }
     };
-    match result {
-        Ok(()) => next.run(req).await,
-        Err(not_until) => throttled(&not_until),
+    match refused {
+        Some(response) => response,
+        None => next.run(req).await,
     }
 }
 
-/// 429 telling the client exactly when a request will next be allowed (GCRA
-/// knows this), rounded up to whole seconds.
-fn throttled(not_until: &governor::NotUntil<<DefaultClock as governor::clock::Clock>::Instant>) -> Response {
-    let wait = not_until.wait_time_from(DefaultClock::default().now());
+/// 429 telling the client when a request will next be allowed (GCRA knows
+/// this), rounded up to whole seconds.
+fn throttled(wait: Duration) -> Response {
     let secs = wait.as_secs() + u64::from(wait.subsec_nanos() > 0);
     (
         StatusCode::TOO_MANY_REQUESTS,

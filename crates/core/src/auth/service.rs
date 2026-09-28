@@ -76,11 +76,18 @@ pub struct NewSession {
 pub struct AuthService {
     db: DatabaseConnection,
     session_ttl: Duration,
+    /// A session unused for this long is dead even before `session_ttl`:
+    /// a forgotten laptop should not stay signed in for a month.
+    session_idle: Duration,
 }
 
 impl AuthService {
-    pub fn new(db: DatabaseConnection, session_ttl: std::time::Duration) -> Self {
-        Self { db, session_ttl: Duration::from_std(session_ttl).unwrap_or_else(|_| Duration::days(30)) }
+    pub fn new(db: DatabaseConnection, session_ttl: std::time::Duration, session_idle: std::time::Duration) -> Self {
+        Self {
+            db,
+            session_ttl: Duration::from_std(session_ttl).unwrap_or_else(|_| Duration::days(30)),
+            session_idle: Duration::from_std(session_idle).unwrap_or_else(|_| Duration::days(14)),
+        }
     }
 
     pub async fn register(
@@ -173,8 +180,10 @@ impl AuthService {
         Ok(NewSession { token: raw, expires_at })
     }
 
-    /// Resolve a cookie token to a user. Touches `last_seen_at` at most once
-    /// per hour to avoid a write on every request.
+    /// Resolve a cookie token to a user. A session past its absolute expiry
+    /// or idle for longer than `session_idle` is deleted and rejected.
+    /// Touches `last_seen_at` at most once per hour to avoid a write on
+    /// every request, so idleness is measured to within an hour.
     pub async fn authenticate(&self, raw_token: &str) -> AppResult<Option<CurrentUser>> {
         if !token::looks_valid(raw_token) {
             return Ok(None);
@@ -184,7 +193,7 @@ impl AuthService {
             return Ok(None);
         };
         let now = Utc::now();
-        if session.expires_at < now {
+        if session.expires_at < now || now - session.last_seen_at > self.session_idle {
             Sessions::delete_by_id(&hash).exec(&self.db).await?;
             return Ok(None);
         }
@@ -209,10 +218,57 @@ impl AuthService {
         Ok(res.rows_affected)
     }
 
-    /// Background sweep of expired sessions.
+    /// Background sweep of expired and idle sessions.
     pub async fn sweep_expired(&self) -> AppResult<u64> {
-        let res = Sessions::delete_many().filter(sessions::Column::ExpiresAt.lt(Utc::now())).exec(&self.db).await?;
+        let now = Utc::now();
+        let res = Sessions::delete_many()
+            .filter(
+                Condition::any()
+                    .add(sessions::Column::ExpiresAt.lt(now))
+                    .add(sessions::Column::LastSeenAt.lt(now - self.session_idle)),
+            )
+            .exec(&self.db)
+            .await?;
         Ok(res.rows_affected)
+    }
+
+    /// Records this browser as a known device for `user_id` and returns the
+    /// raw token for its cookie. Only a hash is stored, and each account
+    /// keeps its 20 most recent devices.
+    pub async fn remember_device(&self, user_id: Uuid) -> AppResult<String> {
+        let raw = token::generate();
+        self.db
+            .execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "INSERT INTO login_devices (token_hash, user_id) VALUES ($1, $2)",
+                [token::hash(&raw).into(), user_id.into()],
+            ))
+            .await?;
+        self.db
+            .execute_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "DELETE FROM login_devices WHERE user_id = $1 AND token_hash NOT IN \
+                 (SELECT token_hash FROM login_devices WHERE user_id = $1 ORDER BY last_used_at DESC LIMIT 20)",
+                [user_id.into()],
+            ))
+            .await?;
+        Ok(raw)
+    }
+
+    /// Whether `raw_device` is a device known for the account with this
+    /// email. Unknown emails and forged or foreign tokens are simply "no".
+    pub async fn is_known_device(&self, email: &str, raw_device: Option<&str>) -> AppResult<bool> {
+        let Some(raw) = raw_device.filter(|t| token::looks_valid(t)) else { return Ok(false) };
+        let row = self
+            .db
+            .query_one_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "UPDATE login_devices d SET last_used_at = now() FROM users u \
+                 WHERE d.token_hash = $1 AND d.user_id = u.id AND u.email = $2 RETURNING d.user_id",
+                [token::hash(raw).into(), email.trim().to_lowercase().into()],
+            ))
+            .await?;
+        Ok(row.is_some())
     }
 
     pub async fn get_user(&self, id: Uuid) -> AppResult<Option<CurrentUser>> {

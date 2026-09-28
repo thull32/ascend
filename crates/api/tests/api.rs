@@ -28,6 +28,9 @@ struct TestApp {
     router: Router,
     db: DatabaseConnection,
     state: state::AppState,
+    /// Each test app is a distinct client address: the per-IP limits are
+    /// shared through Postgres, and parallel tests must not share one.
+    client_ip: String,
 }
 
 fn config(url: &str) -> Config {
@@ -37,6 +40,7 @@ fn config(url: &str) -> Config {
         public_origin: "http://localhost:8080".into(),
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
+        session_idle: Duration::from_secs(1800),
         ai: AiConfig {
             api_key: None,
             model: "test-model".into(),
@@ -48,7 +52,7 @@ fn config(url: &str) -> Config {
         },
         log_json: false,
         env: Environment::Development,
-        client_ip_header: None,
+        client_ip_header: Some("x-test-client-ip".into()),
     }
 }
 
@@ -70,7 +74,9 @@ async fn test_app() -> Option<TestApp> {
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/content");
     let curriculum = load_curriculum(&ContentSource::Disk(fixtures)).expect("fixture content loads");
     let st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum).expect("state");
-    Some(TestApp { router: app::build(st.clone()), db, state: st })
+    let id = uuid::Uuid::now_v7().as_u128();
+    let client_ip = format!("fd00::{:x}:{:x}", (id >> 16) & 0xffff, id & 0xffff);
+    Some(TestApp { router: app::build(st.clone()), db, state: st, client_ip })
 }
 
 struct Res {
@@ -81,7 +87,7 @@ struct Res {
 
 impl TestApp {
     async fn call(&self, method: &str, path: &str, body: Option<Value>, cookie: Option<&str>, csrf: bool) -> Res {
-        let mut req = Request::builder().method(method).uri(path);
+        let mut req = Request::builder().method(method).uri(path).header("x-test-client-ip", &self.client_ip);
         if csrf {
             req = req.header("x-requested-with", "fetch");
         }
@@ -113,7 +119,13 @@ impl TestApp {
             )
             .await;
         assert_eq!(r.status, StatusCode::OK, "register: {:?}", r.body);
-        let set_cookie = r.headers.get(header::SET_COOKIE).expect("session cookie").to_str().unwrap();
+        let set_cookie = r
+            .headers
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .find(|v| v.starts_with("ascend_session="))
+            .expect("session cookie");
         assert!(set_cookie.contains("HttpOnly"), "cookie must be HttpOnly");
         assert!(set_cookie.contains("SameSite=Lax"), "cookie must be SameSite=Lax");
         let cookie = set_cookie.split(';').next().unwrap().to_string();
@@ -932,4 +944,89 @@ async fn an_abandoned_solo_interview_releases_the_coach_and_a_dead_grade_can_be_
     assert_eq!(retried.status, "grading");
     let done = app.state.interviews.finish(retried, json!({"summary": "ok"}), 60, "completed").await.unwrap();
     assert_eq!(done.status, "completed");
+}
+
+/// Every Set-Cookie value (name=value only) the response carried.
+fn cookies(res: &Res) -> Vec<String> {
+    res.headers
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn an_idle_session_is_signed_out() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    assert_eq!(app.call("GET", "/api/auth/me", None, Some(&cookie), false).await.status, StatusCode::OK);
+    let id = user_id(&app, &cookie).await;
+    // The test config signs out after 30 minutes idle.
+    app.db
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "UPDATE sessions SET last_seen_at = now() - interval '31 minutes' WHERE user_id = $1",
+            [id.into()],
+        ))
+        .await
+        .unwrap();
+    assert_eq!(app.call("GET", "/api/auth/me", None, Some(&cookie), false).await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(count(&app, "SELECT count(*)::bigint AS n FROM sessions WHERE user_id = $1", id).await, 0);
+}
+
+#[tokio::test]
+async fn an_attacker_cannot_lock_the_owner_out_of_a_known_device() {
+    let Some(app) = test_app().await else { return };
+    let email = format!("owner-{}@example.com", uuid::Uuid::now_v7());
+    let reg = app
+        .call(
+            "POST",
+            "/api/auth/register",
+            Some(json!({"email": email, "password": "correct-horse-battery", "display_name": "Owner"})),
+            None,
+            true,
+        )
+        .await;
+    assert_eq!(reg.status, StatusCode::OK);
+    let device = cookies(&reg).into_iter().find(|c| c.starts_with("ascend_device=")).expect("device cookie");
+
+    // Someone who knows the email burns the unknown-device allowance.
+    let guess = json!({"email": email, "password": "wrong-password-123"});
+    let mut refused = false;
+    for _ in 0..15 {
+        if app.call("POST", "/api/auth/login", Some(guess.clone()), None, true).await.status
+            == StatusCode::TOO_MANY_REQUESTS
+        {
+            refused = true;
+            break;
+        }
+    }
+    assert!(refused, "unknown devices are throttled per account");
+    // A forged device cookie is just another unknown device.
+    let forged = format!("ascend_device={}", "A".repeat(43));
+    let r = app.call("POST", "/api/auth/login", Some(guess), Some(&forged), true).await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS);
+
+    // The owner, on the browser they signed up with, is unaffected.
+    let own = json!({"email": email, "password": "correct-horse-battery"});
+    let r = app.call("POST", "/api/auth/login", Some(own), Some(&device), true).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+}
+
+#[tokio::test]
+async fn replicas_share_the_security_limits() {
+    let (Some(a), Some(b)) = (test_app().await, test_app().await) else { return };
+    // Two app instances over one database stand in for two replicas: each
+    // has its own process memory and its own client address.
+    let guess =
+        json!({"email": format!("shared-{}@example.com", uuid::Uuid::now_v7()), "password": "wrong-password-123"});
+    for _ in 0..10 {
+        let r = a.call("POST", "/api/auth/login", Some(guess.clone()), None, true).await;
+        assert_ne!(r.status, StatusCode::TOO_MANY_REQUESTS);
+    }
+    let r = b.call("POST", "/api/auth/login", Some(guess), None, true).await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "the second replica sees the first one's attempts");
+    let secs: u64 = r.headers["retry-after"].to_str().unwrap().parse().unwrap();
+    assert!((1..=60).contains(&secs), "retry-after {secs}");
 }

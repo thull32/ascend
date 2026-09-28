@@ -9,6 +9,9 @@ use crate::error::ApiError;
 use crate::state::AppState;
 
 pub const SESSION_COOKIE: &str = "ascend_session";
+/// Long-lived marker of a browser that has signed in to an account before;
+/// grants nothing by itself (see `routes::auth::device_cookie`).
+pub const DEVICE_COOKIE: &str = "ascend_device";
 
 #[derive(Debug, Clone)]
 pub struct CurrentUser(pub User);
