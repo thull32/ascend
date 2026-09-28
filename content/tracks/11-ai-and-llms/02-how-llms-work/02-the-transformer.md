@@ -152,7 +152,7 @@ The **residual connection** means each sub-layer computes a correction that is a
 The **normalisation layer** rescales each token's vector before it enters a sub-layer. Work both common kinds on $x = (2, 0, -1, 3)$:
 
 - **LayerNorm** subtracts the mean (1.0) and divides by the standard deviation ($\sqrt{2.5} = 1.581$): $(0.632, -0.632, -1.265, 1.265)$, then applies a learned per-dimension scale and shift.
-- **RMSNorm** skips the mean and divides by the root mean square, $\sqrt{(4 + 0 + 1 + 9)/4} = 1.871$: $(1.069, 0, -0.535, 1.604)$, then a learned scale. One fewer reduction per token, which is why many recent models use it.
+- **RMSNorm** skips the mean and divides by the root mean square, $\sqrt{(4 + 0 + 1 + 9)/4} = 1.871$: $(1.069, 0, -0.535, 1.604)$, then a learned scale. One fewer reduction per token, one reason many recent models (the Llama family among them) use it.
 
 Placing the norm *before* each sub-layer ("pre-norm", as written above) trains more stably at depth than the original post-norm design, because the residual stream itself is never rescaled.
 
@@ -193,7 +193,7 @@ The whiteboard shortcut is $12d^2$ per block plus embeddings: 6.44 billion plus 
 
 Materialising $QK^\top$ is the naive implementation's problem. At $n = 32{,}768$ with 32 heads in 16-bit, one layer's score matrices are $32{,}768^2 \times 32 \times 2 = 68.7$ GB, more than a GPU holds, and even when it fits, writing it to memory and reading it back dominates the time. **FlashAttention** (Dao and colleagues, 2022) never builds the matrix: it processes keys and values in tiles that fit in the GPU's on-chip memory and keeps, for each query, a running maximum $m$, a running denominator $\ell$ and a running output, rescaling them when a later tile brings a larger score.
 
-Trace the online softmax on the "sat" scores $(-0.415, -0.081, 0.326)$ in two tiles. Tile 1 holds the first two: $m = -0.081$, $\ell = e^{-0.334} + e^{0} = 1.716$. Tile 2 brings 0.326, a new maximum: rescale the old sum by $e^{-0.081 - 0.326} = 0.666$ and add $e^0$: $\ell = 1.716 \times 0.666 + 1 = 2.142$. The weights $e^{s - 0.326}/2.142$ are $(0.222, 0.311, 0.467)$, identical to the one-shot softmax. The FLOPs are unchanged (still quadratic in $n$); what disappears is the $n \times n$ memory traffic, so memory becomes linear in $n$ and attention runs several times faster. Every serious inference and training stack uses a kernel of this kind.
+Trace the online softmax on the "sat" scores $(-0.415, -0.081, 0.326)$ in two tiles. Tile 1 holds the first two: $m = -0.081$, $\ell = e^{-0.334} + e^{0} = 1.716$. Tile 2 brings 0.326, a new maximum: rescale the old sum by $e^{-0.081 - 0.326} = 0.666$ and add $e^0$: $\ell = 1.716 \times 0.666 + 1 = 2.142$. The weights $e^{s - 0.326}/2.142$ are $(0.222, 0.311, 0.467)$, identical to the one-shot softmax. The FLOPs stay quadratic in $n$ (training even adds some, because the backward pass recomputes attention tiles instead of storing them); what disappears is the $n \times n$ memory traffic, so memory becomes linear in $n$ and attention runs several times faster ([the paper](https://arxiv.org/abs/2205.14135) reports up to 7.6× on GPT-2's attention). Every serious inference and training stack uses a kernel of this kind.
 
 ## Choosing attention and position variants
 

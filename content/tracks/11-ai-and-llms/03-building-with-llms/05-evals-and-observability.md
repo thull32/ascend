@@ -79,7 +79,7 @@ Use the cheapest grader that measures what you care about; the first exercise bu
 
 ## LLM-as-judge: measure its biases first
 
-A judge is another prompt: one criterion, the evidence (passages, reference answer, rubric), and reasoning before a schema-constrained verdict. The 2023 study by Zheng and colleagues, "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena", documented position, verbosity and self-enhancement biases in strong judges.
+A judge is another prompt: one criterion, the evidence (passages, reference answer, rubric), and reasoning before a schema-constrained verdict. The 2023 study by Zheng and colleagues, ["Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena"](https://arxiv.org/abs/2306.05685), documented position, verbosity and self-enhancement biases in strong judges.
 
 ### Position bias on 40 pairs
 
@@ -133,7 +133,7 @@ A gate needs recall on fail, because a missed failure ships; a review queue need
 
 A judge call is an ordinary generation: the model computes a distribution over the next token and a sampler picks one ([Generation and sampling](/learn/ai-and-llms/how-llms-work/generation-and-sampling)). Four consequences:
 
-1. **The judge has its own variance.** At temperature 0 decoding is greedy, yet identical requests can differ, because server-side batching changes the order of floating-point additions and can flip a near-tie. Several current models reject a temperature parameter entirely at the time of writing. Run the judge twice over the calibration set and report its self-agreement.
+1. **The judge has its own variance.** At temperature 0 decoding is greedy, yet identical requests can differ, because server-side batching changes the order of floating-point additions and can flip a near-tie ([Thinking Machines](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) traced this to kernels that are not batch-invariant). At the time of writing, Anthropic models released after Claude Opus 4.6 reject any temperature other than the default, so you cannot turn sampling down at all. Run the judge twice over the calibration set and report its self-agreement.
 2. **Vote where a verdict matters.** If runs err independently with probability 0.1, a majority of three errs with probability $3 \times 0.1^2 \times 0.9 + 0.1^3 = 0.028$. Runs of one prompt share blind spots, so that is a best case, bought at 3× the calls.
 3. **Evidence and reasoning before the verdict.** Tokens are generated left to right, so a verdict placed first is decided before any reasoning exists. With constrained decoding ([Structured outputs and tool use](/learn/ai-and-llms/building-with-llms/structured-outputs-and-tool-use)) the enum verdict always parses, and a `fail` with no listed claim is an inconsistency to flag:
 
@@ -233,7 +233,7 @@ The price of the drop threshold is false blocks, since 3 regressions in 40 can b
 
 ## Non-determinism and the cost of a run
 
-The system under test samples too, so run each case k times. **pass@k** (at least one of k runs passes) is what the system *can* do: at a per-run rate of 0.7, pass@3 = $1 - 0.3^3 = 0.973$. **pass^k** (all k pass) is what it *reliably* does: $0.7^3 = 0.343$. From n samples with c passes the unbiased estimates are $1 - \binom{n-c}{k}/\binom{n}{k}$ and $\binom{c}{k}/\binom{n}{k}$: with 5 samples and 3 passes, pass@2 = 1 − 1/10 = 0.9 and pass^2 = 3/10 = 0.3. [Agents](/learn/ai-and-llms/building-with-llms/agents) applies the same split to multi-step tasks.
+The system under test samples too, so run each case k times. **pass@k** (at least one of k runs passes) is what the system *can* do: at a per-run rate of 0.7, pass@3 = $1 - 0.3^3 = 0.973$. **pass^k** (all k pass) is what it *reliably* does: $0.7^3 = 0.343$. From n samples with c passes the unbiased estimates (from the [Codex paper](https://arxiv.org/abs/2107.03374) and [τ-bench](https://arxiv.org/abs/2406.12045)) are $1 - \binom{n-c}{k}/\binom{n}{k}$ and $\binom{c}{k}/\binom{n}{k}$: with 5 samples and 3 passes, pass@2 = 1 − 1/10 = 0.9 and pass^2 = 3/10 = 0.3. [Agents](/learn/ai-and-llms/building-with-llms/agents) applies the same split to multi-step tasks.
 
 Cost per run, at illustrative prices of $5 per million input tokens and $25 per million output tokens:
 
@@ -275,17 +275,19 @@ The chat span in OpenTelemetry's generative-AI semantic conventions:
 {"name": "chat model-x",
  "attributes": {
    "gen_ai.operation.name": "chat",
+   "gen_ai.provider.name": "anthropic",
    "gen_ai.request.model": "model-x",
-   "gen_ai.usage.input_tokens": 1200,
+   "gen_ai.usage.input_tokens": 8000,
+   "gen_ai.usage.cache_read.input_tokens": 6000,
+   "gen_ai.usage.cache_write.input_tokens": 800,
    "gen_ai.usage.output_tokens": 350,
+   "gen_ai.response.time_to_first_chunk": 0.64,
    "gen_ai.response.finish_reasons": ["end_turn"],
    "app.prompt_version": "v14",
-   "app.usage.cache_read_tokens": 6000,
-   "app.usage.cache_write_tokens": 800,
    "app.retrieval.chunk_ids": ["kb-112", "kb-340"]}}
 ```
 
-The conventions are still evolving at the time of writing: use their names where they exist and your own namespace (`app.`) where they do not. Check what input tokens means in your SDK: Anthropic's `input_tokens` is the uncached remainder, so the prompt is input + cache read + cache write. [Observability](/learn/system-design/building-blocks/observability) covers sampling and trace storage.
+The conventions are still marked Development at the time of writing and now live in their own [repository](https://github.com/open-telemetry/semantic-conventions-genai): use their names where they exist and your own namespace (`app.`) where they do not. Mind what input tokens means. The conventions count the whole prompt, while Anthropic's `input_tokens` is only the uncached remainder, so for Anthropic `gen_ai.usage.input_tokens` is input + cache read + cache write: 8,000 here, not the 1,200 in the raw response. [Observability](/learn/system-design/building-blocks/observability) covers sampling and trace storage.
 
 ### Under the hood: context across async tasks
 
@@ -306,7 +308,7 @@ Two requests, a cache miss on a long prompt and a retry after a 429, account for
 
 ## Cost per request and cache hit rate
 
-From the chat span's counters, at the same illustrative prices and the cache multipliers on Anthropic's pricing page at the time of writing (a 5-minute cache write at 1.25× the input price, a read at 0.1×; some newer models price reads lower):
+From the chat span's counters, at the same illustrative prices and the cache multipliers on Anthropic's pricing page at the time of writing (a 5-minute cache write at 1.25× the input price, a read at 0.1×; some newer models price reads at 0.05× or 0.025×):
 
 | Counter | Tokens | Price per million | Cost |
 |---|---|---|---|

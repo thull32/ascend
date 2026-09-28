@@ -142,7 +142,7 @@ A 95%-reliable step, which looks excellent in a demo, gives a 20-step task a 36%
 
 ## Workflows first
 
-Most tasks called "agentic" are better served by a **workflow**: a fixed control flow written in code, with LLM calls at some of the steps. Workflows are predictable, testable and cheaper, because the path is in the source. A widely used taxonomy of patterns:
+Most tasks called "agentic" are better served by a **workflow**: a fixed control flow written in code, with LLM calls at some of the steps. Workflows are predictable, testable and cheaper, because the path is in the source. A widely used taxonomy of patterns, from Anthropic's [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) (2024):
 
 | Pattern | Shape | Example |
 |---|---|---|
@@ -156,7 +156,7 @@ An agent is justified when **the path cannot be known in advance** (which files 
 
 ## Planning versus reacting
 
-A **reactive** agent (the ReAct pattern: reason, act, observe, repeat) decides one step at a time from the latest observation. A **planning** agent first writes an explicit plan, then executes it, revising when an observation contradicts it. The same dispute, both ways:
+A **reactive** agent (the [ReAct](https://arxiv.org/abs/2210.03629) pattern, named in a 2022 paper: reason, act, observe, repeat) decides one step at a time from the latest observation. A **planning** agent first writes an explicit plan, then executes it, revising when an observation contradicts it. The same dispute, both ways:
 
 | | Reactive | Plan, then execute |
 |---|---|---|
@@ -207,13 +207,13 @@ A tool is called dozens of times per run, so its design costs or saves on every 
 - **Errors that say what to do next.** "No payments since 2026-08-01; try the invoice date 2026-07-28" produces a recovery; a stack trace produces a retry.
 - **Reads separate from writes**, writes narrow and idempotent: `issue_credit(dispute_id, amount)` keyed on the dispute, with an amount ceiling enforced in code.
 
-The **Model Context Protocol** (MCP) standardises how applications expose tools and data to models: an MCP server wraps a system and advertises tools (with JSON-schema inputs), resources and prompts; an MCP client inside the agent discovers them with `tools/list` and invokes them with `tools/call`, over stdio for local servers or HTTP for remote ones. Write the integration once and use it from any client. The risk is sharper for the same reason: a server's tool descriptions and results enter your model's context, and its tools act with whatever credentials you gave it. Vet servers like dependencies and scope their credentials ([MCP and integrations](/learn/ai-assisted-engineering/tools-and-workflows/mcp-and-integrations) traces an attack through one; [LLM security](/learn/ai-and-llms/building-with-llms/llm-security) covers the defences).
+The **Model Context Protocol** (MCP) standardises how applications expose tools and data to models: an MCP server wraps a system and advertises tools (with JSON-schema inputs), resources and prompts; an MCP client inside the agent discovers them with `tools/list` and invokes them with `tools/call`, over stdio for local servers or Streamable HTTP for remote ones ([specification](https://modelcontextprotocol.io/specification/2025-11-25)). Write the integration once and use it from any client. The risk is sharper for the same reason: a server's tool descriptions and results enter your model's context, and its tools act with whatever credentials you gave it. Vet servers like dependencies and scope their credentials ([MCP and integrations](/learn/ai-assisted-engineering/tools-and-workflows/mcp-and-integrations) traces an attack through one; [LLM security](/learn/ai-and-llms/building-with-llms/llm-security) covers the defences).
 
 ## Multi-agent systems
 
 An orchestrator that delegates to sub-agents with their own contexts helps with **breadth** (ten independent searches finish sooner in parallel, and the orchestrator reads ten short summaries instead of ten transcripts) and **specialisation** (a sub-agent with three tools makes fewer wrong choices than one agent with forty).
 
-It costs in three ways. **Tokens multiply**: every sub-agent pays for its own system prompt, tools and reading, so a multi-agent run commonly uses several times the tokens of a single agent on the same job, and parallel sub-agents cannot read a cache entry the others are still writing. **Information is lost at every hand-off**: the orchestrator acts on summaries, and siblings cannot see each other's findings unless you pass them along. And **debugging gets harder**, because the step that went wrong is in a transcript nobody was watching. Use several agents for wide, parallelisable, read-heavy work, and one agent for tightly coupled work where each step depends on the last.
+It costs in three ways. **Tokens multiply**: every sub-agent pays for its own system prompt, tools and reading, so a multi-agent run commonly uses several times the tokens of a single agent on the same job (Anthropic [reports](https://www.anthropic.com/engineering/multi-agent-research-system) its agents using about 4× the tokens of a chat, and its multi-agent research system about 15×), and parallel sub-agents cannot read a cache entry the others are still writing. **Information is lost at every hand-off**: the orchestrator acts on summaries, and siblings cannot see each other's findings unless you pass them along. And **debugging gets harder**, because the step that went wrong is in a transcript nobody was watching. Use several agents for wide, parallelisable, read-heavy work, and one agent for tightly coupled work where each step depends on the last.
 
 ## Guardrails a production agent needs
 
@@ -262,7 +262,7 @@ A good test in a design review: "What would the workflow version of this look li
 
 ## Evaluating agents
 
-Agent evals judge outcomes, not transcripts: did the tests pass, is the database in the expected state, was the right credit issued exactly once? Check the trajectory too: steps, forbidden tool calls, cost per task. Because agents are non-deterministic, run each case several times. **pass@k** (at least one of k runs succeeds) measures what the agent *can* do; **pass^k** (all k succeed) measures what it *reliably* does, which is what production needs. An agent that solves a task 70% of the time has pass@3 of 97.3% and pass^3 of 34.3%; at 90% per run, pass^3 is still only 72.9% ([Evals and observability](/learn/ai-and-llms/building-with-llms/evals-and-observability)).
+Agent evals judge outcomes, not transcripts: did the tests pass, is the database in the expected state, was the right credit issued exactly once? Check the trajectory too: steps, forbidden tool calls, cost per task. Because agents are non-deterministic, run each case several times. **pass@k** (at least one of k runs succeeds) measures what the agent *can* do; **pass^k** (all k succeed, a metric the [τ-bench](https://arxiv.org/abs/2406.12045) paper introduced) measures what it *reliably* does, which is what production needs. An agent that solves a task 70% of the time has pass@3 of 97.3% and pass^3 of 34.3%; at 90% per run, pass^3 is still only 72.9% ([Evals and observability](/learn/ai-and-llms/building-with-llms/evals-and-observability)).
 
 ## Exercise
 

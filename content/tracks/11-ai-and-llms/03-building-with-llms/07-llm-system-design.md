@@ -8,7 +8,7 @@ tags: [llm, system-design, prompt-caching, streaming, sse, rate-limiting, cost, 
 ---
 Design an AI tutor for a free learning platform. It should know which lesson or problem the learner is on and what is in their code editor, stream its replies, keep conversation history, generate fresh quizzes, and run and grade mock interviews. The whole product runs on one shared API key, so a single enthusiastic user or a script must not be able to run up an unbounded bill. And it must teach: a tutor that pastes the answer to every exercise defeats the product.
 
-That is this app's AI coach. This lesson designs it the way you would in an interview or a design review (requirements, cost model, caching, routing, fallbacks, limits, observability) and checks each decision against the code in `crates/core/src/ai/` and `crates/api/src/routes/`, including the places where a reviewer pushed back and what changed. It ends by showing how the same reasoning changes for a documentation chatbot and a coding copilot.
+That is this app's AI coach. This lesson designs it the way you would in an interview or a design review and checks each decision against the code in `crates/core/src/ai/` and `crates/api/src/routes/`, including the places where a reviewer pushed back and what changed.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ That is this app's AI coach. This lesson designs it the way you would in an inte
 
 ## The cost model per request
 
-Start with tokens, because tokens are latency and money. The coach's system prompt is assembled per turn from these parts (sent as two blocks, for reasons the caching section explains); sizes are measured from the code and content at roughly four characters per token:
+Start with tokens, because tokens are latency and money. The coach's system prompt is assembled per turn from these parts (sent as two blocks, for reasons the caching section explains); sizes are measured from the code and content at roughly four characters per token (Anthropic's current tokenizer averages nearer 2.5, so read them as lower bounds):
 
 | Part | Size | Changes |
 |---|---|---|
@@ -34,7 +34,7 @@ Start with tokens, because tokens are latency and money. The coach's system prom
 | Editor contents | Up to 12 KB (about 3,000 tokens) | Whenever the learner types |
 | Progress summary | ~50 tokens | Occasionally |
 
-On top come up to 30 previous messages of history. A typical turn on a lesson is about 8,000 tokens of system prompt, 3,000 of history and 700 of output. Thinking tokens, when the model reasons before answering, are billed as output, so the effort setting is also a cost setting. At illustrative frontier-model rates of $5 per million input tokens and $25 per million output tokens, with cache reads at a tenth of the input price and 5-minute cache writes at 1.25 times it:
+On top come up to 30 previous messages of history. A typical turn on a lesson is about 8,000 tokens of system prompt, 3,000 of history and 700 of output. At illustrative frontier-model rates of $5 per million input tokens and $25 per million output tokens, with cache reads at a tenth of the input price and 5-minute cache writes at 1.25 times it:
 
 | Turn | Input | Output | Total |
 |---|---|---|---|
@@ -79,7 +79,7 @@ Prompt caching is KV-cache reuse across requests. During prefill the model compu
  "caption": "Within one generation the cache avoids recomputing earlier tokens. Prompt caching keeps a prefix's keys and values across requests, so a byte-identical prefix is not prefilled again."}
 ```
 
-The rules follow from the mechanism. The match is an exact prefix match in render order: tools, then system, then messages. A `cache_control` breakpoint marks the end of a cacheable prefix (up to four per request). An entry lives about five minutes by default, refreshed on every hit, with a one-hour option at a higher write price. Prefixes below a model-dependent minimum (from a few hundred to a few thousand tokens) are silently not cached, and the response's `usage` reports `cache_read_input_tokens` and `cache_creation_input_tokens` so you can check.
+The match is an exact prefix match in render order: tools, then system, then messages. A `cache_control` breakpoint marks the end of a cacheable prefix (up to four per request). An entry lives about five minutes by default, refreshed on every hit, with a one-hour option at a higher write price. Prefixes below a model-dependent minimum (from a few hundred to a few thousand tokens) are silently not cached, and the response's `usage` reports `cache_read_input_tokens` and `cache_creation_input_tokens` so you can check.
 
 The first version sent the whole system prompt, ordered stable-first, as one block with one breakpoint at its end, after the editor contents. A review found the ordering right and the breakpoints wrong: a learner who edited code between questions missed the cache every time and paid the 1.25× write premium, more than with caching off; the history had no breakpoint at all; and no cache counter was persisted, so none of it showed on a graph.
 
@@ -101,7 +101,7 @@ The current code splits the builder: `stable_prompt()` returns the persona and c
 }
 ```
 
-The explicit breakpoint closes the stable block, a prefix shared across users as well as turns; a unit test asserts that the volatile context sits after it. The top-level `cache_control` is automatic caching: the API places a breakpoint on the last message and moves it forward, so turn N+1 reads turns 1 to N from cache and writes only the newest exchange. Review the fix the same way. The conversation's cached prefix *includes* the context block, so a learner who asks follow-ups without touching the editor pays about $0.010 of input per turn instead of $0.019, while one who edits before every question still reads only the ~800-token stable block and rewrites everything after it: about $0.064. Moving the editor snapshot into the latest user message would fix that case too, at the cost of old snapshots accumulating in history. Stable-first ordering is necessary but not sufficient: put a breakpoint at each stability boundary, know which volatile part sits inside which cached prefix, and let the counters tell you whether it works.
+The explicit breakpoint closes the stable block, a prefix shared across users as well as turns; a unit test asserts that the volatile context sits after it. The top-level `cache_control` is automatic caching: the API places a breakpoint on the last cacheable block and moves it forward, so turn N+1 reads turns 1 to N from cache and writes only the newest exchange. The conversation's cached prefix *includes* the context block, so a learner who asks follow-ups without touching the editor pays about $0.010 of input per turn instead of $0.019, while one who edits before every question still reads only the ~800-token stable block and rewrites everything after it: about $0.064. Moving the editor snapshot into the latest user message would fix that case too, at the cost of old snapshots accumulating in history. Stable-first ordering is necessary but not sufficient: put a breakpoint at each stability boundary, know which volatile part sits inside which cached prefix, and let the counters tell you whether it works.
 
 ## Caching: the stepped history window
 
@@ -236,7 +236,7 @@ What the app records today, and what each piece answers:
 | Input and output tokens on each stored assistant message | `messages` rows | Which replies were expensive |
 | Budget refusals and provider failures | 429 statuses on the per-response log line; warn-level logs with the provider's status and a truncated body | Whether users hit caps or the provider is struggling |
 
-From the counters, the cache hit rate is `cache_read / (input + cache_read + cache_write)` and billed input is `input + 1.25 × cache_write + 0.1 × cache_read`; ADR 0004 names a falling hit rate as a reason to revisit the design, because it means a prompt change broke the stable prefix. Two gaps remain. The HTTP layer logs each response's latency, but for a streamed turn that is the time until the stream opened, so neither time to first token nor generation time can be graphed. And no eval suite checks the replies; the first should run any code in a reply against the problem's own tests.
+From the counters, the cache hit rate is `cache_read / (input + cache_read + cache_write)`; ADR 0004 names a falling hit rate as a reason to revisit the design, because it means a prompt change broke the stable prefix. Two gaps remain. The HTTP layer logs each response's latency, but for a streamed turn that is the time until the stream opened, so neither time to first token nor generation time can be graphed. And no eval suite checks the replies; the first should run any code in a reply against the problem's own tests.
 
 ## Failure modes
 
@@ -252,7 +252,7 @@ From the counters, the cache hit rate is `cache_read / (input + cache_read + cac
 
 ## Generalising: a docs chatbot and a coding copilot
 
-The same questions (what is in the context, what a token costs, what latency the user perceives, what caps the spend, what must never happen) give different answers for other products.
+The same design questions give different answers for other products.
 
 | | AI coach (this app) | Docs chatbot | Inline coding copilot |
 |---|---|---|---|
@@ -341,8 +341,6 @@ hints:
 
 **"Why do the coach's cache writes cost more than having no cache, for some learners?"** Model answer: a write bills at 1.25× input, and a learner who edits code before every question invalidates everything after the stable block, so each turn rewrites the context and history at the premium; the fix is breakpoints at each stability boundary and moving volatile data later. Common wrong answer: "caching is always cheaper".
 
-**"How do you keep history bounded without breaking the cache?"** Model answer: truncate in large, rare steps (the coach keeps at most 30 messages and moves the start by 10), so four turns in five reuse the prefix; the simulated cost per turn falls about four-fold against a sliding window. Common wrong answer: "drop the oldest message each turn".
-
 **"The provider returns 529 for ten minutes. What does the user see, and what should happen?"** Model answer: today, a classified "overloaded, try again" message and no automatic retry; the next step is one jittered retry before the first byte, then a fallback model that starts cold and stays for the conversation, then degrading to static hints, all with the retry budget and spend visible on a dashboard. Common wrong answer: "retry until it works".
 
 **"Why a conditional upsert rather than read, check, then increment?"** Model answer: separate statements let concurrent requests all pass the check before any increment lands; the conditional upsert evaluates the limit and increments under the row lock in one statement, proved by a 30-way concurrency test against a limit of 10. Common wrong answer: "the increment is atomic, so it is safe".
@@ -350,8 +348,6 @@ hints:
 ## What mid-level engineers get wrong
 
 - **Pricing a feature per token instead of per turn and per day.** Without the token composition of a turn and the cache hit rate, the estimate is off by a factor of two in either direction.
-- **Putting volatile data first.** A timestamp or user name at the top of the system prompt makes every request a cache write at 1.25×.
-- **Trimming history by one message a turn.** Every long-conversation turn rewrites the prefix.
 - **Limiting uncached input only.** With caching on, most input is cache reads and writes, so the limit barely moves while spend does.
 - **Check-then-increment in application code.** Concurrency overshoots the limit by the number of requests in flight.
 - **Forwarding provider errors to users.** Error bodies can quote the request, including another user's content in a shared prompt.
@@ -360,10 +356,9 @@ hints:
 
 - You start an LLM design from **token arithmetic**: what is in the context, what each turn costs, how much the cache hit rate swings the bill, and what the **worst-case ceiling** is.
 - You lay prompts out **stable first, volatile last**, place breakpoints at stability boundaries, **step history truncation** so prefixes survive, and verify hits with the usage counters.
-- You **route by effort before routing by model**, and you know caches are per model, so fallbacks start cold and routes should not alternate mid-conversation.
 - You decide **who owns a streamed reply** and what happens on disconnect, deploy and late arrival (the frozen transcript).
 - You layer **per-session rate limits for bursts and per-user billed-token budgets for cost**, use atomic conditional upserts, and give refusals a `Retry-After`.
-- You design **fallbacks as a ladder** (retry before the first byte, fallback model, degrade the feature) and keep provider error text out of responses.
+- You **route by effort before routing by model** and design **fallbacks as a ladder** (retry before the first byte, a fallback model that starts cold because caches are per model, then degrade the feature), keeping provider error text out of responses.
 - You separate **policies enforced by construction** from **policies enforced by instruction**, and **observe** cost, cache hit rate and refusals per turn and per user.
 
 ## Check yourself

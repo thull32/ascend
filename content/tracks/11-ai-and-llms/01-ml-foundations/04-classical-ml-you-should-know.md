@@ -38,7 +38,7 @@ Four tickets with one feature, previous escalations $x = (0, 1, 2, 3)$, escalate
 | Step | $w$, $b$ | $p$ for $x = 0, 1, 2, 3$ | $\partial L/\partial w$ | $\partial L/\partial b$ | Loss |
 |---|---|---|---|---|---|
 | 1 | 0, 0 | 0.5, 0.5, 0.5, 0.5 | $\tfrac{1}{4}(0 + 0.5 - 1.0 - 1.5) = -0.5$ | $\tfrac{1}{4}(0.5 + 0.5 - 0.5 - 0.5) = 0$ | 0.693 |
-| 2 | 0.5, 0 | 0.5, 0.622, 0.731, 0.818 | −0.116 | +0.168 | 0.546 |
+| 2 | 0.5, 0 | 0.5, 0.622, 0.731, 0.818 | −0.116 | +0.168 | 0.545 |
 | 3 | 0.616, −0.168 | 0.458, 0.610, 0.743, 0.843 | −0.094 | +0.164 | 0.506 |
 
 After step 3, $w = 0.709$, $b = -0.331$, loss 0.471. The slope rises because positive examples have larger $x$; the intercept falls because the model now over-predicts the two negatives on average. Keep going and something instructive happens: this data is perfectly separable at $x = 1.5$, so the loss can always be lowered by scaling $w$ and $b$ up. After 1,000 steps $w = 7.3$, $b = -10.8$, the boundary $-b/w = 1.47$ has settled, and the weights are still growing. Without L2 regularisation they never stop, which is why scikit-learn's `LogisticRegression` applies an L2 penalty by default ($C = 1.0$, the inverse of $\lambda$) and why the [Training and generalisation](/learn/ai-and-llms/ml-foundations/training-and-generalisation) visualisation shows weights climbing after the boundary is found.
@@ -87,7 +87,7 @@ Forests are the "hard to get wrong" default: few hyperparameters that matter, tr
 | 2 | −2.75, −0.75, 0.75, 2.75 | $x \le 2.5$: −1.75, else +1.75 | 3.875, 3.875, 9.125, 9.125 | 1.77 |
 | 3 | −1.875, 0.125, −0.125, 1.875 | $x \le 1.5$: −1.875, else +0.625 | 2.94, 4.19, 9.44, 9.44 | 0.89 |
 
-Each round, the stump is fitted to what the ensemble still gets wrong, and only half of its correction is applied. The first two rounds fix the big left/right difference; round 3 turns to the next largest remaining error, the gap between $x = 1$ and $x = 2$.
+Each round, the stump is fitted to what the ensemble still gets wrong, and only half of its correction is applied. The first two rounds fix the big left/right difference; round 3 turns to the next largest remaining error, the gap between $x = 1$ and $x = 2$. (The stump $x \le 3.5$ ties with $x \le 1.5$ at a squared error of 2.375 on the residuals; the trace keeps the first threshold scanned, as the exercise below does.)
 
 The name comes from the residuals: for squared error, the residual $y - \hat{y}$ is exactly the negative gradient of the loss with respect to the prediction. For any other differentiable loss (log loss for classification, a ranking loss for search) you fit each tree to the negative gradient instead. Boosting is gradient descent where each step is a tree rather than a nudge to a parameter vector.
 
@@ -109,7 +109,7 @@ Check the visualisation's distances and you find a trap: the third-nearest place
 Three more things bite in production:
 
 1. **Feature scaling.** Distance treats all features as comparable. Customer A has income 50,000 and age 30; B has income 51,000 and age 65; C has income 60,000 and age 31. Unscaled, A is 1,000 away from B and 10,000 from C, so the 35-year age gap counts for nothing. Standardise every feature first.
-2. **Query cost.** Brute force is $O(n \cdot d)$ per query. Tree indexes (KD-trees) help at low dimension and stop helping above a few dozen dimensions.
+2. **Query cost.** Brute force is $O(n \cdot d)$ per query. Tree indexes (KD-trees) help at low dimension and stop helping at around 20 dimensions, where queries degrade towards brute force; scikit-learn's `algorithm='auto'` [switches to brute force](https://scikit-learn.org/stable/modules/neighbors.html) above 15.
 3. **The curse of dimensionality.** In a unit hypercube, the fraction of volume inside the inner cube of side 0.9 is $0.9^d$: 81% in 2 dimensions, 35% in 10, and 0.003% in 100. Nearly all the volume is near the surface, and the nearest and farthest neighbours of a point end up at similar distances.
 
 The modern form of k-NN avoids the curse by searching in a *learned* space where distance means something, using approximate indexes that do not scan everything: [Embeddings and similarity](/learn/ai-and-llms/ml-foundations/embeddings-and-similarity) and [Vector search internals](/learn/ai-and-llms/ml-foundations/vector-search-internals).
@@ -147,7 +147,7 @@ Choose $k$ with the elbow of the inertia curve or a silhouette score, run severa
 
 **Prediction cost.** A boosted model of 500 trees of depth 6 visits 500 × 6 = 3,000 nodes per prediction, on the order of microseconds to tens of microseconds on one CPU core depending on how well the trees fit in cache. That is why tree ensembles run inside latency-critical paths such as fraud checks and ad ranking.
 
-**k-means at scale.** scikit-learn's `KMeans` uses k-means++ initialisation by default, and in recent versions runs it only once unless you raise `n_init`, so restarts are something you ask for; mini-batch k-means updates centres from small random samples, which is how clustering runs over hundreds of millions of vectors when building an IVF index.
+**k-means at scale.** scikit-learn's `KMeans` uses k-means++ initialisation by default, and in recent versions runs it only once unless you raise `n_init`, so restarts are something you ask for; mini-batch k-means updates centres from small random samples. Vector indexes take a related shortcut when clustering hundreds of millions of vectors for an IVF index: FAISS runs full k-means iterations (25 by default) on a random subsample of at most 256 training points per centroid.
 
 ## Choosing a model
 

@@ -6,7 +6,7 @@ minutes: 60
 difficulty: hard
 tags: [llm, rag, embeddings, vector-search, hybrid-search, reranking, bm25, ai]
 ---
-A support assistant has to answer questions from 12,000 help-centre articles that change every week. The model has never seen them, or saw a stale copy during pretraining. Fine-tuning them in takes days, has to be redone on every change, and still cannot tell the user which article an answer came from. Putting everything in the prompt is not an option either: at an average of 750 tokens per article the corpus is 9 million tokens, far beyond any context window, and would cost dollars per question even if it fitted.
+A support assistant has to answer questions from 12,000 help-centre articles that change every week. The model has never seen them, or saw a stale copy during pretraining. Fine-tuning them in takes days, has to be redone on every change, and still cannot tell the user which article an answer came from. Putting everything in the prompt is not an option either: at an average of 750 tokens per article the corpus is 9 million tokens, nine times a 1-million-token context window, and would cost dollars per question even if it fitted.
 
 Retrieval-augmented generation (RAG) is the standard answer: at query time, find the handful of passages most likely to contain the answer and put only those in the prompt. The model then answers from text it can see and cite, and updating knowledge means updating an index rather than a model. The idea fits in a sentence. Almost all of the engineering, and almost all of the failures, sit in the retrieval half, so this lesson traces that half on concrete data at every stage.
 
@@ -41,7 +41,7 @@ You cannot embed whole documents usefully. Embedding models have input limits, a
 
 ### Four chunkers on one document
 
-Here is a 101-word policy page (words stand in for tokens; English runs at roughly 0.75 words per token):
+Here is a 101-word policy page (words stand in for tokens; English runs at about 0.55 to 0.75 words per token, depending on the tokenizer):
 
 ```text
 # Returns policy
@@ -78,7 +78,7 @@ The size trade-off in general:
 
 **Overlap costs arithmetic.** With chunk size $s$ and overlap $o$ the stride is $s - o$, so the chunk count grows by a factor of about $s / (s - o)$. For the 9-million-token corpus, 400-token chunks without overlap give 22,500 vectors; with 80 tokens of overlap the stride is 320 and you get about 28,100, 25% more storage and embedding cost for boundary protection.
 
-Better chunkers follow the document's own structure: split on headings, then paragraphs, then sentences, falling back to token windows only for oversized paragraphs; never split a table row, a code block or a numbered procedure; and **prepend context**, so that "It must be submitted within 30 days" becomes "Returns policy > EU customers > Refund window: It must be submitted within 30 days" before it is embedded. Some teams go further and have a small model write a one-sentence summary of where each chunk sits in its document, one cheap call per chunk at index time.
+Better chunkers follow the document's own structure: split on headings, then paragraphs, then sentences, falling back to token windows only for oversized paragraphs; never split a table row, a code block or a numbered procedure; and **prepend context**, so that "It must be submitted within 30 days" becomes "Returns policy > EU customers > Refund window: It must be submitted within 30 days" before it is embedded. Some teams go further and have a small model write a short note on where each chunk sits in its document, one cheap call per chunk at index time. Anthropic's [contextual retrieval](https://www.anthropic.com/engineering/contextual-retrieval) write-up (2024) prepends 50–100 generated tokens to each chunk and reports top-20 retrieval failures falling from 5.7% to 3.7%, and to 2.9% when the same context also goes into the BM25 index.
 
 ## Embedding and retrieval, traced for one query
 
@@ -120,7 +120,7 @@ Approximate nearest-neighbour (ANN) indexes trade a little recall for orders of 
 
 The knobs trade recall for cost: a larger search beam (`ef_search` in most implementations) visits more nodes, raising recall and latency; more links per node (`M`) improves recall at the price of memory and build time. HNSW keeps full-precision vectors plus graph links in RAM, so at large scale teams add compression (product quantisation) or partition-based indexes (IVF) that search only the clusters nearest the query; [Vector search internals](/learn/ai-and-llms/ml-foundations/vector-search-internals) works through all three with their recall, latency and memory trade-offs.
 
-**Filtering is where ANN gets subtle.** Real queries carry constraints: this tenant, this product version, documents this user may read. Retrieve the top 10 and *then* filter to a tenant that owns 1% of the corpus, and you expect about 0.1 surviving results. You need an index that filters during the search, a separate index per large tenant, or a much larger candidate set before filtering. When the filter is an access-control rule, it must be applied at retrieval time and never left to the prompt ([LLM security](/learn/ai-and-llms/building-with-llms/llm-security)).
+**Filtering is where ANN gets subtle.** Real queries carry constraints: this tenant, this product version, documents this user may read. Retrieve the top 10 and *then* filter to a tenant that owns 1% of the corpus, and you expect about 0.1 surviving results. You need an index that filters during the search, a separate index per large tenant, or a much larger candidate set before filtering. pgvector's [README](https://github.com/pgvector/pgvector) gives the same arithmetic for its defaults: an HNSW scan returns `hnsw.ef_search` = 40 candidates, so a filter matching 10% of rows leaves about 4, and its remedies are iterative index scans, partial indexes and partitioning. When the filter is an access-control rule, it must be applied at retrieval time and never left to the prompt ([LLM security](/learn/ai-and-llms/building-with-llms/llm-security)).
 
 ## Under the hood: BM25 and the inverted index
 
@@ -128,7 +128,7 @@ Keyword search keeps an **inverted index**: for each term, the list of documents
 
 $$\text{BM25}(d) = \sum_{t} \text{idf}(t) \cdot \frac{\text{tf}(t,d)\,(k_1 + 1)}{\text{tf}(t,d) + k_1\left(1 - b + b\,\frac{|d|}{\text{avgdl}}\right)}, \qquad \text{idf}(t) = \ln\!\left(1 + \frac{N - n_t + 0.5}{n_t + 0.5}\right)$$
 
-with the usual defaults $k_1 = 1.2$ and $b = 0.75$. Run it on five help articles for the query "error E4012 when exporting invoices" (after lowercasing and stemming: `error`, `e4012`, `when`, `export`, `invoice`). $N = 5$, and the average document is 20.8 tokens long.
+with the usual defaults $k_1 = 1.2$ and $b = 0.75$. Those are Lucene's defaults, and Lucene's implementation drops the constant factor $k_1 + 1$ from the numerator, which rescales every score without changing the ranking. Run it on five help articles for the query "error E4012 when exporting invoices" (after lowercasing and stemming: `error`, `e4012`, `when`, `export`, `invoice`). $N = 5$, and the average document is 20.8 tokens long.
 
 | Term | Documents containing it | idf |
 |---|---|---|
@@ -148,7 +148,7 @@ The scores are incomparable: a BM25 score of 2.8 and a cosine of 0.83 are on dif
 
 $$\text{RRF}(d) = \sum_{\text{lists } L} \frac{1}{k + \text{rank}_L(d)}$$
 
-Ranks start at 1, a document missing from a list contributes nothing for that list, and $k = 60$, the constant from the original paper, is the usual default. Taking the top three from each list:
+Ranks start at 1, a document missing from a list contributes nothing for that list, and $k = 60$, the constant from the original paper, is the usual default; its authors fixed it in a pilot study and found it near-optimal but not critical. Taking the top three from each list:
 
 | Document | BM25 rank | Vector rank | RRF score (k = 60) |
 |---|---|---|---|
@@ -184,7 +184,7 @@ Then lay the chunks out deliberately:
 
 - **Label every chunk with an id and source** (`[kb-17#1] Error E4012 means...`) and ask for citations by id, so users can verify and you can measure whether the answer used the right source.
 - **Give the model an exit**: "If the passages do not contain the answer, say you could not find it." Without it, the model fills the gap from memory, the hallucination RAG was meant to prevent.
-- **Mind the order.** Models use information at the start and end of a long context better than the middle (a 2023 study named the effect "lost in the middle"), so put the strongest chunks first and do not pad.
+- **Mind the order.** Models use information at the start and end of a long context better than the middle (a [2023 study](https://arxiv.org/abs/2307.03172) named the effect "lost in the middle"), so put the strongest chunks first and do not pad.
 - **Treat retrieved text as data.** Anyone who can get a document into your index can put instructions in front of your model; delimit chunks, and rely on the security design, not the wording.
 
 ## Evaluating retrieval separately from generation

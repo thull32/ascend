@@ -101,7 +101,7 @@ After truncation, the sampler draws a uniform random number $u$ in $[0, 1)$ and 
  "caption": "Softmax, then temperature 0.8 sharpens the distribution, then top-p 0.9 keeps the nucleus and renormalises, then one uniform draw picks the token."}
 ```
 
-The usual order is temperature on the logits, then truncation, then sampling. Providers expose different subsets of these knobs, and some advise changing either temperature or top-p but not both; read your provider's documentation rather than assuming.
+The usual order is temperature on the logits, then truncation, then sampling. Providers expose different subsets of these knobs, and some advise changing either temperature or top-p but not both; read your provider's documentation rather than assuming. Some have withdrawn them: at the time of writing, Anthropic's [Messages API reference](https://platform.claude.com/docs/en/api/messages) says models released after Claude Opus 4.6 reject a `temperature` other than 1.0 with a 400 error and no longer let you set `top_p` or `top_k`, so on those models the decoding strategy is the provider's, not yours.
 
 ## Repetition penalties
 
@@ -133,13 +133,13 @@ A serving stack applies a chain of **logit processors** to each sequence's logit
 
 - **Sorting is the expensive part.** Top-p needs the probabilities in order, and a full sort of 128,000 values per sequence per step is significant work on a GPU at large batch sizes. Kernels apply top-k first to shrink the candidate set, use partial selection instead of a full sort, or avoid sorting altogether with rejection-based sampling.
 - **Sampling without a cumulative walk.** The **Gumbel-max trick** draws exactly from $\text{softmax}(z/T)$ by adding independent noise $g_i = -\ln(-\ln U_i)$ to each scaled logit and taking the argmax. Simulated 200,000 times on the logits $(2.0, 1.0, 0.1)$, it picked the three tokens with frequencies 0.658, 0.243 and 0.099, against the softmax's 0.659, 0.242 and 0.099. It turns sampling into an argmax, which parallelises well.
-- **Seeds are best-effort.** Where an API accepts a seed, providers describe determinism as best-effort, because the logits themselves can differ between runs (next section).
+- **Seeds are best-effort.** Where an API accepts a seed, providers describe determinism as best-effort (OpenAI's documentation says it "is not guaranteed"), because the logits themselves can differ between runs (next section).
 
 The [speculative decoding](/learn/ai-and-llms/how-llms-work/inference-serving) that serving stacks use to go faster is a sampler trick too: a small model proposes tokens and an acceptance rule keeps the output distribution exactly that of the large model.
 
 ## Why temperature 0 is still not reproducible
 
-Greedy decoding is deterministic on paper. In production, the same prompt at temperature 0 can still produce different outputs. The main reason is floating-point arithmetic: addition is not associative, so $(0.1 + 0.2) + 0.3 = 0.6000000000000001$ while $0.1 + (0.2 + 0.3) = 0.6$. Inference servers batch your request with other people's, and the batch size changes which GPU kernels run and in what order sums are reduced. The logits differ in their last bits; when the top two tokens are nearly tied, the argmax flips; and every token after the flip is different. Add model updates behind a version alias and exact reproducibility is off the table for most hosted APIs.
+Greedy decoding is deterministic on paper. In production, the same prompt at temperature 0 can still produce different outputs. The main reason is floating-point arithmetic: addition is not associative, so $(0.1 + 0.2) + 0.3 = 0.6000000000000001$ while $0.1 + (0.2 + 0.3) = 0.6$. Inference servers batch your request with other people's, and the batch size changes which GPU kernels run and in what order sums are reduced; [Thinking Machines traced](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/) most endpoint nondeterminism to exactly this lack of batch invariance, not to concurrency as such. The logits differ in their last bits; when the top two tokens are nearly tied, the argmax flips; and every token after the flip is different. Add model updates behind a version alias and exact reproducibility is off the table for most hosted APIs.
 
 The engineering consequences: **never assert on exact output strings** in tests; evaluate structure and meaning instead ([Evals and observability](/learn/ai-and-llms/building-with-llms/evals-and-observability)); pin model versions explicitly; and log prompts and outputs so you can replay what happened.
 

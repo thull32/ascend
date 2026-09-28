@@ -16,9 +16,9 @@ SQL injection was solved by separating channels. A parameterised query sends the
 
 ### Under the hood: what the model can and cannot tell apart
 
-The provider serialises the system prompt, the user's turns and tool results into one sequence with role-marker tokens between them ([Prompt engineering that works](/learn/ai-and-llms/building-with-llms/prompt-engineering-that-works) shows the layout). Post-training teaches an **instruction hierarchy**: follow the system prompt over the user, and the user over text that arrived in a tool result. Attention itself carries no provenance, though. A sentence inside a tool result attends to, and is attended by, every other token exactly as a sentence in the system prompt is; the only thing that marks it as data is the model's learned tendency to discount text in that position. Research techniques strengthen the signal without changing its nature: "spotlighting" (a 2024 Microsoft paper) interleaves a marker character through untrusted text or encodes it, so every token of it looks different from instructions. All of these move probabilities.
+The provider serialises the system prompt, the user's turns and tool results into one sequence with role-marker tokens between them ([Prompt engineering that works](/learn/ai-and-llms/building-with-llms/prompt-engineering-that-works) shows the layout). Post-training teaches an **instruction hierarchy**: follow the system prompt over the user, and the user over text that arrived in a tool result. Attention itself carries no provenance, though. A sentence inside a tool result attends to, and is attended by, every other token exactly as a sentence in the system prompt is; the only thing that marks it as data is the model's learned tendency to discount text in that position. Research techniques strengthen the signal without changing its nature: "spotlighting" (a [2024 Microsoft paper](https://arxiv.org/abs/2403.14720)) interleaves a marker character through untrusted text or encodes it, so every token of it looks different from instructions, and reports attack success on GPT-family models falling from over 50% to under 2%. All of these move probabilities.
 
-That is why probabilistic defences are not boundaries. Suppose a classifier catches 99% of injection attempts. An attacker who can try 100 variants (cheap: edit an email and resend) gets at least one through with probability $1 - 0.99^{100} = 0.634$. At 99.9%, 100 attempts still succeed 9.5% of the time, and 1,000 attempts 63%. Benchmarks of agents under attack (AgentDojo, from 2024, is one) report non-zero attack success rates for the prompt-level defences they test. Security has to come from the architecture: what the model can reach, what it can do, and what happens to its output.
+That is why probabilistic defences are not boundaries. Suppose a classifier catches 99% of injection attempts. An attacker who can try 100 variants (cheap: edit an email and resend) gets at least one through with probability $1 - 0.99^{100} = 0.634$. At 99.9%, 100 attempts still succeed 9.5% of the time, and 1,000 attempts 63%. Benchmarks of agents under attack report non-zero attack success for every defence they test: in [AgentDojo](https://arxiv.org/abs/2406.13352) (2024), the most effective, a simple tool filter, still let 7.5% of targeted attacks through. Security has to come from the architecture: what the model can reach, what it can do, and what happens to its output.
 
 ## Direct and indirect injection
 
@@ -88,7 +88,7 @@ Configuration B is the common real-world failure: the team secured the tool and 
 
 ## The lethal trifecta
 
-Simon Willison's name for the dangerous combination is the **lethal trifecta**. A system is exposed to data theft when the same context has all three of:
+[Simon Willison's](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) name (2025) for the dangerous combination is the **lethal trifecta**. A system is exposed to data theft when the same context has all three of:
 
 1. **Access to private data** (the user's email, a customer database, internal documents),
 2. **Exposure to untrusted content** (anything an attacker can influence), and
@@ -122,7 +122,7 @@ Every tool is a capability handed to a component that can be steered by text it 
 - **Confirm irreversible and external actions** with a human, showing the exact action and arguments, not the model's summary of them.
 - **Track taint.** Once untrusted content has entered a session, downgrade it: egress tools require confirmation, or are removed.
 
-A stronger pattern keeps untrusted content away from the model that holds privileges. In the **dual-LLM pattern**, a privileged model plans and calls tools but never sees untrusted text; a quarantined model processes untrusted text but has no tools, and its outputs are passed around as opaque references the privileged model cannot read. Google DeepMind's CaMeL (2025) extends this with explicit data-flow policies checked in code. These designs cost flexibility, and they are the direction serious agent security is heading.
+A stronger pattern keeps untrusted content away from the model that holds privileges. In the **dual-LLM pattern** ([Simon Willison](https://simonwillison.net/2023/Apr/25/dual-llm-pattern/), 2023), a privileged model plans and calls tools but never sees untrusted text; a quarantined model processes untrusted text but has no tools, and its outputs are passed around as opaque references the privileged model cannot read. [CaMeL](https://arxiv.org/abs/2503.18813) (2025, from Google and Google DeepMind researchers) extends this with explicit data-flow policies checked in code. These designs cost flexibility: on AgentDojo, CaMeL solved 77% of tasks with provable security against 84% for the undefended agent. They are the direction serious agent security is heading.
 
 ## Defence layers, and what each one stops
 
@@ -172,7 +172,7 @@ Model output is untrusted input to whatever consumes it next, and every classic 
 | A file path | Path traversal | Resolve and check against an allowed root |
 | Another model's prompt | Second-order injection | Treat as untrusted content with the same rules |
 
-The OWASP Top 10 for LLM Applications lists improper output handling as its own category, alongside prompt injection, sensitive information disclosure, excessive agency, system prompt leakage and unbounded consumption. Most of the list reduces to two ideas: do not trust what goes into the model, and do not trust what comes out.
+The [OWASP Top 10 for LLM Applications](https://genai.owasp.org/llm-top-10/) (2025 edition) lists improper output handling as its own category, alongside prompt injection, sensitive information disclosure, excessive agency, system prompt leakage and unbounded consumption. Most of the list reduces to two ideas: do not trust what goes into the model, and do not trust what comes out.
 
 ## Other risks worth naming
 

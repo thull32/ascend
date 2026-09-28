@@ -181,11 +181,11 @@ Fit the degree-5 polynomial again, now with an L2 penalty $\lambda$ (with $x$ re
 | 0.0001 | 0.023 | 0.002 | 85.5 | 7.18 |
 | 0.001 | 0.025 | 0.005 | 20.2 | 6.41 |
 | 0.01 | 0.028 | 0.008 | 15.2 | 6.15 |
-| 0.1 | 0.077 | 0.044 | 8.7 | 6.93 |
+| 0.1 | 0.076 | 0.044 | 8.7 | 6.93 |
 | 1 | 0.392 | 0.303 | 2.9 | 7.37 |
 | 10 | 1.736 | 1.241 | 0.3 | 4.32 |
 
-Read it top to bottom. Training error only ever rises, because the penalty stops the fit from reaching the points. Test error falls from 0.113 to under 0.01 as soon as the coefficients are no longer allowed to be enormous (their squared size drops from 287,925 to 85), then climbs again once $\lambda$ is so large that the model cannot follow even the real slope (at $\lambda = 10$ it is nearly a constant, the degree-0 model from the bias table). That U-shape is the bias-variance trade-off with a dial on it. Leave-one-out cross-validation over the same $\lambda$ values picks 0.01 (CV error 0.146, against 0.553 at 0.001 and 0.263 at 0.1), whose test MSE of 0.008 is within noise of the line's.
+Read it top to bottom. Training error only ever rises, because the penalty stops the fit from reaching the points. Test error falls from 0.113 to under 0.01 as soon as the coefficients are no longer allowed to be enormous (their squared size drops from 287,925 to 85), then climbs again once $\lambda$ is so large that the model cannot follow even the real slope (at $\lambda = 10$ it is nearly a constant, the degree-0 model from the bias table). That U-shape is the bias-variance trade-off with a dial on it. Leave-one-out cross-validation over the same $\lambda$ values picks 0.01 (CV error 0.146, against 0.552 at 0.001 and 0.262 at 0.1), whose test MSE of 0.008 is within noise of the line's.
 
 The visualisation trains a logistic-regression classifier on two separable clusters. Watch the weights: once the data is perfectly separated, the loss keeps shrinking only by making the weights larger and larger, which is exactly the unbounded growth that L2 regularisation exists to stop.
 

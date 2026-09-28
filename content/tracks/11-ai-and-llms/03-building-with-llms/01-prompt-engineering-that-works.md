@@ -157,7 +157,7 @@ v4's 466 is 313 system tokens, 23 of user-turn wrapping and the ticket (schema o
 | The input and the question | The user turn, last | Nearest the generation point |
 | Secrets; access control you rely on | Nowhere | The prompt leaks and can be overridden; enforce in code |
 
-**Stable first, volatile last**: caches match byte-identical prefixes. **Long documents first, question last**: providers' long-context guidance recommends it, and a 2023 study ("Lost in the Middle", Liu and colleagues) found models use the start and end of a long input more reliably than the middle. In a long conversation the rules drift further from the generation point every turn, so **restate the contract** where it matters: a one-line reminder at the end of the latest user turn or, where supported, an operator message appended mid-conversation (at the time of writing some Anthropic models accept a `system`-role message inside `messages`, leaving the cached top-level system prompt untouched).
+**Stable first, volatile last**: caches match byte-identical prefixes. **Long documents first, question last**: providers' long-context guidance recommends it, and a 2023 study (["Lost in the Middle"](https://arxiv.org/abs/2307.03172), Liu and colleagues) found models use the start and end of a long input more reliably than the middle. In a long conversation the rules drift further from the generation point every turn, so **restate the contract** where it matters: a one-line reminder at the end of the latest user turn or, where supported, an operator message appended mid-conversation (at the time of writing some Anthropic models accept a `system`-role message inside `messages`, leaving the cached top-level system prompt untouched).
 
 The v5 request to the Anthropic Messages API, with a breakpoint closing the stable block:
 
@@ -241,7 +241,7 @@ The framing is about 15 tokens: the begin token, three 4-token headers and two e
 
 ### The instruction hierarchy
 
-Nothing in attention marks a token as privileged. Post-training teaches a preference, system over user over tool results, which a 2024 OpenAI paper named the **instruction hierarchy** and trained for explicitly. It shifts probabilities, which is why v4 cut obeyed injections from 4 in 12 to 1, not to 0.
+Nothing in attention marks a token as privileged. Post-training teaches a preference, system over user over tool results, which a [2024 OpenAI paper](https://arxiv.org/abs/2404.13208) named the **instruction hierarchy** and trained for explicitly. It shifts probabilities, which is why v4 cut obeyed injections from 4 in 12 to 1, not to 0.
 
 ### Why the last instruction before generation matters
 
@@ -257,7 +257,7 @@ Temperature divides each logit by $T$ before the softmax. On a borderline ticket
 | 0.5 | 0.690 | 0.310 |
 | 0.2 | 0.881 | 0.119 |
 
-At $T = 1$, 40% of runs say high; at 0.2, 12%; at 0, none. If the answer was high, lowering the temperature made the wrong answer reliable; a 60/40 split needs a rule that decides the case. At the time of writing several reasoning-model APIs, including recent Anthropic models, reject `temperature`, `top_p` and `top_k`, so the prompt and an effort setting carry the weight.
+At $T = 1$, 40% of runs say high; at 0.2, 12%; at 0, none. If the answer was high, lowering the temperature made the wrong answer reliable; a 60/40 split needs a rule that decides the case. At the time of writing, Anthropic models released after Claude Opus 4.6 reject any non-default `temperature`, `top_p` or `top_k` with a 400 error, so the prompt and an effort setting carry the weight.
 
 ## Few-shot examples: selection and cost
 
@@ -268,6 +268,8 @@ Models imitate demonstrated behaviour more reliably than described behaviour, an
 - High urgency at 4% instead of the labelled 9%.
 - Summaries clustered at 11 to 13 words, even where 20 were needed.
 - Ambiguous tickets skewed toward billing, the last label (recency). Moving a delivery example to the end moved the skew to delivery: position caused it, not content.
+
+The effect is documented: Zhao and colleagues ([Calibrate Before Use](https://arxiv.org/abs/2102.09690), 2021) traced GPT-3's few-shot instability to a bias toward labels that are frequent or placed near the end of the prompt, and found that the choice and even the order of examples moved accuracy from near chance to near state of the art.
 
 v5's examples answer each failure: every category once, high urgency twice, two null order ids, one hard case labelled by the "resolved first" rule, and surfaces from a clean question to lowercase without punctuation. Coverage is not proportion: two high examples in five over-represent a 9% class, so compare predicted and labelled rates of high.
 
@@ -312,10 +314,10 @@ With k = 3 the labels' best examples in rank order are ids 1, 4, 6 and 5; the fi
 ### The rules
 
 - **Byte-identical prefix**, in render order: tools, system, messages. The provider reuses a recent prefix's prefill ([Context windows and the KV cache](/learn/ai-and-llms/how-llms-work/context-windows-and-kv-cache)); one changed byte invalidates everything after it.
-- **Breakpoints.** A `cache_control` marker ends a cacheable prefix, up to four per request on the Anthropic API; a top-level `cache_control` places one on the last block and moves it forward as the conversation grows.
+- **Breakpoints.** A `cache_control` marker ends a cacheable prefix, up to four per request on the [Anthropic API](https://platform.claude.com/docs/en/build-with-claude/prompt-caching); a top-level `cache_control` places one on the last block and moves it forward as the conversation grows.
 - **Minimum length**: 512 to 4,096 tokens by model at the time of writing. Shorter prefixes are not cached, silently.
 - **Lifetime**: 5 minutes from the start of the request, refreshed on each hit, or 1 hour at a higher write price.
-- **Price, at the time of writing**: writes at 1.25× the input price (2× for 1 hour), reads at 0.1× on most models and less on some newer ones, reported per request as `cache_creation_input_tokens` and `cache_read_input_tokens`.
+- **Price, at the time of writing**: writes at 1.25× the input price (2× for 1 hour), reads at 0.1× on most models and 0.05× or 0.025× on some newer ones, reported per request as `cache_creation_input_tokens` and `cache_read_input_tokens`.
 
 ### Ten turns, with and without caching
 
@@ -388,11 +390,11 @@ Measure first. For triage, 300 thinking tokens a ticket at $25 per million is $7
 ## What does not work, and why
 
 - **Magic personas.** "A world-class engineer with 30 years of experience" describes no task; a role that changes what a good answer is helps ("a payments team, where correctness matters more than style").
-- **Shouting.** "YOU MUST" compensated for older models. Current models attend closely to the system prompt, and emphasis causes over-application: the rule fires where it should not.
+- **Shouting.** "YOU MUST" compensated for older models. Anthropic's guidance for its current models says they respond more closely to the system prompt, so "CRITICAL: You MUST" now causes over-triggering: the rule fires where it should not.
 - **Threats, bribes, emotional appeals.** Small, model-specific effects, invisible in review.
 - **Rule piles.** Sixty bullets with contradictions give inconsistent output, because each sample resolves the conflict differently: a contradiction is an ambiguity. When you add a rule, find the one it contradicts.
 - **Negative-only instructions.** "Do not use Markdown" leaves the alternative to guess and puts the forbidden thing in context; "write plain prose paragraphs" names it.
-- **Prefill.** Starting the assistant turn with `{` used to force JSON; current Anthropic models reject assistant prefill at the time of writing. Use a schema.
+- **Prefill.** Starting the assistant turn with `{` used to force JSON; Anthropic models from the 4.6 generation onwards reject a prefilled final assistant turn with a 400 error. Use a schema.
 - **Prompting around missing knowledge.** No phrasing supplies a policy the model has never seen: retrieve it ([Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation)) or put it behind a tool.
 - **The prompt as access control.** v5 still lost one injection in twelve. If data is reachable, assume it will be reached.
 
@@ -430,7 +432,7 @@ Version prompts in the repository and review them like code. Change one thing, r
 ```viz
 {"type": "ml", "algorithm": "fine-tuning", "steps": 3,
  "title": "What fine-tuning buys and what it costs",
- "caption": "LoRA trains a small adapter on a few thousand examples. It changes behaviour cheaply; it is a poor way to add facts that keep changing."}
+ "caption": "LoRA trains a small low-rank adapter, often on a few thousand examples. It changes behaviour cheaply; it is a poor way to add facts that keep changing."}
 ```
 
 ## Exercise

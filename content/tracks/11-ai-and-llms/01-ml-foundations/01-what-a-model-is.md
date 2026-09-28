@@ -157,7 +157,7 @@ print(round(w, 3), round(b, 3), round(loss(w, b), 3))   # 2.1 1.0 0.175
 
 The tuple assignment on the last line of the loop matters: updating `w` first and then computing the `b` gradient from the new `w` is a different (and wrong) algorithm.
 
-## Why the last 0.01 of loss took 490 steps
+## Why the last 0.01 of loss took a hundred steps
 
 Look at the table again. The loss is within about 6% of optimal after three steps, but $b$ crawls from 0.75 to 1.00 over hundreds of steps. That is not bad luck; it is the shape of the bowl.
 
@@ -165,7 +165,7 @@ The curvature of the MSE surface is described by its matrix of second derivative
 
 The ratio of the two curvatures (about 56 here) is the **condition number**, and it is the single best predictor of how painful gradient descent will be. It is large here because $x$ is not centred: slope and intercept are tangled together.
 
-Now standardise the feature: subtract the mean 2.5 and divide by the standard deviation 1.118, giving $z = (-1.342, -0.447, 0.447, 1.342)$. The Hessian becomes $\begin{pmatrix} 2 & 0 \\ 0 & 2 \end{pmatrix}$: curvature 2 in every direction, condition number 1, a perfectly round bowl. With $\eta = 1/2$ (one over the curvature), a single step lands exactly on the minimum, $w_z = 2.348$, $b_z = 6.25$, which maps back to $w = 2.348 / 1.118 = 2.1$ and $b = 6.25 - 2.1 \times 2.5 = 1.0$. On the raw feature the same accuracy took 80 steps for the loss and about 500 for $b$. This is why every ML pipeline normalises its inputs, and why modern optimisers such as Adam keep a separate, adaptive step size for every parameter (under the hood, below).
+Now standardise the feature: subtract the mean 2.5 and divide by the standard deviation 1.118, giving $z = (-1.342, -0.447, 0.447, 1.342)$. The Hessian becomes $\begin{pmatrix} 2 & 0 \\ 0 & 2 \end{pmatrix}$: curvature 2 in every direction, condition number 1, a perfectly round bowl. With $\eta = 1/2$ (one over the curvature), a single step lands exactly on the minimum, $w_z = 2.348$, $b_z = 6.25$, which maps back to $w = 2.348 / 1.118 = 2.1$ and $b = 6.25 - 2.1 \times 2.5 = 1.0$. On the raw feature the same accuracy (three decimal places) took about 100 steps for the loss and about 400 for $b$. This is why every ML pipeline normalises its inputs, and why modern optimisers such as Adam keep a separate, adaptive step size for every parameter (under the hood, below).
 
 ## The learning rate decides everything
 
@@ -231,7 +231,7 @@ Trace step 1 on the batch-job data. The gradients are −36.5 and −12.5; after
 
 ## Under the hood: precision and training memory
 
-Large models train in mixed precision: the forward and backward passes run in 16-bit bfloat16, but a 32-bit master copy of the weights receives the updates. The reason is visible in a two-line experiment. bfloat16 keeps 8 bits of mantissa, so the gap between 1.0 and the next representable number is $2^{-7} = 0.0078$. Add an update of 0.001 to a weight of 1.0 in bfloat16 and the result rounds back to 1.0; do it 100 times and the weight is still 1.0, where float32 reaches 1.1. Small updates vanish unless the master copy has the digits to hold them. The accounting that follows, from Microsoft's ZeRO paper, is 16 bytes per parameter for mixed-precision Adam (2 for 16-bit weights, 2 for 16-bit gradients, 12 for the 32-bit master weights, $m$ and $v$), so a 7-billion-parameter model needs about $7 \times 10^9 \times 16 = 112$ GB of training state before a single activation is stored, against 14 GB to serve it in 16-bit. That factor of eight is why training needs a cluster and inference fits on one accelerator.
+Large models train in mixed precision: the forward and backward passes run in 16-bit bfloat16, but a 32-bit master copy of the weights receives the updates. The reason is visible in a two-line experiment. bfloat16 stores only 7 mantissa bits (8 bits of precision counting the implicit leading 1), against float32's 23, so the gap between 1.0 and the next representable number is $2^{-7} = 0.0078$. Add an update of 0.001 to a weight of 1.0 in bfloat16 and the result rounds back to 1.0; do it 100 times and the weight is still 1.0, where float32 reaches 1.1. Small updates vanish unless the master copy has the digits to hold them. The accounting that follows, from Microsoft's ZeRO paper, is 16 bytes per parameter for mixed-precision Adam (2 for 16-bit weights, 2 for 16-bit gradients, 12 for the 32-bit master weights, $m$ and $v$), so a 7-billion-parameter model needs about $7 \times 10^9 \times 16 = 112$ GB of training state before a single activation is stored, against 14 GB to serve it in 16-bit. That factor of eight is why training needs a cluster and inference fits on one accelerator.
 
 ## What the model actually learned
 

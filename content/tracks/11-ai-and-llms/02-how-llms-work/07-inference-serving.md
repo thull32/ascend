@@ -68,7 +68,7 @@ Trace both with 3 slots and five queued requests whose outputs are A = 6, B = 2,
 | 5 | A | D | E | E finishes |
 | 6 | A | D | | A and D finish |
 
-**6 steps.** Useful work is $6 + 2 + 3 + 4 + 2 = 17$ token-steps either way; static batching spent 30 slot-steps on it (57% utilisation), continuous 18 (94%). Latency moves even more: E finishes at step 5 instead of step 8, D at step 6 instead of step 10. With real traffic, where output lengths range from 5 to 2,000 tokens, the static waste is far larger. Continuous batching over a paged KV cache is the default in modern serving engines such as vLLM, SGLang, TensorRT-LLM and Hugging Face's TGI.
+**6 steps.** Useful work is $6 + 2 + 3 + 4 + 2 = 17$ token-steps either way; static batching spent 30 slot-steps on it (57% utilisation), continuous 18 (94%). Latency moves even more: E finishes at step 5 instead of step 8, D at step 6 instead of step 10. With real traffic, where output lengths range from 5 to 2,000 tokens, the static waste is far larger. Continuous batching over a paged KV cache is the default in modern serving engines such as vLLM, SGLang, TensorRT-LLM and Hugging Face's TGI (in maintenance mode at the time of writing).
 
 Prefill complicates the picture. Admitting a 30,000-token prompt as one block stalls every other sequence's next token for the 1.3 s it takes: a latency spike for everyone. **Chunked prefill** splits the prompt into pieces (512 tokens is about 14 ms of compute here) interleaved with decode steps, so no one waits more than one chunk. **Disaggregation** goes further and runs prefill and decode on separate GPU pools, each tuned to its own bottleneck, transferring the KV cache between them.
 
@@ -105,7 +105,7 @@ Weights are half the budget; the KV cache is the other. A typical 70B-class conf
 
 The mechanism is a scale factor per small group of weights. Take a group of four weights $(0.12, -0.40, 0.33, 0.05)$ and quantise to signed 4-bit integers in $[-7, 7]$. The largest magnitude is 0.40, so the scale is $0.40 / 7 = 0.0571$. Each weight becomes $\text{round}(w / \text{scale})$: $(2, -7, 6, 1)$, stored in 4 bits each plus one shared scale. Dequantised, they read back as $(0.114, -0.400, 0.343, 0.057)$, errors of at most 0.013. Real schemes use groups of 64 to 128 weights and handle the rare **outlier** weights and activations that would otherwise stretch a group's scale and crush everything else in it to zero.
 
-**Weight-only** quantisation speeds up memory-bound decode; quantising **activations as well** (8-bit floating point, for instance) also speeds up compute-bound prefill on hardware with low-precision tensor cores; **KV-cache quantisation** raises concurrency. 8-bit is usually close to indistinguishable from 16-bit; 4-bit costs measurably more, and unevenly, with long-tail knowledge and multi-step reasoning tending to degrade first. Run your own eval set against the quantised model before switching.
+**Weight-only** quantisation speeds up memory-bound decode; quantising **activations as well** (8-bit floating point, for instance) also speeds up compute-bound prefill on hardware with low-precision tensor cores; **KV-cache quantisation** raises concurrency. 8-bit is usually close to indistinguishable from 16-bit. Well-calibrated 4-bit weight-only quantisation often comes close on published benchmarks too ([one large study](https://arxiv.org/abs/2411.02355) found it rivalled 8-bit across the Llama 3.1 family), but losses grow below 4 bits and are largest on the hardest reasoning tasks ([Liu and colleagues, 2025](https://arxiv.org/abs/2504.04823)), and a benchmark average can hide a regression on the slice your traffic depends on. Run your own eval set against the quantised model before switching.
 
 ## Speculative decoding: guess cheaply, verify in parallel
 
@@ -178,7 +178,7 @@ The utilisation row decides most cases: a GPU costs the same per hour whether it
 
 **Throughput collapses under load with preemption messages.** *Symptom:* at peak, tokens per second drops and some requests stall mid-answer. *Diagnosis:* KV blocks ran out, so the scheduler preempted sequences and recomputed or swapped them; the engine's logs and cache-usage metrics show it. *Fix:* cap concurrent sequences or total tokens per replica, quantise the KV cache, shorten maximum outputs, add replicas.
 
-**The quantised model is cheaper and worse.** *Symptom:* after moving to 4-bit, support escalations rise although the public benchmark moved by under a point. *Diagnosis:* degradation concentrated on long-tail facts and multi-step tasks; your eval set, sliced by task type, shows it. *Fix:* 8-bit weights, or 4-bit with outlier handling, validated on your own eval before rollout.
+**The quantised model is cheaper and worse.** *Symptom:* after moving to 4-bit, support escalations rise although the public benchmark moved by under a point. *Diagnosis:* the loss is concentrated on a slice the benchmark barely samples (in published studies, the hardest multi-step tasks degrade most); your eval set, sliced by task type, shows it. *Fix:* 8-bit weights, or 4-bit with outlier handling, validated on your own eval before rollout.
 
 **Speculative decoding made it slower.** *Symptom:* tokens per second fell after enabling it. *Diagnosis:* acceptance rate below about 0.5 on this traffic (creative text), or batches large enough that the verification compute is no longer free; the engine reports acceptance. *Fix:* enable it only for low-batch, predictable workloads, or switch to prompt n-gram drafting for edit tasks.
 
@@ -306,7 +306,7 @@ hints:
 - **Buying compute for a bandwidth problem.** Decode is limited by bytes read; batching, quantisation and speculation are the levers.
 - **Splitting a model that fits across more GPUs to raise throughput.** Tensor parallelism buys latency; replicas buy throughput.
 - **Sizing a deployment from weights alone.** The KV cache sets concurrency and is often the larger budget.
-- **Quantising to 4-bit on the strength of a benchmark average.** Losses concentrate on long-tail and multi-step tasks.
+- **Quantising to 4-bit on the strength of a benchmark average.** The average hides regressions concentrated on hard multi-step tasks or on your own slice.
 - **Quoting cost per token at full utilisation.** At 10% utilisation it is ten times higher.
 - **Putting a timestamp at the top of the system prompt.** Every request misses the prefix cache.
 

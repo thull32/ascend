@@ -122,7 +122,7 @@ It punishes confident mistakes hard, which is what you want from a classifier. I
 
 $$\frac{\partial L}{\partial z} = p - y.$$
 
-No small sigmoid factor survives to slow learning, which is the reason classifiers use this pairing (and softmax with cross-entropy for many classes, where the same cancellation gives $p_k - y_k$ per class). That is precisely the training loss of a language model, where the "classes" are the 50,000 to 200,000 tokens of its vocabulary.
+No small sigmoid factor survives to slow learning, which is the reason classifiers use this pairing (and softmax with cross-entropy for many classes, where the same cancellation gives $p_k - y_k$ per class). That is precisely the training loss of a language model, where the "classes" are the tokens of its vocabulary: 32,000 for Llama 2, 256,000 for Gemma.
 
 ## A 2-2-1 network by hand: forward
 
@@ -259,7 +259,7 @@ The architectural fixes that made very deep networks trainable are the ones insi
 
 ## Why depth, and not width alone
 
-The **universal approximation theorem** says one hidden layer with enough units can approximate any continuous function on a bounded domain. It is often quoted as the reason neural networks work, and it says less than it sounds: it does not say how many units you need (for some functions, exponentially many), nor that gradient descent will find the weights. Depth wins because it lets the network build features out of features: pixels into edges, edges into shapes, shapes into objects; or characters into tokens, tokens into phrases, phrases into meaning. A deep network can reuse an intermediate feature many times, where a shallow one has to rebuild it for every case.
+The **universal approximation theorem** says one hidden layer with enough units can approximate any continuous function on a closed, bounded domain. It is often quoted as the reason neural networks work, and it says less than it sounds: it does not say how many units you need (for some functions, exponentially many), nor that gradient descent will find the weights. Depth wins because it lets the network build features out of features: pixels into edges, edges into shapes, shapes into objects; or characters into tokens, tokens into phrases, phrases into meaning. A deep network can reuse an intermediate feature many times, where a shallow one has to rebuild it for every case.
 
 ## Failure modes in production
 

@@ -7,9 +7,9 @@ difficulty: hard
 tags: [vector-search, ann, hnsw, ivf, product-quantisation, pgvector, recall, embeddings]
 problems: []
 ---
-Your help-centre assistant retrieves from 10 million passages, each a 768-dimensional float32 embedding. Product wants the 10 best passages per question inside a 50 ms p99, at a few hundred queries per second, with a tenant filter on every query. The exact answer compares the query with all 10 million vectors, streaming 30.7 GB through memory. At a generous 100 GB/s that is about 300 ms: six times the budget, for one query.
+Your help-centre assistant retrieves from 10 million passages, each a 768-dimensional float32 embedding. Product wants the 10 best per question inside a 50 ms p99, at a few hundred queries per second, with a tenant filter on every query. The exact answer streams all 30.7 GB of vectors through memory: at a generous 100 GB/s, about 300 ms, six times the budget for one query.
 
-Every vector index is a way out of that arithmetic, and each pays with something: **recall** (it sometimes misses a true neighbour), **memory** (links, codebooks), **build time**, or the ability to **filter and delete** cleanly. This lesson traces the four designs production systems combine (brute force, IVF, HNSW, product quantisation) on data small enough to check by hand, measures recall in pure Python, and ends with the operational problems that decide which one you can run. [Embeddings and similarity](/learn/ai-and-llms/ml-foundations/embeddings-and-similarity) covered where vectors come from and which distance to use; here every vector is normalised, so the nearest by Euclidean distance is also the best by dot product.
+Every vector index is a way out of that arithmetic, and each pays with **recall** (it sometimes misses a true neighbour), **memory**, **build time**, or the ability to **filter and delete** cleanly. This lesson traces the four designs production systems combine on data small enough to check by hand, then the operational problems that decide which one you can run. Vectors are normalised, as in [Embeddings and similarity](/learn/ai-and-llms/ml-foundations/embeddings-and-similarity), so Euclidean and dot-product rankings agree.
 
 ## Brute force, costed
 
@@ -17,7 +17,7 @@ For $N$ vectors of dimension $d$, exact search computes $N$ distances of $d$ mul
 
 1. **Bytes read:** $10^6 \times 768 \times 4 = 3.07$ GB of float32.
 2. **Arithmetic:** $2 \times 768 \times 10^6 = 1.54$ GFLOP per query (a multiply and an add per dimension).
-3. **The bottleneck:** each 3,072-byte vector feeds 1,536 operations, half an operation per byte loaded, far below what a core can compute per byte, so the scan runs at memory bandwidth, not arithmetic speed.
+3. **The bottleneck:** half an operation per byte loaded is far below what a core can compute per byte, so the scan runs at memory bandwidth, not arithmetic speed.
 
 | Where the scan runs | Bandwidth (order of magnitude) | Time for 3.07 GB |
 |---|---|---|
@@ -25,9 +25,9 @@ For $N$ vectors of dimension $d$, exact search computes $N$ distances of $d$ mul
 | All cores of a server | ~100 GB/s | ~31 ms |
 | A data-centre GPU with HBM | ~2 TB/s | ~1.5 ms |
 
-The bandwidths are round assumptions that vary by hardware; time = bytes ÷ bandwidth is exact. Two levers help without an index. **Smaller numbers**: float16 halves the bytes and int8 quarters them, at a small precision cost. **Batching**: $B$ queries become one matrix-matrix product, so each vector loaded serves $B$ queries; FAISS's flat index hands large batches to BLAS for this reason.
+The bandwidths are round assumptions; time = bytes ÷ bandwidth is exact. Two levers help without an index: **smaller numbers** (float16 halves the bytes, int8 quarters them) and **batching** ($B$ queries become one matrix-matrix product, so each vector loaded serves $B$ queries; FAISS's flat index hands large batches to BLAS for this reason).
 
-Brute force is right more often than teams expect: below a few hundred thousand vectors (200,000 × 768 is 614 MB, milliseconds on a server), over a small filtered subset (measured below), and always as **ground truth**, because recall is defined against it.
+Brute force is right more often than teams expect: below a few hundred thousand vectors (200,000 × 768 is 614 MB, milliseconds on a server), over a small filtered subset, and always as **ground truth**, because recall is defined against it.
 
 ```viz
 {"type": "ml", "algorithm": "embeddings-similarity", "text": "king queen man woman apple banana",
@@ -41,17 +41,17 @@ An approximate index returns a list; recall@k asks how much of the true top $k$ 
 
 $$\text{recall@}k = \frac{|\,\text{index top } k \;\cap\; \text{exact top } k\,|}{k},$$
 
-averaged over a sample of queries. If the exact top 3 is {17, 4, 9} and the index returns [17, 9, 30], recall@3 is 2/3. Three rules make the number honest:
+averaged over a sample of queries. If the exact top 3 is {17, 4, 9} and the index returns [17, 9, 30], recall@3 is 2/3. Three rules keep it honest:
 
-- **Measure on production-like queries**, held out from the indexed data, against brute force over the same vectors. Recall is not *relevance*; that belongs to the embedding model and is measured with labelled data, as in [Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation).
+- **Measure on held-out, production-like queries** against brute force over the same vectors. Recall is not *relevance*, which belongs to the embedding model and needs labelled data ([Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation)).
 - **Slice it.** An average of 0.95 can hide a rare language or a small tenant at 0.6.
-- **Fewer than $k$ results count as misses.** That is how filtered-search failures show up, and why an index can pass unfiltered benchmarks and fail in production.
+- **Fewer than $k$ results count as misses**, which is how filtered-search failures show up.
 
 ## IVF: search only the nearest cells
 
-The inverted-file index (IVF) partitions the vectors with k-means (traced in [Classical ML you should know](/learn/ai-and-llms/ml-foundations/classical-ml-you-should-know)). The `nlist` centroids form the **coarse quantiser**; each vector is appended to the **inverted list** of its nearest centroid. A query measures all `nlist` centroids, picks the `nprobe` nearest, and scans only those lists.
+The inverted-file index (IVF) partitions the vectors with k-means. The `nlist` centroids form the **coarse quantiser**; each vector is appended to the **inverted list** of its nearest centroid. A query measures all `nlist` centroids, picks the `nprobe` nearest, and scans only those lists.
 
-Trace it on 14 points in 2D. Each centroid is its cell's mean and every point is nearest its own centroid, so k-means has converged:
+Trace it on 14 points in 2D, where k-means has converged (each point is nearest its own cell's mean):
 
 | Cell | Points | Centroid |
 |---|---|---|
@@ -67,11 +67,11 @@ The query is $q = (4.6, 2.2)$.
 3. The true nearest neighbour is (5.4, 2.2) at 0.80. k-means put it in B because it is nearer B's centroid (2.20) than A's (3.40). With `nprobe = 1` it is never examined: recall@1 = 0.
 4. `nprobe = 2` scans A and B and finds (5.4, 2.2) at 0.80. Cost: 4 + 8 = 12.
 
-The miss is structural: a query near a boundary has neighbours on both sides, and a centroid says nothing about its cell's edge. `nprobe` is the dial: more cells, more recall, more work.
+The miss is structural: a query near a boundary has neighbours on both sides. `nprobe` is the dial: more cells, more recall, more work.
 
 ## IVF at scale: choosing nlist and nprobe
 
-Per query, IVF computes about $\text{nlist} + \text{nprobe} \times N/\text{nlist}$ distances: every centroid, then the probed lists at $N/\text{nlist}$ vectors each on average. Minimising over nlist gives $\text{nlist} = \sqrt{\text{nprobe} \cdot N}$, the source of the rule of thumb "nlist ≈ √N". At the time of writing, FAISS's guidelines suggest a small multiple of √N, and pgvector's documentation suggests rows ÷ 1,000 up to a million rows and √rows beyond. For $N = 10^7$ and nlist = 4,096:
+Per query, IVF computes about $\text{nlist} + \text{nprobe} \times N/\text{nlist}$ distances: every centroid, then the probed lists at $N/\text{nlist}$ vectors each on average. Minimising over nlist gives $\text{nlist} = \sqrt{\text{nprobe} \cdot N}$, the source of the rule of thumb "nlist ≈ √N". At the time of writing, pgvector's documentation suggests rows ÷ 1,000 up to a million rows and √rows beyond; [FAISS's guidelines](https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index) suggest 4√N to 16√N below a million vectors and far more cells above (65,536 for 1 to 10 million), found through an HNSW index over the centroids. For $N = 10^7$ and nlist = 4,096:
 
 | nprobe | Vectors compared | Share of brute force | Bytes scanned (float32) | Time at 100 GB/s |
 |---|---|---|---|---|
@@ -79,13 +79,11 @@ Per query, IVF computes about $\text{nlist} + \text{nprobe} \times N/\text{nlist
 | 16 | 43,158 | 0.43% | 133 MB | 1.3 ms |
 | 64 | 160,346 | 1.6% | 493 MB | 4.9 ms |
 
-Against 307 ms for brute force, nprobe = 16 is a 230-fold saving. Two caveats: lists are uneven (dense regions of the space make big cells), so the p99 query costs more than the average; and recall at a given nprobe depends on your data, measured next.
-
-Training is paid up front. FAISS warns when it gets fewer than 39 training points per centroid; 20 k-means iterations over 160,000 samples and 4,096 centroids is $2 \times 10^{13}$ floating-point operations, tens of seconds on a many-core CPU, and assigning $10^7$ vectors to cells is another $6 \times 10^{13}$.
+Against 307 ms for brute force, nprobe = 16 is a 230-fold saving, though dense regions make big cells, so the p99 query costs more than the average. Training is paid up front: FAISS warns below 39 training points per centroid, and 20 k-means iterations over 160,000 samples and 4,096 centroids is $2 \times 10^{13}$ floating-point operations (tens of seconds on a many-core CPU), plus $6 \times 10^{13}$ to assign $10^7$ vectors to cells.
 
 ## Measuring recall in pure Python
 
-What nprobe buys depends on your vectors, so measure it. This standard-library script builds a small IVF, runs held-out queries, and compares against brute force:
+What nprobe buys depends on your vectors, so measure it against brute force with held-out queries:
 
 ```python
 import random
@@ -144,7 +142,7 @@ experiment(clusters=25)   # embedding-like: structure in the data
 experiment(clusters=0)    # pure noise: no structure to exploit
 ```
 
-`random.Random(seed)` makes the run repeatable, and `kmeans` keeps an empty cell's old centroid rather than dividing by zero. Output on CPython 3.14:
+Output on CPython 3.14 (seeded, so repeatable):
 
 | nprobe | Clustered: recall@10 | Clustered: vectors scanned | Noise: recall@10 | Noise: vectors scanned |
 |---|---|---|---|---|
@@ -154,11 +152,11 @@ experiment(clusters=0)    # pure noise: no structure to exploit
 | 8 | 1.000 | 21.3% | 0.773 | 20.9% |
 | 16 | 1.000 | 41.9% | 0.937 | 41.4% |
 
-On clustered data, two cells out of 40 give 0.98 recall. On noise, 0.94 takes 16 cells and 41% of the data: in high dimensions random points are all at nearly the same distance from each other, so no cell holds a query's neighbours. Real embeddings sit between the two, and where yours sit is the whole question. At this toy size each list is 2.5% of the data; with $10^7$ vectors in 4,096 lists it is about 0.02%.
+On clustered data, two cells out of 40 give 0.98 recall. On noise, 0.94 takes 16 cells and 41% of the data: in high dimensions random points are all nearly equidistant, so no cell holds a query's neighbours. Real embeddings sit between the two, and where yours sit is the whole question.
 
 ## HNSW: a graph with express lanes
 
-A **hierarchical navigable small world** graph (Malkov and Yashunin, 2016) stores every vector as a node on layer 0, linked to near neighbours, and promotes a random few to sparser layers where links span longer distances. A search enters at the top, walks greedily towards the query, drops a layer, and repeats. It is a skip list generalised from a line to a metric space.
+A **hierarchical navigable small world** graph (Malkov and Yashunin, 2016) stores every vector as a node on layer 0, linked to near neighbours, and promotes a random few to sparser layers whose links span longer distances. A search enters at the top, walks greedily towards the query, drops a layer, and repeats: a skip list generalised from a line to a metric space.
 
 **Layer assignment.** Each inserted node draws $\ell = \lfloor -\ln(U) \cdot m_L \rfloor$ with $U$ uniform on $(0, 1]$ and $m_L = 1/\ln M$. Then $P(\ell \ge l) = P(U \le e^{-l/m_L}) = e^{-l \ln M} = M^{-l}$, so each layer holds about $1/M$ of the one below. For $N = 10^6$ and $M = 16$ ($m_L = 0.361$):
 
@@ -171,9 +169,9 @@ A **hierarchical navigable small world** graph (Malkov and Yashunin, 2016) store
 | 4 | 1/65,536 | 15 |
 | 5 | about 1/10⁶ | about 1 |
 
-The top layer is 4 or 5, close to $\log_{16} 10^6 = 4.98$. A node's expected number of upper-layer memberships is $1/16 + 1/256 + \dots = 1/15$, so upper layers add under 7% to the link count.
+The top layer is 4 or 5, close to $\log_{16} 10^6 = 4.98$, and a node's expected upper-layer memberships sum to $1/16 + 1/256 + \dots = 1/15$, so upper layers add little memory.
 
-**Insertion.** A new node greedy-searches from the top down to its own level. On each layer from there to 0 it runs a beam search of width **efConstruction** for candidate neighbours, links to M of them (**M0 = 2M** on layer 0 in the reference implementation), and adds reverse links, pruning any list that overflows. The pruning heuristic keeps a candidate only if it is nearer the new node than to any neighbour already kept, which preserves links in different directions rather than M links into one clump; those diverse links keep the graph navigable.
+**Insertion.** A new node greedy-searches from the top down to its own level. On each layer from there to 0 it runs a beam search of width **efConstruction**, links to M of the candidates (**M0 = 2M** on layer 0, the paper's recommendation), and adds reverse links, pruning any list that overflows. The pruning heuristic keeps a candidate only if it is nearer the new node than to any neighbour already kept, so links point in different directions rather than into one clump, which keeps the graph navigable.
 
 ## Greedy descent, traced
 
@@ -200,9 +198,9 @@ The result is n3 at 0.63, the exact nearest neighbour, after 10 distance computa
 
 ## When greedy gets stuck: the ef beam
 
-Move the query to $q = (4.1, 2.6)$. Layer 1 takes n0 → n6 (2.40); n6's layer-1 neighbours (n0 3.49, n3 2.90, n9 5.11) are further, so it descends. On layer 0, n6's neighbours are n5 2.52, n7 2.69, n9 5.11 and n10 5.40: none is closer, so greedy search stops at n6. The true nearest is n1 at 1.25, reachable only through n5, which is further than n6. A greedy walk cannot step uphill.
+Move the query to $q = (4.1, 2.6)$. Layer 1 takes n0 → n6 (2.40); n6's layer-1 neighbours (n0 3.49, n3 2.90, n9 5.11) are further, so it descends. On layer 0, n6's neighbours are n5 2.52, n7 2.69, n9 5.11 and n10 5.40: none is closer, so greedy search stops at n6. The true nearest is n1 at 1.25, reachable only through n5. A greedy walk cannot step uphill.
 
-HNSW's layer-0 search is therefore a **beam search**: it keeps a candidate queue and a result set of the best **ef** (efSearch) nodes, expands the nearest unexpanded candidate, and stops when that candidate is further than the worst member of the result set. Trace ef = 2 from n6:
+HNSW's layer-0 search is therefore a **beam search**: it keeps a candidate queue and a result set of the best **ef** (efSearch) nodes, expands the nearest unexpanded candidate, and stops when that candidate is further than the worst result. Trace ef = 2 from n6:
 
 | Expand | Result set (best 2) | Candidate queue after |
 |---|---|---|
@@ -211,7 +209,7 @@ HNSW's layer-0 search is therefore a **beam search**: it keeps a candidate queue
 | n1 (1.25) | n1 1.25, n2 1.42 | n2 1.42 |
 | n2 (1.42) | n1 1.25, n2 1.42 | empty: stop |
 
-With a second slot, n5 enters the result set although it is worse than n6, and expanding it reaches n1. The price is 16 distance computations (7 on upper layers, 9 on layer 0), more than a 12-vector scan. Over a grid of 9,191 query positions on this graph, ef = 1 returns a wrong nearest neighbour for 73 (0.8%) and ef = 2 for none, at 11.7 distance computations per query instead of 10.9.
+With a second slot, n5 enters the result set although it is worse than n6, and expanding it reaches n1, at a price of 16 distance computations (7 on upper layers, 9 on layer 0). Over a grid of 9,191 query positions on this graph, ef = 1 returns a wrong nearest neighbour for 73 (0.8%) and ef = 2 for none, at 11.7 distance computations per query instead of 10.9.
 
 ```viz
 {"type": "ml", "algorithm": "vector-search-hnsw",
@@ -223,7 +221,7 @@ With a second slot, n5 enters the result set although it is worse than n6, and e
 
 ## M, efConstruction and efSearch, measured
 
-A pure-Python HNSW (layer draw, beam search and pruning heuristic as above, about 60 lines) over the same two datasets and queries, M = 8, efConstruction = 40:
+A 60-line pure-Python HNSW (layer draw, beam search and pruning heuristic as above) over the same two datasets, M = 8, efConstruction = 40:
 
 | efSearch | Clustered: recall@10 | Distances per query | Noise: recall@10 | Distances per query |
 |---|---|---|---|---|
@@ -243,27 +241,25 @@ Varying the build parameters on the noise data, with efSearch fixed at 20:
 | 8 | 10 | 115 | 0.778 | 200 |
 | 8 | 160 | 653 | 0.913 | 239 |
 
-These are small, illustrative runs; the directions are what transfer. **efSearch** is the query-time dial: raise it until recall meets the target, and pay roughly in proportion. **M** raises recall per query at the cost of more distances, more memory and a slower build. **efConstruction** is paid once: going from 10 to 40 lifted recall from 0.78 to 0.91 at the same efSearch, going to 160 doubled the build for nothing, and a poorly built graph cannot be rescued at query time.
+These are small, illustrative runs; the directions transfer. **efSearch** is the query-time dial: raise it until recall meets the target, and pay roughly in proportion. **M** raises recall per query at the cost of more distances, memory and build time. **efConstruction** is paid once: 10 to 40 lifted recall from 0.78 to 0.91 at the same efSearch, 160 doubled the build for nothing, and a poorly built graph cannot be rescued at query time.
 
-Memory is where M bites. With M0 = 2M slots of 4 bytes each, $10^6$ vectors at M = 16 need 128 MB of layer-0 links (plus about 4 MB above). That is 4% of the 3.07 GB of float32 vectors, but 133% of 96-byte compressed codes: once vectors are compressed, the graph dominates.
+M bites in memory. With M0 = 2M slots of 4 bytes each, $10^6$ vectors at M = 16 need 128 MB of layer-0 links (plus about 4 MB above). That is 4% of the 3.07 GB of float32 vectors, but 133% of 96-byte compressed codes: once vectors are compressed, the graph dominates.
 
 ## Product quantisation: 3 KB to 96 bytes
 
-IVF and HNSW reduce how many vectors you touch; **product quantisation** (PQ; Jégou, Douze and Schmid, 2011) reduces the bytes each one costs. Split each $d$-dimensional vector into $m$ sub-vectors. For each sub-space, run k-means with 256 centroids on training data: one **codebook** per sub-space. Encode a vector by replacing each sub-vector with the one-byte index of its nearest centroid.
+IVF and HNSW reduce how many vectors you touch; **product quantisation** (PQ; Jégou, Douze and Schmid, 2011) reduces the bytes each costs. Split each $d$-dimensional vector into $m$ sub-vectors, run k-means with 256 centroids in each sub-space (one **codebook** per sub-space), and encode a vector as the one-byte index of each sub-vector's nearest centroid.
 
 | m (sub-vectors) | Bytes per 768-d vector | Compression vs 3,072 B | 10M vectors | Distance table per query |
 |---|---|---|---|---|
-| 48 | 48 | 64× | 0.48 GB | 12,288 entries (49 KB) |
-| 96 | 96 | 32× | 0.96 GB | 24,576 entries (98 KB) |
-| 192 | 192 | 16× | 1.92 GB | 49,152 entries (197 KB) |
+| 48 | 48 | 64× | 0.48 GB | 49 KB |
+| 96 | 96 | 32× | 0.96 GB | 98 KB |
+| 192 | 192 | 16× | 1.92 GB | 197 KB |
 
 The codebooks are tiny (786 KB for m = 96), yet together they describe $256^{96}$ possible reconstructions: the "product" in the name.
 
-**Asymmetric distance computation** (ADC) makes scoring fast. The query stays uncompressed. Before scanning, compute the squared distance from each query sub-vector to every centroid of its sub-space, a table of $m \times 256$ numbers that fits in cache; each stored vector then costs $m$ lookups and additions.
+**Asymmetric distance computation** (ADC) makes scoring fast. The query stays uncompressed: before scanning, compute the squared distance from each query sub-vector to every centroid of its sub-space, a cache-sized table of $m \times 256$ numbers; each stored vector then costs $m$ lookups and additions.
 
-Trace it with 4-dimensional vectors, $m = 2$, 4 centroids per codebook. Codebook 1 (dimensions 1–2): c0 (0, 0), c1 (1, 0), c2 (0, 1), c3 (1, 1). Codebook 2 (dimensions 3–4): c0 (0, 0), c1 (2, 0), c2 (0, 2), c3 (2, 2). Query $q = (0.9, 0.2, 1.8, 0.1)$.
-
-First build the two tables, one squared distance per centroid:
+Trace it with 4-dimensional vectors, $m = 2$, 4 centroids per codebook. Codebook 1 (dimensions 1–2): c0 (0, 0), c1 (1, 0), c2 (0, 1), c3 (1, 1). Codebook 2 (dimensions 3–4): c0 (0, 0), c1 (2, 0), c2 (0, 2), c3 (2, 2). Query $q = (0.9, 0.2, 1.8, 0.1)$. First the two tables:
 
 | Centroid | T1: from (0.9, 0.2) | T2: from (1.8, 0.1) |
 |---|---|---|
@@ -281,24 +277,22 @@ Then score each stored code with two lookups:
 | x3 (0.8, 0.1, 0.2, 1.7) | (1, 2) | 0.05 + 6.85 = 6.90 | 5.14 |
 | x4 (0.7, 0.3, 1.6, 0.4) | (1, 1) | 0.05 + 0.05 = 0.10 | 0.18 |
 
-The ranking survives, but distances are off by 30–60%, and x1 and x4 share a code, so ADC ties them although x4 is nearer. Production PQ therefore **re-ranks**: take the top 100 or so by ADC, fetch their full vectors (307 KB), and sort by exact distance.
+The ranking survives, but distances are off by 30–60%, and ADC ties x1 and x4, which share a code, although x4 is nearer. Production PQ therefore **re-ranks**: fetch the full vectors of the top 100 or so by ADC (307 KB) and sort by exact distance.
 
 **IVF-PQ** combines both: IVF picks the cells, PQ encodes each vector's **residual** (the vector minus its centroid, which has a smaller spread and quantises more accurately). At $10^7$ vectors, nlist 4,096 and m = 96, codes plus 8-byte ids take 1.04 GB against 30.8 GB for IVF-Flat, and nprobe = 16 scans about 39,000 codes (3.75 MB). ADC caps recall below 1 however many cells you probe; re-ranking buys it back.
 
 ## Filtered search
 
-Real queries carry predicates such as `tenant_id = 42` or `lang = 'de'`. Of the three ways to combine one with an ANN index, two fail.
-
-**Post-filtering** asks the index for $k'$ candidates and discards those that fail. If the predicate holds for a fraction $s$ of vectors, independently of similarity, $k's$ survive on average and none survive with probability $(1 - s)^{k'}$:
+Real queries carry predicates such as `tenant_id = 42`. **Post-filtering** asks the index for $k'$ candidates and discards those that fail. If the predicate holds for a fraction $s$ of vectors, independently of similarity, $k's$ survive on average and none survive with probability $(1 - s)^{k'}$:
 
 | Selectivity $s$ | $k' = 10$ | $k' = 100$ | $k' = 1{,}000$ |
 |---|---|---|---|
-| 1% | 0.1 survivors; 90% of queries empty | 1.0; 37% empty | 10; under 0.01% empty |
+| 1% | 0.1; 90% of queries empty | 1.0; 37% empty | 10; under 0.01% empty |
 | 0.1% | 0.01; 99% empty | 0.1; 90% empty | 1.0; 37% empty |
 
-pgvector's documentation states the same arithmetic for its HNSW index: with the default `hnsw.ef_search` of 40 and a condition matching 10% of rows, about 4 rows survive on average.
+pgvector's documentation gives the same arithmetic: at the default `hnsw.ef_search` of 40, a condition matching 10% of rows leaves about 4.
 
-**Restricting the traversal** to nodes that pass the predicate breaks navigability: the links among passing nodes do not form a connected graph, so the search strands in a fragment. Measured on the pure-Python HNSW (2,000 clustered vectors, M = 8, efSearch 40), each cell showing results returned out of 10, recall@10, and distance computations per query:
+**Restricting the traversal** to passing nodes breaks navigability: the links among them do not form a connected graph, so the search strands in a fragment. Measured on the pure-Python HNSW (2,000 clustered vectors, M = 8, efSearch 40), each cell showing results returned out of 10, recall@10, and distances per query:
 
 | Strategy | Selectivity 10% (199 vectors pass) | Selectivity 1% (22 vectors pass) |
 |---|---|---|
@@ -308,15 +302,15 @@ pgvector's documentation states the same arithmetic for its HNSW index: with the
 | Traverse all, collect passing only | 10 / 1.00 / 786 | 10 / 1.00 / 2,026 |
 | Brute force over the passing set | 10 / 1.00 / 199 | 10 / 1.00 / 22 |
 
-The last two rows carry the lesson. Filter-aware traversal is correct, but at 1% selectivity it visited the whole graph, while an exact scan of the 22 passing vectors cost 22 distances. Engines that filter well therefore **plan**: estimate the predicate's cardinality from a payload index, brute-force the passing set when it is small, walk the graph collecting only passing nodes when it is large; some add extra links per indexed filter value to keep filtered subgraphs connected. For a few large, stable partitions (tenants, languages), a **separate index per partition** (in Postgres, a partial index or a partition) turns the filter into the choice of index. At the time of writing, recent pgvector releases (0.8 onwards) add iterative index scans (`hnsw.iterative_scan`) that keep pulling candidates until enough rows pass.
+The last two rows carry the lesson. Filter-aware traversal is correct, but at 1% selectivity it visited the whole graph, while an exact scan of the 22 passing vectors cost 22 distances. Engines that filter well therefore **plan**: estimate the predicate's cardinality, brute-force the passing set when it is small, and walk the graph collecting passing nodes when it is large (Qdrant, for example, documents a full-scan threshold and extra HNSW edges per indexed payload value). For a few large, stable partitions (tenants, languages), a **separate index per partition** (in Postgres, a partial index or a partition) turns the filter into the choice of index. pgvector 0.8.0 added iterative index scans (`hnsw.iterative_scan`) that keep pulling candidates until enough rows pass.
 
 ## Build, update and delete costs
 
-**HNSW build** is one insert per vector, each a beam search of width efConstruction plus pruning: 115 to 653 distance computations per insert in the runs above. For $10^6$ × 768 at about $10^3$ per insert that is on the order of $10^{12}$ floating-point operations, but as random reads across gigabytes, so memory latency and lock contention set the pace: expect minutes to tens of minutes on a multi-core server, growing with M and efConstruction. The graph must fit in RAM while it builds; pgvector builds much faster when it fits in `maintenance_work_mem`.
+**HNSW build** is one insert per vector, each a beam search plus pruning: 115 to 653 distance computations per insert above. About $10^3$ per insert for $10^6$ × 768 is on the order of $10^{12}$ floating-point operations, but as random reads across gigabytes, so memory latency and locks set the pace: minutes to tens of minutes on a multi-core server. pgvector builds much faster when the graph fits in `maintenance_work_mem`.
 
-**IVF build** is k-means on a sample plus one assignment pass; later inserts are cheap (nearest centroid, append). The hidden cost is **drift**: if new documents land where there were few training points (a new product line, a new language), they pile into a few lists and queries hitting them slow down. Track list sizes and retrain when the largest grow several times past the mean.
+**IVF build** is k-means on a sample plus one assignment pass; later inserts are cheap (nearest centroid, append). The hidden cost is **drift**: new documents where there were few training points (a new product line, a new language) pile into a few lists and slow the queries that hit them. Track list sizes and retrain when the largest grow several times past the mean.
 
-**Deletes.** Removing a graph node orphans the nodes that reached the rest of the graph through it, so HNSW implementations **tombstone** it instead: still traversed, never returned. The pure-Python graph again, efSearch 40:
+**Deletes.** Removing a graph node orphans the nodes that reached the rest of the graph through it, so HNSW implementations **tombstone** it: still traversed, never returned. The pure-Python graph again, efSearch 40:
 
 | Deleted | Tombstones: recall@10 / distances per query | Removed without repair: recall@10 | Pieces of the live layer-0 graph |
 |---|---|---|---|
@@ -324,7 +318,7 @@ The last two rows carry the lesson. Filter-aware traversal is correct, but at 1%
 | 30% | 1.000 / 137 | 0.984 | 7 |
 | 60% | 0.998 / 229 | 0.047 | 51 |
 
-Tombstones keep recall but cost work (the search wades through dead nodes to collect $k$ live ones) and memory; removal without repair fragments the graph, and at 60% the descent strands in the wrong piece. Libraries differ: hnswlib marks deletions and can reuse the slot, pgvector repairs neighbour lists during `VACUUM` (slow on large HNSW indexes), some libraries cannot remove at all. Under heavy churn, rebuild offline and swap, the same versioned-index move used to re-embed a corpus.
+Tombstones keep recall but cost work (the search wades through dead nodes to collect $k$ live ones) and memory; removal without repair fragments the graph. hnswlib marks deletions and can reuse the slot, pgvector repairs the graph during `VACUUM` (slow on large HNSW indexes), and some libraries cannot remove at all. Under heavy churn, rebuild offline and swap.
 
 ## pgvector versus dedicated stores
 
@@ -357,42 +351,41 @@ ORDER BY embedding <=> $1                 -- cosine distance; <-> is L2, <#> neg
 LIMIT 10;
 ```
 
-The non-obvious lines: the index serves only `ORDER BY <operator> LIMIT`, and only when the operator matches the operator class (`<=>` with `vector_cosine_ops`); a mismatch silently becomes a sequential scan. The `WHERE` clause post-filters the `ef_search` candidates unless iterative scans are on. The m and ef_construction shown are pgvector's defaults at the time of writing.
+The index serves only `ORDER BY <operator> LIMIT` with the operator of its class (`<=>` for `vector_cosine_ops`); a mismatch silently becomes a sequential scan, and the `WHERE` clause post-filters the `ef_search` candidates unless iterative scans are on. The m and ef_construction shown are pgvector's defaults.
 
-Postgres is the right first home when vectors live beside relational data: one transaction writes the row and its embedding, joins and row-level permissions work, and backups and replicas already exist. Its limits are why teams move: the index lives in 8 KB pages behind the buffer cache, so an HNSW index that outgrows RAM turns hops into disk reads; it scales up rather than out; float32 vectors index only up to about 2,000 dimensions at the time of writing (half precision allows more); and its filter planning is simpler than engines built around it.
+Postgres is the right first home when vectors live beside relational data: one transaction writes the row and its embedding, joins and row-level permissions work, and backups and replicas exist. Teams move because the index lives in 8 KB pages behind the buffer cache (an HNSW index that outgrows RAM turns hops into disk reads), it scales up rather than out, `vector` columns index only up to 2,000 dimensions (`halfvec` 4,000) at the time of writing, and its filter planning is simpler than dedicated engines'.
 
-**FAISS** is a library: every index type here plus GPU kernels, in process, with no persistence, filtering, replication or access control beyond what you build. **Dedicated vector databases** (Milvus, Qdrant, Weaviate, Pinecone, Vespa, vector fields in Elasticsearch and OpenSearch) add sharding, replication, payload indexes with filter-aware search, quantisation and on-disk indexes; features change quickly, so verify them when you choose. The cost is a second system kept consistent with the source of truth, usually by change data capture. [Graph, time-series and vector databases](/learn/databases/nosql-and-specialised/graph-time-series-and-vector-databases) compares it with the other specialised stores.
+**FAISS** is a library: every index type here plus GPU kernels, in process, with no replication or access control beyond what you build. **Dedicated vector databases** (Milvus, Qdrant, Weaviate, Pinecone, Vespa, Elasticsearch and OpenSearch vector fields) add sharding, replication, filter-aware search, quantisation and on-disk indexes; features change quickly, so verify them when you choose. The cost is a second system kept consistent with the source of truth, usually by change data capture ([Graph, time-series and vector databases](/learn/databases/nosql-and-specialised/graph-time-series-and-vector-databases)).
 
 ## Under the hood
 
-- **hnswlib's layout.** Layer 0 is one contiguous array of fixed-size records: a link count, M0 four-byte neighbour ids, the vector and an 8-byte label. Slots are preallocated, so memory follows M, not the actual degree; upper-layer lists are allocated separately for the few nodes that have them; a deletion sets a flag in the record header.
+- **hnswlib's layout.** Layer 0 is one contiguous array of fixed-size records: a link count, M0 four-byte neighbour ids, the vector and an 8-byte label. Slots are preallocated, so memory follows M, not the actual degree; a deletion sets a flag in the link-count header.
 - **FAISS inverted lists** hold, per cell, an array of codes and a parallel array of 64-bit ids: 8% on top of 96-byte PQ codes, 25% on top of 32-byte ones.
-- **SIMD kernels.** A 768-dimensional float32 dot product is 48 AVX-512 fused multiply-adds (16 lanes) or 96 with AVX2 (8 lanes). FAISS's "fast scan" PQ uses 4-bit codes, so a 16-entry table fits in a SIMD register and lookups become shuffle instructions.
-- **Smaller numbers.** Float16 halves bandwidth and memory, int8 quarters it, binary quantisation (96 bytes for 768 dimensions) cuts it 32-fold; all are paired with re-ranking on full vectors.
-- **On-disk graphs.** DiskANN (Microsoft Research, 2019) navigates with PQ codes in RAM and keeps full vectors and the graph on SSD; each hop is an SSD read of order 100 µs, so the graph is built to need few hops.
+- **SIMD kernels.** A 768-dimensional float32 dot product is 48 AVX-512 fused multiply-adds (16 lanes) or 96 with AVX2 (8 lanes). FAISS's fast-scan PQ uses 4-bit codes, so a 16-entry table fits in a SIMD register and lookups become shuffle instructions.
+- **On-disk graphs.** DiskANN (Microsoft Research, NeurIPS 2019) navigates with PQ codes cached in RAM and keeps full vectors and the graph on SSD; each hop is an SSD read of order 100 µs, so the graph is built to need few hops.
 
 ## Trade-offs
 
 | | Brute force | IVF-Flat | IVF-PQ | HNSW | On-disk graph (DiskANN-style) |
 |---|---|---|---|---|---|
-| RAM per 768-d vector | 3,072 B | ~3,080 B (vector + id) | ~104 B (m = 96) | ~3,200 B (vector + ~128 B links at M = 16) | ~100 B; rest on SSD |
-| Work per query | all $N$ | nlist + nprobe·N/nlist | same count, far cheaper per vector | hundreds to thousands of nodes | tens of SSD reads |
-| Recall ceiling | exact | 1.0 as nprobe → nlist | below 1 without re-ranking | near 1 with a large ef | near 1 with re-ranking |
-| Build | none | k-means + assignment | k-means + codebooks | slowest; whole graph in RAM | slow; usually offline |
-| Inserts and deletes | trivial | cheap; centroids drift | cheap; codebooks drift | inserts fine; deletes tombstoned | batch rebuilds typical |
-| Filtered queries | exact over the subset | scans cells, may find few | same as IVF-Flat | needs filter-aware traversal or planning | engine-dependent |
+| RAM per 768-d vector | 3,072 B | ~3,080 B | ~104 B (m = 96) | ~3,200 B (M = 16) | ~100 B; rest on SSD |
+| Work per query | all $N$ | nlist + nprobe·N/nlist | same count, cheaper each | hundreds to thousands of nodes | tens of SSD reads |
+| Recall ceiling | exact | 1.0 as nprobe → nlist | below 1 without re-ranking | near 1 with large ef | near 1 with re-ranking |
+| Build | none | k-means + assignment | k-means + codebooks | slowest; graph in RAM | slow; offline |
+| Inserts and deletes | trivial | cheap; centroids drift | cheap; codebooks drift | deletes tombstoned | batch rebuilds |
+| Filtered queries | exact over the subset | may find few | may find few | needs planning | engine-dependent |
 
 ## Failure modes
 
-**Recall decays after churn.** *Symptom:* weeks after launch, answers worsen and HNSW latency creeps up with no deploy. *Diagnosis:* much of the graph is tombstones (an update is a delete plus an insert); recall@10 against brute force on a query sample has fallen and distances per query have risen. *Fix:* rebuild and swap (`REINDEX INDEX CONCURRENTLY` in Postgres), and alert on the deleted fraction.
+**Recall decays after churn.** *Symptom:* weeks after launch, answers worsen and HNSW latency creeps up with no deploy. *Diagnosis:* much of the graph is tombstones (an update is a delete plus an insert); measured recall has fallen and distances per query have risen. *Fix:* rebuild and swap (`REINDEX INDEX CONCURRENTLY` in Postgres), and alert on the deleted fraction.
 
-**Small tenants get empty results.** *Symptom:* large customers' search works; small ones see "no results" for questions their documents answer. *Diagnosis:* post-filtering: 40 candidates × 0.5% is 0.2 rows; `EXPLAIN` shows the tenant predicate as a filter above the index scan. *Fix:* iterative scans, brute force for small tenants, partial indexes or partitions for the largest, or an engine that plans filtered queries.
+**Small tenants get empty results.** *Symptom:* small customers see "no results" for questions their documents answer. *Diagnosis:* post-filtering: 40 candidates × 0.5% is 0.2 rows; `EXPLAIN` shows the tenant predicate as a filter above the index scan. *Fix:* iterative scans, brute force for small tenants, partial indexes or partitions for the largest, or an engine that plans filtered queries.
 
-**An IVFFlat index built too early.** *Symptom:* recall is poor from day one. *Diagnosis:* a migration created the index on an empty or seed-data table, so the centroids describe a few hundred rows and list sizes are wildly uneven. *Fix:* create IVF indexes after bulk loading and rebuild when the data changes shape, or use HNSW, which has no training step.
+**An IVFFlat index built too early.** *Symptom:* recall is poor from day one. *Diagnosis:* a migration created the index on an empty or seed-data table, so the centroids describe a few hundred rows and list sizes are wildly uneven. *Fix:* create IVF indexes after bulk loading, or use HNSW, which has no training step.
 
-**The index outgrew memory.** *Symptom:* p99 jumps from milliseconds to hundreds as the corpus grows, with CPU idle. *Diagnosis:* index plus vectors exceed RAM, so graph hops became disk reads; the buffer hit ratio fell. *Fix:* quantise (half precision, int8, or PQ with re-ranking), lower M, shard, or move to an on-disk graph.
+**The index outgrew memory.** *Symptom:* p99 jumps from milliseconds to hundreds as the corpus grows, with CPU idle. *Diagnosis:* index plus vectors exceed RAM, so graph hops became disk reads; the buffer hit ratio fell. *Fix:* quantise (half precision, int8, binary or PQ, with re-ranking), lower M, shard, or move to an on-disk graph.
 
-**The index is silently unused.** *Symptom:* a 5 ms query takes 800 ms after a refactor. *Diagnosis:* the operator no longer matches the operator class (L2 against a cosine index), or the `LIMIT` was dropped, so the planner chose a sequential scan. *Fix:* assert on `EXPLAIN` for hot queries in tests, and define the metric in one place.
+**The index is silently unused.** *Symptom:* a 5 ms query takes 800 ms after a refactor. *Diagnosis:* the operator no longer matches the operator class, or the `LIMIT` was dropped, so the planner chose a sequential scan. *Fix:* assert on `EXPLAIN` for hot queries in tests.
 
 ## Exercises
 
@@ -501,34 +494,29 @@ hints:
 
 ## Interviewer follow-ups
 
-**"10 million 768-dimensional vectors, 50 ms p99, a few hundred QPS. Which index?"** *Model answer:* brute force streams 30.7 GB per query, about 300 ms at 100 GB/s, so it is out. HNSW over float32 needs about 32 GB of RAM and gives the best recall per millisecond; if that memory is too dear, IVF-PQ at about 1 GB with re-ranking, or HNSW over half-precision vectors. Parameters come from measuring recall@10 on held-out queries, and I ask about filters before choosing. *Common wrong answer:* "a vector database", with no numbers for memory, recall or the filter.
+**"10 million 768-dimensional vectors, 50 ms p99, a few hundred QPS. Which index?"** *Model answer:* brute force is about 300 ms per query, so it is out. HNSW over float32 needs about 32 GB of RAM and gives the best recall per millisecond; if that memory is too dear, IVF-PQ at about 1 GB with re-ranking, or HNSW over half-precision vectors. I tune on held-out recall@10 and ask about filters first. *Common wrong answer:* "a vector database", with no numbers for memory, recall or the filter.
 
-**"Why does recall drop when you add a tenant filter?"** *Model answer:* the filter runs after the index returns ef candidates, so survivors average $k's$, 0.4 at ef 40 and 1% selectivity; restricting traversal to passing nodes disconnects the graph. Fix with filter-aware traversal plus a planner that brute-forces small subsets, iterative scans, or per-tenant indexes. *Common wrong answer:* "increase k", which helps linearly while tiny tenants still get nothing.
+**"Why does recall drop when you add a tenant filter?"** *Model answer:* the filter runs after the index returns ef candidates, so survivors average 0.4 at ef 40 and 1% selectivity; restricting traversal to passing nodes disconnects the graph. Fix with a planner that brute-forces small subsets, iterative scans, or per-tenant indexes. *Common wrong answer:* "increase k", which helps linearly while tiny tenants still get nothing.
 
-**"How do you know the index is good enough?"** *Model answer:* recall@k against brute force on a few hundred held-out, production-like queries, sliced by query class and tenant size, re-measured after every rebuild, parameter change or model upgrade, next to p99 latency; relevance is a separate, labelled measurement. *Common wrong answer:* "the vendor benchmark says 0.99", measured on someone else's vectors without your filters.
-
-**"Why can't HNSW delete a node outright?"** *Model answer:* other nodes may reach parts of the graph only through it; removal without repair fragments the graph (51 pieces and recall 0.05 after deleting 60% above), so implementations tombstone and reclaim at rebuild or vacuum. *Common wrong answer:* "like any database delete", missing that recall and latency degrade with the deleted fraction.
-
-**"When does PQ beat HNSW?"** *Model answer:* when memory is the constraint: 96 bytes against about 3,200 per 768-dimensional vector, which at $10^8$ vectors is 10 GB against 320 GB, paid for with approximate distances repaired by re-ranking. They also combine, as a graph over compressed vectors. *Common wrong answer:* treating them as rivals rather than answers to different constraints (vectors touched versus bytes per vector).
+**"When does PQ beat HNSW?"** *Model answer:* when memory is the constraint: 96 bytes against about 3,200 per vector, 10 GB against 320 GB at $10^8$ vectors, paid for with approximate distances repaired by re-ranking. They also combine, as a graph over compressed vectors. *Common wrong answer:* treating them as rivals, when one cuts vectors touched and the other bytes per vector.
 
 ## What mid-level engineers get wrong
 
-- **Indexing 100,000 vectors.** A 300 MB scan is milliseconds and exact; the index adds recall loss and operational work for nothing.
-- **Tuning by vendor benchmark.** In the experiment, nprobe = 2 gave 0.98 recall on clustered vectors and 0.36 on noise. Measure on your vectors.
-- **Post-filtering and calling it filtering.** Survivors average $k's$; small tenants get nothing, and averages hide it.
-- **Creating an IVF index before loading data.** Its centroids are trained on whatever rows exist at creation time.
-- **Forgetting graph memory once vectors are compressed.** At M = 16, 128 bytes of links per vector outweigh 96-byte PQ codes.
-- **Treating deletes as free.** Tombstones accumulate, recall and latency drift, and nobody schedules the rebuild.
-- **Mismatching the metric.** An L2 query against a cosine index, or unnormalised vectors with inner product, gives a sequential scan or wrong neighbours.
+- **Indexing 100,000 vectors.** A 300 MB scan is milliseconds and exact; the index adds recall loss and operational work.
+- **Tuning by vendor benchmark.** nprobe = 2 gave 0.98 recall on clustered vectors and 0.36 on noise.
+- **Post-filtering and calling it filtering.** Small tenants get nothing, and averages hide it.
+- **Forgetting graph memory once vectors are compressed.** At M = 16, 128 bytes of links outweigh 96-byte PQ codes.
+- **Treating deletes as free.** Tombstones accumulate and nobody schedules the rebuild.
+- **Normalising inconsistently.** Unnormalised vectors scored by inner product return the longest vectors, not the nearest.
 
 ## Senior signals
 
-- You cost brute force first (bytes ÷ bandwidth) and adopt an index only when the arithmetic says so, keeping brute force as ground truth.
-- You grade indexes by **recall@k against brute force** on held-out, production-like queries, sliced by query class and tenant, next to p99 latency.
-- You explain IVF's nprobe, HNSW's M, efConstruction and efSearch, and PQ's m as three different dials (cells probed, graph quality, bytes per vector), each with its recall, latency and memory cost.
-- You design **filtering** in from the start: selectivity arithmetic, planning between graph traversal and exact scans, per-tenant partitions for the largest tenants.
-- You plan the **lifecycle**: build memory, IVF drift, tombstones and scheduled rebuilds, and versioned indexes swapped under traffic.
-- You start in **pgvector** when vectors live beside relational data and can name the signals to move: RAM, filtered recall, horizontal scale.
+- You cost brute force first (bytes ÷ bandwidth), adopt an index only when the arithmetic says so, and keep brute force as ground truth.
+- You grade indexes by **recall@k against brute force** on held-out queries, sliced by query class and tenant, re-measured after every rebuild, next to p99 latency.
+- You treat IVF's nprobe, HNSW's M and ef, and PQ's m as different dials (cells probed, graph quality, bytes per vector).
+- You design **filtering** in from the start: selectivity arithmetic, planning between traversal and exact scans, partitions for the largest tenants.
+- You plan the **lifecycle**: build memory, IVF drift, tombstones, and versioned indexes rebuilt and swapped under traffic.
+- You start in **pgvector** beside relational data and can name the signals to move: RAM, filtered recall, horizontal scale.
 
 ## Check yourself
 

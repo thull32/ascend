@@ -38,7 +38,7 @@ For a famous fact the model's top choice is right and only sampling can go wrong
 Hallucination shows up in recognisable shapes:
 
 - **Fabricated references:** citations, URLs, case law, quotes that do not exist.
-- **Invented APIs:** a plausible method name or configuration flag. In code this has a security twist: if models repeatedly suggest the same non-existent package name, an attacker can register it, and developers who install the suggestion get the attacker's code.
+- **Invented APIs:** a plausible method name or configuration flag. In code this has a security twist: if models repeatedly suggest the same non-existent package name, an attacker can register it, and developers who install the suggestion get the attacker's code. [A 2024 study](https://arxiv.org/abs/2406.10279) found that on average at least 5.2% of the packages suggested by commercial models, and 21.7% by open-source ones, did not exist.
 - **Wrong specifics:** numbers, dates, version details, names.
 - **Unfaithful summaries:** a summary of a document you provided that adds a detail the document never contained.
 
@@ -188,7 +188,7 @@ The most common way LLM features fail is that nobody measured them. The practice
 
 **Size the eval for the difference you care about.** Accuracy measured on $n$ items has standard error $\sqrt{p(1-p)/n}$. At 80% accuracy, 100 items give a 95% interval of about ±7.8 points, 500 items ±3.5, 1,000 items ±2.5. Telling two independent runs apart by 3 points needs roughly $2p(1-p)(1.96/0.03)^2 \approx 1{,}370$ items each; grading both prompts on the *same* items (a paired comparison) needs far fewer, because shared difficulty cancels. A 3-point win on 100 items is noise.
 
-**Use an LLM as a judge carefully.** A grading model with a clear rubric scales well, but it has biases: **position bias** (favouring the first of two answers), **verbosity bias** (favouring longer answers) and **self-preference** (favouring text like its own). Suppose prompt A beats B 64% of the time when A is shown first, and 46% when shown second: the order-averaged win rate is 55%, and most of the apparent margin was position. Swap orders, use specific rubrics, and check agreement with human labels on a sample.
+**Use an LLM as a judge carefully.** A grading model with a clear rubric scales well, but it has biases that [Zheng and colleagues (2023)](https://arxiv.org/abs/2306.05685) documented: **position bias** (favouring one slot, often the first of two answers), **verbosity bias** (favouring longer answers) and **self-preference** (favouring text like its own). Suppose prompt A beats B 64% of the time when A is shown first, and 46% when shown second: the order-averaged win rate is 55%, and most of the apparent margin was position. Swap orders, use specific rubrics, and check agreement with human labels on a sample.
 
 Public benchmarks help triage which models to try, but test sets leak into pretraining data (contamination) and popular benchmarks saturate, so leaderboard gaps predict your task weakly.
 

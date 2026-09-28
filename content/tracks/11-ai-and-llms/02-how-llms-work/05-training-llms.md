@@ -57,7 +57,7 @@ Two runs, converted to GPU time with explicit assumptions: a data-centre acceler
 | 7B on 2T tokens | 286 | $8.4 \times 10^{22}$ | 58,000 | 2.4 days on 1,024 GPUs |
 | 70B on 15T tokens | 214 | $6.3 \times 10^{24}$ | 4.4 million | 11 days on 16,384 GPUs |
 
-Sanity-check against published figures. On an older accelerator with a peak near $3 \times 10^{14}$ FLOP/s, the first row becomes about 190,000 GPU-hours, the same order as the figure Meta reported for its 7B Llama 2 model trained on 2 trillion tokens; and Meta's reports for its roughly 15-trillion-token Llama 3 70B run are in the millions of GPU-hours, the same order as the second row. The formula gets you within a factor of two, which is what planning needs. Frontier models are larger again in both $N$ and $D$.
+Sanity-check against published figures. On an older accelerator with a peak near $3 \times 10^{14}$ FLOP/s, the first row becomes about 190,000 GPU-hours, against the 184,320 A100 GPU-hours Meta reported for its 7B Llama 2 model trained on 2 trillion tokens; and the Llama 3 model card reports 6.4 million H100 GPU-hours for the 70B model trained on over 15 trillion tokens, against the second row's 4.4 million. The formula gets you within a factor of two, which is what planning needs. Frontier models are larger again in both $N$ and $D$.
 
 ## Under the hood: spreading a run across thousands of GPUs
 
@@ -95,7 +95,7 @@ Datasets range from tens of thousands to millions of examples, written by people
 
 ## LoRA, and what fine-tuning is for
 
-Updating all 7 billion weights needs the full 112 GB training budget. **LoRA** (low-rank adaptation) freezes the original weight matrix $W$ and learns a low-rank correction, $W' = W + BA$, where $B$ is $d \times r$ and $A$ is $r \times d$ for a small rank $r$. For one $4{,}096 \times 4{,}096$ matrix with $r = 8$, the adapter has $2 \times 4{,}096 \times 8 = 65{,}536$ trainable parameters instead of 16.8 million, 0.4% of the matrix. Applied to every linear layer of a 7B-shaped model (four attention projections and three MLP matrices of width 11,008, in 32 layers) it is about 20 million parameters, 0.29% of the model. Optimiser state is needed only for the adapters, so a 7B model can be fine-tuned on a single GPU, and one base model can serve many customers' adapters, swapped per request or merged into the weights.
+Updating all 7 billion weights needs the full 112 GB training budget. **LoRA** (low-rank adaptation) freezes the original weight matrix $W$ and learns a low-rank correction, $W' = W + BA$, where $B$ is $d \times r$ and $A$ is $r \times d$ for a small rank $r$. For one $4{,}096 \times 4{,}096$ matrix with $r = 8$, the adapter has $2 \times 4{,}096 \times 8 = 65{,}536$ trainable parameters instead of 16.8 million, 0.4% of the matrix. Applied to every linear layer of a 7B-shaped model (four attention projections and three MLP matrices of width 11,008, in 32 layers) it is about 20 million parameters, 0.3% of the model. Optimiser state is needed only for the adapters, so a 7B model can be fine-tuned on a single GPU, and one base model can serve many customers' adapters, swapped per request or merged into the weights.
 
 ```viz
 {"type": "ml", "algorithm": "fine-tuning", "steps": 4,
