@@ -1,50 +1,53 @@
 ---
 slug: distributed-key-value-store
 title: "Distributed key-value store: a Dynamo-style design from ring to repair"
-description: A leaderless, always-writable key-value store for 10 billion keys and a million operations a second, covering consistent hashing with virtual nodes, tunable quorums, conflict resolution, hinted handoff, Merkle-tree repair and the tombstone trap.
+description: A leaderless, always-writable key-value store for 10 billion keys and a million operations a second, sized to 48 nodes by throughput and recovery time, with a sloppy-quorum write and a read-repair read traced in milliseconds, Merkle-tree repair arithmetic, the tombstone trap, a simulation of why vnode counts fell, and how it evolves at 10x and 100x.
 minutes: 38
 difficulty: hard
 tags: [system-design, case-study, key-value-store, dynamo, consistent-hashing, quorum, replication, anti-entropy]
 problems: [time-based-kv]
 ---
-"Design a distributed key-value store" sounds like the most abstract prompt in the set. It is actually the most concrete one, because every other case study in this module is built on top of one. The feed stores timelines in one, the chat system stores messages in one, the rate limiter keeps counters in one. When an interviewer asks for it, they want to know whether you understand what those systems are made of. What happens to a write when one of its three replicas is down? What does a read return when two replicas disagree? How does the system add a node without moving every key? And what does "eventually consistent" cost the application developer who has to live with it?
+"Design a distributed key-value store" sounds like the most abstract prompt in the set. It is the most concrete, because every other case study in this module is built on one: the feed stores timelines in one, the chat system messages, the rate limiter counters. The interviewer wants to know whether you understand what those systems are made of. What happens to a write when one of its three replicas is down? What does a read return when replicas disagree? How do you add a node without moving every key? What does "eventually consistent" cost the developer who lives with it?
 
-The reference point is the design Amazon published in its 2007 Dynamo paper, which Cassandra, Riak and ScyllaDB inherited in various forms. The priorities are specific: the store must accept writes even during failures and partitions, because for a shopping cart a rejected "add to cart" is lost revenue, while a cart that briefly shows a removed item is an annoyance. That single product decision drives every mechanism below.
+The reference point is the design Amazon published in its 2007 Dynamo paper, which Cassandra, Riak and ScyllaDB inherited in various forms. Its priority is specific: accept writes even during failures and partitions, because a rejected "add to cart" is lost revenue while a cart that briefly shows a removed item is an annoyance. That one product decision drives every mechanism below.
 
 ## Requirements
 
 ### Functional
 
-- `put(key, value)`, `get(key)` and `delete(key)`. Keys up to 256 bytes; values up to 1 MB, median about 1 KB.
-- Consistency is chosen per request: ONE, QUORUM or ALL (equivalently, R and W).
-- Optional TTL per key.
-- **Out of scope**: range scans and secondary indexes (they need a different partitioning scheme; see the follow-ups), multi-key transactions, and compare-and-set in the base design.
+- `put(key, value)`, `get(key)`, `delete(key)`; keys up to 256 bytes; values up to 1 MB, median about 1 KB; optional TTL.
+- Consistency chosen per request: ONE, QUORUM or ALL (equivalently R and W).
+- **Out of scope**: range scans and secondary indexes (a different partitioning scheme, see follow-ups), multi-key transactions, compare-and-set.
 
 ### Non-functional
 
-- **Always writable**: a write succeeds as long as *any* W nodes are reachable, including during an availability-zone outage or a network partition.
+- **Always writable**: a write succeeds while any W nodes are reachable, including during a zone outage or partition.
 - **Latency**: p99 under 10 ms for QUORUM reads and writes within a region.
-- **Durability**: an acknowledged write with W=2 survives the permanent loss of any single node.
-- **Elastic**: add or remove nodes without downtime, moving only a proportional share of data. Heterogeneous hardware is allowed.
-- **Availability**: 99.99%, across three availability zones in a region. Multi-region replication is asynchronous and discussed in the follow-ups.
+- **Durability**: an acknowledged W=2 write survives the permanent loss of any single node.
+- **Elastic**: add or remove nodes without downtime, moving only a proportional share of data; heterogeneous hardware allowed.
+- **Availability**: 99.99% across three zones in one region; multi-region is asynchronous (see evolution).
 
 ### Scale
 
-10 billion keys, 1 million operations/s at peak, 80% reads.
+10 billion keys, 1 million operations a second at peak, 80% reads.
 
 ## Back-of-envelope estimates
 
-**Data.** $10^{10}$ keys × (1 KB value + about 100 bytes of key and metadata) ≈ 11 TB of logical data. With replication factor 3 that is 33 TB. LSM storage engines temporarily need extra space during compaction, so plan for a space amplification of about 1.5: roughly 50 TB on disk.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Logical data | $10^{10}$ × (1 KB value + ~100 B key and metadata) | 11 TB |
+| On disk | 11 TB × 3 replicas × 1.5 (LSM space amplification during compaction) | ~50 TB |
+| Replica reads | 800,000 reads/s × 2 replicas at QUORUM | 1.6 million/s |
+| Replica writes | 200,000 writes/s × 3 replicas | 600,000/s |
+| Per node, 48 nodes | 2.2 million ÷ 48 | ~46,000 replica ops/s; ~1 TB of data |
+| Network | Writes 600 MB/s; reads ~1 GB/s (one full response plus digests) | ~35 MB/s, 0.3 Gbit/s per node |
+| Bloom filters | $3 \times 10^{10}$ replica keys ÷ 48 × 10 bits | ~780 MB of RAM per node |
+| Ring metadata | 48 nodes × 256 tokens | 12,288 tokens, a few hundred KB, held by every node |
+| Node recovery | 1 TB ÷ 200 MB/s streaming throttle | 5,000 s, about 1.4 hours with two copies |
 
-**Throughput per replica.** Reads: 800,000/s at QUORUM contact two replicas each, so the replicas together serve 1.6 million reads/s. Writes: 200,000/s go to all three replicas, which is 600,000 replica writes/s. That is 2.2 million replica operations per second in total.
+**Machine count.** An NVMe node with bloom filters and a warm block cache serves tens of thousands of point operations a second; how many depends on value size, cache hit ratio and compaction load. Storage alone would allow 25 nodes of 2 TB, but that puts ~90,000 replica operations a second on each, too close to the ceiling for a 10 ms p99. So: **48 nodes, 16 per zone, ~1 TB of data each on 4 TB of NVMe** (under 50% full, because compaction needs free space), 64 GB of RAM for bloom filters, indexes and cache.
 
-**Node count.** A node with NVMe storage, bloom filters and a warm block cache comfortably serves tens of thousands of point operations per second. Capacity alone would allow 25 nodes at 2 TB each, but that would put roughly 90,000 operations/s on each node, which is too close to the ceiling for a p99 target. Plan for **48 nodes at about 1 TB of data each**, which is about 45,000 operations/s per node. The design sentence: *this cluster is sized by throughput and by recovery time, not by storage*.
-
-**Recovery time.** When a node dies, its 1 TB must be re-replicated from peers. With virtual nodes, the stream comes from dozens of peers, and the binding constraint becomes the throttle you set to protect foreground latency, say 200 MB/s cluster-wide for a single replacement: $10^{12} / 2 \times 10^8 = 5{,}000$ s, about 1.4 hours. For those 1.4 hours the dead node's keys have only two copies. Smaller nodes recover faster, which is a durability argument for more, smaller machines.
-
-**Network.** Writes: $200{,}000 \times 1\ \text{KB} \times 3 = 600$ MB/s. Reads: one full response plus digests, about 1 GB/s. Across 48 nodes that is roughly 35 MB/s, about 0.3 Gbps, per node. Comfortable.
-
-**Ring metadata.** 48 nodes × 256 virtual nodes = 12,288 tokens, a few hundred KB. Every node can hold the whole map and gossip it.
+The design sentence: **this cluster is sized by throughput and by recovery time, not by storage.** A 4 TB node would take 5.6 hours to re-replicate, and every hour with two copies is exposure.
 
 ## API design
 
@@ -62,32 +65,35 @@ DELETE /kv/{key}?consistency=QUORUM
        -> 204   (writes a tombstone)
 ```
 
-Two design choices hide in these three lines. First, the **context** is an opaque version vector returned by `get` and passed back on `put`. It is how the store tells a write that *replaces* what the client read apart from a write that is *concurrent* with something the client never saw. Second, `get` can return **several values**. The store does not pretend to have resolved a conflict that it cannot resolve without knowing the application's semantics. Most production descendants hide both behind last-writer-wins by default, and deep dive 2 is about what that costs.
+Two decisions hide in these lines. The **context** is an opaque version vector returned by `get` and passed back on `put`; it is how the store tells a write that *replaces* what the client read from one *concurrent* with something the client never saw. And `get` can return **several values**: the store does not pretend to resolve a conflict it cannot resolve without the application's semantics. Most descendants hide both behind last-writer-wins; deep dive 2 is what that costs.
 
 ## Data model
 
-Logically each key maps to a small set of versions:
-
 | Field | Size | Purpose |
 |---|---|---|
-| key | up to 256 B | Hashed to a ring position |
+| key | up to 256 B | Hashed (Murmur3 in Cassandra, MD5 in the Dynamo paper) to a 64- or 128-bit ring position |
 | value | median 1 KB, cap 1 MB | Opaque bytes |
 | version vector | tens of bytes | `[(node, counter), ...]` for conflict detection |
 | write timestamp | 8 B | Last-writer-wins tiebreak, TTL |
 | tombstone flag | 1 B | A delete is a write |
 
-Keeping several timestamped versions per key and choosing between them is the same idea as the single-node [Time-Based Key-Value Store](/practice/time-based-kv) problem; here the versions live on different machines and the choice is made by the coordinator.
+The partition key is the hash of the whole key and there is no sort key: every request is a point lookup, and hashing gives even load at the price of key order. Keeping several versions per key and choosing between them is the single-node [Time-Based Key-Value Store](/practice/time-based-kv) problem with the versions spread across machines.
 
-Physically, each node runs a log-structured merge tree ([Storage engine internals](/learn/databases/storage-and-scale/storage-engine-internals)). A write appends to a commit log for durability, updates an in-memory sorted memtable, and is acknowledged. Full memtables flush to immutable sorted files (SSTables), each with a bloom filter and a sparse index. A point read checks the memtable, asks each SSTable's bloom filter whether the key might be there, and usually touches one or two files on disk. Background compaction merges files, drops overwritten versions and eventually drops tombstones. That last step is the source of the subtlest failure mode in this design.
+**Under the hood**, each node runs a log-structured merge tree ([Storage engine internals](/learn/databases/storage-and-scale/storage-engine-internals)). A write appends to a commit log, inserts into an in-memory sorted memtable, and is acknowledged; full memtables flush to immutable sorted SSTables, each with a bloom filter and a sparse index. A point read checks the memtable, then asks each SSTable's bloom filter. At 10 bits per key with 7 hash functions the false-positive rate is $(1 - e^{-7/10})^7 \approx 0.8\%$, so a read that consults six SSTables wastes a disk read about 5% of the time. Cassandra's default commit-log mode syncs to disk every 10 seconds rather than per write, so an acknowledged write's durability comes from being on two machines in two zones, not from `fsync`; the `batch` mode fsyncs before acknowledging at a latency cost.
 
-Alongside the data, each node keeps three things: the **ring** (token to node, replicated to every node by gossip), a **hint store** (writes it accepted on behalf of a peer that was down), and **Merkle trees** per token range for repair.
+```viz
+{"type": "system", "scenario": "lsm-tree", "title": "The write path on each replica",
+ "caption": "Writes land in the commit log and the memtable; full memtables flush to immutable SSTables that compaction later merges, dropping overwritten versions and, after the grace period, tombstones."}
+```
+
+Alongside the data, each node keeps the **ring** (token to node, spread by gossip), a **hint store** (writes held for a peer that was down), and **Merkle trees** per token range for repair.
 
 ## High-level design
 
 ```mermaid
 flowchart LR
   C["Client (token-aware driver)"] -->|"PUT k, W=2"| CO["Coordinator: a replica for k"]
-  CO -->|"write"| R1["Replica A (zone a)"]
+  CO -->|"write, ~0.4 ms cross-zone"| R1["Replica A (zone a)"]
   CO -->|"write"| R2["Replica B (zone b)"]
   CO -.->|"write (down)"| R3["Replica C (zone c)"]
   CO -.->|"hint for C"| H["Hint store"]
@@ -98,41 +104,45 @@ flowchart LR
   AE -.-> R3
 ```
 
-There is no leader and no master. Any node can **coordinate** any request. A token-aware client driver hashes the key itself and sends the request directly to a replica, which saves a hop. The coordinator sends the operation to the key's N replicas in parallel and replies once W (or R) of them have answered. Membership and the ring spread by gossip. Missed writes are repaired by three mechanisms that operate on different timescales: hinted handoff (minutes), read repair (on access) and Merkle-tree anti-entropy (hours to days).
+No leader, no master: any node coordinates any request, and a token-aware driver sends it straight to a replica, saving a hop. The coordinator sends to the key's N replicas in parallel and replies after W (or R) answer. Missed writes are repaired on three timescales: hinted handoff (minutes), read repair (on access), Merkle-tree anti-entropy (hours to days).
 
-## Deep dives
+## Deep dive 1: partitioning with consistent hashing
 
-### 1. Partitioning: consistent hashing with virtual nodes
-
-The naive scheme is `node = hash(key) mod 48`. Add a 49th node and a key stays put only if `hash mod 48 == hash mod 49`, which holds for about 1 key in 49, so **98% of the data moves**. For a 50 TB cluster, that is a rebuild.
-
-**Consistent hashing** puts nodes and keys on the same circle of hash values, and a key belongs to the first node clockwise from it. Adding a node takes over only the arc between it and its predecessor: about $1/49$ of the data, roughly 1 TB. [Partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) derives this in detail.
+`node = hash(key) mod 48` keeps a key in place when a 49th node joins only if `hash mod 48 == hash mod 49`, about 1 key in 49, so **98% of the data moves**. **Consistent hashing** puts nodes and keys on one circle; a key belongs to the first node clockwise, and a new node takes over one arc, about $1/49$ of the data ([Partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) derives it).
 
 ```viz
 {"type": "system", "scenario": "consistent-hashing", "nodes": 4,
  "keys": ["cart:9912", "user:42", "session:7f", "cart:1180", "prefs:42", "user:77"],
  "title": "Keys belong to the first node clockwise",
- "caption": "Adding a node moves only the keys on the arc it takes over. With mod-N placement nearly every key would move. Real rings give each physical node about 256 positions so the arcs even out."}
+ "caption": "Adding a node moves only the keys on the arc it takes over. With mod-N placement nearly every key would move. Real rings give each physical node many positions so the arcs even out."}
 ```
 
-With one token per node, arc lengths are random, and the largest arc is commonly several times the average, so one node holds several times its share. **Virtual nodes** fix this. Each physical node takes many tokens, 256 here, and owns many small arcs. Load then evens out to within a few percent, and three further benefits follow. A bigger machine can take more tokens, so heterogeneous hardware is easy. When a node dies, its load spreads across dozens of peers instead of landing on one unlucky successor. And a replacement streams its data from dozens of peers in parallel, which is what makes the 1.4-hour recovery estimate possible.
+With one token per node, arcs are random and the largest is commonly several times the average. **Virtual nodes** give each machine many tokens and many small arcs, so load evens out to within a few percent, a bigger machine takes more tokens, a dead node's load spreads over dozens of peers, and a replacement streams from dozens of peers in parallel, which is what makes the 1.4-hour recovery possible. The **preference list** walks clockwise from the key and collects the next N *distinct physical nodes in distinct zones*, skipping further tokens of a chosen node; that is what lets the store lose a zone and keep two copies of every key.
 
-The **preference list** for a key is built by walking clockwise from the key's position and collecting the next N *distinct physical nodes in distinct zones*, skipping further tokens of a node already chosen. Zone awareness is what lets the store survive a zone outage with two replicas of every key intact.
+### How many tokens per node?
 
-The alternatives, and when you would choose them:
+More tokens are not free. With zone-aware placement, two nodes failing in different zones take a range below quorum if they share any replica set. Simulated with random tokens:
+
+| Cluster | Tokens per node | Cross-zone node pairs that share a range |
+|---|---|---|
+| 48 nodes | 4 | 39% |
+| 48 nodes | 16 | 87% |
+| 48 nodes | 256 | 100% |
+| 480 nodes | 16 | 18% |
+| 480 nodes | 256 | 99% |
+
+With 256 tokens, *any* two failures in different zones leave some keys unable to reach QUORUM (no data is lost while one copy remains). This is why Cassandra 4.0 lowered its default from 256 tokens to 16 and turned on by default an allocation algorithm that keeps a few tokens balanced.
 
 | Scheme | Rebalancing | Range scans | Used by |
 |---|---|---|---|
 | Hash mod N | Moves almost everything | No | Nobody at scale |
 | Consistent hashing + vnodes | Moves 1/N, from many peers | No | Dynamo, Cassandra, Riak |
-| Fixed partitions (e.g. 4,096) assigned to nodes | Moves whole partitions; the count is fixed up front | No | Redis Cluster (16,384 slots), many managed stores |
+| Fixed partitions assigned to nodes | Moves whole partitions; count fixed up front | No | Redis Cluster (16,384 slots) |
 | Range partitioning with dynamic splits | Splits and moves hot ranges | Yes | Bigtable, HBase, Spanner, CockroachDB |
 
-Choose consistent hashing here because the workload is point lookups and the requirement is elastic, even load. Choose range partitioning the day someone asks for "all keys with prefix `user:42:`".
+## Deep dive 2: quorums and sloppy quorums, traced
 
-### 2. Quorums, sloppy quorums and conflict resolution
-
-With N=3 replicas, a write waits for W acknowledgements and a read for R responses. If $W + R > N$, every read set overlaps every write set in at least one node, so a read sees at least one copy of the latest *completed* write, and the coordinator returns the newest version it received.
+With N=3, a write waits for W acknowledgements and a read for R responses. If $W + R > N$, every read set overlaps every write set in at least one node, so a read sees the latest *completed* write.
 
 ```viz
 {"type": "system", "scenario": "quorum", "replicas": 3,
@@ -142,91 +152,195 @@ With N=3 replicas, a write waits for W acknowledgements and a read for R respons
 
 | N, W, R | Guarantee | Cost |
 |---|---|---|
-| 3, 2, 2 | Reads overlap writes | Default. Tolerates one slow or dead replica on either path |
-| 3, 1, 1 | None: a read can miss an acknowledged write | Fastest; for data you can afford to see stale |
-| 3, 3, 1 | Reads overlap writes | Fast reads; every write waits for the slowest replica and fails if any is down |
-| 3, 1, 3 | Reads overlap writes | Fast, always-available writes; reads wait for the slowest |
+| 3, 2, 2 | Reads overlap writes | Default; tolerates one slow or dead replica on either path |
+| 3, 1, 1 | None | Fastest; for data you can afford to see stale |
+| 3, 3, 1 | Reads overlap writes | Every write waits for the slowest replica and fails if one is down |
+| 3, 1, 3 | Reads overlap writes | Always-available writes; reads wait for the slowest |
 
-Quorums also **cut tail latency**, which is an underrated benefit. A QUORUM write goes to all three replicas and waits for the second-fastest acknowledgement, not the slowest. If each replica independently exceeds 10 ms 1% of the time, the write exceeds 10 ms only when at least two of three do: $3(0.01)^2(0.99) + (0.01)^3 \approx 0.03\%$. The replica's p99 becomes the quorum's p99.97. Reads get most of the same benefit more cheaply: the coordinator asks two replicas and, with **speculative retry**, asks the third only if one of the two has not answered by the p95 latency.
+Quorums **cut tail latency**. A QUORUM write waits for the second-fastest of three acknowledgements; if each replica independently exceeds 10 ms 1% of the time, the write does so only when two or three are slow: $3(0.01)^2(0.99) + (0.01)^3 \approx 0.03\%$. Reads get most of the benefit with **speculative retry**: ask two replicas and the third only if one has not answered by the p95.
 
-**Sloppy quorums** are how the store stays always-writable. If replica C is down, the coordinator writes to the next healthy node on the ring with a **hint**: "this belongs to C". The hint counts toward W. When gossip reports C alive again, the substitute replays the hint and deletes it. The price is that $W + R > N$ no longer guarantees overlap. During a partition, a write can be acknowledged entirely by substitutes and a read can be answered entirely by the original replicas, which never saw it. "Quorum" in a sloppy system means "W acknowledgements happened", not "a majority of the key's home replicas have it".
+### A write with one replica down, traced
 
-**Conflicts** happen whenever two writes to the same key are concurrent, which sloppy quorums make routine. There are three families of resolution:
+Client and coordinator A in zone a; B in zone b; C in zone c has been down 40 minutes, so gossip's phi accrual detector marks it. Same-zone round trip ~0.2 ms, cross-zone ~0.8 ms (typical within one cloud region).
 
-1. **Last-writer-wins (LWW).** Keep the version with the highest timestamp. It is simple, and it is what Cassandra does per column. Its cost: one of two concurrent writes is silently discarded, and a node whose clock runs 30 seconds fast wins every conflict for 30 seconds, so a later write from a correct clock loses to an earlier one.
-2. **Version vectors with siblings.** Each version carries `[(node, counter), ...]`. The Dynamo paper's example goes like this. A cart written through node Sx gets `[Sx:1]`, and an update through Sx gives `[Sx:2]`. Then two clients update concurrently through Sy and Sz, producing `[Sx:2, Sy:1]` and `[Sx:2, Sz:1]`. Neither vector dominates the other, so both versions survive as **siblings**. The next reader receives both, merges them in application code (for a cart, the union of items), and writes `[Sx:3, Sy:1, Sz:1]`, which dominates both. Nothing is silently lost. The cost is that every client must implement a merge, and a union-merge brings deleted items back. The paper also describes truncating the oldest entries once the vector grows past a threshold, which accepts rare false conflicts.
-3. **CRDTs.** Counters, sets and maps whose merge is defined mathematically (commutative, associative, idempotent), so the store can merge without asking the application. Riak shipped these as built-in data types. [CRDTs and collaboration](/learn/system-design/distributed-systems/crdts-and-collaboration) covers them.
+| t (ms) | Where | Action |
+|---|---|---|
+| 0.0 | Driver | Hash the key; preference list [A, B, C]; send to A |
+| 0.1 | A | Commit-log append (buffered) and memtable insert, ~20 µs; send to B; C is down, so send to D, the next zone-c node on the ring, with a hint "for C" |
+| 0.5 | B | Append and insert; acknowledge |
+| 0.9 | A | Two acknowledgements (A, B): W=2 met; reply |
+| 1.0 | Client | 204 |
+| ~1.0 | D | Stores the hint; its acknowledgement is not needed |
+| +40 min | D | Gossip reports C alive within seconds; D replays hints to C, throttled |
 
-In practice, choose LWW for data that is written once or owned by one writer (sessions, profiles), and version vectors or CRDTs for data with concurrent writers where losing a write is a bug (carts, counters). Say which keys fall into which bucket.
+This is the Dynamo paper's **sloppy quorum**: the substitute's acknowledgement counts toward W, so the store stays writable, and $W + R > N$ no longer guarantees overlap. During a partition, substitutes can acknowledge a write that a read of the home replicas never sees. Cassandra differs in a detail worth knowing: hints stay on the coordinator and do not count toward the consistency level (except the special level `ANY`).
 
-### 3. Membership, failure detection and repair
+### A read that finds a stale replica, traced
 
-**Gossip.** Every second, each node exchanges its view of the cluster (heartbeat counters, token ownership, status) with a random peer. Information reaches all 48 nodes in $O(\log N)$ rounds, a handful of seconds. Rather than a fixed timeout, failure detection uses an accrual detector, which outputs a *suspicion level* based on the observed distribution of heartbeat intervals. The **phi accrual detector** that Cassandra uses is the standard example. [Gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy) goes deeper.
+C is back but its hints have not replayed. A QUORUM read reaches A (data) and C (digest):
 
-There is a crucial distinction here. A node that stops responding is treated as **temporarily unavailable**, so hints accumulate and nothing moves. Permanent removal and replacement are **explicit operator actions**, as the Dynamo paper describes. If gossip alone could remove a node from the ring, a 30-second GC pause would trigger a terabyte of data movement, and a flapping network would do it repeatedly.
+| t (ms) | Where | Action |
+|---|---|---|
+| 0.1 | A | Local read: memtable miss, bloom filters point at one SSTable, one 4 KB NVMe read, ~0.1 ms |
+| 0.9 | A | C's digest arrives and does not match A's data |
+| 0.9–1.7 | A → C | Full data read from C: v1 at timestamp 100; A holds v2 at 140 |
+| 1.7–2.5 | A → C | Blocking read repair: write v2 to C and wait, so a later QUORUM read cannot go backwards |
+| 2.6 | Client | v2 |
 
-**Hinted handoff** covers minutes to hours of downtime. Hints are kept for a bounded window, say three hours. Beyond that, the hint store would grow without bound and the node must be repaired in full instead.
+One digest mismatch roughly triples this read's latency, which is why p99 rises for hours after a node returns until hints and repair catch up.
 
-**Read repair** fixes divergence on access: a QUORUM read that sees two versions writes the newest back to the stale replica. It only fixes keys that someone reads.
+## Deep dive 3: conflicts, membership and repair
 
-**Anti-entropy with Merkle trees** fixes everything else. Each replica builds a hash tree over each token range it holds: leaves hash buckets of keys, parents hash their children. Two replicas compare roots. If the roots match, the whole range is identical and nothing else is exchanged. If they differ, the replicas descend only into the mismatched subtrees. Here is the arithmetic. $10^{10}$ keys over 12,288 token ranges is about 800,000 keys per range. A tree with $2^{15} = 32{,}768$ leaves puts about 25 keys under each leaf. If 100 keys in the range differ, at most 100 leaves differ, the replicas walk 15 levels of hashes to find them, and they stream about $100 \times 25 = 2{,}500$ keys instead of 800,000. Repair traffic is proportional to divergence, not to data size. The cost is building the tree, which means reading every key. That is why repair runs as a scheduled, throttled background job.
+### Resolving concurrent writes
 
-**The tombstone trap.** A delete is a write of a tombstone. Compaction eventually drops tombstones, after a grace period (`gc_grace_seconds` in Cassandra, 10 days by default). Now suppose replica C was down when the delete happened, never got the hint, and was not repaired within the grace period. A and B compact away the tombstone and the value together. C still holds the old value. The next repair sees that C has a value A and B lack, treats it as a missed write, and **copies the deleted data back to every replica**. The rule that prevents this: *a full repair must complete on every range more often than the tombstone grace period*. Treat a repair schedule that slips as a data-correctness incident, not a maintenance chore.
+1. **Last-writer-wins.** Keep the highest timestamp, as Cassandra does per column. One of two concurrent writes is silently discarded, and a node whose clock runs 30 s fast wins every conflict for 30 s.
+2. **Version vectors with siblings.** The Dynamo paper's example: a cart written through Sx gets `[Sx:1]`, then `[Sx:2]`; two concurrent updates through Sy and Sz give `[Sx:2, Sy:1]` and `[Sx:2, Sz:1]`. Neither dominates, so both survive as siblings; the next reader merges them (for a cart, the union) and writes `[Sx:3, Sy:1, Sz:1]`. Nothing is lost, every client needs a merge, and a union brings deleted items back.
+3. **CRDTs.** Counters, sets and maps with a mathematically defined merge, so the store merges without the application ([CRDTs and collaboration](/learn/system-design/distributed-systems/crdts-and-collaboration)).
+
+Choose LWW for data written once or by one owner (sessions, profiles), vectors or CRDTs where losing a write is a bug (carts, counters), and say which keys are which.
+
+### Membership and repair
+
+Every second each node gossips its view (heartbeats, tokens, status) with a random peer, reaching all 48 nodes in $O(\log N)$ rounds. A silent node is **temporarily unavailable**: hints accumulate and nothing moves. Removal is an **explicit operator action**, because a gossip-driven removal would turn a 30-second GC pause into a terabyte of data movement ([Gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy)).
+
+```viz
+{"type": "system", "scenario": "gossip", "title": "Membership spreads by gossip",
+ "caption": "Each round, every node exchanges its view with a random peer. News of a node's status reaches the whole cluster in a logarithmic number of rounds without any coordinator."}
+```
+
+**Anti-entropy with Merkle trees** fixes what hints and read repair miss. Each replica hashes each token range into a tree; replicas compare roots and descend only into mismatched subtrees. $10^{10}$ keys over 12,288 ranges is ~800,000 keys a range; a $2^{15}$-leaf tree puts ~25 keys under a leaf. If 100 keys differ, the replicas walk 15 levels and stream about 2,500 keys instead of 800,000: repair traffic scales with divergence, but building the tree reads every key, so repair is a scheduled, throttled job.
+
+**The tombstone trap.** A delete writes a tombstone that compaction drops after a grace period (`gc_grace_seconds`, 10 days by default in Cassandra). If replica C missed the delete and is not repaired within the grace period, A and B compact away both tombstone and value, C still holds the value, and the next repair treats it as a missed write and **copies the deleted data back everywhere**. Rule: a full repair must complete on every range more often than the grace period, and a slipping repair schedule is a correctness incident.
 
 ## Failure modes
 
-**A node crashes.** Writes to its ranges go to substitutes with hints, and QUORUM reads and writes still find two home replicas. Latency is unaffected thanks to the quorum's tail tolerance. If the node does not return, an operator replaces it, and it streams back its terabyte over about 1.4 hours.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Slow node (worse than dead) | p99 of every range it serves rises; gossip says it is up | Per-replica latency on coordinators; GC or compaction logs on that node | Speculative retry at the p95; latency-aware replica selection |
+| Zone outage, then hint flood | Hints grow at 67 MB/s (a third of 200,000 writes/s × 1 KB), ~720 GB in three hours; on return, unthrottled replay saturates the returning nodes | Hint-store size; returning nodes' disk and CPU pinned | Bound the hint window; throttle replay (100 MB/s drains 720 GB in 2 hours); past the window, full repair before trusting reads at ONE |
+| Hot key | Three replicas saturated at 100,000 reads/s while the cluster idles | Per-partition read metrics; one key's replicas far above peers | Cache above the store with request coalescing; split into k sub-keys and fan in on read |
+| Partition within the region | Both sides accept writes to the same keys | Gossip shows two views; conflicting versions after healing | Decide per key family beforehand: LWW (one side loses) or siblings |
+| Retried non-idempotent write | Counters double after timeouts | Client retries a write that had succeeded but timed out | Idempotent writes (set, not increment) or CRDT counters with per-writer entries |
+| Clock skew under LWW | Recent writes vanish, clustered on one coordinator | NTP offset on that node | Reject timestamps more than a few seconds in the future; alert on clock offset; hybrid logical clocks ([Time and ordering](/learn/system-design/distributed-systems/time-and-ordering)) |
+| Compaction fills the disk | Read amplification climbs, node slows, drags its quorums | Disk above ~80%; pending compactions rising | Keep nodes under ~50% full |
+| Region loss | All in-region reads and writes fail | Health checks | Asynchronous replica rings in other regions; clients may lose their last writes on failover, so say which data tolerates that |
 
-**A node is slow, not dead.** This is worse than dead. Gossip says it is up, so it stays in quorums, and every request that needs its answer waits. Two mitigations: **speculative retry**, which sends the read to the third replica if the first two have not answered by the p95 latency, and **latency-aware replica selection**, where coordinators track per-replica latency and prefer the fast ones.
+## Trade-offs: what was rejected
 
-**A zone goes down.** Zone-aware placement leaves two replicas of every key, so QUORUM continues. Hints pile up for a third of all writes: $200{,}000 \times \tfrac{1}{3} \times 1\ \text{KB} \approx 67$ MB/s, or about 720 GB over three hours across the surviving nodes. Bound the hint window. When the zone returns after longer than that, run a full repair of its ranges before trusting its reads at ONE.
+| Decision | Chosen | Rejected | Why rejected here | What would flip it |
+|---|---|---|---|---|
+| Replication | Leaderless, sloppy quorums | Raft or Multi-Paxos per range | A leader election makes a range unwritable for a second or more; always-writable is the requirement | Balances or inventory: pick consensus |
+| Partitioning | Consistent hashing, 16 tokens a node | Range partitioning; 256 tokens | No scans needed; 256 tokens make every double failure a quorum loss | Prefix scans become central |
+| Conflicts | Per key family: LWW or vectors | LWW everywhere | Silently drops concurrent cart updates | Single-writer data only |
+| Storage engine | LSM tree | B-tree | Writes are 20% of a million a second; appends beat in-place updates | Read-dominated, update-in-place data |
+| Node size | 48 × 1 TB | 12 × 4 TB | 5.6 hours of two-copy exposure per failure | – |
 
-**A partition splits the region.** Sloppy quorums let both sides accept writes to the same keys. After the partition heals, the versions are either resolved by LWW (and one side's writes are lost) or returned as siblings. Decide which before the partition happens, per key family.
+## Evolution at 10× and 100×
 
-**A hot key.** A single key taking 100,000 reads/s saturates its three replicas, no matter how many nodes the cluster has. Cache it in the client or in a layer above, allow R=1 for that key family, or split the key into k sub-keys and fan in on read.
+**10× (100 billion keys, 10 million operations a second).** 480 nodes at the same per-node load and 500 TB on disk. Gossip still converges in seconds, but tokens per node now decide availability: with 256 a random double failure breaks some quorum 99% of the time, with 16 only 18%. Repair becomes the scarce resource: a full repair of 10× the data must still finish inside the 10-day grace period, so incremental repair (only data written since the last repair) becomes mandatory.
 
-**Clock skew under LWW.** A node 30 seconds fast wins every conflict it touches for 30 seconds. Monitor NTP offset as a correctness metric, reject writes whose timestamp is more than a few seconds in the future, or use hybrid logical clocks ([Time and ordering](/learn/system-design/distributed-systems/time-and-ordering)).
+**100× (a trillion keys, 100 million operations a second).** About 4,800 nodes. One ring that size makes every topology change a cluster-wide event, so split into independent cells of a few hundred nodes, each its own ring, with a thin routing layer mapping key ranges to cells. Multi-region is the default: a local ring per region with asynchronous replication, clients at LOCAL_QUORUM, and conflicts resolved exactly as within a region, only more often.
 
-**Compaction fills the disk.** Size-tiered compaction can temporarily need as much free space as the files it merges. A node at 80% full cannot compact, its read amplification climbs, and it slows down, which pulls every quorum it serves down with it. Keep nodes below about 50% full. That headroom is part of why the estimate plans for 1.5× space amplification.
+## What real companies describe
 
-## Senior follow-ups
+- Amazon's Dynamo paper (SOSP 2007) describes the shopping cart, sloppy quorums, hinted handoff, vector clocks with sibling merges, Merkle-tree anti-entropy, and a common configuration of N=3, R=2, W=2.
+- Amazon's DynamoDB paper (USENIX ATC 2022) describes a different design under a similar name: each partition is a Multi-Paxos replication group across three zones with a leader that takes writes and strongly consistent reads, no client-visible siblings, and conditional writes. The product valued predictable semantics over leaderless availability.
+- Netflix published a 2011 benchmark of Cassandra on AWS passing a million writes a second on a few hundred instances across three zones, and has written extensively about running Cassandra across regions.
+- Discord's engineering blog described moving its message store from Cassandra to ScyllaDB, citing hot partitions and garbage-collection pauses, and adding a data-service layer that coalesces concurrent reads of the same row.
+- Riak 2.0 shipped CRDT data types (counters, sets, maps) as built-ins.
 
-**Q: "With N=3, W=2, R=2, is the store linearizable?"**
+## Interviewer follow-ups
 
-No, and there are three reasons to name. Sloppy quorums break the overlap guarantee during failures. Even with strict quorums, a read concurrent with an in-flight write can return the new value from the one replica that has it, and a later read that happens to hit the two replicas that do not have it yet returns the old value, so a reader sees time go backwards. And there is no compare-and-set, so two clients can both read v1 and both write v2 based on it. For linearizable operations you need consensus per key or per range: Cassandra's lightweight transactions run Paxos per partition, and CockroachDB and TiKV run Raft per range. That is several round trips per operation, so offer it per request, not for everything.
+**"With N=3, W=2, R=2, is the store linearizable?"** Model answer: no. Sloppy quorums break the overlap during failures; a read concurrent with an in-flight write can see the new value on one replica while a later read of the other two sees the old one; and there is no compare-and-set. Linearizable operations need consensus per key or range: Cassandra's lightweight transactions run Paxos per partition; CockroachDB and TiKV run Raft per range. Common wrong answer: "yes, because W + R > N".
 
-**Q: "How does DynamoDB relate to the Dynamo paper?"**
+**"A product team needs read-your-writes. What do you offer?"** Model answer: strict (not sloppy) QUORUM writes and reads for that key family, which overlap by construction; or a session token carrying the client's last write version, with the coordinator waiting until R replicas are that fresh. Common wrong answer: ALL, which fails the read whenever one replica is slow.
 
-They share a name and the partitioning idea, but the replication model is different. The DynamoDB paper published at USENIX ATC in 2022 describes each partition as a replication group spread across three zones, using Multi-Paxos to elect a leader. The leader accepts writes and serves strongly consistent reads, and eventually consistent reads can go to any replica. There are no client-visible version vectors or siblings, and conditional writes and transactions are supported. The lesson for the interview: the product wanted predictable semantics more than always-writable leaderless replication, and a leader per partition gave it that. The leaderless design survives in Cassandra, ScyllaDB and Riak.
+**"Why not Raft for everything?"** Model answer: legitimate, and many modern stores do. Raft per range gives linearizable reads and writes and compare-and-set. The costs: writes go through a leader possibly in another zone (1–2 ms), and a leader failure makes the range unwritable for the election timeout, a second or more, which violates always-writable. Carts and sessions under partitions: leaderless. Balances and inventory: Raft, and say that is the trade. Common wrong answer: "Raft doesn't scale", when it scales by running one group per range.
 
-**Q: "A product team needs read-your-writes. What do you offer them?"**
+**"A disk dies. How long are you exposed?"** Model answer: the replacement takes the dead node's tokens and streams each range from surviving replicas, throttled: 1 TB at 200 MB/s is 1.4 hours with two copies. A second failure in the same replica set loses QUORUM for those keys; a third loses data. Exposure is bytes per node ÷ stream rate, which is why 48 nodes of 1 TB beat 12 of 4 TB. Common wrong answer: "no exposure, there are three replicas".
 
-The cheapest correct option is QUORUM writes and QUORUM reads with strict (not sloppy) quorums for that key family, which overlap by construction. The alternative is a session guarantee: the client keeps the version vector from its last write and sends it with the read, and the coordinator waits until R replicas are at least that fresh, or forces a repair read. Routing the session to the same coordinator helps less than it seems, because the coordinator does not store every key. I would not offer ALL, because one slow replica then fails the read.
+**"Now they want range scans by key prefix."** Model answer: hashing destroys key order, so a prefix scan asks every node. If scans are central, switch to range partitioning with dynamic splits and prefix keys with a hash of the entity to avoid a hot tail range. If scans stay within an entity, use a compound key: partition by `user_id`, sort by a clustering column ([Wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores)). Common wrong answer: "add a secondary index", which on a hash-partitioned store is a scatter-gather to all 48 nodes.
 
-**Q: "Why not use Raft for everything from the start?"**
+## What mid-level engineers get wrong
 
-It is a legitimate choice, and many modern stores make it. Raft per range gives linearizable reads and writes, compare-and-set, and much simpler reasoning for application developers. The costs: writes go through a leader, which may be in another zone (an extra 1–2 ms), and a leader failure makes the range unwritable for the election timeout, typically a second or more, which violates "always writable". If the requirement is carts and sessions under partitions, leaderless fits. If it is balances and inventory, I would pick Raft per range and give up always-writable, and I would say that is the trade.
+- Sizing the cluster from storage alone, then missing the p99 because every node runs near its operations ceiling.
+- Claiming W + R > N makes the store linearizable, or forgetting that sloppy quorums void the overlap.
+- Last-writer-wins on data with concurrent writers, silently dropping cart updates.
+- Letting failure detection remove nodes automatically, so a GC pause moves a terabyte.
+- Letting repair slip past the tombstone grace period and resurrecting deleted data.
+- Maximising vnodes "for balance" without noticing that every double failure then loses a quorum somewhere.
+- Filling nodes to 80% and leaving compaction no room.
 
-**Q: "A node's disk dies. Walk me through replacement, and tell me how long you're exposed."**
+## Exercise
 
-The operator starts a replacement node that takes over the dead node's tokens. The new node streams each of its ranges from surviving replicas, which with 256 vnodes means dozens of sources in parallel, throttled to protect foreground latency. At 200 MB/s for 1 TB that is about 1.4 hours, and during that time those keys have two copies. A second failure in the same replica set during the window loses the ability to reach QUORUM for those keys (though not the data, while one copy remains). A third failure loses data. The exposure scales with bytes per node divided by stream rate, which is why I would rather run 48 nodes of 1 TB than 12 nodes of 4 TB.
+```exercise
+id: ring-preference-lists
+title: Build zone-aware preference lists on a token ring
+prompt: |
+  Implement `preference_lists(tokens, zones, keys, n)`.
 
-**Q: "Now they want range scans by key prefix."**
+  - `tokens` is a list of `[position, node]` pairs with distinct integer
+    positions, in any order. A node may own several tokens (virtual nodes).
+  - `zones` maps each node name to its zone.
+  - `keys` is a list of integer key positions on the same ring.
 
-Consistent hashing destroys key order, so a prefix scan would have to ask every node. There are two honest answers. If scans are central to the workload, switch to range partitioning with dynamic splitting and accept that sequential keys create a hot range, which you mitigate by prefixing keys with a hash of the entity ID. If scans only happen within one entity, use a compound key: partition by `user_id` and sort by a clustering column within the partition, which is the Cassandra data model. Scans within a user are then local and ordered. [Wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores) covers this modelling style.
+  For each key position `p`, start at the token with the smallest position
+  greater than or equal to `p`, wrapping to the smallest position overall if
+  there is none. Walk clockwise through the tokens in position order, at most
+  one full lap. Add a token's node to the list only if that node is not
+  already in the list and no node from the same zone is already in it. Stop
+  when the list has `n` nodes or the lap ends.
 
-**Q: "Extend it to three regions."**
-
-Each region runs its own ring with N=3, and writes replicate asynchronously between regions. Clients use local-quorum consistency, so latency stays in-region. Conflicts between regions are resolved by LWW or version vectors, exactly as within a region, only more often and with a replication lag of 100 ms to seconds. A client that fails over to another region may not see its last few writes, so the failover design must decide whether that is acceptable. For a cart it usually is. For anything else, say so explicitly.
+  Return one list of node names per key, in the order the keys were given.
+languages: [python, javascript]
+entry: preference_lists
+starter:
+  python: |
+    def preference_lists(tokens, zones, keys, n):
+        # your code here
+        return []
+  javascript: |
+    function preference_lists(tokens, zones, keys, n) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [[[10, "A"], [20, "B"], [30, "C"], [40, "D"]], {"A": "a", "B": "b", "C": "c", "D": "a"}, [15], 3]
+    expected: [["B", "C", "D"]]
+  - args: [[[10, "A"], [20, "B"], [30, "C"], [40, "D"]], {"A": "a", "B": "b", "C": "c", "D": "a"}, [45], 3]
+    expected: [["A", "B", "C"]]
+    label: wraps past the highest token
+  - args: [[[10, "A"], [20, "B"], [30, "C"], [40, "D"]], {"A": "a", "B": "b", "C": "c", "D": "a"}, [30], 3]
+    expected: [["C", "D", "B"]]
+    label: a key on a token belongs to it; the second zone-a node is skipped
+  - args: [[[15, "B"], [5, "A"], [20, "C"], [10, "A"]], {"A": "a", "B": "b", "C": "c"}, [0, 12], 3]
+    expected: [["A", "B", "C"], ["B", "C", "A"]]
+    label: unsorted tokens and repeated virtual nodes
+  - args: [[[5, "A"], [10, "B"], [15, "C"]], {"A": "a", "B": "b", "C": "a"}, [1], 3]
+    expected: [["A", "B"]]
+    label: fewer zones than replicas
+  - args: [[[5, "A"]], {"A": "a"}, [], 3]
+    expected: []
+    label: no keys
+  - args: [[[100, "n1"], [220, "n2"], [340, "n3"], [460, "n4"], [580, "n5"], [700, "n6"], [820, "n1"], [940, "n4"]], {"n1": "a", "n2": "b", "n3": "c", "n4": "a", "n5": "b", "n6": "c"}, [0, 450, 800, 999], 3]
+    expected: [["n1", "n2", "n3"], ["n4", "n5", "n6"], ["n1", "n2", "n3"], ["n1", "n2", "n3"]]
+    hidden: true
+  - args: [[[100, "n1"], [220, "n2"], [340, "n3"], [460, "n4"], [580, "n5"], [700, "n6"], [820, "n1"], [940, "n4"]], {"n1": "a", "n2": "b", "n3": "c", "n4": "a", "n5": "b", "n6": "c"}, [650, 900], 2]
+    expected: [["n6", "n1"], ["n4", "n2"]]
+    hidden: true
+hints:
+  - "Sort the tokens by position once, then find each key's starting index (a binary search, or a linear scan for small rings)."
+  - "Walk at most len(tokens) steps with index (start + i) % len(tokens), tracking chosen nodes and used zones in sets."
+```
 
 ## Senior signals
 
-- You derive node count from throughput and **recovery time**, not only from storage, and you can say how long a replica set is exposed after a disk failure.
+- You derive node count from throughput and **recovery time**, and can say how long a replica set is exposed after a disk failure.
 - You explain why W + R > N gives overlap, why sloppy quorums break it, and why quorums improve tail latency.
+- You trace a read that hits a stale replica and know read repair costs that read its latency.
 - You choose a conflict strategy per key family and can say what LWW silently loses and what union-merge brings back.
-- You know that a slow node hurts more than a dead one, and you name speculative retry and latency-aware selection.
-- You know the tombstone-resurrection failure and the rule that repair must run more often than the grace period.
-- You can say plainly when you would give up always-writable and use consensus per range instead.
+- You know that a slow node hurts more than a dead one, that repair must beat the tombstone grace period, and that more vnodes make double failures worse.
+- You can say plainly when you would give up always-writable and use consensus per range.
 
 ## Check yourself
 
@@ -236,19 +350,19 @@ Each region runs its own ring with N=3, and writes replicate asynchronously betw
   options: ["About 98% with mod N; about 2% with consistent hashing", "About 98% with mod N; about 50% with consistent hashing", "About 2% with mod N; about 2% with consistent hashing", "About 50% with mod N; about 25% with consistent hashing"]
   answer: 0
   explanation: >-
-    A key stays put under mod N only if hash mod 48 equals hash mod 49, which holds for about 1 key in 49, so about 98% move. Consistent hashing moves only the arc the new node takes over from its predecessor, about 1/49 of the data, not half of anything.
+    A key stays put under mod N only if hash mod 48 equals hash mod 49, which holds for about 1 key in 49, so about 98% move. Consistent hashing moves only the arc the new node takes over, about 1/49 of the data, not half of anything.
 - q: >-
     N=3, W=1, R=1. A client writes v2 and receives an acknowledgement, then immediately reads the key. What can it see?
   options: ["Both v1 and v2 as siblings, because the replicas disagree", "Always v2, because the write was acknowledged before the read", "Possibly v1, because the read may hit a replica without v2", "An error, because R + W is not greater than N for this key"]
   answer: 2
   explanation: >-
-    With W + R = 2, which is not greater than N = 3, the replica that acknowledged the write and the replica that serves the read need not overlap. An acknowledgement means one replica has v2, not that every replica does. W + R <= N is a legal, fast configuration that simply gives no overlap guarantee; it is not an error.
+    With W + R = 2, not greater than N = 3, the replica that acknowledged the write and the one that serves the read need not overlap. An acknowledgement means one replica has v2. W + R <= N is a legal, fast configuration with no overlap guarantee, not an error.
 - q: >-
     During a partition, a write with W=2 is acknowledged by two substitute nodes holding hints, and a read with R=2 is answered by two of the key's home replicas. What is returned?
   options: ["Possibly the old value, because substitutes count toward W", "An error, because hinted replicas cannot be read until handoff", "The new value, because read repair runs before the reply", "The new value, because W + R > N guarantees the sets overlap"]
   answer: 0
   explanation: >-
-    Sloppy quorums keep the store writable by accepting writes on any healthy nodes, so the read set and write set need not overlap and W + R > N no longer guarantees anything. The home replicas never saw the write; the hints reach them only when the partition heals.
+    Sloppy quorums keep the store writable by accepting writes on any healthy nodes, so the read and write sets need not overlap and W + R > N no longer guarantees anything. The home replicas never saw the write; the hints reach them only when the partition heals.
 - q: >-
     A key is deleted while replica C is down. C returns after 12 days without having been repaired, and the tombstone grace period is 10 days. What is the risk?
   options: ["C will reject writes until an operator runs a full repair on it", "Repair treats C's old value as a missed write and resurrects it", "None, because C will receive the tombstone through hinted handoff", "Repair deletes C's data because A and B have no record of the key"]
@@ -256,15 +370,15 @@ Each region runs its own ring with N=3, and writes replicate asynchronously betw
   explanation: >-
     Hints expire long before 12 days, and after the grace period A and B have compacted away the tombstone along with the value. Repair cannot tell a deleted value from a missed write, so it copies C's old value back to every replica. Full repair must complete more often than the grace period.
 - q: >-
-    Each replica's latency independently exceeds 10 ms 1% of the time. A QUORUM write (W=2) is sent to all 3 replicas. Roughly how often does it take longer than 10 ms?
-  options: ["About 0.01% of the time", "About 1% of the time", "About 2.97% of the time", "About 0.03% of the time"]
-  answer: 3
-  explanation: >-
-    The write waits for the second-fastest acknowledgement, so it is slow only if at least two of the three replicas are slow: 3 x 0.01^2 x 0.99 + 0.01^3 is about 0.0003. 2.97% is the chance that any one replica is slow, which would matter only if the write waited for all three; 0.01% forgets that any of three pairs can be the slow two. Quorums hide a single slow replica.
-- q: >-
-    The store uses last-writer-wins. One node's clock drifts 30 seconds fast. What goes wrong?
-  options: ["Reads return both versions as siblings for the client to merge", "Its writes are rejected as far-future until the clock is corrected", "Its writes get future timestamps and beat later writes for about 30 s", "Nothing, because LWW orders writes by arrival order at the coordinator"]
+    A QUORUM read finds that one replica's digest does not match the coordinator's data. What happens before the client gets its answer?
+  options: ["The coordinator returns its own value at once and repairs later", "The client receives both versions and must merge them itself", "The coordinator fetches full data, writes the newest back, then replies", "The read fails, and the driver retries it on a different coordinator node"]
   answer: 2
   explanation: >-
-    LWW trusts timestamps, so writes coordinated by the fast node beat genuinely later writes from other nodes for about 30 seconds, which silently discards them. Rejecting far-future timestamps is a mitigation you have to add, alongside monitoring clock offset or using hybrid logical clocks. Siblings only appear with version vectors, not LWW.
+    On a digest mismatch the coordinator reads full data from the replicas, picks the newest version and, with blocking read repair, writes it to the stale replica before replying, so a later QUORUM read cannot return the older value. That costs extra round trips, roughly tripling the read's latency in the trace. Returning siblings to the client happens only with version vectors, and LWW data has one winner.
+- q: >-
+    A 48-node, three-zone cluster uses 256 tokens per node. Two nodes in different zones fail at the same time. What happens?
+  options: ["Almost surely some key range loses QUORUM, since the pair shares a range", "Nothing, because zone-aware placement always leaves two replicas of each key", "Data is lost for the keys whose replicas were on both of the failed nodes", "Only the keys on the two nodes' primary arcs lose QUORUM, about 4% of data"]
+  answer: 0
+  explanation: >-
+    With 256 tokens each, every cross-zone pair of nodes shares at least one replica set (100% in the simulation), and that range is left with one replica, below a QUORUM of two. No data is lost while one copy remains. Zone-aware placement protects against losing one zone, not two nodes in two zones. Fewer tokens per node make this far less likely, which is why Cassandra 4.0 lowered the default to 16.
 ```

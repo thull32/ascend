@@ -1,55 +1,60 @@
 ---
 slug: news-feed
 title: "News feed: fan-out, the celebrity problem and a 200 ms read path"
-description: A home-feed design for 200 million daily users, covering push versus pull versus hybrid fan-out derived from arithmetic, a timeline cache that is the biggest line on the bill, ranking and hydration inside a latency budget, and feeds that stay correct under deletes, blocks and pagination.
+description: A home-feed design for 200 million daily users, with estimates worked to cache nodes and fan-out workers, a simulation showing why average follower counts understate fan-out by up to 30x, a push/pull threshold derived from the lag target, a post traced from write to follower feed, a 200 ms read path, and how the design changes at 10x and 100x.
 minutes: 36
 difficulty: hard
 tags: [system-design, case-study, news-feed, fan-out, timeline, caching, ranking, snowflake-ids]
 problems: [design-twitter, merge-k-sorted-lists]
 ---
-Every social product has the same screen: a scrollable list of recent posts from the people you follow. It looks like a query, `SELECT posts WHERE author IN (my followees) ORDER BY time DESC LIMIT 20`, and at small scale it is one. At 120,000 feed loads a second, with an average of 300 followees each, that query becomes 36 million index lookups a second plus a merge. The whole design problem is where to move that work, and the answer is different for an account with 200 followers than for one with 100 million.
+Every social product has the same screen: recent posts from the people you follow. It looks like a query, `SELECT posts WHERE author IN (my followees) ORDER BY time DESC LIMIT 20`, and at small scale it is one. At 120,000 feed loads a second with 300 followees each, it is 36 million index lookups a second plus a merge. The design problem is where to move that work, and the answer differs for an account with 200 followers and one with 100 million.
 
-[Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) derives the hybrid fan-out model from arithmetic in a few paragraphs. This case study takes it to the senior bar. Where exactly is the celebrity threshold, and why? What goes into the timeline cache, and what does it cost? How do ranking, deletes, blocks and pagination work without rewriting 100 million timelines? And how does the system degrade when the fan-out pipeline is ten minutes behind?
+[Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) derives the hybrid fan-out model in a few paragraphs. This case study takes it to the senior bar: where exactly the celebrity threshold is and why, what the timeline cache holds and costs, how ranking, deletes, blocks and pagination work without rewriting 100 million timelines, and how the feed degrades when fan-out is ten minutes behind.
 
 ## Requirements
 
 ### Functional
 
-- **Post**: text up to 2,000 characters plus references to already-uploaded media. The media path is covered by [Video upload pipeline](/learn/system-design/case-studies/video-upload-pipeline).
-- **Follow and unfollow**: a directed graph, with no approval step.
-- **Home feed**: posts from followed accounts, reverse-chronological with light ranking, infinite scroll, and an "N new posts" indicator.
-- **Your own post** appears in your own feed immediately.
-- **Deletes, blocks and mutes** take effect on the next feed load.
-- **Out of scope**: search, notifications ([Notification system](/learn/system-design/case-studies/notification-system)), ads, and the internals of the ranking model.
+- **Post**: text up to 2,000 characters plus references to uploaded media ([Video upload pipeline](/learn/system-design/case-studies/video-upload-pipeline) covers media).
+- **Follow and unfollow**: a directed graph, no approval step.
+- **Home feed**: posts from followed accounts, reverse-chronological with light ranking, infinite scroll, an "N new posts" indicator.
+- **Your own post** appears in your own feed immediately; **deletes, blocks and mutes** take effect on the next load.
+- **Out of scope**: search, notifications ([Notification system](/learn/system-design/case-studies/notification-system)), ads, the ranking model's internals.
 
 ### Non-functional
 
-- **Feed load latency**: p99 under 200 ms server-side.
-- **Fan-out lag**: p99 under 5 seconds from post to followers' feeds for ordinary accounts.
-- **Availability**: 99.95% for feed reads. A slightly stale feed is acceptable; an empty or erroring feed is not.
-- **Correctness**: never show a deleted post or a blocked author, even though freshness is eventual.
+- **Feed load**: p99 under 200 ms server-side.
+- **Fan-out lag**: p99 under 5 s from post to followers' feeds for ordinary accounts.
+- **Availability**: 99.95% for feed reads; a slightly stale feed is acceptable, an empty one is not.
+- **Correctness**: never show a deleted post or a blocked author.
 
 ### Scale
 
-500 million monthly users, 200 million daily. Each daily user posts 0.5 times and loads the feed 20 times a day, and follows 300 accounts on average. The largest account has 100 million followers.
+500 million monthly users, 200 million daily. A daily user posts 0.5 times and loads the feed 20 times a day and follows 300 accounts on average; about half of followers are active on a given day; the largest account has 100 million followers.
 
 ## Back-of-envelope estimates
 
-**Posts.** $2 \times 10^8 \times 0.5 = 10^8$ posts/day, which is 1,000/s on average and about 3,000/s at peak. Storing posts is not the hard part.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Posts | $2 \times 10^8 \times 0.5$ a day | $10^8$/day: 1,000/s average, 3,000/s peak |
+| Feed loads | $2 \times 10^8 \times 20$ a day | $4 \times 10^9$/day: 40,000/s average, 120,000/s peak |
+| Pure pull | 120,000 × 300 followee lookups | $3.6 \times 10^7$/s before merging: out |
+| Push inserts | 3,000 posts/s × ~600 followers per pushed post (simulated below, not 300) × 50% active | ~900,000 timeline inserts/s at peak |
+| One 100M-follower post, pushed | $10^8$ ÷ 900,000/s | 111 s of the entire fleet |
+| Timeline cache | $2 \times 10^8$ daily users × 800 entries × 20 B (post ID, author ID, flags) | 3.2 TB raw, ~5 TB with Redis overhead, 10 TB with a replica |
+| Post storage | $10^8$ × 1 KB a day | 100 GB/day; 110 TB/year with three replicas |
+| Candidate features | 120,000 loads × 300 candidates | 36 million key lookups/s, batched |
+| Egress | 120,000 × 30 KB of JSON | 3.6 GB/s, ~29 Gbit/s before media (CDN) |
 
-**Feed loads.** $2 \times 10^8 \times 20 = 4 \times 10^9$/day, which is 40,000/s on average and 120,000/s at peak.
+| Tier | Sizing | Count |
+|---|---|---|
+| Timeline cache | 10 TB ÷ ~60 GB usable per node; throughput is only ~11,000 commands/s per node (900,000 × `LPUSH` + `LTRIM` ÷ 160) | ~160 nodes |
+| Post and feature cache | Hot posts (two days, ~200 GB) fit easily; 36 million keys/s ÷ roughly a million keys/s per node with batched multi-gets | ~40–50 nodes |
+| Feed service | 120,000 pages/s × ~5 ms of CPU (merge, filter, serialise) = 600 cores; ×2 for 50% utilisation | ~300 instances of 4 vCPU |
+| Fan-out workers | 900,000 inserts/s ÷ a few tens of thousands per worker (graph page reads, pipelined Redis writes) | ~30 |
+| Kafka | 3,000 events/s × ~1 KB | 3 brokers; the event rate is trivial |
 
-**Pull cost.** If every load reads the recent posts of 300 followees, that is $120{,}000 \times 300 = 3.6 \times 10^7$ lookups/s at peak, before merging. Even from a cache, at about 100,000 operations per node, that is hundreds of cache nodes doing nothing but this. Pure pull is out.
-
-**Push cost.** In a directed graph, every follow is one edge, so the *average* number of followers equals the average number of followees: 300. Fan-out on write therefore costs $3{,}000 \times 300 = 9 \times 10^5$ timeline inserts/s at peak. That is a Redis-class number, spread over a cluster. But the average hides the tail. One post from the 100-million-follower account is $10^8$ inserts, more than 100 seconds of the *entire* fan-out capacity for a single post. Heavy posters also skew toward large follower counts, so the real fan-out per post is higher than 300. Measure it; do not assume it.
-
-**Timeline cache.** Keep timelines only for recently active users, roughly the 200 million daily users, each holding its last 800 entries as a post ID (8 bytes), an author ID (8 bytes) and flags (4 bytes), which is 20 bytes per entry and 16 KB per user. $2 \times 10^8 \times 16\ \text{KB} = 3.2$ TB raw, about 5 TB with Redis overhead and 10 TB with a replica. That is roughly 160 nodes of 64 GB, and *the single largest cost in the design*. Say so.
-
-**Post storage.** $10^8 \times 1\ \text{KB} = 100$ GB/day, which is 36 TB/year raw and about 110 TB/year with three replicas. Media is separate.
-
-**Hydration.** Each feed page returns 20 posts, so 120,000 × 20 = 2.4 million post lookups/s at peak, plus author profiles, which you deduplicate within the page. This needs a post cache with multi-get.
-
-**Egress.** About 30 KB of JSON per page × 120,000/s is 3.6 GB/s, roughly 29 Gbps before media, which goes through a CDN.
+The sentence: **the timeline cache is sized by memory and is the single largest cost; the feature cache is sized by lookups; and the fan-out fleet must be sized from measured fan-out per post, not from the average follower count.**
 
 ## API design
 
@@ -66,33 +71,34 @@ GET    /v1/feed?limit=20&cursor=<opaque>
 GET    /v1/feed/new_count?cursor=<opaque>          -> 200 {"count": 7}
 ```
 
-Pagination is by **cursor, never offset**. With `?page=2`, the seven posts that arrived since page 1 push items down, and the user sees duplicates. The cursor encodes the last item's position (its ID or score) and a ranking snapshot ID, so page 2 continues from exactly where page 1 ended. [API design and versioning](/learn/system-design/building-blocks/api-design-and-versioning) covers cursor design in general.
+Pagination is by **cursor, never offset**: with `?page=2`, seven posts that arrived since page 1 push items down and the user sees seven repeats. The cursor carries the last item's position and a ranking snapshot ID, so page 2 continues exactly where page 1 ended ([API design and versioning](/learn/system-design/building-blocks/api-design-and-versioning)).
 
 ## Data model
 
-**Post IDs** are 64-bit, time-sortable IDs generated without coordination, in the style Twitter published as Snowflake: 41 bits of milliseconds since a custom epoch (about 69 years), 10 bits of generator ID and 12 bits of sequence (4,096 IDs per millisecond per generator). Sorting by ID sorts by time, so a timeline needs no separate timestamp and a cursor can be just an ID.
+**Post IDs** are 64-bit time-sortable IDs generated without coordination, in the style Twitter published as Snowflake: 41 bits of milliseconds since a custom epoch (69 years), 10 bits of generator ID, 12 bits of sequence (4,096 IDs per millisecond per generator). Sorting by ID sorts by time, so a timeline needs no timestamp and a cursor can be an ID.
 
 ```sql
--- Point lookups for hydration: partitioned by hash(post_id).
 CREATE TABLE posts (
-  post_id     BIGINT PRIMARY KEY,
-  author_id   BIGINT NOT NULL,
-  body        TEXT,
-  media_ids   TEXT[],
-  deleted     BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at  TIMESTAMPTZ NOT NULL
+  post_id BIGINT PRIMARY KEY, author_id BIGINT NOT NULL, body TEXT, media_ids TEXT[],
+  deleted BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL
 );
--- Author timelines (profile pages and the pull path): partitioned by author_id.
-CREATE TABLE user_posts (
-  author_id BIGINT, post_id BIGINT,
-  PRIMARY KEY (author_id, post_id)            -- clustered newest-first
-);
--- The graph, stored in both directions because both are hot queries.
-CREATE TABLE followers (user_id BIGINT, follower_id BIGINT, PRIMARY KEY (user_id, follower_id));
+CREATE TABLE user_posts (author_id BIGINT, post_id BIGINT, PRIMARY KEY (author_id, post_id));
+CREATE TABLE followers (user_id BIGINT, bucket SMALLINT, follower_id BIGINT,
+                        PRIMARY KEY ((user_id, bucket), follower_id));
 CREATE TABLE following (user_id BIGINT, followee_id BIGINT, PRIMARY KEY (user_id, followee_id));
 ```
 
-**Timelines** live in Redis as `tl:{user_id}`: a capped list of `(post_id, author_id)` pairs, pushed with `LPUSH` and trimmed with `LTRIM 0 799`. Twitter engineers publicly described this shape years ago: Redis-backed home timelines capped at roughly 800 entries, filled by fan-out. The timeline holds **IDs, not bodies**. Bodies change (edits, deletes, like counts), and storing them would multiply the 10 TB cache by about fifty.
+| Table | Partition key | Sort key | Access pattern and rate | Why |
+|---|---|---|---|---|
+| `posts` | `hash(post_id)` | – | Hydration multi-gets, millions/s behind the cache | Point lookups spread evenly |
+| `user_posts` | `author_id` | `post_id DESC` | Profile pages, own-post merge, celebrity refresh, rebuilds | Newest-first scan of one author is one partition |
+| `followers` | `(user_id, bucket)` | `follower_id` | Fan-out pages 5,000 at a time | `bucket = hash(follower_id) mod 64` for accounts above ~1M followers, so a 100M-row list is 64 partitions read in parallel, not one giant one |
+| `following` | `user_id` | `followee_id` | The viewer's own list, cached; rebuilds | Small per user; both directions stored because both are hot |
+| `tl:{user_id}` (Redis list) | `user_id` (cluster slot) | insertion order | One `LRANGE 0 299` per load | Capped with `LTRIM 0 799`; IDs, not bodies |
+
+The timeline holds **IDs, not bodies**: bodies change (edits, deletes, like counts), and storing 1 KB instead of 20 B would multiply the 10 TB cache by fifty.
+
+Under the hood, Redis stores a list as a *quicklist*: a doubly linked list of *listpack* nodes, each up to 8 KB by default, packing entries with a few bytes of header each. A 16 KB timeline of 20-byte entries is two or three nodes and costs roughly 1.2–1.5× its raw size once allocator rounding is included, which is where 3.2 TB raw becomes about 5 TB. The per-key overhead (on the order of 100 bytes) is noise at 16 KB a key; it would not be for small keys.
 
 ## High-level design
 
@@ -101,18 +107,18 @@ flowchart LR
   A["Author"] -->|"POST /posts"| PS["Post service"]
   PS --> PDB["posts + user_posts"]
   PS -->|"post_created, keyed by author"| K["Kafka"]
-  K --> FO["Fan-out workers"]
+  K --> FO["Fan-out workers x30"]
   FO -->|"page followers, 5k at a time"| SG["Social graph"]
-  FO -->|"LPUSH + LTRIM"| TL["Timeline cache: 10 TB Redis"]
-  R["Reader"] -->|"GET /feed, 120k rps"| FS["Feed service"]
+  FO -->|"LPUSH + LTRIM, ~900k/s"| TL["Timeline cache: 10 TB Redis"]
+  R["Reader"] -->|"GET /feed, 120k rps"| FS["Feed service x300"]
   FS --> TL
-  FS -->|"celebrity posts (pull)"| HC["Hot-author cache, in process"]
-  FS -->|"multiget 20"| PC["Post cache"]
+  FS -->|"celebrity posts (pull)"| HC["Hot-author lists, in process"]
+  FS -->|"multiget"| PC["Post + feature cache"]
   PC --> PDB
   FS --> RK["Ranker"]
 ```
 
-The write path is asynchronous from the moment the post commits. The author gets a 201 as soon as the post is in `posts` and `user_posts` and the event is in Kafka. Fan-out workers consume `post_created`, page through the author's followers, and push the post ID into each *active* follower's timeline. The read path takes the viewer's timeline, merges in posts from any celebrity accounts they follow, filters, hydrates, ranks and returns a page.
+The write path is asynchronous once the post commits: the author gets a 201 when the post is in `posts` and `user_posts` and the event is in Kafka. The read path takes the viewer's timeline, merges celebrity posts and the viewer's own, filters, hydrates, ranks and returns a page.
 
 ```viz
 {"type": "system", "scenario": "kafka-partitions", "nodes": 3,
@@ -121,21 +127,33 @@ The write path is asynchronous from the moment the post commits. The author gets
  "caption": "Keying by author keeps one author's posts in order through fan-out, so an edit never overtakes its create. Partitions are the unit of fan-out parallelism, and a burst from one prolific author lands on one partition. That is one more reason celebrity accounts skip this path entirely."}
 ```
 
-## Deep dives
-
-### 1. Push, pull or hybrid, and where the threshold is
+## Deep dive 1: push, pull or hybrid
 
 | | Fan-out on write (push) | Fan-out on read (pull) | Hybrid |
 |---|---|---|---|
 | Write cost | Followers × inserts per post | One insert | Push for most accounts |
 | Read cost | One timeline read | Hundreds of lookups plus a merge | One timeline read plus a small merge |
 | Celebrity post | 100M inserts; minutes of lag | Free | Pulled at read time |
-| Inactive followers | Wasted work | Free | Skip them; rebuild on return |
-| Failure mode | Fan-out backlog means stale feeds | Read latency and cost | Both, bounded |
+| Inactive followers | Wasted work | Free | Skipped; rebuilt on return |
+| Failure mode | Backlog means stale feeds | Read latency and cost | Both, bounded |
 
-The threshold between push and pull is usually hand-waved as "celebrities". Derive it instead. The driver is not total cost but **fan-out latency and burst**. Suppose no single post may take more than 10% of the fan-out fleet's 900,000 inserts/s, and the lag target is 5 seconds. Then one post can reach at most $90{,}000 \times 5 = 450{,}000$ followers within the lag target. So accounts above a few hundred thousand followers are pulled at read time, and everyone else is pushed. The number is a policy you tune from fan-out lag metrics, and saying where it comes from is the senior move.
+### The average lies: fan-out per post, simulated
 
-The hybrid read path is cheaper than it looks because **the celebrity set is small**. Say 50,000 accounts are above the threshold. Keeping each one's last 50 post IDs at 16 bytes each is $50{,}000 \times 50 \times 16\ \text{B} = 40$ MB. That fits in every feed-service instance's memory, refreshed from `user_posts` via a subscription to `post_created` for those accounts. A viewer who follows 20 celebrities gets 20 in-process list reads and a merge, with no network hop and no hot key in any shared cache.
+In a directed graph every edge is one follower and one followee, so the *average* follower count equals the average following count: 300. But fan-out is paid per *post*, and accounts with large audiences post more. Simulated: a million accounts with Pareto-distributed follower counts scaled to a mean of 300, and posting frequency proportional to $\text{followers}^{0.3}$ (an illustrative assumption):
+
+| Tail exponent | Median followers | Fan-out per post | Inserts removed by pulling accounts above 450k | Fan-out per pushed post |
+|---|---|---|---|---|
+| 1.05 (very heavy tail) | 38 | 9,336 | 93% | 679 |
+| 1.3 | 116 | 1,324 | 54% | 614 |
+| 1.6 | 173 | 498 | 10% | 447 |
+
+Depending on a tail you must measure, the real fan-out per post is 1.7× to 31× the average, and the pull threshold removes between a tenth and nearly all of the push work. That is why the estimate uses ~600 per pushed post and why "measure it" is the answer to "how big is fan-out?"
+
+### Deriving the threshold
+
+"Celebrities are pulled" is usually hand-waved. Derive it from **fan-out burst and lag**, not total cost. If no single post may take more than 10% of the 900,000 inserts/s fleet and the lag target is 5 s, one post can reach $90{,}000 \times 5 = 450{,}000$ active followers in time. Accounts above that are pulled at read time. The number is a policy tuned from lag metrics; saying where it comes from is the senior move.
+
+The pull side is cheap because **the celebrity set is small**: 50,000 accounts × their last 50 post IDs × 16 B is 40 MB, which fits in every feed-service process, refreshed by subscribing to `post_created` for those authors. A viewer following 20 celebrities costs 20 in-process list reads and a merge, with no network hop and no hot key in a shared cache:
 
 ```python
 import heapq
@@ -154,87 +172,171 @@ def home_candidates(timeline_ids, celeb_lists, own_recent, k=300):
     return out
 ```
 
-This is [Merge k Sorted Lists](/practice/merge-k-sorted-lists) in production clothing, and [Design Twitter](/practice/design-twitter) is the single-process version of the whole read path.
+This is [Merge k Sorted Lists](/practice/merge-k-sorted-lists) in production, and [Design Twitter](/practice/design-twitter) is the single-process version of the read path.
 
-**Skip inactive followers.** Roughly half of monthly users are not active on a given day, and users who have not opened the app for a week do not need a maintained timeline at all. Fan-out checks an "active in the last 7 days" bitmap and skips the rest, which cuts insert volume and cache memory together. When a dormant user returns, their timeline is rebuilt by pulling (see the follow-ups).
+```viz
+{"type": "linked-list", "algorithm": "merge-sorted", "values": [3, 8, 12, 20], "values2": [5, 9, 21],
+ "title": "The heart of the read path: merging sorted ID streams",
+ "caption": "Post IDs sort by time, so a timeline and a celebrity list merge like two sorted lists: compare heads, take one, advance. The feed merges several such streams at once with a heap."}
+```
 
-### 2. The read path: filter, hydrate and rank inside 200 ms
+## Deep dive 2: one post, traced from write to feed
+
+An author with 3,000 followers (1,500 active) posts; a second author with 300,000 (150,000 active) posts at the same moment. Graph page reads take ~5 ms; a pipelined batch of `LPUSH` + `LTRIM` to the affected Redis shards takes ~10 ms of wall time.
+
+| t (ms) | Where | Action |
+|---|---|---|
+| 0 | Post service | Insert into `posts` and `user_posts` (~5 ms, quorum write) |
+| 6 | Post service | Produce `post_created` (`acks=all`, ~5 ms); 201 to the author |
+| 12 | Kafka → worker | A fan-out worker polls the event from the author's partition |
+| 17 | Worker | Page 1 of followers (5,000 max) from the graph; drop inactive ones with an in-memory "active in 7 days" bitmap |
+| 27 | Redis | Pipelined `LPUSH tl:{f} <post,author>` + `LTRIM 0 799`, grouped by shard |
+| ~30 | Follower | Small author: done; a follower who refreshes now sees the post |
+| 30–1,000 | Workers | Large author: 60 pages split into 60 page-tasks on a second topic, processed by ~30 workers in parallel: 2 rounds × ~15 ms, plus queueing |
+| ~1 s | Follower | Large author done, inside the 5 s target |
+
+Three edge cases fall out of the trace. **The author's own feed**: the author refreshes at t = 7 ms, before fan-out, so the feed service merges the viewer's own recent posts from `user_posts` into every load, making read-your-writes hold by construction ([Consistency models](/learn/system-design/building-blocks/consistency-models)). **Duplicates**: a worker that crashes after its `LPUSH` but before committing its offset replays the page, and `LPUSH` is not idempotent, so a timeline can hold an ID twice; deduplicating 300 IDs at read time (the `seen` set) is cheaper than a sorted set keyed by post ID, which roughly triples memory. **A new follow**: an async job backfills the followee's last 20 posts, and until it runs the feed service merges them from `user_posts`, exactly like a celebrity pull.
+
+```viz
+{"type": "system", "scenario": "message-queue", "title": "Fan-out workers drain post_created",
+ "caption": "Posts arrive as events; workers consume them, page the author's followers and push the post ID into each active follower's timeline. When producers outrun consumers, lag grows and feeds go stale rather than failing."}
+```
+
+## Deep dive 3: the read path inside 200 ms
 
 | Step | p50 | Notes |
 |---|---|---|
 | Fetch timeline (`LRANGE 0 299`) | 2 ms | One Redis call |
 | Merge celebrity lists and own posts | under 1 ms | In process |
-| Filter: blocks, mutes, unfollows | 3 ms | Viewer's block and mute sets, cached |
-| Hydrate ~300 candidates' features | 15 ms | Batched multi-get from post cache, parallel per shard |
-| Rank | 30–60 ms | Lightweight model over ~300 candidates |
-| Hydrate the 20 winners fully, serialise | 10 ms | Bodies, authors, counts |
+| Filter blocks, mutes, unfollows | 3 ms | Viewer's small sets, cached |
+| Fetch features for ~300 candidates | 15 ms | Batched multi-gets, parallel per shard |
+| Rank | 30–60 ms | A lightweight model over ~300 candidates |
+| Hydrate the 20 winners, serialise | 10 ms | Bodies, authors, counts |
 | **Total** | **~70–90 ms** | p99 budget 200 ms |
 
-Four decisions make this work.
-
-**Deletes are filtered at read time, not fanned out.** When a post is deleted, you do not remove its ID from millions of timelines. You set `deleted = true`, invalidate the post cache entry, and hydration drops it. For legal takedowns, where the cache TTL is too slow, hydration also checks a small synchronous denylist.
-
-**Blocks and unfollows are filtered at read time too.** The viewer's block, mute and current-following sets are small and cached. An unfollow takes effect on the next load, even though stale entries sit in the timeline until they age out of the 800 cap.
-
-**Rank a candidate set, not the timeline.** Take the newest 300 or so candidates, rank them, return 20, and store the ranked order under a snapshot ID that the cursor references. Page 2 then continues the same ranked list instead of re-ranking a set that has changed underneath it.
-
-**Every dependency has a fallback.** If the ranker misses its 60 ms deadline, return reverse-chronological order: it is still a good feed. If the post cache misses, go to the store with a batch read. If hydration of one post fails, drop the post, not the page.
-
-### 3. Freshness and consistency: what the user can notice
-
-**Your own post, immediately.** Fan-out lag is a few seconds, but a user who posts and then pulls to refresh expects to see the post at once. Do not wait for fan-out to reach your own timeline. The feed service merges the viewer's own last few posts from `user_posts` into every load, which makes read-your-writes hold by construction ([Consistency models](/learn/system-design/building-blocks/consistency-models)).
-
-**Duplicates from at-least-once fan-out.** Kafka redelivers after a worker crash, and `LPUSH` is not idempotent, so a timeline can hold the same post ID twice. Deduplicating 300 IDs at read time (the `seen` set above) is cheaper than making every insert idempotent, for example by switching to a sorted set keyed by post ID, which roughly triples memory.
-
-**A new follow.** When you follow someone, their recent posts should appear on your next load. An async job backfills their last 20 post IDs into your timeline, and until it runs the feed service merges them from `user_posts`, exactly like a celebrity pull.
-
-**The "N new posts" pill.** Compare the head of the viewer's timeline, plus the heads of their celebrity lists, with the top ID in the cursor. It costs one Redis call and needs no counters.
+**Deletes are filtered at read time, not fanned out.** Set `deleted = true`, invalidate the post cache, and hydration drops the post; a small synchronous denylist covers legal takedowns faster than any cache TTL. **Blocks and unfollows** are filtered the same way from the viewer's cached sets; stale IDs age out of the 800 cap. **Rank a snapshot**: take ~300 candidates, rank, return 20, and store the ranked order under a snapshot ID for about 30 minutes, which the cursor references, so page 2 continues the same list. The **new-posts pill** compares the live timeline and celebrity heads with the snapshot: one Redis call, no counters. **Every dependency has a fallback**: ranker late, serve reverse-chronological; post cache miss, batch-read the store; one post fails to hydrate, drop the post, not the page.
 
 ## Failure modes
 
-**Fan-out backlog.** A major live event makes everyone post at once, or a mid-tier account's post lands in the same partition as a burst from another. Consumer lag grows, and feeds become minutes stale but stay available. Mitigations: split the fan-out queue by recipient activity (followers who are online right now first, the rest later), autoscale workers on consumer lag, and alert on the lag SLO, not on queue length.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Fan-out backlog (a live event) | Feeds minutes stale but available | Consumer lag on `post_created` and page-task topics | Prioritise followers online now; autoscale workers on lag; alert on the lag SLO, not queue length |
+| Timeline shard lost (thundering herd of rebuilds) | 1.25 million users (a 160th) get empty timelines; rebuilding each from 300 followees is 375 million lookups at once | Shard down with no replica; post-store load spike | Replicas; rate-limit rebuilds; serve a degraded feed (celebrities, own posts, top-interaction accounts) meanwhile |
+| Viral post (hot key) | One post-cache shard saturated at 500,000 hydrations/s | Per-key or per-shard skew | In-process cache of the hottest posts for a few seconds; like counts a few seconds stale |
+| Poison event | One partition's lag grows while others drain | A worker retries the same event: malformed payload, or a follower page that always times out | Retry with backoff, then park on a dead-letter topic with the offset; alert |
+| Duplicate entries | The same post twice in a feed | Worker redelivery after a crash | Read-time dedupe; idempotent page tasks keyed by `(post_id, page)` |
+| Deleted content reappears | Takedown visible again | A lost cache invalidation; TTL is the backstop | Synchronous denylist at hydration, checked every page |
+| Social graph slow | Fan-out stalls; follows queue; reads unaffected | Graph read latency on fan-out workers | Reads never touch the graph synchronously except the viewer's cached following set; fan-out catches up on recovery |
+| Region loss | Readers fail over; their timelines are cold in the new region | Timeline cache is regional | Serve degraded feeds from replicated `user_posts` and celebrity lists; rebuild timelines rate-limited |
 
-**A timeline cache shard is lost.** With 160 nodes, a lost node without a replica empties about 1.25 million timelines. Rebuilding each one by pulling from 300 followees is 375 million lookups, and if every affected user opens the app at once, that storm lands on the post store. Replicas make this rare. When it happens, rate-limit rebuilds and serve a **degraded feed** in the meantime: celebrity posts, the user's own posts and recent posts from their ten most-interacted-with accounts. It is a thinner feed, but not an empty one.
+## Trade-offs: what was rejected
 
-**The social graph is slow.** Fan-out stalls because it cannot page followers, and reads are unaffected. Follow and unfollow writes queue up. The design survives this well precisely because reads never touch the graph synchronously, except for the viewer's own small following set, which is cached.
+| Decision | Chosen | Rejected | Why rejected here | What would flip it |
+|---|---|---|---|---|
+| Fan-out | Hybrid, threshold ~450k active followers | Pure push; pure pull | 111 s per celebrity post; 36M lookups/s | A product where every item is an event (likes, comments), where pull wins |
+| Timeline contents | IDs | Full post bodies | 50× the memory; fan-out on every edit and like | – |
+| Duplicates | Read-time dedupe | Sorted sets keyed by post ID | ~3× the memory of lists | Timelines that must be exact counts |
+| Deletes and blocks | Filter at read time | Fan out removals | A delete becomes millions of writes racing the original fan-out | – |
+| Pagination | Cursor over a ranked snapshot | Offsets; re-rank per page | Repeats and skips | – |
 
-**A post goes viral.** One post ID is hydrated 500,000 times a second, all on one post-cache shard. Keep the hottest posts in an in-process cache on each feed instance for a few seconds. Like counts can be a few seconds stale.
+## Evolution at 10× and 100×
 
-**The ranker is down.** Serve reverse-chronological order. Measure engagement during the incident, and it will tell you how much the ranker is worth.
+**10× (about 2 billion daily users, the largest social networks' scale).** Feed loads reach 1.2 million a second and the timeline cache 100 TB. Memory, not throughput, is the problem, so the cost levers become mandatory: tighten the activity window from 7 days to 2, cap infrequent users' timelines at 200 entries, and move timelines from Redis lists to a compact purpose-built store. Fan-out grows to ~9 million inserts a second; with the fleet 10× larger the derived threshold rises to ~4.5 million active followers.
 
-**Deleted content reappears.** A cache invalidation is lost, and the post-cache TTL is the backstop. For content that must disappear within seconds (legal, safety), the synchronous denylist at hydration is the guarantee, and it is checked on every page.
+**100× in feed items.** More users than that do not exist, but 100× the *items* does: a feed of likes, comments and group activity, not only posts. Push cost is items × followers, so push collapses, and the design flips to pull-first: each viewer's candidates are gathered at read time from per-author recent-activity indexes held in memory across many leaf servers, with aggregators merging and ranking. The timeline cache disappears and the ranking fleet becomes the biggest cost.
 
-## Senior follow-ups
+## What real companies describe
 
-**Q: "A user follows 5,000 accounts and opens the app for the first time in three months. What happens?"**
+- Twitter engineers publicly described (around 2012) Redis-backed home timelines capped at roughly 800 entries, filled by fan-out on write, with very large accounts merged at read time: the hybrid above.
+- Facebook engineers have described a pull-oriented feed system (Multifeed): recent actions indexed per user in memory on leaf servers, with aggregators querying leaves and ranking at read time. It fits a feed where every like and comment is a candidate item.
+- Twitter's Snowflake (2010) is the ID scheme used for time-sortable post IDs above.
 
-Their timeline was not maintained, because they were dormant, so there is nothing in the cache. Rebuilding by pulling 5,000 author lists is too slow for a first page. So the first page is built from the in-process celebrity lists plus the recent posts of the 50 accounts they interacted with most before going dormant, which is a bounded pull of about 50 lookups. At the same time, an async job rebuilds the full timeline with a k-way merge over `user_posts` for all 5,000 followees, capped at 800 entries, and marks the user active so fan-out resumes. By page 2 or the next app open, the feed is complete.
+## Interviewer follow-ups
 
-**Q: "Why store only IDs in the timeline? Wouldn't bodies save the hydration step?"**
+**"A user follows 5,000 accounts and returns after three months. What happens?"** Model answer: dormant users have no maintained timeline, and pulling 5,000 lists is too slow for page 1. Build page 1 from the in-process celebrity lists plus the 50 accounts they interacted with most (about 50 lookups), and meanwhile rebuild the full timeline asynchronously with a k-way merge over `user_posts`, capped at 800, and mark them active. By page 2 the feed is complete. Common wrong answer: "their timeline is still in the cache", which means paying to maintain timelines nobody reads.
 
-Three reasons. Memory: a 1 KB body instead of 20 bytes multiplies the 5 TB of timelines by about fifty, into hundreds of terabytes of RAM. Mutability: edits, deletes and like counts would require updating the post in every follower's timeline, which is fan-out for every edit and every like. And the post cache already concentrates reads: a popular post is hydrated from one cache entry for millions of viewers. The hydration step costs about 15 ms and saves most of the infrastructure bill.
+**"Why store only IDs in the timeline?"** Model answer: memory (fifty times less), mutability (edits, deletes and likes would each need fan-out), and concentration (a popular post is hydrated from one cache entry for millions of viewers). Hydration costs ~15 ms and saves most of the bill. Common wrong answer: "bodies save a round trip", ignoring that every like would rewrite millions of timelines.
 
-**Q: "How would you shard the social graph when one account has 100 million followers?"**
+**"How do you shard the social graph when one account has 100 million followers?"** Model answer: partition `followers` by `(user_id, bucket)` with 64 buckets for accounts above a threshold, read in parallel. The hybrid design never fans out from those accounts, so their lists are read only for analytics and counts, which are separate counters. Common wrong answer: "partition by user_id", leaving a 100-million-row partition on one shard.
 
-Partition `followers` by `user_id`, but a 100-million-row partition is too large for one shard to scan without hurting everything else on it. Sub-partition large accounts: the key becomes `(user_id, bucket)` with the bucket derived from `hash(follower_id) mod 64` for accounts above a size threshold, and fan-out (or the rare full scan) reads the buckets in parallel. For the hybrid design we never fan out from these accounts at all, so their follower list is read only for analytics and for counts, which you keep as a separate counter anyway.
+**"The timeline cache costs too much. Halve it."** Model answer: about 160 nodes, so levers in order: shrink the activity window from 7 days to 2; cap infrequent users at 200 entries; pack entries in a compact binary store instead of Redis list nodes; drop the replica, since timelines are rebuildable, accepting degraded feeds after a node loss. Common wrong answer: "compress the values", which does little to 20-byte entries dominated by per-entry overhead.
 
-**Q: "What does the timeline cache cost, and how would you cut it in half?"**
+**"How do you add ML ranking without breaking pagination and the new-posts pill?"** Model answer: rank a snapshot of ~300 candidates, store it for 30 minutes under an ID in the cursor, read later pages from the snapshot, compare the live head with it for the pill, and build a new snapshot on pull-to-refresh. Common wrong answer: re-rank on every page, which repeats and skips items.
 
-Roughly 160 nodes of 64 GB at a few thousand dollars a month each, so on the order of half a million dollars a month. Four levers. Tighten the activity window that fan-out uses from 7 days to 2, which drops users who open the app only once or twice a week; their feeds are rebuilt when they return. Cap timelines of infrequent users at 200 entries instead of 800, because they never scroll that far. Pack entries into a compact binary format in a custom store instead of Redis list nodes, which removes most of the overhead. And drop the replica for timelines, since they are a rebuildable cache, accepting degraded feeds after a node loss. Each lever trades something, and I would pick them in that order.
+## What mid-level engineers get wrong
 
-**Q: "How do you add ML ranking without breaking pagination and the new-posts pill?"**
+- Sizing fan-out from the average follower count; the per-post fan-out can be 30× larger.
+- Saying "celebrities are pulled" without deriving the threshold from fleet capacity and the lag target.
+- Storing post bodies in timelines, then fanning out every edit and like.
+- Fanning out deletes instead of filtering at hydration.
+- Offset pagination on a feed whose head moves every second.
+- Waiting for fan-out to show authors their own post.
+- Maintaining timelines for users who have not opened the app in weeks.
 
-Rank a snapshot. Page 1 ranks the top 300 candidates and stores the ordered list under a snapshot ID for about 30 minutes, and the cursor carries the snapshot ID and the offset within it. Later pages read from the snapshot, so they never repeat or skip items. The new-posts pill compares the live timeline head with the snapshot's candidate set, and pull-to-refresh builds a new snapshot. The cost is a small, short-lived cache of ranked lists, which is cheap compared to users seeing duplicates.
+## Exercise
 
-**Q: "Take it to three regions."**
+```exercise
+id: merge-feed-streams
+title: Merge feed streams with dedupe and filters
+prompt: |
+  Implement `merge_feed(streams, blocked, deleted, k)`, the candidate step of
+  the feed read path.
 
-Posts and the graph are written in the author's home region and replicated asynchronously. Fan-out runs in each region against local replicas of the graph, writing that region's timeline cache for users homed there. The celebrity lists are replicated everywhere. Cross-region lag adds a second or two to fan-out for followers in other regions, which is within the 5-second target. The read-your-writes guarantee still holds because the author's own posts are merged from their home region's `user_posts`, which the author reads locally.
+  - `streams` is a list of streams (the viewer's timeline, celebrity lists,
+    the viewer's own posts). Each stream is a list of `[post_id, author_id]`
+    pairs sorted by `post_id` descending, newest first. Post IDs are
+    time-sortable, so a larger ID is newer.
+  - A post ID can appear in several streams, or twice in one stream
+    (at-least-once fan-out). Return it once.
+  - Skip posts whose `author_id` is in `blocked` and posts whose `post_id` is
+    in `deleted`.
+
+  Return the `k` newest remaining post IDs, in descending order. Aim for a
+  k-way merge rather than concatenating and sorting everything.
+languages: [python, javascript]
+entry: merge_feed
+starter:
+  python: |
+    def merge_feed(streams, blocked, deleted, k):
+        # your code here
+        return []
+  javascript: |
+    function merge_feed(streams, blocked, deleted, k) {
+      // your code here
+      return [];
+    }
+tests:
+  - args: [[[[9, 1], [5, 2], [1, 1]], [[8, 3], [4, 3]]], [], [], 3]
+    expected: [9, 8, 5]
+  - args: [[[[7, 1], [7, 1], [3, 1]], [[7, 1], [6, 2]]], [], [], 5]
+    expected: [7, 6, 3]
+    label: duplicates across and within streams
+  - args: [[[[9, 1], [8, 1], [5, 2]], [[6, 3]]], [2], [8], 10]
+    expected: [9, 6]
+    label: blocked author and deleted post are skipped
+  - args: [[[], []], [], [], 5]
+    expected: []
+    label: empty streams
+  - args: [[[[2, 1]]], [], [], 5]
+    expected: [2]
+    label: fewer posts than k
+  - args: [[[[50, 5], [40, 4], [30, 3], [20, 2], [10, 1]], [[45, 9], [35, 9], [25, 9]], [[44, 8], [40, 4], [12, 7]], [[41, 6]]], [9], [44], 4]
+    expected: [50, 41, 40, 30]
+    hidden: true
+  - args: [[[[3, 1], [2, 1]]], [], [], 0]
+    expected: []
+    hidden: true
+    label: k is zero
+hints:
+  - "Push the head of each non-empty stream onto a heap keyed by -post_id, with the stream index and position."
+  - "Pop the newest, skip it if seen, blocked or deleted, then push the next item from the same stream; stop at k results."
+```
 
 ## Senior signals
 
-- You derive the push/pull threshold from fan-out capacity and the lag target, instead of saying "celebrities" and moving on.
-- You notice that the average follower count equals the average following count, and you still refuse to trust the average, because fan-out per post is weighted by who posts.
-- You keep IDs, not bodies, in timelines, and you filter deletes, blocks and unfollows at read time instead of rewriting millions of timelines.
+- You derive the push/pull threshold from fan-out capacity and the lag target instead of saying "celebrities".
+- You know the average follower count equals the average following count, and still refuse to trust it, because fan-out per post is weighted by who posts.
+- You keep IDs, not bodies, in timelines, and filter deletes, blocks and unfollows at read time.
 - You name the timeline cache as the dominant cost and give the levers, in order, for cutting it.
 - You guarantee read-your-own-posts by merging at read time, not by waiting for fan-out.
 - Every dependency on the read path has a fallback, and the degraded feed is thinner, never empty.
@@ -247,29 +349,35 @@ Posts and the graph are written in the author's home region and replicated async
   options: ["It is fine, because 900,000 inserts/s fits a Redis cluster's capacity", "The post store, not fan-out, is the bottleneck at 3,000 writes/s", "The average is fine, but one post from the top account swamps the fleet", "Push is always cheaper than pull, so fan out on write for every account"]
   answer: 2
   explanation: >-
-    The average hides the tail. 900,000 inserts/s is manageable, but one post from the largest account is 100 million inserts, more than 100 seconds of the entire fan-out capacity, which blows the lag target for everyone else. That is why accounts above a derived threshold are pulled at read time. Storing 3,000 posts/s is the easy part.
+    The average hides the tail. One post from the largest account is 100 million inserts, about 111 seconds of the entire fan-out capacity, which blows the lag target for everyone else. That is why accounts above a derived threshold are pulled at read time. Storing 3,000 posts/s is the easy part.
+- q: >-
+    Every follow edge is one follower and one followee, so average followers equals average following, 300. Why can fan-out per post still be far above 300?
+  options: ["Fan-out counts each follower twice, once for the post and once for the reply", "Accounts with large audiences post more, so each post's reach is weighted up", "Inactive followers are counted in fan-out even though their feeds are skipped", "The equality only holds for undirected graphs, not for directed follow graphs"]
+  answer: 1
+  explanation: >-
+    Fan-out is paid per post, so the relevant average weights each account by how often it posts, and heavy posters skew toward big audiences. In the simulation the per-post fan-out ranged from 1.7x to 31x the average depending on the tail. The equality itself holds in directed graphs, and skipping inactive followers reduces fan-out rather than inflating it.
 - q: >-
     Why is the celebrity pull path cheap on the read side in the hybrid design?
   options: ["The celebrity set is small enough to hold in every instance's memory", "Each celebrity's list sits in one shared cache key that all readers hit", "Celebrity posts are served from the CDN, so the feed service skips them", "Celebrities post rarely, so their lists almost never need refreshing"]
   answer: 0
   explanation: >-
-    50,000 accounts x 50 IDs x 16 bytes is about 40 MB, small enough to replicate into every feed-service process. The pull becomes an in-memory k-way merge with no network hop, instead of hundreds of remote lookups. A single shared cache key per celebrity is exactly the hot key the design avoids.
+    50,000 accounts x 50 IDs x 16 bytes is about 40 MB, small enough to replicate into every feed-service process. The pull becomes an in-memory k-way merge with no network hop. A single shared cache key per celebrity is exactly the hot key the design avoids.
 - q: >-
     A post is deleted. What is the right way to remove it from followers' feeds?
   options: ["Let it age out of the 800-entry cap, since timelines hold only IDs", "Fan out a delete that removes the ID from every follower's timeline", "Rebuild every follower's timeline from user_posts without the post", "Mark it deleted and invalidate the post cache so hydration drops it"]
   answer: 3
   explanation: >-
-    Filtering at hydration is one write plus a cache invalidation, and a small synchronous denylist covers urgent legal takedowns where the cache TTL is too slow. Removing an ID from millions of timelines is fan-out for every delete, and it races with the original fan-out. Ageing out alone would show deleted content for days.
+    Filtering at hydration is one write plus a cache invalidation, and a small synchronous denylist covers urgent takedowns. Removing an ID from millions of timelines is fan-out for every delete, and it races with the original fan-out. Ageing out alone would show deleted content for days.
 - q: >-
-    A user posts and immediately refreshes, but fan-out has a 3-second lag. How does the design guarantee they see their own post?
-  options: ["Fan-out writes to the author's own timeline synchronously before 201", "The feed service merges the viewer's own recent posts into every load", "It can't; with async fan-out the user must wait out the 3-second lag", "The client caches the post locally and prepends it until fan-out lands"]
+    A user posts and refreshes 7 ms later, before fan-out has run. How does the design guarantee they see their own post?
+  options: ["Fan-out writes to the author's own timeline synchronously before 201", "The feed service merges the viewer's own recent posts into every load", "It can't; with async fan-out the user must wait for the lag to pass", "The client caches the post locally and prepends it until fan-out lands"]
   answer: 1
   explanation: >-
-    Merging your own recent posts from user_posts at read time makes read-your-writes hold by construction, for one extra small partition read. A synchronous self-insert helps too, but it is a second write path that can fail independently. Client-only caching breaks across devices.
+    Merging your own recent posts from user_posts at read time makes read-your-writes hold by construction, for one extra small partition read. A synchronous self-insert is a second write path that can fail independently, and client-only caching breaks across devices.
 - q: >-
     Feed pagination uses ?page=2 with 20 items per page. Seven new posts arrive between page 1 and page 2. What does the user see, and what is the fix?
-  options: ["Page 2 shows the seven new posts first; re-rank each page separately", "Seven page-1 items repeat on page 2; use a cursor over a ranked snapshot", "Nothing, because the offset is taken against the timeline at page 1", "Seven older items are skipped on page 2; fetch with a larger page size"]
+  options: ["Page 2 shows the seven new posts first; re-rank each page separately", "Seven page-1 items repeat on page 2; use a cursor over a ranked snapshot", "Nothing, because the offset is taken against the timeline at page 1", "Seven older items are skipped on page 2; fetch them with a larger page size"]
   answer: 1
   explanation: >-
-    Offsets are relative to a list that changed underneath them, so the new items push old ones down: the last seven items of page 1 reappear at the top of page 2. Nothing is skipped; items are repeated. A cursor says continue after this item (within this ranked snapshot), which is stable as the head of the feed grows.
+    Offsets are relative to a list that changed underneath them, so the new items push old ones down and the last seven items of page 1 reappear at the top of page 2. Nothing is skipped; items repeat. A cursor over a stored ranked snapshot continues after a specific item and stays stable as the head grows.
 ```

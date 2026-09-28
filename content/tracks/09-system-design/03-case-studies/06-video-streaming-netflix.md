@@ -1,251 +1,253 @@
 ---
 slug: video-streaming-netflix
 title: "Video streaming at Netflix scale: encoding ladders, Open Connect and adaptive bitrate"
-description: The deepest design in the track, built only from what Netflix has publicly described. It covers per-title and per-shot encoding ladders, Open Connect appliances inside ISPs filled off-peak, steering, the playback start path, client-side adaptive bitrate, and the telemetry loop that ties them together.
+description: A design built from what Netflix has publicly described, with every estimate worked to appliance and node counts, placement hit ratios computed, a cold start traced to the first frame, adaptive bitrate simulated segment by segment through a bandwidth drop, and the telemetry and personalisation loops that tune it.
 minutes: 45
 difficulty: expert
 tags: [system-design, case-study, netflix, video-streaming, cdn, open-connect, adaptive-bitrate, encoding, vmaf, telemetry]
 ---
-At 9 pm in São Paulo someone presses play on a television. Within a second or two, video starts at the best quality their connection can sustain, and it plays for two hours without stalling while the household's other devices fight for the same Wi-Fi. At that same moment, tens of millions of other people are doing the same thing. "Design Netflix" is the prompt that tests whether you know where the difficulty in that experience actually lives.
+At 9 pm in São Paulo someone presses play on a television. Within a second video starts at the best quality the connection can sustain, and it plays for two hours without stalling while the household's other devices fight for the same Wi-Fi. Tens of millions of people are doing the same at that moment. "Design Netflix" tests whether you know where the difficulty in that experience lives.
 
-It does not live in storing video or in the web application. It lives in three places that most candidates never reach. The first is **encoding**: each title is turned into many renditions, and choosing them per title saves a meaningful fraction of every byte ever sent. The second is **delivery**: at hundreds of terabits per second, the bytes cannot come from a cloud region. Netflix built its own CDN, Open Connect, with servers placed inside ISPs' networks and filled overnight with what people will watch tomorrow. The third is the **client**: the player chooses a bitrate every few seconds from buffer levels and throughput samples, because it is the only component that can see the last mile.
+It is not in storing video or in the web application. It is in three places. **Encoding**: each title becomes many renditions, and choosing them per title removes a share of every byte ever sent. **Delivery**: at hundreds of terabits per second the bytes cannot come from a cloud region, so Netflix built Open Connect, servers inside ISPs filled overnight with what members will watch tomorrow. **The client**: the player picks a bitrate every few seconds from its buffer and throughput samples, because only it can see the last mile.
 
-Netflix publishes an unusual amount of this architecture in its technology blog, its Open Connect partner documentation, open-source projects and academic papers. This lesson uses only that public material, says "publicly described" where a specific claim comes from it, and labels its own numbers as assumptions. Where the public record is silent, the lesson tells you what a reasonable design would do, and the difference matters in an interview. Claiming inside knowledge you do not have is the fastest way to lose a Netflix interviewer.
+Netflix publishes much of this in its technology blog, its Open Connect partner documentation and research papers. This lesson says "publicly described" for claims from that record and labels everything else as an assumption or as illustrative. Claiming inside knowledge you do not have is the fastest way to lose a Netflix interviewer.
 
 ## Requirements
 
 ### Functional
 
-- **Play** any title on thousands of device types (TVs, phones, browsers, consoles), each with its own codecs, DRM system, maximum resolution and HDR support.
-- **Start fast, adapt continuously**, allow seeking, and **resume** from the last position across devices.
-- **Many audio and subtitle tracks** per title.
-- **Ingest**: turn a studio's master file into every rendition, check its quality, and have it ready worldwide before a fixed launch time.
-- **Measure** the quality of experience of every session, and run A/B tests on streaming algorithms.
-- **Out of scope**: the browse UI and recommendation models (touched on in the follow-ups), billing, downloads for offline viewing, and live events.
+- **Play** any title on thousands of device types, each with its own codecs, DRM system, maximum resolution and HDR support; start fast, adapt continuously, seek, and resume across devices.
+- **Ingest** a studio master into every rendition, quality-checked and on the edge before a fixed launch time.
+- **Measure** every session's quality of experience (QoE) and A/B test streaming algorithms.
+- **Personalise delivery**: use viewing predictions to place content and prefetch likely plays.
+- **Out of scope**: the browse UI and the recommendation models themselves, billing, downloads, live events.
 
 ### Non-functional
 
-These are targets for this design, not Netflix's published figures:
+Targets for this design, not Netflix's published figures:
 
-- **Play delay** (press to first frame): p50 about 1 s, p95 under 3 s.
-- **Rebuffering**: a small fraction of a percent of viewing time. A stall is the most damaging event in a session.
-- **Quality**: maximise perceptual quality per bit within each viewer's bandwidth.
-- **Availability**: stream starts succeed more than 99.99% of the time, and playing streams survive a control-plane outage.
-- **Cost**: the cost per hour streamed is a first-class requirement, because egress volume dominates everything else.
+| Property | Target |
+|---|---|
+| Play delay (press to first frame) | p50 ≤ 1 s, p95 ≤ 3 s |
+| Rebuffering | < 0.1% of viewing time; a stall is the worst event in a session |
+| Start success | ≥ 99.99%; playing streams survive the loss of a control-plane region |
+| Quality | Maximise perceptual quality per bit within each viewer's bandwidth |
+| Cost | Cost per hour streamed is a requirement, because egress dominates |
 
-### Scale (assumptions)
+### Scale
 
-250 million member accounts, a global peak of 40 million concurrent streams, an average delivered bitrate of 5 Mbps across devices (phones well under that, 4K TVs well over), an average of one hour viewed per account per day, and a catalogue of 50,000 content hours.
+Assumptions: 250 million accounts, 40 million concurrent streams at the global peak, a 5 Mbps average delivered bitrate (phones well under, 4K televisions well over), one hour viewed per account per day, and a catalogue of 50,000 content hours.
 
 ## Back-of-envelope estimates
 
-**Peak egress.** $4 \times 10^7 \times 5\ \text{Mbps} = 2 \times 10^8$ Mbps = **200 Tbps**.
+| Quantity | Arithmetic | Result |
+|---|---|---|
+| Peak egress | $4 \times 10^7$ streams × 5 Mbps | **200 Tbps** |
+| Bytes per viewing hour | 5 Mbps × 3,600 s ÷ 8 | 2.25 GB |
+| Daily egress | $2.5 \times 10^8$ h × 2.25 GB | 560 PB/day, a 52 Tbps average: the peak is about 4× the average |
+| Egress if bought | $5.6 \times 10^8$ GB/day × \$0.001–0.005 per GB | \$0.5–3 million a day |
+| Catalogue, all formats | (60 Mbps of video ladders across 4 codecs + 20 audio tracks × 0.25 Mbps) × 3,600 s ÷ 8 | 29 GB per content hour; × 50,000 ≈ **1.5 PB** |
+| Encoding leverage | 20% saving on a title watched $10^7$ hours: $10^7$ × 2.25 GB × 0.2 | 4.5 PB never sent, for one title |
+| Stream starts | 40 M streams ÷ 2,700 s average session | 15,000/s at peak, 45,000/s at the top of the hour |
+| Bookmark writes | 40 M streams ÷ one write per 60 s | 670,000/s, 2 million replica writes/s at replication factor 3 |
+| Telemetry | 40 M × (one heartbeat per 30 s + events) × ~1 KB | 2 million events/s, 2 GB/s, 170 TB/day raw |
 
-**Daily volume.** One hour at 5 Mbps is $5 \times 3{,}600 / 8 = 2{,}250$ MB, about 2.25 GB. $2.5 \times 10^8$ hours/day × 2.25 GB ≈ $5.6 \times 10^8$ GB, which is about **560 PB per day**. Check it against the peak: 560 PB over 86,400 s averages about 52 Tbps, so the evening peak is about four times the average, which is plausible for a service watched after dinner.
+### Machine counts
 
-**What that costs if you buy it.** Even at a fraction of a cent per GB, $5.6 \times 10^8$ GB/day comes to millions of dollars a day and on the order of a billion dollars a year. The same bytes also cross ISPs' interconnects and backbones, which costs the ISPs money and congests them at exactly the hour everyone is watching. *This number is the reason a streaming company builds its own CDN and puts it inside other companies' networks.*
+| Tier | Sizing | Count |
+|---|---|---|
+| Edge appliances | 200 Tbps ÷ 100 Gbps each (assumed; depends on NICs, disks and TLS offload) at 50% target utilisation | 4,000, plus spares in every site |
+| Playback API | 45,000 manifests/s × ~10 ms of CPU (assumed) = 450 cores; at 50% utilisation on 16-core nodes, 56; ×1.5 so three regions survive losing one | ~85 nodes |
+| Bookmark store | 2 million replica writes/s ÷ ~20,000 per node (assumed; depends on row size and disks) | ~100 nodes |
+| Kafka | 2 GB/s × 3 replicas ÷ ~100 MB/s of sustained writes per broker | ~60 brokers |
 
-**Edge fleet.** Netflix engineers have publicly described single servers pushing hundreds of Gbps of TLS-encrypted video. Assume a conservative 100 Gbps per appliance: 200 Tbps needs 2,000 appliances running flat out. Plan for about 50% utilisation, redundancy in every site and presence in thousands of ISP locations, and you get several thousand appliances. That is a fleet you design, build, ship and operate. It is not a line item on a cloud bill.
-
-**Catalogue size.** Each content hour exists in many renditions. Assume the video ladders across codecs (H.264, HEVC, VP9, AV1) sum to about 60 Mbps of bitrate, and about 20 audio tracks at about 0.25 Mbps each add 5 Mbps. That is 65 Mbps × 3,600 s / 8 ≈ 29 GB per content hour, and × 50,000 hours ≈ **1.5 PB for the entire catalogue in every format**. The whole catalogue is small next to one day's egress (560 PB). So a site with a few large storage appliances can hold everything, while a site with limited space holds only what is likely to be watched. The design exploits this asymmetry directly.
-
-**Encoding leverage.** A title watched for 10 million hours at 5 Mbps sends $10^7 \times 2.25$ GB = 22.5 PB. A 20% bitrate saving at equal quality is 4.5 PB never sent, for one title. Even if the better encode costs thousands of extra CPU-hours, it is paid once, while the saving recurs on every view. *Encoding efficiency is multiplied by the egress bill*, which is why Netflix invests so heavily in it.
-
-**Control plane.** Stream starts ≈ concurrent streams / average session length ≈ $4 \times 10^7 / 2{,}700\ \text{s} \approx 15{,}000$ per second at peak, with spikes several times higher at the top of the hour and at big launches. Each start costs a manifest call, a DRM license and a few metadata calls. That is a large but ordinary microservice load. The browse UI generates far more requests than playback does.
-
-**Telemetry.** Say each stream sends a heartbeat every 30 seconds plus events (start, bitrate switch, rebuffer, error, stop). At 40 million streams that is about 1.3 million heartbeats/s, roughly 2 million events/s in total. At about 1 KB each, that is about 2 GB/s, or 170 TB/day raw. The QoE pipeline is a big-data system in its own right.
+The sentence that matters: the whole catalogue (1.5 PB) is under a third of a percent of one day's egress (560 PB), so delivery is a placement problem at the edge, and the control plane, at ~85 nodes, is ordinary cloud engineering by comparison.
 
 ## API design
 
-This is a sketch consistent with the public descriptions, not Netflix's actual API:
-
 ```text
-POST /playback/manifest
-  {"video_id": 80100172, "profile_id": "p_91",
-   "device": {"model": "tv-2024-x", "codecs": ["av1", "hevc", "avc"], "drm": "widevine-l1",
-              "max_res": "2160p", "hdr": ["dolby-vision", "hdr10"], "audio": ["atmos", "5.1"]},
-   "network": {"type": "wifi"}}
-  -> 200 {"session_id": "s_7c1e",
-          "video": [{"stream_id": "v_av1_1080_3200", "codec": "av1", "res": "1920x1080", "kbps": 3200}, ...],
-          "audio": [...], "text": [...],
-          "urls": [{"host": "oca-a.isp-example.net", "rank": 1},
-                   {"host": "oca-b.isp-example.net", "rank": 2},
-                   {"host": "oca-ix1.example.net",   "rank": 3}],
-          "url_expires_s": 21600, "license_url": "...", "start_position_s": 1834}
-
-POST /license            {"session_id": "s_7c1e", "challenge": "<DRM blob>"}  -> {"license": "<DRM blob>"}
-
-GET  https://oca-a.isp-example.net/<file_id>?token=<signed, expiring>
-     Range: bytes=...                                                      -> media bytes
-
-POST /events             {"session_id": "s_7c1e", "events": [
-                            {"t": 0,    "type": "start", "play_delay_ms": 910, "kbps": 1750},
-                            {"t": 38.2, "type": "switch", "from": 1750, "to": 3200},
-                            {"t": 612,  "type": "rebuffer", "ms": 1400}]}
-
-PUT  /bookmarks/{profile_id}/{video_id}   {"position_s": 2410}
+POST /playback/manifest  {video_id, profile_id, device: {codecs, drm, max_res, hdr}, network}
+  -> 200 {session_id, video: [{stream_id, codec, res, kbps}], audio: [...], text: [...],
+          urls: [{host: "oca-a.isp.example", rank: 1}, {host: "oca-b.isp.example", rank: 2},
+                 {host: "oca-ix1.example", rank: 3}],
+          url_expires_s: 21600, license_url, start_position_s: 1834}
+POST /license            {session_id, challenge}          -> 200 {license}
+GET  https://oca-a.isp.example/<file_id>?token=<signed, expiring>
+     Range: bytes=...                                      -> 206 media bytes
+POST /events             {session_id, events: [{t, type: start|switch|rebuffer|error|stop, ...}]}
+                                                           -> 202 (fire-and-forget, batched)
+PUT  /bookmarks/{profile_id}/{video_id}  {position_s}      -> 204 (idempotent, last write wins)
 ```
 
-Point out three things. The **manifest is computed per session**: it lists only the streams this device can decode and is licensed for, and it includes the **URLs of specific servers**, which is how steering works without DNS tricks. The media URLs carry **signed, expiring tokens**, so an appliance can authorise a request without calling home. And telemetry is batched and **fire-and-forget**: nothing in playback waits for it.
+The manifest is computed per session: it lists only streams this device can decode and is licensed for, and it carries **specific server URLs**, which is how steering works without DNS. Media URLs carry signed, expiring tokens, so an appliance authorises a request without calling the cloud. Events are batched and never block a frame. The bookmark `PUT` carries the client's timestamp and the store keeps the newest, so a delayed retry cannot move the position backwards.
 
 ## Data model
 
-- **Asset catalogue**: `video_id → encodes[]`, each with codec, resolution, bitrate, a quality score, `file_id`, size and checksum. The ladder is per title, so it is data, not configuration.
-- **Appliance inventory**: `oca_id → site, ISP network, type (storage or flash), capacity, health, load`, plus the **client IP prefixes** each embedded appliance serves, which it learns from the ISP over BGP (more on this below).
-- **Placement**: per site, the set of `file_id`s it should hold tomorrow (its fill manifest), and per appliance, what it actually holds, reported back so steering never sends a client to a file that is not there.
-- **Sessions and telemetry**: `session_id → profile, video, device, streams, servers`. Events stream into a log and then a warehouse, partitioned by date.
-- **Bookmarks and viewing history**: `(profile_id, video_id) → position`. Written every minute or so of playback, which at 40 million streams is several hundred thousand writes a second, a wide-column-store workload keyed by profile. Netflix has publicly described keeping viewing history in Cassandra.
+```text
+encodes     (video_id, stream_id)        -> codec, res, kbps, vmaf, file_id, bytes, sha256
+appliances  (site_id, oca_id)            -> isp_asn, type (storage | flash), capacity_gbps, health, load
+holdings    (oca_id, file_id)            -> present, reported_at
+fill_plan   (site_id, file_id)           -> priority, copies            rebuilt nightly
+bookmarks   (profile_id, video_id)       -> position_s, updated_at
+events      ((date, hour), session_id, t) -> type, payload
+```
+
+| Table | Partition key | Sort key | Indexes | Why |
+|---|---|---|---|---|
+| `encodes` | `video_id` | `stream_id` | none | Each manifest reads one title's ~100 encodes, 45,000 times a second at the hour; the whole table (~50,000 titles × 100 × 200 B ≈ 1 GB) is cached in every playback node |
+| `appliances`, `holdings` | `site_id`, `oca_id` | `oca_id`, `file_id` | client prefix → appliances, in memory | Steering answers 45,000/s from memory; appliance reports refresh it, requests never read the store |
+| `fill_plan` | `site_id` | `file_id` | none | Each site pulls its own plan once a night |
+| `bookmarks` | `profile_id` | `video_id` | none | 670,000 writes/s and a resume read of one profile's rows: a wide-column store |
+| `events` | `(date, hour)` | `session_id`, `t` | none | Append-only; the warehouse prunes by time and reads one session's events together |
 
 ## High-level design
 
 ```mermaid
 flowchart LR
-  subgraph CP["Control plane: cloud, multiple regions"]
+  subgraph CP["Control plane: cloud, 3 regions"]
     API["API gateway"] --> PB["Playback service"]
-    PB --> ST["Steering service"]
-    PB --> MD["Asset catalogue and ladders"]
-    LIC["DRM license service"]
-    TEL["Telemetry ingest"] --> KF["Kafka"] --> SP["Stream processing, QoE, alerting"]
+    PB -->|"in-memory lookup"| ST["Steering"]
+    PB --> MD["Encodes catalogue"]
+    LIC["DRM license"]
+    TEL["Telemetry ingest"] -->|"2 GB/s"| KF["Kafka"] --> SP["Stream processing: SPS, QoE"]
+    REC["Viewing predictions"] -->|"nightly"| FP["Fill planner"]
   end
   subgraph ING["Ingest"]
-    SRC["Studio master"] --> ENC["Chunked encode + quality checks"] --> PKG["Package + encrypt"] --> ORG["Origin storage"]
+    SRC["Studio master"] --> ENC["Per-shot encode + checks"] --> ORG["Origin storage, 1.5 PB"]
   end
   subgraph OC["Open Connect: data plane"]
-    IXP["Appliances at internet exchanges"] --> EMB["Appliances embedded in ISPs"]
+    IXP["Exchange-point appliances"] -->|"tiered fill"| EMB["Embedded appliances in ISPs"]
   end
   ORG -->|"off-peak fill"| IXP
-  C["Client"] -->|"1 manifest + server URLs"| API
+  FP -->|"per-site plan"| OC
+  C["Client"] -->|"1 manifest, 15k/s"| API
   C -->|"2 license"| LIC
-  C -->|"3 video bytes"| EMB
-  C -.->|"fallback"| IXP
-  C -->|"4 events"| TEL
+  C -->|"3 media, 200 Tbps"| EMB
+  C -.->|"fallback URL"| IXP
+  C -->|"4 events, 2M/s"| TEL
 ```
 
-The public description of the split is simple: everything up to the moment you press play (browsing, personalisation, sign-in, the playback decision) runs in the cloud control plane, and the video itself comes from Open Connect. The two planes scale on completely different axes, requests per second against bits per second. They also fail independently, and the design depends on that.
+Everything up to pressing play (browsing, sign-in, the playback decision) runs in the cloud control plane, and the video comes from Open Connect. The planes scale on different axes, requests per second against bits per second, and the design depends on them failing independently.
 
-## Deep dives
+## Deep dive 1: the encoding ladder, per title and per shot
 
-### 1. The encoding ladder: per title, then per shot
+A **ladder** is the set of renditions (resolution, bitrate, codec) the player switches between. Netflix's 2015 per-title encoding post published the fixed ladder it had used, from 235 kbps at 320×240 to 5,800 kbps at 1080p, and explained why one ladder is wrong in both directions: flat animation looks the same at 1080p and about 2 Mbps as at 5.8 Mbps, while grainy film shows artefacts even at 5.8 Mbps.
 
-A **ladder** is the set of renditions (resolution, bitrate, codec) that the player switches between. The classic approach is one fixed ladder for everything. Netflix's 2015 post introducing per-title encoding published the fixed ladder it had used, running from 235 kbps at 320×240 up to 5,800 kbps at 1080p. A fixed ladder is wrong in both directions at once. A flat, clean animated title looks the same at 1080p and 2 Mbps as at 5.8 Mbps, so the top rung wastes most of its bits. A grainy, high-motion film shows artefacts even at 5.8 Mbps, so its top rung is starved.
+Per-title encoding measures instead of assuming:
 
-**Per-title encoding**, as publicly described, measures instead of assuming:
+1. Encode the title at many (resolution, quality setting) pairs.
+2. Score each encode with a perceptual metric. Netflix's open-source VMAF is trained on human ratings and reports 0–100.
+3. Plot quality against bitrate for each resolution. At low bitrates a lower resolution, upscaled, beats a starved higher one; at high bitrates the order flips. The **upper convex hull** across the curves is the efficient frontier.
+4. Place rungs along the hull, each a visible step up.
 
-1. Encode the title at many resolution and quality-setting combinations.
-2. Score each encode with a **perceptual quality metric**. Netflix developed and open-sourced **VMAF**, which is trained on human quality ratings and reported on a 0–100 scale.
-3. For each resolution, plot quality against bitrate. At low bitrates, a lower resolution upscaled on the TV beats a higher resolution starved of bits, and at high bitrates the order flips. The **upper convex hull** across all the resolution curves is the efficient frontier: for every bitrate, the resolution that looks best.
-4. Place ladder rungs along the hull, spaced so that each step up is a visible improvement.
-
-Here is an illustrative example (the numbers are made up to show the shape):
-
-| | Fixed ladder top rung | Per-title top rung | Effect |
+| Illustrative | Fixed top rung | Per-title top rung | Effect |
 |---|---|---|---|
-| Flat animation | 1080p at 5.8 Mbps | 1080p at ~2 Mbps, same quality score | About 65% fewer bits for top-rung viewers |
-| Grainy action film | 1080p at 5.8 Mbps, visibly degraded | 1080p at ~7.5 Mbps | Quality restored where it was missing |
-| Mid-bandwidth viewer at 1.5 Mbps | 720p, soft | 1080p for the animation | Better picture at the same bandwidth |
+| Flat animation | 1080p at 5.8 Mbps | 1080p at ~2 Mbps, same VMAF | (5.8 − 2) ÷ 5.8 = 65% fewer bits |
+| Grainy action film | 1080p at 5.8 Mbps, degraded | 1080p at ~7.5 Mbps | Quality restored where it was missing |
 
-**Per-shot encoding** takes the idea further. Netflix has publicly described a "dynamic optimizer" that splits a title into shots, which are stretches of consistent visual content. It encodes each shot at several settings and then chooses a setting per shot to maximise quality at a target average bitrate. Bits flow from easy shots (a static dialogue scene) to hard ones (an explosion, rain, film grain). Shot boundaries are also natural places for keyframes, which suits the chunked, parallel encoding described below.
+**Per-shot** encoding, publicly described as Netflix's dynamic optimizer, splits a title at shot boundaries, encodes each shot at several settings and picks one per shot to maximise quality at a target average bitrate, so bits flow from a static dialogue scene to rain and explosions. Shot boundaries are also where keyframes and chunk boundaries go, which makes the encode parallel.
 
-**Codecs multiply the ladder.** H.264 plays everywhere. HEVC serves 4K and HDR televisions. VP9 and AV1 give substantially better compression, and Netflix has publicly announced streaming AV1 to devices that support it. Each newer codec costs far more encoding compute per content hour, so the estimate from above decides the policy: pay the compute once for any title that will be watched enough, and let the per-view egress saving repay it.
+### The pipeline and what it costs
 
-**The pipeline.** A studio delivers a very high-bitrate master. The pipeline validates it, splits it into chunks at shot boundaries, encodes the chunks in parallel on a large compute fleet (Netflix has described borrowing idle reserved cloud capacity for encoding), reassembles and checks each stream with automated quality checks and quality-score thresholds, then packages and encrypts for each DRM system and publishes to origin storage. [Video upload pipeline](/learn/system-design/case-studies/video-upload-pipeline) works through the chunked-encode DAG in detail. For a studio catalogue, the difference is that there is time: a title is delivered weeks before launch, so the pipeline can afford the expensive per-shot, multi-codec work on every title.
+A studio master is validated, split into chunks at shot boundaries, encoded in parallel, checked (decode tests, VMAF thresholds, audio sync), packaged and encrypted for each DRM system, and published to origin under versioned file IDs. Chunking bounds the wall time: a 2-hour film cut into about 1,400 five-second shots is 1,400 independent tasks per encode, so the finish time is the slowest chunk plus checks, not the film's length. Netflix has described running encodes on idle reserved cloud capacity.
 
-### 2. Open Connect: appliances inside ISPs, filled off-peak
+The search multiplies compute. An illustrative 8 resolutions × 6 quality settings is 48 trial encodes per codec, plus about 10 final ones, against 10 for a fixed ladder: roughly 6× the work, and newer codecs (VP9, AV1) cost several times more per encode again. The leverage row decides whether it pays: the compute is spent once per title, while a title watched $10^7$ hours saves 4.5 PB. A title watched 1,000 hours delivers 2.25 TB in total, so no search can save it much. A studio title arrives weeks before launch, which leaves time to run the search on every title. [Video upload pipeline](/learn/system-design/case-studies/video-upload-pipeline) traces the transcode DAG and its per-rung costs.
 
-Open Connect is Netflix's own CDN. The public description has two deployment models:
+## Deep dive 2: Open Connect, proactive fill and placement
 
-- **Embedded appliances** sit inside an ISP's network, close to subscribers. Netflix provides them to qualifying ISPs at no charge. The ISP supplies space, power and connectivity, and in return Netflix traffic stops crossing its interconnects and much of its backbone.
-- **Appliances at internet exchange points**, where Netflix interconnects with many ISPs directly. They serve ISPs without embedded appliances and act as the upstream tier for the embedded ones.
-
-The appliances come in storage-heavy variants (lots of disk, a large share of the catalogue) and flash variants (less capacity, very high throughput for the most popular files). The software is publicly described as FreeBSD with NGINX, with years of published work on pushing TLS-encrypted video through a single server at hundreds of Gbps.
-
-**Why build it?** There are three reasons, in order. Cost: the egress estimate above. Quality: a server inside the ISP is a few milliseconds away with little loss, so TCP can sustain higher throughput and the player can pick a higher rung. Control: Netflix owns the software, the logging and the steering, so it can change delivery behaviour and see exactly what happened in every session.
-
-**Proactive fill instead of pull-through caching.** A classic CDN caches on demand: the first request for an object misses, fetches from origin, and caches it for later requests.
+Two deployment models are publicly described. **Embedded appliances** sit inside an ISP's network and are provided free to qualifying ISPs, which supply space, power and connectivity and stop carrying Netflix traffic across their interconnects. Appliances at **internet exchange points** serve ISPs without embedded ones and are the upstream tier. Storage-heavy models hold much of the catalogue; flash models serve the most popular files at higher throughput.
 
 ```viz
 {"type": "network", "scenario": "cdn-cache", "title": "Classic pull-through caching",
- "caption": "The first viewer's request misses and goes to origin; later requests hit the edge. Open Connect is publicly described as working differently: appliances are filled ahead of demand during an off-peak window, so a miss at 9 pm, the worst possible moment to fetch across the internet, is rare by design."}
+ "caption": "The first request misses and goes to origin; later requests hit the edge. Open Connect is publicly described as filling appliances ahead of demand in an off-peak window instead, so a miss at 9 pm, the worst moment to fetch across the internet, is rare by design."}
 ```
 
-Open Connect is publicly described as **proactive**. Every day, the system predicts what each site's members are likely to watch, computes which files each site should hold, and the appliances download changes during an **off-peak fill window** agreed with the ISP, typically in the early morning when links are idle. Four facts about Netflix's workload make this work, and you should say them, because they are what make the design transferable or not:
+A classic CDN pulls a file on its first miss. Open Connect is described as **proactive**: each day the system predicts what each site's members will watch, computes what each site should hold, and appliances download the changes in an **off-peak fill window** agreed with the ISP. Four workload properties make that work, and they decide whether the design transfers to another company:
 
-1. **The catalogue is finite and known in advance.** Tomorrow's releases are scheduled weeks ahead. A news site or a social network cannot say this.
-2. **Popularity is predictable.** Viewing history and personalisation signals forecast demand per region well, and Netflix has written publicly about content-popularity prediction for placement.
-3. **The catalogue is small relative to demand.** 1.5 PB against 560 PB a day means that placement, not capacity, is the problem.
-4. **Off-peak bandwidth is nearly free.** The ISP's links are idle at 4 am, so filling then shifts load out of the peak instead of adding to it.
+1. The catalogue is finite and releases are scheduled weeks ahead.
+2. Popularity is predictable from viewing history.
+3. The catalogue (1.5 PB) is small next to daily demand (560 PB).
+4. Off-peak bandwidth is idle: if a site replaces 10 TB of holdings a night in a 6-hour window, that is 10 TB × 8 ÷ 21,600 s = 3.7 Gbps, moved out of the peak.
 
-**Tiered fill.** Not every appliance pulls from origin. The public description is tiered: appliances at exchange points fill from origin storage, and embedded appliances fill from nearby appliances upstream or from peers in the same site. That cuts origin egress and keeps fill traffic on the shortest paths.
+### Placement, computed
 
-**Placement arithmetic.** Suppose an embedded site has 200 TB of usable storage against a 1.5 PB catalogue, so it can hold about 13% of all bytes. Viewing is heavily skewed: a small head of popular titles takes most of the hours. So a site holding the predicted head, in the encodes its members' devices actually use, serves the large majority of its traffic locally, and the long tail goes to an exchange-point site that holds everything. The site's hit ratio is a function of prediction quality and storage size, and both are levers. The ISP's backbone savings depend on that hit ratio.
+An embedded site with 200 TB of usable disk holds 13% of a 1.5 PB catalogue. Assume viewing across content hours follows a Zipf distribution with skew $s$ and that prediction is perfect. The share of viewing the site serves locally is then the popularity mass of the hours it holds (simulated over 50,000 content hours):
 
-**Within a site, files are spread by consistent hashing.** Netflix has publicly described using consistent hashing to distribute content across the appliances in a site. The property that matters is that any component can compute which appliance should hold a file without a per-file lookup table, and adding an appliance moves only its share of files. The design also has to place the most popular files on more than one appliance, so that no single machine takes all of a hit title's traffic.
+| Skew $s$ | Holds 5% | Holds 13% | Holds 40% (only the encodes its devices use) |
+|---|---|---|---|
+| 0.8 | 50% | 63% | 81% |
+| 1.0 | 74% | 82% | 92% |
+| 1.2 | 91% | 94% | 98% |
+
+Storing only the codecs and resolutions the site's devices play (assume a third of the bytes) triples the effective capacity, and it is a lever you control, unlike skew. Prediction error lowers every cell, so the share of bytes served from upstream the morning after a release is the fill-health metric.
+
+**Tiered fill.** Exchange-point appliances fill from origin; embedded ones fill from upstream or from peers in the same site. **Within a site** files are spread by [consistent hashing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) (publicly described), so any component computes a file's appliance without a lookup table, adding an appliance moves only its arc, and popular files get several copies so no single machine takes a hit title's traffic.
 
 ```viz
 {"type": "system", "scenario": "consistent-hashing", "nodes": 4,
  "keys": ["title-81:av1-1080", "title-81:hevc-2160", "title-17:avc-720", "title-44:av1-1080", "title-17:audio-en", "title-44:avc-480"],
  "title": "Spreading a site's files across its appliances",
- "caption": "Each file hashes to a position on the ring and lives on the next appliance clockwise. Adding an appliance to a site moves only the files on the arc it takes over, which matters when a fill window is only a few hours long."}
+ "caption": "Each file hashes to a position on the ring and lives on the next appliance clockwise. Adding an appliance moves only the files on the arc it takes over, which matters when a fill window is a few hours long."}
 ```
 
-### 3. Steering: which server serves which client
+## Deep dive 3: steering and the start path
 
-When the playback service builds a manifest, it asks the **steering service** for a ranked list of appliances. The public descriptions centre on the first three inputs below, and a reasonable design adds the fourth:
+The playback service asks steering for a ranked list of appliances. The inputs: which appliances cover the client's IP (an embedded appliance learns the prefixes it serves from a BGP session with the ISP, so the ISP decides which subscribers use it); which appliances hold the files, from holdings reports; health and load; and past performance for that prefix. The list carries signed URLs, embedded appliances first and an exchange-point appliance last, so the client can switch without a control-plane round trip. DNS-based steering sees the resolver's IP rather than the client's and reacts at TTL speed; steering in the manifest sees the client's IP and file-level holdings, and can send new sessions elsewhere when a site saturates while existing sessions adapt.
 
-- **Which appliances cover this client's IP.** An embedded appliance runs a BGP session with the ISP, and the ISP announces the client IP prefixes that the appliance should serve. The ISP, not Netflix, decides which of its subscribers use which appliance, which fits how ISPs think about their own network regions.
-- **Which appliances hold the needed files**, from the inventory each appliance reports.
-- **Health and load.** An appliance that is failing, or already near its capacity for the evening peak, is ranked down or left out.
-- **Network proximity and past performance** for that prefix.
+### A cold start, traced
 
-The output is a short, ranked list of URLs with signed tokens, typically the embedded appliances first and an exchange-point appliance as a fallback. Because the manifest carries several URLs, the client can move to the next one without another control-plane round trip.
+Assumed latencies: 80 ms RTT to the cloud region, 15 ms to an appliance inside the ISP, a 20 Mbps home link.
 
-**Why application-level steering instead of DNS?** DNS-based CDNs steer by the IP of the client's DNS resolver, which may be far from the client, and their answers are cached for the record's TTL, so they react slowly. Netflix's control plane sees the client's actual IP, knows file-level availability, and can give each session its own list. When a site saturates at peak, steering sends *new* sessions to the next-best site (the overflow), while existing sessions keep playing and let their players adapt. The trade-off is that steering is only as fresh as the inventory and load reports behind it, so those reports are part of the critical path for play quality, if not for play itself.
+| t (ms) | Component | Action | State |
+|---|---|---|---|
+| 0 | Client | Press play; `POST /playback/manifest` on a warm HTTP/2 connection | Nothing prefetched |
+| 0–120 | Playback, steering | 80 ms RTT + ~40 ms of service time: filter encodes to the device, rank three appliances for its prefix from memory | Manifest: 1080p AV1 ladder, 3 URLs |
+| 120 | Client | License challenge sent; TLS 1.3 to the rank-1 appliance opened in parallel | Two requests in flight |
+| 135 | Appliance | TLS done in one RTT; `GET` segment 1 at 1,750 kbps, the throughput remembered from the last session | 4 s × 1,750 kbps = 875 KB |
+| 135–515 | TCP | The window grows from 10 packets past the 37.5 KB bandwidth-delay product (20 Mbps × 15 ms) in about 2 RTTs; then 875 KB ÷ 2.5 MB/s = 350 ms | Link-rate limited |
+| 235–350 | License | Returns at 120 + 80 + ~35 ms of service; DRM session setup | Ready before the media |
+| 515–600 | Client | Decrypt, decode from the segment's keyframe, render | **First frame ≈ 0.6 s** |
 
-### 4. The playback start path
+Prefetching the manifest and license for the title under focus removes the first 120 ms (the license is already off the critical path); a 750 kbps first segment, 375 KB, removes 200 ms more. The edge case: if the rank-1 appliance refuses the connection, the client tries rank 2 after its connect timeout, so that timeout (hundreds of milliseconds, not the operating system's default of seconds) sits directly in p95 play delay.
 
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant P as Playback (cloud)
-  participant S as Steering
-  participant L as License
-  participant O as Appliance (in ISP)
-  C->>P: manifest request (device capabilities, video)
-  P->>S: servers for client IP and files
-  S-->>P: ranked server URLs
-  P-->>C: streams + URLs + license URL
-  par license
-    C->>L: DRM challenge
-    L-->>C: license
-  and first media
-    C->>O: fetch first seconds at a modest bitrate
-    O-->>C: media bytes
-  end
-  C->>C: decrypt, decode, first frame
-  C-)P: start event (play delay)
+```viz
+{"type": "network", "scenario": "congestion-slow-start", "title": "Why the first segment is not free",
+ "caption": "A new connection starts with a small congestion window and doubles it each round trip. With an appliance 15 ms away the window passes the link's bandwidth-delay product in two round trips; from a server 150 ms away the same ramp costs 300 ms, one reason appliances sit inside ISPs."}
 ```
 
-Here is a budget for a sub-second start. It is a design target built from the latency numbers, not a published figure:
+## Deep dive 4: adaptive bitrate, segment by segment
 
-| Step | Time | How it stays small |
-|---|---|---|
-| Manifest round trip | 100–200 ms | Warm, reused connection to the API; manifest may be prefetched |
-| License | 100–200 ms, in parallel | Requested alongside the first media fetch, or prefetched |
-| TLS to the appliance | 1 round trip, ~10–20 ms | TLS 1.3; the appliance is inside the ISP |
-| First ~2 s of video at 1.75 Mbps (~440 KB) on a 20 Mbps link | ~200 ms | Start below the eventual rung, then ramp up |
-| Player setup, DRM session initialisation | 100–200 ms | Overlapped with the manifest call where possible |
-| Decode and render | 50–100 ms | Segments begin on a keyframe |
-| **Total** | **~0.5–0.7 s** | Leaves headroom inside the 1 s p50 target for slower networks |
+The player downloads 4-second segments into a buffer and picks a rung before each one. Two rules compete:
 
-The techniques are standard, and a senior candidate lists them without prompting. **Prefetch** the manifest, and even the license, for the title the member is hovering over. **Start at a modest bitrate** and ramp, using a throughput estimate remembered from the last session. **Parallelise** the license with the first media fetch. **Align resume points** to the nearest keyframe. **Keep connections warm.** Every one of these trades a little wasted work (a prefetch for a title that was never played) for time-to-first-frame, which is the metric members feel most.
+- **Throughput-based**: estimate bandwidth as the harmonic mean of the last three segments' throughputs, multiply by 0.8, pick the highest rung below it.
+- **Buffer-based** (Huang et al., SIGCOMM 2014, evaluated in Netflix's production service): below a **reservoir** of 10 s fetch the lowest rung; above reservoir plus a 40 s **cushion** fetch the highest; in between, map the buffer linearly onto the ladder.
 
-### 5. Adaptive bitrate on the client
+### The buffer model, traced
 
-The player downloads video a few seconds at a time into a buffer and, before each download, chooses which rung to fetch. Only the client sees the last mile (the home Wi-Fi, the congested mobile cell, the sibling's game download), which is why this decision is made on the device and not by the server.
+Simulated with six rungs from the 2015 fixed ladder (235, 750, 1,750, 3,000, 4,300, 5,800 kbps), a link at 8 Mbps that drops to 1.2 Mbps at t = 24 s when another device starts a download and recovers to 6 Mbps at t = 72 s, a 60 s buffer cap and 30 segments. Download time is rung × 4 s ÷ link rate; playback drains the buffer at 1 s per second.
 
-**Throughput-based ABR** estimates bandwidth from recent downloads (for example, a harmonic mean of the last few), multiplies by a safety factor such as 0.8, and picks the highest rung below that. Its weakness is that throughput estimates are noisy: TCP ramp-up, competing flows and Wi-Fi interference make them swing. Overestimate and the buffer drains into a stall. Underestimate and quality is needlessly low. Both cause oscillation.
+| t (s) | Player | Action | Buffer |
+|---|---|---|---|
+| 0.1 | Both | Segment 1 at 235 kbps (no samples, empty buffer); playback starts | 4.0 s |
+| 0.1 | Throughput | Estimate 0.8 × 8,000 = 6,400 → 5,800 kbps; a 23,200-kbit segment takes 2.9 s, so the buffer gains 1.1 s per segment | 5.1 s |
+| 0.1–1.2 | Buffer | Segments 2–6 at 235, then 750 kbps, while the buffer climbs through the reservoir | 22.9 s |
+| 21.2 | Buffer | Segment 19: 50.9 s ≥ 10 + 40 → 5,800 kbps | 51.2 s |
+| 23.3 | Throughput | Segment 10 at 5,800 kbps on a 12.8 s buffer | 12.8 s |
+| 24.0 | Link | Drops to 1,200 kbps | |
+| 25.0 | Buffer | Segment 20 at 5,800 kbps takes 19.3 s; the buffer absorbs it | 35.8 s after |
+| 36.1–38.8 | Throughput | Buffer empties: **stall 2.7 s** until segment 10 lands after 15.5 s | 4.0 s |
+| 38.8 | Throughput | Harmonic mean of 8,000, 8,000, 1,500 is 3,273; × 0.8 → 1,750 kbps, a 5.8 s download on 4 s of buffer: **stall 1.8 s** | 4.0 s |
+| 44.3 | Buffer | Target 235 + (25.8 ÷ 40) × 5,565 = 3,827 → 3,000 kbps | 29.8 s |
+| 44.6–72.5 | Throughput | Estimate 1,477 → 750 kbps for 13 segments while the buffer rebuilds | 5.5 → 27.6 s |
 
-**Buffer-based ABR** was studied in a SIGCOMM 2014 paper by Stanford and Netflix researchers who ran the experiment in Netflix's production service. It chooses the bitrate from **buffer occupancy** instead. Below a **reservoir** (say 10 seconds of video), fetch the lowest rung to protect against a stall. Above the reservoir plus a **cushion**, fetch the highest. In between, map buffer level linearly onto the ladder. The buffer is a direct, low-noise measure of whether downloads are keeping up. The paper reported fewer rebuffers without sacrificing average quality, and it also described using a capacity estimate during **startup**, when the buffer is empty and a pure buffer rule would sit at the lowest rung for too long.
+### What the trace shows
+
+| Rule | Stalls | Stall time | Mean bitrate | Switches | Video at ≤ 750 kbps |
+|---|---|---|---|---|---|
+| Throughput (harmonic mean of 3, × 0.8) | 2 | 4.5 s | 2,906 kbps | 5 | 56 s |
+| Buffer (10 s reservoir, 40 s cushion) | 0 | 0 s | 2,553 kbps | 8 | 24 s |
+
+The throughput rule spent its headroom on bitrate and ran on a thin buffer, so an estimate that was right 0.7 s earlier caused two stalls and then 52 s of video at 750 kbps. The buffer rule drained 19 s of buffer on one download and never stalled. Its cost shows at startup: 24 s of video at 235–750 kbps on an 8 Mbps link. The paper reported fewer rebuffers at a similar average rate and handled startup with a capacity estimate while the buffer is empty. Production players blend both signals, switch down fast and up slowly (viewers notice oscillation), map the buffer onto the per-title ladder, and move to the next manifest URL when an appliance fails or crawls.
 
 ```python
 LADDER_KBPS = [235, 750, 1750, 3000, 4300, 5800]   # illustrative; the real ladder is per title and device
@@ -261,130 +263,217 @@ def choose_bitrate(buffer_s: float, reservoir_s: float = 10.0, cushion_s: float 
     target = lo + frac * (hi - lo)
     return max(r for r in LADDER_KBPS if r <= target)
 
-# choose_bitrate(30) -> frac 0.5 -> target 235 + 0.5 * 5565 = 3017.5 -> 3000 kbps
-# choose_bitrate(8)  -> 235 kbps (inside the reservoir)
+print(choose_bitrate(30))    # frac 0.5 -> target 3017.5 -> 3000
+print(choose_bitrate(8))     # inside the reservoir -> 235
 ```
 
-Three refinements matter in practice. First, **switch down fast and up slowly**. A step up needs sustained headroom, because viewers notice quality oscillation more than a slightly lower steady quality. Second, **rungs come from the per-title ladder**, so the same buffer level means a different bitrate on an animated title than on an action film. Third, the player combines signals: modern designs, including model-predictive approaches in the research literature, blend throughput and buffer information rather than trusting either alone. The player also handles server failover: when downloads from one URL fail or slow badly, it moves to the next URL in the manifest while the buffer covers the gap.
+A player's throughput is TCP's throughput, so [congestion control](/learn/networking/fundamentals/congestion-control) shapes every sample ABR sees.
 
-This is also where the network lessons reappear. A player's throughput is TCP's throughput, so [congestion control](/learn/networking/fundamentals/congestion-control) (slow start at the beginning of each connection, loss recovery on a lossy Wi-Fi link) shapes what ABR sees. That is why appliances close to the client, with low round-trip times, sustain higher rungs.
+## Deep dive 5: telemetry and the personalisation loop
 
-### 6. Telemetry: the loop that tunes everything
-
-Every session reports what happened: the play delay, each bitrate switch, each rebuffer and its duration, errors, which server was used, throughput samples, and whether the member gave up before the first frame. From these come the metrics that define quality of experience: play delay, rebuffer rate, average delivered quality (the per-title quality scores make "quality" measurable, not just "bitrate"), play failure rate and abandonment.
-
-Netflix has publicly described **stream starts per second (SPS)** as its primary health signal. Viewing follows strong daily and weekly patterns, so the actual SPS per region and device can be compared against the expected SPS for that minute. A sudden dip means members are pressing play and not getting video, whatever the cause. SPS is also described publicly as the steady-state metric for Netflix's chaos experiments: if SPS holds while a component is being broken, the system tolerated it.
+Every session reports play delay, switches, rebuffers, errors, the appliance used and throughput samples. Netflix has described **stream starts per second (SPS)** as its primary health signal ([Observability](/learn/system-design/building-blocks/observability) covers SLIs in general): viewing follows strong daily and weekly cycles, so actual SPS per region, device and ISP is compared with the expected value for that minute, and a dip means members press play and get nothing, whatever the cause. SPS is also described as the steady-state metric for its chaos experiments.
 
 ```viz
 {"type": "system", "scenario": "stream-windowing",
  "title": "Turning a firehose of events into per-minute health",
- "caption": "Start events are counted in tumbling one-minute windows per region, device and ISP, and each window is compared against the expected count for that minute. A shortfall in one ISP's window points at that ISP's appliances or peering, not at the whole service."}
+ "caption": "Start events are counted in tumbling one-minute windows per region, device and ISP, and each window is compared with the expected count for that minute. A shortfall in one ISP's window points at that ISP's appliances or peering, not at the whole service."}
 ```
 
-The pipeline: clients batch events and send them fire-and-forget. Ingest writes them to Kafka (Netflix has publicly described its Kafka-based Keystone data pipeline). Stream processors aggregate per region, ISP network, device model, app version and server, feeding dashboards and alerts within a minute or so, and the warehouse keeps everything for analysis. Sample high-volume heartbeats, but keep every start, error and rebuffer at full fidelity.
+Clients batch events fire-and-forget; ingest writes them to Kafka (Netflix has described its Kafka-based Keystone pipeline); stream processors aggregate per region, ISP, device, app version and appliance within a minute; the warehouse keeps everything. Sample heartbeats, keep every start, error and rebuffer, and bound the client's event buffer so telemetry can never hurt playback.
 
-What the loop is *for* is the senior point:
+### Where personalisation meets delivery
 
-- **Detection** by slice: a bad app release shows up on one device model, an ISP peering problem shows up on one network, and a failing appliance shows up on one server.
-- **Experimentation**: new ABR logic and new encoding ladders ship as A/B tests measured on member-facing QoE (play delay, rebuffers, delivered quality) and viewing behaviour, not only on offline quality scores.
-- **Steering and placement**: per-prefix performance feeds steering's ranking, and viewing feeds tomorrow's popularity prediction and fill manifests.
+The recommendation models are a separate system, but their outputs are delivery inputs:
 
-And one rule: **telemetry must never hurt playback**. Bound the client buffer, drop on overflow, and never block a frame on an event upload.
+1. **Placement.** Regional viewing predictions become tomorrow's fill plan: "members behind this ISP will watch 40,000 hours of title T" becomes a ranked file list per site, which the placement table priced at 63–94% of viewing served locally.
+2. **Prefetch.** The title under focus, or the next episode, has its manifest and license fetched early, removing the 120 ms manifest leg from the start trace. The price is control-plane load: if members focus on five titles per play, 15,000 starts a second become 75,000 prefetches a second.
+3. **Artwork and previews** are chosen per member and are delivery traffic themselves.
+
+The loop closes the other way: telemetry feeds A/B tests of ladders and ABR logic on member-facing QoE, and per-prefix performance feeds steering's ranking.
 
 ## Failure modes
 
-**An appliance fails mid-stream.** The player has tens of seconds of buffer. It retries against the next URL in its manifest, and steering stops handing the failed appliance to new sessions once its health reports stop or turn bad. Members see nothing, or one brief quality dip.
+| Failure | Symptom | Diagnosis | Fix |
+|---|---|---|---|
+| Appliance dies mid-stream | A throughput dip in affected sessions, no stall | Switch events to rank-2 URLs cluster on one appliance | Client fails over inside its buffer; steering drops the appliance when health reports stop |
+| Hot site at peak | Down-switches and play delay rise on one ISP at 9 pm | Site egress at capacity; the upstream share climbs | Steering sends new sessions to the next site; capacity planned jointly with the ISP |
+| Hot title on one appliance | One appliance at its NIC limit, peers idle | Per-appliance egress skew within a site | More copies of popular files across the site's appliances |
+| Launch-hour thundering herd | Starts jump 3–10× at the hour; manifest p99 climbs | Control-plane CPU and connections saturate; the edge is fine | Pre-scale, prefetch manifests before launch, jittered client retries |
+| Fill incomplete | More bytes served upstream the morning after a release | Holdings reports lack the new file IDs | Steering already routes by holdings; prioritise new releases in the plan; fill from peers |
+| Control-plane region loss | New starts fail in one region; playing streams continue | Regional SPS dips; health checks fail | Evacuate to other regions; remove in-session dependencies such as a fatal license renewal |
+| Bad encode shipped | Artefact or audio-sync reports on one title | Automated checks and VMAF on the published files | File IDs are versioned, so rollback is a catalogue change; refill in the next window |
+| ABR regression in a client release | Rebuffers up 0.2% on one TV model, invisible globally | QoE sliced by device and app version | Staged rollout with per-version QoE and SPS gates |
 
-**An ISP site saturates at peak.** Demand exceeds the site's capacity, or an appliance in it is down. Steering sends new sessions to the next-best site, usually an exchange-point site, and existing sessions adapt their bitrate. The overflow crosses the ISP's interconnect, which is why capacity is planned jointly with the ISP ahead of the evening peak.
+## Trade-offs: what was rejected
 
-**The fill did not finish.** The fill window was too short, or a new release was larger than planned. Some files are missing from some embedded sites. Steering knows file-level availability, so those titles are served from upstream sites. Watch the rate of requests served away from the embedded tier as a fill-health metric.
+| Decision | Chosen | Rejected | Why rejected here | What would flip it |
+|---|---|---|---|---|
+| Delivery | Own appliances inside ISPs | Commercial CDN | 560 PB a day at per-GB prices is hundreds of millions a year | A tenth of the traffic, or no ISP relationships |
+| Edge fill | Proactive, nightly | Pull-through on miss | A 9 pm miss crosses the internet at the worst moment | Unpredictable catalogues: user video, news, live |
+| Steering | Ranked URLs in the manifest | DNS-based | Resolver IP, TTL lag, no file-level knowledge | Many small objects where a per-session decision is too costly |
+| Rate selection | Client, buffer plus throughput | Server-side | Only the client sees the last mile | Server hints can add to it, not replace it |
+| Ladder | Per title, per shot | One fixed ladder | Wastes bits on easy titles, starves hard ones | A long tail of titles watched a handful of times |
+| Segment length | 4 s | 2 s or 10 s | 2 s doubles requests and keyframes; 10 s slows start and reaction | Low-latency live wants 1–2 s |
 
-**A control-plane region fails.** Netflix has publicly described running its cloud control plane active-active across multiple regions and practising region evacuation by shifting traffic to the surviving regions. What members notice depends on how cleanly the planes are separated. Streams already playing continue, because the bytes come from appliances with pre-signed URLs, as long as the client does not *require* a control-plane call (a license renewal, a heartbeat acknowledgement) to keep playing. New starts are redirected to healthy regions. The design lesson: *make the data plane independent of the control plane for the duration of a session*.
+## Evolution at 10× and 100×
 
-**The license service is down.** No new plays can start, so this is one of the most critical dependencies. Run it in every region, keep it simple, and prefetch licenses for likely plays.
+| | Today | 10× | 100× |
+|---|---|---|---|
+| Peak egress | 200 Tbps, 4,000 appliances | 2 Pbps, 40,000 at 100 Gbps or 10,000 at 400 Gbps | 20 Pbps |
+| Catalogue | 1.5 PB; a 200 TB site serves 92% locally ($s$ = 1) | 15 PB; the same site serves 77% | 150 PB, user-video scale |
+| Starts at the hour | 45,000/s, ~85 nodes | 450,000/s, ~850 nodes | 4.5 million/s |
+| Telemetry | 2 GB/s | 20 GB/s | 200 GB/s |
 
-**A bad encode ships.** A visual artefact or an audio sync error reaches members. Automated quality checks gate publication. If something slips through, re-encode, publish new files, and point the asset catalogue at them. Manifests reference versioned file IDs, so a rollback is a metadata change, and appliances fill the corrected files in the next window.
+At 10× streams, appliance count per site is bounded by the ISP's space and power, so throughput per appliance becomes the lever. At 10× catalogue the local share falls from 92% to 77% (simulated, device-only encodes, $s$ = 1), so upstream traffic nearly triples from 8% to 23%: that breaks first, and the fix is bigger sites and better prediction. At 100× catalogue, proactive fill of everything is impossible; the head stays proactive and the tail becomes pull-through. Telemetry at 200 GB/s is aggregated on the client and heartbeats are sampled.
 
-**A client release regresses ABR.** Roll out by device family in stages with QoE and SPS gates per app version. A 0.2% rise in rebuffers on one TV model is invisible globally and obvious in the right slice.
+## What real companies describe
 
-**A launch-time surge.** A global release at a fixed hour produces a wall of stream starts. The content is already on the edge, filled on previous nights, so the risk is the control plane: pre-scale it for the launch and make clients retry with jitter.
+- Netflix's technology blog introduced **per-title encoding** in 2015, publishing its old fixed ladder, and later described **shot-based encoding** (the dynamic optimizer), **VMAF**, which it open-sourced, and AV1 streaming to supporting devices.
+- Netflix's Open Connect documentation and talks describe **appliances embedded in ISPs** at no charge to qualifying ISPs, **fill during off-peak windows**, prefixes learned over **BGP**, and FreeBSD with NGINX pushing hundreds of Gbps of TLS video per server.
+- **Huang et al., SIGCOMM 2014**, written with Netflix engineers, tested **buffer-based rate adaptation** on Netflix's production service and reported fewer rebuffers at a similar average video rate, with a startup phase that uses capacity estimates.
+- Netflix has written about **SPS** as its health metric, its Kafka-based **Keystone** pipeline, and **Cassandra** for viewing history.
+- The ladder, appliance, node and latency numbers in this lesson are illustrative assumptions, not Netflix figures.
 
-## Senior follow-ups
+## Interviewer follow-ups
 
-**Q: "Why build a CDN instead of buying one?"**
+**"Why build a CDN instead of buying one?"** Model answer: the arithmetic. 560 PB a day at \$0.001–0.005 per GB is \$0.5–3 million a day. Appliances inside ISPs take the traffic off their interconnects, which is why ISPs accept them, and a server 15 ms away sustains higher TCP throughput, so members get higher rungs. The costs are hardware, a supply chain and thousands of ISP relationships; at a tenth of the traffic I would buy. Common wrong answer: "for latency", with no egress arithmetic.
 
-At this volume, the arithmetic decides. Hundreds of petabytes a day makes even a fraction of a cent per GB a nine-figure annual bill. Putting servers inside ISPs removes the traffic from their interconnects, which is why ISPs accept free appliances: it saves them money and improves their customers' experience. Owning the software gives control over TLS performance, logging and steering. The costs are real: hardware design, a supply chain, thousands of sites to operate and relationships with thousands of ISPs. For a service with a tenth of the traffic, I would buy a commercial CDN and revisit the decision at scale.
+**"A huge season launches worldwide at a fixed hour. Walk me through it."** Model answer: nights before, the fill places the files in every site, weighted by predicted demand, and the upstream-share metric confirms coverage. Hours before, the control plane is scaled for 3–10× the normal start rate and manifests are prefetched. At launch, watch SPS per region and ISP; if one ISP dips, steer its new sessions to its exchange-point site. Common wrong answer: "autoscale the CDN", when the edge is fixed hardware filled in advance and the herd lands on the control plane.
 
-**Q: "Why fill proactively instead of caching on demand?"**
+**"The control plane loses a region at peak. What do members notice?"** Model answer: members already watching notice nothing, because their bytes come from appliances with URLs valid for hours; new starts in that region fail until traffic is evacuated, and SPS dips and recovers. I would audit hidden couplings: a license renewal, heartbeat acknowledgement or bookmark write the player treats as fatal turns a control-plane outage into a playback outage. Common wrong answer: "active-active fails over instantly, so nothing".
 
-Because the workload lets you. The catalogue is finite, releases are scheduled, popularity is predictable, and off-peak bandwidth is idle. Pull-through caching fetches on a miss, and at 9 pm a miss means fetching across the internet at the worst moment. Proactive fill moves that transfer to 4 am. I would not use proactive fill for user-generated video or news, where tomorrow's popular content does not exist yet. There a pull-through tier, perhaps with a popularity-triggered push, is right.
+**"How would you decide whether a new ABR rule or ladder is better?"** Model answer: offline curves are necessary, not sufficient. Randomise sessions into old and new, compare play delay, rebuffer rate, delivered VMAF, bytes per hour and viewing time, run at least a week, and slice by device and network. The trace shows why mean bitrate alone misleads: the rule with the higher mean stalled twice. Common wrong answer: "compare average bitrate".
 
-**Q: "A huge season launches worldwide at a fixed hour. Walk me through the minute before and after."**
+## What mid-level engineers get wrong
 
-Weeks before: encoding finishes and quality checks pass. On the nights before: fill places the files on embedded appliances in every region, weighted by predicted demand, and the fill-health metric confirms coverage. Hours before: the control plane is scaled up for a start-rate spike several times the normal peak, and playback and license capacity is checked in every region. At launch: members press play, manifests steer them to local appliances that already have the files, and the start spike lands on a pre-scaled control plane. SPS by region is on the screen. If one ISP's SPS dips, steering shifts that ISP's new sessions to its exchange-point site while someone investigates.
+- Serving video from a cloud region "behind a CDN" without computing 200 Tbps or the per-GB bill.
+- Choosing the bitrate on the server, which cannot see the home Wi-Fi.
+- Trusting a throughput estimate alone: in the trace it stalled twice on a thin buffer when the link dropped.
+- Pull-through caching for a catalogue that can be predicted, so misses land at 9 pm.
+- Making playback depend on an in-session control-plane call, which turns a region failure into a playback outage.
+- Measuring quality as mean bitrate instead of perceptual quality, stall time and play delay.
+- Treating personalisation as the home screen only, and missing placement and prefetch.
 
-**Q: "How would you decide whether a new encoding ladder is better?"**
+## Exercise
 
-Offline, the per-title quality curves tell you whether it is more efficient on paper. That is necessary, but it is not sufficient. The decision comes from an A/B test on real sessions. Randomise members (or sessions) into old and new ladders and compare member-facing metrics: play delay, rebuffer rate, average delivered quality, bytes delivered per hour and viewing time. A ladder that looks better offline can lose in production if, say, its lower rungs cause more down-switches on mobile networks. Run it long enough to cover the weekly cycle, and slice by device and network, because the effect is rarely uniform.
+```exercise
+id: buffer-based-abr
+title: Simulate a buffer-based ABR session
+prompt: |
+  Implement `simulate_abr(ladder, throughput_kbps, segment_s, reservoir_s, cushion_s)`.
+  `ladder` lists bitrates in kbps, sorted ascending. The session has one segment per
+  entry of `throughput_kbps`; `throughput_kbps[i]` is the link rate while segment `i`
+  downloads.
 
-**Q: "The cloud control plane loses a region during peak. What do members notice?"**
+  Before each download, choose a rung from the buffer level `b` (seconds of video
+  buffered), with `lo` and `hi` the lowest and highest rungs:
+  - `b <= reservoir_s`: `lo`.
+  - `b >= reservoir_s + cushion_s`: `hi`.
+  - otherwise: the highest rung `r` with `r <= lo + (b - reservoir_s) / cushion_s * (hi - lo)`.
 
-If the design separates the planes cleanly, members who are already watching notice nothing: their bytes come from appliances with URLs valid for hours. Members trying to start playback in the affected region see failures or slowness until traffic is shifted to healthy regions, which Netflix has described practising as region evacuation. SPS in that region dips and recovers. The things I would audit ahead of time are the hidden couplings: a license renewal, a heartbeat or a bookmark write that the player treats as fatal would turn a control-plane outage into a playback outage.
+  Downloading a segment at rung `r` takes `r * segment_s / throughput` seconds. Playback
+  starts when the first segment arrives, so the first download is start-up delay, not
+  rebuffering. During every later download playback drains the buffer: if the download
+  takes longer than the buffer holds, the difference is rebuffering and the buffer
+  empties; otherwise the buffer falls by the download time. Each completed segment then
+  adds `segment_s`. The buffer starts at 0 and has no cap.
 
-**Q: "How does the client decide to switch servers?"**
-
-The manifest carries a ranked list, so switching needs no control-plane call. The player switches on hard errors (connection refused, HTTP errors, timeouts) and on sustained poor throughput compared with what the connection achieved recently, while the buffer covers the transition. It should not switch on a single slow download, because Wi-Fi noise would make it flap. Switches are reported in telemetry, which is how a quietly degrading appliance gets noticed.
-
-**Q: "Where does personalisation touch the streaming system?"**
-
-In more places than the home screen. Viewing predictions drive content placement, so recommendations literally decide which files sit in which ISP tomorrow. The title a member is likely to play next (the one under focus, or the next episode) is a prefetch candidate for its manifest and license, which cuts play delay. Artwork and preview clips are chosen per member and are themselves delivery traffic. And per-member history can inform the player's starting throughput estimate. The recommendation models are a separate system, but their outputs are inputs to delivery.
+  Return `{"rungs": [rung chosen for each segment], "rebuffer_s": total rebuffering seconds}`.
+languages: [python, javascript]
+entry: simulate_abr
+starter:
+  python: |
+    def simulate_abr(ladder, throughput_kbps, segment_s, reservoir_s, cushion_s):
+        buffer_s = 0.0
+        rebuffer_s = 0.0
+        rungs = []
+        # your code here
+        return {"rungs": rungs, "rebuffer_s": rebuffer_s}
+  javascript: |
+    function simulate_abr(ladder, throughput_kbps, segment_s, reservoir_s, cushion_s) {
+      let buffer_s = 0;
+      let rebuffer_s = 0;
+      const rungs = [];
+      // your code here
+      return { rungs, rebuffer_s };
+    }
+tests:
+  - args: [[500, 1000, 2000, 4000], [4000, 4000, 4000, 4000, 4000, 4000], 4, 4, 8]
+    expected: {"rungs": [500, 500, 2000, 2000, 2000, 4000], "rebuffer_s": 0}
+  - args: [[500, 1000, 2000, 4000], [4000, 4000, 4000, 4000, 1000, 1000, 1000], 4, 4, 8]
+    expected: {"rungs": [500, 500, 2000, 2000, 2000, 2000, 500], "rebuffer_s": 0.5}
+    label: a drop with a thin cushion stalls once
+  - args: [[500, 1000], [], 4, 4, 8]
+    expected: {"rungs": [], "rebuffer_s": 0}
+    label: no segments
+  - args: [[1000], [500, 500, 500], 2, 4, 8]
+    expected: {"rungs": [1000, 1000, 1000], "rebuffer_s": 4}
+    label: a one-rung ladder cannot adapt
+  - args: [[300, 600, 1200], [1200, 1200, 800, 600], 4, 4, 4]
+    expected: {"rungs": [300, 300, 600, 1200], "rebuffer_s": 0}
+    label: buffer exactly at the reservoir, then exactly at the top
+  - args: [[235, 750, 1750, 3000, 4300, 5800], [8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 1200, 1200, 1200, 1200, 1200, 1200, 6000, 6000, 6000, 6000], 4, 10, 40]
+    expected: {"rungs": [235, 235, 235, 235, 750, 750, 1750, 1750, 1750, 3000, 3000, 3000, 4300, 1750, 1750, 1750, 1750, 1750, 750, 1750, 1750, 1750], "rebuffer_s": 0}
+    hidden: true
+  - args: [[500, 1000, 2000, 4000], [1000, 250, 4000, 4000, 500, 8000], 2, 2, 6]
+    expected: {"rungs": [500, 500, 500, 1000, 2000, 500], "rebuffer_s": 4.75}
+    hidden: true
+  - args: [[500, 1000], [100, 4000, 4000], 4, 4, 4]
+    expected: {"rungs": [500, 500, 500], "rebuffer_s": 0}
+    label: a slow first segment is start-up delay, not rebuffering
+    hidden: true
+hints:
+  - "The only state is the buffer in seconds; choose, download, drain, then add the segment."
+  - "To avoid division, rung r qualifies when (r - lo) * cushion_s <= (b - reservoir_s) * (hi - lo)."
+  - "A one-rung ladder has lo == hi; make sure the interpolation branch still returns that rung."
+```
 
 ## Senior signals
 
-- You split the problem into a control plane (requests per second, in the cloud) and a data plane (bits per second, at the edge), and you make sessions survive control-plane failure.
-- You derive "build a CDN inside ISPs" from the egress arithmetic, and "fill proactively" from four workload properties that you can name, including when they do not apply.
-- You know that the ladder is per title (and per shot), chosen on a convex hull of perceptual quality against bitrate, and that encoding compute is paid once while egress savings recur per view.
-- You explain why ABR runs on the client, the difference between throughput-based and buffer-based adaptation, and why stability matters perceptually.
-- You treat telemetry as the control loop (SPS for health, A/B tests on QoE, feedback into steering and placement) and never let it block playback.
-- You separate what Netflix has publicly described from your own design choices, and you say which is which.
+- You split a control plane (requests per second, in the cloud) from a data plane (bits per second, at the edge) and make sessions survive control-plane failure.
+- You derive "build a CDN inside ISPs" from the egress bill and "fill proactively" from four workload properties, and you say when they do not hold.
+- You price placement: local share as a function of site size and popularity skew, and the lever of storing only the encodes a site's devices use.
+- You trace ABR through a bandwidth drop and explain why the buffer, not the throughput estimate, is the stall predictor, and what buffer-based selection costs at startup.
+- You treat telemetry and personalisation as delivery's control loop: SPS for health, A/B tests on QoE, predictions into placement and prefetch.
+- You separate what Netflix has publicly described from your own assumptions, out loud. [Netflix microservices and resilience](/learn/system-design/case-studies/netflix-microservices-and-resilience) covers the control plane's failover.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     Peak streaming is 40 million concurrent streams at an average of 5 Mbps. What does the arithmetic imply about delivery?
-  options: ["About 200 Gbps, so a single cloud region's egress can serve it", "About 2 Tbps, comparable to a large API fleet's total outbound traffic", "About 20 Tbps, so a commercial CDN's pricing is clearly cheapest", "About 200 Tbps, so bytes must come from edge servers near viewers"]
+  options: ["About 200 Gbps, so a single cloud region's egress can serve it", "About 2 Tbps, comparable to a large API fleet's total outbound traffic", "About 20 Tbps, so a commercial CDN's per-GB pricing is the cheapest", "About 200 Tbps, so bytes must come from edge servers near viewers"]
   answer: 3
   explanation: >-
-    4 x 10^7 x 5 Mbps = 2 x 10^8 Mbps = 200 Tbps. At that scale, delivery location and cost per GB decide the architecture, and egress cost dominates the design, which is why the data plane lives inside ISPs rather than in a cloud region. Dropping a factor of 1,000 (Gbps versus Tbps) is the classic unit error.
+    4 x 10^7 x 5 Mbps = 2 x 10^8 Mbps = 200 Tbps, which is 560 PB a day. At that scale the cost per GB and the location of the servers decide the architecture. Dropping a factor of 1,000 by confusing Gbps with Tbps is the classic unit error.
 - q: >-
     Why does per-title encoding beat a fixed bitrate ladder?
-  options: ["It moves every title to a newer codec with better compression", "It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than the old ladder", "It picks rungs from each title's measured quality-bitrate curves"]
+  options: ["It moves every title to a newer codec with better compression", "It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than before", "It picks rungs from each title's measured quality curves"]
   answer: 3
   explanation: >-
-    A fixed ladder assumes every title needs the same bits for the same quality. Measuring with a perceptual metric such as VMAF and placing rungs on the efficient frontier shows that animation can hit top quality at a fraction of the bitrate, while grainy action needs more. Codec choice and client-side adaptation are separate, complementary levers.
+    A fixed ladder assumes every title needs the same bits for the same quality. Scoring encodes with a perceptual metric and placing rungs on the convex hull shows that flat animation reaches top quality at about 2 Mbps while grainy film needs more than 5.8. Codec choice and client-side adaptation are separate levers.
 - q: >-
-    Which property of Netflix's workload most directly makes proactive off-peak fill work better than pull-through caching?
-  options: ["Viewers tolerate a slow first start while the edge pulls the file", "The catalogue is finite and scheduled, so demand can be forecast", "ISPs require content to be pre-positioned before they peer with it", "Video files are large, so each cache miss costs a long origin fetch"]
+    Which property of the workload most directly makes proactive off-peak fill better than pull-through caching?
+  options: ["Viewers tolerate a slow first start while the edge pulls the file", "The catalogue is finite and scheduled, so demand can be forecast", "ISPs require content to be pre-positioned before they will peer", "Video files are large, so each cache miss costs a long origin fetch"]
   answer: 1
   explanation: >-
-    Proactive placement needs to know what will be requested. A finite, scheduled catalogue with forecastable popularity makes that possible, and idle off-peak bandwidth makes it cheap. Large files alone argue for caching, not for predicting; a news site with large files still cannot fill tomorrow's content tonight.
+    Proactive placement needs to know what will be requested. A finite, scheduled catalogue with predictable popularity makes that possible, and idle off-peak bandwidth makes it cheap. Large files alone argue for caching, not for prediction; a news site with large files still cannot fill tomorrow's content tonight.
 - q: >-
-    A buffer-based ABR uses a 10 s reservoir, a 40 s cushion and a ladder from 235 to 5,800 kbps with rungs at 235, 750, 1750, 3000, 4300 and 5800. With 30 s buffered, which rung is chosen?
-  options: ["4,300 kbps", "3,000 kbps", "1,750 kbps", "235 kbps"]
-  answer: 1
-  explanation: >-
-    30 s is halfway through the cushion (20 of 40 s), so the target is 235 + 0.5 x 5,565 = 3,017.5 kbps, and the highest rung at or below it is 3,000. The rule maps buffer health onto the ladder without trusting a noisy throughput estimate.
-- q: >-
-    Why does steering hand the client a ranked list of specific server URLs instead of relying on DNS-based CDN routing?
-  options: ["Steering sees the client's own IP and file inventory; DNS does not", "URLs are cheaper to serve than DNS lookups at 40 million concurrent streams", "DNS can return only one address, so the client cannot fail over", "DRM licenses are bound to one server URL chosen at playback start"]
+    An embedded site's 200 TB holds 13% of a 1.5 PB catalogue and serves 82% of its viewing locally. Which change raises the local share the most?
+  options: ["Keep only encodes its members' devices play, fitting 3x the titles", "Double the site's network capacity so each appliance serves more bytes", "Lengthen the nightly fill window so files arrive earlier each day", "Switch to pull-through caching so misses fill the site on demand"]
   answer: 0
   explanation: >-
-    Application-level steering has better inputs (the client's real IP mapped through ISP-announced BGP prefixes, file-level inventory, health and load) and can tailor the list per session, so the client fails over without another lookup. DNS can return several addresses, but it steers by the resolver's location and reacts only at TTL speed.
+    Local share depends on how much of the popularity mass the site holds. Keeping only the codecs and resolutions its devices use lets the same disk hold about three times the content hours, which took the simulated share from 82% to 92%. Network capacity and a longer window do not change what is held, and pull-through moves misses into the evening peak.
+- q: >-
+    In the simulated bandwidth drop, the throughput-based player stalled twice and the buffer-based player did not. Why?
+  options: ["It spent its headroom on bitrate, so a 12.8 s buffer met the drop", "Its harmonic-mean estimate overreacts, so it dropped rungs too far", "It started at a lower rung, so its buffer never had time to build up", "It downloaded longer segments, so each request took more wall time"]
+  answer: 0
+  explanation: >-
+    Picking 5,800 kbps on an 8 Mbps link grows the buffer only 1.1 s per segment, so when the link fell to 1.2 Mbps the 15.5 s download outlasted a 12.8 s buffer. The buffer rule had filled to over 50 s and absorbed a 19.3 s download. Both started at the same rung with the same segment length; the harmonic mean lagged rather than overreacted.
 - q: >-
     A cloud region hosting part of the control plane fails at peak. In a well-separated design, what happens to members who are already watching?
   options: ["They must restart playback so a healthy region issues new URLs", "They keep watching, because the bytes come from edge appliances", "They drop to the lowest bitrate until steering can be reached", "Their streams stop, because manifests are served by that region"]
   answer: 1
   explanation: >-
-    Separating the data plane from the control plane for the duration of a session is what makes this true: the player already holds pre-signed appliance URLs. New starts fail over to healthy regions. The hidden risk is any in-session dependency on the control plane, such as a license renewal, that the player treats as fatal.
+    The player already holds pre-signed appliance URLs valid for hours, so the data plane does not need the control plane mid-session. New starts move to healthy regions. The hidden risk is any in-session dependency, such as a license renewal, that the player treats as fatal.
 ```
