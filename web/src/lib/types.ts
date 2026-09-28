@@ -307,7 +307,7 @@ export interface Interview {
   problem_slug: string | null;
   prompt: string;
   duration_minutes: number;
-  status: "active" | "completed" | "abandoned";
+  status: "active" | "grading" | "completed" | "abandoned";
   transcript: TranscriptEntry[];
   final_code: string | null;
   language: string | null;

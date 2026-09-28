@@ -303,10 +303,14 @@ impl InterviewService {
         if let Some(updated) = Interviews::find().from_raw_sql(stmt).one(&self.db).await? {
             return Ok(updated);
         }
-        // Nothing matched: say which guard refused. A transcript is frozen
-        // once the interview ends, so a reply still streaming when the
-        // learner clicks "finish" cannot change what was graded.
+        // Nothing matched: say which guard refused. The transcript freezes
+        // when grading begins (`begin_grading`), so a reply still streaming
+        // when the learner clicks "finish" is refused here rather than landing
+        // after the grader has read the transcript.
         let current = Interviews::find_by_id(model.id).one(&self.db).await?.ok_or(AppError::NotFound("interview"))?;
+        if current.status == "grading" {
+            return Err(AppError::Conflict("the interview is being graded".into()));
+        }
         if current.status != "active" {
             return Err(AppError::Conflict("the interview has already ended".into()));
         }
@@ -319,12 +323,61 @@ impl InterviewService {
     pub async fn has_active_solo(&self, user_id: Uuid) -> AppResult<bool> {
         let active = Interviews::find()
             .filter(interviews::Column::UserId.eq(user_id))
-            .filter(interviews::Column::Status.eq("active"))
+            .filter(interviews::Column::Status.is_in(["active", "grading"]))
             .filter(interviews::Column::AssistantMode.eq("solo"))
             .all(&self.db)
             .await?;
         let now = Utc::now();
         Ok(active.iter().any(|i| now < i.started_at + chrono::Duration::minutes(i.duration_minutes as i64 + 15)))
+    }
+
+    /// Freezes the interview for grading and returns it exactly as the grader
+    /// will see it. The status moves from `active` to `grading` in the same
+    /// statement that stores the final code, so from this moment
+    /// `append_transcript` refuses writes: a reply still streaming when the
+    /// learner clicks "finish" can no longer land between the grader reading
+    /// the transcript and the grade being stored.
+    ///
+    /// A `grading` row older than five minutes belongs to a request that
+    /// died (a deploy, a crash) and may be graded again.
+    pub async fn begin_grading(&self, model: interviews::Model, code: Option<String>) -> AppResult<interviews::Model> {
+        if code.as_ref().is_some_and(|c| c.len() > 64 * 1024) {
+            return Err(AppError::validation("code exceeds 64 KiB"));
+        }
+        let stmt = Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            r#"
+            UPDATE interviews
+               SET status = 'grading',
+                   final_code = COALESCE($2, final_code),
+                   updated_at = now()
+             WHERE id = $1
+               AND (status = 'active'
+                    OR (status = 'grading' AND updated_at < now() - interval '5 minutes'))
+            RETURNING *
+            "#,
+            [model.id.into(), code.into()],
+        );
+        match Interviews::find().from_raw_sql(stmt).one(&self.db).await? {
+            Some(frozen) => Ok(frozen),
+            None if model.status == "grading" => {
+                Err(AppError::Conflict("the interview is already being graded".into()))
+            }
+            None => Err(AppError::Conflict("the interview has already ended".into())),
+        }
+    }
+
+    /// Grading failed (the model was unavailable, the budget ran out): reopen
+    /// the interview so the learner can try "finish" again.
+    pub async fn resume_after_failed_grading(&self, id: Uuid) -> AppResult<()> {
+        Interviews::update_many()
+            .col_expr(interviews::Column::Status, Expr::value("active"))
+            .col_expr(interviews::Column::UpdatedAt, Expr::value(Utc::now()))
+            .filter(interviews::Column::Id.eq(id))
+            .filter(interviews::Column::Status.eq("grading"))
+            .exec(&self.db)
+            .await?;
+        Ok(())
     }
 
     pub async fn finish(
@@ -334,7 +387,7 @@ impl InterviewService {
         score: i16,
         status: &str,
     ) -> AppResult<interviews::Model> {
-        // Conditional on still being active, so two racing "finish" requests
+        // Conditional on not having ended yet, so two racing "finish" requests
         // cannot both write an evaluation: exactly one wins.
         let now = Utc::now();
         Interviews::update_many()
@@ -344,7 +397,7 @@ impl InterviewService {
             .col_expr(interviews::Column::EndedAt, Expr::value(now))
             .col_expr(interviews::Column::UpdatedAt, Expr::value(now))
             .filter(interviews::Column::Id.eq(model.id))
-            .filter(interviews::Column::Status.eq("active"))
+            .filter(interviews::Column::Status.is_in(["active", "grading"]))
             .exec_with_returning(&self.db)
             .await?
             .into_iter()

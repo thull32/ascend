@@ -774,3 +774,43 @@ async fn transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entrie
     let ended = app.state.interviews.get(id, interview.id).await.unwrap();
     assert_eq!(InterviewService::transcript(&ended).len(), 20);
 }
+
+#[tokio::test]
+async fn grading_freezes_the_transcript_and_a_failed_grade_reopens_the_interview() {
+    use ascend_core::services::interviews::{InterviewService, TranscriptEntry};
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let started = app.state.interviews.start(id, solo_coding()).await.unwrap();
+    let entry =
+        |text: &str| TranscriptEntry { role: "interviewer".into(), content: text.into(), at: chrono::Utc::now() };
+    let before = app.state.interviews.append_transcript(started.clone(), vec![entry("first")], None).await.unwrap();
+
+    // The learner clicks "finish": the transcript is frozen with the final code.
+    let frozen = app.state.interviews.begin_grading(before.clone(), Some("def f(): pass".into())).await.unwrap();
+    assert_eq!(frozen.status, "grading");
+    assert_eq!(frozen.final_code.as_deref(), Some("def f(): pass"));
+
+    // An interviewer reply still streaming lands now: refused, not appended.
+    let late = app.state.interviews.append_transcript(before.clone(), vec![entry("late")], None).await;
+    assert!(matches!(&late, Err(ascend_core::AppError::Conflict(m)) if m.contains("being graded")), "{late:?}");
+    // A second click while grading is refused too.
+    assert!(matches!(
+        app.state.interviews.begin_grading(frozen.clone(), None).await,
+        Err(ascend_core::AppError::Conflict(_))
+    ));
+    // The solo lock still holds while the grade is pending.
+    assert!(app.state.interviews.has_active_solo(id).await.unwrap());
+
+    // Grading fails (say the model is unavailable): the interview reopens.
+    app.state.interviews.resume_after_failed_grading(frozen.id).await.unwrap();
+    let reopened = app.state.interviews.get(id, frozen.id).await.unwrap();
+    assert_eq!(reopened.status, "active");
+    assert_eq!(InterviewService::transcript(&reopened).len(), 1, "nothing was lost or added");
+
+    // Retry succeeds, and the stored grade matches the frozen transcript.
+    let frozen = app.state.interviews.begin_grading(reopened, None).await.unwrap();
+    let done = app.state.interviews.finish(frozen, json!({"summary": "ok"}), 70, "completed").await.unwrap();
+    assert_eq!(done.status, "completed");
+    assert_eq!(InterviewService::transcript(&done).len(), 1);
+}

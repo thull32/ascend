@@ -17,7 +17,13 @@ import type { Language } from "../components/CodeEditor";
 export default function InterviewRoom() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["interview", id], queryFn: () => api.get<Interview>(`/interviews/${id}`) });
+  const q = useQuery({
+    queryKey: ["interview", id],
+    queryFn: () => api.get<Interview>(`/interviews/${id}`),
+    // While another tab or a reload shows an interview mid-grade, poll until
+    // the grade lands.
+    refetchInterval: (query) => (query.state.data?.status === "grading" ? 2000 : false),
+  });
   const interview = q.data;
   const problem = useProblem(interview?.kind === "coding" && interview.problem_slug ? interview.problem_slug : "");
   const dock = useCoachDock();
@@ -94,6 +100,14 @@ export default function InterviewRoom() {
   });
 
   if (!interview) return <Spinner className="mt-20" />;
+  if (interview.status === "grading")
+    return (
+      <div className="mx-auto mt-20 flex max-w-md flex-col items-center gap-3 text-center" role="status">
+        <Spinner />
+        <p className="font-medium">Grading your interview…</p>
+        <p className="text-sm text-muted">The transcript is frozen and the evaluator is reading it. This usually takes under a minute.</p>
+      </div>
+    );
   if (interview.status !== "active") return <Report interview={interview} />;
   const isCoding = interview.kind === "coding";
   const assisted = interview.assistant_mode === "assisted";

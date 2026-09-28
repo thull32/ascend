@@ -217,10 +217,8 @@ async fn finish(
     AppJson(body): AppJson<FinishBody>,
 ) -> ApiResult<Json<Model>> {
     let model = state.interviews.get(user.id, id).await?;
-    if model.status != "active" {
-        return Err(bad_request("interview is not active"));
-    }
-    let model = state.interviews.append_transcript(model, vec![], body.code).await?;
+    // From here the transcript is frozen: what is graded is what is stored.
+    let model = state.interviews.begin_grading(model, body.code).await?;
     if InterviewService::transcript(&model).iter().filter(|e| e.role == "candidate").count() < 2 {
         // Not enough signal to grade; mark abandoned rather than burn tokens.
         let m = state
@@ -234,7 +232,15 @@ async fn finish(
             .await?;
         return Ok(Json(m));
     }
-    let evaluation = interview::evaluate(&state.coach, user.id, &model).await?;
+    let evaluation = match interview::evaluate(&state.coach, user.id, &model).await {
+        Ok(evaluation) => evaluation,
+        Err(e) => {
+            if let Err(reopen) = state.interviews.resume_after_failed_grading(model.id).await {
+                tracing::error!(error = %reopen, interview = %model.id, "failed to reopen interview after grading error");
+            }
+            return Err(e.into());
+        }
+    };
     let score = evaluation.overall_score as i16;
     let value = serde_json::to_value(&evaluation).map_err(|e| ApiError(ascend_core::AppError::internal(e)))?;
     Ok(Json(state.interviews.finish(model, value, score, "completed").await?))
