@@ -1,72 +1,82 @@
 ---
 slug: replication
 title: "Replication: streaming the log, measuring lag and surviving failover"
-description: How Postgres ships its write-ahead log to replicas, what each synchronous_commit level actually guarantees, how to measure and route around lag, and why a user's own write can vanish after a redirect.
+description: How Postgres ships its write-ahead log to replicas, measured streaming lag and slot retention, how lag in bytes becomes lag in seconds, what each synchronous_commit level guarantees and costs, how to route reads for read-your-writes, and how failover avoids split brain.
 minutes: 30
 difficulty: hard
-tags: [replication, streaming-replication, logical-replication, replication-lag, failover, read-your-writes, postgres]
+tags: [replication, streaming-replication, logical-replication, replication-lag, failover, read-your-writes, postgres, patroni]
 ---
-A user saves their profile, the page redirects to `/profile`, and the old name is displayed. They refresh and the new name appears. Nothing in your code is wrong. The `UPDATE` went to the primary, the redirect's `SELECT` went to a replica that had not applied it yet, and the second refresh happened to land after it had. This is the most common replication bug in production, and every senior interview about scaling reads eventually arrives at it.
+A user saves their profile, the page redirects to `/profile`, and the old name is displayed. They refresh and the new name appears. Nothing in your code is wrong. The `UPDATE` went to the primary, the redirect's `SELECT` went to a replica that had not applied it yet, and the refresh happened to land after it had. This is the most common replication bug in production, and every senior interview about scaling reads eventually arrives at it.
 
-Replication in Postgres is not a separate subsystem bolted onto the database. It is the write-ahead log from [the previous lesson](/learn/databases/storage-and-scale/storage-engine-internals), sent over a TCP connection and replayed on another machine. Once you see it that way, lag, failover, slots, synchronous commit and read-your-writes all reduce to one question: which LSN has each machine reached?
+Replication in Postgres is not a subsystem bolted on. It is the write-ahead log from [storage engine internals](/learn/databases/storage-and-scale/storage-engine-internals), sent over a TCP connection and replayed on another machine. Once you see it that way, lag, failover, slots, synchronous commit and read-your-writes all reduce to one question: which LSN has each machine reached? This lesson measures that on PostgreSQL 17, using `pg_receivewal` (a real WAL-streaming client) against a lab primary running 44,000 single-row updates a second.
 
 ## Streaming replication is the WAL over a socket
 
-A replica starts as a byte-for-byte copy of the primary's data directory, taken with `pg_basebackup` at a known LSN. From then on, a `walsender` process on the primary streams every WAL record to a `walreceiver` on the replica as soon as it is written, and a startup process on the replica replays those records against its own pages exactly as crash recovery would. The replica is, permanently, a database in recovery mode that also accepts read-only queries.
+A physical replica starts as a byte-for-byte copy of the primary's data directory, taken with `pg_basebackup` at a known LSN. From then on, three processes cooperate:
+
+1. A **walsender** on the primary reads WAL as it is written and sends it over the replication connection.
+2. A **walreceiver** on the replica writes the bytes to its own `pg_wal` and flushes them, reporting its write and flush positions back every `wal_receiver_status_interval` (10 s) or sooner when asked.
+3. The **startup process** on the replica replays the records against its pages exactly as crash recovery would, and reports the replay position. A replica is permanently a database in recovery that also accepts read-only queries.
 
 ```viz
 {"type": "system", "scenario": "replication-leader-follower", "title": "Leader-follower replication through the log",
  "caption": "Writes go to the leader, which appends to its log and streams the records to followers. Followers replay the stream and serve reads. Watch the gap between the leader's write LSN and a follower's replay LSN: that gap is lag, and every read routed to the follower during it sees the past."}
 ```
 
-Because the stream is physical (page-level changes), a streaming replica is an exact copy: same tables, same indexes, same bloat, same major version. That is its strength and its limitation. It cannot replicate a subset of tables, cannot replicate between versions, and cannot be written to.
+Measured: while 8 `pgbench` clients ran 44,614 single-row updates a second with `synchronous_commit = off`, the primary generated **29 MB of WAL in 6 seconds**, about 4.8 MB/s or 110 bytes per update (a `HOT_UPDATE` record and a `COMMIT` record each). A `pg_receivewal` client streaming it over a local socket stayed **8–16 kB behind**, with `write_lag` and `flush_lag` of **7–8 ms**. That is the floor: on a real network add the round trip, and the replica's replay adds its own delay on top.
 
-**Logical replication** decodes the same WAL into row-level changes (`INSERT` into `orders` with these column values) and publishes them to subscribers, which apply them as ordinary SQL. A subscriber can be a different major version, can have extra indexes or tables, can subscribe to only some tables, and can be written to (with all the conflict risks that implies). Logical replication is how you do a near-zero-downtime major-version upgrade, feed a data warehouse, or drive [change data capture](/learn/big-data/streaming/change-data-capture). It is also slower to apply than physical replay and does not replicate DDL, sequences or large objects, so it is not what you use for a hot standby.
+Because the stream is physical, a replica is an exact copy: same tables, same indexes, same bloat, same major version. It cannot hold a subset of tables, cross a major version, or accept writes.
+
+**Logical replication** decodes the same WAL into row changes (`INSERT` into `orders` with these values) and applies them on subscribers as ordinary SQL. It needs `wal_level = logical` (the lab runs `replica`, so it is not measured here) and a `REPLICA IDENTITY` (usually the primary key) for updates and deletes. A subscriber can run a different major version, have extra indexes or tables, take only some tables, and be written to, with the conflict risks that implies. It is how you do a near-zero-downtime major upgrade, feed a warehouse, or drive [change data capture](/learn/big-data/streaming/change-data-capture). It does not replicate DDL, sequence values or large objects, and it applies changes one transaction at a time on the subscriber (Postgres 16 added parallel apply for large streamed transactions; Postgres 17 can synchronise logical slots to a physical standby so a failover does not lose the subscriber's position).
 
 ```sql
--- On the primary: publish two tables.
-CREATE PUBLICATION orders_pub FOR TABLE orders, order_items;
-
--- On the subscriber (a different server, possibly a different version).
+CREATE PUBLICATION orders_pub FOR TABLE orders, order_lines;           -- on the primary
 CREATE SUBSCRIPTION orders_sub
-  CONNECTION 'host=primary dbname=shop user=repl'
-  PUBLICATION orders_pub;
+  CONNECTION 'host=primary dbname=shop user=repl' PUBLICATION orders_pub; -- on the subscriber
 ```
+
+## Under the hood: four positions and how seconds are computed
+
+`pg_stat_replication` on the primary shows four LSNs per standby: `sent_lsn` (handed to the socket), `write_lsn` (written by the standby, not yet flushed), `flush_lsn` (durable on the standby) and `replay_lsn` (applied and visible to queries there). Lag in **bytes** is the primary's current LSN minus one of them. Lag in **time** (`write_lag`, `flush_lag`, `replay_lag`) is computed differently: the walsender keeps a small circular buffer of `(LSN, timestamp)` samples, recorded as it sends WAL. When the standby reports that it has replayed up to some LSN, the walsender finds the samples that bracket that LSN, interpolates linearly to estimate when the primary was at that position, and subtracts that time from now.
+
+Two consequences follow. First, bytes and seconds disagree whenever the write rate is uneven: 4 MB behind after a burst that ended a second ago is a 1-second lag, while 4 MB behind during a steady 5 MB/s stream is 0.8 seconds. Second, when the primary goes idle, byte lag drops to zero as soon as the replica catches up, even though the last transaction may be minutes old. The exercise at the end implements the interpolation.
+
+On the replica side the equivalents are:
+
+```sql
+SELECT now() - pg_last_xact_replay_timestamp() AS since_last_replayed_commit,
+       pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn();
+```
+
+`since_last_replayed_commit` grows during idle periods even with zero lag, so alert on the primary-side `replay_lag`, or on this value only when writes are known to be flowing.
 
 ## Replication slots hold the log for you
 
-A replica that falls behind, or disconnects for an hour, needs WAL that the primary might otherwise have recycled after a checkpoint. A **replication slot** is the primary's promise to keep WAL from a given LSN until the consumer confirms it. That promise is unconditional, which is the trap: a slot whose consumer went away for a weekend holds a weekend of WAL, and the primary's disk fills. Every senior engineer who has run Postgres has a story about a forgotten slot.
+A replica that falls behind or disconnects needs WAL that the primary would otherwise recycle after a checkpoint. A **replication slot** is the primary's promise to keep WAL from the slot's `restart_lsn` until the consumer confirms it, and the promise is unconditional. Measured: with the streaming client stopped and the same update workload running, the inactive slot's retained WAL went from 767 kB to **30 MB in 6 seconds**. At that rate an abandoned slot holds 18 GB an hour and 430 GB a day, and the primary stops when its disk fills.
 
 ```sql
-SELECT slot_name, active,
-       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS retained_wal
+SELECT slot_name, active, wal_status,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) AS retained
 FROM pg_replication_slots;
+--    slot_name    | active | wal_status | retained
+--  depth_lab_slot | f      | reserved   | 30 MB
 ```
 
-```text
-  slot_name   | active | retained_wal
---------------+--------+--------------
- replica_1    | t      | 2304 kB
- analytics    | f      | 41 GB        <- inactive slot, retaining 41 GB
-```
+`max_slot_wal_keep_size` (Postgres 13 and later; unlimited by default) caps the retention: past it, `wal_status` becomes `lost`, the slot is invalidated, and the consumer must be rebuilt from a fresh base backup. An invalidated slot is a support ticket; a full disk is an outage. Set it, and alert on `retained` long before it.
 
-`max_slot_wal_keep_size` (Postgres 13+) caps that retention: past the limit, the slot is invalidated and the consumer must re-sync from a fresh base backup. Set it. An invalidated slot is a support ticket; a full disk is an outage.
+## What synchronous_commit promises, and what it costs
 
-## What `synchronous_commit` actually promises
+By default replication is **asynchronous**: `COMMIT` returns once the WAL is flushed locally, and the replica receives it whenever the network delivers it. If the primary is destroyed a moment after acknowledging, that transaction is gone. `synchronous_commit`, with `synchronous_standby_names` configured, decides how far the commit record must travel first:
 
-By default replication is **asynchronous**: `COMMIT` returns once the WAL is fsynced locally, and the replica gets the record whenever the network delivers it. If the primary is destroyed a moment after acknowledging, that transaction is gone. For many systems that is acceptable; for a payments ledger it is not.
+| Setting | Commit returns after | Survives loss of the primary | Added latency per commit |
+|---|---|---|---|
+| `off` | WAL in memory; flushed within about 600 ms | No; a crash loses the last fraction of a second | None; lab: 0.16 ms against 1.6 ms |
+| `local` | Local flush | No | The local flush (1.4 ms on the lab disk) |
+| `remote_write` | Standby wrote it to its OS | Yes, unless the standby's OS also crashes | One network round trip |
+| `on` | Standby flushed it | Yes | Round trip plus the standby's flush |
+| `remote_apply` | Standby replayed it | Yes, and reads on that standby see it | Round trip, flush and replay |
 
-`synchronous_commit` chooses how far the record must travel before the client hears "OK", and it is a spectrum, not a switch:
-
-| Setting | Commit returns after | Survives primary crash | Survives primary loss | Cost |
-|---|---|---|---|---|
-| `off` | WAL written to the OS, not fsynced | No (window of ~`wal_writer_delay`) | No | Fastest |
-| `local` | Local fsync | Yes | No | One fsync |
-| `remote_write` | Replica has received and written to its OS cache | Yes | Yes, unless the replica also crashes | One network RTT |
-| `on` (default when synchronous standbys are configured) | Replica has fsynced the WAL | Yes | Yes | RTT plus replica fsync |
-| `remote_apply` | Replica has replayed the record, so a read there sees it | Yes | Yes | RTT plus fsync plus apply lag |
-
-`on` protects the data. `remote_apply` additionally guarantees that a read on the synchronous replica, issued after the commit returns, sees the write. That is the only setting that solves read-your-writes at the database level, and it makes every commit wait for the replica's apply latency, which can be tens of milliseconds under load.
+The round trip is set by geography: typically well under a millisecond within one availability zone, around a millisecond between zones in one region, and tens of milliseconds between regions. Synchronous commit still benefits from group commit: one standby acknowledgement covers every commit record flushed before it, so throughput with many clients degrades far less than single-client latency suggests.
 
 ```mermaid
 sequenceDiagram
@@ -74,9 +84,9 @@ sequenceDiagram
     participant P as Primary
     participant R as Sync replica
     C->>P: COMMIT
-    P->>P: append commit record, fsync WAL
+    P->>P: append commit record, flush WAL
     P->>R: stream WAL up to LSN 0/9F3C
-    R->>R: write + fsync
+    R->>R: write + flush
     R-->>P: flush position = 0/9F3C
     Note over P: synchronous_commit = on: enough to acknowledge
     R->>R: replay record (visible to readers)
@@ -85,10 +95,9 @@ sequenceDiagram
     P-->>C: COMMIT OK
 ```
 
-Synchronous replication has a failure mode that surprises people: if the synchronous standby goes down, **commits on the primary hang**. The primary has been told not to acknowledge without the replica, and it obeys. This is by design (the alternative is silently downgrading a durability guarantee), but it means a single-replica synchronous setup has *worse* write availability than no replication at all. Production configurations list several candidates so any one can satisfy the quorum:
+Synchronous replication has a sharp edge: **if the synchronous standby goes away, commits on the primary hang**. The primary was told not to acknowledge without it, and it obeys rather than silently downgrading durability. A single synchronous standby therefore gives *worse* write availability than no replication. Production configurations name several candidates:
 
 ```sql
--- Any 1 of the 3 named standbys must confirm before COMMIT returns.
 ALTER SYSTEM SET synchronous_standby_names = 'ANY 1 (replica_a, replica_b, replica_c)';
 ```
 
@@ -97,129 +106,227 @@ ALTER SYSTEM SET synchronous_standby_names = 'ANY 1 (replica_a, replica_b, repli
  "caption": "A write is acknowledged once enough replicas confirm it; a read that consults enough replicas is guaranteed to overlap with the latest write. Postgres's ANY n synchronous_standby_names is the write side of this idea; the read side is why a quorum-based store like Cassandra can serve consistent reads without a leader."}
 ```
 
-The general form, where a write needs `W` acknowledgements and a read consults `R` replicas out of `N`, is consistent when `W + R > N`. Postgres uses the write half of that (a write quorum for durability) and leaves reads on a single node; leaderless stores like Cassandra and Dynamo use both halves, which is covered in [replication strategies](/learn/system-design/distributed-systems/replication-strategies).
+When a write needs `W` acknowledgements and a read consults `R` of `N` replicas, reads see the latest write whenever `W + R > N`. Postgres uses the write half for durability and keeps reads on a single node; leaderless stores use both halves, as [wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores) shows.
 
-## Measuring lag
-
-Lag is a difference between LSNs, and there are four positions to compare on the primary side:
+## Lag: diagnosing it and doing the catch-up arithmetic
 
 ```sql
 SELECT application_name, state,
-       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), sent_lsn))   AS send_lag,
-       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), write_lsn))  AS write_lag,
-       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), flush_lsn))  AS flush_lag,
-       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)) AS replay_lag,
-       replay_lag AS replay_lag_time
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), sent_lsn))   AS unsent,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), flush_lsn))  AS unflushed,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)) AS unreplayed,
+       replay_lag
 FROM pg_stat_replication;
 ```
 
-```text
- application_name |   state   | send_lag | write_lag | flush_lag | replay_lag | replay_lag_time
-------------------+-----------+----------+-----------+-----------+------------+-----------------
- replica_a        | streaming | 0 bytes  | 16 kB     | 16 kB     | 3648 kB    | 00:00:00.41
- replica_b        | streaming | 0 bytes  | 0 bytes   | 8 kB      | 112 MB     | 00:00:19.7
-```
+Which gap is large tells you where to look. Large `unsent` means the primary's walsender or the network cannot keep up. Large `unflushed` with small `unsent` means the replica's disk is slow. Small `unflushed` with large `unreplayed` means the WAL arrived but **replay** is behind: single-threaded replay on an undersized replica, a burst from a bulk load or `VACUUM FULL`, or a query on the replica conflicting with replay.
 
-`replica_b` has received everything but is 112 MB and 19.7 seconds behind in *applying* it. The usual causes are a long-running query on the replica that conflicts with replay (replay must wait, or cancel the query; `hot_standby_feedback` and `max_standby_streaming_delay` are the two knobs), an undersized replica, or a burst of WAL from a bulk load or a `VACUUM FULL`. Note the unit: lag is bytes and seconds, and either one can be large while the other is small.
+Catch-up is arithmetic. A replica 112 MB behind, while the primary writes 5 MB/s and the replica can replay 20 MB/s, catches up in 112 / (20 − 5) = 7.5 seconds. If replay capacity is 4 MB/s against 5 MB/s of WAL, lag grows by 1 MB/s, 3.6 GB an hour, and never recovers until the load drops. Replay capacity is the number to know for each replica size, and it is why replicas should not be smaller than the primary.
 
-On the replica, the equivalent is:
+**Hot standby conflicts.** Replay may need to remove row versions that a query on the replica can still see (vacuum on the primary removed them), or take a lock a query holds. Replay then waits up to `max_standby_streaming_delay` (30 s by default) and cancels the query with `canceling statement due to conflict with recovery`. `hot_standby_feedback = on` makes the replica report its oldest snapshot to the primary so vacuum keeps those versions, trading cancelled replica queries for bloat on the primary, the pinned-horizon problem from [MVCC and locking](/learn/databases/relational-fundamentals/mvcc-and-locking).
 
-```sql
-SELECT now() - pg_last_xact_replay_timestamp() AS replay_delay,
-       pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn();
-```
+## Read-your-writes without remote_apply
 
-Alert on time lag, because that is what users experience. A 10 MB lag on a 100 MB/s stream is 100 ms; a 10 MB lag on a stalled replica is forever.
+Back to the profile bug. Three options, in increasing engineering cost:
 
-## Read-your-writes without `remote_apply`
+**Route by session.** After a user writes, pin that user's reads to the primary for a window longer than p99 lag (say 5 seconds), tracked in the session or a cookie. Cheap and usually enough; when lag spikes past the window, the bug returns.
 
-Back to the profile bug. You have three options, in increasing order of engineering cost and decreasing order of user-visible weirdness.
-
-**Route by session.** After a user writes, pin that user's reads to the primary for a window (say 5 seconds) longer than the p99 lag. Store the pin in the session or a cookie. Cheap, and it handles the common case, but it is a guess: if lag spikes to 8 seconds the bug returns.
-
-**Route by LSN.** After the write, capture the primary's LSN and hand it back to the client (in a cookie or a response header). On the next read, choose a replica whose replay LSN is at least that far along, or fall back to the primary:
+**Route by LSN.** After the write, capture `pg_current_wal_lsn()` (or `pg_current_wal_insert_lsn()`) and return it to the client in a cookie or header. For the next read, pick a replica whose `pg_last_wal_replay_lsn()` is at least that far, or fall back to the primary:
 
 ```sql
--- After COMMIT, on the primary:
-SELECT pg_current_wal_lsn();            -- '0/9F3C1A20'
-
--- Before a read, on a candidate replica:
 SELECT pg_wal_lsn_diff(pg_last_wal_replay_lsn(), '0/9F3C1A20') >= 0 AS caught_up;
 ```
 
-This is exact rather than a guess. It costs one extra round trip per read (or a cached replica-position that a sidecar refreshes every few hundred milliseconds), and it composes naturally with the "monotonic reads" problem: a client that reads from replica A at LSN 100 and then replica B at LSN 90 sees time go backwards. Carry the highest LSN seen and never accept a replica behind it.
+This is exact rather than a guess. It costs a check per read (or a replica-position cache that a sidecar refreshes every few hundred milliseconds), and it also gives **monotonic reads**: carry the highest LSN the client has seen and never serve it from a replica behind that, so time never runs backwards between two replicas.
 
-**`remote_apply` to a designated replica.** The database enforces it; you pay on every write. Reasonable when writes are rare and reads are many, which is exactly the workload that justifies replicas in the first place.
+**`remote_apply` to a designated replica.** The database enforces it and every write pays for replay. Reasonable when writes are rare and reads many, which is the workload that justifies replicas in the first place.
 
-The wrong option is "read from the primary always", which is what most teams do after the first bug report and which means the replicas exist only for failover. If that is the intent, fine, but say so.
+"Always read from the primary" is what most teams do after the first bug report; it means the replicas exist only for failover. That can be the right decision, but say it out loud.
 
 ## Failover, promotion and split brain
 
-When the primary dies, a replica is **promoted** (`pg_ctl promote` or `SELECT pg_promote()`): it stops replaying, opens for writes, and starts a new timeline so that its history cannot be confused with the old primary's. Clients must be repointed, which is why production setups put a proxy or a DNS name in front (Patroni with HAProxy, RDS's endpoint, `pgbouncer` with a reconfigured target).
+When the primary dies, a replica is **promoted** (`pg_promote()`): it stops replaying, opens for writes and starts a new **timeline**, so its history cannot be confused with the old primary's. Clients are repointed through a proxy, a virtual IP or DNS.
 
-Three things go wrong here, and they are the heart of the interview follow-up.
+Three things go wrong, and they are the heart of the interview follow-up.
 
-**Data loss on async failover.** Any transaction acknowledged by the old primary but not yet received by the promoted replica is gone, and worse, if the old primary comes back it has rows the new primary never saw. With asynchronous replication this is an inherent property, not a bug; you bound it by promoting the most-caught-up replica and by keeping lag low. Only synchronous replication eliminates it.
+**Data loss on asynchronous failover.** Transactions acknowledged by the old primary but not received by the promoted replica are gone, and if the old primary returns it holds rows the new one never saw. Bound it by promoting the most caught-up replica (Patroni refuses to promote one more than `maximum_lag_on_failover`, 1 MB by default, behind) and keep lag low; only synchronous replication removes it.
 
-**Split brain.** The old primary was not dead, only unreachable from the monitor. Now two nodes accept writes and their histories diverge irrecoverably. Preventing this requires *fencing*: the old primary must be made unable to serve writes before the new one is promoted, by killing it, revoking its virtual IP, or having it stop itself when it loses its lease with a consensus store. Patroni uses etcd for exactly this: the primary holds a lease with a TTL and demotes itself if it cannot renew. The mechanism is [leader leases](/learn/system-design/distributed-systems/consensus-raft), and a failover system without one is a data corruption incident waiting for a network partition.
+**Split brain.** The old primary was not dead, only unreachable from the monitor. Two nodes accept writes, and their histories diverge irrecoverably. Preventing it requires **fencing**: the old primary must be unable to write before the new one is promoted. Patroni does it with a lease in a consensus store: the leader must renew a key in etcd every `loop_wait` (10 s) with a `ttl` of 30 s, and a leader that cannot renew demotes itself. The failover therefore takes roughly the TTL plus promotion time, around 30–60 seconds.
 
-**The old primary cannot rejoin.** After promotion the old primary's timeline has diverged. `pg_rewind` can bring it back as a replica by rolling back the divergent blocks using the new primary's WAL, but only if `wal_log_hints` or data checksums were enabled *before* the incident. Enable them on day one.
+```viz
+{"type": "system", "scenario": "leader-lease", "title": "A leader lease fences the old primary",
+ "caption": "The leader holds a lease with a time-to-live and must renew it before it expires. A leader cut off from the lease store cannot renew, stops accepting writes when its lease lapses, and only then may another node take the lease and be promoted. That ordering is what prevents two writable primaries."}
+```
+
+**The old primary cannot rejoin.** Its timeline has diverged. `pg_rewind` can turn it back into a replica by copying the blocks that changed after the divergence point, but only if data checksums or `wal_log_hints` were enabled *before* the incident; the lab cluster, left at defaults, has both off and could not be rewound. Enable them on day one.
 
 ```mermaid
 flowchart LR
-    M["Monitor (Patroni + etcd)"] -->|"lease expires"| P1["Old primary<br/>fenced: read-only or killed"]
+    M["Monitor (Patroni + etcd)"] -->|"lease expires"| P1["Old primary<br/>fenced: demoted or killed"]
     M -->|"promote most caught-up"| R1["Replica A<br/>new primary, timeline 2"]
     R2["Replica B"] -->|"re-point stream"| R1
     P1 -.->|"pg_rewind, rejoin as replica"| R1
     LB["Proxy / DNS"] -->|"writes"| R1
 ```
 
-Failover on a managed service (RDS Multi-AZ, Cloud SQL HA) is this same dance executed for you, typically in 30–120 seconds, during which writes fail. Your application's retry and idempotency behaviour decides whether that window is a blip or an incident; see [distributed transactions](/learn/system-design/distributed-systems/distributed-transactions) for why "retry the payment" is not a safe default.
+| Setup | Data lost on failover (RPO) | Time to recover writes (RTO) | Added commit latency |
+|---|---|---|---|
+| Async replica, manual failover | Whatever lag existed | Minutes to hours (a human) | None |
+| Async, Patroni | Up to `maximum_lag_on_failover` | About 30–60 s | None |
+| Sync, `ANY 1` of 2 standbys | Nothing acknowledged | About 30–60 s | One round trip plus a standby flush |
+| Sync with `remote_apply` | Nothing acknowledged, and readable on the standby | About 30–60 s | Plus replay time |
+
+Managed services (RDS Multi-AZ, Cloud SQL HA) run this dance for you, typically in one to two minutes during which writes fail. Your application's retries and idempotency decide whether that window is a blip or an incident; see [distributed transactions](/learn/system-design/distributed-systems/distributed-transactions).
 
 ## Replicas do not scale writes
 
-Every replica applies every write, so adding replicas adds read capacity and zero write capacity. A primary doing 5,000 writes/s means each replica also does 5,000 writes/s of replay, single-threaded in Postgres, on top of its reads. When write volume is the bottleneck, replication is the wrong tool and [partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding) is the next lesson. When read volume is the bottleneck, replicas are cheap, and the only hard part is the routing you have just read about; [database scaling](/learn/system-design/building-blocks/database-scaling) puts both in the context of a design interview, and [consistency models](/learn/system-design/building-blocks/consistency-models) names the guarantees precisely.
+Every replica applies every write. The lab's 4.8 MB/s of WAL is replayed by each replica, single-threaded, on top of its read load. Adding replicas adds read capacity and zero write capacity; when writes are the bottleneck the next lesson, [partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding), applies. [Database scaling](/learn/system-design/building-blocks/database-scaling) and [consistency models](/learn/system-design/building-blocks/consistency-models) put both in design-interview context.
+
+## Two more replica shapes
+
+**Cascading replicas** stream from another replica instead of the primary. Each walsender on the primary reads and sends the full WAL stream, 4.8 MB/s per replica at the lab's write rate, so ten replicas means 48 MB/s of outbound replication traffic from the busiest machine. A tree (primary to two regional replicas, each feeding its local read replicas) keeps the primary's cost constant, at the price of one extra hop of lag for the leaves and a single point of failure per branch.
+
+**Delayed replicas** apply WAL only after `recovery_min_apply_delay` (say one hour) has passed since each commit. They receive and flush immediately, so they are durable copies, but their visible state is an hour old. That hour is an undo window for the mistake no other replica protects you from: a `DELETE` without a `WHERE`, replicated everywhere within milliseconds. Pause replay on the delayed replica (`pg_wal_replay_pause()`), copy the lost rows out, and resume. It is cheaper than point-in-time recovery from backups, which must restore the base backup and replay every WAL segment since.
+
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| Users see their own write disappear after a redirect | Read routed to a replica before replay caught up | Session pinning or LSN routing; `remote_apply` for a designated replica |
+| Primary disk fills; `pg_wal` is huge | An inactive or slow replication slot retaining WAL (30 MB per 6 s in the lab) | Drop or fix the consumer; set `max_slot_wal_keep_size`; alert on retained WAL |
+| Replay lag grows steadily during peak and never recovers | Replay capacity below the WAL rate (single-threaded replay, smaller replica) | Replica at least as large as the primary; reduce WAL (fewer indexes, `wal_compression`) |
+| Replica queries fail with "conflict with recovery" | Replay removing versions the query needs, after `max_standby_streaming_delay` | Route long queries to a delayed or dedicated replica; `hot_standby_feedback` if primary bloat is acceptable |
+| All writes hang after a replica reboot | A single synchronous standby is unavailable | `ANY 1 (a, b, c)` with several candidates |
+| Two primaries after a network partition | Failover without fencing | A lease-based manager (Patroni with etcd), STONITH, or a managed service |
+
+## Interviewer follow-ups
+
+**"Lag is 0 bytes but the dashboard says the replica is 3 minutes behind. Who is right?"** Model answer: probably both: with no writes, byte lag is zero while `now() - pg_last_xact_replay_timestamp()` grows because the last commit is old; use the primary's `replay_lag`, which is only computed while WAL is flowing. Common wrong answer: "the replica is stuck".
+
+**"How would you guarantee read-your-writes with async replicas?"** Model answer: return the commit LSN to the client and serve its reads from a replica whose replay LSN is at least that, else the primary; carry the maximum for monotonic reads. Common wrong answer: "sleep 100 ms before reading".
+
+**"What happens to writes when your only synchronous standby dies?"** Model answer: they hang, because the primary will not downgrade durability; use `ANY 1` of several standbys. Common wrong answer: "Postgres falls back to async".
+
+**"How does Patroni prevent split brain?"** Model answer: the leader holds a lease in etcd with a TTL and demotes itself if it cannot renew; a replica is promoted only after the lease expires, so two leaders never overlap. Common wrong answer: "the monitor kills the old primary", which fails exactly when the monitor cannot reach it.
+
+## What mid-level engineers get wrong
+
+- **Treating replicas as write capacity.** Every replica replays every write.
+- **Alerting on byte lag only**, which is zero when idle and misleading during bursts.
+- **Configuring one synchronous standby** and turning a replica reboot into a write outage.
+- **Leaving slots unbounded** and learning about them from a full disk.
+- **Failing over without fencing** because "the old primary is definitely down".
+- **Skipping `wal_log_hints` or checksums**, making the old primary unrecoverable except by a full rebuild.
+
+## Exercise
+
+```exercise
+id: replay-lag-interpolation
+title: Turn replay lag in bytes into lag in seconds
+prompt: |
+  The primary records samples `[t_ms, lsn]` of its flushed WAL position
+  over time (times strictly increasing, LSNs never decreasing). A standby
+  reports that it has replayed up to `replay_lsn` at time `now_ms`.
+
+  Implement `replay_lag_ms(samples, replay_lsn, now_ms)` the way the
+  walsender estimates `replay_lag`:
+  - If `replay_lsn` is at least the last sample's LSN, the standby is
+    caught up: return 0.
+  - Otherwise find the first sample `i` whose LSN is at least
+    `replay_lsn`. If `i` is 0, the primary reached that position at or
+    before the first sample: use `t_0`.
+  - Otherwise interpolate between samples `i - 1` and `i`:
+    `t = t_(i-1) + (replay_lsn - lsn_(i-1)) * (t_i - t_(i-1)) / (lsn_i - lsn_(i-1))`.
+  - Return `now_ms - t`, rounded to the nearest integer.
+languages: [python, javascript]
+entry: replay_lag_ms
+starter:
+  python: |
+    def replay_lag_ms(samples, replay_lsn, now_ms):
+        return 0
+  javascript: |
+    function replay_lag_ms(samples, replay_lsn, now_ms) {
+      return 0;
+    }
+tests:
+  - args: [[[0, 0], [1000, 1000000], [2000, 2000000]], 1500000, 2000]
+    expected: 500
+    label: steady stream, halfway through a sample interval
+  - args: [[[0, 0], [1000, 1000000], [2000, 2000000]], 2000000, 2000]
+    expected: 0
+    label: caught up
+  - args: [[[0, 100], [1000, 100], [5000, 100]], 100, 9000]
+    expected: 0
+    label: idle primary, nothing to replay
+  - args: [[[0, 0], [100, 8000000], [1100, 8000000], [1200, 8100000]], 4000000, 1200]
+    expected: 1150
+    label: 4 MB behind after an old burst is over a second of lag
+  - args: [[[500, 1000], [1500, 2000]], 0, 2000]
+    expected: 1500
+    label: older than the first sample
+  - args: [[[0, 0], [1000, 500], [3000, 1500]], 500, 3000]
+    expected: 2000
+    hidden: true
+    label: exactly on a sample's LSN
+  - args: [[[0, 0], [3, 10]], 4, 3]
+    expected: 2
+    hidden: true
+    label: rounding a fractional result
+  - args: [[[0, 0], [1000, 1000], [2000, 1000], [3000, 3000]], 2000, 3500]
+    expected: 1000
+    hidden: true
+    label: flat stretch before the bracketing samples
+hints:
+  - "Scan for the first sample whose LSN is at least replay_lsn; the one before it gives the lower bracket."
+  - "Keep the interpolation in floating point and round only the final result."
+```
 
 ## Senior signals
 
-- You describe replication as **the WAL streamed and replayed**, and lag as a difference between LSNs, in bytes and in seconds.
-- You can state what each `synchronous_commit` level guarantees and that only `remote_apply` makes reads on the replica see the commit; you know a single synchronous standby makes writes hang when it dies, so you use `ANY n`.
-- You have a **read-your-writes** strategy (session pinning or LSN routing) and you say which one and why, instead of "read from the primary".
-- You know a forgotten **replication slot** fills the disk, and you set `max_slot_wal_keep_size`.
-- You name **fencing** as the requirement for safe failover and can explain how a lease in etcd provides it.
-- You say plainly that replicas do not scale writes, and you reach for sharding when they are the bottleneck.
+- You describe replication as the WAL streamed and replayed, and lag as a difference of LSNs, with the four positions (sent, write, flush, replay) telling you where the delay is.
+- You know how `replay_lag` becomes seconds (interpolated LSN and time samples) and why bytes and seconds disagree during bursts and idle periods.
+- You can do catch-up arithmetic from WAL rate and replay capacity, and size replicas so replay keeps up.
+- You state what each `synchronous_commit` level guarantees and costs, and use `ANY n` so one standby cannot stop writes.
+- You have a read-your-writes strategy (session pinning or LSN routing), not "read from the primary".
+- You bound slot retention, fence before promotion, and enable `wal_log_hints` or checksums before you need `pg_rewind`.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A user updates their display name, is redirected, and sees the old name; a refresh shows the new one. Which change fixes the bug with the least write-latency cost?
-  options: ["Switch to logical replication, which applies row changes more quickly", "Add more replicas so the read load, and therefore the lag, is spread out", "Set synchronous_commit = remote_apply globally so replicas see each commit", "Pin the user's reads to the primary briefly, or route them by write LSN"]
+    A user updates their display name, is redirected, and sees the old name; a refresh shows the new one. Which fix has the least cost on the write path?
+  options: ["Set synchronous_commit = remote_apply for every transaction", "Add replicas so that read load, and therefore lag, is spread out", "Switch to logical replication so that row changes apply faster", "Route the user's reads by their write LSN, or to the primary"]
   answer: 3
   explanation: >-
-    remote_apply fixes it but makes every commit wait for replay on the replica. Pinning the user's reads to the primary for a few seconds after a write, or routing reads by the LSN of their last write, is applied only to the user who just wrote, costing nothing on the write path. More replicas do not reduce lag; logical replication is slower to apply, not faster.
+    Routing by LSN (or pinning briefly to the primary) affects only the user who wrote and adds nothing to commits. remote_apply fixes it by making every commit wait for replay. More replicas do not reduce lag, and logical replication applies changes more slowly, not faster.
 - q: >-
-    pg_stat_replication shows a replica with flush_lag of 8 kB and replay_lag of 112 MB. What is happening?
-  options: ["WAL has arrived but replay is falling behind, e.g. blocked by a query", "The replication slot was invalidated, so the replica stopped receiving", "The network link to the replica is saturated, so WAL arrives in bursts", "The primary's disk is slow, so its WAL reaches the replica too late"]
-  answer: 0
-  explanation: >-
-    Flush lag is tiny, so the bytes arrived and were fsynced. Replay lag is the gap between having the WAL and applying it, which is a replica-side problem: a long query conflicting with replay, single-threaded replay on an undersized replica, or a burst of WAL. Network or primary disk problems would show as send or flush lag.
-- q: >-
-    You configure synchronous_standby_names = 'replica_a' with synchronous_commit = on, and replica_a crashes. What happens to writes on the primary?
-  options: ["They commit locally and queue in the slot for replica_a to replay", "They hang until replica_a returns or the setting is changed", "They fail at once with an error saying no standby is available", "They continue asynchronously until replica_a comes back online"]
+    pg_stat_replication shows almost nothing unflushed but 112 MB unreplayed. The primary writes 5 MB/s and the replica can replay 20 MB/s. What is happening, and how long until it catches up?
+  options: ["The network is saturated; it catches up once the link frees", "The WAL arrived but replay is behind; about 7.5 seconds", "The slot was invalidated; it cannot catch up without a rebuild", "The replica's disk is slow; about 22 seconds at the flush rate"]
   answer: 1
   explanation: >-
-    Postgres will not silently downgrade the durability you asked for; commits wait for a confirmation that cannot arrive, rather than failing or proceeding. This is why a single synchronous standby reduces write availability, and why production lists several candidates with ANY n so any one can confirm.
+    Flushed but not replayed means the bytes are on the replica and the startup process is behind. It gains 20 - 5 = 15 MB/s, so 112 MB takes about 7.5 s. If replay capacity were below the WAL rate, lag would grow without bound. Network or disk problems would show as unsent or unflushed bytes.
 - q: >-
-    During an unplanned failover, the monitor promotes a replica while the old primary is still running but partitioned from the monitor. What must happen before the promotion is safe?
-  options: ["All replication slots on the old primary must be dropped beforehand", "The old primary must first finish its checkpoint and flush all pages", "The old primary must be fenced, e.g. by losing the lease it holds", "Every replica must first reach the same LSN as the one being promoted"]
+    With the streaming client stopped, an inactive slot's retained WAL grew from 767 kB to 30 MB in 6 seconds. What is the danger, and the guard?
+  options: ["Commits slow down as the slot grows; add a second standby to share it", "The slot is dropped after a timeout; raise wal_keep_size to protect it", "WAL piles up until disk fills; cap it with max_slot_wal_keep_size", "Replicas stop streaming at once; restart the walsender to release it"]
   answer: 2
   explanation: >-
-    Two writable primaries produce divergent histories that cannot be merged, which is split brain. Fencing (kill it, revoke the VIP, or have it self-demote when it cannot renew its lease in etcd) guarantees at most one writer. Equal LSNs, checkpoints and slots are irrelevant to that safety condition.
+    A slot promises to keep WAL until its consumer confirms, and an absent consumer never does: at this rate about 18 GB an hour. Postgres never drops idle slots by itself. max_slot_wal_keep_size invalidates the slot past a limit, turning a disk-full outage into a rebuild of one consumer.
 - q: >-
-    A replication slot for a decommissioned analytics consumer was never dropped. What is the failure you should expect, and when?
-  options: ["Nothing much; Postgres drops slots that stay inactive for too long", "Commits slow steadily, since each one must be checked against the slot", "The primary keeps all WAL since the slot's LSN until its disk fills", "Replicas fall behind at once, since the stale slot blocks WAL streaming"]
+    You configure synchronous_standby_names = 'replica_a' with synchronous_commit = on, and replica_a reboots. What happens to writes on the primary?
+  options: ["They hang until replica_a returns or the setting is changed", "They fail at once with an error that no standby is available", "They continue asynchronously until replica_a reconnects", "They commit locally and queue in the slot for replica_a"]
+  answer: 0
+  explanation: >-
+    The primary will not acknowledge without the confirmation it was told to wait for, and it does not silently downgrade durability. That is why one synchronous standby reduces write availability, and why production lists several candidates with ANY 1 so any one of them can confirm.
+- q: >-
+    The replica is 4 MB behind the primary. In one case the primary is writing a steady 5 MB/s; in the other a 4 MB burst ended a second ago and nothing has been written since. Which statement about replay_lag is right?
+  options: ["Both are 0.8 seconds, because lag in seconds is bytes divided by write rate", "Neither can be known; replay_lag is only measured when the replica is idle", "Both are zero, because replay_lag only counts commits the primary has not sent", "About 0.8 seconds in the steady case and over a second after the burst"]
+  answer: 3
+  explanation: >-
+    replay_lag interpolates when the primary was at the replayed LSN from time-stamped samples. In the steady stream, 4 MB of WAL covered 0.8 seconds; after the burst, the primary passed that LSN more than a second ago, so the lag in time is larger even though the bytes are equal. That is why bytes and seconds are both worth watching.
+- q: >-
+    During a partition, the failover manager promotes a replica while the old primary is still running but cut off from the manager. What must be true for this to be safe?
+  options: ["Every replica must first reach the same LSN as the one being promoted", "The old primary must first finish its checkpoint and flush all dirty pages", "The old primary must have stopped accepting writes, e.g. its lease expired", "All replication slots on the old primary must be dropped before promotion"]
   answer: 2
   explanation: >-
-    A slot is a promise to retain WAL until the consumer confirms it, and an absent consumer never confirms. WAL accumulates silently, possibly for days or weeks, until the disk fills and the primary stops. Postgres does not garbage-collect idle slots; max_slot_wal_keep_size bounds the damage by invalidating the slot instead.
+    Two writable primaries create divergent histories that cannot be merged. Fencing guarantees at most one writer: with Patroni the leader demotes itself when it cannot renew its lease in etcd, and promotion waits until the lease has expired. LSN equality, checkpoints and slots do not prevent split brain.
 ```

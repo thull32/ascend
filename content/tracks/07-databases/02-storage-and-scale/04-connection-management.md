@@ -18,17 +18,35 @@ Connections are usually the first database resource to run out, and the arithmet
 
 ## What a Postgres connection costs
 
-Postgres uses a process per connection. When a client connects, the postmaster forks a backend process that serves that one client for its whole session. That design is robust (a crash in one backend cannot corrupt another's memory) and expensive in three ways.
+Postgres uses a process per connection. When a client connects, the postmaster forks a backend that serves that one client for its whole session. The design is robust (a crash in one backend cannot corrupt another's memory) and expensive in three measurable ways. All numbers below are from PostgreSQL 17 on a 32-core lab machine, with `pgbench` running on the same host.
 
-**Setting one up is slow relative to a query.** A new connection costs a TCP handshake, a TLS handshake, the startup message, a SCRAM authentication exchange of two more round trips, a `fork()`, and backend initialisation. In the same region that adds up to a few milliseconds, and across regions it is tens of milliseconds. A primary-key lookup takes a fraction of a millisecond. Opening a connection per request would make connection setup the dominant cost of most requests.
+**Setting one up is slow relative to a query.** A new connection costs a TCP handshake, optionally TLS, the startup message, authentication, a `fork()` and backend initialisation. With SCRAM-SHA-256 authentication the server and client each run 4,096 iterations of PBKDF2 (`scram_iterations`) by design, to make password guessing expensive.
 
-**Keeping one open costs memory.** Each backend has private memory: a few megabytes at rest, growing as it caches catalogue metadata, plus up to `work_mem` for *each* sort or hash node in whatever query it is running. Five hundred mostly idle connections can hold several gigabytes of RAM that would otherwise be page cache.
+| Path | New connection | Primary-key query on an open connection | One connection per query |
+|---|---|---|---|
+| Unix socket, `trust` | 1.68 ms | 0.144 ms | 2.52 ms per query, 397 per second |
+| TCP, SCRAM-SHA-256 | 4.72 ms | 0.159 ms | 5.55 ms per query, 180 per second |
 
-**Many active connections do not do more work.** A database with 16 cores can execute about 16 things at once. Past a small multiple of the core count, additional active connections add contention (for CPU, for locks, for buffer-pool latches) without adding throughput, so latency rises while throughput stays flat or falls. A widely quoted starting point, from the PostgreSQL wiki via the HikariCP documentation, is:
+A pooled connection served 6,944 queries a second from one client; connecting per query cut that to 180, **39 times fewer**, before adding any network distance. Across regions every handshake round trip is tens of milliseconds more.
+
+**Keeping one open costs memory.** A fresh backend's memory contexts totalled 1.3 MB and its private resident memory 1.5 MB. After one query that touched a table with 1,000 partitions, the contexts were 12 MB (8 MB of it the catalogue cache) and private memory 9.3 MB, and it stays that way until the connection closes. Add up to `work_mem` for each sort or hash node of whatever query is running. Five hundred long-lived connections can hold several gigabytes that would otherwise be page cache, which is one reason `max_lifetime` recycling exists.
+
+**Many active connections do not do more work.** Measured throughput of single-row updates as concurrency rises:
+
+| Active clients | Updates per second | Average latency | Little's law check: throughput × latency |
+|---|---|---|---|
+| 1 | 6,341 | 0.158 ms | 1.0 |
+| 4 | 24,295 | 0.165 ms | 4.0 |
+| 16 | 74,664 | 0.214 ms | 16.0 |
+| 32 | 130,825 | 0.245 ms | 32.1 |
+| 64 | 98,041 | 0.653 ms | 64.0 |
+| 90 | 81,878 | 1.099 ms | 90.0 |
+
+Throughput peaks near the core count and then **falls**: at 90 clients it is 37% below the peak while each update takes 4.5 times longer. Past the peak, extra backends only add contention for CPU, locks and buffer-pool latches. A widely quoted starting point for the number of *actively running* connections, from the PostgreSQL wiki via the HikariCP documentation, is:
 
 $$ \text{active connections} \approx 2 \times \text{cores} + \text{effective spindles} $$
 
-For a 16-core server on SSDs, that suggests somewhere around 32–40 connections actively running queries. Treat it as a starting point for measurement, not a law. The practical conclusion holds either way: if 400 requests want the database at once, it is better for 360 of them to wait in a queue *you* control, with a timeout and a metric, than inside Postgres, where they all slow each other down.
+Treat it as the first point on a curve like the one above, which you measure. The conclusion holds either way: if 400 requests want the database at once, it is better for 360 of them to wait in a queue *you* control, with a timeout and a metric, than inside Postgres, where they slow each other down. The last column is Little's law, derived in the sizing section, holding exactly on real measurements.
 
 That queue is the connection pool.
 
@@ -112,9 +130,14 @@ A pool of 20 is enormous for that load. At 100% utilisation it could sustain 20 
 
 That calculation also shows what really empties pools. It is rarely a traffic spike. It is `W`. If a missing index makes one of the five queries take 400 ms instead of 1 ms, that query alone needs 300 × 0.4 = 120 connections. The pool of 20 is exhausted in milliseconds and every endpoint that touches the database starts queueing, including ones that have nothing to do with the slow query. A pool is a bulkhead that turns one slow query into a site-wide latency problem unless you protect it with `statement_timeout`.
 
+```viz
+{"type": "system", "scenario": "bulkhead", "title": "A pool is a bulkhead",
+ "caption": "Each compartment has a fixed number of slots. When one kind of work slows down, it fills its own compartment and queues there instead of consuming capacity everyone shares. One pool per workload (API, batch, admin), each with its own timeout, keeps a slow report from starving the checkout path."}
+```
+
 The sizing procedure, then:
 
-1. Measure hold time per acquire at p50 and p99, not just the average.
+1. Measure hold time per acquire at p50 and p99, not only the average.
 2. Compute `λ × W` at peak, and multiply by a burst factor (2× is common) for variance.
 3. Divide across instances.
 4. Check the result against the database's budget, which is the next section.
@@ -209,6 +232,22 @@ PgBouncer is a small proxy that speaks the Postgres wire protocol. Applications 
 | `transaction` | One transaction, then returned | High: 2,000 clients can share 40 server connections | Anything that relies on session state between transactions |
 | `statement` | One statement | Highest | Multi-statement transactions are refused |
 
+### Under the hood: transaction pooling, traced
+
+Three clients share two server connections, S1 and S2, in transaction mode:
+
+| Time | Client A | Client B | Client C | S1 | S2 |
+|---|---|---|---|---|---|
+| t0 | `BEGIN` | | | A | free |
+| t1 | `UPDATE ...` | `BEGIN` | | A | B |
+| t2 | `COMMIT` | `SELECT ...` | `BEGIN`: waits, no free server | free, then C | B |
+| t3 | idle, holds no server | `COMMIT` | `SELECT ...` on S1 | C | free |
+| t4 | `SELECT 1` (autocommit): runs on S2 | | `COMMIT` | free | A, then free |
+
+Two things to notice. Client A ran its first transaction on S1 and its next statement on S2: any session state it set on S1 (a `SET`, an advisory lock, a prepared statement) is not there, and is visible to C, who inherited S1. And C waited at t2 even though A was about to finish: the wait is PgBouncer's queue, visible as `cl_waiting` in `SHOW POOLS`.
+
+The number of server connections needed is Little's law again, with server-side transaction time rather than client think time: 2,000 clients each running 5 transactions a second that spend 2 ms inside the database need 2,000 × 5 × 0.002 = 20 busy server connections on average, which is why a `default_pool_size` of 40 can serve them while 2,000 direct connections would sit mostly idle and hold memory.
+
 Transaction mode is the useful one and the one with sharp edges. Between your transactions, your next statement may run on a different server connection, so anything stored on the connection is gone or, worse, visible to another client:
 
 - `SET search_path` or `SET statement_timeout` at session level (use `SET LOCAL` inside the transaction, or set it per role with `ALTER ROLE`);
@@ -255,7 +294,7 @@ Every layer between the user and the disk needs a timeout, and inner layers must
 | `statement_timeout` | Postgres, per role or transaction | Runaway queries holding connections | 1–5 s for the API role; a separate role for batch work |
 | `lock_timeout` | Postgres | Waiting behind locks, especially during DDL | 1–2 s; lower in migrations |
 | `idle_in_transaction_session_timeout` | Postgres | Forgotten transactions pinning locks and vacuum | 10–60 s |
-| `query_wait_timeout` | PgBouncer | Clients queued for a server connection | Just above the application's acquire timeout |
+| `query_wait_timeout` | PgBouncer | Clients queued for a server connection | Slightly above the application's acquire timeout |
 | TCP keepalives | Driver or OS | Half-open connections after a failover or network partition | Detect within a minute |
 
 ```sql
@@ -291,14 +330,44 @@ Sixty-one idle connections are pool slack spread across instances: normal, but t
 
 From the application side, export pool metrics: current size, idle count and, most importantly, a histogram of acquire wait time. In this app, `db.get_postgres_connection_pool()` returns the underlying sqlx `PgPool`, whose `size()` and `num_idle()` can be sampled into a gauge. Acquire latency climbing from microseconds to milliseconds is the earliest warning you will get that `W` has grown somewhere, usually minutes before anything times out. The [network track](/learn/networking/networking-in-practice/connection-pooling-and-keep-alive) covers the same ideas for HTTP connection pools.
 
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| `FATAL: sorry, too many clients already` during a scale-out or deploy | Sum of pool maxima across instances, surge and other clients exceeds `max_connections` | Budget pools against the formula above; add PgBouncer; never raise `max_connections` as the first fix |
+| Every endpoint slows at once while CPU on the API tier is idle | Pool exhaustion: one slow query pattern raised `W`, so acquires queue; acquire-wait histogram climbs first | `statement_timeout` per role; fix the slow query; separate pools per workload |
+| Throughput falls as more workers are added | Active connections far above the core count; latency rises with no throughput gain (37% loss at 90 clients in the lab) | Cap active connections with a pool or PgBouncer; let requests queue outside Postgres |
+| `prepared statement "sqlx_s_3" does not exist` after adding PgBouncer | Named prepared statements are per server connection; transaction mode moves clients between them | PgBouncer 1.21+ with `max_prepared_statements`, or disable the driver's statement cache |
+| Latency spikes every 30 minutes on a quiet service | All connections created together are retired together by `max_lifetime` and re-established at once | Jittered lifetimes (HikariCP shortens each connection's lifetime by a random amount of up to 2.5%); stagger instance start times with pools that do not |
+| Queries keep running after clients gave up | Outer deadlines shorter than inner timeouts; no `statement_timeout` | Layer timeouts inside-out; `client_connection_check_interval` |
+
+## Interviewer follow-ups
+
+**"How big should the connection pool be?"** Model answer: measure hold time per acquire and peak acquire rate, apply Little's law with a burst factor, divide by instances, then check the sum against `max_connections` including deploy surge; keep total active connections near a small multiple of database cores. Common wrong answer: "as large as possible so requests never wait", which moves the queue into Postgres where it costs throughput.
+
+**"Why not open a connection per request?"** Model answer: setup is 1.7 ms on a local socket and 4.7 ms with TCP and SCRAM here against a 0.15 ms query, plus a fork and cold catalogue caches per connection; per-request connections cut throughput 39-fold in the lab. Common wrong answer: "connections are cheap in Postgres", which describes threads, not a process per connection.
+
+**"What breaks when you put PgBouncer in transaction mode in front of an existing app?"** Model answer: anything that relies on session state between transactions: session `SET`, session advisory locks, `LISTEN`, temporary tables, holdable cursors and, before 1.21, protocol-level prepared statements. Common wrong answer: "nothing, it is transparent", which is only true of session mode.
+
+**"The pool is exhausted. Is it too small?"** Model answer: usually not; check whether hold time rose (a slow query, a transaction held across a network call) before raising the size, because λ × W grew through W. Common wrong answer: "double the pool", which spreads the same slow query over more connections and more contention.
+
+## What mid-level engineers get wrong
+
+- **Sizing pools per instance without a global budget**, then discovering the limit during a deploy or autoscale event.
+- **Raising `max_connections` to fix connection errors**, trading refused connections for a slower database.
+- **Setting the acquire timeout longer than the request deadline**, so waiters pile up after clients have gone.
+- **Using session features behind a transaction-mode pooler**: session `SET`, advisory locks, `LISTEN`.
+- **Treating pool exhaustion as a capacity problem** instead of looking for the query whose hold time grew.
+- **Holding a transaction, and therefore a connection, across an HTTP call** to another service.
+
 ## Senior signals
 
 - You treat database connections as a budget with a written total, and you include rolling-deploy surge, workers, cron jobs and migrations in it.
 - You size pools with Little's law from measured hold times, and you know pool exhaustion is usually caused by `W` rising (a slow query), not by `λ`.
-- You prefer fewer active connections than you might expect (around a small multiple of database cores) and let the queue live in the pool where it can be timed out and measured.
+- You can put numbers on a connection: milliseconds to establish (more with SCRAM and TLS), megabytes of backend memory that grow with the catalogue it touches, and a throughput curve that falls past the core count.
+- You prefer fewer active connections than you might expect and let the queue live in the pool or PgBouncer, where it can be timed out and measured.
 - You know what transaction-mode PgBouncer breaks (session `SET`, session advisory locks, `LISTEN`, temp tables, and named prepared statements before 1.21) and how to work around each.
-- You layer timeouts so inner ones fire first, and you set `statement_timeout` and `idle_in_transaction_session_timeout` per role.
-- You can read this app's `connect_db` and say what each setting does, what the unset defaults are, and what you would change as traffic grows.
+- You layer timeouts so inner ones fire first, and you can read this app's `connect_db` and say what each setting does and what you would change as traffic grows.
 
 ## Check yourself
 
@@ -317,13 +386,13 @@ From the application side, export pool metrics: current size, idle count and, mo
     Little's law: acquires per second × hold time = 800 × 3 × 0.002 = 4.8. With a burst factor of 2 you might provision around 10 across all instances. If the hold time grows to 200 ms, the same load needs 480.
 - q: >-
     After moving behind PgBouncer in transaction mode, a Rust service using sqlx logs prepared statement "sqlx_s_4" does not exist. What is happening?
-  options: ["The driver's statement cache is too small and evicts statements early", "A migration that creates the service's prepared statements did not run", "PgBouncer rejects the extended query protocol, so every prepare fails", "A statement prepared on one server connection is run on a different one"]
+  options: ["The driver's statement cache is too small and evicts statements early", "A migration that creates the service's prepared statements did not run", "PgBouncer rejects the extended query protocol, so every prepare fails", "A statement prepared on one server connection runs on another"]
   answer: 3
   explanation: >-
     Named prepared statements are session state on a server connection. In transaction mode, consecutive transactions can land on different server connections, and the new one has never seen sqlx_s_4. A small cache would only cause re-preparing on the same connection, not this error. Fix it with max_prepared_statements on PgBouncer 1.21 and later, which tracks and re-prepares protocol-level statements, or by disabling the driver's statement cache.
 - q: >-
     Why is raising max_connections from 200 to 2,000 usually the wrong fix for too many clients errors?
-  options: ["Extra backends use memory and add contention, not throughput, so it just gets slow", "Postgres caps max_connections at 1,000, so the new value is silently ignored", "The superuser reservation grows with max_connections, so few slots are gained", "Changing it needs a restart, which is never acceptable for a busy production database"]
+  options: ["Extra backends use memory and add contention, not throughput, so it gets slow", "Postgres caps max_connections at 1,000, so the new value is silently ignored", "The superuser reservation grows with max_connections, so few slots are gained", "Changing it needs a restart, which is never acceptable for a busy production database"]
   answer: 0
   explanation: >-
     Connections are not free capacity. Each is a process with its own memory, and active connections beyond a small multiple of the core count compete for the same CPUs and locks, so the failure turns from refused connections into a slow database. A restart is a real cost but a schedulable one, not the reason. Queueing in a pool or PgBouncer, with timeouts, keeps the number of concurrently active queries near what the hardware can execute.
@@ -333,4 +402,10 @@ From the application side, export pool metrics: current size, idle count and, mo
   answer: 3
   explanation: >-
     Outer timeouts shorter than inner ones create work nobody wants. Requests keep waiting up to 10 seconds for a connection after their callers have gone, and slow queries run to completion with no one reading the results, so load stays high. The acquire timeout bounds waiting for a connection, not query runtime. It should sit well inside the request deadline, and statement_timeout should cancel queries whose callers cannot use the result.
+- q: >-
+    A serverless function opens a new Postgres connection over TCP with SCRAM for each request and runs one 0.16 ms query. Measured setup is about 4.7 ms. What is the most effective change?
+  options: ["Raise max_connections so that each function instance can keep its own connection", "Switch SCRAM for md5 authentication, which removes the cost of connecting", "Put a pooler such as PgBouncer or RDS Proxy between the functions and Postgres", "Cache query results in the function's memory so that fewer queries are needed"]
+  answer: 2
+  explanation: >-
+    Connection setup is about 30 times the query itself, so each request pays mostly for the fork, the handshake and authentication. A pooler keeps server connections open and hands them out per transaction, so the per-request cost becomes a cheap client connection to the pooler. More max_connections makes the database slower under concurrency, md5 is weaker and still pays for the fork and TCP setup, and a per-instance cache does not survive short-lived function instances.
 ```

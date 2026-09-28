@@ -10,4 +10,4 @@ This module works through the relational engine from the outside in. It starts w
 
 The second half is about correctness under concurrency. Transactions and the write-ahead log explain how the database can promise your commit survived a power cut. Isolation levels explain the anomalies that the default settings permit, including the write skew that has cost real companies real money. Multi-version concurrency control and locking explain how Postgres lets readers and writers coexist, why that leaves garbage for `VACUUM`, and how to build a job queue that does not serialise on a single row.
 
-Every lesson uses the Postgres dialect and shows the `EXPLAIN` output or the interleaved session transcript you would use to prove your reasoning to a colleague.
+Every lesson uses the Postgres dialect and shows real output measured on PostgreSQL 17: `EXPLAIN (ANALYZE, BUFFERS)` plans read node by node, B-tree and heap pages opened with `pageinspect`, the WAL records a commit writes, every isolation anomaly reproduced with two interleaved sessions, and `pg_locks` during a deadlock. That is the evidence you would use to prove your reasoning to a colleague.

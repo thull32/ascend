@@ -1,18 +1,18 @@
 ---
 slug: partitioning-and-sharding
 title: "Partitioning and sharding: splitting a table, then splitting a database"
-description: How Postgres partition pruning skips most of a table, how to choose a shard key you will not regret, and how to reshard, query across shards and move data without downtime when one database is no longer enough.
+description: What Postgres partition pruning actually buys (measured against a flat table), why retention is the real win, what thousands of partitions cost the planner, how to choose a shard key with hot-key arithmetic, what cross-shard queries cost at the tail, and a resharding plan with numbers.
 minutes: 32
 difficulty: hard
-tags: [partitioning, sharding, shard-key, partition-pruning, resharding, hot-keys, postgres]
+tags: [partitioning, sharding, shard-key, partition-pruning, resharding, hot-keys, postgres, citus, vitess]
 ---
-The `events` table has 4 billion rows and 1.2 TB on disk. Deleting last year's data takes nine hours and generates enough WAL to lag every replica. The primary is at 85% CPU during the afternoon peak, and adding another read replica does nothing because the bottleneck is writes. You have hit the two limits of one table on one machine, and they have two different fixes that are often confused.
+The `events` table has 4 billion rows and 1.2 TB on disk. Deleting last year's data takes nine hours and generates enough WAL to lag every replica. The primary is at 85% CPU during the afternoon peak, and adding another read replica does nothing, because the bottleneck is writes. You have hit the two limits of one table on one machine, and they have two different fixes that are often confused.
 
-**Partitioning** splits one table into pieces *inside* one database. The planner still sees one table, and the point is to let it skip pieces and to make maintenance (deletes, vacuums, index builds) operate on pieces. **Sharding** splits a dataset *across* databases. No planner sees the whole thing; your application (or a proxy) becomes the planner, and the point is to multiply write capacity and storage. Partitioning is a Tuesday-afternoon change. Sharding is a multi-quarter programme that changes how every query is written.
+**Partitioning** splits one table into pieces *inside* one database. The planner still sees one table; the point is to let it skip pieces and to let maintenance (deletes, vacuums, index builds) operate on pieces. **Sharding** splits a dataset *across* databases. No planner sees the whole thing; your application or a proxy becomes the planner, and the point is to multiply write capacity and storage. Partitioning is a Tuesday-afternoon change. Sharding is a multi-quarter programme that changes how every query is written. This lesson measures the first on PostgreSQL 17 with 2.4 million events in 24 monthly partitions against an identical flat table, and does the arithmetic for the second.
 
 ## Declarative partitioning in Postgres
 
-A partitioned table is a parent with no storage of its own and a set of child tables, each holding a disjoint slice defined by a partition key:
+A partitioned table is a parent with no storage and a set of child tables, each holding a disjoint slice of a partition key:
 
 ```sql
 CREATE TABLE events (
@@ -24,90 +24,118 @@ CREATE TABLE events (
     PRIMARY KEY (id, occurred_at)      -- the partition key must be in every unique constraint
 ) PARTITION BY RANGE (occurred_at);
 
-CREATE TABLE events_2026_08 PARTITION OF events
-    FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
-CREATE TABLE events_2026_09 PARTITION OF events
-    FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
+CREATE TABLE events_2026_08 PARTITION OF events FOR VALUES FROM ('2026-08-01') TO ('2026-09-01');
+CREATE TABLE events_2026_09 PARTITION OF events FOR VALUES FROM ('2026-09-01') TO ('2026-10-01');
 CREATE TABLE events_default PARTITION OF events DEFAULT;
-
-CREATE INDEX ON events (user_id, occurred_at);   -- created on every partition
+CREATE INDEX ON events (occurred_at);   -- created on every partition
 ```
 
-Three strategies exist. `RANGE` for time or ordered ids (the common case), `LIST` for a small set of discrete values (`region IN ('eu', 'us', 'apac')`), and `HASH` for spreading rows evenly when there is no natural range (`PARTITION BY HASH (user_id)` with `MODULUS 8, REMAINDER 0..7`). Only range partitioning gives you cheap time-based retention, which is the reason most partitioned tables exist.
+`RANGE` suits time and ordered ids, `LIST` a small set of values (`region IN ('eu', 'us')`), and `HASH` spreads rows evenly when there is no natural range (`MODULUS 8, REMAINDER 0..7`). Only range partitioning gives cheap time-based retention, which is why most partitioned tables exist.
 
-The primary-key rule in the DDL above is the first surprise. A unique index on a partitioned table must include the partition key, because uniqueness is enforced per partition and Postgres cannot check across them. If `id` alone must be unique, you enforce it in the application (an identity column is unique by construction) or accept the composite key.
-
-### Pruning is the payoff
-
-The planner removes partitions whose bounds cannot match the query's `WHERE` clause. That is the whole performance story: a query for one week reads one partition of 40 million rows instead of the parent's 4 billion.
-
-```sql
-EXPLAIN (ANALYZE, COSTS OFF)
-SELECT count(*) FROM events
-WHERE occurred_at >= '2026-09-20' AND occurred_at < '2026-09-27' AND kind = 'lesson_completed';
-```
+The primary-key rule is the first surprise. Uniqueness is enforced per partition, so a unique index must include the partition key. Trying anyway:
 
 ```text
-Aggregate (actual time=182.4..182.4 rows=1 loops=1)
-  ->  Index Scan using events_2026_09_user_id_occurred_at_idx on events_2026_09 events
-        (actual time=0.04..171.9 rows=93120 loops=1)
-        Index Cond: ((occurred_at >= '2026-09-20') AND (occurred_at < '2026-09-27'))
-        Filter: (kind = 'lesson_completed')
-        Rows Removed by Filter: 411208
-Planning Time: 0.38 ms
-Execution Time: 182.5 ms
+CREATE UNIQUE INDEX ON events (id);
+ERROR:  unique constraint on partitioned table must include all partitioning columns
+DETAIL:  UNIQUE constraint on table "events" lacks column "occurred_at" which is part of the partition key.
 ```
 
-Only `events_2026_09` appears. The other partitions were pruned at plan time. When the value is not known until execution (a parameter, a subquery, a nested-loop join), pruning happens at run time and shows up differently:
+If `id` alone must be unique, rely on the identity column's sequence or keep a separate lookup table.
+
+## Pruning, measured honestly
+
+The planner removes partitions whose bounds cannot match the `WHERE` clause. Measured on the lab tables, both with an index on `occurred_at`:
+
+| Query | Partitioned (24 partitions) | Flat table |
+|---|---|---|
+| One week, `occurred_at >= $1 AND occurred_at < $2` and a `kind` filter | Only `ev_2025_09` scanned; 320 buffers, 2.31 ms | Index range scan; 320 buffers, 2.26 ms |
+| `WHERE occurred_at::date = '2025-09-20'` | All 24 partitions sequentially scanned; 26,095 buffers, 140.7 ms | Sequential scan of the whole table |
+| Prepared statement with a generic plan | `Append` with `Subplans Removed: 23`; 2.8 ms | Index range scan |
+
+The first row is the honest headline: **for a query a good index already serves, pruning buys nothing measurable**. Both plans read the same 320 pages. Pruning is a coarse, free index on the partition key; its performance wins appear when the alternative is a scan (a query that must read a whole month reads one partition instead of the table) or when per-partition indexes are small enough to stay cached while one giant index would not.
+
+The second row is the classic mistake. `occurred_at::date` and `date_trunc('day', occurred_at)` are expressions, not the key, and the planner does not invert them, so every partition is scanned. Rewrite as a half-open range on the column.
+
+The third row is **run-time pruning**. When the bound is a parameter, a subquery or the outer side of a nested loop, the planner keeps all partitions in the plan and the executor removes them once values are known:
 
 ```text
-Append (actual time=...)
-  Subplans Removed: 22
-  ->  Index Scan using events_2026_09_... on events_2026_09 events_1 ...
+Aggregate (actual time=2.786..2.786 rows=1 loops=1)
+  ->  Append (actual time=0.030..2.187 rows=23261 loops=1)
+        Subplans Removed: 23
+        ->  Index Only Scan using ev_2025_09_occurred_at_idx on ev_2025_09 ev_1 ...
+              Index Cond: ((occurred_at >= $1) AND (occurred_at < ($1 + '7 days'::interval)))
 ```
 
-`Subplans Removed: 22` means 22 partitions were considered and eliminated once the parameter values were known. If you see neither a single partition nor `Subplans Removed`, and instead a long list of every partition being scanned, the query's predicate does not constrain the partition key, and partitioning bought you nothing for this query. The classic mistake is filtering on `date_trunc('day', occurred_at)` or `occurred_at::date`: a function of the key is not the key, and the planner cannot prune.
+If a plan lists every partition with neither pruning nor `Subplans Removed`, the predicate does not constrain the partition key and partitioning bought nothing for that query.
 
-Retention becomes metadata:
+## Under the hood: three moments when pruning can happen
 
-```sql
-ALTER TABLE events DETACH PARTITION events_2025_08 CONCURRENTLY;
-DROP TABLE events_2025_08;   -- milliseconds, and almost no WAL
-```
+Postgres's pruning code (`partprune.c`) turns the query's conditions on the partition key into **pruning steps**, and for range partitions each step is a binary search over the sorted array of partition bounds, so finding the matching partition among 1,000 takes about ten comparisons. The steps run at up to three moments, and the plan tells you which one did the work:
 
-That is the nine-hour delete reduced to a lock and an unlink. Compare a `DELETE ... WHERE occurred_at < '2025-09-01'` on an unpartitioned table: every row is marked dead, written to WAL, replicated, and then vacuumed, and the table does not shrink on disk afterwards.
+1. **Plan time**, when the values are constants: the pruned partitions never appear in the plan at all, as in the first row of the table above.
+2. **Executor start-up** ("initial pruning"), when values are known once the query starts but not when it is planned: parameters of a generic plan, and stable functions such as `now()`. `WHERE occurred_at > now() - interval '40 days'` on the lab table printed `Subplans Removed: 20` even under plain `EXPLAIN`, because `now()` cannot be folded at plan time (a cached plan may run tomorrow) but is fixed for the whole statement.
+3. **Per scan** ("exec pruning"), when values change during execution, such as the inner side of a nested loop joined on the partition key: each rescan re-runs the steps, and partitions skipped every time show `(never executed)`.
 
-### Costs of partitioning
+The practical rule: anything the planner can see as a constant, a parameter or a stable expression of the **key column itself** prunes; volatile functions (`random()`, `clock_timestamp()`) and expressions *of* the key do not.
 
-Each partition is a real table with real indexes, so planning time grows with the partition count (thousands of partitions are a problem; hundreds are fine). Queries that do not filter on the partition key touch every partition and are slightly *slower* than on the flat table because of the `Append`. Foreign keys referencing a partitioned table only became possible in Postgres 12. And **partition-wise joins** (`enable_partitionwise_join`) let two tables partitioned the same way join partition by partition, which is a large win for a fact table joined to a dimension table on the key, and irrelevant otherwise.
+## The real win: retention and maintenance
+
+Deleting one month from the flat table against dropping one partition, with WAL counted per transaction ID through `pg_walinspect`:
+
+| Operation | Time | WAL records | WAL bytes | Table afterwards |
+|---|---|---|---|---|
+| `DELETE FROM ev_flat WHERE occurred_at` in November (99,692 rows), right after a checkpoint | 37 ms here | 99,694 | 14 MB, 8.6 MB of it full-page images | 204 MB even after `VACUUM`: the space is reusable, not returned |
+| `ALTER TABLE ev DETACH PARTITION ev_2024_11; DROP TABLE ev_2024_11;` | about 10 ms | 91 | 14.6 KB | The partition's file is unlinked |
+
+At lab scale the delete is fast; the WAL column is what scales. One month of a 1.2 TB table is about 100 GB of heap: deleting it writes one record per row plus page images, every replica replays it, vacuum then scans it, and the file never shrinks. Dropping the partition writes a few catalogue records regardless of size. That is the nine-hour delete reduced to a lock and an unlink. Use `DETACH PARTITION ... CONCURRENTLY` (Postgres 14 and later) to avoid holding an `ACCESS EXCLUSIVE` lock on the parent while other queries run.
+
+Maintenance improves the same way: vacuum, `REINDEX` and `CLUSTER` run per partition, old partitions become all-visible and frozen once and stay that way, and a partition can be moved to cheaper storage or dropped without touching the rest.
+
+## What partitions cost the planner
+
+Each partition is a real table with real indexes, and the planner and each backend's catalogue cache pay per partition. Measured on tables with 10, 100 and 1,000 range partitions holding the same 100,000 rows:
+
+| Partitions | Pruned point query, planning | Unpruned query, planning (warm session) | Unpruned, first query in a new session | Unpruned execution |
+|---|---|---|---|---|
+| 10 | 0.03 ms | 0.05 ms | 1.8 ms | 1.9 ms |
+| 100 | 0.05 ms | 0.29 ms | 13.3 ms | 2.4 ms |
+| 1,000 | 0.04 ms | 9.0 ms | 130 ms | 10.0 ms |
+
+Since Postgres 12, pruning happens before per-partition planning, so pruned queries stay cheap at any count. Unpruned queries pay per partition, and the first query in a fresh session pays to load a catalogue entry for every partition: 130 ms at 1,000 partitions, and the backend's memory contexts grew from 1.3 MB to 12 MB. With short-lived connections and no pooler, that is paid on every connection, which ties this lesson to [connection management](/learn/databases/storage-and-scale/connection-management). Hundreds of partitions are fine; many thousands need every hot query to prune and a pooler in front.
 
 ## Sharding: when one database is not enough
 
-Sharding places disjoint subsets of rows on different database servers. Each shard is a complete Postgres with its own primary and replicas. Something between the application and the shards, a routing layer in your code or a proxy like Citus or Vitess, decides which shard a query goes to.
+Sharding places disjoint subsets of rows on different servers, each a complete Postgres with its own primary and replicas. A routing layer (your code, or Citus or Vitess) decides which shard serves a query.
 
 ```mermaid
 flowchart TB
     A["API service"] --> R["Router: shard = f(shard_key)"]
-    R --> S0["Shard 0<br/>primary + replicas<br/>tenants hash 0..N/4"]
+    R --> S0["Shard 0<br/>primary + replicas"]
     R --> S1["Shard 1"]
     R --> S2["Shard 2"]
     R --> S3["Shard 3"]
     D["Directory / config store<br/>(shard map)"] -.-> R
 ```
 
-Everything about sharding follows from one decision: the **shard key**, the column whose value decides which shard a row lives on. Every query that includes the key goes to one shard and is as fast as before. Every query that does not must go to *all* shards. You choose the key once, and changing it later means moving every row.
+Everything follows from the **shard key**. A query that includes it goes to one shard and is as fast as before; a query that does not must go to all of them. You choose the key once, and changing it means moving every row.
 
-### Choosing the shard key
+## Choosing the shard key, with hot-key arithmetic
 
-A good shard key has three properties, and the tension between them is the whole design problem.
+A good shard key has three properties that pull against each other.
 
-**High cardinality and even distribution.** Sharding by `country` gives you a US shard doing 60% of the traffic and a Liechtenstein shard doing nothing. Sharding by `user_id` gives millions of values that spread evenly. But even distribution of *rows* is not even distribution of *load*: a single enterprise tenant with 10,000 users and a hot dashboard is a **hot key**, and no hash function fixes that. The remedies are to split the hot tenant across shards by a secondary key, to give it a dedicated shard, or to serve its reads from a cache. Netflix-scale systems name the hot-key problem explicitly in design reviews because it is the failure that makes a sharded system slower than an unsharded one.
+**Even distribution of load, not only rows.** Tenant sizes in multi-tenant systems are heavy-tailed. Model 10,000 tenants whose load follows a Zipf distribution with exponent 1: tenant rank *r* carries a share of 1 / (*r* × H₁₀₀₀₀), where H₁₀₀₀₀ ≈ ln 10,000 + 0.577 ≈ 9.79.
 
-**Query locality.** Most queries should include the key. In a multi-tenant SaaS, `tenant_id` is the obvious key because almost every query is "for this tenant". In a social product, `user_id` works for the profile and timeline but not for "who viewed this post", and you may end up with the post data sharded by `post_id` and the timeline sharded by `user_id`, denormalised across both. That is normal; the [next module](/learn/databases/data-modeling-and-evolution/modelling-for-access-patterns) is about modelling from access patterns for exactly this reason.
+- The largest tenant carries 1 / 9.79 ≈ **10.2%** of all load; the second 5.1%; the top ten together 30%.
+- Hashed across 16 shards, each shard's fair share is 6.25%. The shard that receives the largest tenant carries about 10.2% + 89.8% / 16 ≈ **15.8%**, 2.5 times the average.
+- If a shard saturates at 10,000 writes a second, the fleet saturates when that one shard does: at about 63,000 total instead of 160,000.
 
-**Stability.** A user's key must not change. Sharding by `email` looks reasonable until a user changes their email and you must move their rows.
+No hash function fixes that: the tenant still lands on exactly one shard. The remedies are a **directory** that can place the big tenant on a dedicated shard, or splitting it by a secondary key (`tenant_id` plus `bucket = hash(user_id) % 8`), which divides its 10.2% into eight 1.3% pieces at the cost of eight-way fan-out for that tenant's cross-user queries.
 
-### Hash versus range
+**Query locality.** Most queries must include the key. In multi-tenant SaaS, `tenant_id` is the natural key because nearly every query is "for this tenant". In a social product, `user_id` serves profiles and timelines but not "who liked this post", so post data may be sharded by `post_id` and timelines by `user_id`, denormalised across both; [modelling for access patterns](/learn/databases/data-modeling-and-evolution/modelling-for-access-patterns) is about exactly this.
+
+**Stability.** A row's key must never change. Sharding by email looks reasonable until a user changes theirs and every row must move.
+
+## Hash versus range, and what moves when you add a shard
 
 ```viz
 {"type": "system", "scenario": "sharding-hash", "title": "Hash sharding",
@@ -119,101 +147,189 @@ A good shard key has three properties, and the tension between them is the whole
  "caption": "Contiguous key ranges live together, so range scans hit one or a few shards, and shards can be split at any boundary. Notice the cost: monotonically increasing keys (time, sequential ids) send every new write to the last shard."}
 ```
 
-| | Hash sharding | Range sharding |
+| | Hash sharding | Range sharding | Directory (lookup table) |
+|---|---|---|---|
+| Point lookup by key | One shard | One shard | One cached lookup, then one shard |
+| Range query on the key | All shards | One or a few | Depends on how ranges were assigned |
+| Sequential keys | Spread evenly | All writes hit the last shard | Spread by policy |
+| Adding a shard | `mod N`: most keys move; consistent hashing: about 1/N | Split one range | Move chosen tenants only |
+| Hot tenant | Stuck on its shard | Stuck on its shard | Can be moved or isolated |
+| Used by | Citus (hash, 32 shards by default), DynamoDB, Cassandra | HBase, CockroachDB, Spanner | Vitess vindexes, most in-house SaaS routers |
+
+Why `mod N` is dangerous: a key stays put when going from N to N + 1 shards only if `h mod N = h mod (N + 1)`, which holds for 1 / (N + 1) of hashes. From 4 to 5 shards, **80% of keys move**; from 16 to 17, 94%. Consistent hashing moves about 1 / (N + 1), 20% and 6% respectively, and [hashing at scale](/learn/data-structures/hashing/hashing-at-scale) builds it. The pragmatic alternative many teams choose is a **directory**, a small replicated table mapping each tenant to a shard, cached in the router: placement becomes explicit, a hot tenant can be moved by hand, and a reshard moves exactly the tenants you choose.
+
+## Cross-shard queries and the tail
+
+Any query without the shard key is a **scatter-gather**: send it to every shard, merge the results. Latency is the *slowest* shard's latency. If each shard answers within 10 ms 99% of the time, a query that waits for all 16 shards sees at least one slow answer with probability 1 − 0.99¹⁶ = **14.9%**; with 64 shards, 47%. The fan-out's median is close to a single shard's p99. `ORDER BY created_at DESC LIMIT 20` across 16 hash shards must fetch 20 rows from each (320) and discard 300, which is the exercise below.
+
+Three things are expensive across shards:
+
+- **Joins** between tables sharded on different keys. Co-locate them (shard `orders` and `order_lines` both by `customer_id`) or join in the application.
+- **Uniqueness on non-key columns.** "Email is unique" across users sharded by `user_id` needs a table sharded by email that maps to `user_id`, written in the same logical operation. The same **global secondary index** pattern serves lookups by email as two single-shard queries instead of a scatter.
+- **Transactions.** Each shard commits independently; atomicity across them needs two-phase commit or a saga ([distributed transactions](/learn/system-design/distributed-systems/distributed-transactions)). Design the key so the transactions you care about are single-shard, and make the rare cross-shard ones idempotent and retryable.
+
+## Resharding without downtime, with numbers
+
+You will reshard. Take 2 TB moving from 8 shards to 16, with the copy throttled to 50 MB/s so that replicas keep up:
+
+| Step | What happens | Duration for 2 TB |
 |---|---|---|
-| Point lookup by key | One shard | One shard |
-| Range query by key | All shards | One or few shards |
-| Sequential keys (time, autoincrement) | Spread evenly | All writes hit the last shard (hot tail) |
-| Adding a shard | Rehash: most keys move, unless consistent hashing | Split a range: only that range moves |
-| Used by | Citus (default), DynamoDB, Cassandra | Vitess (optional), HBase, CockroachDB, Spanner |
+| 1. Provision | New shards empty, schema applied | Hours of setup |
+| 2. Dual-write or tail the log | Writes go to old and new locations (application double-write), or the new side tails the old side's binlog or WAL (Vitess VReplication, Citus logical replication) | Starts before the copy, runs to cutover |
+| 3. Backfill | Copy history in primary-key chunks, throttled on replica lag | 2 × 10¹² B / 5 × 10⁷ B/s = 40,000 s, about 11 hours |
+| 4. Verify | Row counts and checksums per chunk (1 GB chunks: 2,000 comparisons); re-copy mismatches | Hours; the step teams skip |
+| 5. Cut over reads | One tenant or one percent at a time, watching errors | Days |
+| 6. Cut over writes | Stop writes to the old location; keep it for a rollback window | Minutes of write pause, or zero with a log-tailing tool |
+| 7. Clean up | Drop old data after the window | Weeks later |
 
-Naive hash sharding uses `hash(key) mod N`, and changing `N` from 4 to 5 moves 80% of the keys. **Consistent hashing** places shards and keys on a ring so that adding a shard moves only about `1/N` of the keys, at the cost of needing virtual nodes for balance; [hashing at scale](/learn/data-structures/hashing/hashing-at-scale) builds it up. The pragmatic alternative that many teams use is a **directory**: a small, replicated lookup table mapping each tenant to a shard, so the placement is explicit, hot tenants can be moved by hand, and "which shard" is a cached lookup rather than an arithmetic identity. Vitess's `vindex` and Citus's shard map are both directories with a hash as the default policy.
-
-## Cross-shard queries
-
-Any query without the shard key is a **scatter-gather**: send it to every shard, merge the results. `SELECT count(*) FROM orders WHERE status = 'pending'` becomes N queries plus a sum. Latency is the slowest shard's latency, so p99 gets worse as N grows, and a `LIMIT 20 ORDER BY created_at` must fetch 20 from each shard and merge, throwing away most of what it fetched.
-
-Three things you cannot do cheaply across shards:
-
-- **Joins** between tables sharded on different keys. Either co-locate them (shard `orders` and `order_items` both by `customer_id` so a join stays on one shard) or accept an application-level join.
-- **Unique constraints** on non-key columns. "Email must be unique" across a user table sharded by `user_id` needs a separate lookup table sharded by `email`, written in the same logical operation, which brings you to the next point.
-- **Transactions** spanning shards. Each shard commits independently; atomicity across them needs two-phase commit (slow, blocks on coordinator failure) or a saga with compensation. Both are covered in [distributed transactions](/learn/system-design/distributed-systems/distributed-transactions). The usual answer is to design the key so that the transactions you care about are single-shard, and to make the rare cross-shard ones idempotent and retryable rather than atomic.
-
-For "look up by a secondary attribute" queries, the standard pattern is a **global secondary index table**: a separate sharded table keyed by the secondary attribute that stores the primary shard key. Looking up by email is then two single-shard queries instead of a scatter to N.
-
-## Resharding without downtime
-
-You will reshard, either because you chose the key wrong or because N shards is no longer enough. The procedure is the same in both cases, and it is the same shape as the online migrations in [schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale):
-
-1. **Provision** the new shards (or the new layout) empty.
-2. **Double-write.** Every write goes to the old location and the new one, in that order, with the new write best-effort and logged on failure. Reads still come from the old.
-3. **Backfill** existing rows into the new layout in batches, keyed by primary key ranges, throttled to keep replication lag under a threshold. This can run for days.
-4. **Verify.** Compare row counts and checksums per key range; re-copy mismatches. This step is where you discover the writes the double-write missed.
-5. **Cut over reads**, one tenant or one percent of traffic at a time, watching error rates.
-6. **Cut over writes** and stop the double-write. Keep the old data for a rollback window, then drop it.
-
-Vitess automates this as `MoveTables` and `Reshard` using VReplication, which tails the binlog instead of double-writing from the application. Citus rebalances shards between nodes with `citus_rebalance_start()` using logical replication under the hood. Either way, the mechanism is: copy history, stream the tail, swap. The hardest part is step 4, and teams that skip it find out months later that 0.02% of rows exist only on the old shard.
-
-The generic mechanics of moving key ranges between nodes, including what a partition split looks like in a range-sharded system, are in [partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing).
+Vitess, built at YouTube to shard MySQL, automates this as `MoveTables` and `Reshard`; Citus moves shards with logical replication (`citus_rebalance_start()`). The mechanism is always: copy history, stream the tail, verify, swap. Step 4 is where you discover the writes the double-write missed; teams that skip it find out months later that 0.02% of rows exist only on the old shards. [Partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) covers the generic mechanics of moving key ranges.
 
 ## Before you shard
 
-Sharding is the last resort, not a badge of scale, and a senior engineer lists what comes before it:
+Sharding is the last resort, and a senior engineer lists what comes first:
 
-- Vertical scaling. A single modern Postgres primary handles tens of thousands of writes per second and several terabytes. The 96-core machine is cheaper than the sharding programme.
-- Partitioning, so that retention and maintenance stop being the problem.
-- Removing write load: batching, dropping unused indexes (each index is a write), moving append-only firehose data (events, logs) to a store built for it, as in [wide-column stores](/learn/databases/nosql-and-specialised/wide-column-stores).
-- Caching reads so that the primary spends its capacity on writes; see [caching layers](/learn/databases/data-modeling-and-evolution/caching-layers).
-- Splitting by *service* before splitting by *key*: moving the notification tables to their own database is a shard with a trivial router.
+- **Vertical scaling.** One modern Postgres primary on NVMe handles tens of thousands of durable commits a second with group commit (the lab measured 7,749 a second from 16 clients on a virtual disk) and several terabytes. The 96-core machine is cheaper than the sharding programme.
+- **Partitioning**, so retention and maintenance stop being the problem.
+- **Removing write load**: fewer indexes (six indexes made inserts 16 times slower in the [indexes lesson](/learn/databases/relational-fundamentals/indexes)), batching, moving firehose data to a store built for it.
+- **Caching reads** so the primary spends its capacity on writes.
+- **Splitting by service before splitting by key**: moving notification tables to their own database is a shard with a trivial router.
 
-When these are exhausted, shard by the key that most of your transactions already include, put a directory in front of the hash so you can move tenants, and plan the reshard before you need it. [Database scaling](/learn/system-design/building-blocks/database-scaling) frames this for the design interview, where the expected answer is not "shard it" but "here is what I would do first, and here is the key I would shard on when I must".
+When these are exhausted, shard by the key most transactions already include, put a directory in front so tenants can move, and plan the reshard before you need it. [Database scaling](/learn/system-design/building-blocks/database-scaling) frames this for the design interview.
+
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A partitioned query scans every partition | Predicate on an expression of the key (`::date`, `date_trunc`) or no key at all | Half-open ranges on the key; check for pruning or `Subplans Removed` |
+| New connections are slow and backend memory is high after adding partitions | Catalogue cache load for thousands of partitions on first use (130 ms at 1,000 unpruned) | Fewer, larger partitions; a pooler; make hot queries prune |
+| One shard at 90% CPU while the rest idle | A hot tenant; load is heavy-tailed even when rows are evenly hashed | Directory placement or a dedicated shard; split the tenant by a secondary key |
+| Fan-out endpoints have bad p99 while single-shard ones are fine | Scatter-gather waits for the slowest of N shards | Include the shard key; hedge requests; global secondary index tables |
+| Rows exist only on old shards after a reshard | Double-write failures and backfill races, never verified | Chunked checksums before cutover; log-based tailing instead of application double-writes |
+
+## Interviewer follow-ups
+
+**"Partitioning did not make our query faster. Why?"** Model answer: if an index already bounded the query, pruning reads the same pages (320 buffers both ways in the lab); partitioning's wins are retention by `DROP`, per-partition maintenance and scans that become partition-sized. Common wrong answer: "partitioning always speeds up queries".
+
+**"How would you choose between hash and range sharding?"** Model answer: by access pattern: range for range scans and time locality, accepting a hot tail for sequential keys; hash for even point-lookup load, accepting scatter-gather for ranges; a directory on top of either when tenants are heavy-tailed. Common wrong answer: "hash, because it is balanced", ignoring hot keys and range queries.
+
+**"Your largest tenant is 10% of traffic across 16 shards. What happens?"** Model answer: its shard carries about 2.5 times the average and caps fleet throughput; isolate it on its own shard via a directory or split it by a secondary key. Common wrong answer: "add more shards", which leaves the tenant on one shard.
+
+**"How do you move data between shards with no downtime?"** Model answer: copy history in throttled chunks while tailing or double-writing new changes, verify per-chunk checksums, cut reads over gradually, then writes, and keep the old copy for rollback. Common wrong answer: "take a maintenance window and dump/restore", which is hours of downtime at terabyte scale.
+
+## What mid-level engineers get wrong
+
+- **Proposing sharding for a retention problem** that partitioning solves with `DROP TABLE`.
+- **Filtering on a function of the partition key** and scanning every partition.
+- **Creating thousands of partitions** for one-day granularity over years, then paying for it on every new connection.
+- **Hashing tenants and assuming load is even.** Zipf-shaped tenants make one shard the bottleneck.
+- **Using `hash mod N`** and moving 80% of the data when adding one shard.
+- **Skipping verification** in a reshard.
+
+## Exercise
+
+A cross-shard `ORDER BY ... LIMIT` asks every shard for its own top rows and merges them. Implement the merge and count the waste.
+
+```exercise
+id: scatter-gather-top-k
+title: Merge per-shard results for ORDER BY ... LIMIT
+prompt: |
+  Each shard ran `ORDER BY created_at DESC, id DESC LIMIT k` and returned
+  its rows as `[created_at, id]` pairs, already sorted that way (a shard may
+  return fewer than `k` rows, or none).
+
+  Implement `global_top_k(shard_results, k)` returning
+  `{"ids": [...], "fetched": f, "discarded": d}`:
+  - `ids`: the ids of the global top `k` rows ordered by `created_at`
+    descending, ties broken by `id` descending (ids are strings, compared as
+    plain strings);
+  - `fetched`: how many rows the router received in total;
+  - `discarded`: how many of those were not returned.
+languages: [python, javascript]
+entry: global_top_k
+starter:
+  python: |
+    def global_top_k(shard_results, k):
+        return {"ids": [], "fetched": 0, "discarded": 0}
+  javascript: |
+    function global_top_k(shard_results, k) {
+      return { ids: [], fetched: 0, discarded: 0 };
+    }
+tests:
+  - args: [[[[50, "a1"], [40, "a2"]], [[45, "b1"], [10, "b2"]], [[60, "c1"], [5, "c2"]]], 2]
+    expected: {"ids": ["c1", "a1"], "fetched": 6, "discarded": 4}
+    label: three shards, top two
+  - args: [[[[10, "x"]], [[10, "y"]]], 1]
+    expected: {"ids": ["y"], "fetched": 2, "discarded": 1}
+    label: equal timestamps break ties by id
+  - args: [[[], [[3, "a"]], []], 5]
+    expected: {"ids": ["a"], "fetched": 1, "discarded": 0}
+    label: empty shards and a short result
+  - args: [[[[9, "a"], [7, "b"], [5, "c"]], [[8, "d"], [6, "e"], [4, "f"]]], 3]
+    expected: {"ids": ["a", "d", "b"], "fetched": 6, "discarded": 3}
+    label: interleaved shards
+  - args: [[[[5, "s0"]], [[5, "s1"]], [[5, "s2"]], [[5, "s3"]], [[4, "s4"]], [[4, "s5"]], [[4, "s6"]], [[4, "s7"]]], 3]
+    expected: {"ids": ["s3", "s2", "s1"], "fetched": 8, "discarded": 5}
+    hidden: true
+    label: eight shards with ties
+  - args: [[], 3]
+    expected: {"ids": [], "fetched": 0, "discarded": 0}
+    hidden: true
+    label: no shards at all
+  - args: [[[[100, "z"], [1, "y"]], [[99, "a"], [98, "b"]]], 4]
+    expected: {"ids": ["z", "a", "b", "y"], "fetched": 4, "discarded": 0}
+    hidden: true
+    label: k equals everything fetched
+hints:
+  - "Collect every row, sort by (created_at, id) descending, and keep the first k; a k-way heap merge is the efficient version of the same idea."
+  - "fetched is the sum of the shard list lengths; discarded is fetched minus the number of ids returned."
+```
 
 ## Senior signals
 
-- You distinguish **partitioning** (one database, planner prunes, cheap retention) from **sharding** (many databases, you are the planner) and you do not propose sharding for a retention problem.
-- You check `EXPLAIN` for pruning and you know a function of the partition key defeats it.
-- You pick a shard key from **access patterns**, name the hot-key risk, and put a directory in front of the hash so tenants can move.
-- You can list what breaks across shards (joins, uniqueness, transactions) and the pattern for each (co-location, index tables, single-shard design plus idempotent retries).
-- You describe resharding as double-write, backfill, verify, cut over, and you insist on the verify step.
-- You say what you would do **before** sharding, and it starts with a bigger machine.
+- You distinguish partitioning (one database, the planner prunes, retention by `DROP`) from sharding (many databases, you are the planner), and you do not propose sharding for a retention problem.
+- You are honest that pruning adds little over a good index, and you point at retention WAL (14 MB against 14.6 KB here) and maintenance as the real wins.
+- You know partition counts cost planning time and backend memory, especially on fresh connections.
+- You pick a shard key from access patterns, do the hot-key arithmetic for heavy-tailed tenants, and put a directory in front so tenants can move.
+- You know `mod N` moves most keys, fan-out inherits the slowest shard's latency, and cross-shard joins, uniqueness and transactions each need a named pattern.
+- You describe resharding as copy, tail, verify, cut over, with durations, and you insist on the verify step.
 
 ## Check yourself
 
 ```quiz
 - q: >-
     A 2 TB events table partitioned by month is queried with WHERE date_trunc('day', occurred_at) = '2026-09-20'. EXPLAIN shows every partition scanned. Why?
-  options: ["A default partition exists, which disables pruning for every query", "Pruning works only for equality on integer keys, not on timestamps", "The filter is on a function of the key, so it cannot be matched to bounds", "Pruning needs an index on occurred_at in every partition to find the bounds"]
+  options: ["A default partition exists, which switches pruning off for all queries", "Pruning works only for equality on integer keys, never on timestamps", "The filter is on an expression of the key, not on the key itself", "Pruning needs an index on occurred_at in every partition to find the bounds"]
   answer: 2
   explanation: >-
-    Pruning compares the predicate to partition bounds; date_trunc(occurred_at) is an expression, not the key, and the planner does not invert it. Rewrite as occurred_at >= '2026-09-20' AND occurred_at < '2026-09-21' and only one partition remains. Indexes and the default partition are irrelevant.
+    Pruning compares the predicate with partition bounds; an expression of the key is not the key, and the planner does not invert it. The lab's ::date version scanned all 24 partitions in 140 ms. Rewrite it as a half-open range on occurred_at and one partition remains. Indexes and default partitions do not affect pruning.
 - q: >-
-    A multi-tenant SaaS shards by tenant_id with hash(tenant_id) mod 8. One tenant is 30 times larger than any other and its shard is at 90% CPU while the rest idle. What is the right response?
-  options: ["Raise the modulus to 16 so the hot tenant's rows spread over more shards", "Give the hot tenant its own shard via a directory, or split its data further", "Switch to range sharding so the big tenant's rows are split by range", "Add read replicas to every shard so the extra load is spread evenly"]
+    After partitioning a table by month, a one-week query that already used an index on occurred_at is no faster. What does that tell you?
+  options: ["The partitions were created wrongly, so pruning did not apply", "Pruning skipped only what the index skipped: same pages read", "Postgres 17 disables pruning when a partitioned index is present", "Partitioned tables are always slower because of the Append node"]
   answer: 1
   explanation: >-
-    A hot key is not fixed by rehashing: the tenant still lands on exactly one shard, whatever the modulus. A directory lets you place that tenant explicitly, or split its data further by a secondary key. Range sharding on tenant_id has the same problem. Replicas help only if the load is reads, and even then only on the one hot shard.
+    The lab measured 320 buffers and about 2.3 ms either way: the index already bounded the scan to one week, so skipping other partitions saved nothing. Partitioning pays off for retention, per-partition maintenance and queries that would otherwise scan the whole table. The Append node's overhead is negligible when pruning leaves one partition.
 - q: >-
-    You need "email must be unique" on a users table sharded by user_id. What is the standard approach?
-  options: ["A unique index on email on each shard, since the shards never overlap", "Take a global advisory lock across all the shards around each user insert", "A table keyed by email that maps to user_id, written with the user row", "Route every user insert through one designated shard to serialise them"]
-  answer: 2
-  explanation: >-
-    Per-shard unique indexes only prevent duplicates within a shard; two shards can each hold the same email. A lookup table sharded by email, written together with the user row and checked before insert, makes the uniqueness check single-shard. Routing inserts through one shard recreates the bottleneck you sharded to remove; cross-shard locks are slow and fragile.
-- q: >-
-    During a reshard you double-write, backfill, and cut over reads. A month later 0.02% of rows are found only on the old shards. Which step was skipped or weak?
-  options: ["Provisioning the new shards with enough capacity before double-writing", "Throttling the backfill, which let replication lag grow on the old shards", "Dropping the old data too early, before the rollback window had ended", "Verification of counts and checksums per key range before cutover"]
-  answer: 3
-  explanation: >-
-    Double-writes fail occasionally (the new shard timed out, a deploy raced the backfill window), and the backfill may miss rows updated during copy. Only a systematic comparison finds them. Throttling slows the copy without losing rows, and the rows are still on the old shards, so they were not dropped. Skipping verification means the discrepancy is discovered by users, not by you.
-- q: >-
-    Which of these is a reason to partition rather than shard?
-  options: ["Deleting last year's data takes hours and bloats the table", "A single tenant dominates the load on the primary", "Total data has grown past what one machine can store", "The primary is CPU-bound on writes during the afternoon peak"]
+    You drop a month of data by DETACH PARTITION and DROP TABLE instead of DELETE. Why does this matter most on a large, replicated table?
+  options: ["DROP writes a few catalogue records instead of one WAL record per row", "DROP runs faster because it skips the foreign-key checks that DELETE runs", "DELETE cannot remove rows from a partitioned table without a full scan", "DROP returns disk space only after the next VACUUM FULL has completed"]
   answer: 0
   explanation: >-
-    Retention is the canonical partitioning win: detach and drop a partition instead of deleting rows. Write CPU and total storage beyond one machine are sharding problems (or vertical scaling first). A dominant tenant is a hot-key problem that partitioning does nothing for.
+    Deleting 99,692 rows wrote 99,694 WAL records and 14 MB of WAL that every replica replays, and the table did not shrink; the drop wrote 91 records and 14.6 KB. At 100 GB per month that is the difference between hours of WAL and an unlink. DROP returns space at once; DELETE only makes it reusable.
 - q: >-
-    A query with ORDER BY created_at DESC LIMIT 20 and no shard key runs against 16 hash shards. What does the router have to do?
-  options: ["Reject it, since ORDER BY with LIMIT cannot run across hash shards", "Send it only to the shard holding the most recently written rows", "Send it to one random shard, since hashing spreads the rows evenly", "Send it to all 16 shards, fetch 20 from each, merge, and keep 20"]
+    10,000 tenants have Zipf-distributed load and are hashed across 16 shards. The largest tenant carries about 10% of all traffic. What is the consequence?
+  options: ["Nothing, because hashing spreads tenants evenly across the 16 shards", "Every shard carries about 10% more than it would with uniform tenants", "The fleet needs 17 shards so that the largest tenant can be spread out", "Its shard carries about 2.5 times the average load and caps the fleet"]
   answer: 3
   explanation: >-
-    Hash sharding scatters time ranges across every shard, so the newest 20 rows can be anywhere. Correctness requires 20 from each shard (320 rows) and a merge, discarding 300. This is why hash sharding makes ORDER BY ... LIMIT expensive and why range sharding by time is sometimes preferred despite the hot-tail write problem.
+    Hashing spreads tenants, not load: the largest tenant's 10.2% lands on one shard on top of that shard's 5.6% share of everyone else, about 15.8% against a 6.25% average. The fleet saturates when that shard does. A directory to isolate the tenant, or splitting it by a secondary key, fixes it; more shards do not.
+- q: >-
+    Each of 16 shards answers within 10 ms 99% of the time. A query must wait for all 16. How often does it take longer than 10 ms?
+  options: ["About 1% of the time, the same as a single shard", "About 16% of the time, sixteen times the single-shard rate", "About 15% of the time, since 1 - 0.99^16 is 0.149", "About 50% of the time, since half the shards are always slow"]
+  answer: 2
+  explanation: >-
+    The query is slow if any shard is slow: 1 - 0.99^16 = 0.149. Adding the probabilities (16%) overcounts overlaps, and the single-shard rate ignores the fan-out. With 64 shards it is about 47%, which is why fan-out queries have poor tail latency and why hedged requests or avoiding fan-out matter.
+- q: >-
+    A router uses hash(key) mod 4 and a fifth shard is added. Roughly what fraction of keys must move, and what avoids it?
+  options: ["About 80%; consistent hashing or a directory moves about a fifth", "About 20%; only the keys that belong on the new shard have to move", "About 25%; each old shard hands a quarter of its keys to the new one", "None; keys keep their shard and only new keys go to the new shard"]
+  answer: 0
+  explanation: >-
+    A key stays only if h mod 4 equals h mod 5, which holds for 1 in 5 hashes, so 80% move. Consistent hashing moves about 1/5 of keys, and a directory moves exactly the tenants you choose. Leaving old keys in place would break lookups, since the router computes a different shard for them.
 ```

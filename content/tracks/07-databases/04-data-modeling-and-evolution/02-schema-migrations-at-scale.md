@@ -1,244 +1,462 @@
 ---
 slug: schema-migrations-at-scale
 title: "Schema migrations at scale: changing a table nobody can stop using"
-description: Why ALTER TABLE can take a site down, which Postgres DDL is metadata-only and which rewrites the table, and how expand/contract, batched backfills and lock timeouts turn a column change into boring deploys.
+description: The lock every common Postgres DDL takes and whether it rewrites the table, measured on PostgreSQL 17; the lock queue reproduced with three sessions and fixed with lock_timeout and retries; NOT VALID constraints, CREATE INDEX CONCURRENTLY and its INVALID leftovers; batched backfills timed with their WAL; and expand/contract with feature flags and dual-write verification.
 minutes: 24
 difficulty: hard
 tags: [migrations, ddl, expand-contract, zero-downtime, backfill, locking, postgres]
 ---
-At 14:02 an engineer ran a migration that added a `NOT NULL` column with a default to the `orders` table. In the staging database, with ten thousand rows, it took 40 ms. In production, with 400 million rows, it held an `ACCESS EXCLUSIVE` lock on `orders` for eleven minutes while it rewrote every row. During those eleven minutes every `SELECT` on `orders` queued behind the lock, the connection pool filled with waiting queries, the API returned 503s, and the checkout page was down. The migration had been code-reviewed and had passed CI.
+At 14:02 an engineer ran a migration that added `public_id uuid NOT NULL DEFAULT gen_random_uuid()` to the `orders` table. In staging, with ten thousand rows, it took 40 ms. In production, with 400 million rows, it held an `ACCESS EXCLUSIVE` lock on `orders` while it rewrote every row. Every `SELECT` on `orders` queued behind the lock, the connection pool filled with waiting queries, the API returned 503s, and checkout was down until the rewrite finished. The migration had been code-reviewed and had passed CI.
 
-Schema changes are the most dangerous routine operation in a database-backed system, because the same statement is free at small scale and catastrophic at large scale, and because the failure is not "the migration errors" but "everything else stops". This lesson is about the lock that causes that, the specific DDL statements that hold it for a long time, and the pattern that turns any change into a sequence of steps each of which is safe.
+The same statement with a constant default (`DEFAULT 0`) would have taken under a millisecond, because Postgres 11 and later store a constant default in the catalog instead of in every row. `gen_random_uuid()` is volatile: each row needs its own value, so the table is rewritten. On a lab table of 2 million orders (156 MB) the rewrite took 2.7 s and wrote 293 MB of WAL; scaled linearly to 400 million rows that is about nine minutes, before counting wider rows, more indexes and a cold cache.
 
-## The lock queue trap
+Schema changes are the most dangerous routine operation in a database-backed system: the same statement is free at small scale and an outage at large scale, and the failure is not "the migration errors" but "everything else stops". This lesson measures which lock each common DDL takes and whether it rewrites the table, reproduces the lock queue that turns a fast statement into an outage, and then builds the expand/contract sequence and the batched backfill that make any change boring. All measurements are PostgreSQL 17 on a lab `orders` table of 2 million rows (213 MB with two indexes) held in memory; production tables that do not fit in memory take proportionally longer to scan and rewrite.
 
-Every Postgres DDL statement on a table takes a lock on that table. Most `ALTER TABLE` forms take `ACCESS EXCLUSIVE`, the strongest level, which conflicts with every other lock including the `ACCESS SHARE` lock that a plain `SELECT` takes. That much is documented. The part that takes sites down is how the lock queue works.
+## The lock each DDL takes, measured
 
-Locks in Postgres are granted in order. If a transaction is holding `ACCESS SHARE` on `orders` (a long-running report, an open transaction someone forgot in a psql session, a slow query behind a replica), your `ALTER TABLE` waits for it. While the `ALTER` waits, every new `SELECT` on `orders` queues *behind the ALTER*, because granting the `ACCESS SHARE` to a newcomer while a stronger request is waiting would starve the writer. So a migration that is itself instantaneous can block all reads for as long as the transaction in front of it runs.
+The method is repeatable on any table: open a transaction, run the DDL, read your own locks from `pg_locks`, and compare `pg_relation_filenode` before and after. A new filenode means Postgres wrote a complete new copy of the table.
+
+```sql
+BEGIN;
+SELECT pg_relation_filenode('orders');          -- note it
+ALTER TABLE orders ADD COLUMN priority int NOT NULL DEFAULT 0;
+SELECT c.relname, l.mode FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+WHERE l.pid = pg_backend_pid() AND l.locktype = 'relation';
+SELECT pg_relation_filenode('orders');          -- changed means rewritten
+ROLLBACK;
+```
+
+| Statement | Lock on `orders` | Rewrite or scan | Time on 2M rows |
+|---|---|---|---|
+| `ADD COLUMN c text` (nullable) | `ACCESS EXCLUSIVE` | neither | 0.26 ms |
+| `ADD COLUMN c int NOT NULL DEFAULT 0` | `ACCESS EXCLUSIVE` | neither (Postgres 11+) | 0.57 ms |
+| `ADD COLUMN c timestamptz DEFAULT now()` | `ACCESS EXCLUSIVE` | neither: `now()` is stable, evaluated once | 0.39 ms |
+| `ADD COLUMN c timestamptz DEFAULT clock_timestamp()` | `ACCESS EXCLUSIVE`, plus both indexes | rewrite | 1.50 s |
+| `ADD COLUMN c uuid DEFAULT gen_random_uuid()` | `ACCESS EXCLUSIVE`, plus both indexes | rewrite | 2.73 s |
+| `ALTER COLUMN id TYPE bigint` (from `int`) | `ACCESS EXCLUSIVE`, plus both indexes | rewrite of heap and every index | 1.28 s |
+| `ALTER COLUMN status TYPE varchar(20)` (from `text`) | `ACCESS EXCLUSIVE` | rewrite | 1.32 s |
+| `ALTER COLUMN status TYPE varchar(40)` (from `varchar(20)`) | `ACCESS EXCLUSIVE` | neither | 0.26 ms |
+| `DROP COLUMN note` | `ACCESS EXCLUSIVE` | neither | 0.34 ms |
+| `RENAME COLUMN note TO gift_note` | `ACCESS EXCLUSIVE` | neither | 0.18 ms |
+| `ALTER COLUMN total_cents SET NOT NULL` | `ACCESS EXCLUSIVE` | full scan | 71 ms |
+| `ADD CONSTRAINT ... CHECK (total_cents >= 0)` | `ACCESS EXCLUSIVE` | full scan | 48 ms |
+| `ADD CONSTRAINT ... CHECK (...) NOT VALID` | `ACCESS EXCLUSIVE` | neither | 0.9 ms |
+| `VALIDATE CONSTRAINT` (the check) | `SHARE UPDATE EXCLUSIVE` | full scan | 46 ms |
+| `ADD FOREIGN KEY (customer_id) REFERENCES customers` | `SHARE ROW EXCLUSIVE` on both tables | full scan | 84 ms |
+| `ADD FOREIGN KEY ... NOT VALID` | `SHARE ROW EXCLUSIVE` on both tables | neither | 1.0 ms |
+| `VALIDATE CONSTRAINT` (the foreign key) | `SHARE UPDATE EXCLUSIVE`; `ROW SHARE` on `customers` | full scan | 80 ms |
+| `CREATE INDEX` | `SHARE` | build | 0.78–0.87 s |
+| `CREATE INDEX CONCURRENTLY` | `SHARE UPDATE EXCLUSIVE` | two passes plus waits | 0.90–0.92 s |
+
+Two things stand out. Almost every `ALTER TABLE` takes `ACCESS EXCLUSIVE`, even the 0.2 ms ones, so the lock level alone never tells you a statement is safe. And the dangerous rows are the rewrites and scans, whose time grows with the table while holding a lock that stops everything. The rewrites wrote about the table's size again: the `gen_random_uuid()` default wrote a new 203 MB heap and 293 MB of WAL, where the constant default wrote 27 KB of WAL.
+
+What each lock blocks is what matters to your users:
+
+| Lock | Blocks `SELECT` | Blocks `INSERT`/`UPDATE`/`DELETE` | Also conflicts with |
+|---|---|---|---|
+| `ACCESS EXCLUSIVE` | yes | yes | everything |
+| `SHARE ROW EXCLUSIVE` | no | yes | itself, `SHARE`, `SHARE UPDATE EXCLUSIVE` |
+| `SHARE` | no | yes | `SHARE UPDATE EXCLUSIVE`; not itself |
+| `SHARE UPDATE EXCLUSIVE` | no | no | itself (vacuum, analyze, other concurrent builds), `SHARE` |
+
+## Under the hood: why some changes are catalog-only
+
+A heap tuple's header records how many attributes it stores (`t_natts`). When Postgres reads attribute number *n* from a tuple that stores fewer, it does not fail; it returns a default. Before version 11 that default was always NULL, which is why adding a nullable column has always been free and adding a column with a default meant rewriting every row.
+
+Since Postgres 11, a non-volatile default is evaluated once at `ALTER` time and stored in `pg_attribute`: the lab showed `atthasmissing = t` and `attmissingval = {0}` for the new `priority` column. Old tuples keep their shorter layout and read the missing value; a row that is later updated stores it physically; a future rewrite materialises it for all rows. `now()` counts as non-volatile here (it is `STABLE`, constant within a transaction), so every existing row gets the same timestamp, the moment of the `ALTER`. That is catalog-only and probably not what you meant; `clock_timestamp()`, `random()` and `gen_random_uuid()` are `VOLATILE` and force a rewrite.
+
+`DROP COLUMN` is the same trick in reverse: the lab's column 6 became `........pg.dropped.6........` with `attisdropped = t`. The bytes stay in every old tuple until the table is rewritten, and the dropped column still counts toward the 1,600-column limit.
+
+A rewrite (`clock_timestamp()` default, a type change that is not binary-compatible, `text` to `varchar(20)` because every value must be checked) builds a new relfilenode for the heap and every index while holding `ACCESS EXCLUSIVE`, then swaps them at commit. It needs free disk for a full second copy, and with `wal_level = replica` it streams the whole new copy through WAL to every replica. `SET NOT NULL` and a plain `CHECK` do not rewrite but scan every row under `ACCESS EXCLUSIVE`; the `NOT VALID` forms defer that scan to `VALIDATE`, which runs under `SHARE UPDATE EXCLUSIVE` and lets reads and writes continue.
+
+## The lock queue trap, reproduced
+
+The rewrites explain the opening incident. They do not explain why a 0.26 ms `ADD COLUMN` can also take a site down. The lock queue does.
+
+Postgres grants table locks in arrival order. A new request is granted only if it conflicts neither with the locks already held nor with the requests already waiting ahead of it; the second rule stops a stream of readers from starving a writer forever. So if anything holds even `ACCESS SHARE` on `orders` (a report in an open transaction, a psql session left in `BEGIN`), your `ALTER TABLE` waits, and every new `SELECT` queues behind the `ALTER`.
 
 ```mermaid
 sequenceDiagram
   participant R as Report (open txn)
   participant M as Migration
   participant A as App queries
-  R->>DB: SELECT ... (ACCESS SHARE, holds 4 min)
+  R->>DB: SELECT ... (ACCESS SHARE, held)
   M->>DB: ALTER TABLE (needs ACCESS EXCLUSIVE, waits)
   A->>DB: SELECT ... (ACCESS SHARE, queues behind ALTER)
-  A->>DB: SELECT ... (queues)
+  A->>DB: UPDATE ... (queues)
   Note over A: pool exhausts, API returns 503
   R-->>DB: COMMIT
-  DB-->>M: lock granted, ALTER runs (5 ms)
+  DB-->>M: lock granted, ALTER runs (0.3 ms)
   DB-->>A: queued queries proceed
 ```
 
-The two defences are a lock timeout and a retry loop. Set `lock_timeout` so the migration gives up instead of queueing everyone, then retry with backoff until it gets in:
+The lab reproduced it with four `dblink` sessions: `a` ran `BEGIN` and a `SELECT` on `orders` and went idle; `b` sent the `ALTER TABLE ... ADD COLUMN`; then `c` sent a primary-key `SELECT` and `d` a one-row `UPDATE`. One second later:
 
-```sql
-SET lock_timeout = '2s';
-ALTER TABLE orders ADD COLUMN fulfilment_status text;
--- on "canceling statement due to lock timeout": wait, retry, up to N times
+```text
+   who    |        mode         | granted |        state        | wait_event | blocked_by
+ a report | AccessShareLock     | t       | idle in transaction | ClientRead |
+ b ALTER  | AccessExclusiveLock | f       | active              | relation   | {a}
+ c SELECT | AccessShareLock     | f       | active              | relation   | {b}
+ d UPDATE | RowExclusiveLock    | f       | active              | relation   | {b}
 ```
 
-Tools such as `pg_repack`, `strong_migrations` and most migration frameworks either do this for you or can be configured to. This app's migrations run through `sea-orm-migration` (see `migration/src/lib.rs`, which applies `m0001_identity` through `m0007_integrity` in order); the framework does not set a lock timeout by default, so on a large table you would wrap a raw `SET lock_timeout` statement around the DDL yourself.
+`pg_blocking_pids` names the culprit precisely: the reader and the writer are blocked by the migration, not by the report, and `ACCESS SHARE` is compatible with the report's own `ACCESS SHARE`. When `a` committed three seconds later, the `ALTER` ran and `c` and `d` completed; a one-row lookup had taken three seconds. With a real report holding its transaction for four minutes, that is four minutes of total outage for a statement that needs 0.3 ms.
 
-Also check what is in front of you before you start: `SELECT pid, state, xact_start, query FROM pg_stat_activity WHERE xact_start < now() - interval '1 minute'` shows the transactions that will make your DDL wait.
-
-## Fast DDL and slow DDL
-
-The lock is only half the problem. The other half is how long the statement holds it. Postgres DDL falls into two groups: statements that only touch the catalog and finish in milliseconds regardless of table size, and statements that rewrite or scan the whole table.
-
-| Statement | Cost | Why |
-|---|---|---|
-| `ADD COLUMN c text` (nullable, no default) | Catalog only | Existing rows are read as NULL for the missing column |
-| `ADD COLUMN c int NOT NULL DEFAULT 0` | Catalog only since Postgres 11 | The constant default is stored in the catalog and applied on read; before 11 this rewrote the table |
-| `ADD COLUMN c timestamptz DEFAULT now()` | Full rewrite | The default is volatile, so each row needs its own value written |
-| `DROP COLUMN c` | Catalog only | The column is marked dropped; space is reclaimed by later rewrites and vacuum |
-| `ALTER COLUMN c TYPE bigint` (from int) | Full rewrite plus index rebuild | Every value is converted and stored; all indexes on the column are rebuilt |
-| `ALTER COLUMN c TYPE varchar(200)` (from varchar(100)) | Catalog only | Widening a varchar needs no data change |
-| `ALTER COLUMN c SET NOT NULL` | Full scan under ACCESS EXCLUSIVE | Postgres must verify no NULL exists, unless a validated CHECK (c IS NOT NULL) already proves it (Postgres 12+) |
-| `ADD CONSTRAINT ... FOREIGN KEY` | Full scan of the referencing table | Validates every existing row |
-| `ADD CONSTRAINT ... NOT VALID` | Catalog only | New rows are checked; existing rows are not, until VALIDATE |
-| `VALIDATE CONSTRAINT` | Full scan under SHARE UPDATE EXCLUSIVE | Reads and writes continue during the scan |
-| `CREATE INDEX` | Full scan under SHARE | Blocks writes, not reads, for the whole build |
-| `CREATE INDEX CONCURRENTLY` | Two full scans, weak lock | Reads and writes continue; roughly twice as slow |
-
-The `int` to `bigint` case is the one that catches teams who let an `id` column approach 2.1 billion. The rewrite of a large table can take hours and holds the strongest lock throughout. The zero-downtime version is to add a new `bigint` column, backfill it in batches, swap the primary key in a short transaction, and drop the old column, which is the expand/contract pattern below applied to a type change.
-
-### Constraints without the scan
-
-The `NOT VALID` two-step is the tool for adding constraints to a populated table:
+Before any DDL on a busy table, look for what is in front of you:
 
 ```sql
--- Instant: only new and updated rows are checked from now on.
-ALTER TABLE orders ADD CONSTRAINT orders_total_positive CHECK (total_cents >= 0) NOT VALID;
+SELECT pid, state, now() - xact_start AS open_for, left(query, 60)
+FROM pg_stat_activity
+WHERE xact_start < now() - interval '30 seconds' ORDER BY xact_start;
+```
 
--- Later, in its own transaction: scans the table, holds a lock that allows reads and writes.
+## lock_timeout and retry, measured
+
+The defence is to make the migration give up quickly instead of queueing everyone, and to retry until it finds a gap:
+
+```bash
+for attempt in $(seq 1 40); do
+  if psql -X -q -c "SET lock_timeout = '200ms'; ALTER TABLE orders ADD COLUMN fulfilment_status text"; then
+    echo "applied on attempt $attempt"; break
+  fi
+  sleep 0.3   # canceling statement due to lock timeout: let the queue drain, try again
+done
+```
+
+The lab ran four `pgbench` clients doing primary-key reads (about 36,000 per second) while a report held `ACCESS SHARE` for 4 s and the migration arrived half a second later. Per-second reader statistics from `pgbench --aggregate-interval=1`:
+
+| Second | Plain `ALTER`: reads, max latency | `lock_timeout = 200ms` + retry: reads, max latency |
+|---|---|---|
+| 1 | 11,657, 1.8 ms | 27,920, 2.0 ms |
+| 2 | 35,629, 1.5 ms | 28,255, 200 ms |
+| 3 | 6,302, 0.3 ms | 27,873, 201 ms |
+| 4 | **0** | 21,319, 200 ms |
+| 5 | **0** | 26,093, 200 ms |
+| 6 | 11,310, **3,504 ms** | 29,413, 200 ms |
+| 7 | 36,145, 2.0 ms | 35,991, 0.4 ms |
+
+Without a timeout, reads stopped completely for over two seconds and the unlucky ones waited 3.5 s. With it, the migration timed out six times, succeeded on the seventh attempt once the report committed, and no read waited more than 200 ms. Pick the timeout from your latency budget: every attempt can delay readers by up to its value.
+
+Two more guards belong in the same runbook: `statement_timeout` so a statement you believed was catalog-only cannot silently rewrite for ten minutes, and `idle_in_transaction_session_timeout` on application roles so forgotten sessions cannot hold locks for hours.
+
+## Constraints without the long lock
+
+The `NOT VALID` two-step adds a constraint to a populated table without a scan under `ACCESS EXCLUSIVE`:
+
+```sql
+-- 0.9 ms: new and updated rows are checked from now on; existing rows are not.
+ALTER TABLE orders ADD CONSTRAINT orders_total_positive CHECK (total_cents >= 0) NOT VALID;
+-- 46 ms here, under SHARE UPDATE EXCLUSIVE: reads and writes continue during the scan.
 ALTER TABLE orders VALIDATE CONSTRAINT orders_total_positive;
 ```
 
-The same trick gets you `NOT NULL` without a blocking scan on Postgres 12 and later: add `CHECK (c IS NOT NULL) NOT VALID`, validate it, then `ALTER COLUMN c SET NOT NULL` sees the validated check and skips its own scan, and you can drop the check afterwards.
+The same trick gives you `NOT NULL` without the blocking scan on Postgres 12 and later. Add `CHECK (total_cents IS NOT NULL) NOT VALID`, validate it, then `SET NOT NULL`. With `client_min_messages = debug1` Postgres says why the last step took 0.47 ms:
 
-### Indexes without blocking writes
+```text
+DEBUG:  existing constraints on column "orders.total_cents" are sufficient to prove that it does not contain nulls
+```
 
-`CREATE INDEX CONCURRENTLY` builds the index in two passes without taking a lock that blocks writes. Two things to know. It cannot run inside a transaction block, so a migration framework that wraps each migration in a transaction (many do by default) has to be told to run this one outside. And if it fails partway (a lock timeout, a deadlock, a unique violation for a unique index), it leaves behind an index marked `INVALID` that is maintained on every write but never used by the planner. Check `pg_index.indisvalid` after any concurrent build, and `DROP INDEX CONCURRENTLY` the broken one before retrying.
+Then drop the now-redundant check. Foreign keys follow the same pattern with one extra detail: both the plain and the `NOT VALID` form take `SHARE ROW EXCLUSIVE` on the referenced table as well, which blocks writes to `customers` for the (short) duration of the catalog change, and `VALIDATE` takes only `ROW SHARE` there.
+
+## Indexes: CREATE INDEX versus CONCURRENTLY
+
+`CREATE INDEX` takes `SHARE`: reads continue, every `INSERT`, `UPDATE` and `DELETE` waits for the whole build. `CREATE INDEX CONCURRENTLY` (CIC) takes `SHARE UPDATE EXCLUSIVE`, so writes continue. On the idle lab table CIC cost about 10% more (0.90 s against 0.82 s); under heavy writes its validation pass has more to do. Three behaviours catch teams out.
+
+**It cannot run in a transaction block.** `ERROR: CREATE INDEX CONCURRENTLY cannot run inside a transaction block`. A migration framework that wraps each migration in a transaction must be told not to for this one.
+
+**It waits for old transactions it has nothing to do with.** The lab opened a `REPEATABLE READ` transaction in another session that had only read `customers`, then started CIC on `orders`. After 3 s, `pg_stat_progress_create_index` showed `phase = waiting for old snapshots` with the build 19,999 of 20,000 blocks done, and `pg_blocking_pids` pointed at the unrelated session. An `UPDATE` on `orders` during the wait took 5.7 ms, so writes were fine, but the index did not finish until that transaction committed.
+
+**A failure leaves an INVALID index behind**, in one of two states:
+
+| How it failed | `indisvalid` | `indisready` | Size | Effect |
+|---|---|---|---|---|
+| Unique build hit a duplicate (`Key (customer_id)=(17094) is duplicated`) | false | false | 0 bytes | Harmless debris |
+| Cancelled while waiting for old snapshots (`lock_timeout = 2s`) | false | **true** | 65 MB | Maintained on every write, never used by the planner |
+
+The second is the expensive one. With it present, 200,000 inserts took 504 ms instead of 356 ms and the index grew by 1.3 MB, while `EXPLAIN` for a query it was built for still chose a sequential scan. Check after every concurrent build, then remove the debris without blocking writes, or rebuild it in place with `REINDEX INDEX CONCURRENTLY` (Postgres 12+):
+
+```sql
+SELECT indexrelid::regclass, indisvalid, indisready FROM pg_index WHERE NOT indisvalid;
+DROP INDEX CONCURRENTLY orders_status_placed_idx;   -- 8 ms here
+```
+
+## Under the hood: the phases of a concurrent build
+
+CIC trades one long lock for several short commits and waits, visible as `phase` in `pg_stat_progress_create_index`:
+
+1. Insert the index into the catalog as not ready and not valid, commit, and wait for every transaction that could write the table without knowing the index exists ("waiting for writers before build").
+2. Build the index from a snapshot of the table, mark it `indisready` so that every new write maintains it, commit, and wait for writers again.
+3. Validate: scan the index and the table again and insert the entries for rows written during the build ("index validation").
+4. Wait until every transaction in the database whose snapshot predates the validation has finished ("waiting for old snapshots"), because such a transaction could still see rows the index does not describe; then mark it `indisvalid`.
+
+The failure states follow. A duplicate found in step 2 fails before `indisready`; a cancel in step 4 leaves a ready index that writers maintain and the planner ignores. Step 4 is also why one long analytics transaction, anywhere in the database, can make a five-minute index build take an hour.
 
 ## Expand and contract
 
-Everything above makes a single statement safe. The harder problem is that most real schema changes are not one statement: they are "rename this column", "split this column into two", "move this data to another table", each of which requires the application and the schema to change together. You cannot deploy the application and the schema atomically, and with rolling deploys you cannot even guarantee that only one version of the application is running. So every change is made in phases where each phase is compatible with the versions of the code that are live at the time.
+Everything so far makes a single statement safe. Most real changes are several statements plus code: rename a column, split one into two, move data to another table. You cannot deploy the application and the schema atomically, and during a rolling deploy two versions of the code run at once. This app's API binary applies pending migrations when it boots (`crates/api/src/main.rs` calls `migration::Migrator::up` before serving), so the new schema is in place while old instances are still serving; every schema change must be compatible with the code already running.
 
-The pattern has a name, expand/contract (or parallel change), and a fixed shape:
+The pattern is expand/contract (parallel change). Take `users.name` holding "Ada Lovelace", which must become `first_name` and `last_name`:
 
-```mermaid
-flowchart LR
-  E["1. Expand: add new column, nullable"] --> W["2. Write both: code writes old and new"]
-  W --> B["3. Backfill: batch-copy old to new"]
-  B --> R["4. Read new: code reads new, verified against old"]
-  R --> C["5. Contract: stop writing old, drop it"]
-```
+| Phase | Migration | Code writes | Code reads | Safe to roll the code back to |
+|---|---|---|---|---|
+| 1. Expand | `ADD COLUMN first_name text, ADD COLUMN last_name text` (catalog-only) | `name` | `name` | the previous release |
+| 2. Write both | none | `name`, `first_name`, `last_name` in one statement | `name` | phase 1 code |
+| 3. Backfill | batched job, not a migration | same | `name` | phase 1 code |
+| 4. Read new | none | all three | `first_name`, `last_name` | phase 2 code |
+| 5. Contract | `DROP COLUMN name` (catalog-only), days later | the new columns | the new columns | phase 4 code only |
 
-Take a concrete case: `users.name` holds "Ada Lovelace" and you need `first_name` and `last_name`.
-
-**Deploy 1, expand.** Migration adds two nullable columns. Catalog-only, milliseconds.
-
-```sql
-ALTER TABLE users ADD COLUMN first_name text, ADD COLUMN last_name text;
-```
-
-Code is unchanged. Old code keeps working because the columns are nullable.
-
-**Deploy 2, write both.** Code writes `name`, `first_name` and `last_name` on every insert and update, and still reads `name`. At this point new rows are correct in both shapes; old rows have the new columns NULL. The reads have not changed, so nothing can break.
-
-**Backfill.** A job copies the old shape to the new for existing rows, in batches, outside of any deploy. The shape matters:
-
-```sql
--- Repeat until no rows updated. Track last_id in the job's state so a restart resumes.
-UPDATE users
-SET first_name = split_part(name, ' ', 1),
-    last_name  = nullif(substr(name, length(split_part(name, ' ', 1)) + 2), '')
-WHERE id IN (
-  SELECT id FROM users
-  WHERE id > $last_id AND first_name IS NULL
-  ORDER BY id
-  LIMIT 5000
-)
-RETURNING id;
--- sleep 50–200 ms between batches
-```
-
-Batches are keyed by primary key, not by `OFFSET`, so each batch is an index range scan rather than a scan that gets slower as it goes. Each batch is its own short transaction, so it never holds row locks for long and never produces a single enormous WAL burst that replicas struggle to apply. The sleep leaves headroom for production traffic and gives autovacuum a chance to keep up with the dead tuples the updates create. On a 400-million-row table at 5,000 rows per 100 ms, the backfill takes a little over two hours, which is fine because nothing is waiting on it.
-
-Note the `first_name IS NULL` predicate: rows written by the new code path since deploy 2 are already correct and are skipped, and a re-run of the job is harmless.
-
-**Deploy 3, read new.** Code reads `first_name` and `last_name`, still writes all three. Before shipping it, verify the backfill: `SELECT count(*) FROM users WHERE first_name IS NULL AND name IS NOT NULL` should be zero, and a sample comparison of the old and new shapes should agree.
-
-**Deploy 4, contract.** Code stops writing `name`. Once no live version touches the column, a migration drops it. Catalog-only.
-
-Four deploys and one background job instead of one `ALTER TABLE ... RENAME` that would have broken every running instance of the old code at the moment it ran. It is slower and it is boring, and boring is the point.
+Writing before reading means the backfill only covers rows older than phase 2, and rows written since are already right. Each phase ships as its own deploy so it can wait; the contract phase waits longest, because it is the one step that makes rollback impossible.
 
 ```viz
 {"type": "system", "scenario": "blue-green", "title": "Two application versions live during a rollout", "caption": "During a rolling deploy both the old and the new code run against the same schema at once. Every migration phase must be compatible with both versions that can be live at the moment it is applied."}
 ```
 
-## Dual writes and the ordering bug
+## Backfills in batches, measured
 
-Phase 2 above, "write both", has a trap when the two copies live in different stores, or when the copy is maintained by a separate code path. Consider a dual write of the `name` fields where the new columns are updated by a second `UPDATE` in the same request rather than in the same statement:
+The backfill copies old shape to new for existing rows. Its shape was measured on a 2-million-row `people` table (117 MB) with a stored procedure that commits after every batch:
 
-1. Request A sets `name = 'Ada L.'` and then, in a second statement, `first_name = 'Ada'`.
-2. Request B, concurrently, sets `name = 'Ada Lovelace'` and then `first_name = 'Ada'`, `last_name = 'Lovelace'`.
-3. Interleaving: A writes old, B writes old, B writes new, A writes new. Now `name` says "Ada Lovelace" and `last_name` says NULL. The copies disagree, and no single request did anything wrong.
+```sql
+CREATE PROCEDURE backfill_names(p_batch int) LANGUAGE plpgsql AS $$
+DECLARE last_id bigint := 0; max_id bigint;
+BEGIN
+  LOOP
+    SELECT max(id) INTO max_id
+      FROM (SELECT id FROM people WHERE id > last_id ORDER BY id LIMIT p_batch) s;
+    EXIT WHEN max_id IS NULL;
+    UPDATE people
+       SET first_name = split_part(name, ' ', 1),
+           last_name  = nullif(substr(name, length(split_part(name, ' ', 1)) + 2), '')
+     WHERE id > last_id AND id <= max_id AND first_name IS NULL;
+    COMMIT;                  -- releases the batch's row locks; makes progress durable
+    last_id := max_id;       -- persist this in a job table to resume after a crash
+  END LOOP;
+END $$;
+```
 
-Inside one database the fix is to write both shapes in the same statement or the same transaction with the row lock held, which makes the interleaving impossible. Across two databases there is no such fix; dual writes to two independent stores can always interleave, and the reliable pattern is to write one store and derive the other from its change stream. That is the argument for CDC over dual writes, and it applies exactly when the "migration" is moving data to a new system rather than a new column.
+Keyset batches (`id > last_id`) cost the same at the end as at the start. `OFFSET` does not: selecting 10,000 ids at `OFFSET 1990000` walked 2 million index entries (67 ms) against 63 buffers (0.77 ms) for `WHERE id > 1990000`, so an `OFFSET` backfill gets quadratically slower. The `first_name IS NULL` predicate skips rows the new code already wrote and makes a rerun harmless.
+
+Two `pgbench` clients meanwhile ran 200 single-row application updates per second on random rows:
+
+| Batch size | Batches | Time in batches | Per batch, p50 / max | WAL per batch | Longest app `UPDATE` |
+|---|---|---|---|---|---|
+| 1,000 | 2,000 | 10.7 s | 4.4 / 54 ms | 328 kB | 130 ms |
+| 10,000 | 200 | 4.9 s | 24 / 81 ms | 3.2 MB | 83 ms |
+| 100,000 | 20 | 4.0 s | 200 / 230 ms | 29 MB | 135 ms |
+| one `UPDATE` of all rows | 1 | 4.4 s | | 690 MB | **4,187 ms** (mean 1,193 ms) |
+
+Total WAL was 584–690 MB in every case, about 300 bytes per row (new heap tuple, new index entry, and full-page images: 159 MB of the 1,000-row run). The heap grew from 117 MB to 256–260 MB because each row got a new version and full pages left little room for HOT updates. Batch size does not change how much work there is; it changes how that work lands:
+
+- **Row locks.** Every updated row stays locked until its batch commits. The single statement made concurrent application updates wait a mean of 1.2 s and up to 4.2 s; batches of 10,000 capped the wait near 80 ms.
+- **WAL bursts.** A replica receives and replays each batch; logical decoding (CDC) emits a transaction's changes only when it commits, and spills to disk beyond `logical_decoding_work_mem` (64 MB by default), so the single `UPDATE` reached CDC consumers as 2 million events after seconds of silence. Sleep between batches to cap the rate, and pause when replica lag passes your threshold.
+- **Vacuum and restarts.** Dead versions from committed batches can be vacuumed while later batches run, and a crash loses one batch instead of all of it.
+
+The batch-size trade is plain in the table: 1,000-row batches spend more time on per-batch overhead, 100,000-row batches hold locks for 200 ms at a time. Batches of a few thousand to ten thousand rows, sized to stay under your latency budget, are the usual choice.
+
+## Verify before you switch reads
+
+The backfill ran; that does not make it right. The lab's names included one-word names and three-word names, and the split rule mishandles both in different ways:
+
+| `name` | `first_name` | `last_name` |
+|---|---|---|
+| `Ada Lovelace` | `Ada` | `Lovelace` |
+| `Prince` | `Prince` | NULL |
+| `Mary Ann Evans` | `Mary` | `Ann Evans` |
+
+Nothing errored. Before phase 4, count what the backfill did not cover (`WHERE first_name IS NULL AND name IS NOT NULL` must be zero) and compare the shapes: `WHERE first_name || coalesce(' ' || last_name, '') <> name` finds every row where the round trip loses information. Here it finds none, because the transform is reversible, but the `Mary Ann Evans` row shows that "reversible" and "correct" are different questions, which only the product can answer. Verification is how you find that before users do.
+
+Shadow reads make the check continuous. Ship the read path behind a flag that reads both shapes, serves the old one, and increments a counter when they disagree; watch it at zero for a day, then switch.
+
+## Dual writes and feature flags for data
+
+Phase 2 has a trap when the two shapes are written by separate statements. If request A writes `name = 'Ada L.'` and then `first_name`, and request B interleaves its own two writes between them, the columns end up describing different names with no request at fault. Inside one database, write both shapes in one statement or one transaction holding the row lock, and the interleaving is impossible. Across two stores (a new search index, a new database) no such lock exists, and dual writes can always interleave; the reliable pattern is to write one store and derive the other from its change stream.
 
 ```viz
 {"type": "system", "scenario": "cdc", "title": "Migrating to a new store by replaying the change log", "caption": "The old store stays the source of truth. A connector tails its WAL and replays every change into the new store, which catches up and then stays in sync without any dual-write race."}
 ```
 
-## Feature flags for data
+Phases 2 and 4 are code switches, and flags make them instant and reversible: a `write_both` flag and a `read_new` flag flipped per percentage of users, rolled back in seconds when the disagreement counter moves. The discipline is that data-migration flags are temporary; each gets an owner and a removal date, because thirty stale flags are worse than four extra deploys.
 
-Two of the deploys above can be collapsed into flags. A `write_both` flag turns on the dual write without a deploy, and a `read_new_path` flag switches the read. The advantage is that the switch is instant and reversible: if the new read path returns wrong data for 0.1% of users, you flip the flag back in seconds rather than rolling back a deploy. The discipline is that flags are temporary; a codebase with thirty stale data-migration flags is worse than one with four extra deploys. Each flag gets an owner and a removal date when it is created.
+```viz
+{"type": "system", "scenario": "canary", "title": "Switching the read path for a small share of traffic first", "caption": "The read_new flag routes a few per cent of requests to the new columns while the rest keep the old path; if errors or disagreements rise, the flag goes back in seconds, with no deploy."}
+```
 
-A useful variant for high-risk changes is shadow reading: the code reads both shapes, serves the old one, and logs a metric when they disagree. Ship deploy 3 with the shadow read on, watch the disagreement counter sit at zero for a day, then switch.
+## This app's migrations, read closely
 
-## Migration tooling and the transaction question
+Migration frameworks (Flyway, Alembic, Django migrations, SeaORM's migrator) give each migration a stable identity, record what was applied, and apply the rest in order. This app's `migration/src/lib.rs` states its conventions in its header: one migration per bounded context, append-only ("never edit a migration that has shipped; add a new one"), mutable tables with `created_at`/`updated_at` defaulted by the database while append-only tables (sessions, messages, quiz attempts, submissions) have only `created_at`, an explicit `ON DELETE` policy on every foreign key, and each index declared next to the columns it serves with a comment on its query pattern. `idx_comments_target` in `m0004_community.rs` carries "all comments on target X, oldest first"; the query has since changed to fetch the newest 500 and reverse them in memory, which the same `(target_kind, target_slug, created_at)` B-tree serves scanned backwards.
 
-Migration frameworks (Flyway, Alembic, Django migrations, SeaORM's migrator) do three useful things: they give each migration a stable identity, they record which ones have been applied in a table in the database, and they apply the pending ones in order. This app's `migration/src/lib.rs` declares the conventions worth copying: one migration per bounded context, append-only ("never edit a migration that has shipped; add a new one"), mutable tables get `created_at`/`updated_at` with database-side defaults while append-only tables (sessions, messages, quiz attempts, submissions) get only `created_at`, every foreign key declares an `ON DELETE` policy (rows a user owns privately cascade; shared comments survive with `SET NULL`), and each index is declared next to the columns it serves with a comment on the query pattern that needs it. The `idx_comments_target` index in `m0004_community.rs` carries exactly such a comment: "all comments on target X, oldest first". (The query has since changed to fetch the newest 500 and reverse them in memory; a B-tree on `(target_kind, target_slug, created_at)` serves that scanned backwards, so the index is still right even though its comment now describes the old query.)
+`m0006_ai_usage_cache_tokens.rs` shows the append-only rule: when cost reporting needed prompt-cache tokens, it added two `bigint NOT NULL DEFAULT 0` columns to `ai_usage` rather than editing `m0003_ai.rs`, which created the table and had shipped. Editing `m0003` would change nothing on databases that had applied it, so production and a fresh checkout would silently disagree. The constant default also keeps it catalog-only: the lab's equivalent `ADD COLUMN ... NOT NULL DEFAULT 0` wrote 27 KB of WAL.
 
-`m0006` shows the append-only rule in practice. When the AI budget needed to record prompt-cache tokens, `m0006_ai_usage_cache_tokens.rs` added two `bigint NOT NULL DEFAULT 0` columns to `ai_usage` with `ALTER TABLE`, instead of editing `m0003_ai.rs`, which created that table and had already shipped. Editing `m0003` would have changed nothing on any database that had already applied it, so production and a fresh checkout would silently disagree about the schema. A constant default also keeps the change catalog-only on Postgres 11 and later, so it is safe on a large table.
+`m0007_integrity` repairs existing data. It creates `activity_days` and backfills it with one `INSERT ... SELECT ... ON CONFLICT DO NOTHING` from `quiz_attempts`, `submissions` and `lesson_progress`, because streaks had been computed from `lesson_progress.updated_at`, which every update overwrote. It marks all but the newest active interview per user as abandoned and only then creates the partial unique index `uq_interviews_one_active_per_user` on `interviews (user_id) WHERE status = 'active'`: clean first, or the build fails on duplicates. And it makes `comments.user_id` nullable and replaces the cascading foreign key with `ON DELETE SET NULL`, so deleting an account no longer deletes other people's replies.
 
-`m0007_integrity` is a repair to data that already exists, which is what many later migrations turn out to be. It does three things. It creates an `activity_days` table and backfills it with one `INSERT ... SELECT ... ON CONFLICT DO NOTHING` from `quiz_attempts`, `submissions` and `lesson_progress`, because streaks had been computed from `lesson_progress.updated_at`, which every update overwrote, so earlier active days vanished. It marks all but the newest active interview per user as abandoned and only then creates the partial unique index `uq_interviews_one_active_per_user` on `interviews (user_id) WHERE status = 'active'`: clean the data first, or the index build fails on the duplicates. And it makes `comments.user_id` nullable and swaps its `ON DELETE CASCADE` foreign key for `ON DELETE SET NULL`, because deleting an account used to delete that user's comments and, through the `parent_id` cascade, other people's replies to them. SeaORM's migrator runs each migration in its own transaction on Postgres, so all of that commits or none of it does. At this app's size every statement takes milliseconds. On a table with a billion rows the same migration would need this lesson's techniques instead: the backfill would be a batched job, the index would be built `CONCURRENTLY` (which cannot run in that transaction, so the migration would opt out by returning `Some(false)` from `use_transaction()`), and the new foreign key would be added `NOT VALID` and validated separately.
+## What the framework does, and what it leaves to you
 
-What frameworks do not do is make a migration safe. A framework will happily run `ALTER COLUMN id TYPE bigint` on a billion rows. Three habits close the gap:
+In sea-orm-migration 2.0.3, `use_transaction()` defaults to `None`, which on Postgres means each migration runs in its own transaction, and the row recording it in `seaql_migrations` is inserted in that same transaction: a failed migration leaves no record and reruns cleanly. The framework sets no lock or statement timeout. At this app's size every statement in `m0007` takes milliseconds; on a billion-row table the same migration would put `SET LOCAL lock_timeout = '2s'` first (it applies to that migration's transaction only), run the backfill as a batched job, build the index `CONCURRENTLY` in a migration whose `use_transaction()` returns `Some(false)`, and add the foreign key `NOT VALID` with a separate `VALIDATE`. Because the API runs migrations on boot, a lock timeout fails the boot, and whatever restarts the process becomes the retry loop.
 
-- **Separate schema migrations from data migrations.** Schema changes are small, fast, transactional. Backfills are long, batched, resumable, and run as jobs, never as migrations that hold a transaction open for two hours.
-- **Know your framework's transaction behaviour.** Postgres supports transactional DDL, and many frameworks wrap each migration in a transaction so a failure rolls back cleanly. That is excellent for ordinary migrations and fatal for `CREATE INDEX CONCURRENTLY`, which refuses to run inside a transaction block. Every framework has a way to mark a migration non-transactional; use it only for that.
-- **Lint the DDL.** Tools such as `squawk` and `strong_migrations` flag the dangerous forms (volatile defaults, type changes, non-concurrent index builds, missing lock timeouts) in review, before they reach a large table.
+Linters close the rest of the gap: `squawk` and `strong_migrations` flag volatile defaults, type changes, non-concurrent index builds and missing timeouts in review. MySQL teams use `gh-ost` or `pt-online-schema-change`, which build a shadow table, copy rows in batches, keep it in sync from the binlog or triggers, and swap with an atomic rename; `pg_repack` does the same for rewriting a bloated Postgres table without the long lock.
 
-### MySQL, for contrast
+## Rollbacks and testing
 
-MySQL's InnoDB has grown online DDL for many operations, but the general-purpose answer for years has been an external tool: `gh-ost` (GitHub) and `pt-online-schema-change` (Percona). Both create a shadow copy of the table with the new schema, copy rows across in batches, keep the copy in sync (gh-ost by tailing the binary log, pt-osc with triggers), and finally swap the tables with an atomic rename. It is expand/contract implemented by a tool for the whole table at once. Postgres rarely needs this because its catalog-only DDL covers most cases, but `pg_repack` uses the same shadow-and-swap approach to rewrite a bloated table without the long lock.
+Down migrations are for development. This app's `down` for `m0004_community` drops the `comments` table, a correct inverse locally and data loss in production; the `down` for `m0007_integrity` must delete every comment whose author deleted their account before it can make `user_id` `NOT NULL` again. In production you roll forward, and expand/contract is designed so that rolling the code back one phase is always safe. Only the contract phase removes that option, so it waits until metrics show nothing reads the old column.
 
-## Rollbacks and forward-only thinking
+A migration not run against production-sized data has not been tested. Restore last night's snapshot to a scratch instance and time it there; that also finds the duplicate that fails the unique index. Then write the lock budget into the pull request: for each statement, the lock, rewrite or scan, expected duration, and what runs concurrently ("`ACCESS EXCLUSIVE`, catalog-only, under 10 ms, `lock_timeout` 2 s with retry"; "`SHARE UPDATE EXCLUSIVE`, full scan, about 3 minutes, reads and writes continue"). The [replication lesson](/learn/databases/storage-and-scale/replication) adds the last line: the backfill's WAL rate against replica apply, because replica lag during a backfill breaks read-your-writes for users who were never involved.
 
-Every migration framework offers a `down` migration, and every senior engineer knows when it is a lie. This app's `down` for `m0004_community` drops the `comments` table, which is a correct inverse in a development database and a data-loss event in production. The `down` for `m0007_integrity` is subtler: before it can make `comments.user_id` `NOT NULL` again it has to delete every comment whose author has deleted their account. Down migrations are for local development. In production, you roll forward: if deploy 3 reads the new columns and they are wrong, you fix the data or ship deploy 3a that reads the old ones again. The expand/contract phases are designed so that rolling back the *code* to the previous deploy is always safe, because the schema at every phase is compatible with the previous code version. That is the rollback that matters.
+## Failure modes
 
-The contract phase is the one place you lose the option. Once `name` is dropped, the old code cannot run. So the contract waits: a day, a week, until the metrics confirm nothing reads the old column, and it ships as its own deploy so that it can be delayed indefinitely without blocking anything else.
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| All queries on one table hang for minutes during a deploy although the migration is catalog-only | `pg_blocking_pids`: readers blocked by the `ALTER`, the `ALTER` blocked by an idle-in-transaction session | `lock_timeout` plus retry; `idle_in_transaction_session_timeout`; check `pg_stat_activity` first |
+| A "simple" column add holds `ACCESS EXCLUSIVE` for minutes; disk and WAL spike | Volatile default or non-binary-compatible type change: the relfilenode changed, the table was rewritten | Add the column nullable, backfill in batches, then set the default for new rows |
+| Writes slow down after a failed deploy and an index sits unused | `pg_index` shows `indisvalid = false, indisready = true`: a cancelled `CONCURRENTLY` build maintained on every write | `DROP INDEX CONCURRENTLY` and rebuild, or `REINDEX INDEX CONCURRENTLY` |
+| `CREATE INDEX CONCURRENTLY` sits at "waiting for old snapshots" for an hour | A long transaction elsewhere in the database holds an old snapshot | Find it in `pg_stat_activity`; build outside reporting windows; cap transaction age |
+| Application updates time out during a backfill; replicas lag | Batches too large: row locks held for seconds, WAL in bursts | Smaller keyset batches, sleeps, pause on replica lag |
+| Backfill slows down as it progresses | `OFFSET` pagination walks every skipped row | Keyset on the primary key |
+| New columns disagree with the old one after the switch | Dual writes in separate statements interleaved, or the transform is wrong for some rows | Write both in one statement; verify with a comparison query and shadow reads before switching |
 
-## Testing migrations before they matter
+## Trade-offs
 
-The staging database that ran the fatal migration in 40 ms had ten thousand rows. A migration that has not been run against production-sized data has not been tested. The practical approaches, from cheap to thorough:
+| Approach | Lock held | Total time | Extra disk | Complexity | Rollback |
+|---|---|---|---|---|---|
+| In-place `ALTER` that rewrites | `ACCESS EXCLUSIVE` for the whole rewrite | Shortest | A full copy of table and indexes | One statement | None mid-way; the rewrite restarts |
+| Expand/contract with a batched backfill | `ACCESS EXCLUSIVE` for milliseconds per step | Longest: several deploys | New columns only | Several deploys and a job | Code rolls back one phase at a time |
+| Shadow table and swap (`gh-ost`, `pg_repack`) | Brief lock at the swap | Hours on large tables | A full copy | A tool to operate | Abandon the shadow before the swap |
+| New store fed by CDC | None on the source | Snapshot plus catch-up | A second system | Highest | Keep the old store authoritative until cut-over |
 
-- **Check the plan.** `EXPLAIN` does not work on DDL, but `pg_stat_user_tables.n_live_tup` tells you the row count, and the table above tells you whether the statement rewrites it. Multiply.
-- **Restore a snapshot.** Most managed Postgres services can restore last night's backup to a throwaway instance in minutes. Run the migration there and time it. This also catches the `INVALID` index, the constraint violation on a row nobody knew existed, and the extension that is not installed.
-- **Lock-time budget.** For each DDL statement, state the expected lock level and duration in the pull request. A reviewer who sees "ACCESS EXCLUSIVE, catalog-only, under 10 ms" and "SHARE UPDATE EXCLUSIVE, full scan, about 3 minutes, reads and writes continue" can approve with confidence; a reviewer who sees nothing has to guess.
+## Interviewer follow-ups
 
-The bar at a top-tier company is that the migration plan is written down before the code is: which statements, which lock each takes, how long, what runs concurrently, what the rollback of each phase is, and how the backfill resumes if it is interrupted. The [replication lesson](/learn/databases/storage-and-scale/replication) adds one more line to that plan, because a large backfill is also a burst of WAL that every replica has to apply, and replication lag during a backfill is a common way to break read-your-writes for users who were not involved at all.
+**"The migration only adds a nullable column. Why did it cause an outage?"** Model answer: the statement is catalog-only but needs `ACCESS EXCLUSIVE`; it queued behind a long-running transaction, and lock requests are granted in order, so every later `SELECT` queued behind the waiting `ALTER`. `lock_timeout` with retries bounds the damage to the timeout. Common wrong answer: "adding a column rewrites the table", which is false for nullable columns and misses the queue.
+
+**"How do you add NOT NULL to a column on a 2 TB table?"** Model answer: add `CHECK (c IS NOT NULL) NOT VALID` (instant), `VALIDATE CONSTRAINT` under `SHARE UPDATE EXCLUSIVE` while traffic continues, then `SET NOT NULL`, which on Postgres 12+ uses the validated check and skips its scan, then drop the check; backfill nulls first. Common wrong answer: "`ALTER COLUMN SET NOT NULL` in a quiet hour", a full scan under `ACCESS EXCLUSIVE`.
+
+**"Your primary key is int and approaching 2.1 billion. What is the plan?"** Model answer: `ALTER COLUMN TYPE bigint` rewrites the heap and every index under `ACCESS EXCLUSIVE`, so add a `bigint` column, write both, backfill in keyset batches, build a unique index `CONCURRENTLY`, then swap the primary key to that index and rename the columns in one short transaction; referencing foreign keys follow the same path. Common wrong answer: "run the `ALTER` at night", when the lab rewrote 2 million rows in 1.3 s and the real table has a thousand times more.
+
+**"A CREATE INDEX CONCURRENTLY failed. What state is the database in?"** Model answer: an index marked `indisvalid = false` remains; if it failed after becoming ready it is maintained on every write while never used (inserts were 42% slower in the lab), so find it in `pg_index` and drop it concurrently before retrying. Common wrong answer: "it rolled back cleanly", which is what a transactional build does and a concurrent one cannot.
+
+**"How big should backfill batches be?"** Model answer: small enough that each batch's row locks and WAL burst fit the latency budget and replica apply rate (10,000 rows held locks for about 24 ms and wrote 3.2 MB here), large enough that per-batch overhead is small, keyed by primary key, committed per batch, resumable, and throttled on replica lag. Common wrong answer: "one `UPDATE`, it is faster", which here made application writes wait up to 4.2 s and shipped 690 MB of WAL in one transaction.
+
+## What mid-level engineers get wrong
+
+- **Reading the lock level as the risk.** A 0.2 ms rename and a nine-minute rewrite both take `ACCESS EXCLUSIVE`; duration and the queue decide the damage.
+- **Believing any default is free since Postgres 11.** Only non-volatile ones; `gen_random_uuid()` rewrites, and `now()` stamps every old row with the same time.
+- **Running DDL without `lock_timeout`** and discovering the idle transaction from the incident review.
+- **Wrapping `CREATE INDEX CONCURRENTLY` in the migration transaction**, or leaving an `INVALID` index behind after it fails.
+- **Backfilling in one statement**, or with `OFFSET`, from inside a migration.
+- **Switching reads without verification** because the backfill job reported success.
+- **Writing a down migration and calling it the rollback plan.**
+
+## Exercise: simulate the lock queue
+
+The outage in this lesson is a scheduling rule. Implement it and replay the incident, the `lock_timeout` fix and the difference between the two index builds.
+
+```exercise
+id: simulate-lock-queue
+title: Simulate Postgres's table-lock queue
+prompt: |
+  Implement `simulate_lock_queue(events)` for locks on one table. Each session
+  holds at most one lock. Modes and the modes each conflicts with:
+
+  - "ACCESS SHARE" (SELECT): ACCESS EXCLUSIVE
+  - "ROW EXCLUSIVE" (INSERT/UPDATE/DELETE): SHARE, ACCESS EXCLUSIVE
+  - "SHARE UPDATE EXCLUSIVE" (VACUUM, CREATE INDEX CONCURRENTLY):
+    SHARE UPDATE EXCLUSIVE, SHARE, ACCESS EXCLUSIVE
+  - "SHARE" (CREATE INDEX): ROW EXCLUSIVE, SHARE UPDATE EXCLUSIVE, ACCESS EXCLUSIVE
+  - "ACCESS EXCLUSIVE" (most ALTER TABLE): all five modes
+
+  Events:
+  - `["acquire", session, mode]`: granted at once only if the mode conflicts
+    with no granted lock and with no request already waiting; otherwise the
+    request joins the end of the wait queue.
+  - `["release", session]`: the session's granted lock is released, or, if it
+    is waiting (a lock timeout), its request is removed. Then walk the queue in
+    order: grant each waiter whose mode conflicts with no granted lock and with
+    no waiter ahead of it that is still waiting.
+
+  Return `{"granted": [...], "waiting": [...]}`: sessions in the order their
+  locks were granted, and the sessions still waiting, in queue order.
+languages: [python, javascript]
+entry: simulate_lock_queue
+starter:
+  python: |
+    def simulate_lock_queue(events):
+        return {"granted": [], "waiting": []}
+  javascript: |
+    function simulate_lock_queue(events) {
+      return { granted: [], waiting: [] };
+    }
+tests:
+  - args: [[["acquire", "report", "ACCESS SHARE"], ["acquire", "migration", "ACCESS EXCLUSIVE"], ["acquire", "reader", "ACCESS SHARE"], ["acquire", "writer", "ROW EXCLUSIVE"]]]
+    expected: {"granted": ["report"], "waiting": ["migration", "reader", "writer"]}
+    label: readers queue behind a waiting ALTER
+  - args: [[["acquire", "report", "ACCESS SHARE"], ["acquire", "migration", "ACCESS EXCLUSIVE"], ["acquire", "reader", "ACCESS SHARE"], ["acquire", "writer", "ROW EXCLUSIVE"], ["release", "report"], ["release", "migration"]]]
+    expected: {"granted": ["report", "migration", "reader", "writer"], "waiting": []}
+    label: the queue drains in order
+  - args: [[["acquire", "report", "ACCESS SHARE"], ["acquire", "migration", "ACCESS EXCLUSIVE"], ["acquire", "reader", "ACCESS SHARE"], ["release", "migration"]]]
+    expected: {"granted": ["report", "reader"], "waiting": []}
+    label: lock_timeout cancels the ALTER and frees the reader
+  - args: [[["acquire", "cic", "SHARE UPDATE EXCLUSIVE"], ["acquire", "writer", "ROW EXCLUSIVE"], ["acquire", "reader", "ACCESS SHARE"], ["acquire", "cic2", "SHARE UPDATE EXCLUSIVE"]]]
+    expected: {"granted": ["cic", "writer", "reader"], "waiting": ["cic2"]}
+    label: a concurrent build lets writes through
+  - args: [[["acquire", "build", "SHARE"], ["acquire", "w1", "ROW EXCLUSIVE"], ["acquire", "reader", "ACCESS SHARE"], ["acquire", "build2", "SHARE"]]]
+    expected: {"granted": ["build", "reader"], "waiting": ["w1", "build2"]}
+    hidden: true
+    label: a plain build blocks writers, and a waiting writer blocks a second build
+  - args: [[["acquire", "w1", "ROW EXCLUSIVE"], ["acquire", "idx", "SHARE"], ["acquire", "w2", "ROW EXCLUSIVE"], ["acquire", "q", "ACCESS SHARE"], ["release", "w1"]]]
+    expected: {"granted": ["w1", "q", "idx"], "waiting": ["w2"]}
+    hidden: true
+  - args: [[["acquire", "a", "SHARE UPDATE EXCLUSIVE"], ["acquire", "b", "ACCESS EXCLUSIVE"], ["acquire", "c", "SHARE UPDATE EXCLUSIVE"], ["acquire", "d", "ACCESS SHARE"], ["release", "b"]]]
+    expected: {"granted": ["a", "d"], "waiting": ["c"]}
+    hidden: true
+    label: a later compatible waiter passes a blocked one
+hints:
+  - "Keep an ordered map of granted session to mode and a list of [session, mode] waiters; write one helper that asks whether a mode conflicts with any mode in a list."
+  - "During the wake-up walk, collect the modes of waiters that stay blocked; a later waiter must not conflict with those either."
+```
 
 ## Senior signals
 
-- You explain why an instantaneous `ALTER TABLE` can still block every read (the lock queue behind a long transaction) and you set `lock_timeout` with a retry loop on any DDL against a busy table.
-- You classify DDL as catalog-only or full-rewrite before running it, and you know the version-dependent cases such as constant defaults since Postgres 11 and NOT NULL via a validated CHECK since 12.
-- You use `NOT VALID` plus `VALIDATE` for constraints and `CREATE INDEX CONCURRENTLY` outside a transaction, and you check for `INVALID` indexes afterwards.
-- You break any incompatible change into expand, write-both, backfill, read-new and contract, and you can say which code versions are live during each phase and why each phase is safe.
-- You write backfills as batched, primary-key-ranged, resumable jobs with sleeps, and you keep them out of the migration framework's transaction.
-- You treat down migrations as a development convenience and plan production rollbacks as forward fixes, with the contract phase deliberately delayed.
+- You can say, for each common DDL, the lock it takes and whether it is catalog-only, a scan or a rewrite, and you check a rewrite by the relfilenode instead of guessing.
+- You explain the lock queue (granted in order, new requests conflict with waiters too) and never run DDL on a busy table without `lock_timeout` and a retry loop.
+- You add constraints `NOT VALID` then `VALIDATE`, get `NOT NULL` through a validated check, build indexes `CONCURRENTLY` outside a transaction, and check `pg_index` for `INVALID` leftovers, knowing a ready invalid index still costs every write.
+- You break incompatible changes into expand, write-both, backfill, read-new and contract, and can say which code versions are live in each phase.
+- You size backfill batches by row-lock time, WAL burst and replica lag, key them by primary key, commit per batch, and verify the result before switching reads.
+- You treat down migrations as a development convenience and plan production rollback as rolling the code back one phase.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A migration runs ALTER TABLE orders ADD COLUMN note text (nullable, no default). It should take milliseconds, yet the API returns 503s for four minutes while it runs. What is the most likely cause?
-  options: ["The connection pool was too small to serve both the migration and the API traffic", "Postgres rewrote the whole table to add the column, holding its lock throughout", "Adding a text column writes an empty TOAST pointer into every existing row", "The ALTER queued behind a long transaction, and new reads queued behind the ALTER"]
-  answer: 3
-  explanation: >-
-    Adding a nullable column is catalog-only, so the statement itself is fast. The damage comes from lock queueing: the ALTER waits for ACCESS EXCLUSIVE behind an existing lock holder, and Postgres grants locks in order, so new readers wait behind the ALTER. A lock_timeout with retry prevents this.
-- q: >-
-    Which of these ALTER TABLE statements rewrites every row of a large table on Postgres 15?
-  options: ["ALTER COLUMN name TYPE varchar(500) from varchar(100)", "ADD COLUMN created timestamptz DEFAULT now()", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "DROP COLUMN legacy_flag"]
-  answer: 1
-  explanation: >-
-    A volatile default such as now() needs a distinct value per row, so the table is rewritten. A constant default is stored in the catalog since Postgres 11, DROP COLUMN only marks the column dropped, and widening a varchar needs no data change.
-- q: >-
-    CREATE INDEX CONCURRENTLY was interrupted by a lock timeout. What state is the database in?
-  options: ["An INVALID index remains, maintained on writes but unused; drop it, then retry", "No index exists, because the failed build rolled back cleanly; simply retry", "The table stays locked against writes until the unfinished index is dropped", "The index is complete but stays invisible to the planner until the next ANALYZE"]
+    A migration runs ALTER TABLE orders ADD COLUMN note text (nullable, no default). It should take milliseconds, yet reads on orders stop for four minutes. What is the most likely cause?
+  options: ["The ALTER waited behind an open transaction, and reads queued behind it", "Adding the column rewrote every row of the table under an exclusive lock", "Adding a text column writes an empty TOAST pointer into each existing row", "The connection pool was too small for the migration and the API together"]
   answer: 0
   explanation: >-
-    A failed concurrent build leaves an INVALID index behind. It costs write overhead and helps no query. Check pg_index.indisvalid and DROP INDEX CONCURRENTLY before retrying. The table is not locked.
+    Adding a nullable column is catalog-only. The ALTER needs ACCESS EXCLUSIVE, waits for an existing ACCESS SHARE holder, and because a new request must not conflict with waiting requests either, every later SELECT queues behind the ALTER. The lab showed readers blocked by the migration, not by the report. lock_timeout with retries capped reader latency at 200 ms.
 - q: >-
-    In expand/contract, why does the code start writing the new column (deploy 2) before it starts reading it (deploy 3)?
-  options: ["Reads cost more than writes, so the cheaper change should always ship first", "Reading first would force the column's migration and its backfill into a single deploy", "Postgres requires a column to hold data before any index can be built on it", "So rows written after deploy 2 are already right and only older rows need a backfill"]
-  answer: 3
-  explanation: >-
-    Writing both shapes first means the backfill only has to cover rows that predate deploy 2, and the read switch can be verified against a complete data set. Reading first would return NULLs for every row not yet backfilled.
-- q: >-
-    A backfill uses UPDATE ... WHERE id IN (SELECT id ... OFFSET $n LIMIT 5000) and gets slower with each batch. What is wrong?
-  options: ["The backfill should be one UPDATE over the whole table instead of many batches", "OFFSET makes Postgres read and discard every skipped row; range on id > $last_id", "The LIMIT of 5000 is too small, so per-batch overhead grows with the table", "Autovacuum is switched off while a backfill runs, so dead rows pile up per batch"]
+    Which of these statements rewrites the whole table on Postgres 17?
+  options: ["ADD COLUMN created timestamptz DEFAULT now()", "ADD COLUMN id2 uuid DEFAULT gen_random_uuid()", "ADD COLUMN status text NOT NULL DEFAULT 'new'", "ALTER COLUMN code TYPE varchar(40) from varchar(20)"]
   answer: 1
   explanation: >-
-    OFFSET pagination is O(n) per batch because the skipped rows are still read. Keyset pagination on the primary key turns each batch into an index range scan of constant cost. One giant UPDATE would hold locks and produce a huge WAL burst for hours.
+    gen_random_uuid() is volatile, so each row needs its own value and the table is rewritten (2.7 s and a new relfilenode in the lab). now() is stable, evaluated once and stored as the missing value, so every old row gets the same timestamp without a rewrite; constant defaults are catalog-only since Postgres 11; widening a varchar needs no data change.
 - q: >-
-    Two services each dual-write a user's name to Postgres and to Elasticsearch. Occasionally the two stores disagree even though every request wrote both. What is the sound fix?
-  options: ["Take a distributed lock around both writes so no other request interleaves", "Write only to Postgres and build the search document from CDC or an outbox table", "Add retries with backoff to the Elasticsearch write so that it always lands", "Write Elasticsearch first and Postgres second, so the search index never lags"]
+    CREATE INDEX CONCURRENTLY was cancelled by lock_timeout while in the waiting for old snapshots phase. What does pg_index show, and what does it cost?
+  options: ["Nothing: a failed concurrent build is rolled back like any transaction", "A valid index that the planner will use once ANALYZE has been run", "indisvalid false, indisready true: writes maintain it, queries skip it", "indisvalid false and indisready false: a harmless empty catalog entry"]
+  answer: 2
+  explanation: >-
+    By that phase the index was built and marked ready, so every insert and update maintains it (200,000 inserts went from 356 ms to 504 ms in the lab), but it was never marked valid, so the planner ignores it. A build that fails earlier, such as on a duplicate key, leaves an empty unready entry instead. Drop it concurrently or REINDEX CONCURRENTLY.
+- q: >-
+    You must add NOT NULL to a column of a 2 TB table on Postgres 17 without blocking traffic. Which sequence works?
+  options: ["SET NOT NULL directly, since Postgres 12 no longer scans for nulls", "Add CHECK (c IS NOT NULL) NOT VALID, VALIDATE it, then SET NOT NULL", "Add a NOT NULL column with a default, then drop the original column", "Create a unique index CONCURRENTLY on c, which rejects NULL values"]
   answer: 1
   explanation: >-
-    Dual writes to independent stores can interleave in any order, so no ordering of the two writes prevents the race, and retries only affect failures, not ordering. Making one store the source of truth and replaying its committed changes into the other removes the race. A distributed lock works in principle but adds a coordination service and latency to every write.
+    The NOT VALID check is instant, VALIDATE scans under SHARE UPDATE EXCLUSIVE while reads and writes continue, and SET NOT NULL then uses the validated check to skip its own scan, as the DEBUG message in the lab confirmed. A bare SET NOT NULL scans under ACCESS EXCLUSIVE, and unique indexes allow multiple NULLs.
+- q: >-
+    A backfill updates 2 million rows in one UPDATE statement. It finishes in 4.4 s, about as fast as batches. What is the main cost of doing it that way?
+  options: ["It writes several times more WAL than 10,000-row batches in total", "It takes an ACCESS EXCLUSIVE lock on the table for the whole run", "Every updated row stays locked until the end, stalling app writes", "It prevents HOT updates, which small batches would have allowed"]
+  answer: 2
+  explanation: >-
+    Total WAL was similar in every run (about 300 bytes per row), and an UPDATE takes only ROW EXCLUSIVE on the table. But its row locks last until commit: concurrent single-row application updates waited a mean of 1.2 s and up to 4.2 s, against about 80 ms with 10,000-row batches, and the 690 MB of WAL arrived as one transaction for replicas and CDC.
+- q: >-
+    In expand/contract, why does the code start writing the new columns before it starts reading them?
+  options: ["So rows written after that deploy are already right and the backfill covers only older rows", "Because Postgres will not build an index on a column until at least one row holds a value", "Because reads are more expensive than writes, so the cheaper change should always ship first", "So the backfill can run inside the migration transaction without holding any row locks"]
+  answer: 0
+  explanation: >-
+    Once every write fills both shapes, only rows older than that deploy need the backfill, and the read switch can then be verified against a complete data set. Reading first would return NULLs for every row not yet backfilled. The backfill belongs in a batched job, not the migration transaction.
 ```

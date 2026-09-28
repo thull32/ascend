@@ -1,225 +1,330 @@
 ---
 slug: sql-and-query-plans
 title: "SQL and query plans: how the optimiser turns your query into work"
-description: Read an EXPLAIN plan like the executor does, understand the three join algorithms and their costs, and know why bad statistics produce a plan that is right on paper and 400 times too slow in production.
+description: Read EXPLAIN (ANALYZE, BUFFERS) node by node, compute the planner's cost by hand, see seq, index and bitmap scans and all three join algorithms measured on the same data, and learn how statistics, correlation and LIMIT produce plans that are right on paper and 1,700 times too slow in production.
 minutes: 32
 difficulty: medium
-tags: [sql, explain, query-planner, joins, statistics, postgres]
+tags: [sql, explain, query-planner, joins, statistics, postgres, cost-model]
 ---
-A query that ran in 8 ms yesterday takes 3.4 seconds today. Nobody deployed anything. The table grew past some threshold overnight, the planner's estimate crossed a cost boundary, and it switched from an index scan to a hash join over a sequential scan. The query is the same; the plan is not. If you cannot read the plan, you cannot explain the 400× regression, and you certainly cannot fix it.
+The job-runner dashboard runs `SELECT id, placed_at FROM orders WHERE status = 'pending' ORDER BY placed_at DESC LIMIT 10`. On Monday it takes 0.11 ms. On Tuesday, after a failed batch leaves the backlog of pending orders stuck at the start of the table, it takes 185 ms. Nobody deployed anything, the statistics still say 1% of orders are pending, and `EXPLAIN` shows the same plan both days. The query is 1,700 times slower because the plan rests on an assumption the data stopped satisfying, and the only way to see which assumption is to read the plan the way the executor runs it.
 
-SQL is declarative: you say *what*, and the optimiser decides *how*. This lesson is about the *how*, because in production the *how* is where the time goes.
+SQL is declarative: you say what, and the optimiser decides how. This lesson is about the how, measured on PostgreSQL 17 with a lab schema of 100,000 users, 2 million orders (16,667 heap pages, 130 MB) and 4 million order lines. Every timing below is from that database with its data in memory, which matters for how you read them, as you will see.
 
 ## From SQL to a plan
 
-Postgres processes a query in four stages:
+Postgres handles a query in four stages:
 
-1. **Parse** into a tree, resolve names against the catalogue.
-2. **Rewrite** views and rules into the base tables.
-3. **Plan**: enumerate ways to execute the query, estimate the cost of each using table statistics, pick the cheapest.
-4. **Execute** the chosen plan tree, pulling rows from the root node, which pulls from its children (the *Volcano* or iterator model: every node implements `next()`).
+1. **Parse** the text into a tree and resolve names against the catalogue.
+2. **Rewrite** views and rules into references to base tables.
+3. **Plan**: enumerate access paths for each table (sequential scan, each usable index, bitmap combinations), join orders and join algorithms; estimate each candidate's cost from statistics; keep the cheapest. With `geqo_threshold` (12) or more tables in one `FROM`, exhaustive search is replaced by a genetic search, and explicit `JOIN` syntax beyond `join_collapse_limit` (8) tables is planned in the order written.
+4. **Execute** the plan tree using the iterator (Volcano) model: each node implements "give me the next row" and pulls from its children, so rows stream upwards and a `Limit` node can stop the whole tree early.
 
-The plan is a tree. Leaves read tables (`Seq Scan`, `Index Scan`, `Index Only Scan`, `Bitmap Heap Scan`); interior nodes combine or transform rows (`Nested Loop`, `Hash Join`, `Merge Join`, `Sort`, `Aggregate`, `Limit`). `EXPLAIN` prints that tree; `EXPLAIN (ANALYZE, BUFFERS)` runs the query and annotates each node with what actually happened.
+Planning is not free. The four-table join in [the relational model](/learn/databases/relational-fundamentals/the-relational-model) plans in 2.66 ms and executes in 0.21 ms. For a query that runs 5,000 times a second, a prepared statement that caches the plan saves more than any index. Postgres builds a **custom plan** with the actual parameter values for the first five executions of a prepared statement, then switches to a **generic plan** if its estimated cost is not meaningfully worse than the average custom plan; `plan_cache_mode = force_custom_plan` overrides that for skewed parameters.
+
+## Reading EXPLAIN (ANALYZE, BUFFERS), node by node
+
+Plain `EXPLAIN` shows estimates. `EXPLAIN (ANALYZE, BUFFERS)` runs the query and adds what happened. Here is a range filter on the uncorrelated column `total_cents`:
 
 ```sql
 EXPLAIN (ANALYZE, BUFFERS)
-SELECT o.id, o.placed_at, u.display_name
-FROM orders o
-JOIN users u ON u.id = o.customer_id
-WHERE o.placed_at >= now() - interval '1 day';
+SELECT sum(customer_id) FROM orders WHERE total_cents BETWEEN 1000 AND 1199;
 ```
 
 ```text
-Hash Join  (cost=35.50..4210.12 rows=18240 width=44) (actual time=0.412..21.903 rows=18102 loops=1)
-  Hash Cond: (o.customer_id = u.id)
-  Buffers: shared hit=1892
-  ->  Index Scan using orders_placed_at_idx on orders o
-        (cost=0.43..3990.10 rows=18240 width=24) (actual time=0.031..12.115 rows=18102 loops=1)
-        Index Cond: (placed_at >= (now() - '1 day'::interval))
-        Buffers: shared hit=1874
-  ->  Hash  (cost=23.00..23.00 rows=1000 width=28) (actual time=0.360..0.361 rows=1000 loops=1)
-        Buckets: 1024  Batches: 1  Memory Usage: 71kB
-        ->  Seq Scan on users u  (cost=0.00..23.00 rows=1000 width=28) (actual time=0.008..0.181 rows=1000 loops=1)
-              Buffers: shared hit=13
-Planning Time: 0.280 ms
-Execution Time: 22.610 ms
+Aggregate  (cost=18105.23..18105.24 rows=1 width=32) (actual time=19.176..19.177 rows=1 loops=1)
+  Buffers: shared hit=7959 read=3755
+  ->  Bitmap Heap Scan on orders  (cost=267.62..18056.64 rows=19433 width=8) (actual time=2.063..18.455 rows=20146 loops=1)
+        Recheck Cond: ((total_cents >= 1000) AND (total_cents <= 1199))
+        Heap Blocks: exact=11694
+        Buffers: shared hit=7959 read=3755
+        ->  Bitmap Index Scan on orders_total_idx  (cost=0.00..262.76 rows=19433 width=0) (actual time=1.257..1.257 rows=20146 loops=1)
+              Index Cond: ((total_cents >= 1000) AND (total_cents <= 1199))
+              Buffers: shared read=20
+Planning Time: 0.694 ms
+Execution Time: 19.286 ms
 ```
 
-How to read one line: `cost=35.50..4210.12` is the planner's estimate in abstract units (startup cost before the first row, then total); `rows=18240` is the *estimated* row count; `actual time=0.412..21.903 rows=18102 loops=1` is what happened. The number you compare first is estimated `rows` against actual `rows`. Here 18,240 vs 18,102 means the statistics are good. When they differ by 100× or more, the plan was chosen on a fiction.
+Read it from the innermost node outwards, the order in which work starts:
 
-Indentation is execution order from the inside out: the `Seq Scan` on `users` runs first to build the hash, then the `Index Scan` on `orders` streams rows through the `Hash Join`. `loops=1` matters: for a node inside a nested loop, `actual time` and `rows` are *per loop*, and you multiply by `loops` to get the total.
+1. **Bitmap Index Scan** walks `orders_total_idx` for the range and sets one bit per matching tuple in an in-memory bitmap: 20 index pages, 1.26 ms, 20,146 tuple IDs. It returns no rows (`width=0`), only the bitmap.
+2. **Bitmap Heap Scan** visits the heap pages named in the bitmap in physical order, once each. `Heap Blocks: exact=11694` means 11,694 of the table's 16,667 pages held at least one match: 1% of the rows were spread over 70% of the pages, because `total_cents` has no relation to insertion order. `Recheck Cond` is the filter it would apply if the bitmap had become lossy (below).
+3. **Aggregate** sums the 20,146 values.
+
+On each line, `cost=267.62..18056.64` is the estimated startup and total cost in abstract units, `rows=19433` is the estimate, and `actual time=2.063..18.455 rows=20146 loops=1` is the measured time to the first and last row, the real row count and the number of times the node ran. For a node inside a nested loop, `actual time` and `rows` are per loop: multiply by `loops`. `Buffers: shared hit` counts pages found in Postgres's own buffer pool; `read` counts pages requested from the operating system, which may still have come from the OS page cache rather than the disk, as they did here.
+
+The first comparison to make on any node is estimated rows against actual rows. 19,433 against 20,146 is healthy. A factor of 10 is suspicious; a factor of 1,000 means the plan was chosen on fiction.
+
+## Under the hood: the cost model by hand
+
+The planner's costs are arithmetic you can reproduce. The defaults are `seq_page_cost = 1.0`, `random_page_cost = 4.0`, `cpu_tuple_cost = 0.01`, `cpu_index_tuple_cost = 0.005` and `cpu_operator_cost = 0.0025`. A sequential scan costs one sequential page per page plus CPU per row and per filter operator:
+
+$$\text{seq} = \text{relpages} \times 1.0 + \text{reltuples} \times 0.01 + \text{reltuples} \times 0.0025 \times \text{quals}$$
+
+For `orders` (16,667 pages, 2,000,000 rows) with one filter that is 16,667 + 20,000 + 5,000 = **41,667**, exactly what `EXPLAIN SELECT * FROM orders WHERE total_cents > 20000` prints; without a filter it prints 36,667.
+
+An index scan's I/O cost is an interpolation. `costsize.c` computes a worst case, where every matching row costs a random page fetch (with a cache model, the Mackert–Lohman formula, that accounts for `effective_cache_size`), and a best case, where matching rows are packed into `selectivity × relpages` consecutive pages read sequentially after one random seek. It then blends them by the square of the column's **correlation** between index order and physical order:
+
+$$\text{io} = \text{max\_io} + \text{corr}^2 \times (\text{min\_io} - \text{max\_io})$$
+
+With correlation 1.0 (`placed_at`, inserted in time order) the index scan is priced at its best case; with 0.004 (`total_cents`) it is priced at its worst case. The bitmap heap scan sits between: it reads each page once in physical order, priced between sequential and random depending on how many pages it touches. That single squared term explains most of the access-path choices below.
+
+## Access paths, measured
+
+Same table, same filter shapes, the planner's choice against each path forced with `enable_seqscan`, `enable_indexscan` and `enable_bitmapscan` (times in ms, data in memory):
+
+| Column (correlation) | Rows matched | Planner chose | Index scan | Bitmap scan | Seq scan |
+|---|---|---|---|---|---|
+| `total_cents` (−0.004) | 199 (0.01%) | bitmap | 0.40 | 0.60 | 53 |
+| `total_cents` | about 2,000 (0.1%) | bitmap | 2.7 | 3.1 | 54 |
+| `total_cents` | 20,146 (1%) | bitmap | 12.1 | 12.7 | 54 |
+| `total_cents` | 100,314 (5%) | bitmap | 36.0 | 27.9 | 57 |
+| `total_cents` | about 400,000 (20%) | bitmap | 126 | 53 | 65 |
+| `placed_at` (1.0) | 200 | index | 0.10 | | 55 |
+| `placed_at` | 200,000 (10%) | index | 12.7 | | 59 |
+| `placed_at` | 1,000,000 (50%) | index | 58 | | 74 |
+
+Three lessons fall out. On an uncorrelated column the plain index scan touches one heap page per row (399,667 buffer accesses at 20%) and loses to both alternatives once more than a few per cent match; the bitmap scan dominates the middle because it deduplicates pages and reads them in order. On a perfectly correlated column the index scan wins even at 50%, because its heap reads are sequential. And the sequential scan's cost barely moves (53 to 74 ms) regardless of selectivity: it is the floor every other plan is compared against.
+
+The bitmap has a memory limit. With `work_mem` lowered to 64 kB, the 100,314-row bitmap no longer fits, so Postgres degrades it to one bit per *page*: `Heap Blocks: exact=605 lossy=16032` and `Rows Removed by Index Recheck: 1825496`, 85 ms instead of 30. The planner knows this, which is why at 64 kB it chose the sequential scan (57 ms) unless forced.
 
 ## The three join algorithms
 
-Every join between two inputs is executed by one of three algorithms. Which one the planner picks depends on input sizes, available indexes, sort order and memory. Knowing them is what lets you predict a plan before you run `EXPLAIN`.
+Every join is executed by one of three algorithms. Knowing their costs lets you predict a plan before running `EXPLAIN`.
 
-### Nested loop
+**Nested loop.** For each outer row, look up matching inner rows. Cost is |outer| × cost(inner lookup): catastrophic with an unindexed inner side, excellent with a small outer side and an index probe on the inner. It is the only join that emits its first row without consuming an input, which is why it wins under `LIMIT`. A `Materialize` node above the inner side caches it when it is rescanned.
 
-For each row of the outer input, scan the inner input for matches.
-
-```python
-for o in outer:
-    for i in inner_lookup(o.key):   # a full scan, or an index probe
-        emit(o, i)
-```
-
-Cost is `|outer| × cost(inner lookup)`. With no index on the inner side this is `O(n × m)` and catastrophic past a few thousand rows. With a B-tree index on the inner join key it becomes `O(n log m)`, and it is the *best* join when the outer side is small: 10 outer rows × 4 page reads each is 40 page reads, unbeatable. It is also the only join that can start returning rows immediately (no build phase), which is why it wins under `LIMIT 10`.
-
-```text
-Nested Loop  (cost=0.86..92.31 rows=10 width=44) (actual time=0.040..0.188 rows=10 loops=1)
-  ->  Index Scan using orders_customer_id_idx on orders o  (rows=10 loops=1)
-        Index Cond: (customer_id = 42)
-  ->  Index Scan using users_pkey on users u  (rows=1 loops=10)
-        Index Cond: (id = o.customer_id)
-```
-
-`loops=10` on the inner scan: one index probe per outer row.
-
-### Hash join
-
-Build a hash table on the smaller input keyed by the join column, then stream the larger input and probe.
+**Hash join.** Build a hash table on the smaller input keyed by the join column, then stream the larger input and probe. Cost is O(n + m) and it needs no index or order, but only works for equality, and the whole build side must be consumed before the first output row. The hash table may use `work_mem × hash_mem_multiplier` (4 MB × 2 by default since Postgres 15); beyond that it splits both inputs into `Batches` on disk.
 
 ```viz
 {"type": "hash-table", "algorithm": "chaining", "buckets": 8, "title": "The build phase of a hash join", "caption": "The planner hashes every row of the smaller input (users, keyed by id) into buckets. The probe phase then streams orders and looks up customer_id in O(1) per row. Watch how collisions chain: a skewed join key (many rows with one value) makes some chains long and the probe side slow.",
  "operations": [["set","u:42","Ana"],["set","u:77","Raj"],["set","u:13","Lee"],["set","u:5","Kim"],["set","u:91","Ivy"],["get","u:42"],["get","u:77"],["get","u:42"],["get","u:13"]]}
 ```
 
-Cost is `O(n + m)`: one pass to build, one pass to probe. It needs no indexes and no sort order, which is why it is the default for large joins on equality conditions. Its constraint is memory. The build side must fit in `work_mem` (default 4 MB, which is small); if it does not, Postgres partitions both inputs into `Batches` on disk and joins batch by batch. The line `Batches: 1` in the plan above is the healthy case; `Batches: 16` means temp file I/O and a query that got several times slower than its estimate.
+**Merge join.** Sort both inputs on the key (or read them in order from indexes) and walk them in lockstep. O(n + m) when pre-sorted, little memory, supports inequality on the sort key, and handles inputs far larger than memory.
 
-The hash join cannot be used for inequality joins (`ON a.ts BETWEEN b.start AND b.end`), only for equality, and it must consume the entire build input before emitting its first row, which makes it a poor choice under `LIMIT`.
+Here are all three on the same two queries, each forced by disabling the other two:
 
-### Merge join
-
-Sort both inputs by the join key (or use inputs that are already sorted, such as index scans), then walk them in lockstep like the merge step of merge sort.
-
-```text
-Merge Join  (cost=0.71..8123.40 rows=200000 width=44)
-  Merge Cond: (o.customer_id = u.id)
-  ->  Index Scan using orders_customer_id_idx on orders o
-  ->  Index Scan using users_pkey on users u
-```
-
-Cost is `O(n + m)` if both are pre-sorted, `O(n log n + m log m)` if they must be sorted. It uses little memory and handles very large inputs gracefully, which is why it appears in analytical queries joining two huge tables on indexed columns. It also supports inequality conditions on the sort key. The planner picks it when both inputs arrive sorted for free or when the hash would not fit in memory.
-
-| Join | Requires | Cost | Wins when | Loses when |
+| Query | Hash join | Nested loop | Merge join | Planner's pick at `random_page_cost = 4` |
 |---|---|---|---|---|
-| Nested loop | Index on inner key (to be viable) | `n × log m` | Outer side small (< ~1000 rows); `LIMIT` queries | Outer side large and inner side unindexed |
-| Hash join | Equality condition; memory for build side | `n + m` | Large inputs, no useful sort order | Build side exceeds `work_mem`; inequality joins |
-| Merge join | Both inputs sorted on the key | `n + m` (+ sorts) | Both sides already sorted via index; huge inputs | Inputs unsorted and small enough to hash |
+| 2,880 orders from one day ⋈ 100,000 users | 14.7 ms (13 ms is building the 100,000-row hash) | 5.0 ms (2,880 primary-key probes) | 10.1 ms (sort 2,880, walk the users index) | Hash, cost 3,403 against 6,209 for the loop |
+| 19,915 pending orders ⋈ 4 million order lines | 360 ms (seq scan of all 4M lines) | 154 ms (19,915 probes of `order_lines_pkey`) | 648 ms (full index walk of order lines) | Hash, cost 121,071 against 200,993 |
+
+The planner picked the slower plan twice, and the reason is instructive. Its default `random_page_cost = 4` assumes a random page read costs four times a sequential one, a ratio that dates from spinning disks and describes neither SSDs nor a working set that fits in memory. Set `random_page_cost = 1.1` and it chooses the nested loops on both queries: 8.0 ms and 166 ms. On a server whose data is mostly cached or on SSDs, lowering `random_page_cost` globally (not per query) is a legitimate correction; on a table ten times larger than memory on network storage, the default may be the honest one.
+
+| Join | Requires | Cost | Memory | Wins when | Loses when |
+|---|---|---|---|---|---|
+| Nested loop | Index on the inner key to be viable | outer × log(inner) | Constant | Small outer side; `LIMIT`; selective index probes | Large outer side with an unindexed inner |
+| Hash | Equality condition | outer + inner | Build side, up to `work_mem × hash_mem_multiplier` | Large unsorted equality joins | Build side vastly exceeds memory; inequality; `LIMIT` |
+| Merge | Both inputs sorted on the key | outer + inner (+ sorts) | Small, unless sorting | Both sides arrive sorted from indexes; huge inputs; range joins | Unsorted inputs small enough to hash |
 
 ## Where the estimates come from
 
-The planner has never seen your data; it has seen `pg_statistic`. `ANALYZE` samples each table (30,000 rows by default, scaled by `default_statistics_target = 100`) and stores per column:
-
-- `n_distinct`: number of distinct values (negative values mean "a fraction of the row count").
-- `null_frac`: fraction of nulls.
-- `most_common_vals` / `most_common_freqs`: the top 100 values and their frequencies.
-- `histogram_bounds`: equal-frequency buckets for the remaining values.
-- `correlation`: how well physical row order matches column order, from -1 to 1. High correlation makes an index range scan cheap because it touches contiguous heap pages.
-
-```sql
-SELECT attname, n_distinct, null_frac, correlation,
-       most_common_vals[1:3] AS top3
-FROM pg_stats
-WHERE tablename = 'orders';
-```
-
-Selectivity of `WHERE status = 'shipped'` is looked up directly from `most_common_freqs` if `shipped` is a common value. Selectivity of `WHERE placed_at > '2026-09-01'` is interpolated from the histogram. Selectivity of `WHERE customer_id = 42 AND status = 'shipped'` is, by default, the *product* of the two selectivities, which assumes the columns are independent.
-
-That independence assumption is the most common source of catastrophic misestimates. Suppose 1% of orders are `cancelled` and 1% of orders come from `customer_id = 9`, but customer 9 is a bot that cancels everything. The planner estimates `0.01 × 0.01 = 0.0001` of rows, expects 30 rows from a 300-million-row table, and picks a nested loop. Actual: 3 million rows, and the nested loop runs for an hour. The fix is extended statistics:
-
-```sql
-CREATE STATISTICS orders_cust_status (dependencies, ndistinct)
-  ON customer_id, status FROM orders;
-ANALYZE orders;
-```
-
-The other classic misestimates:
-
-- **Stale statistics** after a bulk load. Autovacuum triggers `ANALYZE` after roughly 10% of rows change (`autovacuum_analyze_scale_factor`), so a fresh 50-million-row table may have *no* statistics until autovacuum wakes up. Run `ANALYZE` explicitly after bulk loads.
-- **Functions on columns.** `WHERE lower(email) = 'ana@example.com'` has no statistics for `lower(email)`, so the planner guesses a fixed selectivity (0.5% for equality) and cannot use the plain index on `email`. An expression index gives it both.
-- **Parameters unknown at plan time.** A prepared statement planned generically before the value is known uses average selectivity. For a skewed column the generic plan is wrong for the common value. Postgres re-plans the first five executions with actual values and switches to a generic plan only if it is not worse; `plan_cache_mode = force_custom_plan` overrides that.
-- **Correlated subqueries and `LIMIT`.** The planner assumes the rows it needs are spread uniformly, so `ORDER BY created_at LIMIT 10` with a `WHERE` that matches only old rows can walk almost the whole index expecting to stop early.
-
-## Reading a bad plan
-
-Here is the regression from the opening, before and after. Before:
+The planner has never seen your data; it has seen `pg_statistic`. `ANALYZE` samples 300 × `default_statistics_target` rows (30,000 by default) and stores per column the fraction of nulls, the number of distinct values (`n_distinct`, negative meaning a fraction of the row count), the most common values and their frequencies (MCVs, up to 100), an equal-frequency histogram of the rest, and the correlation. For the lab `orders`:
 
 ```text
-Nested Loop  (cost=0.86..2210.31 rows=32 width=44) (actual time=0.9..3401.2 rows=412907 loops=1)
-  ->  Index Scan using orders_status_idx on orders o  (cost=0.43..118.2 rows=32 width=24) (actual time=0.03..812.1 rows=412907 loops=1)
-        Index Cond: (status = 'pending')
-  ->  Index Scan using users_pkey on users u  (cost=0.43..65.1 rows=1 width=28) (actual time=0.005..0.006 rows=1 loops=412907)
+   attname   | n_distinct | corr   | most_common_vals                 | most_common_freqs
+-------------+------------+--------+----------------------------------+------------------------------------------
+ customer_id |      94790 |  0.002 |                                  |
+ placed_at   |         -1 |  1.000 |                                  |
+ status      |          4 |  0.642 | {shipped,paid,cancelled,pending} | {0.7932,0.1086,0.0891,0.0090666665}
+ total_cents |      19925 | -0.004 | {1680,1957,...}                  | {0.00027,...}
 ```
 
-`rows=32` estimated, `rows=412907` actual. A failed batch job left 400,000 orders in `pending` yesterday, the statistics still say `pending` is 0.01% of rows, and the planner chose a nested loop that does 412,907 index probes. After `ANALYZE orders`:
+Estimates follow mechanically:
 
-```text
-Hash Join  (cost=35.50..14230.8 rows=409800 width=44) (actual time=0.5..190.4 rows=412907 loops=1)
-  Hash Cond: (o.customer_id = u.id)
-  ->  Bitmap Heap Scan on orders o  (rows=409800 ...) (actual rows=412907)
-        Recheck Cond: (status = 'pending')
-        ->  Bitmap Index Scan on orders_status_idx  (rows=409800 ...)
-  ->  Hash  (rows=1000 ...)
-        ->  Seq Scan on users u
+- **Equality on an MCV**: `status = 'pending'` → 0.0090666665 × 2,000,000 = **18,133**, exactly the `rows=18133` that `EXPLAIN` printed.
+- **Equality on a non-MCV value**: the frequency left over after the MCVs and nulls, divided evenly among the remaining distinct values.
+- **Range**: MCVs below the bound, plus a linear interpolation within the histogram bucket that contains the bound, scaled by the non-MCV fraction.
+- **Several conditions**: the product of their selectivities, which assumes the columns are **independent**.
+
+`n_distinct` for `customer_id` is 94,790 against a true value near 100,000: sampling 30,000 of 2 million rows underestimates distinct counts, which is tolerable here and badly wrong on heavily skewed columns, where you can raise `ALTER TABLE ... ALTER COLUMN ... SET STATISTICS 1000` or override `n_distinct`.
+
+## When estimates go wrong
+
+**Correlated columns.** Add `users.currency`, fully determined by `country`. For `WHERE country = 'JP' AND currency = 'JPY'` the planner multiplies 0.1 by 0.1 and estimates **965** rows; there are **10,000**. For `country = 'DE' AND currency = 'EUR'` it estimates 2,968. Extended statistics fix it:
+
+```sql
+CREATE STATISTICS users_country_currency (dependencies, ndistinct, mcv)
+  ON country, currency FROM users;
+ANALYZE users;
+-- estimates now 10,193 and 10,387; pg_stats_ext shows {"country => currency": 1.0, "currency => country": 0.696}
 ```
 
-Same query, 18× faster, and the only thing that changed is the planner's knowledge. The `Bitmap Heap Scan` is the middle ground between an index scan and a sequential scan: it collects matching tuple IDs from the index into a bitmap sorted by page, then reads each heap page once in physical order. It appears when the index matches too many rows for random-access index scans to be efficient but too few for a full scan.
+**Stale statistics.** With autovacuum disabled on `orders`, 228,338 orders were moved to a new status `on_hold`. The statistics had never seen that value, so the planner estimated **1** row and built three nested loops: 228,338 probes of `users_pkey`, then 228,338 probes of `order_lines_pkey`, 1.77 million buffer hits. After `ANALYZE` it estimated 230,200 and chose two hash joins. The honest result: the nested-loop plan took 636 ms and the "correct" hash plan 858 ms, because every page the loops touched was in memory at about 0.3 µs a hit. The same nested loops also issued 58,632 reads; on a cold cache at roughly 0.1 ms per NVMe read that is six seconds, and on network storage much more. A misestimate is a bet that the working set is cached, and it loses when the data outgrows memory. Autovacuum re-analyses a table after `autovacuum_analyze_threshold + autovacuum_analyze_scale_factor × rows` changes (50 + 10%), so run `ANALYZE` yourself after bulk loads and bulk updates.
 
-The workflow a senior engineer follows on any slow query:
+**LIMIT over a non-uniform distribution.** The opening regression. The planner estimates 1% of rows are pending and assumes they are spread uniformly, so walking `orders_placed_at_idx` backwards should find 10 within about 1,100 entries: cost 62. With pending rows spread evenly, it removed 891 rows and finished in 0.11 ms. When the pending rows were the oldest 20,000, the same walk removed 1,980,000 rows and touched 487,401 buffers: 185 ms. The statistics were right about *how many* and wrong about *where*. The fix is an index that answers the question directly: on `(status, placed_at)` the query is an index scan backwards over the pending entries, 5 buffers and 0.17 ms, whatever the distribution.
 
-1. `EXPLAIN (ANALYZE, BUFFERS)`. Never plain `EXPLAIN`; estimates without actuals cannot show you the misestimate.
-2. Find the node where `actual time` is largest relative to its children. That is where the time goes.
-3. Compare estimated and actual `rows` at that node and its inputs. A large gap means a statistics problem, not an index problem.
-4. Check `Buffers: shared read=` vs `hit=`. A high `read` count means the working set is not in cache, which is a memory or data-layout problem.
-5. Only then ask whether an index would change the plan. Adding an index to a query with a 1000× misestimate usually changes nothing, because the planner does not believe the index is worth using.
+**Hidden expressions.** `WHERE lower(email) = $1` has no statistics for `lower(email)`, so the planner falls back to a default selectivity (0.5% for equality) and cannot use an index on `email`. An expression index provides both the order and, after `ANALYZE`, statistics.
+
+## Memory: work_mem and spills
+
+`work_mem` (4 MB by default) is a limit per sort or hash operation, per query, per parallel worker, not per connection. A query with three hash joins and a sort can use four times it. When a hash join's build side exceeds the limit, the plan says so:
+
+| `work_mem` | Hash node | Temp I/O | Execution |
+|---|---|---|---|
+| 4 MB | `Batches: 16  Memory Usage: 5164kB` | 20,907 blocks written and read (163 MB) | 1.04–1.17 s |
+| 16 MB | `Batches: 4  Memory Usage: 20682kB` | 16,713 blocks | 1.16 s |
+| 128 MB | `Batches: 1  Memory Usage: 66312kB` | none | 1.19–1.22 s |
+
+That join (1 million orders against 4 million lines) spilled 163 MB and was not measurably slower, because the temp files landed in the OS page cache of a machine with 26 GB free. `Batches: 16` is a warning to check, not a verdict: on a busy server under memory pressure the same spill goes to disk. Raise `work_mem` per session or per role for known heavy queries rather than globally, because the global value multiplies across every connection.
 
 ## Things the optimiser will not save you from
 
-`SELECT *` pulls every column through every node and can prevent an [index-only scan](/learn/databases/relational-fundamentals/indexes). `OFFSET 100000` reads and discards 100,000 rows before returning ten; keyset pagination (`WHERE (placed_at, id) < ($1, $2) ORDER BY placed_at DESC, id DESC LIMIT 10`) reads ten. `NOT IN (subquery)` with a nullable column returns no rows if the subquery yields a single null, and the planner cannot rewrite it to an anti-join the way it can `NOT EXISTS`. `OR` across different columns defeats single-column indexes unless the planner can build a `BitmapOr`. Common table expressions were an optimisation fence before Postgres 12 and are now inlined unless you write `WITH x AS MATERIALIZED`. A function marked `VOLATILE` (the default for user-defined functions) is re-evaluated per row and blocks index use; mark pure functions `IMMUTABLE`.
+- **`OFFSET` pagination.** `ORDER BY placed_at DESC, id DESC OFFSET 1000000 LIMIT 20` read 1,000,020 index entries and 242,626 buffers: 110 ms for 20 rows. Keyset pagination, `WHERE (placed_at, id) < ($1, $2) ORDER BY placed_at DESC, id DESC LIMIT 20` on an index over `(placed_at, id)`, read 10 buffers: 0.06 ms.
+- **`NOT IN` with a nullable subquery.** One `NULL` makes it return nothing, and the planner cannot turn it into an anti-join the way it can `NOT EXISTS`.
+- **`OR` across columns.** Each side needs its own index and a `BitmapOr`; otherwise it is a sequential scan.
+- **CTEs before Postgres 12** were optimisation fences; since 12 they are inlined unless written `WITH x AS MATERIALIZED`.
+- **`VOLATILE` functions** (the default for user-defined functions) are re-evaluated per row and block index use; mark pure functions `IMMUTABLE`.
 
-The optimiser is very good at what it can see. Most "the optimiser is dumb" stories are actually "I hid the information from it".
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A stable query becomes 100–1,000× slower with no deploy | `EXPLAIN (ANALYZE, BUFFERS)` shows estimate against actual off by orders of magnitude at one node, or a `Limit` over a filter removing millions of rows | `ANALYZE`; extended statistics for correlated filters; an index that encodes the filter and the order |
+| Latency rises as the table grows past memory while plans look unchanged | `read` climbs relative to `hit`; nested loops doing hundreds of thousands of probes that used to be cached | Reduce random probes (hash or merge joins, covering indexes), or add memory; re-check `random_page_cost` for the new storage |
+| One parameter value is slow through the app but fast in psql | A generic prepared-statement plan tuned for average selectivity meets a skewed value | Compare `EXPLAIN (ANALYZE) EXECUTE` against a literal; `plan_cache_mode = force_custom_plan` for that statement |
+| Queries slow down and temp files appear in the logs | `Batches > 1` or `Sort Method: external merge`; `log_temp_files = 0` shows sizes | Raise `work_mem` for that role or session; shrink the build side (fewer columns, tighter filter) |
+| Deep pages of a listing time out | `OFFSET` reads and discards every earlier row | Keyset pagination on an index matching the `ORDER BY` |
+
+## Interviewer follow-ups
+
+**"The estimate says 1 row and the actual is 228,000. Is the query necessarily slow?"** Model answer: not if the probes hit cached pages (636 ms measured with everything in memory), but the plan is a bet on cache residency that fails once the data outgrows RAM; fix the estimate first with `ANALYZE` or extended statistics. Common wrong answer: "add an index", which the planner will still misuse because it believes the input is one row.
+
+**"Why would the planner choose a hash join when a nested loop is three times faster?"** Model answer: `random_page_cost = 4` overprices index probes on cached or SSD-backed data; with 1.1 it picks the nested loop. Common wrong answer: "the planner is dumb", when its arithmetic was consistent with the costs it was given.
+
+**"When is a bitmap heap scan better than an index scan?"** Model answer: when matches are numerous and scattered: the bitmap visits each heap page once in physical order instead of once per row, 53 ms against 126 ms at 20% selectivity on an uncorrelated column; it loses order, so it cannot serve `ORDER BY ... LIMIT`. Common wrong answer: "bitmap scans are for bitmap indexes", which Postgres does not have.
+
+**"How does `ORDER BY ... LIMIT 10` become slower than the full query?"** Model answer: the planner assumes filter matches are spread uniformly along the index order and expects to stop early; when matches cluster at the far end it walks the whole index. An index leading with the filter column removes the assumption. Common wrong answer: "`LIMIT` always makes queries faster".
+
+## What mid-level engineers get wrong
+
+- **Running plain `EXPLAIN`.** Without `ANALYZE` there are no actual rows, so the misestimate that explains the regression is invisible.
+- **Reading node names instead of rows and buffers.** An `Index Scan` that touches 487,000 buffers to return 10 rows is not a good plan.
+- **Treating `work_mem` as a per-connection budget.** It is per operation and multiplies across joins, sorts and connections.
+- **Forgetting `ANALYZE` after bulk loads.** Autovacuum waits for 10% of the table to change.
+- **Benchmarking on a warm laptop and extrapolating to production.** Cached pages hide exactly the random-I/O cost that misestimates create.
+- **Using `OFFSET` for deep pagination.** It scales with the page number.
+
+## Exercise
+
+The planner's row estimates come from a few lines of arithmetic over `pg_stats`. Implement them.
+
+```exercise
+id: estimate-rows
+title: Estimate rows from column statistics
+prompt: |
+  Implement `estimate_rows(stats, op, value)` the way the planner estimates a
+  single-column filter. `stats` has:
+  - `rows`: the table's row count
+  - `null_frac`: fraction of rows where the column is null
+  - `n_distinct`: number of distinct non-null values
+  - `mcv`: list of `[value, frequency]` (most common values)
+  - `histogram`: sorted bounds `[b0, b1, ..., bk]` describing the non-null,
+    non-MCV values as `k` buckets, each holding an equal share of them
+    (may be empty)
+
+  Let `rest = 1 - null_frac - (sum of MCV frequencies)`.
+
+  For `op == "="`: if `value` is an MCV, selectivity is its frequency.
+  Otherwise it is `rest / (n_distinct - len(mcv))`, or 0 when that
+  denominator is not positive.
+
+  For `op == "<"`: selectivity is the sum of frequencies of MCVs strictly
+  less than `value`, plus `rest * f`, where `f` is the histogram fraction
+  below `value`: 0 if the histogram is empty or `value <= b0`; 1 if
+  `value >= bk`; otherwise find the largest `i` with `b_i <= value` and use
+  `f = (i + (value - b_i) / (b_(i+1) - b_i)) / k`.
+
+  Return `round(selectivity * rows)` as an integer.
+languages: [python, javascript]
+entry: estimate_rows
+starter:
+  python: |
+    def estimate_rows(stats, op, value):
+        return 0
+  javascript: |
+    function estimate_rows(stats, op, value) {
+      return 0;
+    }
+tests:
+  - args: [{"rows": 2000000, "null_frac": 0, "n_distinct": 4, "mcv": [["shipped", 0.8], ["paid", 0.1], ["cancelled", 0.09], ["pending", 0.01]], "histogram": []}, "=", "pending"]
+    expected: 20000
+    label: equality on a most common value
+  - args: [{"rows": 1000000, "null_frac": 0.1, "n_distinct": 1000, "mcv": [[1, 0.2], [2, 0.1]], "histogram": [3, 500, 1000]}, "=", 77]
+    expected: 601
+    label: equality on a value outside the MCV list
+  - args: [{"rows": 1000000, "null_frac": 0, "n_distinct": 20000, "mcv": [], "histogram": [0, 100, 200, 300, 400]}, "<", 150]
+    expected: 375000
+    label: interpolate inside the second bucket
+  - args: [{"rows": 1000000, "null_frac": 0, "n_distinct": 20000, "mcv": [], "histogram": [0, 100, 200, 300, 400]}, "<", -5]
+    expected: 0
+    label: below the histogram
+  - args: [{"rows": 1000, "null_frac": 0.2, "n_distinct": 50, "mcv": [[5, 0.3]], "histogram": [10, 20]}, "<", 25]
+    expected: 800
+    label: above the histogram, nulls excluded
+  - args: [{"rows": 10000, "null_frac": 0, "n_distinct": 100, "mcv": [[10, 0.25], [50, 0.25]], "histogram": [0, 20, 40, 60, 80]}, "<", 30]
+    expected: 4375
+    hidden: true
+    label: MCVs on both sides of the bound
+  - args: [{"rows": 500, "null_frac": 0, "n_distinct": 2, "mcv": [[1, 0.5], [2, 0.5]], "histogram": []}, "=", 3]
+    expected: 0
+    hidden: true
+    label: every distinct value is an MCV
+  - args: [{"rows": 200, "null_frac": 0, "n_distinct": 30, "mcv": [], "histogram": [0, 10, 20]}, "<", 10]
+    expected: 100
+    hidden: true
+    label: bound exactly on a bucket edge
+hints:
+  - "Compute `rest` once; both operators use it."
+  - "For the histogram, `k = len(histogram) - 1`; scan for the last bound that is less than or equal to `value`."
+```
 
 ## Senior signals
 
-- You read `EXPLAIN (ANALYZE, BUFFERS)` from the inside out, compare estimated to actual rows first, and diagnose a statistics problem before proposing an index.
-- You can predict the join algorithm from the input sizes: nested loop for small outer with indexed inner, hash for large equality joins, merge when both sides are already sorted.
-- You know `work_mem` is per operation per query and that `Batches > 1` on a hash node means the join spilled to disk.
-- You know the planner assumes column independence, can name the failure mode, and fix it with `CREATE STATISTICS`.
-- You run `ANALYZE` after bulk loads without being asked, because autovacuum's threshold is a fraction of table size.
-- You reach for keyset pagination and `NOT EXISTS`, and you know why `OFFSET` and `NOT IN` scale badly.
+- You read `EXPLAIN (ANALYZE, BUFFERS)` from the innermost node out, compare estimated with actual rows first, and treat buffers, not node names, as the measure of work.
+- You can compute a sequential scan's cost by hand and explain why correlation squared decides between index, bitmap and sequential scans.
+- You predict the join algorithm from input sizes and indexes, and you know `random_page_cost = 4` can make the planner pick a hash join that is three times slower on cached data.
+- You diagnose misestimates by kind: stale statistics, correlated columns, non-uniform distributions under `LIMIT`, hidden expressions, generic plans; and you fix each with the matching tool.
+- You treat a misestimate as a bet on cache residency, which is why a plan can be fine on a laptop and fall over in production.
+- You know `work_mem` is per operation, read `Batches` and `lossy` as memory signals, and paginate with keysets.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A plan node shows estimated rows=40 and actual rows=2,100,000, and the query is 200 times slower than yesterday. What is the most likely root cause and the first fix?
-  options: ["Table growth; partition the table so each scan reads less", "work_mem is too low; raise it so the join stops spilling", "Bad statistics; run ANALYZE, then check for correlated filter columns", "A missing index; add one on the column that this node filters on"]
-  answer: 2
-  explanation: >-
-    A 50,000× gap between estimated and actual rows means the planner chose the plan on wrong information, from stale statistics or an independence assumption about correlated columns. An index cannot help until the estimate is realistic, because the planner will still believe the current plan is cheap. ANALYZE first, then extended statistics if two filtered columns are correlated.
-- q: >-
-    Which join algorithm can start returning rows before consuming either input in full, and why does that matter?
-  options: ["Nested loop; it emits matches as it goes, which suits LIMIT queries", "None; every join reads one input fully, so LIMIT never helps", "Merge join; lockstep walking never needs a sort, which suits LIMIT", "Hash join; O(1) probes return a first match well before the build ends"]
+    A node shows rows=1 estimated and rows=228,338 actual inside a nested loop, yet the query is only 636 ms with everything cached. Why should you still fix it?
+  options: ["The plan wins only while pages stay cached; cold, its reads cost seconds", "Nested loops are never correct above 1,000 outer rows, so the plan is invalid", "A misestimate stops autovacuum from analysing the table until it is fixed", "The planner will keep this plan forever, even after the data changes again"]
   answer: 0
   explanation: >-
-    A nested loop emits each match as soon as it finds it; a hash join must build the whole hash table before probing, and a merge join must sort any unsorted input first. Under a small LIMIT the planner strongly prefers a nested loop over an indexed inner side for exactly this reason.
+    With every page cached, 1.77 million buffer hits cost about 0.3 microseconds each. The same plan issued 58,632 reads, which at roughly 0.1 ms per cold NVMe read is several seconds, and worse on network storage. Fixing the estimate with ANALYZE or extended statistics lets the planner choose on real sizes. Nested loops are fine for small outer inputs, and plans are recomputed as statistics change.
 - q: >-
-    A hash join node shows Batches: 32 and the query takes 6 seconds instead of the estimated 300 ms. What happened?
-  options: ["The join key had too many distinct values to fit in the buckets", "The hash function collided on most rows, so every probe became a scan", "The build side exceeded work_mem, so the join spilled to temp files", "Stale statistics made it pick a hash join over a nested loop"]
-  answer: 2
-  explanation: >-
-    Batches greater than 1 means the hash table exceeded work_mem, so both inputs were partitioned to temporary files and joined batch by batch. Each extra batch adds a write and a read of temp files. Distinct-value count is not the issue; the size of the build side is. Raising work_mem for that session or reducing the build side (fewer columns, tighter filter) fixes it.
-- q: >-
-    Why does WHERE lower(email) = 'a@x.com' not use a plain B-tree index on email, and what is the fix?
-  options: ["It does use the index; EXPLAIN just hides it inside a recheck", "The index is ordered by email, not lower(email); index the expression", "lower() is VOLATILE and blocks index use; mark it IMMUTABLE", "B-tree indexes on text are always case-sensitive; rewrite it using ILIKE"]
+    The planner chose a hash join costing 3,403 over a nested loop costing 6,209, but the loop ran in 5 ms against 14.7 ms. What most plausibly explains it?
+  options: ["The statistics for users were stale, so the hash join looked cheaper", "random_page_cost = 4 overprices index probes on cached or SSD data", "Hash joins are always estimated wrongly when the build side is large", "The nested loop only won because its 2,880 probes were served by JIT"]
   answer: 1
   explanation: >-
-    A B-tree on email is ordered by the raw value, which says nothing about lower(email). The planner also has no statistics for the expression and falls back to a default selectivity. An expression index on lower(email) (or a citext column) gives it both the order and the statistics. lower() is already immutable, so volatility is not the problem, and ILIKE cannot use a plain B-tree either.
+    The loop's cost is dominated by 2,880 index probes charged as random page reads at 4.0 each. With the data in memory those reads are nearly free, and setting random_page_cost to 1.1 made the planner pick the nested loop itself. The estimates were accurate, so this is a cost-constant problem, not a statistics problem.
 - q: >-
-    A dashboard query uses OFFSET 500000 LIMIT 20 and has become slow as the table grew. What is the mechanism and the fix?
-  options: ["It reads and discards 500,000 rows per page; use keyset pagination", "The LIMIT forces a sequential scan of the table; remove the LIMIT", "Each new OFFSET value is planned from scratch; use a prepared statement", "OFFSET disables the planner's statistics; run ANALYZE on the table"]
+    At 20% selectivity on an uncorrelated column, a forced index scan took 126 ms, a bitmap scan 53 ms and a sequential scan 65 ms. Why does the index scan lose?
+  options: ["The index is larger than the table at this selectivity, so it reads more", "Index scans cannot use shared buffers, so every access goes to disk", "It fetches a heap page per matching row, about 400,000 times", "It must sort the 400,000 matches before returning any of them"]
+  answer: 2
+  explanation: >-
+    With no correlation between index order and physical order, each match costs its own heap page access, about 400,000 buffer accesses for pages that the bitmap scan visits once each in physical order. The sequential scan reads 16,667 pages regardless. Index scans do use shared buffers, and they return rows in index order without sorting.
+- q: >-
+    WHERE country = 'JP' AND currency = 'JPY' is estimated at 965 rows but returns 10,000. What is wrong and what fixes it?
+  options: ["The histogram is too coarse; raise the statistics target on country", "It assumed the columns independent; create extended statistics", "The MCV list is stale; run VACUUM FULL so ANALYZE sees every row", "Both columns need a composite index before any estimate can be made"]
+  answer: 1
+  explanation: >-
+    The planner multiplied 0.1 by 0.1 because it assumes the columns are independent, but currency is determined by country. CREATE STATISTICS with dependencies and mcv lets it know that, and the estimate became 10,193. Indexes do not change row estimates, and neither a larger histogram nor a table rewrite captures a cross-column dependency.
+- q: >-
+    WHERE status = 'pending' ORDER BY placed_at DESC LIMIT 10 walks an index on placed_at and takes 185 ms, removing 1,980,000 rows by filter. The statistics correctly say 1% are pending. What is the best fix?
+  options: ["Run ANALYZE so the planner sees that 1% of the rows are pending", "Raise work_mem so the filter can be applied inside the index", "Replace LIMIT with OFFSET 0 so the planner stops expecting early exit", "Index (status, placed_at) so the scan starts at the pending rows"]
+  answer: 3
+  explanation: >-
+    The count is right; the assumption that pending rows are spread evenly along placed_at is wrong, because they all sit at the old end. A composite index with status first makes the scan read only pending entries in placed_at order: 5 buffers and 0.17 ms. ANALYZE would confirm the same 1%, and work_mem has nothing to do with filtering during an index walk.
+- q: >-
+    A hash join shows Batches: 16 and 163 MB of temp I/O, yet it is no slower than with work_mem large enough for one batch. What is the most likely reason?
+  options: ["The temp files stayed in the OS page cache and never hit disk", "Postgres ignored work_mem because hash_mem_multiplier overrode it", "The batches ran in parallel workers, hiding the extra I/O cost", "Batches only affect the probe side, which was already read from disk"]
   answer: 0
   explanation: >-
-    OFFSET does not skip work; it performs it and throws the result away, so page N costs O(N). Keyset pagination uses the last row's sort key as a WHERE bound on an indexed (sort_key, id) pair, so each page is an index range scan of exactly the rows returned. Planning cost is negligible next to reading half a million rows.
+    Temp files are ordinary files; on a machine with plenty of free memory they are written to and read back from the page cache. Under memory pressure the same spill goes to disk and costs real time, so Batches greater than 1 is a signal to check temp I/O, not proof of a problem. Parallelism was disabled for the measurement, and hash_mem_multiplier only raises the in-memory limit.
 ```

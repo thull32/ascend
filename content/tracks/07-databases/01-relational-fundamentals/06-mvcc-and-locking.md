@@ -1,170 +1,189 @@
 ---
 slug: mvcc-and-locking
 title: "MVCC and locking: how Postgres lets readers and writers coexist"
-description: Row versions, snapshots and visibility rules in Postgres, why they leave garbage that vacuum must collect, how one forgotten transaction bloats a table, and how row locks, deadlocks, SKIP LOCKED and advisory locks work.
+description: Row versions traced through INSERT, UPDATE, HOT chains and VACUUM with pageinspect, snapshots and visibility rules, bloat from a pinned xmin horizon measured, wraparound, row and table locks, a deadlock caught in pg_locks, and a SKIP LOCKED job queue that is fifteen times faster than the naive one.
 minutes: 27
 difficulty: hard
-tags: [mvcc, vacuum, locking, deadlock, postgres, concurrency, skip-locked]
+tags: [mvcc, vacuum, locking, deadlock, postgres, concurrency, skip-locked, hot-updates]
 problems: [time-based-kv]
 ---
-On Friday afternoon an engineer opens a `psql` session on the production primary, runs `BEGIN;` and a `SELECT` to check something, and goes home without closing the terminal. By Monday the `jobs` table, which never holds more than a few thousand rows, occupies 11 GB. Queries against it that took 2 ms take 400 ms. Autovacuum has run on it hundreds of times and reclaimed nothing. Nothing in the application changed.
+On Friday afternoon an engineer opens a `psql` session on the production primary, runs `BEGIN;` and a `SELECT` to check something, and goes home without closing the terminal. By Monday the `jobs` table, which never holds more than a few thousand rows, occupies gigabytes, queries against it are several times slower, and autovacuum has run on it hundreds of times without reclaiming anything. Nothing in the application changed.
 
-Everything in that story follows from one design decision: Postgres never overwrites a row. It writes a new version and leaves the old one where it is, so that transactions which started earlier can keep reading it. That is multi-version concurrency control (MVCC), and it is why readers never block writers in Postgres. It is also why somebody has to clean up the old versions, and why a single open transaction can stop the cleanup for the whole database.
+The lab reproduces it in miniature on PostgreSQL 17. A `jobs` table holding 2,000 rows occupies 168 kB. A second session runs `BEGIN ISOLATION LEVEL REPEATABLE READ` and one `SELECT`, then sits idle. Fifty rounds of the queue's normal work (claim every job with an `UPDATE`, finish it with a `DELETE`, enqueue 2,000 more) later, the table still holds 2,000 live rows but occupies **17 MB**, `VACUUM VERBOSE` reports `0 removed ... 200000 are dead but not yet removable`, and the query that picks the next job reads 2,188 pages instead of about 20. Everything in that story follows from one design decision: Postgres never overwrites a row.
 
-## Versions, not overwrites
+## Under the hood: one row's versions, traced
 
-Every row version (a *tuple*) carries a header with two transaction IDs: `xmin`, the transaction that created it, and `xmax`, the transaction that deleted or replaced it (0 if none). You can see them as hidden columns:
+Every row version (a *tuple*) carries `xmin`, the transaction that created it, and `xmax`, the transaction that deleted or replaced it (0 if none). `pageinspect` shows the lifecycle of one row, step by step, on a table `mv(id int primary key, balance_cents bigint)` holding two rows written by transaction 1515930:
 
-```sql
-CREATE TABLE accounts (id int PRIMARY KEY, balance_cents bigint NOT NULL);
-INSERT INTO accounts VALUES (1, 10000);
-SELECT xmin, xmax, ctid, * FROM accounts;
-```
+**Step 1, after `UPDATE mv SET balance_cents = 6000 WHERE id = 1` (transaction 1515932):**
 
-```text
- xmin | xmax | ctid  | id | balance_cents
-------+------+-------+----+---------------
-  812 |    0 | (0,1) |  1 |         10000
-```
+| lp | t_xmin | t_xmax | t_ctid | flags |
+|---|---|---|---|---|
+| 1 | 1515930 | 1515932 | (0,3) | HOT_UPDATED |
+| 2 | 1515930 | 0 | (0,2) | |
+| 3 | 1515932 | 0 | (0,3) | HEAP_ONLY |
 
-`ctid` is the physical address: page 0, slot 1. Now update it in transaction 815 and look again, including at the raw page:
+The old version (line pointer 1) is still on the page, stamped with the updater in `xmax` and pointing forward to its replacement at `(0,3)`. Because `balance_cents` is not indexed and the page had room, this was a **heap-only tuple (HOT) update**: the new version is flagged `HEAP_ONLY` and no index entry was created. The primary-key index still holds exactly two entries, pointing at `(0,1)` and `(0,2)`; a lookup for id 1 lands on line pointer 1 and follows the chain.
 
-```sql
-UPDATE accounts SET balance_cents = 6000 WHERE id = 1;
-SELECT xmin, xmax, ctid, * FROM accounts;
+**Step 2, after another update of id 1 (1515933) and `DELETE FROM mv WHERE id = 2` (1515934):**
 
-CREATE EXTENSION IF NOT EXISTS pageinspect;
-SELECT lp, t_xmin, t_xmax, t_ctid FROM heap_page_items(get_raw_page('accounts', 0));
-```
+| lp | t_xmin | t_xmax | t_ctid | flags |
+|---|---|---|---|---|
+| 1 | 1515930 | 1515932 | (0,3) | HOT_UPDATED |
+| 2 | 1515930 | 1515934 | (0,2) | |
+| 3 | 1515932 | 1515933 | (0,4) | HOT_UPDATED, HEAP_ONLY |
+| 4 | 1515933 | 0 | (0,4) | HEAP_ONLY |
 
-```text
- xmin | xmax | ctid  | id | balance_cents
-------+------+-------+----+---------------
-  815 |    0 | (0,2) |  1 |          6000
+The chain is now 1 → 3 → 4. The delete wrote nothing new: it set `xmax` on line pointer 2.
 
- lp | t_xmin | t_xmax | t_ctid
-----+--------+--------+--------
-  1 |    812 |    815 | (0,2)
-  2 |    815 |      0 | (0,2)
-```
+**Step 3, after `VACUUM`:**
 
-The page holds both versions. The old one is stamped `xmax = 815` and points forward to its replacement. A `DELETE` does even less: it sets `xmax` and writes nothing new. The table's physical size only ever grows until something removes the versions nobody can see any more.
+| lp | lp_flags | points to | t_xmin |
+|---|---|---|---|
+| 1 | REDIRECT | 4 | |
+| 2 | UNUSED | | |
+| 3 | UNUSED | | |
+| 4 | NORMAL | | 1515933 |
+
+Vacuum removed the three dead versions and compacted the survivor to the end of the page. Line pointer 1 became a **redirect** to 4, because the index still points at `(0,1)` and must keep working without an index update. The index entry for the deleted id 2 was removed (`VACUUM VERBOSE`: `3 removed ... 1 dead item identifiers removed`). The file never shrinks during this; freed space is reused by later inserts.
 
 ## Snapshots and visibility
 
-Which version does a query see? That depends on its **snapshot**, a record of which transactions had committed at the moment the snapshot was taken:
+Which version does a query see? That depends on its **snapshot**:
 
 ```sql
 SELECT pg_current_snapshot();
 --  815:819:815,817
 ```
 
-That reads as `xmin:xmax:in-progress list`. Every transaction ID below 815 had finished (committed or aborted) when the snapshot was taken; every ID from 819 upwards had not started; 815 and 817 were still running. A transaction ID counts as committed *for this snapshot* when its status in the commit log is committed, it is below the snapshot's `xmax`, and it is not in the in-progress list. A tuple is visible when:
+That reads `xmin:xmax:in-progress list`. Every transaction ID below 815 had finished when the snapshot was taken; every ID from 819 up had not started; 815 and 817 were running. A transaction ID *counts as committed for this snapshot* when `pg_xact` says committed, it is below the snapshot's `xmax`, and it is not in the in-progress list. A tuple is visible when:
 
-1. its `xmin` counts as committed for this snapshot (or is the current transaction itself), and
-2. its `xmax` is empty, or belongs to a transaction that aborted, or does not count as committed for this snapshot.
+1. its `xmin` counts as committed for this snapshot (or is the current transaction), and
+2. its `xmax` is empty, belongs to an aborted transaction, or does not count as committed for this snapshot.
 
-`READ COMMITTED` takes a new snapshot for each statement; `REPEATABLE READ` and `SERIALIZABLE` take one at the first statement and keep it. That is the entire mechanism behind the [isolation levels](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies).
+`READ COMMITTED` takes a snapshot per statement; `REPEATABLE READ` and `SERIALIZABLE` take one at the first statement and keep it. That is the entire mechanism behind the [isolation levels](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies).
 
 ```viz
 {"type": "system", "scenario": "mvcc", "title": "Two transactions, two answers, both correct",
  "caption": "T1's snapshot predates T2, so T1 keeps seeing the old version even after T2 commits; T3 starts later and sees the new one. Nobody waits. When T1 tries to write the row T2 changed, repeatable read aborts it. The old version becomes garbage only when no snapshot can see it."}
 ```
 
-Checking `pg_xact` for every tuple would be slow, so the first reader to learn that a tuple's `xmin` committed sets a **hint bit** on the tuple. That modifies the page, which makes it dirty, which means it must be written back to disk. So the first `SELECT` after a large bulk load can generate a surprising amount of write I/O. It is not a bug; it is the visibility bookkeeping being paid once.
+Consulting `pg_xact` for every tuple would be slow, so the first reader to learn that a tuple's `xmin` committed sets a **hint bit** in the tuple header (`XMIN_COMMITTED` in the step 1 dump). Setting it modifies the page, which makes it dirty. That is why a read-only query can write: in the lab, the first index scan over `orders` after a 124,541-row `UPDATE` reported `dirtied=16531 written=15468`, setting hint bits and pruning dead versions on the pages it visited. It is bookkeeping paid once, and it surprises people who see write I/O from a `SELECT` after a bulk load.
+
+## HOT and page pruning
+
+HOT is what keeps MVCC affordable on update-heavy tables. It requires two things: no indexed column changed, and the new version fits on the same page. When both hold, indexes are untouched, and any later access to the page can **prune** it: collapse the dead chain members into a redirect and free their space, without waiting for vacuum. The `PRUNE_ON_ACCESS` WAL records in the [transactions lesson](/learn/databases/relational-fundamentals/transactions-and-acid) are exactly that. The [indexes lesson](/learn/databases/relational-fundamentals/indexes) measured 97.6% HOT with `fillfactor = 90` and 0% once the updated column was indexed.
+
+When HOT fails, every index gets a new entry for the new version, and old entries become garbage too. In the lab, updating the unindexed `currency` column on every one of 100,000 users, whose pages were 100% full, could not use HOT: the users primary key grew from 276 to 551 pages and its leaf density fell to 45%.
 
 ## The bill: dead tuples and vacuum
 
-A tuple whose `xmax` committed before every snapshot still in use is **dead**: nobody can ever see it again. `VACUUM` finds dead tuples, removes their index entries, and marks their space reusable. It also updates the visibility map (which makes [index-only scans](/learn/databases/relational-fundamentals/indexes) possible) and freezes old tuples (covered below). It does not shrink the file; freed space is reused by future inserts. `VACUUM FULL` rewrites the table compactly but holds an `ACCESS EXCLUSIVE` lock for the duration, which blocks even reads; tools like `pg_repack` do the rewrite online.
+A tuple whose `xmax` committed before every snapshot still in use is **dead**: nobody can see it again. `VACUUM` scans pages that the visibility map does not mark all-visible, collects dead tuple IDs, removes their index entries (one pass over each index), then frees the heap line pointers. Along the way it sets visibility-map bits (which make index-only scans possible) and freezes old tuples. It does not shrink the file, except for empty pages at the end. `VACUUM FULL` rewrites the table compactly under an `ACCESS EXCLUSIVE` lock that blocks even reads; `pg_repack` does the rewrite online.
 
-Autovacuum starts on a table when its dead tuples exceed `autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor × rows`, which is 50 + 20% by default. For a 100-million-row table that means 20 million dead tuples accumulate before vacuum even starts. Large, update-heavy tables need per-table settings:
+Autovacuum starts on a table when dead tuples exceed `autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor × reltuples` (50 + 20%), or, since Postgres 13, when inserts exceed 1,000 + 20% (so append-only tables get their visibility map set). For a 100-million-row table that is 20 million dead tuples before vacuum starts. Autovacuum (3 workers by default) is throttled by cost accounting: a page found in shared buffers costs 1 unit, one read from the OS costs 2, one it dirties costs 20, and after 200 units it sleeps 2 ms, a budget shared among the active workers. That is 100,000 units a second: about 780 MB/s of cached pages, 390 MB/s of pages read, but only 39 MB/s of pages it has to dirty, which is why a vacuum that removes many dead tuples crawls. Large, busy tables need per-table settings:
 
 ```sql
 ALTER TABLE events SET (autovacuum_vacuum_scale_factor = 0.01, autovacuum_vacuum_cost_limit = 2000);
 ```
 
-### The xmin horizon
+## The xmin horizon
 
-Here is the Friday bug. Vacuum can only remove a tuple if no snapshot anywhere in the cluster could still see it. The oldest such snapshot sets the **xmin horizon**, and everything deleted after it must be kept. Things that hold the horizon back:
+Here is the Friday bug. Vacuum can remove a tuple only if no snapshot could still see it. The oldest snapshot in the database sets the **xmin horizon**, and every version deleted after it must be kept. Things that hold it back:
 
-- a long-running query or transaction (including the forgotten `BEGIN` in a terminal, visible as `idle in transaction`);
-- a replication slot whose consumer is down or slow (logical slots hold back catalog cleanup; a physical standby with `hot_standby_feedback = on` reports its oldest query's snapshot to the primary);
-- a prepared two-phase-commit transaction that nobody committed or rolled back.
+- a long-running query or transaction, including a forgotten `BEGIN` (`idle in transaction`);
+- a replication slot whose consumer is down or slow, and a physical standby with `hot_standby_feedback = on` reporting its oldest query;
+- a prepared two-phase-commit transaction nobody finished.
 
-The `jobs` table processes around a hundred jobs a second, and every job leaves two dead versions behind: claiming it is an update and finishing it is a delete. With the horizon pinned since Friday, every one of those dead versions is kept. Autovacuum runs, finds millions of dead tuples, and reports that it cannot remove them:
-
-```text
-INFO:  vacuuming "app.public.jobs"
-INFO:  finished vacuuming "app.public.jobs": index scans: 0
-pages: 0 removed, 1402117 remain, 1402117 scanned (100.00% of total)
-tuples: 0 removed, 18204332 remain, 18198211 are dead but not yet removable
-removable cutoff: 815, which was 2210944 XIDs old when operation ended
-```
-
-"Dead but not yet removable" plus a large "XIDs old" figure is the signature. Find the culprit:
+In the lab, the pinned session showed `backend_xmin = 1515944` in `pg_stat_activity`, and vacuum reported `removable cutoff: 1515944`. Every one of the 200,000 versions the queue had deleted since was kept. Finding and removing the culprit is mechanical:
 
 ```sql
-SELECT pid, usename, state, backend_xmin,
-       now() - xact_start AS xact_age, left(query, 60) AS query
-FROM pg_stat_activity
-WHERE backend_xmin IS NOT NULL
-ORDER BY age(backend_xmin) DESC
-LIMIT 5;
+SELECT pid, usename, state, backend_xmin, now() - xact_start AS xact_age, left(query, 60)
+FROM pg_stat_activity WHERE backend_xmin IS NOT NULL
+ORDER BY age(backend_xmin) DESC LIMIT 5;
 
 SELECT slot_name, active, xmin, catalog_xmin FROM pg_replication_slots;
+SELECT gid, prepared FROM pg_prepared_xacts;
 ```
 
-Then terminate it (`SELECT pg_terminate_backend(pid)`), and set `idle_in_transaction_session_timeout` so it cannot happen again. The table will not shrink by itself after the next vacuum, but it will stop growing and the space will be reused.
+Measured before and after ending the idle session:
 
-### Transaction ID wraparound
+| State | Heap size | Dead tuples | Next-job query |
+|---|---|---|---|
+| Baseline, 2,000 jobs | 168 kB | 0 | |
+| After churn, horizon pinned | 17 MB | 200,000 (89% of the file) | 2,188 pages, 2.2 ms |
+| Session ended, `VACUUM` | 17 MB | 0 (98.7% free space) | 2,188 pages, 2.1 ms |
+| `VACUUM FULL` | 168 kB | 0 | 21 pages, 0.34 ms |
 
-Transaction IDs are 32 bits, and comparisons wrap modulo 2^32: each ID sees about two billion IDs in its past and two billion in its future. A tuple created long ago would eventually appear to be *from the future* and vanish. To prevent that, vacuum **freezes** old tuples, marking them visible to everyone regardless of ID. Autovacuum forces an aggressive anti-wraparound vacuum on any table whose oldest unfrozen ID is older than `autovacuum_freeze_max_age` (200 million by default).
+The third row is the part people miss: once the horizon moves, vacuum removes the garbage, but the file stays 17 MB and a sequential scan still reads every empty page. Space is reused by future inserts, so the table stops growing; only a rewrite returns it. Set `idle_in_transaction_session_timeout` so the bug cannot recur.
 
-If something stops freezing from finishing (the same pinned horizon, or an enormous table with vacuum throttled too hard), Postgres will, a few million IDs before disaster, refuse to assign new transaction IDs at all, with an error along the lines of `database is not accepting commands to avoid wraparound data loss`. Every write in the database stops until a manual vacuum completes, which on a large table takes hours. Several companies, Sentry and Mailchimp among them, have published write-ups of outages caused by exactly this. Monitor it:
+## Transaction ID wraparound
+
+Transaction IDs are 32 bits and compared modulo 2³²: each ID sees about two billion IDs in its past and two billion in its future, so a tuple created long enough ago would eventually appear to be from the future and vanish. Vacuum prevents that by **freezing** old tuples, marking them visible to every snapshot regardless of ID. Autovacuum forces an aggressive anti-wraparound vacuum on any table whose oldest unfrozen ID is older than `autovacuum_freeze_max_age` (200 million), and since Postgres 14 a failsafe drops cost throttling once a table passes `vacuum_failsafe_age` (1.6 billion).
+
+If freezing cannot finish (the same pinned horizon, or a huge table throttled too hard), Postgres logs warnings tens of millions of IDs before the limit and, a few million before it, refuses to assign new transaction IDs: every write stops until a manual vacuum completes, which on a large table takes hours. Sentry and Mailchimp both published outage write-ups about exactly this. Monitor it:
 
 ```sql
 SELECT datname, age(datfrozenxid) AS xid_age FROM pg_database ORDER BY 2 DESC;
--- alert well before 1,000,000,000; the hard stop is near 2,100,000,000
+-- alert well before 1,000,000,000; writes stop a few million short of about 2,100,000,000
 ```
+
+Multi-transaction IDs (below) have their own counter and their own freeze age (`autovacuum_multixact_freeze_max_age`, 400 million).
 
 ## Row locks: writers still block writers
 
-MVCC removes reader–writer blocking. Two writers to the same row still conflict, because only one of them can create the next version. The second writer waits for the first to commit or abort; then, under `READ COMMITTED`, it re-evaluates against the new version, and under `REPEATABLE READ` it fails with a serialisation error.
+MVCC removes reader–writer blocking. Two writers to the same row still conflict, because only one can create the next version. The second waits for the first to commit or abort; then at read committed it re-evaluates against the new version, and at repeatable read it fails with a serialisation error.
 
-Postgres records a row lock in the tuple's own `xmax` field, not in a shared lock table, so locking ten million rows costs no shared memory. (When several transactions share-lock the same row, the `xmax` holds a *MultiXact* ID pointing at a list of lockers, which has its own storage and its own wraparound limit.) Waiting for a row lock is implemented as waiting for the holding *transaction* to end, which is why lock waits show up as `ShareLock on transaction 9120`.
-
-You can take row locks explicitly. From strongest to weakest:
+Postgres records a row lock in the tuple's own `xmax`, not in a shared lock table, so locking ten million rows costs no shared memory. When several transactions share-lock one row, `xmax` holds a **MultiXact ID** pointing at a list of lockers. Waiting for a row lock is implemented as waiting for the holder's *transaction* to end, which is why lock waits show up as `ShareLock on transaction 1516002`.
 
 | Clause | Taken implicitly by | Blocks |
 |---|---|---|
-| `FOR UPDATE` | `DELETE`, `UPDATE` of a key column | All other row locks |
+| `FOR UPDATE` | `DELETE`; `UPDATE` of a key column | All other row locks |
 | `FOR NO KEY UPDATE` | `UPDATE` that changes no key column | Everything except `FOR KEY SHARE` |
 | `FOR SHARE` | (explicit only) | Updates and deletes |
 | `FOR KEY SHARE` | Foreign-key checks on the referenced row | Deletes and key changes only |
 
-The two weak modes exist so that inserting a comment (whose foreign-key check takes `FOR KEY SHARE` on the user row) does not block updating the user's display name (`FOR NO KEY UPDATE`). Modifiers change what happens on conflict: `NOWAIT` errors immediately, `SKIP LOCKED` ignores locked rows, and `SET lock_timeout = '2s'` bounds the wait.
+The two weak modes exist so that inserting a comment (whose foreign-key check takes `FOR KEY SHARE` on the user row) does not block updating the user's display name (`FOR NO KEY UPDATE`). `NOWAIT` errors instead of waiting, `SKIP LOCKED` ignores locked rows, and `SET lock_timeout = '2s'` bounds the wait.
 
-Every statement also takes a *table*-level lock. `SELECT` takes `ACCESS SHARE`, writes take `ROW EXCLUSIVE`, and neither conflicts with the other. Most `ALTER TABLE` forms take `ACCESS EXCLUSIVE`, which conflicts with everything, including `SELECT`, and queues behind any long-running transaction on the table while every new query queues behind it. [Schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) covers that trap.
+Every statement also takes a *table* lock: `SELECT` takes `ACCESS SHARE`, writes take `ROW EXCLUSIVE`, and the two do not conflict. Most `ALTER TABLE` forms take `ACCESS EXCLUSIVE`, which conflicts with everything including `SELECT`, and queues behind any open transaction on the table while every new query queues behind it. [Schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) measures that trap.
 
-## Deadlocks
+## Deadlocks, caught in the act
 
-Two transfers run in opposite directions:
+Two transfers run in opposite directions, and the lab set `deadlock_timeout = '4s'` in both sessions to leave time to look:
 
 | # | Session A | Session B |
 |---|---|---|
-| 1 | `BEGIN;` `UPDATE accounts SET balance_cents = balance_cents - 100 WHERE id = 1;` | |
-| 2 | | `BEGIN;` `UPDATE accounts SET balance_cents = balance_cents - 100 WHERE id = 2;` |
-| 3 | `UPDATE accounts SET balance_cents = balance_cents + 100 WHERE id = 2;` (waits for B) | |
-| 4 | | `UPDATE accounts SET balance_cents = balance_cents + 100 WHERE id = 1;` (waits for A) |
+| 1 | `BEGIN;` debit account 1 | |
+| 2 | | `BEGIN;` debit account 2 |
+| 3 | credit account 2 → waits for B | |
+| 4 | | credit account 1 → waits for A |
 
-Each holds a row lock the other needs. Neither can proceed. After `deadlock_timeout` (1 s by default), the waiting backend runs the deadlock detector, which builds the wait-for graph, finds the cycle, and aborts one participant:
+`pg_locks` one second into the wait:
+
+```text
+    who    |   locktype    |  target   |       mode       | granted
+-----------+---------------+-----------+------------------+---------
+ session_a | relation      | acct      | RowExclusiveLock | t
+ session_a | relation      | acct_pkey | RowExclusiveLock | t
+ session_a | transactionid | 1516001   | ExclusiveLock    | t
+ session_a | transactionid | 1516002   | ShareLock        | f
+ session_a | tuple         | acct 0,2  | ExclusiveLock    | t
+ session_b | relation      | acct      | RowExclusiveLock | t
+ session_b | relation      | acct_pkey | RowExclusiveLock | t
+ session_b | transactionid | 1516001   | ShareLock        | f
+ session_b | transactionid | 1516002   | ExclusiveLock    | t
+ session_b | tuple         | acct 0,1  | ExclusiveLock    | t
+```
+
+Read it as a graph. Each session holds an `ExclusiveLock` on its own transaction ID (every writing transaction does, so others can wait for it to end). Each wants a `ShareLock` on the *other's* transaction ID (`granted = f`), which is how a row-lock wait is expressed. The `tuple` locks mark which row each is queued for, so a third waiter would queue behind them in order. `pg_blocking_pids` showed A blocked by B and B blocked by A: a cycle. When A's `deadlock_timeout` expired, its backend ran the detector, found the cycle and aborted itself:
 
 ```text
 ERROR:  deadlock detected
-DETAIL:  Process 4211 waits for ShareLock on transaction 9120; blocked by process 4187.
-Process 4187 waits for ShareLock on transaction 9121; blocked by process 4211.
-HINT:  See server log for query details.
+DETAIL:  Process 13992 waits for ShareLock on transaction 1516002; blocked by process 13993.
+Process 13993 waits for ShareLock on transaction 1516001; blocked by process 13992.
+CONTEXT:  while updating tuple (0,2) in relation "acct"
 ```
+
+B's update then completed. Detection only runs after a waiter has waited `deadlock_timeout` (1 s by default), which makes deadlocks expensive: the [isolation lesson](/learn/databases/relational-fundamentals/isolation-levels-and-anomalies) measured 16 clients transferring between 10 accounts in random order at **6.7 transactions per second** with a 2.4 s average latency, against **8,233 per second** when each transaction updated its two accounts in ascending id order.
 
 ```viz
 {"type": "concurrency", "scenario": "deadlock", "threads": 2,
@@ -172,18 +191,18 @@ HINT:  See server log for query details.
  "caption": "Each thread holds one lock and waits for the other's. The wait-for graph has a cycle, so no amount of waiting helps. Postgres detects the cycle after deadlock_timeout and aborts one transaction with SQLSTATE 40P01; the fix is to acquire locks in a consistent order."}
 ```
 
-The survivor carries on; the victim gets SQLSTATE `40P01` and should be retried. The real fix is to make the cycle impossible by acquiring locks in a consistent order. `UPDATE ... WHERE id IN (2, 1)` does not guarantee an order, so lock explicitly first:
+The fix is to make the cycle impossible by acquiring locks in one global order. `UPDATE ... WHERE id IN (2, 1)` does not guarantee an order, so lock first:
 
 ```sql
 SELECT id FROM accounts WHERE id = ANY($1) ORDER BY id FOR UPDATE;
 -- now update both rows in any order; the locks are already held
 ```
 
-A deadlock every few hours under load is a code smell to fix, not noise to retry forever: each one costs a full second of both transactions' lock time before detection. `log_lock_waits = on` logs every lock wait longer than `deadlock_timeout`, which usually shows you the pattern before it becomes a cycle. The general theory is in [deadlock](/learn/systems/concurrency/deadlock) in the concurrency track.
+`log_lock_waits = on` logs every wait longer than `deadlock_timeout`, which usually reveals the pattern before it becomes a cycle. The general theory is in [deadlock](/learn/systems/concurrency/deadlock).
 
 ## A job queue with SKIP LOCKED
 
-The row-lock machinery gives you a correct, reasonably fast job queue inside Postgres, with no extra infrastructure:
+Row locks give you a correct job queue inside Postgres:
 
 ```sql
 CREATE TABLE jobs (
@@ -211,13 +230,24 @@ RETURNING id, payload;
 -- after processing: DELETE FROM jobs WHERE id = $1;
 ```
 
-Without `SKIP LOCKED`, every worker's subquery finds the same oldest row, all but one block on its lock, and your twenty workers process jobs one at a time. With it, each worker takes the next rows nobody else holds. The lease (`locked_until`) means a worker that crashes mid-job does not lose the job: it becomes claimable again when the lease expires. That is at-least-once delivery, so jobs must be idempotent.
+Without `SKIP LOCKED`, every worker's subquery finds the same oldest row and all but one wait on its lock. Measured with a 400,000-job queue where each job holds its lock for 2 ms of work:
 
-This pattern handles thousands of jobs per second on ordinary hardware. Its weakness is the one from the opening: a queue table is pure churn, every job is an insert, an update and a delete, and it bloats instantly when the xmin horizon is pinned. Give it aggressive per-table autovacuum settings and alert on its size.
+| Claim clause | 1 worker | 16 workers |
+|---|---|---|
+| `FOR UPDATE` | 373 jobs per second | 390 jobs per second, 41 ms average latency |
+| `FOR UPDATE SKIP LOCKED` | 373 jobs per second | 5,807 jobs per second, 2.8 ms average latency |
+
+Sixteen workers without `SKIP LOCKED` do the work of one. The lease means a crashed worker does not lose its job; it becomes claimable when the lease expires, which is at-least-once delivery, so jobs must be idempotent. The weakness is the opening story: a queue table is pure churn (every job is an insert, an update and a delete) and it bloats instantly when the horizon is pinned. Give it aggressive per-table autovacuum settings and alert on its size.
+
+| Queue option | Throughput | Ordering | Failure handling | Operational cost |
+|---|---|---|---|---|
+| Postgres `SKIP LOCKED` | Thousands of jobs per second per table | Approximate (by `run_at`) | Leases; transactional enqueue with your data | None extra; bloat-sensitive |
+| Advisory locks on job ids | Similar | Approximate | Session or transaction scoped | Easy to leak with poolers |
+| Dedicated broker (SQS, RabbitMQ, Kafka) | Tens of thousands per second and up | Per queue or partition | Visibility timeouts, dead-letter queues | Another system, and an outbox to enqueue transactionally |
 
 ## Advisory locks
 
-Sometimes the thing you need to lock is not a row: "only one instance of the nightly billing job may run", or "serialise all balance changes for user 42, including inserts into tables where no row exists yet". Advisory locks are named locks on a 64-bit key that Postgres holds for you and never takes on its own:
+Sometimes the thing to lock is not a row: "only one instance of the nightly billing job", or "serialise balance changes for user 42 including inserts into tables where no row exists yet". Advisory locks are named locks on a 64-bit key that Postgres holds for you and never takes on its own:
 
 ```sql
 -- Transaction-scoped: released automatically at COMMIT or ROLLBACK.
@@ -229,21 +259,46 @@ SELECT pg_try_advisory_lock(hashtext('nightly-billing'));
 SELECT pg_advisory_unlock(hashtext('nightly-billing'));
 ```
 
-Prefer the transaction-scoped form. Session-scoped locks survive until you unlock or disconnect, and behind a connection pooler in transaction mode (see [connection management](/learn/databases/storage-and-scale/connection-management)) your next transaction may run on a different server connection, so the unlock goes to a session that does not hold the lock while the lock stays attached to a connection someone else is now using. `hashtext` produces a 32-bit value, so unrelated names can collide; use a namespace (the two-argument form, `pg_advisory_xact_lock(namespace_id, key)`) when several features share the key space.
+Prefer the transaction-scoped form. Session locks survive until unlock or disconnect, and behind a transaction-mode pooler (see [connection management](/learn/databases/storage-and-scale/connection-management)) your next transaction may run on a different server connection, so the unlock goes to a session that does not hold the lock while the lock stays attached to a connection someone else is now using. `hashtext` returns 32 bits, so unrelated names can collide; use the two-argument form `pg_advisory_xact_lock(namespace, key)` when several features share the key space.
 
 ## Seeing who blocks whom
 
 ```sql
-SELECT pid,
-       pg_blocking_pids(pid) AS blocked_by,
-       wait_event_type, wait_event, state,
-       now() - query_start AS waiting_for,
-       left(query, 60) AS query
-FROM pg_stat_activity
-WHERE cardinality(pg_blocking_pids(pid)) > 0;
+SELECT pid, pg_blocking_pids(pid) AS blocked_by, wait_event_type, wait_event, state,
+       now() - query_start AS waiting_for, left(query, 60) AS query
+FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0;
 ```
 
-Follow `blocked_by` to the root: usually a single transaction at the head of a chain, often `idle in transaction`. That query is the first thing to run in any "the database is hanging" incident.
+Follow `blocked_by` to the root: usually a single transaction at the head of a chain, often `idle in transaction`. That is the first query to run in any "the database is hanging" incident.
+
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A small, high-churn table grows without bound; vacuum reports "dead but not yet removable" | Something pins the xmin horizon: an idle transaction, a stale replication slot, an orphaned prepared transaction | End it; `idle_in_transaction_session_timeout`; monitor slot lag; then `pg_repack` or `VACUUM FULL` to return space |
+| Writes stop with "database is not accepting commands" | Transaction ID wraparound protection: freezing never completed | Single-user or manual `VACUUM` of the oldest tables; alert on `age(datfrozenxid)` long before |
+| Throughput collapses to a few transactions per second under contention, errors mention deadlock | Lock cycles, each costing `deadlock_timeout` before detection | Lock rows in a consistent order; `log_lock_waits` to find the pair |
+| Adding workers to a job table does not raise throughput | All workers queue on the same row lock | `FOR UPDATE SKIP LOCKED` with a lease |
+| Two instances of a singleton job run at once, or its lock is stuck | Session-level advisory lock behind a transaction-mode pooler | `pg_advisory_xact_lock` inside one transaction, or a session-mode pool for the job |
+
+## Interviewer follow-ups
+
+**"Why do readers never block writers in Postgres?"** Model answer: writers create new versions instead of modifying the one readers see, and each reader's snapshot decides which version it sees, so nobody waits on a read. The cost is dead versions that vacuum must remove. Common wrong answer: "reads take shared locks that writers can skip", which describes lock-based engines.
+
+**"Vacuum runs constantly but the table keeps growing. Why?"** Model answer: something holds the xmin horizon back, so dead tuples are not yet removable; find it in `pg_stat_activity`, `pg_replication_slots` and `pg_prepared_xacts`. Common wrong answer: "autovacuum is too slow; add workers", which cannot remove tuples a snapshot might still need.
+
+**"Where does Postgres store row locks, and why does it matter?"** Model answer: in the tuple's `xmax`, so locking millions of rows costs no shared memory, and waiters block on the holder's transaction ID. Common wrong answer: "in a lock table in memory, which escalates to a table lock", which is SQL Server behaviour.
+
+**"How do you build a work queue in Postgres that scales with workers?"** Model answer: `FOR UPDATE SKIP LOCKED` on an index ordered by readiness, a lease column for crashed workers, idempotent jobs, and aggressive autovacuum; measured fifteen times the throughput of plain `FOR UPDATE` with 16 workers. Common wrong answer: "`SELECT` the oldest job then `UPDATE` it", which double-assigns jobs.
+
+## What mid-level engineers get wrong
+
+- **Leaving transactions open** in psql, notebooks or psycopg scripts, pinning the horizon for the whole database.
+- **Expecting `VACUUM` to shrink the file.** It frees space for reuse; only a rewrite returns it.
+- **Relying on the 20% autovacuum default for large tables**, letting tens of millions of dead tuples accumulate.
+- **Locking rows in whatever order the code happens to reach them**, and then retrying deadlocks forever.
+- **Building a queue without `SKIP LOCKED`**, then adding workers that only wait.
+- **Using session-level advisory locks behind a transaction-mode pooler.**
 
 ```exercise
 id: mvcc-visibility
@@ -309,44 +364,50 @@ The [time-based key-value store](/practice/time-based-kv) problem is the same id
 
 ## Senior signals
 
-- You explain MVCC as "updates write new versions; snapshots decide which version each transaction sees", and you can derive both "readers never block writers" and "somebody must vacuum" from that sentence.
-- When a table bloats or vacuum reports "dead but not yet removable", you look for what pins the xmin horizon: long transactions, `idle in transaction`, stale replication slots, orphaned prepared transactions.
-- You tune autovacuum per table for large or high-churn tables instead of relying on the 20% default, and you alert on `age(datfrozenxid)` long before wraparound.
-- You know row locks live in the tuple header, which lock modes foreign keys take, and why `FOR UPDATE SKIP LOCKED` turns a table into a workable job queue.
-- You prevent deadlocks by ordering lock acquisition, treat `40P01` as retryable, and turn on `log_lock_waits` to find the pattern.
-- You prefer transaction-scoped advisory locks, and you know why session-scoped ones break behind a transaction-mode pooler.
+- You explain MVCC as "updates write new versions; snapshots decide which version each transaction sees", and derive both "readers never block writers" and "somebody must vacuum" from it.
+- You can read a `heap_page_items` dump: `xmin`, `xmax`, `t_ctid` chains, HOT flags, and the redirect line pointer vacuum leaves behind.
+- When a table bloats or vacuum reports "dead but not yet removable", you look for what pins the xmin horizon, and you know vacuum frees space without shrinking the file.
+- You tune autovacuum per table, alert on `age(datfrozenxid)`, and know why a read-only query can dirty thousands of pages.
+- You can read `pg_locks` during a lock wait (transaction-ID locks, tuple locks, `granted = f`), prevent deadlocks by ordering lock acquisition, and know each one costs `deadlock_timeout`.
+- You build queues with `SKIP LOCKED` and leases, prefer transaction-scoped advisory locks, and know why session locks break behind a transaction-mode pooler.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    A 30 MB queue table has grown to 9 GB. VACUUM VERBOSE reports millions of tuples that are dead but not yet removable. What should you check first?
-  options: ["Whether the queue table is missing an index on its run_at column", "What pins the xmin horizon, such as an idle-in-transaction session", "Whether the disk is full, since vacuum needs free space to compact files", "Whether autovacuum is disabled, or throttled too hard to keep pace"]
+    A 168 kB queue table has grown to 17 MB. VACUUM VERBOSE reports 200,000 tuples that are dead but not yet removable. What should you check first?
+  options: ["Whether autovacuum is disabled or throttled too hard to keep up", "What pins the xmin horizon, e.g. an idle transaction", "Whether the table is missing an index on its run_at column", "Whether the disk is too full for vacuum to compact the file"]
   answer: 1
   explanation: >-
-    Dead but not yet removable means vacuum ran and found the tuples, but some snapshot might still need them, so autovacuum is clearly running. Check pg_stat_activity for long-running or idle-in-transaction sessions, then inactive replication slots and orphaned prepared transactions. The fix is to end whatever holds the oldest snapshot; after that the space is reused, and a VACUUM FULL or pg_repack reclaims the file size if needed.
+    Vacuum ran and found the tuples, so it is not disabled; it refused to remove them because some snapshot might still need them. Look in pg_stat_activity for old backend_xmin values, then replication slots and prepared transactions. In the lab, ending one idle session let the next vacuum remove all 200,000.
 - q: >-
-    Why does Postgres not need memory proportional to the number of rows a transaction has locked?
-  options: ["It releases each row lock as soon as the statement that took it ends", "Row locks live in each tuple's xmax field on the data page itself", "It escalates row locks to a single table lock past a set threshold", "It only locks the index pages that point at the rows being changed"]
-  answer: 1
+    After the culprit session is ended and VACUUM runs, the 17 MB table still occupies 17 MB. Why?
+  options: ["Vacuum makes space reusable; only a rewrite returns it", "The dead tuples are still needed by the next autovacuum cycle", "The visibility map must be rebuilt before any space is freed", "Freed space is only returned to the OS at the next checkpoint"]
+  answer: 0
   explanation: >-
-    A row lock is marked in the tuple header, so it costs no shared memory. A waiter blocks on the lock of the transaction that set xmax, rather than on a per-row lock entry, which is why lock waits appear as ShareLock on transaction N. SQL Server-style lock escalation does not exist in Postgres, and row locks are held until commit.
+    Plain VACUUM frees line pointers and space inside pages for future inserts, and only truncates empty pages at the very end of the file. The measured file was 98.7% free space and a sequential scan still read all 2,188 pages. VACUUM FULL or pg_repack rewrites the table, which returned it to 168 kB.
 - q: >-
-    Twenty workers run SELECT id FROM jobs WHERE run_at <= now() ORDER BY run_at LIMIT 1 FOR UPDATE, process the job, and delete it. Throughput is the same as with one worker. Why, and what is the fix?
-  options: ["Postgres caps concurrent writers per table; partition the jobs table", "Without an index on run_at every worker scans the table; add one", "FOR UPDATE takes a table lock, so the workers run one at a time; use FOR SHARE", "All workers pick the same oldest row and queue on its lock; add SKIP LOCKED"]
+    An UPDATE of an unindexed column on a page with free space leaves the primary-key index unchanged. How does a lookup by id still find the new version?
+  options: ["The index entry is rewritten lazily by the next index scan", "Postgres updates the row in place when no index column changes", "The lookup lands on the old version and follows the HOT chain", "Vacuum adds the new entry to the index before any read occurs"]
+  answer: 2
+  explanation: >-
+    A HOT update writes the new version on the same page, flags it heap-only and points the old version's t_ctid at it. The index still points at the root line pointer, and readers follow the chain; after vacuum the root becomes a redirect. Postgres never updates in place, and no index entry is added for heap-only tuples.
+- q: >-
+    In pg_locks during a lock wait, session A holds ExclusiveLock on transaction 1516001 and waits for ShareLock on transaction 1516002, while B holds 1516002 and waits for 1516001. What is happening?
+  options: ["A lock escalation from row locks to a table lock is in progress", "Both sessions are waiting on I/O and the locks are only bookkeeping", "Two readers are blocked behind a single writer on one busy row", "A deadlock: each waits for the other's transaction to end"]
   answer: 3
   explanation: >-
-    Every worker's query finds the same row first, so they serialise on its row lock. SKIP LOCKED makes each worker skip rows other workers hold and take the next unlocked one, which spreads the work. FOR UPDATE locks rows, not the table. A lease column protects against workers that crash mid-job.
+    Row-lock waits appear as a ShareLock request on the holder's transaction ID, and every writing transaction holds an ExclusiveLock on its own ID. Each session waits for the other's, which is a cycle; after deadlock_timeout one backend runs the detector and aborts itself with 40P01. Postgres never escalates row locks.
 - q: >-
-    Two services each update rows in accounts for transfers, sometimes locking account 1 then 2 and sometimes 2 then 1. They see occasional deadlocks. What is the durable fix?
-  options: ["Run the transfers at SERIALIZABLE so that lock cycles cannot form", "Add NOWAIT to every update so transfers proceed without waiting", "Lock the rows in a consistent order, e.g. ORDER BY id FOR UPDATE first", "Raise deadlock_timeout so that each lock wait has time to resolve itself"]
-  answer: 2
+    Twenty workers run SELECT id FROM jobs ... ORDER BY run_at LIMIT 1 FOR UPDATE, process the job and delete it. Throughput equals one worker's. Why, and what fixes it?
+  options: ["All workers pick the same oldest row and queue on it; add SKIP LOCKED", "FOR UPDATE takes a table lock, so workers run one by one; use FOR SHARE", "Without an index on run_at every worker scans the table; add one", "Postgres limits concurrent writers per table; partition the jobs table"]
+  answer: 0
   explanation: >-
-    A deadlock needs a cycle in the wait-for graph. If every transaction locks rows in the same global order (SELECT ... WHERE id = ANY($1) ORDER BY id FOR UPDATE before updating), no cycle can form. Raising deadlock_timeout only delays detection, SERIALIZABLE does not remove row-lock waits, and NOWAIT turns waits into errors rather than letting transfers proceed.
+    Every worker's query finds the same row first, so all but one wait on its row lock; the lab measured 390 jobs per second with 16 workers against 5,807 with SKIP LOCKED. FOR UPDATE locks rows, not tables, and there is no per-table writer limit. A lease column covers workers that crash mid-job.
 - q: >-
-    A cron job uses pg_try_advisory_lock(key) and pg_advisory_unlock(key) to ensure one instance runs, through PgBouncer in transaction pooling mode. Sometimes two instances run at once, and sometimes the lock appears stuck. Why?
-  options: ["hashtext collisions map unrelated job names onto the same advisory lock key", "Advisory locks are released at the end of each statement that takes them", "Session locks stay on one server connection, but each transaction may get another", "PgBouncer intercepts advisory lock calls and never forwards them to the server"]
-  answer: 2
+    A cron job uses pg_try_advisory_lock(key) and pg_advisory_unlock(key) through PgBouncer in transaction mode. Sometimes two instances run, and sometimes the lock seems stuck. Why?
+  options: ["Advisory locks are released at the end of each statement that takes them", "Session locks stay on one server connection; transactions may move", "PgBouncer strips advisory lock calls so they never reach the server", "hashtext collisions map different job names onto one advisory lock key"]
+  answer: 1
   explanation: >-
-    In transaction mode, a client only owns a server connection for the duration of a transaction. A session lock taken in one transaction stays with that server connection after the client moves on, so the unlock can go to a connection that does not hold it while other clients reuse the one that does. A hash collision could make a lock look stuck but cannot let two instances run. Use pg_advisory_xact_lock inside a single transaction, or a session-mode pool for the job.
+    In transaction mode a client owns a server connection only for the duration of a transaction. A session lock taken in one transaction stays with that server connection after the client moves on, so the unlock may go to a connection that does not hold it while other clients reuse the one that does. A collision could make a lock look stuck but cannot let two instances run. Use pg_advisory_xact_lock inside one transaction.
 ```

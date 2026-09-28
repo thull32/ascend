@@ -1,10 +1,10 @@
 ---
 slug: isolation-levels-and-anomalies
 title: "Isolation levels and anomalies: what your default lets through"
-description: Every concurrency anomaly from dirty reads to write skew shown as a two-session timeline, what each Postgres isolation level actually prevents, how serialisable snapshot isolation detects the rest, and how to choose.
+description: Every anomaly from dirty reads to write skew reproduced with two interleaved Postgres sessions, the level that prevents each in Postgres and in MySQL, how READ COMMITTED re-checks rows and how serialisable snapshot isolation detects dangerous structures, and what SERIALIZABLE costs under contention, measured.
 minutes: 28
 difficulty: hard
-tags: [isolation, transactions, write-skew, serializable, mvcc, postgres, concurrency]
+tags: [isolation, transactions, write-skew, serializable, mvcc, postgres, mysql, concurrency]
 ---
 Every new account gets one welcome credit. The code is careful and runs in a transaction:
 
@@ -15,54 +15,46 @@ INSERT INTO credits (user_id, kind, cents) VALUES (42, 'welcome', 1000);
 COMMIT;
 ```
 
-A user double-clicks the button. Two requests arrive 3 ms apart, both run the `SELECT`, both see zero, both insert. The user has two credits. Under Postgres's default isolation level this is allowed. Under `REPEATABLE READ` it is still allowed. Only `SERIALIZABLE`, or a constraint, stops it.
+A user double-clicks. Two requests arrive 3 ms apart, both run the `SELECT`, both see zero, both insert. The user has two credits. Under Postgres's default isolation level this is allowed. Under `REPEATABLE READ` it is still allowed. Only `SERIALIZABLE`, or a constraint, stops it.
 
-"We use transactions" is not a concurrency strategy. A transaction guarantees atomicity; how much it is protected from other transactions running at the same time depends on the isolation level, and the default in almost every database permits anomalies that break real invariants. This lesson shows each anomaly as the interleaving that produces it, then what each level actually prevents in Postgres, and how to decide.
+A transaction guarantees atomicity. How much it is protected from other transactions running at the same time depends on the isolation level, and the default in almost every database permits anomalies that break real invariants. This lesson reproduces each anomaly on PostgreSQL 17 with two real sessions interleaved step by step, shows the mechanism that permits or prevents it, compares with MySQL's InnoDB, and measures what the strict levels cost.
 
-## The anomalies, one timeline each
+## How the timelines were produced
 
-Read each table top to bottom as wall-clock time. Session A and Session B are two connections running concurrently.
+Two sessions have to interleave precisely, including one blocking on the other. The lab drives both from a third psql session with the `dblink` extension: `dblink_exec('a', ...)` runs a statement on session A and waits; `dblink_send_query('b', ...)` starts a statement on B without waiting, so the controller can observe that B is blocked (`dblink_is_busy('b')` returns 1), commit A, and then collect B's result with `dblink_get_result`. Every result quoted below is what those sessions returned.
 
-### Dirty reads: never in Postgres
+## Dirty reads: never in Postgres
 
-A dirty read is seeing another transaction's uncommitted write. If that transaction then rolls back, you acted on data that never existed. Postgres never allows dirty reads, even if you ask for `READ UNCOMMITTED` (which it silently treats as `READ COMMITTED`). The MVCC visibility rules make it impossible: a row version whose creating transaction is still in progress is invisible to everyone else.
+A dirty read is seeing another transaction's uncommitted write; if that transaction rolls back, you acted on data that never existed. Session A ran `BEGIN ISOLATION LEVEL READ UNCOMMITTED`; B updated account 1 from 10,000 to 0 without committing; A read account 1 and got **10000**, while `SHOW transaction_isolation` reported `read uncommitted`. Postgres accepts the level and implements it as `READ COMMITTED`, because MVCC visibility makes dirty reads impossible: a version whose creating transaction is still in progress is invisible to everyone else. InnoDB does implement `READ UNCOMMITTED` and returns the dirty value.
 
-### Non-repeatable reads and read skew
+## Read skew and phantoms
 
-Under `READ COMMITTED`, every *statement* takes a fresh snapshot. Two reads of the same row in one transaction can disagree:
+Under `READ COMMITTED` every *statement* takes a fresh snapshot, so two reads in one transaction can come from different moments:
 
-| # | Session A (read committed) | Session B |
-|---|---|---|
-| 1 | `BEGIN;` | |
-| 2 | `SELECT balance_cents FROM accounts WHERE id = 1;` → 10000 | |
-| 3 | | `BEGIN;` |
-| 4 | | `UPDATE accounts SET balance_cents = balance_cents - 4000 WHERE id = 1;` |
-| 5 | | `UPDATE accounts SET balance_cents = balance_cents + 4000 WHERE id = 2;` |
-| 6 | | `COMMIT;` |
-| 7 | `SELECT balance_cents FROM accounts WHERE id = 2;` → 4000 | |
-| 8 | `COMMIT;` | |
+| # | Session A | Session B | A sees at READ COMMITTED | A sees at REPEATABLE READ |
+|---|---|---|---|---|
+| 1 | `BEGIN;` read account 1 | | 10000 | 10000 |
+| 2 | | Move 4,000 from account 1 to account 2; `COMMIT` | | |
+| 3 | read account 2 | | **4000** | 0 |
 
-Session A was computing total holdings. Account 1 was read before the transfer (10,000) and account 2 after it (4,000 instead of 0), so A reports 14,000 when the true total at every instant was 10,000. That is **read skew**: each read is correct, but they come from different moments. It is how nightly reports, balance reconciliations and `pg_dump`-by-hand scripts produce totals that never existed. It is fixed by running the reader at `REPEATABLE READ`, where one snapshot is taken at the first statement and used for the whole transaction.
+At read committed, A's total is 14,000, a figure that existed at no instant. That is **read skew**: each read is correct, but they come from different moments. It is how nightly reports and reconciliation scripts produce totals that never existed, and it is fixed by running the reader at `REPEATABLE READ`, where one snapshot, taken at the transaction's first statement (not at `BEGIN`), serves every statement.
 
-### Phantoms
+A **phantom** is the same problem for a set of rows. A counted bookings for room 3 on 1 October, B inserted one and committed, A counted again: **0 then 1** at read committed, **0 then 0** at repeatable read. The SQL standard permits phantoms at `REPEATABLE READ`; Postgres is stricter because its snapshot does not contain rows committed after it was taken.
 
-A phantom is the same problem for a *set* of rows: a query re-run within a transaction returns rows that another transaction inserted in the meantime. `SELECT count(*) FROM bookings WHERE room_id = 3 AND day = '2026-10-01'` returns 0, then 1. Under `READ COMMITTED` phantoms happen; under Postgres's `REPEATABLE READ` they do not, because the snapshot does not include rows committed after it was taken. (The SQL standard permits phantoms at `REPEATABLE READ`; Postgres is stricter than it needs to be.)
+## Lost updates
 
-### Lost updates
-
-Two transactions read a value, compute a new one in the application, and write it back:
+Two transactions read a value, compute a new one in the application, and write it back. Measured with `items.stock = 10`:
 
 | # | Session A | Session B |
 |---|---|---|
-| 1 | `BEGIN;` | `BEGIN;` |
-| 2 | `SELECT stock FROM items WHERE id = 7;` → 10 | |
-| 3 | | `SELECT stock FROM items WHERE id = 7;` → 10 |
-| 4 | `UPDATE items SET stock = 9 WHERE id = 7;` | |
-| 5 | | `UPDATE items SET stock = 9 WHERE id = 7;` (blocks on A's row lock) |
-| 6 | `COMMIT;` | |
-| 7 | | unblocks, writes 9 · `COMMIT;` |
+| 1 | `BEGIN;` read stock → 10 | `BEGIN;` read stock → 10 |
+| 2 | `UPDATE items SET stock = 9 WHERE id = 7;` | |
+| 3 | | `UPDATE items SET stock = 9 WHERE id = 7;` blocks on A's row lock (`dblink_is_busy` = 1) |
+| 4 | `COMMIT;` | |
+| 5 | | at READ COMMITTED: `UPDATE 1`, `COMMIT`, final stock **9** |
+| 5′ | | at REPEATABLE READ: `ERROR: could not serialize access due to concurrent update` |
 
-Two items sold, stock decremented once. Under `READ COMMITTED` this commits silently. It is the database version of the unsynchronised counter from the [concurrency track](/learn/systems/concurrency/races-mutexes-and-invariants):
+Two items sold, stock decremented once, and at read committed nothing complained. It is the database version of the unsynchronised counter in the [concurrency track](/learn/systems/concurrency/races-mutexes-and-invariants):
 
 ```viz
 {"type": "concurrency", "scenario": "race-condition", "threads": 2,
@@ -70,52 +62,27 @@ Two items sold, stock decremented once. Under `READ COMMITTED` this commits sile
  "caption": "Both threads read the same value, both compute value + 1, both write it back; one increment disappears. Two database sessions doing SELECT then UPDATE with a value computed in application code interleave in exactly this way."}
 ```
 
-Under `REPEATABLE READ`, step 7 fails instead:
+Change B's statement to the atomic form, `UPDATE items SET stock = stock - 1 WHERE id = 7 AND stock > 0 RETURNING stock`, keep read committed, and B returns **8**. The mechanism is Postgres's **EvalPlanQual** re-check: when an `UPDATE` at read committed finds its target row locked, it waits; when the locker commits, it fetches the *newly committed* version, re-evaluates the `WHERE` clause against it, and computes `SET` from it. That is why a single-statement read-modify-write is correct at the default level while the two-statement version is not. The re-check only covers rows the statement had already found; rows that begin to match the predicate because of the other transaction are not picked up, which is why complex multi-row `UPDATE`s at read committed can still surprise you.
 
-```text
-ERROR:  could not serialize access due to concurrent update
-```
+This app relies on the atomic form in several places. `InterviewService::finish` updates the interview `WHERE id = $1 AND status = 'active'` and returns the row; two racing "finish" calls both reach the update, the second re-checks the now-committed row, no longer finds `status = 'active'`, updates nothing, and is reported as a conflict. The integration test runs two concurrent finishes and asserts exactly one succeeds.
 
-B tried to update a row that was changed by a transaction that committed after B's snapshot was taken. Postgres refuses (first updater wins) and B must retry from the start, at which point it reads 9 and writes 8.
+## Write skew
 
-There is a subtlety in `READ COMMITTED` that makes the atomic form safe. If step 5 had been `UPDATE items SET stock = stock - 1 WHERE id = 7 AND stock > 0`, then when B unblocks, Postgres re-reads the *newly committed* version of the row and re-evaluates the `WHERE` clause and the `SET` expression against it. B computes 9 − 1 = 8. This re-check is why single-statement read-modify-write is correct at the default level while the two-statement version is not. It only re-checks rows the `UPDATE` had already found, though; rows that start matching the predicate because of the other transaction are not picked up, which is one reason complex multi-row `UPDATE`s under `READ COMMITTED` can surprise you.
-
-### Write skew
-
-Now the anomaly that survives `REPEATABLE READ`. A hospital requires at least one doctor on call per shift. Alice and Bob are both on call for shift 7 and both feel unwell:
+The anomaly that survives `REPEATABLE READ`. A hospital requires at least one doctor on call per shift; Alice and Bob are both on call for shift 7 and both feel unwell:
 
 | # | Session A (Alice) | Session B (Bob) |
 |---|---|---|
 | 1 | `BEGIN ISOLATION LEVEL REPEATABLE READ;` | `BEGIN ISOLATION LEVEL REPEATABLE READ;` |
-| 2 | `SELECT count(*) FROM on_call WHERE shift_id = 7 AND active;` → 2 | |
-| 3 | | `SELECT count(*) FROM on_call WHERE shift_id = 7 AND active;` → 2 |
-| 4 | `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'alice';` | |
-| 5 | | `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'bob';` |
-| 6 | `COMMIT;` | |
-| 7 | | `COMMIT;` → succeeds |
+| 2 | count active doctors on shift 7 → 2 | count active doctors on shift 7 → 2 |
+| 3 | `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'alice';` | `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'bob';` |
+| 4 | `COMMIT` → COMMIT | `COMMIT` → COMMIT |
+| 5 | Doctors on call now: **0** | |
 
-Nobody is on call. Each transaction checked the invariant against its snapshot, and the check was true. Each wrote a *different* row, so there was no write-write conflict for first-updater-wins to catch. Snapshot isolation only compares write sets, and these write sets are disjoint.
+Each transaction checked the invariant against its snapshot, and the check was true. Each wrote a *different* row, so first-updater-wins had nothing to compare: snapshot isolation only detects write-write conflicts, and these write sets are disjoint. That is **write skew**: two transactions read overlapping data, make disjoint writes, and each write invalidates the other's premise.
 
-That is **write skew**: two transactions read overlapping data, make disjoint writes, and each write invalidates the premise of the other. The welcome-credit bug from the opening is the same shape with a twist: the writes are *inserts*, so there is not even an existing row either transaction could have locked. Double-booked meeting rooms, usernames claimed twice, two admins each demoting the other so the organisation has no admin, overlapping shifts, overspent budgets split across several rows: all write skew.
+The welcome credit is the same shape with inserts: at repeatable read both sessions counted 0, both inserted, both committed, and user 42 had **2** credits. With inserts there is not even an existing row either transaction could have locked. Double-booked rooms, usernames claimed twice, two admins each demoting the other, overspent budgets split across rows: all write skew.
 
-## What each level actually prevents
-
-The SQL standard defines levels by the anomalies they forbid. Postgres implements them with snapshots and is stricter than the standard at `REPEATABLE READ`:
-
-| Postgres level | Snapshot | Dirty read | Non-repeatable / read skew | Phantom | Lost update (two-statement) | Write skew |
-|---|---|---|---|---|---|---|
-| `READ UNCOMMITTED` | Same as read committed | Prevented | Possible | Possible | Possible | Possible |
-| `READ COMMITTED` (default) | New per statement | Prevented | Possible | Possible | Possible | Possible |
-| `REPEATABLE READ` | One per transaction | Prevented | Prevented | Prevented | Aborts with `40001` | **Possible** |
-| `SERIALIZABLE` | One per transaction, plus conflict tracking | Prevented | Prevented | Prevented | Aborts with `40001` | Aborts with `40001` |
-
-Two cross-database warnings. First, the same name means different things elsewhere. MySQL's InnoDB defaults to `REPEATABLE READ`, but its plain `SELECT`s read a snapshot while its `UPDATE`s and locking reads act on the latest committed version, so the two-statement lost update above commits silently there, where Postgres would abort it. Oracle's `SERIALIZABLE` is snapshot isolation and permits write skew. Never assume a level's name tells you its guarantees; read that database's documentation or test the interleaving.
-
-Second, the snapshot in Postgres's `REPEATABLE READ` is taken at the first statement after `BEGIN`, not at `BEGIN` itself. A transaction that runs `BEGIN`, does nothing for a second and then reads gets a snapshot from the moment of the read, including everything committed during that second.
-
-## Three ways to stop write skew, and one trap
-
-**1. Run at `SERIALIZABLE`.** In the doctor example, step 7 becomes:
+Rerun both at `SERIALIZABLE` and the first commit succeeds while the second fails:
 
 ```text
 ERROR:  could not serialize access due to read/write dependencies among transactions
@@ -123,37 +90,45 @@ DETAIL:  Reason code: Canceled on identification as a pivot, during commit attem
 HINT:  The transaction might succeed if retried.
 ```
 
-Bob's retry sees one doctor on call and refuses to go off shift. This works for the phantom (insert) variant too, with no schema changes. The cost is covered below.
+One doctor stays on call; one credit is granted. Bob's retry sees one active doctor and refuses to go off shift.
 
-**2. Materialise the conflict with a lock.** If both transactions must lock the same row before deciding, they serialise. For the doctors, lock every row you read:
+## What each level prevents, in Postgres and in MySQL
+
+| Anomaly | Postgres: lowest level that prevents it | InnoDB (MySQL): lowest level that prevents it |
+|---|---|---|
+| Dirty read | Every level (read uncommitted runs as read committed) | Read committed |
+| Read skew / non-repeatable read | Repeatable read | Repeatable read, for plain `SELECT`s |
+| Phantom | Repeatable read (snapshot) | Repeatable read: snapshot for plain reads, next-key locks for locking reads |
+| Lost update, two-statement | Repeatable read (the second writer aborts with `40001`) | Serialisable only; at repeatable read the second `UPDATE` reads the latest version and overwrites silently |
+| Write skew | Serialisable (SSI aborts one transaction) | Serialisable (plain reads become `FOR SHARE` locks; conflicts block or deadlock) |
+
+The InnoDB column is documented behaviour, not measured in this lab, and it shows why level names do not travel. InnoDB's default is `REPEATABLE READ`, but only plain `SELECT`s read the snapshot; `UPDATE`, `DELETE` and locking reads act on the latest committed version and take next-key locks (the row plus the gap before it). So the two-statement lost update that Postgres aborts at repeatable read commits silently on InnoDB at the same level. InnoDB's `SERIALIZABLE` is two-phase locking: in the welcome-credit case, both `SELECT count(*)` statements take shared locks on the gap where user 42's credit would go, both `INSERT`s wait for the other's gap lock, and InnoDB's deadlock detector aborts one with error 1213. Oracle's `SERIALIZABLE` is snapshot isolation and permits write skew. Read the documentation or test the interleaving; never infer guarantees from the name.
+
+## Three ways to stop write skew, and one trap
+
+**1. Make the database enforce the invariant.** Many write-skew invariants are constraints, which hold at every isolation level:
 
 ```sql
-SELECT doctor FROM on_call WHERE shift_id = 7 AND active FOR UPDATE;
-```
-
-Bob's `SELECT ... FOR UPDATE` now blocks until Alice commits, then sees one active doctor. This works at `READ COMMITTED`. For the insert variant there is no row to lock yet, so you lock a parent row that always exists (`SELECT 1 FROM users WHERE id = 42 FOR UPDATE` before checking credits) or take an [advisory lock](/learn/databases/relational-fundamentals/mvcc-and-locking) on the key.
-
-**3. Make the database enforce the invariant.** Many write-skew invariants can be written as constraints, which are checked atomically regardless of isolation level:
-
-```sql
--- At most one welcome credit per user.
 CREATE UNIQUE INDEX credits_one_welcome ON credits (user_id) WHERE kind = 'welcome';
 
--- No overlapping bookings for the same room.
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 ALTER TABLE bookings ADD CONSTRAINT bookings_no_overlap
   EXCLUDE USING gist (room_id WITH =, during WITH &&);
 ```
 
-When one exists, a constraint is the best fix: it cannot be forgotten by the next engineer who writes a new code path.
+This app does it for interviews: `uq_interviews_one_active_per_user`, a unique partial index on `interviews (user_id) WHERE status = 'active'`, replaced a check-then-insert that could race. A constraint cannot be forgotten by the next engineer who writes a new code path.
 
-**The trap: folding the check into the write.** It is tempting to make the write conditional on the read: `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'alice' AND (SELECT count(*) FROM on_call WHERE shift_id = 7 AND active) > 1`. It looks atomic and is not. Under `READ COMMITTED` the subquery reads a statement snapshot that does not include Bob's uncommitted change, the two `UPDATE`s touch different rows so neither blocks the other, and both still commit. It is only reliable combined with a lock or a constraint.
+**2. Materialise the conflict with a lock.** If both transactions must lock the same row before deciding, they serialise. For the doctors, lock the rows you read: `SELECT doctor FROM on_call WHERE shift_id = 7 AND active FOR UPDATE`. Bob now blocks until Alice commits, then sees one doctor. For the insert variant there is no row yet, so lock a parent row that always exists (`SELECT 1 FROM users WHERE id = 42 FOR UPDATE`) or take an [advisory lock](/learn/databases/relational-fundamentals/mvcc-and-locking) on the key.
 
-## How Postgres serialisable works
+**3. Run at `SERIALIZABLE`**, with a retry loop, as shown above.
 
-Postgres's `SERIALIZABLE` is **serialisable snapshot isolation** (SSI). It runs exactly like `REPEATABLE READ`, with no extra blocking, and additionally records what each transaction read so it can detect the dependency pattern that every non-serialisable execution must contain.
+**The trap: folding the check into the write.** `UPDATE on_call SET active = false WHERE shift_id = 7 AND doctor = 'alice' AND (SELECT count(*) FROM on_call WHERE shift_id = 7 AND active) > 1` looks atomic and is not. At read committed the subquery reads a snapshot without Bob's uncommitted change, the two updates touch different rows so neither blocks, and EvalPlanQual re-checks only the updated row, not the subquery's rows. Both commit.
 
-It tracks **rw-antidependencies**: T1 → T2 when T1 read a version of some data that T2 later overwrote (so T1 did not see T2's write and must logically come *before* T2). Reads are recorded as `SIRead` locks, which block nothing; they are bookkeeping. The theory (Fekete, Cahill and others) says every anomaly under snapshot isolation involves a **dangerous structure**: two consecutive rw-antidependencies, T1 → T2 → T3, where T3 commits first. T1 and T3 may be the same transaction, which is exactly write skew:
+## Under the hood: how serialisable snapshot isolation works
+
+Postgres's `SERIALIZABLE` is **serialisable snapshot isolation** (SSI, Cahill, Röhm and Fekete, 2008). It runs exactly like repeatable read, with no extra blocking, and additionally records what each transaction read so it can detect the pattern every non-serialisable execution must contain.
+
+It tracks **rw-antidependencies**: T1 → T2 when T1 read a version that T2 later overwrote, so T1 did not see T2's write and must come before T2 in any equivalent serial order. Reads are recorded as **SIRead locks**, which block nothing. The theory proves every snapshot-isolation anomaly contains a **dangerous structure**: two consecutive rw-antidependencies T1 → T2 → T3 where T3 commits first. T1 and T3 can be the same transaction, which is write skew:
 
 ```mermaid
 flowchart LR
@@ -161,23 +136,71 @@ flowchart LR
     B -- "rw: Bob read alice's row, Alice wrote it" --> A
 ```
 
-When Postgres sees a dangerous structure forming, it aborts one participant with `40001`. Three practical consequences:
+The middle transaction is the **pivot**; when a structure completes, Postgres aborts a participant, which is exactly the "identification as a pivot, during commit attempt" message above. Practical consequences:
 
-- **False positives.** SSI is conservative. It may abort transactions whose particular interleaving happened to be harmless, especially when read tracking is coarse. A sequential scan records a lock on the whole table, so any concurrent write to that table creates a dependency; an index scan records locks on index pages, which is much finer. Good indexes reduce serialisation failures.
-- **Everyone must participate.** The guarantee only covers transactions running at `SERIALIZABLE`. A `READ COMMITTED` transaction writing the same tables is invisible to the conflict tracking and can still produce an anomaly.
-- **Retries are mandatory.** Every transaction needs a retry wrapper that re-runs the whole function on `40001`. Long read-only reports can avoid aborts entirely with `BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE`, which waits for a snapshot that is guaranteed safe and then cannot fail.
+- **Granularity creates false positives.** SIRead locks start at tuple level and are promoted to page and then relation level when a transaction holds more than `max_pred_locks_per_page` (2) on a page or `max_pred_locks_per_relation` on a table (32 with defaults). A sequential scan takes a relation-level lock at once, so any concurrent write to the table forms a dependency. Index scans lock index pages, which is much finer: good indexes cut serialisation failures.
+- **Everyone must participate.** Only transactions running at `SERIALIZABLE` are tracked; a read committed writer on the same tables can still produce an anomaly.
+- **Test the guarantee, do not assume it.** Jepsen's 2020 analysis of PostgreSQL 12.3 found a bug that let serializable transactions form exactly this kind of dependency cycle; it was fixed in the following minor releases. Isolation is implemented code, and independent testing is how such bugs surface.
+- **Read-only reports can avoid aborts.** `BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE` waits for a snapshot that cannot be part of a dangerous structure, then runs without tracking and cannot fail.
 
-The overhead in CPU and memory is modest in most workloads. The real cost is the abort rate under contention: a hot row or a table scanned by many transactions can push it high enough that throughput collapses into retries.
+## What the strict levels cost, measured
+
+Sixteen `pgbench` clients ran transfers (read one balance, update two accounts in ascending id order) for 6 seconds, with `--max-tries=50` retrying serialisation failures:
+
+| Level | 1,000 accounts: throughput, retried | 10 accounts: throughput, retried, failed after 50 tries |
+|---|---|---|
+| Read committed | 19,243 per second, 0% | 8,233 per second, 0%, 0% |
+| Repeatable read | 18,173 per second, 4.2% | 3,287 per second, 53%, 0.4% |
+| Serializable | 17,586 per second, 4.3% | 2,239 per second, 60%, 1.9% |
+
+With low contention the strict levels cost under 10% of throughput; the retries come from the concurrent-update rule (two transactions touching the same account), not from SSI bookkeeping. With ten hot accounts, read committed keeps queuing on row locks and re-checking, while the snapshot levels abort more than half their attempts, and a few transactions exhaust 50 retries. SSI's CPU and memory overhead is modest; its real cost is the abort rate on hot data, which is a property of your workload, not a constant. (With the updates in random rather than ascending order, the same ten-account workload at read committed collapsed to 6.7 transactions per second from deadlocks; the [next lesson](/learn/databases/relational-fundamentals/mvcc-and-locking) explains why.)
+
+## Isolation beyond one session: replicas, pools and caches
+
+Isolation levels describe one server's snapshots, and three things in a real architecture sit outside them.
+
+**Replicas.** A query on a hot standby sees the standby's snapshot, which trails the primary by the replication lag. Two reads in one "transaction" that your code splits between primary and replica can show read skew at any isolation level, because they are two databases. Postgres also refuses `SERIALIZABLE` on a standby (`cannot use serializable mode in a hot standby`, with a hint to use `REPEATABLE READ`), since SSI needs to see every concurrent transaction's reads and writes, and the primary's are invisible to it. [Replication](/learn/databases/storage-and-scale/replication) covers read-your-writes routing.
+
+**Connection pools.** `SET TRANSACTION ISOLATION LEVEL` applies to one transaction; `SET default_transaction_isolation` applies to a session. Behind a transaction-mode pooler your next transaction may run on a different server session, so set the level per transaction (`BEGIN ISOLATION LEVEL SERIALIZABLE`) or per role (`ALTER ROLE app SET default_transaction_isolation = 'serializable'`), never with a session-level `SET` that leaks to whichever client gets that connection next.
+
+**Caches.** A value read from Redis was read outside every database snapshot. A transaction that decides based on a cached balance has no isolation at all for that read, whatever level it runs at. Decisions that protect invariants must read from the database inside the transaction; the cache is for display.
 
 ## Choosing
 
-There are two defensible strategies, and a senior engineer can argue either.
+**Read committed plus discipline.** Keep the default. Use single-statement updates and conditional upserts for read-modify-write, `SELECT ... FOR UPDATE` when a decision depends on rows you will write, constraints for every invariant that can be one, and advisory or parent-row locks for the rest. Fast, and what most Postgres shops do. Its weakness: correctness depends on every engineer spotting every race on every new code path, and write skew is invisible in review unless you look for it.
 
-**Read committed plus discipline.** Keep the default. Use single-statement atomic updates and upserts for read-modify-write, `SELECT ... FOR UPDATE` when a decision depends on rows you will write, constraints for every invariant that can be expressed as one, and advisory locks or parent-row locks for the rest. This is fast and is what most Postgres shops do. Its weakness is that correctness depends on every engineer spotting every race on every new code path, and write skew is invisible in code review unless you are looking for it.
+**Serialisable plus retries.** Set `default_transaction_isolation = 'serializable'` for the application role, wrap every transaction in a retry loop, and treat `40001` as routine. Correctness no longer depends on spotting races. The costs are the retry machinery, throughput on hot rows, and the discipline of keeping transactions short and free of side effects (a retried transaction must not have already sent the email). Money movement, inventory, and anything with a regulator attached often justify it.
 
-**Serialisable plus retries.** Set `default_transaction_isolation = 'serializable'` for the application role, wrap every transaction in a retry loop, and treat `40001` as routine. Correctness no longer depends on spotting races. The costs are the retry machinery, some throughput under contention, and the discipline of keeping transactions short and free of side effects (a retried transaction must not have already sent the email). Money movement, inventory, and anything with a regulator attached often justify it.
+Whichever you pick, write the invariant down, name the interleaving that breaks it, and say which mechanism stops it. That sentence is what a design reviewer wants to hear.
 
-Whichever you pick, write the invariant down, name the interleaving that would break it, and say which mechanism stops that interleaving. That sentence is what a design reviewer wants to hear.
+## Failure modes
+
+| Symptom | Diagnosis | Fix |
+|---|---|---|
+| A duplicate welcome credit or double booking a few times a week | Write skew through inserts: check-then-insert at read committed or repeatable read | A unique partial or exclusion constraint; failing that, a parent-row lock or `SERIALIZABLE` |
+| A nightly total that is off by exactly one in-flight transfer | Read skew: the report ran as many statements at read committed | Run it at `REPEATABLE READ` or `SERIALIZABLE READ ONLY DEFERRABLE` |
+| Stock or counters short by a few units per day | Lost update: application-computed values written back | Atomic `SET x = x - 1` with a guard in `WHERE`, or `FOR UPDATE` |
+| `40001` rate climbs after enabling serialisable | Relation-level SIRead locks from sequential scans, or hot rows | Indexes for the hot queries; shorter transactions; reduce contention on hot rows |
+| A migration from MySQL starts aborting transactions that "never failed before" | Postgres's repeatable read aborts the concurrent-update case InnoDB silently allowed | Add retries; the old system was losing those updates |
+
+## Interviewer follow-ups
+
+**"Your service runs at repeatable read. Is it safe from lost updates?"** Model answer: in Postgres yes for two-statement read-modify-write on the same row (the second writer aborts with `40001` and must be retried), but not from write skew; in InnoDB no, because updates read the latest version. Common wrong answer: "repeatable read means nothing changes under you", ignoring both write skew and engine differences.
+
+**"Why is `SET stock = stock - 1` safe at read committed?"** Model answer: EvalPlanQual: the blocked update re-reads the committed row, re-checks `WHERE` and recomputes `SET`, so the decrement applies to the current value. Common wrong answer: "single statements are serialisable", which is false; only the re-check on the targeted row makes it work.
+
+**"How does Postgres detect write skew without blocking?"** Model answer: SIRead locks record reads, rw-antidependencies connect transactions, and a dangerous structure of two consecutive rw-edges with the pivot's successor committed first triggers an abort. Common wrong answer: "it takes shared locks on everything it reads", which is InnoDB's serialisable.
+
+**"Serialisable doubled your abort rate. What do you look at?"** Model answer: whether hot queries are sequential scans (relation-level predicate locks), transaction length, and hot rows; add indexes, shorten transactions, and keep a jittered retry loop. Common wrong answer: "switch back to read committed", which reintroduces the anomalies silently.
+
+## What mid-level engineers get wrong
+
+- **Saying "race condition" instead of naming the anomaly**, and so not knowing which mechanism prevents it.
+- **Believing repeatable read prevents all anomalies.** Write skew commits.
+- **Assuming isolation names mean the same everywhere.** InnoDB's repeatable read loses updates Postgres would abort.
+- **Folding the check into the write** and calling it atomic.
+- **Running some transactions at serialisable and others at read committed** on the same tables, expecting protection.
+- **Retrying a serialisation failure after side effects**, sending the email twice.
 
 ```exercise
 id: detect-write-skew
@@ -240,44 +263,50 @@ hints:
 
 ## Senior signals
 
-- You name the anomaly by its interleaving (read skew, lost update, write skew, phantom) rather than saying "race condition", and you can draw the two-session timeline on a whiteboard.
-- You know Postgres's `READ COMMITTED` re-evaluates an `UPDATE`'s `WHERE` against the latest row version, which is why `SET x = x - 1` is safe and `SELECT` then `UPDATE` is not.
-- You know `REPEATABLE READ` in Postgres is snapshot isolation: no phantoms, lost updates abort, write skew commits.
-- You fix write skew with the cheapest mechanism that works: a constraint (unique partial index, exclusion constraint) first, then a lock on a row both transactions must touch, then `SERIALIZABLE`.
-- You know SSI needs every participating transaction at `SERIALIZABLE`, needs a retry loop for `40001`, and aborts more when reads are sequential scans.
-- You do not trust isolation level names across databases: InnoDB's repeatable read and Oracle's serialisable both behave differently from Postgres's.
+- You name an anomaly by its interleaving (read skew, phantom, lost update, write skew) and can reproduce it with two sessions rather than only describe it.
+- You know Postgres's read committed re-checks a blocked update against the committed row (EvalPlanQual), which is why `SET x = x - 1` is safe and `SELECT` then `UPDATE` is not.
+- You know Postgres's repeatable read is snapshot isolation (no phantoms, lost updates abort, write skew commits) and that InnoDB's repeatable read behaves differently for writes.
+- You fix write skew with the cheapest mechanism that works: a constraint first, then a lock both transactions must take, then `SERIALIZABLE`.
+- You can explain SSI's SIRead locks, rw-antidependencies and pivots, and why sequential scans raise the abort rate.
+- You measure the cost of stricter isolation on your contention profile rather than quoting a constant.
 
 ## Check yourself
 
 ```quiz
 - q: >-
-    Two sessions at Postgres REPEATABLE READ each run SELECT count(*) FROM bookings WHERE room = 3 AND day = '2026-10-01' (result 0) and then INSERT a booking for that room and day. What happens?
-  options: ["Both commit, since the inserts share no row; the room is double-booked", "The second INSERT blocks on the first's row lock, then fails at commit", "The second COMMIT fails with 40001, since both read the same predicate", "The second SELECT sees the first INSERT, so it never inserts a booking"]
+    Two sessions at Postgres REPEATABLE READ each count bookings for room 3 on a day (0) and then insert a booking for it. What happens?
+  options: ["Both commit, since the inserts share no row; the room is double-booked", "The second INSERT blocks on the first's row lock, then fails at commit", "The second COMMIT fails with 40001 because both read one predicate", "The second count sees the first insert, so it never inserts at all"]
   answer: 0
   explanation: >-
-    This is write skew through phantoms. Each snapshot legitimately showed zero bookings; the writes are new rows, so snapshot isolation's first-updater-wins has no write-write conflict to compare. Aborting on a shared read predicate is what SERIALIZABLE adds, not REPEATABLE READ. An exclusion or unique constraint would reject the second insert at any level.
+    This is write skew through phantoms, reproduced in the lab with welcome credits: both snapshots legitimately show zero, and the writes are new rows, so first-updater-wins has no write-write conflict to detect. Aborting on a shared read predicate is what SERIALIZABLE adds. A unique or exclusion constraint rejects the second insert at any level.
 - q: >-
-    Why is UPDATE items SET stock = stock - 1 WHERE id = 7 safe against lost updates under READ COMMITTED, while SELECT stock followed by UPDATE items SET stock = <value computed in the app> is not?
-  options: ["It is not safe either; both forms can lose updates under READ COMMITTED", "READ COMMITTED silently promotes single statements to SERIALIZABLE", "A single UPDATE takes a table lock, so no other writer can interleave with it", "A blocked UPDATE re-reads the newly committed row and recomputes stock - 1"]
-  answer: 3
-  explanation: >-
-    Under READ COMMITTED an UPDATE that was blocked on another transaction's row lock re-checks its row against the latest committed version, so stock - 1 is computed from the current value. In the two-statement form, the application computed the new value from a read that is out of date by the time it writes. The UPDATE takes only a row lock, not a table lock.
-- q: >-
-    A nightly job sums balances across 2 million accounts with one SELECT per batch of 10,000 rows, inside one transaction at READ COMMITTED, while transfers run. The total is occasionally wrong. What is the anomaly and the fix?
-  options: ["Lost updates from the transfers; read each batch with SELECT ... FOR UPDATE", "Dirty reads of uncommitted transfers; run the job at SERIALIZABLE instead", "Phantom rows appearing mid-scan; add an index so each batch is bounded", "Read skew; run the whole job at REPEATABLE READ so batches share a snapshot"]
-  answer: 3
-  explanation: >-
-    READ COMMITTED takes a snapshot per statement, so a transfer committed between batches is counted on one side only. REPEATABLE READ (or SERIALIZABLE READ ONLY DEFERRABLE) gives the whole report one consistent snapshot without blocking writers. Postgres never allows dirty reads, and the job writes nothing, so there is no lost update.
-- q: >-
-    A team switches to SERIALIZABLE and sees a high rate of 40001 errors on a table that is queried by sequential scans. What is the most likely contributor?
-  options: ["READ COMMITTED sessions on the same table are counted as conflicts too", "SERIALIZABLE takes exclusive locks on every single row a transaction reads", "Sequential scans take relation-level SIRead locks, so any table write conflicts", "The retry loop is too aggressive, so each retry collides with the last"]
+    Why does UPDATE items SET stock = stock - 1 WHERE id = 7 end at 8 after two concurrent runs at READ COMMITTED, while SELECT then UPDATE ... SET stock = 9 ends at 9?
+  options: ["Single statements are silently promoted to SERIALIZABLE by Postgres", "The atomic form takes a table lock, so the two runs cannot overlap", "A blocked UPDATE re-reads the committed row, recomputing stock - 1", "Neither is safe; the atomic form only happened to win the race"]
   answer: 2
   explanation: >-
-    SSI's SIRead locks block nothing but determine conflict detection. A sequential scan records a relation-level lock, the coarsest granularity, so almost every concurrent write to the table forms an rw-dependency, including false positives. Index scans lock index pages instead, so adding suitable indexes cuts the abort rate. READ COMMITTED transactions are invisible to SSI tracking, not extra conflicts.
+    When the second UPDATE finds the row locked, it waits, then fetches the newly committed version, re-evaluates WHERE and computes SET from it (EvalPlanQual), returning 8. In the two-statement form the value 9 was computed from a read that is stale by the time it is written. Only a row lock is taken, and no promotion happens.
 - q: >-
-    Which invariant can a constraint enforce, removing the need for SERIALIZABLE?
-  options: ["A user may hold at most one active subscription", "An account balance must equal the sum of its ledger entries", "The sum of line items must equal the order total", "A shift must always have at least one active doctor"]
+    A nightly job sums balances with one SELECT per batch of 10,000 accounts, inside one READ COMMITTED transaction, while transfers run. Totals are occasionally wrong. What is the fix?
+  options: ["Read each batch with SELECT ... FOR UPDATE to block the transfers", "Run the job at REPEATABLE READ so every batch shares one snapshot", "Add an index so each batch is bounded and phantoms cannot appear", "Run the job at READ UNCOMMITTED so it sees transfers in progress"]
+  answer: 1
+  explanation: >-
+    Read committed takes a snapshot per statement, so a transfer committed between batches is counted on one side only: read skew, reproduced in the lab as 10,000 plus 4,000. One snapshot for the whole job fixes it without blocking writers. Locking every row would stall transfers, and Postgres treats read uncommitted as read committed anyway.
+- q: >-
+    An application moves from MySQL to Postgres, both at REPEATABLE READ, and starts seeing could not serialize access due to concurrent update. What does that tell you?
+  options: ["Postgres detects write skew at repeatable read, which InnoDB permits", "Postgres takes gap locks that InnoDB avoids, so inserts now conflict", "The migration switched the default to SERIALIZABLE for all sessions", "Read-modify-writes that InnoDB overwrote silently now abort"]
+  answer: 3
+  explanation: >-
+    InnoDB's repeatable read lets UPDATE act on the latest committed version, so a stale read followed by a write overwrites the other transaction's change without error. Postgres's first-updater-wins rule aborts the second writer instead. The errors reveal lost updates the old system was committing. Write skew still commits at Postgres repeatable read, and next-key gap locks are InnoDB's mechanism.
+- q: >-
+    A team enables SERIALIZABLE and sees many 40001 errors on a table that most transactions read with sequential scans. What is the most likely contributor?
+  options: ["Sequential scans take relation-level SIRead locks, so writes conflict", "SERIALIZABLE takes an exclusive lock on every row a transaction reads", "READ COMMITTED sessions on the same table are counted as conflicts too", "The retry loop is too eager, so each retry collides with the one before"]
   answer: 0
   explanation: >-
-    At most one active subscription per user is a unique partial index: CREATE UNIQUE INDEX ON subscriptions (user_id) WHERE status = 'active'. At least one doctor and the aggregate invariants span multiple rows in ways a single-row CHECK or uniqueness constraint cannot express; they need locks, SERIALIZABLE, or a redesigned schema.
+    SIRead locks block nothing but drive conflict detection; a sequential scan records the coarsest, relation-level lock, so nearly every concurrent write forms an rw-dependency, including false positives. Index scans lock index pages instead, so suitable indexes cut aborts. Transactions not running at serializable are invisible to SSI.
+- q: >-
+    With 16 clients and 1,000 accounts, SERIALIZABLE retried 4.3% of transfers; with 10 accounts it retried 60%. What does that show?
+  options: ["SSI bookkeeping is expensive and grows with the number of accounts", "Retries are driven by contention on hot rows, not by a fixed SSI cost", "SERIALIZABLE is broken for small tables and should not be used there", "The pgbench retry option itself causes most of the serialisation failures"]
+  answer: 1
+  explanation: >-
+    Fewer accounts means more transactions touching the same rows at once, so more concurrent-update conflicts and dangerous structures. At low contention the strict levels cost under 10% of throughput. The abort rate is a property of the workload, which is why you measure on your own contention profile rather than quoting a fixed overhead.
 ```
