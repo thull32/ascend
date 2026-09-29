@@ -15,7 +15,7 @@ A graph is a set of vertices and a set of edges between them. That is a mathemat
 - **Weighted** edges carry a number (distance, cost, capacity); unweighted edges are all equal.
 - **Degree** of a vertex is its number of edges; directed graphs have in-degree and out-degree. In an undirected graph the degrees sum to 2E (every edge is counted from both ends), which is the cheapest sanity check you have on a freshly built graph.
 - **Path**: a sequence of vertices with an edge between each consecutive pair. **Cycle**: a path that returns to its start. **Connected** (undirected): every vertex reachable from every other; **strongly connected** (directed): the same with direction respected.
-- **Sparse** graph: E is close to V. **Dense**: E is close to V². Most real graphs are sparse: a social network with a billion users has a few hundred friends per user.
+- **Sparse** graph: E is close to V. **Dense**: E is close to V². Most real graphs are sparse: when Facebook's graph had 721 million active users (May 2011), the [median user had 99 friends](https://arxiv.org/abs/1111.4503).
 - **DAG**: directed acyclic graph, the shape of every dependency system.
 
 ## One graph, four layouts
@@ -168,7 +168,7 @@ Two things to take from the table. The Python list of lists is already 10× CSR 
 
 ### Neo4j: index-free adjacency
 
-A native graph database stores nodes and relationships in separate store files as fixed-size records of a few tens of bytes, so record `i` lives at offset `i × record_size` and needs no index to find. A node record points at its first relationship; each relationship record points at the previous and next relationship of both its start node and its end node, forming a doubly linked list per node threaded through the relationship store. Walking a node's relationships is pointer chasing at fixed offsets, which is what "index-free adjacency" means. The trade-off against CSR is locality: a node with 10^4 relationships has them scattered across the file and its page cache, one random read per hop, where CSR would read one contiguous 40 KB slice. The [graph databases lesson](/learn/databases/nosql-and-specialised/graph-time-series-and-vector-databases) covers when that trade is worth making.
+Neo4j's record-based store formats (`aligned` is the Community Edition default; Enterprise Edition now defaults to a `block` format that inlines related data for locality) keep nodes and relationships in separate store files as fixed-size records of a few tens of bytes, so record `i` lives at offset `i × record_size` and needs no index to find. A node record points at its first relationship; each relationship record points at the previous and next relationship of both its start node and its end node, forming a doubly linked list per node threaded through the relationship store. Walking a node's relationships is pointer chasing at fixed offsets, which is what "index-free adjacency" means. The trade-off against CSR is locality: a node with 10^4 relationships has them scattered across the file and its page cache, one random read per hop, where CSR would read one contiguous 40 KB slice. The [graph databases lesson](/learn/databases/nosql-and-specialised/graph-time-series-and-vector-databases) covers when that trade is worth making.
 
 ### GraphBLAS: BFS as a matrix-vector product
 
@@ -183,7 +183,7 @@ f4 = row 4                   = [0,0,0,0,0,1]
 f5 = row 5                   = [0,0,0,1,0,0] masked -> all zero: stop
 ```
 
-Levels 1 to 4 match the queue-based BFS. SuiteSparse:GraphBLAS implements this with sparse vectors and CSR/CSC matrices; its "push" (multiply from the frontier's rows) versus "pull" (for each unvisited column, look for a frontier row) choice is the direction-optimising BFS of the [next lesson](/learn/data-structures/graphs/breadth-first-search).
+Levels 1 to 4 match the queue-based BFS. SuiteSparse:GraphBLAS implements this with sparse vectors and CSR/CSC matrices, and LAGraph's BFS on top of it switches each level between "push" (multiply from the frontier's rows) and "pull" (for each unvisited column, look for a frontier row); that choice is the direction-optimising BFS of the [next lesson](/learn/data-structures/graphs/breadth-first-search).
 
 ## Directed, undirected and the bugs between them
 

@@ -152,8 +152,8 @@ The CPython figures were measured on CPython 3.14.7 by allocating 100,000 nodes 
 | Node layout | Bytes per node | Arithmetic |
 |---|---|---|
 | CPython class with `__slots__` | ~96 measured | `sys.getsizeof` reports 56 for the object (16-byte header + 3 × 8-byte slots + GC bookkeeping) + 28-byte int + 8-byte reference to it |
-| CPython plain class | ~136 measured | 48-byte object plus the inline attribute-value storage that 3.12+ keeps for instances; reading `node.__dict__` even once materialises a 296-byte dict on this version |
-| Java `int val; Node left, right` | 24 | 12-byte header (compressed class pointers, the default) + 4 + 4 + 4 with compressed oops (heaps under 32 GB); a boxed `Integer` adds a 4-byte reference and a separate 16-byte object |
+| CPython plain class | ~136 measured | 48-byte object plus the attribute values that 3.13+ embeds in the instance itself (3.11 and 3.12 kept them in a separate values array); reading `node.__dict__` even once materialises a 296-byte dict on this version |
+| Java `int val; Node left, right` | 24 | 12-byte header (compressed class pointers, the default; JDK 25's opt-in `-XX:+UseCompactObjectHeaders` makes it 8) + 4 + 4 + 4 with compressed oops (heaps under 32 GB); a boxed `Integer` adds a 4-byte reference and a separate 16-byte object |
 | Rust `struct { val: i32, left: Option<Box<Node>>, right: Option<Box<Node>> }` | 24 | `Option<Box<T>>` is 8 bytes because the null pointer is used as `None`; 4 + 8 + 8 = 20, padded to the 8-byte alignment |
 | Rust arena `struct { val: i32, left: u32, right: u32 }` in a `Vec<Node>` | 12 | Indices instead of pointers, `u32::MAX` meaning "no child"; one contiguous allocation for the whole tree |
 
@@ -246,8 +246,8 @@ Each recursive call is a stack frame, and the recursion goes as deep as the tree
 
 - **CPython** stops at `sys.getrecursionlimit()`, 1,000 by default. Measured on 3.14.7: `height` from this lesson survives a chain of 998 nodes and raises `RecursionError` at 999, because the chain's frames plus the caller reach the limit. `sys.setrecursionlimit(10**6)` lifts it, and `height` on a 200,000-node chain then completed without a crash. That is safe because since 3.11 a Python-to-Python call no longer consumes C stack (the interpreter runs the callee's frame inline), so the limit counts Python frames rather than standing in for the 8 MiB C stack. The C stack still bites recursion that passes through C: on 3.14.7, `json.loads` of a 2,000-deep nested array succeeds, and a 100,000-deep one raises `RecursionError: Stack overflow (used 8148 kB) while decoding a JSON array`.
 - **Native code** (C, C++, Rust) gets the thread's stack: 8 MiB for the main thread on Linux by default (`ulimit -s`), which at 100–200 bytes per small frame is on the order of 50,000–100,000 frames. Threads you create yourself often get less.
-- **HotSpot JVM** gives each thread 1 MiB on 64-bit Linux by default (`-Xss`), on the order of 10^4 frames of a small method before `StackOverflowError`; the count depends on the frame size the JIT produces.
-- **Node.js / V8** allows on the order of 10^4 frames of a simple function before `RangeError: Maximum call stack size exceeded`; raising `--stack-size` far above the default can crash the process instead, because the OS stack is not enlarged with it.
+- **HotSpot JVM** gives each thread 1 MiB on x86-64 Linux by default (`-Xss`; 2 MiB on AArch64), on the order of 10^4 frames of a small method before `StackOverflowError`; the count depends on the frame size the JIT produces.
+- **Node.js / V8** reserves 984 KB of stack for JavaScript by default, on the order of 10^4 frames of a simple function before `RangeError: Maximum call stack size exceeded`; raising `--stack-size` far above the default can crash the process instead, because the OS stack is not enlarged with it.
 
 See [the call stack](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) for what a frame holds and why the stack has a limit at all.
 

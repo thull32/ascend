@@ -7,13 +7,13 @@ difficulty: medium
 tags: [hashing, hash-map, dictionary, open-addressing, chaining, load-factor, tombstones, swisstable, cpython-dict]
 problems: [two-sum, group-anagrams]
 ---
-You need to look up a value by key in constant time, and the keys are not small integers you can use as array indices. That single requirement is behind `dict`, `HashMap`, `map[string]T`, `Set`, every cache you have deployed, and roughly a third of all interview problems. A hash table solves it by *turning the key into an array index* and then dealing with the consequences of two keys landing on the same index.
+You need to look up a value by key in constant time, and the keys are not small integers you can use as array indices. That single requirement is behind `dict`, `HashMap`, `map[string]T`, `Set`, every cache you have deployed, and a large share of interview problems. A hash table solves it by *turning the key into an array index* and then dealing with the consequences of two keys landing on the same index.
 
 Everything follows from those two halves: the hash function that produces the index and the collision strategy that resolves conflicts. Get either wrong and the "O(1)" quietly becomes O(n). [Hash functions](/learn/data-structures/hashing/hash-functions) covers the function; this lesson is about the table: both collision strategies traced by hand on real hash values, the load-factor arithmetic behind every resize threshold, and the exact layouts CPython, Rust, Java, Go and V8 use, with byte counts.
 
 ## The core mechanism
 
-A hash table is an array of `m` slots (often called buckets) plus a hash function `h(key)` that maps any key to an integer. The slot for a key is `h(key) mod m`, or `h(key) & (m − 1)` when `m` is a power of two, which every runtime below chooses so that the modulus is a one-cycle mask instead of a 20–40-cycle division.
+A hash table is an array of `m` slots (often called buckets) plus a hash function `h(key)` that maps any key to an integer. The slot for a key is `h(key) mod m`, or `h(key) & (m − 1)` when `m` is a power of two, which every runtime below chooses so that the modulus is a one-cycle mask instead of a much slower division.
 
 ```python
 class NaiveTable:
@@ -55,7 +55,7 @@ Keep `α` bounded by a constant and the average is `O(1)`. The "on average" assu
 
 Chaining's cost is in memory and cache misses rather than probe counts. Java's `HashMap` is the canonical chained table: each entry is a `Node` object with a 12-byte header (compressed object pointers, the default below 32 GB heaps), a 4-byte cached hash, and 4-byte references to key, value and next, padded to **32 bytes**, plus a 4-byte slot in the table array. At the default load factor of 0.75 that is about 37 bytes of table overhead per entry before the key and value objects themselves (a boxed `Integer` is 16 bytes more). A lookup that misses cache costs one miss for the slot and one per node walked, each ~100 ns from DRAM on a current server (CPU-dependent; the [memory hierarchy lesson](/learn/foundations/complexity/space-complexity-and-memory-hierarchy) has the ladder).
 
-Since Java 8 (2014), a chain longer than 8 in a table of at least 64 slots is converted into a red-black tree, and converted back when it shrinks below 6. That caps one bucket's worst case at `O(log n)`, and the motivation was hash flooding: attackers were crafting thousands of colliding keys to turn a request parse into `O(n²)`. Tree nodes cost about twice the memory of list nodes, which is why the conversion waits for 8. `LinkedHashMap` adds two references per node to keep insertion or access order, which is how Java builds an LRU cache in one class.
+Since Java 8 (2014), a chain longer than 8 in a table of at least 64 slots is converted into a red-black tree, and converted back when it shrinks below 6. That caps one bucket's worst case at `O(log n)` for `Comparable` keys; JEP 180 states the goal as performance under high hash-collision conditions, exactly what hash flooding manufactures. `HashMap`'s source notes that tree nodes are about twice the size of regular nodes, which is why the conversion waits for 8. `LinkedHashMap` adds two references per node to keep insertion or access order, which is how Java builds an LRU cache in one class.
 
 ## Open addressing: watch a cluster form
 
@@ -111,16 +111,16 @@ When `α` crosses the threshold, allocate a bigger array and re-insert every ent
 |---|---|---|---|
 | CPython `dict` | Smallest power of two ≥ `3 × used` | Usable slots (2/3 of size) exhausted | Stop-the-world; entries copied in insertion order, deleted holes dropped |
 | Java `HashMap` | `2 × old` | `size > 0.75 × capacity` | Stop-the-world; each bin splits into a "lo" and "hi" list by one hash bit (`hash & oldCap`), no re-hashing |
-| Rust hashbrown | `2 × old` (or rehash in place if ≥ half the slots are tombstones) | Growth-left counter hits 0 at 7/8 | Stop-the-world; every entry re-inserted using its stored 7-bit tag plus a rehash |
+| Rust hashbrown | `2 × old` (or rehash in place if ≥ half the slots are tombstones) | Growth-left counter hits 0 at 7/8 | Stop-the-world; every entry's full hash recomputed and the entry re-inserted |
 | Go `map` (1.24+) | Doubles one 1,024-slot table at a time | Table at 7/8 | Incremental: a directory of small tables, so a resize never touches the whole map |
 | Redis `dict` | `2 × old` | Load factor 1 (a higher ratio, 4–5 depending on the version, while a fork is in progress) | Incremental: both tables live; each operation migrates one bucket, plus 1 ms of background work per 100 ms |
 
-Measured on CPython 3.14 with `sys.getsizeof`, a dict of short string keys costs 184 bytes holding 1–5 keys, 272 bytes for 6–10, 464 for 11–21, 832 for 22–42, 1,584 for 43–85: it resizes at 6, 11, 22, 43 and 86 entries, each time to the next power of two above `3 × used`, which is between 1.5× and 3× growth in slots. Because CPython sizes on `used`, not on the old capacity, a resize after a mass deletion shrinks the table; but deletion alone never triggers a resize, so a dict that once held a million keys and now holds ten keeps its 42 MB of arrays until an insert exhausts the usable slots, which for ten keys is never.
+Measured on CPython 3.14 with `sys.getsizeof`, a dict of short string keys costs 184 bytes holding 1–5 keys, 272 bytes for 6–10, 464 for 11–21, 832 for 22–42, 1,584 for 43–85: it resizes at 6, 11, 22, 43 and 86 entries, each time to the next power of two above `3 × used`, which for an insert-only dict is exactly 2× (used is 2/3 of the size). Because CPython sizes on `used`, not on the old capacity, a resize after a mass deletion shrinks the table; but deletion alone never triggers a resize, so a dict that once held a million keys and now holds ten keeps its 42 MB of arrays until an insert exhausts the usable slots, which for ten keys is never.
 
 Two production consequences follow from any stop-the-world rehash:
 
 - **Latency spikes.** Growing a one-million-entry table copies every entry, roughly 24–40 MB of reads and writes, a few milliseconds on one core, and that latency lands on whichever request performed the unlucky insert: your map's resize is on your p99 graph.
-- **Pre-sizing.** If you know `n`, construct for it (`HashMap::with_capacity(n)`, `make(map[K]V, n)`, `new HashMap<>(n / 0.75 + 1)`; CPython exposes no capacity argument). From 8 slots to a million entries is 17 doublings in Rust and 12 resizes in CPython, each copying the live entries.
+- **Pre-sizing.** If you know `n`, construct for it (`HashMap::with_capacity(n)`, `make(map[K]V, n)`, `new HashMap<>(n / 0.75 + 1)`; CPython exposes no capacity argument). From 8 slots to a million entries is 18 doublings in both Rust and CPython (8 → 2²¹ slots), each copying the live entries.
 
 ```viz
 {"type": "hash-table", "algorithm": "resize", "buckets": 4,
@@ -131,7 +131,7 @@ Two production consequences follow from any stop-the-world rehash:
 
 Since CPython 3.6 (an implementation detail then, a language guarantee from 3.7) a dict is two arrays, not one:
 
-- an **indices** array of `size` slots, each holding an index into the entries array or one of two markers (`−1` empty, `−2` dummy, meaning deleted). Its element width is 1 byte for tables up to 128 slots, 2 bytes up to 65,536, 4 bytes up to 2³², so a small dict's probe table is a handful of bytes;
+- an **indices** array of `size` slots, each holding an index into the entries array or one of two markers (`−1` empty, `−2` dummy, meaning deleted). Its element width is 1 byte for tables up to 128 slots, 2 bytes up to 32,768, 4 bytes up to 2³¹, so a small dict's probe table is a handful of bytes;
 - an **entries** array of `2/3 × size` records, appended in insertion order. A general entry is `(hash, key pointer, value pointer)`, **24 bytes**; since 3.11 a dict whose keys are all `str` uses 16-byte `(key, value)` entries, because a `str` object caches its own hash.
 
 Iteration walks the entries array, which is why dicts are insertion-ordered: order fell out of the compact layout, and 3.7 promised it. Deleting a key writes the dummy marker into its index slot and clears the entry (the entry slot is not reused); the holes vanish at the next resize, when live entries are copied densely.
@@ -175,7 +175,7 @@ Costs: 1 byte of control per slot plus the entry itself, so `HashMap<u64, u64>` 
 
 **Go `map`.** Up to Go 1.23: buckets of 8 key/value pairs with an 8-byte tag array and an overflow pointer, growth at an average load of 6.5 per bucket, incremental evacuation. From Go 1.24 (February 2025): a SwissTable variant with 8-slot groups and a 64-bit control word, tables capped at 1,024 slots and organised in a directory, load factor 7/8. Iteration order has been randomised on purpose since Go 1.0.
 
-**V8 (`Map`, `Set`, objects).** `Map` and `Set` are insertion-ordered chained tables: a bucket array of `capacity / 2` slots and an entries array of `(key, value, next)` triples, doubling on growth and compacting deleted holes on rehash. Plain objects are not hash tables while their shape is stable (hidden classes, inline properties); `delete obj.key` or adding many properties dynamically drops the object into "dictionary mode", an open-addressing table with quadratic probing, and every property access becomes a hash lookup, a common cause of a hot path getting 10× slower with no change in the loop.
+**V8 (`Map`, `Set`, objects).** `Map` and `Set` are insertion-ordered chained tables: a bucket array of `capacity / 2` slots and an entries array of `(key, value, next)` triples, doubling on growth and compacting deleted holes on rehash. Plain objects are not hash tables while their shape is stable (hidden classes, inline properties); `delete obj.key` or adding many properties dynamically drops the object into "dictionary mode", an open-addressing table with quadratic probing, and every property access becomes a hash lookup, a common cause of a hot path getting several times slower with no change in the loop.
 
 ## Trade-offs: choosing a collision strategy
 
@@ -209,9 +209,9 @@ The interview reflex is: "I need to look something up by value, so I use a hash 
 
 1. **Name the key.** "The map is keyed by the *sorted characters* of the word" or "keyed by `target − x`". The key design *is* the algorithm in most hash-map problems, which is the subject of [Hash maps in interviews](/learn/data-structures/hashing/hash-maps-in-interviews).
 2. **State the memory cost.** `O(n)` extra space at 20–100 bytes per entry depending on the runtime. If the interviewer asks for `O(1)` space, the map is off the table and you need sorting or two pointers.
-3. **Mention the constant.** A cached hash lookup is 10–50 ns; a miss to DRAM is ~100 ns, twice that for a chained node; an array index is under 1 ns. Below about 30 keys a linear scan over a vector wins, and for small dense integer keys a plain array *is* the perfect hash table.
+3. **Mention the constant.** A cached hash lookup is 10–50 ns; a miss to DRAM is ~100 ns, twice that for a chained node; an array index is under 1 ns. Below a few dozen keys a linear scan over a vector usually wins, and for small dense integer keys a plain array *is* the perfect hash table.
 
-Try it with [Two Sum](/practice/two-sum) and [Group Anagrams](/practice/group-anagrams). At scale the same structure is everywhere: a Redis instance is one incrementally-rehashed dict, and Netflix's EVCache holds tens of millions of entries per memcached node in a chained table whose slab allocator, not its hash function, decides memory use.
+Try it with [Two Sum](/practice/two-sum) and [Group Anagrams](/practice/group-anagrams). At scale the same structure is everywhere: a Redis instance is one incrementally-rehashed dict, and Netflix's EVCache is built on memcached, whose table is chained (`h_next` links in `assoc.c`) and whose slab allocator, not its hash function, decides memory use.
 
 ## Interviewer follow-ups
 

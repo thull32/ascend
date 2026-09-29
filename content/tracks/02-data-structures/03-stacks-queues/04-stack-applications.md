@@ -86,7 +86,7 @@ Trace `["5", "1", "2", "+", "4", "*", "+", "3", "-"]`, which is `5 + (1 + 2) × 
 
 Two details separate a working solution from a passing one. Operand order: `a` is the *second* pop; `5 3 -` must be `2`, not `−2`. Division: the problem convention is usually truncation toward zero, and Python's `//` floors (`-7 // 2 == -4`), so use `int(a / b)` or `math.trunc`; JavaScript's `Math.trunc(a / b)`. This is a real bug class in interpreters that assume C semantics.
 
-Postfix is not an interview curiosity: it is how stack-based virtual machines work. Python bytecode, the JVM and WebAssembly are all stack machines; `a + b * c` compiles in CPython 3.11+ to `LOAD_FAST a; LOAD_FAST b; LOAD_FAST c; BINARY_OP *; BINARY_OP +`, in the JVM to `iload_1; iload_2; iload_3; imul; iadd`, and in WebAssembly to `local.get 0; local.get 1; local.get 2; i32.mul; i32.add`. The interpreter's main loop is the function above with a few hundred opcodes. [Evaluate Reverse Polish Notation](/practice/evaluate-rpn) is the practice problem.
+Postfix is not an interview curiosity: it is how stack-based virtual machines work. Python bytecode, the JVM and WebAssembly are all stack machines; `a + b * c` compiles in CPython 3.11 and 3.12 to `LOAD_FAST a; LOAD_FAST b; LOAD_FAST c; BINARY_OP *; BINARY_OP +` (3.13 fuses the first two loads into one `LOAD_FAST_LOAD_FAST` instruction and 3.14 into `LOAD_FAST_BORROW_LOAD_FAST_BORROW`: the same stack program with one dispatch fewer), in the JVM to `iload_1; iload_2; iload_3; imul; iadd`, and in WebAssembly to `local.get 0; local.get 1; local.get 2; i32.mul; i32.add`. The interpreter's main loop is the function above with a few hundred opcodes. [Evaluate Reverse Polish Notation](/practice/evaluate-rpn) is the practice problem.
 
 ## Infix to postfix: the shunting-yard algorithm
 
@@ -113,6 +113,21 @@ Trace `3 + 4 * (2 - 1)`:
 | end | pop `*`, pop `+` | | `3 4 2 1 − * +` |
 
 Evaluating the postfix gives `3 + 4 × (2 − 1) = 7`. Without the parentheses, `*` would still have been pushed above `+` and the output would be `3 4 2 * +`; with `3 * 4 + 2`, the `+` would first pop the `*` because `*` binds at least as tightly, giving `3 4 * 2 +`. The operator stack is a monotonic stack over precedence (the [Monotonic stack](/learn/data-structures/stacks-queues/monotonic-stack) lesson's invariant, with "binds at least as tightly" as the comparison). A two-stack variant (operands and operators) evaluates directly without producing postfix; either is the expected answer to "implement a calculator" in an interview, and recursive descent (a function per precedence level, using the call stack) is the third.
+
+### Edge case: a right-associative operator
+
+The `≥` in the operator rule is only right for left-associative operators, where `8 − 3 − 2` means `(8 − 3) − 2`. Exponentiation groups the other way: Python's reference manual says a sequence of power operators is evaluated from right to left, so `2 ** 3 ** 2` is `2 ** 9 = 512`, not `8 ** 2 = 64`. For a right-associative operator, pop only while the top binds *strictly* more tightly. Trace `2 ^ 3 ^ 2` with that rule:
+
+| Token | Action | Operator stack | Output |
+|---|---|---|---|
+| 2 | output | | `2` |
+| ^ | stack empty, push | `^` | `2` |
+| 3 | output | `^` | `2 3` |
+| ^ | top `^` has equal precedence, not strictly higher: push | `^ ^` | `2 3` |
+| 2 | output | `^ ^` | `2 3 2` |
+| end | pop `^`, pop `^` | | `2 3 2 ^ ^` |
+
+The postfix evaluates `3 2 ^ = 9`, then `2 9 ^ = 512`. With the left-associative `≥` rule, the second `^` would pop the first and the output would be `2 3 ^ 2 ^`, which is 64. Unary minus is the other classic trap: it has to be told apart from subtraction by position (a `-` at the start or after an operator or `(` is unary), and it needs its own precedence: in Python a unary minus binds less tightly than a `**` to its right, so `-2 ** 2` is `-(2 ** 2) = -4`. A calculator that treats every `-` as binary pops the wrong operand count and fails on the first negative literal.
 
 ## Nested structures
 
@@ -217,6 +232,8 @@ Each function call pushes a frame holding the return address, saved registers, p
 | JVM | 1 MB per thread by default (`-Xss`) | ~10,000–20,000 frames | `StackOverflowError`, catchable, thrown when a yellow-zone guard page is touched |
 | V8 / Node | ~1 MB by default (`--stack-size`) | About 10,000 frames on Node 24 for a trivial function (measured ~9,600) | `RangeError: Maximum call stack size exceeded`, catchable |
 | CPython 3.11+ | Python frames live in 16 KiB heap chunks, not on the C stack; the C stack is used only when C code calls back into Python | `sys.getrecursionlimit()`, 1,000 by default; raised to 60,000, a 50,000-deep pure-Python recursion ran fine on 3.14 | `RecursionError`, catchable; 3.12+ tracks C recursion separately so a raised limit no longer risks a real segfault in pure-Python recursion |
+
+Go is the runtime where "the stack" is itself a growable array. In Go 1.27's `runtime/stack.go` the minimum goroutine stack is 2,048 bytes (`stackMin`), and since Go 1.19 new goroutines start at the average stack size the last garbage collection observed, a power of two, so a program full of deep call chains does not pay for regrowth in every goroutine. Every function prologue compares the stack pointer against a limit; when a call would cross it, `newstack` doubles the size and calls `copystack`, which allocates the new block, copies the frames, adjusts every pointer into the stack and frees the old block. That is the dynamic-array doubling argument from [Arrays and dynamic arrays](/learn/data-structures/arrays-strings/arrays-and-dynamic-arrays) applied to frames: a recursion a million frames deep with 64-byte frames needs 64 MB, about 15 doublings from 2 KB, amortised O(1) per call, with an occasional copy pause proportional to the stack size. The ceiling is `maxstacksize`, 1,000,000,000 bytes on 64-bit, after which the runtime prints `goroutine stack exceeds 1000000000-byte limit` and dies with `fatal error: stack overflow`, which, unlike a Java `StackOverflowError`, cannot be recovered.
 
 ## What a frame costs, and when recursion is safe
 

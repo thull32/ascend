@@ -155,7 +155,7 @@ def rect_sum(P, r1, c1, r2, c2):       # inclusive corners
     return P[r2 + 1][c2 + 1] - P[r1][c2 + 1] - P[r2 + 1][c1] + P[r1][c1]
 ```
 
-Build is O(RC), each query O(1), and the build walks rows in the inner loop, so it is cache-friendly in row-major storage (see [Two-dimensional arrays](/learn/data-structures/arrays-strings/two-dimensional-arrays)). This is the "integral image" of computer vision: Viola–Jones face detection evaluates thousands of rectangle features per window at four reads each, and OpenCV's `integral` writes the table in a wider type than the input because a 4K 8-bit image sums to 3840 × 2160 × 255 ≈ 2.1 × 10⁹, right at the edge of a signed 32-bit integer.
+Build is O(RC), each query O(1), and the build walks rows in the inner loop, so it is cache-friendly in row-major storage (see [Two-dimensional arrays](/learn/data-structures/arrays-strings/two-dimensional-arrays)). This is the "integral image" of computer vision: in the Viola–Jones face detector (CVPR 2001) any rectangle sum is four array reads and a two-rectangle feature six, which is what let a 38-layer cascade holding 6,061 features run in real time, evaluating on average 10 of them per sub-window. OpenCV's `integral` writes the table in a wider type than the input because a 4K 8-bit image sums to 3840 × 2160 × 255 ≈ 2.1 × 10⁹, right at the edge of a signed 32-bit integer.
 
 ## Difference arrays: range updates in O(1)
 
@@ -189,15 +189,15 @@ Applications: "how many meetings overlap at each minute" (add 1 on `[start, end)
 
 **Integers.** A prefix array holds sums, not values, so it needs a wider type than the input. 10⁵ elements of magnitude 10⁵ sum to 10¹⁰, past the signed 32-bit limit of 2,147,483,647; a Java `int[]` or Go `int32` prefix wraps silently to a negative number. Use 64-bit accumulators, or in JavaScript stay under the safe-integer limit of 2⁵³ − 1 ≈ 9 × 10¹⁵ (a prefix over 10⁹ values of 10⁶ is 10¹⁵, still safe; over 10⁹ values of 10⁷ is not). CPython promotes to arbitrary precision, at a cost: an `int` grows from 28 to 32 bytes past 2³⁰ and arithmetic slows as digits are added.
 
-**Floats.** Addition of floats is not associative and a running sum accumulates error. In `float32`, `16,777,216 + 1` equals `16,777,216`: a running count in single precision stops increasing at 2²⁴. In `float64` the worst-case relative error of a naive running sum of `n` terms is about `n × 2⁻⁵³`, roughly 10⁻⁸ for `n = 10⁸`, which is fine for a dashboard and wrong for a ledger; NumPy's `sum` uses pairwise summation to keep the error near `log n × 2⁻⁵³`, and Kahan summation carries a correction term. Money is integers in the smallest unit.
+**Floats.** Addition of floats is not associative and a running sum accumulates error. In `float32`, `16,777,216 + 1` equals `16,777,216`: a running count in single precision stops increasing at 2²⁴. In `float64` the worst-case relative error of a naive running sum of `n` terms is about `n × 2⁻⁵³`, roughly 10⁻⁸ for `n = 10⁸`, which is fine for a dashboard and wrong for a ledger; NumPy's `sum` uses pairwise summation along the contiguous axis, which its source describes as rounding error O(log n) instead of O(n), and Kahan summation carries a correction term. Money is integers in the smallest unit.
 
 **Memory.** The prefix array is a second copy of the data in a wider type. A 1 GB array of `uint8` pixel values needs a 4 GB `int32` (or 8 GB `int64`) prefix table, which is why integral images are computed per tile or per row block on large frames.
 
-**Building it.** `itertools.accumulate` and `numpy.cumsum` build a prefix array in one pass; the serial dependency (`P[i+1]` needs `P[i]`) means a naive loop cannot be vectorised, and parallel prefix scans (Blelloch's algorithm, used on GPUs and in CUB/Thrust) do about 2n additions in `O(log n)` depth to get around it.
+**Building it.** `itertools.accumulate` and `numpy.cumsum` build a prefix array in one pass; the serial dependency (`P[i+1]` needs `P[i]`) means a naive loop cannot be vectorised, and parallel prefix scans get around it: Blelloch's work-efficient scan does about 2n additions in `O(log n)` depth, and NVIDIA's CUB library uses a single-pass successor (Merrill and Garland's "decoupled look-back" scan) on GPUs.
 
 ## Where prefix sums live in real systems
 
-- **Kafka** offsets are prefix counts: the number of messages in a partition before a given one, so consumer lag is a subtraction of two offsets; see [Kafka internals](/learn/big-data/streaming/kafka-internals).
+- **Kafka** offsets are prefix counts: the number of records written to a partition before a given one, so consumer lag is a subtraction of two offsets. Compaction removes records but, per Kafka's design docs, never changes an offset, so on a compacted topic the difference is an upper bound on the records remaining; see [Kafka internals](/learn/big-data/streaming/kafka-internals).
 - **Prometheus** counters are prefix sums over time; `rate(x[5m])` is a range difference divided by the window, and the counter-reset handling exists because a restarted process makes the difference negative.
 - **SQL** window functions (`SUM(amount) OVER (ORDER BY day)`) compute running totals, and ledgers store a running balance so a statement for any period is two lookups.
 - **Column stores** keep per-block aggregates so a range query adds a few block totals plus two partial blocks instead of scanning every row.

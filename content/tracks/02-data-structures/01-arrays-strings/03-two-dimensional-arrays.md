@@ -44,7 +44,7 @@ Going back: byte offset `0x18 = 24` is element `24 / 4 = 6`, so `r = 6 // 4 = 1`
 
 A 64-byte cache line holds 16 `int32` values. Row-wise, the first access to a row's line misses and the next 15 hit, and the hardware prefetcher runs ahead of a sequential stream: about one miss per 16 elements, often hidden. Column-wise, every access lands in a different line, and with a 16 KB stride, in a different page, so the TLB misses too; by the time the loop returns to the first column's neighbour, that line has been evicted unless the whole matrix fits in cache.
 
-Measured with a 3-run minimum, `gcc -O1`, on a Ryzen 9 9950X3D (48 KB L1d and 1 MB L2 per core, 96 MB L3):
+Measured with a 3-run minimum, `gcc -O1`, on a Ryzen 9 9950X3D (48 KB L1d and 1 MB L2 per core, 128 MB L3 in total):
 
 | matrix | size | row inner loop | column inner loop | ratio |
 |---|---|---|---|---|
@@ -163,7 +163,7 @@ A `rows × cols` array costs `rows × cols` cells whether or not they hold anyth
 
 **Unbounded or negative coordinates.** Arrays start at zero. Coordinates that can go negative (robot walks, relative offsets) need a translation (add the minimum) or a dictionary. The translation is cheap if you know the bounds up front; the dictionary is safer when you do not.
 
-**Bit-packed boards.** When each cell is a boolean and the width is at most 64, a row fits in one integer and an 8 × 8 chessboard in a single 64-bit word. Row operations become bit operations: "is any cell in this row set" is `row != 0`, "shift the board left" is `row << 1`, and N-queens column and diagonal conflicts are three integer masks updated with XOR. Chess engines, sudoku solvers and Life implementations run tens of times faster this way than as lists of lists. [Bit manipulation](/learn/foundations/math-for-engineers/bit-manipulation) covers the tricks.
+**Bit-packed boards.** When each cell is a boolean and the width is at most 64, a row fits in one integer and an 8 × 8 chessboard in a single 64-bit word. Row operations become bit operations: "is any cell in this row set" is `row != 0`, "shift the board left" is `row << 1`, and N-queens column and diagonal conflicts are three integer masks updated with XOR. Chess engines, sudoku solvers and Life implementations use this layout because one instruction tests or updates up to 64 cells, where a list of lists needs a loop with a pointer dereference per cell. [Bit manipulation](/learn/foundations/math-for-engineers/bit-manipulation) covers the tricks.
 
 ## Production failure modes
 
@@ -183,7 +183,7 @@ A `rows × cols` array costs `rows × cols` cells whether or not they hold anyth
 | Python list of lists | ~8 (plus 28 per non-cached int) | two dereferences, two bounds checks | rows scattered | no | the interview default |
 | Flat Python list with index formula | ~8 | one dereference, one multiply-add | one block | no | avoids the aliasing trap by construction |
 | NumPy / typed array / `Vec<T>` | 1–8 (the element size) | address arithmetic | one block, prefetchable | no | 10× less memory, vectorisable |
-| Dict or set of `(r, c)` | ~100 per *occupied* cell | hash lookup, ~50–100 ns | random | yes | unbounded and negative coordinates |
+| Dict or set of `(r, c)` | ~100–150 per *occupied* cell (tuple, two ints, table slot) | hash lookup, ~50–100 ns | random | yes | unbounded and negative coordinates |
 | CSR (values, column indices, row offsets) | ~12 per non-zero + 4 per row | binary search within a row | contiguous | yes | numerical kernels |
 | Bitboard (one integer per row) | 1/8 | shift and mask | in registers | no | boolean cells, width ≤ 64 |
 

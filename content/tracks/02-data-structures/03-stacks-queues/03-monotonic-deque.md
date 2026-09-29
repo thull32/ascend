@@ -113,7 +113,9 @@ Production windows are measured in seconds, not samples, and samples arrive irre
 
 At `t = 5` two entries expired in one step because no sample arrived at 3 or 4; an `if` would have left `(2, 30)` at the front and reported 30 for a window that contains only the sample at 5.
 
-The Linux kernel runs this shape in its TCP stack: `lib/win_minmax.c` tracks the windowed maximum bandwidth and minimum RTT for the BBR congestion controller, keeping only the best three samples with their timestamps rather than a full deque, a bounded approximation of the same invariant chosen because it needs constant memory per socket. [Congestion control](/learn/networking/fundamentals/congestion-control) covers what BBR does with the numbers.
+The Linux kernel runs a bounded approximation of this shape in its TCP stack. `lib/win_minmax.c` (Kathleen Nichols' algorithm, per its header comment) keeps exactly three samples, the best, second-best and third-best in the window, with their timestamps, instead of a deque that can grow to `k`. In 6.12, BBR uses it for its windowed maximum delivery rate (`bbr->bw`, with the window counted in round trips) and the TCP stack uses it for the windowed minimum RTT (`tp->rtt_min`); BBR's own minimum RTT is a separate single value with a timestamp. The rules on a new sample: if it beats the best, or all three samples have expired, reset all three to it (the deque's "pop everything dominated"); if it beats the second or third choice, it replaces that choice and everything behind it; and as time passes, the sample arriving after a quarter of the window has gone by becomes the second choice, the one after half becomes the third, and when the best expires the others shift up one place.
+
+Three slots means it can forget a value the deque would have kept. With a window of 8 and samples `(t=0, 50)`, `(1, 45)`, `(3, 20)`, `(9, 10)`: the 45 arrives inside the first quarter-window and beats neither stored choice, so it is not recorded; at `t = 3` the quarter-window rule makes `(3, 20)` the second and third choice; at `t = 9` the 50 expires and the tracker reports 20, while the true maximum of the window `[1, 9]` is 45, which the deque would still hold. The kernel's comment calls this "almost always" the same answer; the kernel accepts that error because it gets constant memory and constant time per socket, on millions of sockets. [Congestion control](/learn/networking/fundamentals/congestion-control) covers what BBR does with the numbers.
 
 ## Two deques: max and min together
 
@@ -168,7 +170,19 @@ Result 3 (the whole array). Each index enters and leaves the deque at most once:
 ## Other members of the family
 
 - **Sliding window minimum**: flip the comparison; increasing deque.
-- **DP with a window constraint** (jump game VI, constrained subsequence sum): `dp[i] = a[i] + max(dp[i−k..i−1])`. The `max` over the last `k` values is a sliding window maximum over the `dp` array as it is produced, which turns an O(nk) DP into O(n). The deque is the standard optimisation for any DP whose transition takes the extremum over a fixed-length window of previous states; [Sequence DP](/learn/algorithms/dynamic-programming/sequence-dp) uses it.
+- **DP with a window constraint** (jump game VI, constrained subsequence sum): `dp[i] = a[i] + max(dp[i−k..i−1])`. The `max` over the last `k` values is a sliding window maximum over the `dp` array as it is produced, which turns an O(nk) DP into O(n). The deque is the standard optimisation for any DP whose transition takes the extremum over a fixed-length window of previous states; [Sequence DP](/learn/algorithms/dynamic-programming/sequence-dp) uses it. The order inside each step matters: expire the front, read `dp[front]` to compute `dp[i]`, and only then push `i` with the usual back pops. Trace `a = [1, −1, −2, 4, −7, 3]`, `k = 2` (jump at most two cells, maximise the sum of cells landed on):
+
+| i | expire (front < i − 2) | dp[i] = a[i] + dp[front] | back pops, then push i | deque (indices) |
+|---|---|---|---|---|
+| 0 | – | 1 (start) | – | `[0]` |
+| 1 | – | −1 + 1 = 0 | – | `[0, 1]` |
+| 2 | 0 < 0? no | −2 + 1 = −1 | – | `[0, 1, 2]` |
+| 3 | 0 < 1: drop 0 | 4 + 0 = 4 | pop 2 (−1), pop 1 (0) | `[3]` |
+| 4 | – | −7 + 4 = −3 | – | `[3, 4]` |
+| 5 | 3 < 3? no | 3 + 4 = 7 | pop 4 (−3), pop 3 (4) | `[5]` |
+
+The answer is `dp[5] = 7`, the path 1 → −1 → 4 → 3. Reading the front before pushing is what keeps `dp[i]` from being computed from itself; pushing first would compare `dp[i]` with an unfinished value.
+
 - **Rolling max/min in streams**: exactly the opening example; the deque holds at most `k` timestamps and each sample costs O(1) amortised.
 
 ## Production failure modes

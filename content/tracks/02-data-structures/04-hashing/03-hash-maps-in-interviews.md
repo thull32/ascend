@@ -7,7 +7,7 @@ difficulty: medium
 tags: [hashing, hash-map, frequency-count, grouping, seen-set, prefix-sum, design, counter, defaultdict]
 problems: [two-sum, contains-duplicate, valid-anagram, group-anagrams, top-k-frequent, longest-consecutive-sequence, insert-delete-getrandom, subarray-sum-equals-k, longest-substring-no-repeat]
 ---
-Roughly a third of coding-interview problems are solved by a hash map, and almost none of them are *about* hash maps. The map is the tool; the problem is deciding what the key is. "Group these words by anagram class" is one line once you say "key by the sorted letters"; "find the longest run of consecutive integers" is one loop once you say "put everything in a set and only start counting from numbers whose predecessor is absent". The design of the key *is* the algorithm.
+A large share of coding-interview problems are solved by a hash map, and almost none of them are *about* hash maps. The map is the tool; the problem is deciding what the key is. "Group these words by anagram class" is one line once you say "key by the sorted letters"; "find the longest run of consecutive integers" is one loop once you say "put everything in a set and only start counting from numbers whose predecessor is absent". The design of the key *is* the algorithm.
 
 This lesson catalogues the shapes. Each has a one-line key decision, a state-table trace you can reproduce by hand, and the follow-up a senior interviewer will ask. [Hash tables](/learn/data-structures/hashing/hash-tables) covers why lookups are O(1) and when they are not; here that is assumed and the time goes on how to use them, what the library types do underneath, and the costs you should quote unprompted.
 
@@ -22,7 +22,7 @@ counts = Counter(words)                  # dict subclass; missing keys read as 0
 
 Valid Anagram is two counters compared, or one counter incremented by the first string and decremented by the second, checking that nothing goes negative. Top-K Frequent is a counter followed by a selection step (a heap of size k, or bucket sort by count, which is O(n)). Majority element, first unique character, and "can these tiles form this word" are all counters.
 
-The senior detail is the **perfect-hash special case**: when keys are small dense integers (ASCII characters, dice values, HTTP status codes), a plain array indexed by the key beats a hash map. A 26-slot array of 8-byte counters is 208 bytes, four cache lines, with no hashing and no collisions; a `Counter` with 26 keys is an 832-byte dict on CPython 3.14 plus 26 boxed ints, and every increment hashes a one-character string, checks identity, and boxes a new integer. Say "I'll use a 26-element count array since the alphabet is fixed; a hash map if the input is Unicode".
+The senior detail is the **perfect-hash special case**: when keys are small dense integers (ASCII characters, dice values, HTTP status codes), a plain array indexed by the key beats a hash map. A 26-slot array of 8-byte counters is 208 bytes, four cache lines, with no hashing and no collisions; a `Counter` with 26 keys is 848 bytes by `sys.getsizeof` on CPython 3.14, plus 26 boxed ints, and every increment hashes a one-character string, checks identity, and boxes a new integer. Say "I'll use a 26-element count array since the alphabet is fixed; a hash map if the input is Unicode".
 
 Trace Valid Anagram on `"listen"`, `"silent"` with a 26-array, showing only the slots that change:
 
@@ -338,7 +338,7 @@ hints:
 ## Senior signals
 
 - You say what the key is before you say "hash map", and you can define the equality relation the key encodes.
-- You reach for a fixed-size count array when the key space is small and dense, and you can say it is four cache lines against an 832-byte dict plus boxed ints.
+- You reach for a fixed-size count array when the key space is small and dense, and you can say it is four cache lines against an 848-byte `Counter` plus boxed ints.
 - You insert after checking in complement lookups and can produce the `[4, 1], 8` counter-example for the other order.
 - You explain the `x − 1` check in longest consecutive sequence with the "each element walked once" argument, and you iterate the set, not the array.
 - You know the swap-with-last trick, including the update-before-pop order and the victim-is-last case.

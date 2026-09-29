@@ -38,7 +38,7 @@ flowchart TD
 
 The suffix tree of `banana$`. Leaves are labelled with the suffix's starting index; the `$` terminator guarantees no suffix is a prefix of another, so every suffix ends at a leaf.
 
-The suffix tree is rarely built. Each node needs a child map, a parent pointer, a suffix link and an edge label as a (start, end) pair; real implementations cost 20–40 bytes per node and 2n nodes, so 40–80 bytes per text character, and the pointer-chasing construction is cache-hostile. For a human genome that is well over 100 GB. The suffix array holds the same ordering in 4–8 bytes per character.
+The suffix tree is rarely built. Each node needs a child map, a parent pointer, a suffix link and an edge label as a (start, end) pair; a straightforward implementation costs 20–40 bytes per node and up to 2n nodes, so 40–80 bytes per text character (space-optimised implementations shrink this but stay well above a suffix array), and the pointer-chasing construction is cache-hostile. For a human genome that is well over 100 GB. The suffix array holds the same ordering in 4–8 bytes per character.
 
 ## The suffix array
 
@@ -140,7 +140,7 @@ New ranks `[2, 1, 3, 1, 3, 0]`, with ties between 1/3 and 2/4. Round `k = 2`, pa
 | 4 | (3, −1) | na | 4 |
 | 2 | (3, 3) | nana | 5 |
 
-All distinct, done: `sa = [5, 3, 1, 0, 4, 2]`. Each round is a sort of `n` integer pairs, O(n log n) with a comparison sort or O(n) with radix sort. The number of rounds is not log n but about log₂ of the longest repeated substring plus one, because ranks stay tied as long as suffixes agree: `banana` needs 2 rounds, `a` × 64 needs 6, and a genome with long repeats needs many. Total O(n log² n) with `sort`, O(n log n) with radix sort. Linear-time constructions exist (SA-IS, DC3) and SA-IS is what production libraries use; prefix doubling is what you write by hand.
+All distinct, done: `sa = [5, 3, 1, 0, 4, 2]`. Each round is a sort of `n` integer pairs, O(n log n) with a comparison sort or O(n) with radix sort. The number of rounds is not log n but about log₂ of the longest repeated substring plus one, because ranks stay tied as long as suffixes agree: `banana` needs 2 rounds, `a` × 64 needs 6, and a genome with long repeats needs many. Total O(n log² n) with `sort`, O(n log n) with radix sort. Linear-time constructions exist (SA-IS, DC3), and induced-sorting builds such as libsais, an SA-IS implementation, are what production code uses; prefix doubling is what you write by hand.
 
 ## The LCP array
 
@@ -213,7 +213,7 @@ Sort all *rotations* of `banana$` and read the last column:
 | `na$bana` | a |
 | `nana$ba` | a |
 
-The last column, `annb$aa`, is the **Burrows-Wheeler transform**. Because `$` is unique and smallest, sorting rotations is the same as sorting suffixes, so the BWT is `text[sa[i] − 1]` for each rank: one byte per character, derived from the suffix array. It has two properties that make it an index. First, it clusters characters that share a right context (the `n`s that precede `a` sit together), which is why `bzip2` applies it to 900 KB blocks and then compresses the runs. Second, the **LF mapping**: the k-th occurrence of a character `c` in the last column is the same text character as the k-th occurrence of `c` in the first column, and the first column is implicit (a count table `C[c]` = number of characters smaller than `c`: `$` 0, `a` 1, `b` 4, `n` 5).
+The last column, `annb$aa`, is the **Burrows-Wheeler transform**. Because `$` is unique and smallest, sorting rotations is the same as sorting suffixes, so the BWT is `text[sa[i] − 1]` for each rank: one byte per character, derived from the suffix array. It has two properties that make it an index. First, it clusters characters that share a right context (the `n`s that precede `a` sit together), which is why `bzip2` applies it to blocks of up to 900 KB (the default) and then compresses the runs. Second, the **LF mapping**: the k-th occurrence of a character `c` in the last column is the same text character as the k-th occurrence of `c` in the first column, and the first column is implicit (a count table `C[c]` = number of characters smaller than `c`: `$` 0, `a` 1, `b` 4, `n` 5).
 
 That gives **backward search**, which counts a pattern without the text and without the suffix array. Process `ana` from its last character. The rows starting with `a` are `[C[a], C[b]) = [1, 4)`. Prepend `n`: the new rows are `[C[n] + occ(n, 1), C[n] + occ(n, 4)) = [5 + 0, 5 + 2) = [5, 7)`, where `occ(c, i)` counts `c` in the first `i` characters of the BWT. Prepend `a`: `[C[a] + occ(a, 5), C[a] + occ(a, 7)) = [1 + 1, 1 + 3) = [2, 4)`. Two rows, so two occurrences, in O(m) steps with O(1) each if `occ` is answered from precomputed checkpoints. Locating them needs the suffix array, which the **FM-index** samples (every 32nd entry, say) and reconstructs by walking the LF mapping to the nearest sample. The result stores a genome's suffix ordering in roughly one byte per base plus the samples, a few gigabytes for a human genome instead of the 25 GB a 64-bit suffix array would need, and read aligners such as BWA and Bowtie answer "where does this 100-base read occur" in microseconds against it.
 

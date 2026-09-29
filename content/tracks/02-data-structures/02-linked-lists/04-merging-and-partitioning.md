@@ -215,13 +215,13 @@ Three more, each a two-list walk: **remove duplicates from a sorted list** (walk
 
 **Timsort**, the sort behind Python's `sorted`, Java's `Arrays.sort` for objects and V8's `Array.prototype.sort`, is a merge sort over the runs already present in the input. Runs shorter than `minrun` (32 to 64, chosen so the run count is close to a power of two) are extended with insertion sort; merging uses a temporary buffer of the smaller run and switches to *galloping* (binary search for how far the next element from one run reaches) after one run wins `MIN_GALLOP = 7` comparisons in a row. CPython 3.11 replaced the original run-stack invariants with the powersort merge policy; the merge step itself is unchanged.
 
-**Linux `list_sort`** (`lib/list_sort.c`) sorts intrusive `list_head` lists bottom-up: it walks the input once, keeping a pending set of sorted sub-lists and merging pairs so that the pending sizes stay in a 2:1 ratio, which keeps merges cache-resident, and it ignores the `prev` pointers entirely until a final pass rebuilds them. Callers pass a comparison function; the kernel uses it for block-layer request queues and for sorting file system extents.
+**Linux `list_sort`** (`lib/list_sort.c`) sorts intrusive `list_head` lists bottom-up: it walks the input once, keeping a pending set of sorted sub-lists and merging pairs so that the pending sizes stay in a 2:1 ratio, which keeps merges cache-resident. It treats every sub-list as singly linked, reusing the `prev` field only to chain the pending sub-lists together, and a final pass (`merge_final`) rebuilds the `prev` links. Callers pass a comparison function; in 6.12 the callers include XFS (deferred extent work and delayed-write buffers), btrfs RAID5/6, ext4's `fsmap` and UBIFS garbage collection.
 
 ## Under the hood: compaction and external sort
 
 **LSM compaction.** RocksDB's default configuration triggers a compaction when level 0 holds 4 files, writes 64 MB target files, and sizes level 1 at 256 MB with each further level 10× the previous. A compaction opens an iterator per input file and drives them through a `MergingIterator`, a min-heap of heads exactly like `merge_k`; when the same key appears in several inputs, the entry with the highest sequence number (the newest write) is emitted and older versions and tombstones are dropped once no snapshot needs them. That tie rule is the merge's stability rule with "newest run wins". [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) has the structure; [Storage engine internals](/learn/databases/storage-and-scale/storage-engine-internals) the engine around it.
 
-**External sort.** Postgres sorts a result larger than `work_mem` (default 4 MB) by sorting `work_mem`-sized runs in memory, spilling each to a temporary file, and k-way merging the runs; at 1 GB of input that is on the order of 250 runs and, since the merge only needs one buffered block per run, a single merge pass. In general, with memory for `M` runs at once, `r` runs take `⌈log_M r⌉` passes over the data, and each extra pass reads and writes everything again. Raising `work_mem` shortens the merge; lowering it multiplies passes.
+**External sort.** Postgres sorts a result larger than `work_mem` (default 4 MB) by sorting `work_mem`-sized runs in memory, spilling each to a temporary file, and k-way merging the runs; at 1 GB of input that is on the order of 250 runs. The merge is not free of memory either: PostgreSQL 17's balanced k-way merge gives each input run a 256 KB read buffer plus an 8 KB block, so 4 MB merges about 15 runs at a time, and 250 runs need two intermediate passes (250 → 17 → 2) before a final merge that streams to the caller. In general, with memory for `M` runs at once, `r` runs take `⌈log_M r⌉` passes over the data, and each extra pass reads and writes everything again. Raising `work_mem` shortens the merge; lowering it multiplies passes.
 
 ## Trade-offs
 
@@ -242,7 +242,7 @@ Three more, each a two-list walk: **remove duplicates from a sorted list** (walk
 | List merge sort hangs or overflows the stack on two-element input | The split started `fast` at `head` and produced an empty right half | Start `fast` at `head.next`; test lengths 1, 2 and 3 |
 | A deleted or overwritten key comes back after compaction | The merge's tie rule preferred the older version (`<` instead of `<=` with the wrong source first, or sequence numbers compared the wrong way) | Newest run wins ties, tested with a key present in two inputs |
 | `RecursionError` or `StackOverflowError` from a merge on long lists | Recursive two-list merge; depth equals the output length | Iterative merge with a sentinel |
-| A merged stream stalls although most inputs have data | The heap needs a head from every input, and one input is idle | Per-input timeouts or idleness markers (watermarks in Flink and Kafka Streams) so an idle input stops blocking the heap |
+| A merged stream stalls although most inputs have data | The heap needs a head from every input, and one input is idle | Per-input timeouts or idleness markers (`withIdleness` on a Flink watermark strategy, `max.task.idle.ms` in Kafka Streams) so an idle input stops blocking the heap |
 
 ## Interviewer follow-ups
 
@@ -277,10 +277,10 @@ Model answer: a list partition re-threads nodes into two output lists in input o
 
 ## Where this shows up in systems
 
-- **External merge sort** is every database's `ORDER BY` on a result larger than memory; Postgres's run size is `work_mem` (4 MB by default) and the merge is a heap of one block per run.
+- **External merge sort** is every database's `ORDER BY` on a result larger than memory; Postgres's run size is `work_mem` (4 MB by default) and the merge is a heap over runs, each with its own read buffer.
 - **LSM-tree compaction** in RocksDB, Cassandra and LevelDB is a heap merge of SSTable iterators with "newest sequence number wins" as the tie rule.
 - **Timsort** in Python, Java and V8 is a merge sort over natural runs with galloping after 7 straight wins.
-- **Stream joins** in Kafka Streams and Flink merge time-ordered streams by timestamp, buffering only heads, with watermarks deciding when a head is final.
+- **Stream joins** in Kafka Streams and Flink merge time-ordered streams by timestamp, buffering only heads; Flink's watermarks decide when a head is final, and Kafka Streams waits up to `max.task.idle.ms` for a lagging input before picking the next record.
 
 ```viz
 {"type": "system", "algorithm": "lsm-tree", "title": "LSM tree: memtable flushes become sorted runs, compaction k-way merges them"}

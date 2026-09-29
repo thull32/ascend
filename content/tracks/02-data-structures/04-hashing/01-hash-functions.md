@@ -16,7 +16,7 @@ This lesson is about the function itself: what it must do, how the common ones w
 A hash function maps a key (of any size) to a fixed-size integer, and for use in a hash table it must be:
 
 1. **Deterministic.** Same key, same hash, always, within one process. Tables store nothing but the hash and the key; if the hash drifts, the key is lost.
-2. **Fast.** It runs on every insert and lookup. For short string keys, hashing is often the *dominant* cost of a table operation: FNV-1a processes about one byte per cycle (~1 ns per byte on a 3 GHz core), while the probe that follows is a handful of cycles if the slot is in cache.
+2. **Fast.** It runs on every insert and lookup. For short string keys, hashing is often the *dominant* cost of a table operation: FNV-1a processes one byte per XOR-then-multiply step, and because each step waits for the previous multiply (a latency of a few cycles), that is on the order of 1 ns per byte on a 3–4 GHz core, while the probe that follows is a handful of cycles if the slot is in cache.
 3. **Uniform.** Over your real keys, each output value should be about equally likely. A function that is uniform over random input can still cluster on structured input, such as keys that share a prefix or are multiples of 8.
 4. **Avalanche.** Flipping one bit of the input should flip about half the output bits. Without avalanche, similar keys (`user_1000`, `user_1001`) produce similar hashes and land in nearby buckets, which turns a linear-probing table into one long cluster.
 
@@ -93,7 +93,7 @@ The XOR touches only the low 8 bits; the multiply by `2²⁴ + 403` copies those
 
 In JavaScript the multiplication must be done with `Math.imul` (32-bit wrapping multiply) and the result forced unsigned with `>>> 0`; ordinary `*` on products above 2⁵³ loses precision and the hash silently diverges from every other implementation. That divergence matters the moment a hash crosses a process boundary: a shard key computed in a Node service and a Go service must agree, and a Java `hashCode` is a *signed* 32-bit value, so `h % n` can be negative and must be masked before use as an index.
 
-Faster and better-distributed non-cryptographic hashes exist: MurmurHash3 (Cassandra's partitioner, many Bloom filters), xxHash3 and wyhash (the fastest general-purpose options at the time of writing, tens of gigabytes per second on long inputs), CityHash/FarmHash (Google). They consume 8–32 bytes per step with 64-bit multiplies and add a *finaliser* (two or three XOR-shift-multiply rounds) so that even a one-byte input avalanches fully. For a hash table with short keys, the difference between FNV and xxHash is within 2×; for hashing megabytes (content-addressable storage, deduplication) it is 10–30×.
+Faster and better-distributed non-cryptographic hashes exist: MurmurHash3 (Cassandra's partitioner, many Bloom filters), xxHash3 and wyhash (the fastest general-purpose options at the time of writing, tens of gigabytes per second on long inputs), CityHash/FarmHash (Google). They consume 8–32 bytes per step with 64-bit multiplies and add a *finaliser* (two or three XOR-shift-multiply rounds) so that even a one-byte input avalanches fully. The [xxHash project's benchmark](https://github.com/Cyan4973/xxHash) on an i7-9700K puts numbers on it: FNV64 streams 1.2 GB/s against 31.5 GB/s for XXH3 with SSE2 (59.4 GB/s with AVX2), a 26× gap for hashing megabytes (content-addressable storage, deduplication), while on small inputs its "small data velocity" score for XXH3 is only about twice FNV's. For a hash table with short keys the choice barely registers; for bulk data it dominates.
 
 ## Integer hashing and Fibonacci hashing
 
@@ -114,7 +114,7 @@ With `A = ⌊2⁶⁴ / φ⌋ = 11400714819323198485` (the golden ratio), this is
 | 7168 | 1247578375373081600 | 0 | 0 |
 | 8192 | 17237298777891708928 | 7 | 0 |
 
-Eight keys, eight distinct slots, from one multiply and one shift. Consecutive integers `1..8` land in `4, 1, 6, 3, 0, 5, 2, 7`, also a perfect spread: multiplying by `2⁶⁴/φ` advances around the ring of outputs by the golden angle, which is the most evenly spaced sequence any single multiplier can produce (the same reason sunflower seeds pack the way they do). It costs one multiply and one shift, and it is what several modern tables use to turn a "good enough" 64-bit hash into a table index instead of `mod capacity` (a division, which is 20–40× slower than a multiply on current x86).
+Eight keys, eight distinct slots, from one multiply and one shift. Consecutive integers `1..8` land in `4, 1, 6, 3, 0, 5, 2, 7`, also a perfect spread: multiplying by `2⁶⁴/φ` advances around the ring of outputs by the golden angle, which is the most evenly spaced sequence any single multiplier can produce (the same reason sunflower seeds pack the way they do). It costs one multiply and one shift, and it is a common way to turn a "good enough" 64-bit hash into a table index instead of `mod capacity` (a division, which costs several times a multiply's latency on x86). The Linux kernel's `hash_64` in `include/linux/hash.h` is exactly this: `val * GOLDEN_RATIO_64 >> (64 − bits)` with `GOLDEN_RATIO_64 = 0x61C8864680B583EB`, which is `2⁶⁴ − A`, the same golden-ratio spacing walked in the opposite direction.
 
 The general principle: when the table's capacity is a power of two, the *low* bits of the hash pick the slot, so the hash function's job is to make the low bits depend on all of the key. Multiplicative hashing puts the well-mixed bits at the top and shifts them down; Java's `h ^ (h >>> 16)` copies the top bits into the bottom.
 
@@ -137,7 +137,7 @@ def hash_tuple(fields):
     return h
 ```
 
-Boost's `hash_combine` uses `seed ^= h + 0x9e3779b9 + (seed << 6) + (seed >> 2)` (the golden-ratio constant again), which mixes better than `× 31`. CPython's tuple hash is a variant of xxHash's combining step since 3.8, so `hash((1, 2))`, `hash((2, 1))` and `hash((1, 1))` are three unrelated 64-bit values. Java's `Objects.hash(a, b, c)` is the `× 31` version.
+Boost's long-standing `hash_combine` used `seed ^= h + 0x9e3779b9 + (seed << 6) + (seed >> 2)` (the golden-ratio constant again), which mixes better than `× 31`; Boost 1.81 replaced it with `seed = hash_mix(seed + 0x9e3779b9 + h)`, where `hash_mix` is a multiply-xorshift finaliser. CPython's tuple hash is a variant of xxHash's combining step since 3.8, so `hash((1, 2))`, `hash((2, 1))` and `hash((1, 1))` are three unrelated 64-bit values. Java's `Objects.hash(a, b, c)` is the `× 31` version.
 
 **Order-independent keys.** A set of items must hash the same regardless of iteration order. There, commutativity is what you want: sum or XOR the *element* hashes (CPython's `frozenset` XORs a per-element shuffle of each element's hash, so `frozenset({1, 2})` and `frozenset({2, 1})` agree and `{x, x}` cannot happen because a set has no duplicates). Choose symmetric combination when the key is a set, asymmetric when it is a sequence, and be explicit about which.
 
@@ -152,8 +152,8 @@ Boost's `hash_combine` uses `seed ^= h + 0x9e3779b9 + (seed << 6) + (seed >> 2)`
 | CPython 3.11+ | SipHash-1-3 (SipHash-2-4 from 3.4 to 3.10), 64-bit, cached in the `str` object | `x mod (2⁶¹ − 1)`, so `hash(2⁶¹) == 1`; `hash(−1) == −2` because −1 is the C error sentinel | Tuples: xxHash-style combine (3.8+); `frozenset`: commutative XOR shuffle | Per process (`PYTHONHASHSEED`) |
 | Java (HotSpot) | `s[0]·31ⁿ⁻¹ + … + s[n−1]` mod 2³², signed, cached in the `String` (plus a `hashIsZero` flag since JDK 13) | Identity; `HashMap` spreads with `h ^ (h >>> 16)` | `Objects.hash` = `× 31` combiner | No; `HashMap` treeifies long chains instead |
 | Rust | `Hash` trait feeds bytes to a `Hasher`; `RandomState` is SipHash-1-3 | Same SipHash over the integer's bytes | `#[derive(Hash)]` feeds fields in order | Per thread, incremented per map |
-| Go | Runtime `memhash`/`strhash`, AES-NI based on x86-64 and arm64 with hardware AES, a fallback mixer otherwise | Same family | Structs hashed field by field | Per process, plus a per-map seed |
-| V8 | A seeded one-at-a-time-style hash cached in the string header; identity hash for objects | Small integers are their own hash | Objects are keyed by reference | Per isolate |
+| Go | Runtime `memhash`/`strhash`, AES-NI based on x86-64 and arm64 with hardware AES, a wyhash-derived fallback otherwise (Go 1.27) | Same family | Structs hashed field by field | Per process, plus a per-map seed |
+| V8 | Seeded, cached in the string header: Jenkins one-at-a-time in V8 12.4 (Node 22) and 13.0, rapidhash in V8 13.6 (Node 24); identity hash for objects | `Map`/`Set` keys that are small integers go through an unseeded integer mixer (`ComputeUnseededHash`); integer-like strings store the index in the hash field | Objects are keyed by reference | Per isolate |
 
 Three details from that table decide real bugs:
 
@@ -163,11 +163,11 @@ Three details from that table decide real bugs:
 
 ## HashDoS and keyed hashing
 
-If an attacker controls the keys (HTTP parameter names, JSON object keys, form fields, header names) and knows the hash function, they can generate tens of thousands of distinct keys that all hash to the same bucket, using the `"Aa"`/`"BB"` construction or a meet-in-the-middle search. Parsing one request then costs O(n²) in the table: a few hundred kilobytes of crafted POST body ties up a CPU core for minutes. This was demonstrated against PHP, Python, Ruby, Java, ASP.NET and Node in 2011 (the "hash-flooding" disclosure), and it recurs whenever someone puts a fast, unkeyed hash in front of untrusted input.
+If an attacker controls the keys (HTTP parameter names, JSON object keys, form fields, header names) and knows the hash function, they can generate tens of thousands of distinct keys that all hash to the same bucket, using the `"Aa"`/`"BB"` construction or a meet-in-the-middle search. Parsing one request then costs O(n²) in the table. The December 2011 disclosure ([oCERT-2011-003](https://www.ocert.org/advisories/ocert-2011-003.html), reported by n.runs) listed Java, JRuby, PHP, Python, Rubinius, Ruby and the V8 engine, warned that crafted POST requests could hold a CPU at 100% for up to several hours with little bandwidth, and noted that the same attack had been published against Perl in 2003. It recurs whenever someone puts a fast, unkeyed hash in front of untrusted input.
 
 The fix is a **keyed** hash: the function takes a secret seed chosen at process start, so the attacker cannot predict which keys collide.
 
-- **SipHash** (Aumasson and Bernstein, 2012) was designed for this. It keeps four 64-bit state words initialised from a 128-bit key, absorbs the input 8 bytes at a time, and runs a *SipRound* (four add-rotate-xor steps with rotations of 13, 16, 21 and 17 bits, plus two 32-bit swaps) `c` times per block and `d` times at the end; SipHash-2-4 uses `c = 2, d = 4`, SipHash-1-3 the cheaper `c = 1, d = 3`. For an 8-byte key that is 4 rounds plus setup, on the order of 20–30 ns; FNV does the same key in a few nanoseconds. CPython (SipHash-2-4 from 3.4, SipHash-1-3 by default since 3.11), Rust (`RandomState`, SipHash-1-3), Ruby, Perl, Haskell and Redis all use it for strings.
+- **SipHash** (Aumasson and Bernstein, 2012) was designed for this. It keeps four 64-bit state words initialised from a 128-bit key, absorbs the input 8 bytes at a time, and runs a *SipRound* (four add-rotate-xor steps with rotations of 13, 16, 21 and 17 bits, plus two 32-bit swaps) `c` times per block and `d` times at the end; SipHash-2-4 uses `c = 2, d = 4`, SipHash-1-3 the cheaper `c = 1, d = 3`. An 8-byte key is two blocks (the key itself, then a final block carrying the length), so SipHash-1-3 runs 2 + 3 = 5 SipRounds and SipHash-2-4 runs 4 + 4 = 8, on the order of tens of nanoseconds; FNV does the same key in a few nanoseconds. CPython (SipHash-2-4 from 3.4, SipHash-1-3 by default since 3.11) and Rust (`RandomState`, SipHash-1-3) use it, and the SipHash README lists Perl, Ruby and Redis among its users.
 - Java chose a different defence: treeify long chains so the worst case is O(log n) instead of O(n).
 - Go randomises the seed of its AES-based string hash per process and per map.
 
@@ -177,12 +177,12 @@ The trade-off is speed. SipHash is a few times slower than FNV or xxHash on shor
 
 ## Cryptographic hashes are a different tool
 
-SHA-256 and BLAKE3 provide preimage resistance (cannot find an input for a given output) and collision resistance (cannot find two inputs with the same output), at roughly 0.5–2 GB/s for SHA-256 with hardware SHA extensions and several GB/s for BLAKE3 with SIMD; on a 16-byte key the fixed cost is a few hundred nanoseconds, 10× SipHash. Use them for content addressing (git, Docker layers, S3 ETags), integrity, signatures and passwords (with a slow KDF such as Argon2). Do not use them as hash-table functions: they are slower than they need to be and their outputs still have to be reduced `mod capacity`, which is where the table-specific spreading happens anyway. Conversely, never use FNV or MurmurHash where an attacker gains from a collision (deduplicating uploaded files by a fast hash is a way to let one user overwrite another's file).
+SHA-256 and BLAKE3 provide preimage resistance (cannot find an input for a given output) and collision resistance (cannot find two inputs with the same output), at roughly 0.5–2 GB/s for SHA-256 with hardware SHA extensions and several GB/s for BLAKE3 with SIMD; on a 16-byte key the fixed cost of a full compression is tens to hundreds of nanoseconds depending on hardware support, several times SipHash. Use them for content addressing (OCI and Docker image layers are named by `sha256:` digests; git still defaults to SHA-1 object names, with SHA-256 repositories available via `git init --object-format=sha256`), integrity, signatures and passwords (with a slow KDF such as Argon2). Do not use them as hash-table functions: they are slower than they need to be and their outputs still have to be reduced `mod capacity`, which is where the table-specific spreading happens anyway. Conversely, never use FNV or MurmurHash where an attacker gains from a collision (deduplicating uploaded files by a fast hash is a way to let one user overwrite another's file).
 
 | | FNV-1a | MurmurHash3 | xxHash3 / wyhash | SipHash-1-3 | SHA-256 / BLAKE3 |
 |---|---|---|---|---|---|
-| Short key (8–16 B) cost | ~5–15 ns | ~10–20 ns | ~5–10 ns | ~20–30 ns | ~200–500 ns |
-| Long input throughput | ~1 GB/s | ~3–5 GB/s | 10–30 GB/s | ~1–2 GB/s | 0.5–5 GB/s |
+| Short key (8–16 B) cost | ~5–15 ns | ~10–20 ns | ~5–10 ns | ~20–30 ns | ~50–500 ns |
+| Long input throughput | ~1 GB/s (FNV64: 1.2) | ~4 GB/s | 30–60 GB/s (XXH3) | ~3 GB/s (measured for SipHash-2-4) | 0.5–5 GB/s |
 | Avalanche on 1-byte inputs | Weak (one multiply) | Good (finaliser) | Good (finaliser) | Good | Perfect |
 | Keyed (DoS-resistant) | No | Seed only, not secure | Seed only | Yes, 128-bit key | Keyed via HMAC |
 | Output | 32/64 bits | 32/128 bits | 64/128 bits | 64 bits | 256 bits |

@@ -172,7 +172,7 @@ successor (60 replaces 50)      predecessor (40 replaces 50)
      35
 ```
 
-With the successor, 60 is removed from a subtree of three nodes; with the predecessor, 40 is removed and its one child 35 is spliced up, so the left subtree loses a level. Always choosing the successor takes nodes from right subtrees only, and over a long sequence of random inserts and deletes that asymmetry skews the tree: experiments and analysis from the 1980s (Eppinger; Culberson) found the average depth growing over time under successor-only deletion, on the order of √n in the models analysed, while choosing successor and predecessor symmetrically (alternating, or at random) kept it logarithmic. Almost nobody implements the alternation, because almost nobody ships an unbalanced BST; the balanced structures in the [next lesson](/learn/data-structures/trees/balanced-trees) fix the shape after every delete instead.
+With the successor, 60 is removed from a subtree of three nodes; with the predecessor, 40 is removed and its one child 35 is spliced up, so the left subtree loses a level. Always choosing the successor takes nodes from right subtrees only, and over a long sequence of random inserts and deletes that asymmetry skews the tree: Eppinger's 1983 simulations and Culberson and Munro's later analysis found the average depth growing over time under successor-only deletion, on the order of √n in the model they analysed, while choosing successor and predecessor symmetrically (alternating, or at random) kept it logarithmic. Almost nobody implements the alternation, because almost nobody ships an unbalanced BST; the balanced structures in the [next lesson](/learn/data-structures/trees/balanced-trees) fix the shape after every delete instead.
 
 ```viz
 {"type": "tree", "algorithm": "bst-delete", "values": [8, 3, 10, 1, 6, 14, 4, 7, 13], "target": 3,
@@ -322,7 +322,7 @@ Nobody ships the plain BST, but its descendants are everywhere, and the per-node
 
 **Rust's `BTreeMap` is a B-tree on purpose.** Its nodes hold up to 11 keys (B = 6, capacity 2B − 1), so a leaf of `(u32, u32)` pairs is about 100 bytes by the layout arithmetic (8-byte parent pointer, two 2-byte counters, 11 keys, 11 values), two cache lines, and an internal node adds 12 child pointers. A lookup in a million entries visits about 6–7 nodes instead of 20-plus, each node's keys are scanned linearly inside one or two cache lines, and the allocation count drops by an order of magnitude. The standard library chose this over a red-black tree because DRAM misses, not comparisons, dominate an in-memory ordered map.
 
-**The Linux kernel's `rbtree`** is an intrusive red-black tree used wherever the kernel needs an ordered set with cheap updates: the scheduler's run queue (the CFS timeline keyed by virtual runtime, and still an rbtree, augmented with a subtree minimum, under the EEVDF scheduler in recent kernels), epoll's set of monitored file descriptors, high-resolution timers ordered by expiry, the deadline I/O scheduler's sorted request lists, and, historically, the lookup of a process's memory mappings (VMAs), which moved to the maple tree in 6.1 because a tree of pointer-linked 2-child nodes was too cache-hostile for that workload.
+**The Linux kernel's `rbtree`** is an intrusive red-black tree used wherever the kernel needs an ordered set with cheap updates: the scheduler's run queue (the CFS timeline keyed by virtual runtime; under the EEVDF scheduler that replaced CFS from 6.6 it is still an rbtree, keyed by virtual deadline in 6.10 and augmented with each subtree's minimum virtual runtime), epoll's set of monitored file descriptors, high-resolution timers ordered by expiry, the deadline I/O scheduler's sorted request lists, and, historically, the lookup of a process's memory mappings (VMAs), which moved in 6.1 to the maple tree, a range-based B-tree that the kernel documentation describes as designed to use modern processor caches efficiently and to allow RCU-safe concurrent reads.
 
 ### Cache misses per lookup, million keys
 
@@ -579,7 +579,7 @@ hints:
     The leftmost node of a subtree has no left child by construction, so removing it is case 1 (leaf) or case 2 (one right child). It may not be a leaf, and it is the direct right child only when that child has no left subtree. The maximum of the left subtree is the in-order predecessor, the other valid choice, not the successor.
 - q: >-
     Keys 1 through 100,000 are inserted in ascending order into a plain BST. Searching for key 100,000 costs:
-  options: ["About 23, since expected height is 1.39 log₂ n", "About 17, since each step halves the remaining keys", "About 50,000, since search stops halfway on average", "About 100,000, since the tree is a right chain"]
+  options: ["About 23, since average depth is 1.39 log₂ n", "About 17, since each step halves the remaining keys", "About 50,000, since search stops halfway on average", "About 100,000, since the tree is a right chain"]
   answer: 3
   explanation: >-
     Ascending insertion produces a right chain of height 99,999; the largest key is at the bottom, so the search walks every node. A balanced tree would take about 17, and the logarithmic expected-depth figures hold only for random insertion order.

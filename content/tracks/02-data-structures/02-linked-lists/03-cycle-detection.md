@@ -142,7 +142,7 @@ On the same list (`f` is "follow `next`", nodes named by value):
 | 6 | 4 | 4 | 3 | 3 | |
 | 7 | 4 | 4 | 4 | 4 | met: `C = 4` |
 
-Seven reads to learn `C`, against Floyd's twelve to merely meet. Then `hare` starts `C = 4` ahead of `tortoise` from the head: (1, 5), (2, 6), (3, 3), so `F = 2` after 4 more reads each, 15 reads in total against Floyd's 20. Measured over every shape with `F < 30` and `C < 30`, Brent's full locate uses 24% fewer evaluations than Floyd's; Brent's 1980 paper reports about 36% fewer on average for finding the cycle length alone. When one evaluation of `f` is a modular squaring in Pollard's rho or a workflow step that touches a database, that is the difference that matters. In interviews, Floyd is the expected answer; give Brent when asked "can you do better?".
+Seven reads to learn `C`, against Floyd's twelve to merely meet. Then `hare` starts `C = 4` ahead of `tortoise` from the head: (1, 5), (2, 6), (3, 3), so `F = 2` after 4 more reads each, 15 reads in total against Floyd's 20. Measured over every shape with `F < 30` and `C < 30`, Brent's full locate uses 24% fewer evaluations than Floyd's; Brent's 1980 paper reports his algorithm "about 36 percent faster than Floyd's (on the average)", and Pollard's rho built on it about 24 percent faster. When one evaluation of `f` is a modular squaring in Pollard's rho or a workflow step that touches a database, that is the difference that matters. In interviews, Floyd is the expected answer; give Brent when asked "can you do better?".
 
 ## Beyond linked lists: any iterated function
 

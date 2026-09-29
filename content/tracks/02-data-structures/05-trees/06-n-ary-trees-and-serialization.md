@@ -119,7 +119,7 @@ Measured on CPython 3.14.7 by allocating 100,000 nodes under `tracemalloc`, incl
 | Parent array as a Python list of ints | ~40 | 28-byte int plus an 8-byte list slot, rounded |
 | Parent array as `array('i')` | ~4 | One 32-bit index; a million-node tree is 4 MB |
 
-In Java the children-list node is a 16-byte object plus an `ArrayList` (about 40 bytes plus 4 per slot); in Rust a `Vec<Box<Node>>` costs 24 bytes for the vector header plus 8 per child. The 36-fold spread between a Python object and an `array('i')` is why hierarchies of millions of rows are handled as parent arrays and converted only when a traversal needs it.
+In Java the children-list node is a 24-byte object (12-byte header, a 4-byte value and a 4-byte reference, padded to 8) plus an `ArrayList` (about 40 bytes plus 4 per slot); in Rust a `Vec<Box<Node>>` costs 24 bytes for the vector header plus 8 per child. The 36-fold spread between a Python object and an `array('i')` is why hierarchies of millions of rows are handled as parent arrays and converted only when a traversal needs it.
 
 | Representation | Down | Up | Memory | Best for |
 |---|---|---|---|---|
@@ -250,7 +250,7 @@ Production serialisation cares about things the interview version ignores. **Esc
 
 ## Under the hood: parsers, wire formats and Git
 
-**JSON parsers are recursive descent**, and the recursion depth is the nesting depth of the document, chosen by whoever sent it. CPython's `json` decoder is C code that recurses on the C stack: on 3.14.7, `json.loads` of an array nested 20,000 deep succeeds and one nested 100,000 deep raises `RecursionError: Stack overflow (used 8148 kB) while decoding a JSON array`, the 8 MiB main-thread stack. Jackson, the JVM's usual parser, has enforced a default maximum nesting depth of 1,000 in recent versions (configurable through its stream-read constraints), so a hostile document fails fast instead of overflowing the thread stack. If your parser has no such limit, put one in front of it.
+**JSON parsers are recursive descent**, and the recursion depth is the nesting depth of the document, chosen by whoever sent it. CPython's `json` decoder is C code that recurses on the C stack: on 3.14.7, `json.loads` of an array nested 20,000 deep succeeds and one nested 100,000 deep raises `RecursionError: Stack overflow (used 8148 kB) while decoding a JSON array`, the 8 MiB main-thread stack. Jackson, the JVM's usual parser, has enforced a default maximum nesting depth of 1,000 since version 2.15 (configurable through its `StreamReadConstraints`), so a hostile document fails fast instead of overflowing the thread stack. If your parser has no such limit, put one in front of it.
 
 **Protobuf** encodes a nested message as a *length-delimited* field: a tag, a varint length, then that many bytes. Because the length comes first, a parser can skip an entire subtree it does not understand by advancing the length, which is how unknown fields and forward compatibility work, and it can bound nesting cheaply: the C++ and Java implementations refuse messages nested deeper than 100 by default. See [gRPC and protobuf](/learn/networking/application-protocols/grpc-and-protobuf).
 
@@ -506,5 +506,5 @@ hints:
   options: ["Deep documents parse correctly but the resulting tree cannot be serialised back", "A document nested 100,000 deep, about 200 KB, overflows the parser's stack and kills the worker", "Documents with duplicate keys produce an ambiguous tree that fails validation", "Deeply nested arrays take O(n²) time to parse because each level rescans the input"]
   answer: 1
   explanation: >-
-    Recursion depth equals nesting depth, which the sender chooses; CPython's json decoder raises a stack overflow at a depth in the tens of thousands and a native parser without a limit crashes. Parsing stays O(n); duplicate keys are a semantic question, not a crash. The fix is a nesting limit in front of the parser, as Jackson enforces by default in recent versions, or an explicit-stack decoder.
+    Recursion depth equals nesting depth, which the sender chooses; CPython's json decoder raises a stack overflow at a depth in the tens of thousands and a native parser without a limit crashes. Parsing stays O(n); duplicate keys are a semantic question, not a crash. The fix is a nesting limit in front of the parser, as Jackson enforces by default since version 2.15, or an explicit-stack decoder.
 ```

@@ -99,16 +99,16 @@ Two consequences that experienced engineers act on:
 
 ## Under the hood: the ordered maps you already run
 
-- **The Linux scheduler** keeps every runnable task in a red-black tree keyed by virtual runtime (by deadline since the EEVDF scheduler in kernel 6.6, 2023) and caches the leftmost node, so "pick the next task" is `min()` in O(1) and inserting a woken task is O(log n). It is a tree, not a heap, because tasks are also removed from the middle when they block.
-- **Redis sorted sets (`ZSET`)** are a hash table (member → score, for O(1) `ZSCORE`) plus a skip list ordered by score with `p = ¼`, up to 32 levels, a backward pointer per node and a *span* per forward pointer counting the nodes it skips, which is what makes `ZRANK` and `ZRANGE` by rank O(log n) without a tree. Sets of up to 128 short members are stored as a flat listpack instead, because a linear scan of a few hundred bytes beats any pointer structure.
-- **LSM-tree memtables** (LevelDB, RocksDB) are skip lists in an arena: readers never lock, a single writer appends nodes, and the sorted order is what makes flushing to an SSTable a sequential write. [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) follows the data down to disk.
+- **The Linux scheduler** keeps every runnable task in a red-black tree and caches the leftmost node. Under CFS the key was virtual runtime and "pick the next task" was that cached `min()`, O(1). Since the EEVDF scheduler (kernel 6.6, 2023) the key is the virtual deadline, and each node also stores the minimum virtual runtime in its subtree: `pick_eevdf` (6.12) takes the leftmost task if it is eligible and otherwise descends the tree, skipping subtrees with no eligible task, in O(log n). Inserting a woken task is O(log n) either way. It is a tree, not a heap, because tasks are also removed from the middle when they block.
+- **Redis sorted sets (`ZSET`)** are a hash table (member → score, for O(1) `ZSCORE`) plus a skip list ordered by score with `p = ¼`, up to 32 levels, a backward pointer per node and a *span* per forward pointer counting the nodes it skips, which is what makes `ZRANK` and `ZRANGE` by rank O(log n) without a tree. Sets of up to 128 members of at most 64 bytes (the `zset-max-listpack-*` defaults in Redis 7; a ziplist before 7.0) are stored as a flat listpack instead, because a linear scan of a few hundred bytes beats any pointer structure.
+- **LSM-tree memtables** (LevelDB, RocksDB) are skip lists in an arena: readers never lock; LevelDB's skip list requires writers to be serialised externally, while RocksDB's default skip-list memtable accepts concurrent writers (`allow_concurrent_memtable_write` defaults to true) using compare-and-swap; and the sorted order is what makes flushing to an SSTable a sequential write. [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) follows the data down to disk.
 - **Database B-tree indexes** answer `WHERE ts <= ? ORDER BY ts DESC LIMIT 1` as a `floor`: descend to the leaf, position on the last key ≤ the bound, read one row. The same query on an unindexed column is the hash-map-and-scan pattern at a million rows per second.
 
 ## Python and JavaScript: no ordered map, three substitutes
 
 ## A sorted array with binary search
 
-Keep the keys in a sorted list and use `bisect` (Python) or a hand-written binary search (JavaScript). Lookups, floor and ceiling are O(log n); insertion into the middle is O(n) because of the shift, but the shift is a `memmove` running at memory bandwidth.
+Keep the keys in a sorted list and use `bisect` (Python) or a hand-written binary search (JavaScript). Lookups, floor and ceiling are O(log n); insertion into the middle is O(n) because of the shift, but the shift is a tight pointer-copy loop in C running near memory bandwidth.
 
 ```python
 import bisect
@@ -142,11 +142,11 @@ class SortedMap:
 | `[1, 3, 5, 7]` | 0 | 0 | 0 | none | `keys[0] = 1` |
 | `[1, 3, 5, 7]` | 9 | 4 | 4 | `keys[3] = 7` | none |
 
-The insert cost is concrete: `list.insert` moves the pointers after the insertion point, on average `n/2` of them at 8 bytes each. At 10⁴ keys that is 40 KB, a few microseconds; at 10⁶ keys it is 4 MB, several hundred microseconds per insert against about 1 µs for a tree. Below 10⁴–10⁵ keys the sorted array is competitive and far simpler; above that, random inserts need a real ordered structure. If the keys arrive already sorted (timestamps in a log, append-only ids), insertion is an O(1) append and the sorted array is strictly the best structure: this is the [Time-Based Key-Value Store](/practice/time-based-kv) problem and the second exercise.
+The insert cost is concrete: `list.insert` moves the pointers after the insertion point, on average `n/2` of them at 8 bytes each. At 10⁴ keys that is 40 KB; at 10⁶ keys it is 4 MB. Measured with `bisect.insort` at random positions on CPython 3.14.7, that is about 0.6 µs per insert at 10⁴ keys and about 40 µs at 10⁶, where the 4 MB still fits in this machine's cache (a list larger than the cache pays DRAM bandwidth instead), against about a microsecond for a tree. Below 10⁴–10⁵ keys the sorted array is competitive and far simpler; above that, random inserts need a real ordered structure. If the keys arrive already sorted (timestamps in a log, append-only ids), insertion is an O(1) append and the sorted array is strictly the best structure: this is the [Time-Based Key-Value Store](/practice/time-based-kv) problem and the second exercise.
 
 ## `sortedcontainers`
 
-The `sortedcontainers` package (`SortedList`, `SortedDict`) is a list of sorted sub-lists, each kept between 500 and 2,000 elements, plus a positional index tree for rank queries. An insert is a binary search over the sub-list maxima, an insert into one sub-list (a `memmove` of at most 16 KB, about a microsecond), and an O(log n) index update; a split when a sub-list exceeds its bound. That is why it is faster than most C tree implementations for realistic sizes. It is not in the standard library, so in an interview say "I'd use `sortedcontainers` in production; here I'll use `bisect` on a list and note that insert is O(n)".
+The `sortedcontainers` package (`SortedList`, `SortedDict`) is a list of sorted sub-lists, each kept between 500 and 2,000 elements, plus a positional index tree for rank queries. An insert is a binary search over the sub-list maxima, an insert into one sub-list (a shift of at most 2,000 pointers, 16 KB, about a microsecond), and an O(log n) index update; a split when a sub-list exceeds its bound. Its README describes it as pure Python yet "fast as C-extensions", and the flat sub-lists are why: most of the work is contiguous shifts, not pointer chasing. It is not in the standard library, so in an interview say "I'd use `sortedcontainers` in production; here I'll use `bisect` on a list and note that insert is O(n)".
 
 ## A heap, when you only need one end
 
@@ -175,7 +175,7 @@ With a hash map you would scan every booking: O(n) per request. With a sorted ar
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | "Latest value before t" endpoint is O(n) per call; CPU scales with table size | Range question answered by a hash map plus a scan | Ordered map, or a sorted array if writes are append-only, or a B-tree index in the database |
-| A batch loader slows to a crawl as its sorted list grows past ~10⁵ entries | `bisect.insort` into a large list: each insert is a multi-megabyte `memmove` | `sortedcontainers`, or sort once after bulk loading, or a tree |
+| A batch loader slows to a crawl as its sorted list grows past ~10⁵ entries | `bisect.insort` into a large list: each insert shifts megabytes of pointers | `sortedcontainers`, or sort once after bulk loading, or a tree |
 | `TreeMap` "loses" entries or `contains` disagrees with `get` | `compareTo` inconsistent with `equals` (compares one field, equality uses two), or a mutable key changed after insertion | Make the comparator a total order consistent with equality; immutable keys |
 | Java throws "Comparison method violates its general contract"; Python sorts produce different orders on different runs | `NaN` or a non-transitive comparator | Reject or canonicalise NaN before insertion; test the comparator for transitivity |
 | Leaderboard rank query is O(n) although the map is ordered | A plain tree has no rank operation | An order-statistics tree (subtree sizes) or a skip list with spans (Redis `ZRANK`) |
@@ -190,7 +190,7 @@ With a hash map you would scan every booking: O(n) per request. With a sorted ar
 
 **"Design a leaderboard with 'my rank' and 'the ten users around me'."** Model answer: a hash map from user to score for O(1) score lookup plus an order-statistics structure keyed by `(score, user)`: a tree augmented with subtree sizes or a skip list with spans, so rank and select are O(log n), which is exactly Redis's `ZSET` (`ZSCORE`, `ZRANK`, `ZRANGE`). Common wrong answer: sort all users on each request, or a heap, which cannot answer rank.
 
-**"When is a sorted array the right ordered map?"** Model answer: when writes are rare, append-only or batched (build once, query many), or `n` is below about 10⁴, because binary search over a contiguous array is the most cache-friendly ordered lookup there is and the O(n) insert never runs; above that with random inserts the `memmove` dominates. Common wrong answer: "never, because insert is O(n)".
+**"When is a sorted array the right ordered map?"** Model answer: when writes are rare, append-only or batched (build once, query many), or `n` is below about 10⁴, because binary search over a contiguous array is the most cache-friendly ordered lookup there is and the O(n) insert never runs; above that with random inserts the shift dominates. Common wrong answer: "never, because insert is O(n)".
 
 **"How does the database answer `ORDER BY ts DESC LIMIT 1 WHERE ts <= ?`?"** Model answer: it descends the B-tree index to the leaf containing the bound, positions on the last key not above it, and reads one row: a `floor` in 3–5 page reads; without the index it scans. Common wrong answer: "it sorts the matching rows and takes the first".
 

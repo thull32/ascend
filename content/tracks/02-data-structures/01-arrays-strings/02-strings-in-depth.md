@@ -64,9 +64,9 @@ The optimisation lives in the bytecode interpreter, not in `str`. When the speci
 2. the hash has not been computed (`hash == -1`), because a resized string would have a different hash;
 3. the string is not interned;
 4. it is exactly `str`, not a subclass;
-5. the right operand's kind (1, 2 or 4 bytes per code point) is not wider than the left's, since widening needs a new layout.
+5. the right operand is an exact `str` whose kind (1, 2 or 4 bytes per code point) is not wider than the left's, and an ASCII string is not being extended with non-ASCII text, since both widening and leaving ASCII need a different layout.
 
-When all five hold, the C `realloc` extends the block; above glibc's mmap threshold that is often an `mremap` that moves page-table entries rather than bytes. When any fails, `PyUnicode_Concat` allocates and copies. That is why the measured loop was 1 ms as a local and 690 ms as a global (`STORE_GLOBAL` is not the specialised shape), and why `keep = s` or `hash(s)` inside the loop sent it to 4.1 s and 2.5 s. PyPy does not do this at all. Depend on it in a hot path and a refactor that moves the loop to module scope, or logs the intermediate value, silently reintroduces the quadratic.
+When all five hold, the C `realloc` extends the block; above glibc's mmap threshold that is often an `mremap` that moves page-table entries rather than bytes. When any fails, `PyUnicode_Concat` allocates and copies. That is why the measured loop was 1 ms as a local and 690 ms as a global (`STORE_NAME` or `STORE_GLOBAL` is not the specialised shape), and why `keep = s` or `hash(s)` inside the loop sent it to 4.1 s and 2.5 s. The shape is version-specific: up to 3.10 the same trick lived in `ceval.c`'s `unicode_concatenate`, which also accepted `STORE_NAME` and `STORE_DEREF`, so a module-level loop stayed linear; 3.11's specialisation narrowed it to locals. PyPy's own [performance guide](https://www.pypy.org/performance.html) says the loop is quadratic there. Depend on it in a hot path and a refactor that moves the loop to module scope, or logs the intermediate value, silently reintroduces the quadratic.
 
 ## Under the hood: CPython's PEP 393 layout
 
@@ -84,7 +84,7 @@ Since Python 3.3, a `str` stores every code point at the same width, chosen as t
 | `"a" * 999 + "€"` | 1,000 | 2 | 2,058 | 56 + 2 × 1,001 |
 | `"a" * 999 + "😀"` | 1,000 | 4 | 4,060 | 56 + 4 × 1,001 |
 
-The 40-byte ASCII header is refcount (8), type pointer (8), length (8), cached hash (8) and a state word (4, padded to 8). Non-ASCII strings carry 16 more bytes: a cached UTF-8 length and pointer, filled in the first time C code asks for the UTF-8 form. (Single Latin-1 characters such as `"é"` are cached singletons that already carry that UTF-8 copy, which is why `sys.getsizeof("é")` reports 61 rather than 59.) On 3.3–3.11 each header was 8 bytes larger because of a since-removed `wstr` pointer, so `sys.getsizeof("")` was 49 there.
+The 40-byte ASCII header is refcount (8), type pointer (8), length (8), cached hash (8) and a state word (4, padded to 8). Non-ASCII strings carry 16 more bytes: a cached UTF-8 length and pointer, filled in the first time C code asks for the UTF-8 form. (Single Latin-1 characters such as `"é"` are cached singletons that already carry that UTF-8 copy, which is why `sys.getsizeof("é")` reports 61 rather than 58.) On 3.3–3.11 the headers were larger because of the `wstr` pointer and `wstr_length` field that PEP 623 removed in 3.12: 8 bytes more for ASCII and 16 more for non-ASCII, so `sys.getsizeof("")` was 49 there.
 
 Two consequences: `s[i]` is O(1) by code point, because the string is a plain array of fixed-width cells; and one emoji quadruples a large string. A 1 GB in-memory text corpus held as one ASCII `str` becomes 4 GB the moment a single astral-plane character is concatenated into it.
 
@@ -96,7 +96,7 @@ Two consequences: `s[i]` is O(1) by code point, because the string is a plain ar
 
 **Go** represents a string as a 16-byte header (pointer, length) over immutable UTF-8 bytes. `len(s)` counts bytes, `s[i]` is a byte, and `for _, r := range s` decodes runes. `strings.Builder` appends to a `[]byte` and returns the result without a copy via `unsafe`. **Rust**'s `String` is a 24-byte `Vec<u8>` header and `&str` a 16-byte fat pointer; byte-range slicing panics off a character boundary, and `s.chars().nth(i)` is O(n).
 
-**Redis** stores every key and value as an SDS (simple dynamic string): a small length-prefixed header (3 bytes for strings under 256 bytes) so `STRLEN` is O(1) and the bytes may contain NUL. On growth SDS doubles the allocation while it is below 1 MB and adds 1 MB beyond that, the same amortisation argument as a dynamic array, tuned for its own traffic; see [Key-value stores and Redis](/learn/databases/nosql-and-specialised/key-value-stores-and-redis).
+**Redis** stores every key and value as an SDS (simple dynamic string): a small length-prefixed header (3 bytes for a growable string under 256 bytes) so `STRLEN` is O(1) and the bytes may contain NUL. On growth SDS doubles the allocation while it is below 1 MB and adds 1 MB beyond that, the same amortisation argument as a dynamic array, tuned for its own traffic; see [Key-value stores and Redis](/learn/databases/nosql-and-specialised/key-value-stores-and-redis).
 
 ## Code points, code units and grapheme clusters
 
@@ -113,7 +113,7 @@ Two consequences: `s[i]` is O(1) by code point, because the string is a plain ar
 
 Consequences you will hit in interviews and in production:
 
-1. **"Reverse a string" is not `s[::-1]`.** Reversing `e` + `U+0301` by code point yields `U+0301` + `e`, which renders the accent on the wrong letter. Reversing by UTF-16 unit in JavaScript turns `😀` into two lone surrogates. Correct reversal iterates grapheme clusters (`Intl.Segmenter` in Node 16+ with full ICU, Python's third-party `regex` module with `\X`, Rust's `unicode-segmentation`). In an interview, say "I'll assume ASCII; for Unicode I would reverse grapheme clusters", and move on.
+1. **"Reverse a string" is not `s[::-1]`.** Reversing `e` + `U+0301` by code point yields `U+0301` + `e`, which renders the accent on the wrong letter. Reversing by UTF-16 unit in JavaScript turns `😀` into two lone surrogates. Correct reversal iterates grapheme clusters (`Intl.Segmenter` in JavaScript, Python's third-party `regex` module with `\X`, Rust's `unicode-segmentation`). In an interview, say "I'll assume ASCII; for Unicode I would reverse grapheme clusters", and move on.
 2. **Byte length is not character length.** A `VARCHAR(255)`, a 280-character post limit and an HTTP header size limit are measured in different units. Python's `len(s)` and `len(s.encode("utf-8"))` differ by up to 4×. Truncating a UTF-8 buffer at byte 255 can cut inside the `F0 9F 98 80` of an emoji and produce invalid UTF-8.
 3. **Case changes length.** `"ß".upper()` is `"SS"` (two code points); `"ß".casefold()` is `"ss"`. Any index computed before `upper()` is wrong after it.
 
@@ -178,7 +178,7 @@ The reverse-words visualiser shows the two-pointer version of a reversal that re
 ## Unicode pitfalls that ship bugs
 
 - **Normalisation.** `"café"` typed on macOS may arrive as `c a f e U+0301` (NFD) while the database holds `c a f U+00E9` (NFC). They print identically, compare unequal (`"é" == "é"` is `False`) and hash differently. Normalise at the boundary (`unicodedata.normalize("NFC", s)`) before comparing, deduplicating or hashing.
-- **Case folding is locale-sensitive.** In Turkish, `"i".upper()` is `"İ"`. Use `casefold()` rather than `lower()` for case-insensitive comparison.
+- **Case mapping can be locale-sensitive.** In Turkish, the uppercase of `i` is `İ` (U+0130) and the lowercase of `I` is `ı`. Java's no-argument `toUpperCase()` and `toLowerCase()` use the default locale, and the Java documentation warns that `"TITLE".toLowerCase()` in a Turkish locale returns `"tıtle"`; Python's `upper()`, `lower()` and `casefold()` are locale-independent. Compare with `casefold()` in Python and `toLowerCase(Locale.ROOT)` in Java.
 - **Sorting is not code-point order.** `sorted(["b", "a", "é"])` puts `é` after `z` because `U+00E9 > U+007A`. Human-order sorting needs a collation (ICU); most systems accept code-point order and document it.
 - **Invalid input.** Bytes that are not valid UTF-8 exist in every real dataset. Python raises `UnicodeDecodeError`; Go silently yields `U+FFFD`; Rust's `String::from_utf8` returns an error you must handle. Decide what your service does with them before the first customer file arrives.
 - **Homoglyphs.** `"paypal"` with a Cyrillic `а` (`U+0430`) is a different string that renders identically. Any system that uses strings as identifiers needs a confusables check.
@@ -189,7 +189,7 @@ The reverse-words visualiser shows the two-pointer version of a reversal that re
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | A Java or Go report generator pegs a core and its runtime grows with the square of the output size; GC logs show constant allocation of ever-larger byte arrays | `out += line` per line: each iteration copies everything accumulated so far | `StringBuilder` / `strings.Builder`, pre-sized from the expected total |
-| MySQL `Incorrect string value` or Postgres `invalid byte sequence for encoding "UTF8"` on names with emoji | A 255-*byte* truncation cut through a 4-byte sequence, leaving invalid UTF-8 | Truncate by grapheme cluster, then check the encoded length against the column's unit |
+| MySQL `Incorrect string value` or Postgres `invalid byte sequence for encoding "UTF8"` on names with emoji | A 255-*byte* truncation cut through a 4-byte sequence, leaving invalid UTF-8; in MySQL, also a `utf8mb3` column, which holds at most 3 bytes per character | Truncate by grapheme cluster, then check the encoded length against the column's unit; use `utf8mb4` |
 | Accented users can log in from one OS but not another | NFC vs NFD forms of the same name, compared byte-for-byte | Normalise to NFC at every input boundary; migrate stored keys once |
 | A Python process holding a large in-memory text index grew from 1 GB to 4 GB after a deploy that added emoji support | PEP 393 widened the whole string to 4 bytes per code point | Keep large corpora as UTF-8 `bytes`, or in chunks so widening is local |
 | Node throws `RangeError: Invalid string length`, or a request stalls on its first `charAt` after building a huge string | The 2²⁹ − 24 length ceiling, or the deferred flatten of a cons string | Stream chunks / `Buffer`s; never materialise the whole response as one string |
@@ -218,7 +218,7 @@ The reverse-words visualiser shows the two-pointer version of a reversal that re
 
 - **Calling `s[::-1]` a Unicode-safe reversal.** Consequence: combining marks migrate to the wrong letter and surrogate pairs split in JavaScript; the bug surfaces only on non-ASCII input.
 - **Using `len(s)` as a byte length.** Consequence: values that pass validation fail at the database or the wire, with an error that names the encoding rather than the code.
-- **Using `lower()` for case-insensitive comparison.** Consequence: `ß`, Turkish `İ` and other folding cases compare unequal to their own variants.
+- **Using `lower()` for case-insensitive comparison.** Consequence: `"ß"` and `"SS"`, and other pairs that only full case folding equates, compare unequal.
 - **Recursing with `s[1:]`.** Consequence: an O(n²) algorithm that passes small tests and times out at 10⁵ characters.
 - **Trusting CPython's in-place `+=` in a hot path.** Consequence: a refactor that moves the loop to module scope or keeps a reference reintroduces a quadratic without changing a line of the loop.
 

@@ -297,7 +297,7 @@ def lca_safe(node, p, q):                 # returns (candidate, found_p, found_q
 
 ### With parent pointers
 
-If nodes know their parent, no recursion is needed: bring both nodes to the same depth, then walk up in lockstep until they meet. LCA(−1, 9): depths are 4 and 3, so lift −1 to its parent 7; then (7, 9) → (8, −5) → (−3, −3). Answer −3 in three steps, O(h) time and O(1) space; this is how the DOM's `Node.compareDocumentPosition` and most file-system "common prefix" computations work. Computing the depths costs one walk up from each node.
+If nodes know their parent, no recursion is needed: bring both nodes to the same depth, then walk up in lockstep until they meet. LCA(−1, 9): depths are 4 and 3, so lift −1 to its parent 7; then (7, 9) → (8, −5) → (−3, −3). Answer −3 in three steps, O(h) time and O(1) space. Computing the depths costs one walk up from each node. Browsers use the same parent pointers for `Node.compareDocumentPosition`, in a variant that costs O(h) memory: Blink records both nodes' ancestor chains and walks them from the root end until they diverge.
 
 ### In a BST
 

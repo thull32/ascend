@@ -161,7 +161,7 @@ The trap is trusting the hash. A hash match must be verified, or the modulus and
 ### Where rolling hashes run
 
 - **Multiple patterns of the same length.** Put all pattern hashes in a set; each window does one set lookup: O(n + total pattern length) for any number of patterns, which KMP cannot do.
-- **Delta transfer and deduplication.** `rsync` computes a cheap rolling checksum over every window of the destination file and a strong hash (MD5) only for windows whose weak checksum matches a block on the sender, which is Rabin-Karp's candidate-then-verify structure over a network. Backup tools such as restic and Borg use a rolling hash to cut files into **content-defined chunks** at positions where the hash takes a particular value, so that inserting a byte shifts one chunk boundary instead of all of them, and Git's delta compression finds copy candidates with a rolling hash over 16-byte windows.
+- **Delta transfer and deduplication.** `rsync` computes a cheap rolling checksum over every window of the destination file and a strong checksum (MD5 on old versions; since rsync 3.2.0 the two ends negotiate one, xxHash variants first by default) only for windows whose weak checksum matches a block on the sender, which is Rabin-Karp's candidate-then-verify structure over a network. Backup tools such as restic and Borg use a rolling hash to cut files into **content-defined chunks** at positions where the hash takes a particular value, so that inserting a byte shifts one chunk boundary instead of all of them, and Git's delta compression finds copy candidates with a rolling hash over 16-byte windows.
 - **Substring-equality queries.** With prefix hashes precomputed, "is `s[i:j]` equal to `s[k:l]`?" is O(1). That is the backbone of many string algorithms and of the [longest duplicate substring binary search](/learn/data-structures/tries-and-string-structures/suffix-structures).
 - **2D matching**, where a rectangular pattern is hashed row by row then column by column.
 
@@ -213,12 +213,12 @@ Z and KMP's failure function contain the same information in different indexing;
 
 | Library | Algorithm | Worst case |
 |---|---|---|
-| CPython `str.find` | `memchr` for one character; a Horspool-style skip with a 64-bit "bloom" mask of needle characters for short needles; since 3.10, Crochemore–Perrin **Two-Way** for long needles | linear since 3.10 |
-| glibc `memmem`, `strstr` | Two-Way, with a shift-table speed-up added in the 2.29 rework | linear |
-| Rust `str::find`, `memchr` crate | SIMD-accelerated candidate scan on rare bytes, Two-Way fallback | linear |
+| CPython `str.find` | `memchr` for one character; a Horspool-style skip with a 64-bit "bloom" mask of needle characters for short needles; since 3.10, Crochemore–Perrin **Two-Way** once haystack and needle pass the size thresholds in `fastsearch.h` | linear since 3.10 |
+| glibc `memmem`, `strstr` | since 2.30, a modified Horspool with a hashed-pair shift table for needles up to 256 bytes and Two-Way above that; Two-Way throughout before 2.30 | linear (the 256-byte cap bounds the Horspool case) |
+| Rust `str::find`; `memchr` crate | `str::find` is Two-Way (`str::contains` adds an SSE2 prefilter for needles up to 32 bytes); `memchr::memmem` runs a SIMD scan for a rare byte pair before Two-Way | linear |
 | Go `strings.Index` | assembly `IndexByte`/short-pattern scan, then brute force that switches to Rabin-Karp after too many failed alignments | linear expected |
 | Java `String.indexOf` | naive loop with a vectorised first-character scan (HotSpot intrinsic) | O(nm) |
-| GNU `grep` | Boyer–Moore for one pattern, Aho-Corasick (Commentz-Walter variants) for many | sublinear typical |
+| GNU `grep` | Boyer–Moore for one fixed string, Aho-Corasick for several (gnulib's `kwset`) | sublinear typical |
 | `ripgrep` | SIMD multi-pattern "Teddy" plus a lazy DFA regex engine | linear |
 
 None of them use KMP, and all of them are faster than a hand-written KMP on ordinary input: skip-based algorithms jump over most of the text, and Two-Way gives the linear guarantee with O(1) extra memory. Write KMP when you need its guarantee in your own code, its failure function for a border problem, or its automaton for streaming.
@@ -234,7 +234,7 @@ Regex engines are the place the naive worst case still lives. Backtracking engin
 | Rabin-Karp | O(m) | O(n) expected | O(nm) on collisions | O(1) plus hash set | Many patterns of one length; substring equality queries; 2D; chunking |
 | Z-algorithm | O(n + m) | included | O(n + m) | O(n + m) | Periods, borders, prefix-occurrence counts; when Z values are the answer |
 | Boyer-Moore / Horspool | O(m + σ) | sublinear typical, O(nm) worst (O(n) with the Galil rule) | | O(σ) | Long patterns, large alphabets; what `grep` uses |
-| Two-Way (Crochemore-Perrin) | O(m) | O(n) | O(n + m) | O(1) | What glibc `memmem` and Python's `str.find` use for long needles |
+| Two-Way (Crochemore-Perrin) | O(m) | O(n) | O(n + m) | O(1) | What glibc `memmem` uses for needles over 256 bytes and Python's `str.find` for long inputs |
 
 ## Production failure modes
 
@@ -242,7 +242,7 @@ Regex engines are the place the naive worst case still lives. Backtracking engin
 
 **`indexOf` in a request path scanner goes quadratic.** Symptom: a Java service's p99 explodes on certain uploads; a profile shows `String.indexOf`. Diagnosis: the JDK's `indexOf` is the naive loop; a payload of repeated characters against a long repeated needle hits O(nm). Fix: a Two-Way or KMP implementation for long needles on untrusted input, or bound the needle length.
 
-**Deduplication silently corrupts data.** Symptom: two different blocks are treated as identical; restored files differ from originals. Diagnosis: a weak rolling checksum was used as identity without the strong-hash verification step. Fix: verify candidates with a cryptographic hash (as `rsync` does with MD5) or compare bytes.
+**Deduplication silently corrupts data.** Symptom: two different blocks are treated as identical; restored files differ from originals. Diagnosis: a weak rolling checksum was used as identity without the strong-hash verification step. Fix: verify candidates with a cryptographic hash (as `rsync` does with its strong checksum) or compare bytes.
 
 **Rolling hash "modulo 2⁶⁴" collides in production.** Symptom: a substring-equality check returns true for different strings on specific inputs. Diagnosis: wrap-around arithmetic is polynomial hashing mod a power of two, broken by Thue–Morse-shaped input. Fix: a large prime modulus, a random base, and verification where exactness matters.
 
@@ -420,5 +420,5 @@ hints:
   options: ["Horspool-style skipping and Two-Way, sublinear on typical text with a linear worst case", "Suffix arrays built over the text, which answer each query in O(m log n) time", "Rabin-Karp rolling hashes, which scan at memory bandwidth with O(1) extra space", "Naive search with a SIMD first-byte scan, fast on typical text but O(nm) in the worst case"]
   answer: 0
   explanation: >-
-    KMP examines every text character. Skip-based algorithms jump over most of the text on large alphabets, and Two-Way provides the linear worst-case guarantee with O(1) extra memory. Naive-plus-memchr is Java's indexOf and Rabin-Karp is Go's medium-pattern path, but these three libraries chose Two-Way precisely to avoid the naive worst case. KMP's value is its guarantee and its failure function, not raw speed.
+    KMP examines every text character. Skip-based algorithms jump over most of the text on large alphabets, and Two-Way provides the linear worst-case guarantee with O(1) extra memory. Naive-plus-memchr is Java's indexOf and Rabin-Karp is Go's fallback for longer patterns, but these three libraries chose Two-Way precisely to avoid the naive worst case. KMP's value is its guarantee and its failure function, not raw speed.
 ```
