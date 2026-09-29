@@ -48,6 +48,17 @@ function escapeParagraph(text: string): string {
   return out;
 }
 
+/** A GFM table is parsed cell by cell, so remark-math pairs dollars within
+ *  a cell, never across cells or rows. Scanning the whole table as one
+ *  paragraph paired a `$` in one row with one in the next, left a cell's
+ *  own opener unescaped, and broke that cell's rendering. */
+function escapeBlock(block: string): string {
+  const lines = block.split("\n");
+  const isTable = lines.filter((l) => l.trim() !== "").every((l) => l.trimStart().startsWith("|"));
+  if (!isTable) return escapeParagraph(block);
+  return lines.map((line) => line.split(/(?<!\\)\|/).map(escapeParagraph).join("|")).join("\n");
+}
+
 export function escapeCurrency(source: string): string {
   return source
     .split(/(^```[\s\S]*?^```)/m)
@@ -62,7 +73,7 @@ export function escapeCurrency(source: string): string {
             codes.push(m);
             return `\u0000${codes.length - 1}\u0000`;
           });
-          return escapeParagraph(masked).replace(/\u0000(\d+)\u0000/g, (_, n) => codes[Number(n)]!);
+          return escapeBlock(masked).replace(/\u0000(\d+)\u0000/g, (_, n) => codes[Number(n)]!);
         })
         .join("");
     })

@@ -30,6 +30,25 @@ describe("escapeCurrency", () => {
   it("does not double-escape", () => {
     expect(escapeCurrency("\\$5 each and \\$6 each")).toBe("\\$5 each and \\$6 each");
   });
+  it("scopes pairs to a table cell, as remark-math does", () => {
+    const table = [
+      "| Item | Cost | Share |",
+      "|---|---|---|",
+      "| Storage | 2 PB at $0.02/GB | 25% |",
+      "| Egress | 486 TB at $0.05/GB (tiers start at $0.09, so about 16% more) | $24,300 |",
+    ].join("\n");
+    expect(escapeCurrency(table)).toBe(
+      [
+        "| Item | Cost | Share |",
+        "|---|---|---|",
+        "| Storage | 2 PB at $0.02/GB | 25% |",
+        "| Egress | 486 TB at \\$0.05/GB (tiers start at $0.09, so about 16% more) | $24,300 |",
+      ].join("\n"),
+    );
+    // Maths inside a cell is still maths, and an escaped pipe is not a cell break.
+    const maths = "| a | $O(n \\log n)$ | x \\| y $5 |";
+    expect(escapeCurrency(maths)).toBe(maths);
+  });
   it("skips code and scopes pairs to a paragraph", () => {
     const src = "price `$5 a` and\n```bash\necho $5 $6\n```\nthen $7 and\n\n$8 later";
     expect(escapeCurrency(src)).toBe(src);
