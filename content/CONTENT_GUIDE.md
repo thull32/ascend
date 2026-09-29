@@ -142,7 +142,8 @@ Open with the problem (1–3 paragraphs). No heading before this.
 ...
 
 ## Senior signals
-- Bullet list of 3–6 things a senior engineer says/knows.
+- Bullet list of 3–8 things a senior engineer says/knows, each distinct (merge
+  bullets that make the same point; more than eight means the list is a summary).
 
 ## Check yourself
 ```quiz

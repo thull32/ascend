@@ -438,6 +438,11 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
         }
     }
 
+    // Links in prose: every `/learn/...` and `/practice/...` target must be a
+    // page that exists. A renamed slug otherwise leaves a 404 that neither the
+    // front-matter checks nor the render crawl can see.
+    check_links(&tracks, &lessons, &problems)?;
+
     // Patterns: derived from problems, titled from the pattern lesson if any.
     let mut pattern_map: BTreeMap<String, (Option<String>, usize)> = BTreeMap::new();
     for p in &problems {
@@ -461,6 +466,47 @@ pub fn load_curriculum(source: &ContentSource) -> Result<Arc<Curriculum>, Conten
         .collect();
 
     Ok(Arc::new(Curriculum { tracks, lessons, problems, problems_by_slug, patterns, version, search }))
+}
+
+fn check_links(
+    tracks: &[Track],
+    lessons: &HashMap<String, Arc<Lesson>>,
+    problems: &[Arc<Problem>],
+) -> Result<(), ContentError> {
+    static LINK: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\]\((/(?:learn|practice)[^)\s#?]*)").expect("valid regex"));
+    let mut pages: std::collections::HashSet<String> = ["/learn".to_string(), "/practice".to_string()].into();
+    for t in tracks {
+        pages.insert(format!("/learn/{}", t.slug));
+        pages.extend(t.modules.iter().map(|m| format!("/learn/{}", m.slug)));
+    }
+    pages.extend(lessons.keys().map(|slug| format!("/learn/{slug}")));
+    pages.extend(problems.iter().map(|p| format!("/practice/{}", p.slug)));
+
+    let mut sources: Vec<(String, &str)> = Vec::new();
+    for t in tracks {
+        sources.push((format!("track {}", t.slug), t.intro.as_str()));
+        sources.extend(t.modules.iter().map(|m| (format!("module {}", m.slug), m.intro.as_str())));
+    }
+    sources.extend(lessons.values().map(|l| (format!("lesson {}", l.summary.slug), l.body.as_str())));
+    for p in problems {
+        sources.push((format!("problems/{}.md", p.slug), p.statement.as_str()));
+        sources.push((format!("problems/{}.md", p.slug), p.solution.as_str()));
+    }
+    for (file, text) in sources {
+        for cap in LINK.captures_iter(text) {
+            let target = cap[1].trim_end_matches('/');
+            if pages.contains(target) {
+                continue;
+            }
+            if lenient() {
+                eprintln!("warning: {file}: link to unknown page '{target}' (lenient mode)");
+                continue;
+            }
+            return Err(ContentError::DanglingRef { file, kind: "page", slug: target.to_string() });
+        }
+    }
+    Ok(())
 }
 
 /// `CONTENT_LENIENT=1` downgrades cross-reference errors to warnings so
