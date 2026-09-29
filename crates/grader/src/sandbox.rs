@@ -148,6 +148,12 @@ impl Grader {
 }
 
 impl Grader {
+    /// (slots in use, total slots) on this instance.
+    pub fn slots(&self) -> (usize, usize) {
+        let total = self.inner.options.slots.max(1);
+        (total.saturating_sub(self.inner.slots.available_permits()), total)
+    }
+
     /// Compares `(expected, actual, any_order)` triples with the shared rule
     /// (compare.js in QuickJS), as grading does. For tests and tools.
     pub async fn compare(&self, items: Vec<(Value, Value, bool)>) -> Result<Vec<bool>, GradeError> {

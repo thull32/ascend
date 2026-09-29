@@ -9,6 +9,7 @@ use ascend_core::ai::coach::CoachService;
 use ascend_core::ai::{AnthropicClient, BudgetService};
 use ascend_core::auth::AuthService;
 use ascend_core::content::Curriculum;
+use ascend_core::services::grading::{GradingBackend, RemoteGrader};
 use ascend_core::services::*;
 use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use secrecy::ExposeSecret;
@@ -121,11 +122,16 @@ pub fn redact_credentials(text: &str) -> String {
     out
 }
 
-/// Loads and compiles the grader's runtimes (a second or two of CPU). In
-/// production a missing grader is fatal: without it no attempt can be
-/// recorded. In development it is a warning, so the site runs before
-/// `make grader`.
-pub async fn load_grader(config: &Config) -> anyhow::Result<Option<ascend_grader::Grader>> {
+/// Chooses where submissions are graded. With `GRADER_URL` set, the grading
+/// service does it (production). Otherwise this process loads and compiles
+/// the runtimes itself (a second or two of CPU): in production a missing
+/// grader is fatal, since no attempt could be recorded; in development it is
+/// a warning, so the site runs before `make grader`.
+pub async fn load_grader(config: &Config) -> anyhow::Result<Option<GradingBackend>> {
+    if let (Some(url), Some(token)) = (&config.grader_url, &config.grader_token) {
+        tracing::info!(%url, "grading delegated to the grading service");
+        return Ok(Some(GradingBackend::Remote(RemoteGrader::new(url, token.clone())?)));
+    }
     let dir = config.grader_dir.clone();
     let mut options = ascend_grader::Options::default();
     if let Some(slots) = config.grader_slots {
@@ -135,7 +141,7 @@ pub async fn load_grader(config: &Config) -> anyhow::Result<Option<ascend_grader
     match tokio::task::spawn_blocking(move || ascend_grader::Grader::load(&dir, options)).await? {
         Ok(grader) => {
             tracing::info!(dir = %config.grader_dir.display(), slots, "grader ready");
-            Ok(Some(grader))
+            Ok(Some(GradingBackend::Local(grader)))
         }
         Err(e) if config.is_production() => Err(anyhow::anyhow!("grader: {e}")),
         Err(e) => {
@@ -150,7 +156,7 @@ impl AppState {
         config: Arc<Config>,
         db: DatabaseConnection,
         curriculum: Arc<Curriculum>,
-        grader: Option<ascend_grader::Grader>,
+        grader: Option<GradingBackend>,
     ) -> anyhow::Result<Self> {
         let client = match &config.ai.api_key {
             Some(key) => {

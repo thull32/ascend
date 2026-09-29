@@ -62,3 +62,24 @@ pub async fn finish_tasks(tasks: &TaskTracker, timeout: Duration) -> bool {
     tasks.close();
     tokio::time::timeout(timeout, tasks.wait()).await.is_ok()
 }
+
+/// Resolves on SIGTERM (what platforms send on deploy) or Ctrl-C.
+pub async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c().await.expect("install ctrl-c handler");
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("install SIGTERM handler")
+            .recv()
+            .await;
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("shutdown signal received, draining connections");
+}

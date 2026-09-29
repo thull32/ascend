@@ -141,7 +141,18 @@ pub fn observe(state: &crate::state::AppState) {
             o.observe(u64::from(max), &[KeyValue::new("state", "max")]);
         })
         .build();
-    if let Some(grader) = state.submissions.grader().cloned() {
+    if let Some(grader) = state.submissions.grader() {
+        observe_grader(grader);
+    }
+}
+
+/// Grading slots in use on this process (the API grading in-process, or the
+/// grading service).
+pub fn observe_grader(grader: &ascend_grader::Grader) {
+    use opentelemetry::global;
+    let meter = global::meter("ascend");
+    let grader = grader.clone();
+    {
         let _ = meter
             .u64_observable_gauge("ascend.grader.slots")
             .with_description("grading slots on this replica")

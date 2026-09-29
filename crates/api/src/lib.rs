@@ -7,6 +7,7 @@ pub mod app;
 pub mod build_info;
 pub mod error;
 pub mod extractors;
+pub mod grading_service;
 pub mod middleware;
 pub mod migrate;
 pub mod routes;

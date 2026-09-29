@@ -58,6 +58,8 @@ fn config(url: &str) -> Config {
         client_ip_header: Some("x-test-client-ip".into()),
         grader_dir: grader_dir(),
         grader_slots: None,
+        grader_url: None,
+        grader_token: None,
         pwned_passwords_url: None,
         email: ascend_core::config::EmailConfig { resend_api_key: None, from: None, base_url: None },
         contact_email: None,
@@ -103,7 +105,13 @@ async fn test_app() -> Option<TestApp> {
     let db = state::connect_db(&cfg).await.expect("connect");
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/content");
     let curriculum = load_curriculum(&ContentSource::Disk(fixtures)).expect("fixture content loads");
-    let mut st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum, grader()).expect("state");
+    let mut st = state::AppState::build(
+        Arc::new(cfg),
+        db.clone(),
+        curriculum,
+        grader().map(ascend_core::services::grading::GradingBackend::Local),
+    )
+    .expect("state");
     let emails = Arc::new(std::sync::Mutex::new(Vec::new()));
     st.mailer = ascend_core::email::Mailer::Memory(emails.clone());
     let id = uuid::Uuid::now_v7().as_u128();

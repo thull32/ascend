@@ -2,6 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ascend_grader::{Expected, GradeError, Grader, Job, Language, Outcome};
+
+use super::grading::GradingBackend;
 use chrono::Utc;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
@@ -52,7 +54,7 @@ pub struct GradedSubmission {
 pub struct SubmissionService {
     db: DatabaseConnection,
     curriculum: Arc<Curriculum>,
-    grader: Option<Grader>,
+    grader: Option<GradingBackend>,
 }
 
 const MAX_CODE_BYTES: usize = 64 * 1024;
@@ -65,12 +67,13 @@ struct Target<'a> {
 }
 
 impl SubmissionService {
-    pub fn new(db: DatabaseConnection, curriculum: Arc<Curriculum>, grader: Option<Grader>) -> Self {
+    pub fn new(db: DatabaseConnection, curriculum: Arc<Curriculum>, grader: Option<GradingBackend>) -> Self {
         Self { db, curriculum, grader }
     }
 
+    /// The in-process grader, when grading is not delegated to the service.
     pub fn grader(&self) -> Option<&Grader> {
-        self.grader.as_ref()
+        self.grader.as_ref().and_then(GradingBackend::local)
     }
 
     fn target<'a>(

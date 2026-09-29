@@ -43,7 +43,7 @@ pub enum Language {
 
 /// What one case must return. Used only on the host side: expected values
 /// never enter the learner's sandbox.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Expected {
     pub value: Value,
     pub any_order: bool,
@@ -51,7 +51,7 @@ pub struct Expected {
 
 /// One grading run: the learner's code, the name the tests call, each
 /// case's arguments, and what each case must return.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
     pub language: Language,
     pub code: String,
@@ -60,6 +60,7 @@ pub struct Job {
     pub expected: Vec<Expected>,
     /// Per case, as in the browser; the run's budget is this times the
     /// number of cases, plus the interpreter's start-up allowance.
+    #[serde(with = "millis")]
     pub time_limit: Duration,
 }
 
@@ -72,7 +73,7 @@ pub struct CaseRun {
 }
 
 /// Why a run ended before every case reported.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "detail")]
 pub enum Stop {
     TimeLimit,
@@ -96,7 +97,7 @@ impl Stop {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Outcome {
     /// The code did not load (syntax error, missing entry point, …).
     pub compile_error: Option<String>,
@@ -107,7 +108,9 @@ pub struct Outcome {
     pub passed: Vec<bool>,
     pub stopped: Option<Stop>,
     /// The time budget the run had.
+    #[serde(with = "millis")]
     pub budget: Duration,
+    #[serde(with = "millis")]
     pub elapsed: Duration,
 }
 
@@ -136,4 +139,19 @@ pub enum GradeError {
     Busy,
     #[error("grader failure: {0}")]
     Internal(String),
+}
+
+/// Durations as integer milliseconds on the wire (the grading service).
+mod millis {
+    use std::time::Duration;
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(d: &Duration, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_u64(u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Duration, D::Error> {
+        Ok(Duration::from_millis(u64::deserialize(d)?))
+    }
 }

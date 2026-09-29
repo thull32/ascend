@@ -33,6 +33,11 @@ pub struct Config {
     pub grader_dir: std::path::PathBuf,
     /// Grading runs at once (`GRADER_SLOTS`); default half the cores, 1–4.
     pub grader_slots: Option<usize>,
+    /// The grading service (`GRADER_URL`, e.g. `http://grader.railway.internal:8080`).
+    /// When set, submissions are graded there instead of in this process.
+    pub grader_url: Option<String>,
+    /// Shared secret for the grading service (`GRADER_TOKEN`).
+    pub grader_token: Option<SecretString>,
     /// Pwned Passwords range API for screening new passwords
     /// (`PWNED_PASSWORDS_URL`; empty disables the check).
     pub pwned_passwords_url: Option<String>,
@@ -141,6 +146,8 @@ impl Config {
                 .map(|h| h.trim().to_ascii_lowercase())
                 .filter(|h| !h.is_empty()),
             grader_dir: var_or("GRADER_DIR", "runtimes/grader").into(),
+            grader_url: std::env::var("GRADER_URL").ok().filter(|u| !u.trim().is_empty()),
+            grader_token: std::env::var("GRADER_TOKEN").ok().filter(|t| !t.trim().is_empty()).map(SecretString::from),
             pwned_passwords_url: Some(var_or("PWNED_PASSWORDS_URL", "https://api.pwnedpasswords.com"))
                 .filter(|u| !u.trim().is_empty()),
             contact_email: std::env::var("CONTACT_EMAIL").ok().filter(|c| c.contains('@')),
@@ -163,6 +170,9 @@ impl Config {
     fn validate(&self) -> Result<(), ConfigError> {
         if !self.database_url.expose_secret().starts_with("postgres") {
             return Err(ConfigError::Invalid { name: "DATABASE_URL", reason: "must be a postgres:// URL".into() });
+        }
+        if self.grader_url.is_some() && self.grader_token.is_none() {
+            return Err(ConfigError::Invalid { name: "GRADER_TOKEN", reason: "required with GRADER_URL".into() });
         }
         if self.email.resend_api_key.is_some() && self.email.from.is_none() {
             return Err(ConfigError::Invalid {

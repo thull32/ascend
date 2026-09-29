@@ -3,6 +3,7 @@
 //! domain types. No HTTP, no global state.
 pub mod activity;
 pub mod comments;
+pub mod grading;
 pub mod interviews;
 pub mod progress;
 pub mod quiz;

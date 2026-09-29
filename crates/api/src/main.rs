@@ -14,7 +14,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ascend_core::Config;
-use tokio::signal;
 
 use ascend_api::{app, migrate, serve, state, telemetry};
 
@@ -38,6 +37,11 @@ async fn main() -> anyhow::Result<()> {
             c.version
         );
         return Ok(());
+    }
+    // `ascend-api --serve-grader` runs the grading service instead of the
+    // API: the same image deployed as a second, secret-free service.
+    if std::env::args().any(|a| a == "--serve-grader") {
+        return ascend_api::grading_service::run().await;
     }
     // `ascend-api --prepare-grader DIR` precompiles the grader's Python
     // standard library (after scripts/grader-runtimes.sh fetched it).
@@ -122,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     tracing::info!(addr = %config.bind_addr, "listening");
-    if serve::serve(listener, app, shutdown_signal(), DRAIN_TIMEOUT).await? == serve::Drain::TimedOut {
+    if serve::serve(listener, app, serve::shutdown_signal(), DRAIN_TIMEOUT).await? == serve::Drain::TimedOut {
         tracing::warn!("connections still open after the drain timeout; shutting down anyway");
     }
     // Connections are drained; now let in-flight AI replies finish persisting
@@ -133,23 +137,6 @@ async fn main() -> anyhow::Result<()> {
     telemetry.shutdown();
     tracing::info!("shutdown complete");
     Ok(())
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        signal::ctrl_c().await.expect("install ctrl-c handler");
-    };
-    #[cfg(unix)]
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate()).expect("install SIGTERM handler").recv().await;
-    };
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-    tracing::info!("shutdown signal received, draining connections");
 }
 
 async fn grade_solutions(

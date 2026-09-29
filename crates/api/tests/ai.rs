@@ -129,6 +129,8 @@ async fn app(model_url: String) -> Option<App> {
         client_ip_header: Some("x-test-client-ip".into()),
         grader_dir: "runtimes/none".into(),
         grader_slots: None,
+        grader_url: None,
+        grader_token: None,
         pwned_passwords_url: None,
         email: EmailConfig { resend_api_key: None, from: None, base_url: None },
         contact_email: None,
