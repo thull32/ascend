@@ -23,6 +23,9 @@ RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
+# The code runners share their harness and comparison rule with the server's
+# grader, so the web build needs those files too.
+COPY crates/grader/harness /app/crates/grader/harness
 RUN pnpm build
 
 # ---------- rust dependency plan ----------

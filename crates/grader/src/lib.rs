@@ -11,18 +11,18 @@
 //! a semaphore, so a hostile submission costs at most one slot for its time
 //! budget.
 //!
-//! The harnesses (`harness/grade.py`, `harness/grade.js`) run the learner's
-//! function on each case's arguments and report what it returned. They never
-//! see expected values: [`compare::matches`] decides on the host. Code that
-//! tampers with the harness from inside the sandbox can therefore only
-//! report return values of its choosing, which it could do anyway by
-//! returning them.
+//! The harnesses (`harness/harness.py`, `harness/runner.js`, shared with the
+//! browser's runners) run the learner's function on each case's arguments and
+//! report what it returned. They never see expected values: the host compares
+//! afterwards, running the one definition of the rule (`harness/compare.js`,
+//! also the browser's) in a fresh QuickJS instance. Code that tampers with
+//! the harness from inside the sandbox can therefore only report return
+//! values of its choosing, which it could do anyway by returning them.
 //!
 //! The runtimes live in a directory laid out as
 //! `python.wasm`, `lib/python3.x/…` and `qjs.wasm`; `scripts/grader-runtimes.sh`
 //! downloads pinned builds and `ascend-api --prepare-grader` precompiles the
 //! standard library.
-pub mod compare;
 mod sandbox;
 
 use std::path::PathBuf;
@@ -41,14 +41,23 @@ pub enum Language {
     JavaScript,
 }
 
-/// One grading run: the learner's code, the name the tests call, and each
-/// case's arguments.
+/// What one case must return. Used only on the host side: expected values
+/// never enter the learner's sandbox.
+#[derive(Debug, Clone)]
+pub struct Expected {
+    pub value: Value,
+    pub any_order: bool,
+}
+
+/// One grading run: the learner's code, the name the tests call, each
+/// case's arguments, and what each case must return.
 #[derive(Debug, Clone)]
 pub struct Job {
     pub language: Language,
     pub code: String,
     pub entry: String,
     pub cases: Vec<Vec<Value>>,
+    pub expected: Vec<Expected>,
     /// Per case, as in the browser; the run's budget is this times the
     /// number of cases, plus the interpreter's start-up allowance.
     pub time_limit: Duration,
@@ -93,6 +102,9 @@ pub struct Outcome {
     pub compile_error: Option<String>,
     /// One entry per case, in order; `None` for cases the run never reached.
     pub cases: Vec<Option<CaseRun>>,
+    /// Whether each case returned its expected value without an error,
+    /// decided by the shared rule (`harness/compare.js`).
+    pub passed: Vec<bool>,
     pub stopped: Option<Stop>,
     /// The time budget the run had.
     pub budget: Duration,

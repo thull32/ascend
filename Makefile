@@ -32,14 +32,15 @@ check: ## Everything CI runs, locally
 	cargo test --workspace
 	cargo run -q -p ascend-core --example validate_content -- ./content
 	python3 scripts/validate_problems.py
-	python3 scripts/check_conformance.py
 	cd web && pnpm typecheck && pnpm test
 
 content: ## Validate curriculum and practice problems
 	cargo run -q -p ascend-core --example validate_content -- ./content
 	python3 scripts/validate_problems.py
-	python3 scripts/check_conformance.py
 	python3 scripts/shuffle_quiz_options.py --check
+
+solutions: ## Grade every reference solution with the server's grader (needs `make grader`)
+	cargo run -q -p ascend-api -- --grade-solutions
 
 quizzes: ## Put quiz options in canonical shuffled order and print answer-bias stats
 	python3 scripts/shuffle_quiz_options.py
@@ -55,4 +56,4 @@ e2e: ## Run Playwright against a running server on :8080 (uses the Playwright do
 image: ## Build the production image
 	docker build -t ascend:local .
 
-.PHONY: help db web grader build run dev check content quizzes minutes e2e image
+.PHONY: help db web grader solutions build run dev check content quizzes minutes e2e image

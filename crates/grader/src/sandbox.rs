@@ -1,7 +1,7 @@
 //! The WebAssembly sandbox: compiled runtimes, per-run stores and limits.
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -13,8 +13,23 @@ use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder};
 
 use crate::{CaseRun, GradeError, Job, Language, Options, Outcome, Stop};
 
-const HARNESS_PY: &str = include_str!("../harness/grade.py");
-const HARNESS_JS: &str = include_str!("../harness/grade.js");
+/// The programs the sandbox runs, assembled from the harness files the
+/// browser shares. JavaScript `export`s are stripped because QuickJS runs
+/// them as one script (`-e`); the shared files keep every export a plain
+/// `export function` / `export const` so that is a textual change.
+static HARNESS_PY: LazyLock<String> = LazyLock::new(|| {
+    format!("{}\n{}", include_str!("../harness/harness.py"), include_str!("../harness/grade_main.py"))
+});
+static HARNESS_JS: LazyLock<String> = LazyLock::new(|| {
+    format!("{}\n{}", strip_exports(include_str!("../harness/runner.js")), include_str!("../harness/grade_main.js"))
+});
+static COMPARE_JS: LazyLock<String> = LazyLock::new(|| {
+    format!("{}\n{}", strip_exports(include_str!("../harness/compare.js")), include_str!("../harness/compare_main.js"))
+});
+
+fn strip_exports(module: &str) -> String {
+    module.replace("export function ", "function ").replace("export const ", "const ")
+}
 
 /// Epoch ticks are how the engine interrupts a run that is out of time.
 const TICK: Duration = Duration::from_millis(10);
@@ -26,6 +41,8 @@ const JS_STARTUP: Duration = Duration::from_secs(1);
 /// Harness output is one line per case; results are capped well below this.
 const STDOUT_CAP: usize = 8 << 20;
 const STDERR_CAP: usize = 64 << 10;
+/// Comparing is trusted, linear work on data the run already produced.
+const COMPARE_BUDGET: Duration = Duration::from_secs(5);
 /// Record separator that marks harness lines in stdout.
 const RS: char = '\u{1e}';
 
@@ -130,6 +147,15 @@ impl Grader {
     }
 }
 
+impl Grader {
+    /// Compares `(expected, actual, any_order)` triples with the shared rule
+    /// (compare.js in QuickJS), as grading does. For tests and tools.
+    pub async fn compare(&self, items: Vec<(Value, Value, bool)>) -> Result<Vec<bool>, GradeError> {
+        let inner = self.inner.clone();
+        on_own_thread(move || compare_blocking(&inner, items)).await
+    }
+}
+
 /// Guest code runs on the calling thread's native stack, so a thread must
 /// have room for the whole wasm stack plus the host's frames. Tokio's
 /// threads have 2 MiB; a deep recursion would overflow them and abort the
@@ -161,12 +187,12 @@ fn run_blocking(inner: &Inner, job: &Job) -> Result<Outcome, GradeError> {
         Language::Python => {
             // -I: ignore the environment and user site; -S: no site module;
             // -B: never write bytecode (the library is read-only anyway).
-            wasi.args(&["python", "-I", "-S", "-B", "-c", HARNESS_PY]);
+            wasi.args(&["python", "-I", "-S", "-B", "-c", HARNESS_PY.as_str()]);
             wasi.preopened_dir(&inner.python_lib, "/lib", FsPerms::ReadOnly).map_err(internal)?;
             (&inner.python, PYTHON_STARTUP)
         }
         Language::JavaScript => {
-            wasi.args(&["qjs", "--std", "-e", HARNESS_JS]);
+            wasi.args(&["qjs", "--std", "-e", HARNESS_JS.as_str()]);
             (&inner.javascript, JS_STARTUP)
         }
     };
@@ -201,13 +227,67 @@ fn run_blocking(inner: &Inner, job: &Job) -> Result<Outcome, GradeError> {
     } else {
         outcome.stopped = stopped.filter(|_| !outcome.done);
     }
+    // Compare on the host side, in a fresh instance that runs only trusted
+    // code (compare.js) on data: the expected values and what the learner's
+    // code returned. The learner's instance never saw the expected values.
+    let items: Vec<(usize, Value, Value, bool)> = outcome
+        .cases
+        .iter()
+        .enumerate()
+        .filter_map(|(i, c)| {
+            let c = c.as_ref().filter(|c| c.error.is_none())?;
+            let e = job.expected.get(i)?;
+            Some((i, e.value.clone(), c.actual.clone(), e.any_order))
+        })
+        .collect();
+    let mut passed = vec![false; job.cases.len()];
+    if !items.is_empty() {
+        let verdicts = compare_blocking(inner, items.iter().map(|(_, e, a, o)| (e.clone(), a.clone(), *o)).collect())?;
+        for ((i, ..), ok) in items.iter().zip(verdicts) {
+            passed[*i] = ok;
+        }
+    }
     Ok(Outcome {
         compile_error: outcome.compile_error,
         cases: outcome.cases,
+        passed,
         stopped: outcome.stopped,
         budget,
         elapsed,
     })
+}
+
+/// Runs compare.js over `(expected, actual, any_order)` triples.
+fn compare_blocking(inner: &Inner, items: Vec<(Value, Value, bool)>) -> Result<Vec<bool>, GradeError> {
+    let n = items.len();
+    let input = serde_json::to_vec(&serde_json::json!({ "items": items
+        .into_iter()
+        .map(|(e, a, o)| serde_json::json!([e, a, o]))
+        .collect::<Vec<_>>() }))
+    .map_err(internal)?;
+    let stdout = MemoryOutputPipe::new(1 << 20);
+    let stderr = MemoryOutputPipe::new(STDERR_CAP);
+    let mut wasi = WasiCtxBuilder::new();
+    wasi.stdin(MemoryInputPipe::new(input)).stdout(stdout.clone()).stderr(stderr.clone());
+    wasi.args(&["qjs", "--std", "-e", COMPARE_JS.as_str()]);
+    let limits = StoreLimitsBuilder::new().memory_size(inner.options.memory_limit).instances(1).build();
+    let mut store = Store::new(&inner.engine, Host { wasi: wasi.build_p1(), limits });
+    store.limiter(|h| &mut h.limits);
+    store.set_epoch_deadline(COMPARE_BUDGET.as_millis() as u64 / TICK.as_millis() as u64);
+    store.epoch_deadline_trap();
+    let instance = inner.javascript.instantiate(&mut store).map_err(internal)?;
+    let main = instance.get_typed_func::<(), ()>(&mut store, "_start").map_err(internal)?;
+    match main.call(&mut store, ()) {
+        Ok(()) => {}
+        Err(e) if e.downcast_ref::<I32Exit>().is_some_and(|x| x.0 == 0) => {}
+        Err(e) => return Err(GradeError::Internal(format!("compare failed: {e}; {}", tail(&stderr.contents())))),
+    }
+    let verdicts: Vec<bool> = serde_json::from_slice(&stdout.contents())
+        .map_err(|e| GradeError::Internal(format!("compare output: {e}; {}", tail(&stderr.contents()))))?;
+    if verdicts.len() != n {
+        return Err(GradeError::Internal(format!("compare returned {} verdicts for {n} items", verdicts.len())));
+    }
+    Ok(verdicts)
 }
 
 struct Parsed {

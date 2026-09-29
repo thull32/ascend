@@ -1,35 +1,21 @@
 #!/usr/bin/env python3
-"""Validate practice problems: front matter parses, the Python reference
-solution in `## Solution` passes every test case, and the JavaScript starter
-declares the entry name.
+"""Validate practice problems' structure: front matter parses and has every
+key, the slug matches the file, hints are strings, the JavaScript starter
+declares the entry name, there are enough tests including a hidden one, and
+the `## Solution` section has a Python reference.
+
+It does not run the reference solutions: the server's grader does, with the
+same harness and comparison rule learners are graded by
+(`ascend-api --grade-solutions --problems`, which CI runs).
 
 Usage: python3 scripts/validate_problems.py [content/problems/*.md]
-Exit code 1 on any failure. This is run in CI (see Makefile `check-content`).
+Exit code 1 on any failure.
 """
 from __future__ import annotations
 
-import json
 import re
-import resource
-import signal
 import sys
 from pathlib import Path
-
-# Hard safety limits: a buggy reference solution must never take the machine
-# down. 2 GiB of address space and 10 s wall clock per test case.
-resource.setrlimit(resource.RLIMIT_AS, (2 * 1024 ** 3, 2 * 1024 ** 3))
-sys.setrecursionlimit(20_000)
-
-
-class TestTimeout(Exception):
-    pass
-
-
-def _alarm(_signum, _frame):
-    raise TestTimeout("test exceeded 10 s")
-
-
-signal.signal(signal.SIGALRM, _alarm)
 
 try:
     import yaml  # type: ignore
@@ -39,166 +25,6 @@ except ImportError:  # pragma: no cover
 
 FM = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.S)
 PY_FENCE = re.compile(r"```python\n(.*?)```", re.S)
-
-
-def round6(v):
-    """JavaScript's Math.round(v * 1e6) / 1e6, bit for bit, as every runner
-    and the server grader apply it (crates/grader/conformance.json pins the
-    half-way cases), then integral values collapse to int."""
-    import math
-    if math.isnan(v) or math.isinf(v):
-        return None
-    if v.is_integer():
-        return int(v)
-    x = v * 1e6
-    f = math.floor(x)
-    r = (f + 1 if x - f >= 0.5 else f) / 1e6
-    return int(r) if r.is_integer() else r
-
-
-def normalise(v):
-    if isinstance(v, dict) and len(v) == 1:
-        for tag in ("$list", "$tree", "$graph"):
-            if tag in v and v[tag] == []:
-                return None
-    if isinstance(v, tuple):
-        return [normalise(x) for x in v]
-    if isinstance(v, list):
-        return [normalise(x) for x in v]
-    if isinstance(v, dict):
-        return {str(k): normalise(x) for k, x in v.items()}
-    if isinstance(v, float):
-        return round6(v)
-    return v
-
-
-def canon(v):
-    return json.dumps(normalise(v), sort_keys=True)
-
-
-def matches(expected, actual, any_order: bool) -> bool:
-    e, a = normalise(expected), normalise(actual)
-    if any_order and isinstance(e, list) and isinstance(a, list):
-        return sorted(map(canon, e)) == sorted(map(canon, a))
-    return canon(e) == canon(a)
-
-
-class ListNode:
-    def __init__(self, val=0, next=None):
-        self.val, self.next = val, next
-
-
-class TreeNode:
-    def __init__(self, val=0, left=None, right=None):
-        self.val, self.left, self.right = val, left, right
-
-
-class GraphNode:
-    def __init__(self, val=0, neighbors=None):
-        self.val, self.neighbors = val, neighbors or []
-
-
-def build_list(values):
-    head = None
-    for v in reversed(values):
-        head = ListNode(v, head)
-    return head
-
-
-def build_tree(values):
-    """Level-order with None gaps (LeetCode style)."""
-    if not values or values[0] is None:
-        return None
-    root = TreeNode(values[0])
-    queue, i = [root], 1
-    while queue and i < len(values):
-        node = queue.pop(0)
-        if i < len(values) and values[i] is not None:
-            node.left = TreeNode(values[i]); queue.append(node.left)
-        i += 1
-        if i < len(values) and values[i] is not None:
-            node.right = TreeNode(values[i]); queue.append(node.right)
-        i += 1
-    return root
-
-
-_INPUT_GRAPH_NODES: set = set()
-
-
-def build_graph(adj):
-    """adj[i] = list of 1-indexed neighbour values; node i+1 has val i+1."""
-    if not adj:
-        return None
-    nodes = [GraphNode(i + 1) for i in range(len(adj))]
-    for i, nb in enumerate(adj):
-        nodes[i].neighbors = [nodes[j - 1] for j in nb]
-    _INPUT_GRAPH_NODES.update(id(n) for n in nodes)
-    return nodes[0]
-
-
-def shares_graph_nodes(v, seen=None) -> bool:
-    """True if a returned graph reuses any node object from the input graph
-    (a "clone" that is not a deep copy)."""
-    if not isinstance(v, GraphNode) or not _INPUT_GRAPH_NODES:
-        return False
-    seen = seen if seen is not None else set()
-    stack = [v]
-    while stack:
-        n = stack.pop()
-        if id(n) in seen:
-            continue
-        seen.add(id(n))
-        if id(n) in _INPUT_GRAPH_NODES:
-            return True
-        stack.extend(n.neighbors)
-    return False
-
-
-def decode(v):
-    if isinstance(v, dict):
-        if "$list" in v:
-            return build_list(v["$list"])
-        if "$tree" in v:
-            return build_tree(v["$tree"])
-        if "$graph" in v:
-            return build_graph(v["$graph"])
-        return {k: decode(x) for k, x in v.items()}
-    if isinstance(v, list):
-        return [decode(x) for x in v]
-    return v
-
-
-def encode(v):
-    if isinstance(v, ListNode):
-        out, seen = [], set()
-        while v is not None and id(v) not in seen:
-            seen.add(id(v)); out.append(v.val); v = v.next
-        return {"$list": out}
-    if isinstance(v, TreeNode):
-        out, queue = [], [v]
-        while queue:
-            n = queue.pop(0)
-            if n is None:
-                out.append(None); continue
-            out.append(n.val); queue.append(n.left); queue.append(n.right)
-        while out and out[-1] is None:
-            out.pop()
-        return {"$tree": out}
-    if isinstance(v, GraphNode):
-        seen, order = {}, []
-        stack = [v]
-        while stack:
-            n = stack.pop()
-            if n.val in seen: continue
-            seen[n.val] = n; order.append(n.val)
-            stack.extend(n.neighbors)
-        adj = [sorted(x.val for x in seen[k].neighbors) for k in sorted(seen)]
-        return {"$graph": adj}
-    if isinstance(v, (list, tuple)):
-        return [encode(x) for x in v]
-    if isinstance(v, dict):
-        return {k: encode(x) for k, x in v.items()}
-    return v
 
 
 def validate(path: Path) -> list[str]:
@@ -242,50 +68,11 @@ def validate(path: Path) -> list[str]:
     if not fences:
         errors.append(f"{path}: no ```python reference solution in Solution")
         return errors
-    ns: dict = {"ListNode": ListNode, "TreeNode": TreeNode, "Node": GraphNode, "GraphNode": GraphNode}
-    try:
-        exec("from typing import *\nimport collections, heapq, math, itertools, functools, bisect, string, re\n" + "\n\n".join(fences), ns)
-    except Exception as e:  # noqa: BLE001
-        return errors + [f"{path}: reference solution failed to exec: {e!r}"]
-    entry = ns.get(sig["name"])
-    if entry is None:
-        return errors + [f"{path}: reference solution does not define '{sig['name']}'"]
     tests = fm["tests"]
     if len(tests) < 4:
         errors.append(f"{path}: only {len(tests)} tests (need >= 4)")
     if not any(t.get("hidden") for t in tests):
         errors.append(f"{path}: no hidden tests")
-    for i, t in enumerate(tests):
-        args = t.get("args", [])
-        signal.alarm(10)
-        try:
-            if isinstance(entry, type):
-                # Class replay: args is a list of [method, *params]
-                inst = None
-                outs = []
-                for call in args:
-                    name, *params = call
-                    if inst is None and name == "__init__":
-                        inst = entry(*params)
-                        outs.append(None)
-                        continue
-                    if inst is None:
-                        inst = entry()
-                    outs.append(encode(getattr(inst, name)(*decode(params))))
-                actual = outs
-            else:
-                _INPUT_GRAPH_NODES.clear()
-                raw = entry(*decode(json.loads(json.dumps(args))))
-                if shares_graph_nodes(raw):
-                    raise AssertionError("returned graph shares nodes with the input (not a deep copy)")
-                actual = encode(raw)
-        except (Exception, MemoryError, RecursionError, TestTimeout) as e:  # noqa: BLE001
-            errors.append(f"{path}: test {i} raised {e!r}")
-            continue
-        finally:
-            signal.alarm(0)
-        if not matches(t["expected"], actual, bool(t.get("any_order"))):
-            errors.append(f"{path}: test {i} expected {t['expected']!r} got {actual!r}")
     return errors
 
 

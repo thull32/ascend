@@ -1,22 +1,10 @@
-# Server-side grading harness for Python, run by CPython (WASI) inside the
-# grader's WebAssembly sandbox. It mirrors the browser harness in
-# web/src/runner/py.worker.ts: the same node classes, argument decoding and
-# result encoding. It never sees expected values: it reports what the
-# learner's code returned and the host compares (crates/grader/src/compare.rs),
-# so learner code that tampers with this harness gains nothing it could not
-# get by returning the values itself.
-#
-# Input (stdin): {"code": str, "entry": str, "cases": [[arg, ...], ...]}
-# Output (stdout): one line per event, each prefixed with RS (\x1e):
-#   {"compile_error": str} | {"case": i, "actual": v, "error": str|null, "ms": f} | {"done": true}
-import io, json, sys, time, math, collections
-
-_out = sys.stdout
-RS = "\x1e"
-
-def _emit(event):
-    _out.write(RS + json.dumps(event, allow_nan=False) + "\n")
-    _out.flush()
+# Running learner Python against test cases: the ONE implementation, shared by
+# the browser's Pyodide worker (web/src/runner/py.worker.ts) and the server's
+# grader (grade_main.py, CPython for WASI). It provides the node classes,
+# decodes each case's arguments, calls the learner's function or class, and
+# encodes what came back as plain JSON data. It never compares: compare.js
+# does, and on the server that happens outside the learner's sandbox.
+import json, time, math, collections
 
 class ListNode:
     def __init__(self, val=0, next=None):
@@ -107,16 +95,23 @@ def _encode(v, depth=0):
     if isinstance(v, (list, tuple)): return [_encode(x, depth + 1) for x in v]
     if isinstance(v, (set, frozenset)): return [_encode(x, depth + 1) for x in v]
     if isinstance(v, dict): return {str(k): _encode(x, depth + 1) for k, x in v.items()}
-    if isinstance(v, (int, str, bool)) or v is None: return v
     if isinstance(v, float):
-        # Sent exactly (repr round-trips): the host rounds expected and
-        # actual values with one rule, so rounding here too would round
-        # twice. NaN and infinities become null, as in JSON.stringify.
+        # Sent exactly (repr round-trips); compare.js rounds both sides once.
+        # NaN and infinities become null, as JSON.stringify does.
         return None if math.isnan(v) or math.isinf(v) else v
+    if isinstance(v, (int, str, bool)) or v is None: return v
     return str(v)
 
 _INJECTED = {"ListNode": ListNode, "TreeNode": TreeNode, "Node": Node, "GraphNode": GraphNode}
 _PRELUDE = "import json, sys, time, math, collections, heapq, itertools, functools, bisect, string, re\nfrom typing import *\n"
+
+def _fresh_namespace():
+    """Each run gets a clean module namespace: a function deleted or renamed
+    since the previous run must not keep passing from stale globals."""
+    ns = {"__name__": "__main__"}
+    ns.update(_INJECTED)
+    exec(_PRELUDE, ns)
+    return ns
 
 def _format_error(e):
     import traceback
@@ -124,52 +119,58 @@ def _format_error(e):
     where = "".join(f"  line {f.lineno}: {f.line}\n" for f in frames[-3:] if f.line)
     return (where + "".join(traceback.format_exception_only(type(e), e))).strip()[:2000]
 
-def _call(target, args):
-    if isinstance(target, type):
-        inst, outs = None, []
-        for call in args:
-            name, *params = call
-            if inst is None and name == "__init__":
-                inst = target(*params); outs.append(None); continue
-            if inst is None:
-                inst = target()
-            outs.append(_encode(getattr(inst, name)(*params)))
-        return outs
-    raw = target(*args)
-    if _shares_graph_nodes(raw):
-        raise AssertionError("your clone shares nodes with the original graph; build new Node objects")
-    return _encode(raw)
-
-def _main():
-    job = json.loads(sys.stdin.read())
-    # The learner's prints go nowhere: only the harness writes to stdout.
-    sys.stdout = io.StringIO()
-    ns = {"__name__": "__main__"}
-    ns.update(_INJECTED)
+def load(code, entry):
+    """(target, None), or (None, error) when the code does not load or the
+    entry is missing. entry=None only runs the code (the playground)."""
     try:
-        exec(_PRELUDE, ns)
-        exec(compile(job["code"], "<solution>", "exec"), ns)
+        ns = _fresh_namespace()
+        exec(compile(code, "<solution>", "exec"), ns)
     except BaseException as e:
-        _emit({"compile_error": _format_error(e)})
-        return
-    target = ns.get(job["entry"])
+        return None, _format_error(e)
+    if entry is None:
+        return None, None
+    target = ns.get(entry)
     if target is None:
-        _emit({"compile_error": f"Could not find '{job['entry']}'. Define a function or class with exactly that name."})
-        return
-    for i, args in enumerate(job["cases"]):
-        _INPUT_GRAPH_NODES.clear()
-        sys.stdout = io.StringIO()
-        start = time.perf_counter()
-        actual, err = None, None
-        try:
-            actual = _call(target, _decode(args))
-        except BaseException as e:
-            err = _format_error(e)
-        ms = (time.perf_counter() - start) * 1000
-        try:
-            _emit({"case": i, "actual": actual, "error": err, "ms": ms})
-        except (TypeError, ValueError) as e:
-            _emit({"case": i, "actual": None, "error": f"the result could not be serialised: {e}", "ms": ms})
-    _emit({"done": True})
+        return None, f"Could not find '{entry}'. Define a function or class with exactly that name."
+    return target, None
 
-_main()
+def run_case(target, args):
+    """Runs one case; returns (encoded actual, error or None, milliseconds)."""
+    _INPUT_GRAPH_NODES.clear()
+    start = time.perf_counter()
+    actual, err = None, None
+    try:
+        args = _decode(json.loads(json.dumps(args)))
+        if isinstance(target, type):
+            inst, outs = None, []
+            for call in args:
+                name, *params = call
+                if inst is None and name == "__init__":
+                    inst = target(*params); outs.append(None); continue
+                if inst is None:
+                    inst = target()
+                outs.append(_encode(getattr(inst, name)(*params)))
+            actual = outs
+        else:
+            raw = target(*args)
+            if _shares_graph_nodes(raw):
+                raise AssertionError("your clone shares nodes with the original graph; build new Node objects")
+            actual = _encode(raw)
+    except BaseException as e:
+        err = _format_error(e)
+    return actual, err, (time.perf_counter() - start) * 1000
+
+def run_all(code, entry, cases_json):
+    """The browser's entry point: every case at once, as a JSON string."""
+    target, err = load(code, entry)
+    if err is not None:
+        return json.dumps({"compileError": err})
+    results = []
+    for args in json.loads(cases_json):
+        actual, error, ms = run_case(target, args)
+        try:
+            json.dumps(actual, allow_nan=False)
+        except (TypeError, ValueError) as e:
+            actual, error = None, f"the result could not be serialised: {e}"
+        results.append({"actual": actual, "error": error, "ms": ms})
+    return json.dumps({"results": results})

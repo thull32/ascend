@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // The runners import the harness files the server's grader also runs
+    // (crates/grader/harness), outside this directory.
+    fs: { allow: [".."] },
     proxy: { "/api": { target: "http://localhost:8080", changeOrigin: false } },
   },
   build: {

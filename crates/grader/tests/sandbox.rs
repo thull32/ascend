@@ -4,8 +4,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use ascend_grader::compare::matches;
-use ascend_grader::{Grader, Job, Language, Options, Outcome, Stop};
+use ascend_grader::{Expected, Grader, Job, Language, Options, Outcome, Stop};
 use serde_json::{Value, json};
 
 fn grader_with(options: Options) -> Option<Grader> {
@@ -32,8 +31,14 @@ fn job(language: Language, code: &str, entry: &str, cases: Vec<Value>) -> Job {
         code: code.into(),
         entry: entry.into(),
         cases: cases.into_iter().map(|c| c.as_array().unwrap().clone()).collect(),
+        expected: vec![],
         time_limit: Duration::from_millis(1000),
     }
+}
+
+/// The shared rule (compare.js), as the grader runs it on the host side.
+async fn matches(g: &Grader, expected: Value, actual: &Value, any_order: bool) -> bool {
+    g.compare(vec![(expected, actual.clone(), any_order)]).await.unwrap()[0]
 }
 
 fn actuals(o: &Outcome) -> Vec<Value> {
@@ -56,8 +61,11 @@ async fn functions_run_in_both_languages() {
         assert_eq!(o.compile_error, None, "{lang:?}");
         assert_eq!(o.stopped, None, "{lang:?}");
         let got = actuals(&o);
-        assert!(matches(&json!(3), &got[0], false) && matches(&json!(0), &got[1], false), "{lang:?}: {got:?}");
-        assert!(matches(&json!(0.3), &got[2], false), "{lang:?}: {got:?}");
+        assert!(
+            matches(&g, json!(3), &got[0], false).await && matches(&g, json!(0), &got[1], false).await,
+            "{lang:?}: {got:?}"
+        );
+        assert!(matches(&g, json!(0.3), &got[2], false).await, "{lang:?}: {got:?}");
     }
 }
 
@@ -74,10 +82,46 @@ async fn half_way_floats_are_rounded_once_by_the_host() {
     ] {
         let o = g.run(job(lang, code, "f", vec![json!([])])).await.unwrap();
         let got = &actuals(&o)[0];
-        assert!(matches(&json!(0.1234565), got, false), "{lang:?}: {got}");
-        assert!(matches(&json!(0.123457), got, false), "{lang:?}: {got}");
-        assert!(!matches(&json!(0.123456), got, false), "{lang:?}: {got}");
+        assert!(matches(&g, json!(0.1234565), got, false).await, "{lang:?}: {got}");
+        assert!(matches(&g, json!(0.123457), got, false).await, "{lang:?}: {got}");
+        assert!(!matches(&g, json!(0.123456), got, false).await, "{lang:?}: {got}");
     }
+}
+
+#[tokio::test]
+async fn the_conformance_corpus_holds_in_quickjs() {
+    let Some(g) = grader() else { return };
+    let corpus: Value =
+        serde_json::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/conformance.json"))).unwrap();
+    let cases = corpus["cases"].as_array().unwrap();
+    let items = cases
+        .iter()
+        .map(|c| (c["expected"].clone(), c["actual"].clone(), c["any_order"].as_bool().unwrap_or(false)))
+        .collect();
+    let got = g.compare(items).await.unwrap();
+    for (i, (c, ok)) in cases.iter().zip(got).enumerate() {
+        assert_eq!(ok, c["match"].as_bool().unwrap(), "case {i}: {c}");
+    }
+}
+
+#[tokio::test]
+async fn verdicts_come_from_the_host_not_the_sandbox() {
+    let Some(g) = grader() else { return };
+    // Expected values stay on the host; the verdict is computed there.
+    let mut j = job(Language::Python, "def f(x):\n    return x * 2\n", "f", vec![json!([2]), json!([3]), json!([0.5])]);
+    j.expected = vec![
+        Expected { value: json!(4), any_order: false },
+        Expected { value: json!(7), any_order: false },
+        Expected { value: json!(1), any_order: false },
+    ];
+    let o = g.run(j).await.unwrap();
+    assert_eq!(o.passed, vec![true, false, true]);
+    // A harness line forged from inside cannot claim a pass without the
+    // right value: the host compares what was reported with the expectation.
+    let forged = "import os\ndef f(x):\n    os.write(1, b'\\x1e{\"case\": 0, \"actual\": 99, \"error\": null, \"ms\": 0}\\n')\n    return 1\n";
+    let mut j = job(Language::Python, forged, "f", vec![json!([0])]);
+    j.expected = vec![Expected { value: json!(99), any_order: false }];
+    assert_eq!(g.run(j).await.unwrap().passed, vec![false]);
 }
 
 #[tokio::test]
@@ -99,6 +143,24 @@ async fn structures_and_classes_are_encoded_like_the_browser() {
     let py = "def invert(root):\n    if root:\n        root.left, root.right = invert(root.right), invert(root.left)\n    return root\n";
     let o = g.run(job(Language::Python, py, "invert", vec![json!([{"$tree": [1, 2, 3, null, 4]}])])).await.unwrap();
     assert_eq!(actuals(&o), vec![json!({"$tree": [1, 3, 2, null, null, 4]})]);
+}
+
+#[tokio::test]
+async fn learner_classes_may_reuse_the_provided_names() {
+    let Some(g) = grader() else { return };
+    // Exercises' own starters define `class Node` (an AVL node, a trie node);
+    // that must shadow the harness's Node, not be a redefinition error.
+    let js = "class Node { constructor(key) { this.key = key; } }\nfunction f(k) { return new Node(k).key; }";
+    let py = "class Node:\n    def __init__(self, key):\n        self.key = key\ndef f(k):\n    return Node(k).key\n";
+    for (lang, code) in [(Language::JavaScript, js), (Language::Python, py)] {
+        let o = g.run(job(lang, code, "f", vec![json!([7])])).await.unwrap();
+        assert_eq!(o.compile_error, None, "{lang:?}");
+        assert_eq!(actuals(&o), vec![json!(7)], "{lang:?}");
+    }
+    // Code that uses the provided classes still finds them.
+    let js = "function f() { return new ListNode(1, new ListNode(2)); }";
+    let o = g.run(job(Language::JavaScript, js, "f", vec![json!([])])).await.unwrap();
+    assert_eq!(actuals(&o), vec![json!({"$list": [1, 2]})]);
 }
 
 #[tokio::test]

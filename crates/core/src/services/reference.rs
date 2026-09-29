@@ -24,7 +24,7 @@ use std::time::Duration;
 use ascend_grader::{Grader, Job, Language};
 use futures::StreamExt;
 
-use super::submissions::verdicts;
+use super::submissions::{expected, verdicts};
 use crate::content::{Curriculum, TestCase};
 
 /// Something wrong with one target in one language.
@@ -148,6 +148,7 @@ pub async fn check(
                     code,
                     entry: case.entry.clone(),
                     cases: case.tests.iter().map(|t| t.args.clone()).collect(),
+                    expected: expected(&case.tests),
                     time_limit: Duration::from_millis(u64::from(case.time_limit_ms)),
                 };
                 let failures = match grader.run(job).await {

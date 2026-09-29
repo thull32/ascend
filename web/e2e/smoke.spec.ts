@@ -64,6 +64,20 @@ test.describe("public pages", () => {
     await expect(page.getByTestId("results")).toContainText("shares nodes with the original graph");
   });
 
+  test("python tests run against the shared harness and comparison rule", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto("/practice/two-sum");
+    await page.getByRole("button", { name: "Python" }).click();
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Delete");
+    await page.keyboard.insertText(
+      "def two_sum(nums, target):\n    seen = {}\n    for i, x in enumerate(nums):\n        if target - x in seen:\n            return [seen[target - x], i]\n        seen[x] = i\n    return []\n",
+    );
+    await page.getByTestId("run-tests").click();
+    await expect(page.getByTestId("results")).toContainText(/(\d+) \/ \1 passed/, { timeout: 150_000 });
+  });
+
   test("python runs in the browser via Pyodide", async ({ page }) => {
     test.setTimeout(180_000);
     await page.goto("/playground");

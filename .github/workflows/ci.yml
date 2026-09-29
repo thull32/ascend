@@ -77,10 +77,9 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install pyyaml
+      # Structure only: the server's grader runs the reference solutions in
+      # the Rust job (crates/core/tests/grading_parity.rs).
       - run: python3 scripts/validate_problems.py
-      # Every copy of the comparison rule agrees on the shared corpus (the
-      # JavaScript and Rust copies are checked by vitest and cargo test).
-      - run: python3 scripts/check_conformance.py
       # Quiz options must be in their canonical shuffled order, so correct
       # answers stay spread evenly across positions as quizzes are edited.
       - run: python3 scripts/shuffle_quiz_options.py --check

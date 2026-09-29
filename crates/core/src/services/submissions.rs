@@ -1,8 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ascend_grader::compare::matches;
-use ascend_grader::{GradeError, Grader, Job, Language, Outcome};
+use ascend_grader::{Expected, GradeError, Grader, Job, Language, Outcome};
 use chrono::Utc;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
@@ -132,6 +131,7 @@ impl SubmissionService {
             code: runnable,
             entry: target.entry.to_string(),
             cases: target.tests.iter().map(|t| t.args.clone()).collect(),
+            expected: expected(target.tests),
             time_limit: Duration::from_millis(u64::from(target.time_limit_ms)),
         };
         let outcome = grader.run(job).await.map_err(|e| match e {
@@ -199,14 +199,14 @@ pub(crate) fn verdicts(tests: &[TestCase], outcome: &Outcome) -> Vec<TestVerdict
     tests
         .iter()
         .enumerate()
-        .map(|(index, test)| {
+        .map(|(index, _test)| {
             if let Some(e) = &outcome.compile_error {
                 return TestVerdict { index, passed: false, error: Some(e.clone()), ms: None };
             }
             match outcome.cases.get(index).and_then(Option::as_ref) {
                 Some(run) => TestVerdict {
                     index,
-                    passed: run.error.is_none() && matches(&test.expected, &run.actual, test.any_order),
+                    passed: outcome.passed.get(index).copied().unwrap_or(false),
                     error: run.error.clone(),
                     ms: Some(run.ms),
                 },
@@ -222,4 +222,9 @@ pub(crate) fn verdicts(tests: &[TestCase], outcome: &Outcome) -> Vec<TestVerdict
             }
         })
         .collect()
+}
+
+/// What each test must return, for the grader's host-side comparison.
+pub(crate) fn expected(tests: &[TestCase]) -> Vec<Expected> {
+    tests.iter().map(|t| Expected { value: t.expected.clone(), any_order: t.any_order }).collect()
 }
