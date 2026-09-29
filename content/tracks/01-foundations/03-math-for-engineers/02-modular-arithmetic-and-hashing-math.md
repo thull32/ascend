@@ -187,7 +187,7 @@ Take eight keys allocated in steps of 4 (aligned addresses, IDs handed out four 
 | 7 | 6, 3, 0, 4, 1, 5, 2, 6 | 7 |
 | 11 | 10, 3, 7, 0, 4, 8, 1, 5 | 8 |
 
-With size 8 the table is effectively size 2: chains four times longer than the load factor predicts. The mechanism is that $\gcd(4, 8) = 4$, so the sequence $1000 + 4k \bmod 8$ cycles through only $8/4 = 2$ residues. A prime $m$ has $\gcd(d, m) = 1$ for every step $d < m$, so the arithmetic sequence visits all $m$ buckets before repeating. This is why libstdc++'s `std::unordered_map` and the old Java `Hashtable` size their bucket arrays with primes.
+With size 8 the table is effectively size 2: chains four times longer than the load factor predicts. The mechanism is that $\gcd(4, 8) = 4$, so the sequence $1000 + 4k \bmod 8$ cycles through only $8/4 = 2$ residues. A prime $m$ has $\gcd(d, m) = 1$ for every step $d < m$, so the arithmetic sequence visits all $m$ buckets before repeating. This is why libstdc++'s `std::unordered_map` sizes its bucket array from a table of primes, and why the old Java `Hashtable` starts at 11 buckets and grows to $2n + 1$, keeping the size odd.
 
 ### Power-of-two sizes need mixing
 
@@ -205,7 +205,7 @@ CPython's `dict` mixes during probing instead. The first slot is `hash & mask`; 
 
 ### Prime multipliers and prime moduli
 
-`h = h * 31 + c` uses 31 because it is odd (an odd multiplier is a bijection modulo $2^{32}$; an even one discards the top bit each step) and near a power of two (`31 * h` compiles to `(h << 5) - h`). Primeness matters less than oddness here. For polynomial hashing, a prime $M$ keeps $B^k$ non-zero and makes $\mathbb{Z}_M$ a field, so two random strings of length $n$ collide with probability at most $n/M$ (Schwartz–Zippel). Common choices: $10^9 + 7$, $10^9 + 9$, and $2^{61} - 1$, a Mersenne prime whose reduction is shifts and adds.
+`h = h * 31 + c` uses 31 because it is odd (an odd multiplier is a bijection modulo $2^{32}$; an even one discards the top bit each step) and near a power of two (`31 * h` compiles to `(h << 5) - h`). Primeness matters less than oddness here. For polynomial hashing, a prime $M$ keeps $B^k$ non-zero and makes $\mathbb{Z}_M$ a field, so for a base chosen at random, two fixed distinct strings of length $n$ collide with probability at most $(n - 1)/M$: their difference is a non-zero polynomial in $B$ of degree at most $n - 1$, which has at most $n - 1$ roots (Schwartz–Zippel). Common choices: $10^9 + 7$, $10^9 + 9$, and $2^{61} - 1$, a Mersenne prime whose reduction is shifts and adds.
 
 ## How likely is a collision?
 
@@ -231,7 +231,7 @@ Trace $3^{-1} \bmod 7 = 3^5 \bmod 7$ with square-and-multiply: squares $3, 3^2 =
 
 ## Under the hood
 
-**CPython's `pow(a, b, m)`.** `long_pow` in `Objects/longobject.c` reduces the base first, then runs left-to-right binary exponentiation for small exponents and a fixed 5-bit window (a 32-entry table of $a^0 \ldots a^{31}$) for exponents beyond a few hundred bits, cutting multiplications by roughly a fifth. Since Python 3.8 a negative exponent with a modulus is allowed: `pow(a, -1, m)` computes the inverse with extended Euclid and raises `ValueError` when none exists. Python's `%` on ints is floored: `l_divmod` computes the truncated result and then adjusts the remainder by adding the divisor when the signs differ.
+**CPython's `pow(a, b, m)`.** `long_pow` in `Objects/longobject.c` reduces the base first, then runs left-to-right binary exponentiation for exponents up to 60 bits and, beyond that, a sliding 5-bit window over a precomputed table of 16 odd powers; the source's own comment counts about $e/2$ extra multiplications for the binary method on an $e$-bit exponent against about $16 + e/5$ for the window. Since Python 3.8 a negative exponent with a modulus is allowed: `pow(a, -1, m)` computes the inverse with extended Euclid and raises `ValueError` when none exists. Python's `%` on ints is floored: `l_divmod` computes the truncated result and then adjusts the remainder by adding the divisor when the signs differ.
 
 **How tables use the modulus.** CPython's `dict` keeps `mask = size - 1` and the perturbation loop above; sizes are powers of two starting at 8, resized when two-thirds full. Java's `HashMap` masks the spread hash and, since Java 8, converts a bin with 8 or more entries into a red-black tree once the table has 64 buckets, so a flood of colliding keys degrades to $O(\log n)$ rather than $O(n)$. Rust's `hashbrown` splits the 64-bit hash into a 7-bit tag stored in a control byte and low bits that select the group, so a probe compares 16 tags with one SIMD instruction; Go's classic map (before its Swiss-table rewrite) stores the top 8 bits as a `tophash` and uses the low bits for the bucket. libstdc++'s `unordered_map` keeps a table of primes and jumps to the next one on rehash.
 

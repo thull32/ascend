@@ -188,7 +188,7 @@ The invariant is a sentence. Two pieces of software can act on it: the runtime, 
 
 ### What `assert` compiles to
 
-In CPython 3.14.7, `assert x >= 0, "negative"` compiles to four bytecodes: `COMPARE_OP` for the test, `POP_JUMP_IF_TRUE` past the rest, `LOAD_COMMON_CONSTANT` for `AssertionError`, and `RAISE_VARARGS`. Run the same file with `python -O` and the statement is not executed cheaply; it is not compiled at all. `__debug__` becomes `False`, the compiler drops every `assert` at compile time, and the cached bytecode is written as `__pycache__/*.opt-1.pyc`.
+In CPython 3.14.7, `assert x >= 0, "negative"` compiles to a `COMPARE_OP` for the test and a `POP_JUMP_IF_TRUE` past the failure path, which is four more bytecodes: `LOAD_COMMON_CONSTANT` for `AssertionError`, `LOAD_CONST` for the message, `CALL` and `RAISE_VARARGS`. Run the same file with `python -O` and the statement is not executed cheaply; it is not compiled at all. `__debug__` becomes `False`, the compiler drops every `assert` at compile time, and the cached bytecode is written as `__pycache__/*.opt-1.pyc`.
 
 The cost when it is on is real. A binary search over a million sorted ints, 200,000 random targets, measured on one machine (AMD Ryzen 9 9950X3D, CPython 3.14.7, best of five): 1.7 µs per search plain, about 85 ns per iteration over the roughly twenty iterations. With the four-clause invariant `assert 0 <= lo and hi < len(nums) and (lo == 0 or nums[lo-1] < target) and (hi == len(nums)-1 or nums[hi+1] > target)` inside the loop: 2.75 µs, an extra 50 ns per iteration, 60% of the loop. With `-O`: 1.65 µs, indistinguishable from plain. Two consequences: an assert that walks the whole range (`all(not f for f in flags[:lo])`) belongs in a test, not a hot loop; and anything with a side effect or a security purpose must never live in an assert, because a deployment flag deletes it.
 
@@ -275,7 +275,7 @@ Other places the idea appears under different names:
 - **Data structure invariants.** A binary heap's invariant is "every parent ≤ its children"; every operation temporarily breaks it and restores it by sifting. When you debug a corrupted structure, the first question is which operation broke which invariant.
 - **Class invariants.** `Account.balance >= 0`, enforced by every method; violations are usually a missing lock, the subject of [Races, mutexes and invariants](/learn/systems-and-concurrency/concurrency/races-mutexes-and-invariants).
 - **Distributed invariants.** "Every committed write is on a majority of replicas." [Raft](/learn/system-design/distributed-systems/consensus-raft) is an elaborate maintenance argument for that one sentence.
-- **Steady-state hypotheses.** Netflix's published chaos-engineering practice starts every experiment by stating an invariant over system metrics (the rate of successful stream starts stays within its normal band) and then injecting failures to see whether it holds. It is the loop invariant applied to a fleet: state what must stay true, perturb, check.
+- **Steady-state hypotheses.** Netflix's published chaos-engineering practice (Basiri et al., "Chaos Engineering", *IEEE Software*, 2016) starts every experiment by defining steady state as a measurable output, their primary one being stream starts per second, hypothesising that it continues, and then injecting failures to see whether it holds. It is the loop invariant applied to a fleet: state what must stay true, perturb, check.
 
 ## Two-pointer and window code in general
 

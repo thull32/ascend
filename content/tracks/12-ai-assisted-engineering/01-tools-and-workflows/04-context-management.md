@@ -15,12 +15,12 @@ A model has no memory between calls. Every decision is computed from the tokens 
 Everything the harness sends on each call:
 
 - The harness's own system prompt and built-in tool definitions.
-- The schemas of connected MCP tools. At the time of writing, Claude Code defers loading a server's tool list until a tool from it is first needed (it calls this tool search); older clients and other tools load every schema from every connected server at start-up, whether or not this task uses it.
+- The schemas of connected MCP tools. At the time of writing, Claude Code sends only the tool names up front and loads a tool's full schema when the task needs it (it calls this tool search); older clients and other tools load every schema from every connected server at start-up, whether or not this task uses it.
 - Memory files (`CLAUDE.md`, `AGENTS.md` and friends).
 - Your messages.
 - Every tool call and every tool result: each file read, each grep, each test run's output.
 
-Here is a plausible budget for an ordinary bug fix, against a 200,000-token window as a round number (a common size at the time of writing; some models offer a million):
+Here is a plausible budget for an ordinary bug fix, against a 200,000-token window as a round number (still a common size at the time of writing, though several current models offer a million):
 
 | Item | Tokens (approx.) | Running total |
 |---|---|---|
@@ -53,8 +53,8 @@ The window is resent on every loop iteration, so the cost of a session is not th
 
 The final transcript is 44,300 tokens, but the model processed 199,900 input tokens to get there: with a growing transcript the total grows roughly with the square of the number of iterations. Three things to read off the table:
 
-1. **Caching cuts the bill to about a third** here (the ratio depends on how much is new per turn), because everything already seen is a cache read at 0.1 times the input rate and only the new tail is a cache write at 1.25 times. The first call is *more* expensive with caching: it writes the whole prefix.
-2. **Iteration 7's verbose test run is paid for on iteration 8 and every iteration after it.** The 9,000 tokens of test output became "new" once, then a cache read forever. Had it been `-x -q`, iteration 8 would have cost about 4,500 billed-equivalent tokens instead of 15,640.
+1. **Caching cuts the bill to about a third** here (the ratio depends on how much is new per turn), because everything already seen is a cache read at 0.1 times the input rate (on most models) and only the new tail is a cache write at 1.25 times. The first call is *more* expensive with caching: it writes the whole prefix.
+2. **Iteration 7's verbose test run is paid for on iteration 8 and every iteration after it.** The 9,000 tokens of test output became "new" once, then a cache read forever. Had it been `-x -q`, iteration 8 would have cost about 5,000 billed-equivalent tokens (2,890 of cache reads plus about 1,700 new tokens at 1.25) instead of 15,640.
 3. **Nothing in the table removes anything.** The transcript only grows. The only ways down are compaction, a fresh session or delegation to a subagent.
 
 ```viz
@@ -72,9 +72,9 @@ Prompt caching lets the serving system reuse the work of processing a prefix it 
 Two rules follow from "byte-for-byte prefix":
 
 - **Order matters.** The cacheable part must come first and must not change. This repository's Anthropic client (`crates/core/src/ai/anthropic.rs`) sends the system prompt as a block with a cache breakpoint and the volatile context (the current lesson, the learner's code) as a second block *after* it, without one; a unit test asserts that the "volatile context must sit after the breakpoint". The coach's system prompt is assembled stable-first (persona, rules) and volatile-last for the same reason. Change one byte early in the prefix and every byte after it misses.
-- **Anything that changes the prefix invalidates the cache.** In Claude Code, at the time of writing, that includes switching model, changing the effort level on most models, adding or removing an MCP server when its tools are loaded eagerly, and compacting the conversation. Editing files does not invalidate anything, and editing `CLAUDE.md` mid-session does not apply until `/clear` or `/compact`.
+- **Anything that changes the prefix invalidates the cache.** In Claude Code, at the time of writing, that includes switching model, changing the effort level on most models, adding or removing an MCP server when its tools are loaded eagerly, and compacting the conversation ([Claude Code's prompt-caching page](https://code.claude.com/docs/en/prompt-caching) keeps the full list). Editing files does not invalidate anything, and editing `CLAUDE.md` mid-session does not apply until `/clear`, `/compact` or a restart.
 
-The prices, from Anthropic's pricing page at the time of writing: a cache write is billed at 1.25 times the input rate and a cache read at 0.1 times. The cache lives for 5 minutes by default, refreshed on each hit, with a 1-hour option; Claude Code uses the 1-hour lifetime for the main conversation on subscription plans and 5 minutes elsewhere. This repository's per-user AI budget (`crates/core/src/ai/budget.rs`) counts billed input as `input + cache_write × 5/4 + cache_read / 10` so that both kinds of cached token are inside the limit; counting only uncached input would leave the most expensive input of all outside it. The wider mechanics of the KV cache are in [Context windows and the KV cache](/learn/ai-and-llms/how-llms-work/context-windows-and-kv-cache).
+The prices, from [Anthropic's prompt-caching documentation](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) at the time of writing: a five-minute cache write is billed at 1.25 times the input rate, a one-hour write at 2 times, and a cache read at 0.1 times on most models (a few newer models bill reads lower still). The cache lives for 5 minutes by default, refreshed on each hit, with the 1-hour option; Claude Code uses the 1-hour lifetime for the main conversation on subscription plans and 5 minutes elsewhere. This repository's per-user AI budget (`crates/core/src/ai/budget.rs`) counts billed input as `input + cache_write × 5/4 + cache_read / d`, where `cache_read_divisor` sets `d` from the configured model's price (20 for Opus 5.5, whose reads bill at 0.05 times; 10 on most models), so that both kinds of cached token are inside the limit at what they cost; counting only uncached input would leave the most expensive input of all outside it. The wider mechanics of the KV cache are in [Context windows and the KV cache](/learn/ai-and-llms/how-llms-work/context-windows-and-kv-cache).
 
 Caching changes cost and latency. It does nothing for the other problem: the model still has to attend over all of it.
 
@@ -82,7 +82,7 @@ Caching changes cost and latency. It does nothing for the other problem: the mod
 
 The window does not have to be full for results to degrade. Four mechanisms are at work.
 
-**Dilution.** Your constraint "do not change the public API" is 12 tokens out of 160,000. Research on long contexts (the "Lost in the Middle" study by Liu and colleagues, 2023) found models use information at the start and end of a long input more reliably than information in the middle, and later long-context evaluations show the same qualitative pattern: finding one planted fact is easy, but reasoning that depends on many scattered facts gets worse as the input grows.
+**Dilution.** Your constraint "do not change the public API" is 12 tokens out of 160,000. Research on long contexts (the ["Lost in the Middle"](https://arxiv.org/abs/2307.03172) study by Liu and colleagues, 2023) found models use information at the start and end of a long input more reliably than information in the middle, and later long-context evaluations show the same qualitative pattern: finding one planted fact is easy, but reasoning that depends on many scattered facts gets worse as the input grows.
 
 **Staleness.** The agent read `orders.py` at iteration 5 and has edited it three times since. The old contents are still in the transcript. Unless it re-reads the file, it may reason from a version that no longer exists.
 
@@ -94,7 +94,7 @@ The symptoms are recognisable: re-reading files it already has, asking questions
 
 ## Compaction: what the harness keeps and drops
 
-Compaction is the harness's own answer to a full window. In Claude Code, at the time of writing, it runs automatically when the window fills and can be run by hand with `/compact`: the message history is replaced by a model-written summary, while the system prompt and the project context (memory files, rules loaded at start) are preserved. `/context` shows what is occupying the window and `/cost` the session's token usage, which is how you find out that a pasted log is 40% of your context.
+Compaction is the harness's own answer to a full window. In Claude Code, at the time of writing, it runs automatically when the window fills and can be run by hand with `/compact`: the message history is replaced by a model-written summary, while the system prompt and the project context (memory files, rules loaded at start) are preserved. `/context` shows what is occupying the window and `/usage` the session's token usage and cache hit rate, which is how you find out that a pasted log is 40% of your context. After compacting, Claude Code also re-reads up to five of the files modified most recently, so the next step starts from current contents rather than from the summary's description of them.
 
 What a summary keeps is what the summariser judged important, which is not always what you judged important. Two habits make compaction safe:
 
@@ -113,7 +113,7 @@ There are three ways code reaches the window, and good tools combine them.
 | **Embedding index** | Chunks of the codebase are embedded ahead of time; the query is embedded and nearest chunks retrieved | "Where do we handle expired sessions?" when you do not know the function name | Stale after edits; chunk boundaries split functions; similar-looking code can outrank relevant code |
 | **Explicit** | You name the files, paste the exact error, give line ranges | Precision | Requires you to know where to look |
 
-Terminal agents such as Claude Code, Codex CLI and Gemini CLI lean on agentic search. Cursor also maintains an embedding index of the codebase for semantic search. An embedding index is retrieval-augmented generation over your repository; step through the pipeline, then imagine the chunks are functions instead of policy paragraphs.
+Terminal agents such as Claude Code, Codex CLI and Gemini CLI lean on agentic search. Cursor once built an embedding index of the codebase; at the time of writing its documentation describes a local grep index instead and says it stores no embeddings of your code for search. Embedding indexes remain common in other tools and in retrieval systems generally. An embedding index is retrieval-augmented generation over your repository; step through the pipeline, then imagine the chunks are functions instead of policy paragraphs.
 
 ```viz
 {"type": "ml", "scenario": "rag-pipeline", "text": "What is the refund window?", "k": 2, "title": "Semantic retrieval, the mechanism behind codebase indexing", "caption": "Replace the policy documents with code chunks and the question with 'where do we compute refunds?'. The same failure modes apply: if the right chunk is not in the top-k, the model never sees it, and an index built before today's edits returns yesterday's code."}
@@ -219,7 +219,7 @@ Same model, same bug, same tool. The difference is what was in the window.
 | The agent edits a function that no longer exists in that form, or its patch fails to apply | Stale file contents: it is reasoning from a read made several edits ago | Ask for a re-read before edits to files changed this session; keep edits and reads close together |
 | After a long session, a constraint from your early messages is violated | Dilution in the middle of the window, or compaction dropped it | Restate task constraints in the spec at the top; put durable ones in the memory file; compact with instructions naming them |
 | The agent keeps returning to a hypothesis you ruled out an hour ago | Poisoning: the failed attempt and its code are still in context | Write a handoff note with a "dead ends" section and start a fresh session |
-| Cost per iteration jumps although the task did not change | A cache miss: model or effort switched, an MCP server added, or a compaction; or a verbose tool result entered the transcript | Check `/cost`; avoid mid-task model switches; filter tool output before it enters |
+| Cost per iteration jumps although the task did not change | A cache miss: model or effort switched, an MCP server added, or a compaction; or a verbose tool result entered the transcript | Check `/usage`, which can name the likely cause of the last cache miss; avoid mid-task model switches; filter tool output before it enters |
 | The agent calls the wrong tool, or spends turns choosing between similar ones | Tool-list bloat from servers unrelated to the task | Disconnect unused servers; give explicit entry points so it searches less |
 | The first message of a new session already shows the window a third full | Eagerly loaded tool schemas plus an oversized memory file | Prune the memory file to what changes behaviour; connect servers per project, not globally |
 

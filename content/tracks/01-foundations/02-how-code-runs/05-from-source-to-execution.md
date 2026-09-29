@@ -1,7 +1,7 @@
 ---
 slug: from-source-to-execution
 title: "From source to execution: compilers, interpreters and JITs"
-description: One two-line function traced through tokens, AST, bytecode, CPython 3.14's specialised bytecode, V8's Ignition bytecode and its Sparkplug, Maglev and TurboFan tiers, and Go's and Rust's four bytes of machine code, with measured timings, to explain why the same loop takes 108 milliseconds in Python and under 2 in Go.
+description: One two-line function traced through tokens, AST, bytecode, CPython 3.14's specialised bytecode, V8's Ignition bytecode and its Sparkplug, Maglev and TurboFan tiers, and Go's four and Rust's five bytes of machine code, with measured timings, to explain why the same loop takes 108 milliseconds in Python and under 2 in Go.
 minutes: 40
 difficulty: easy
 tags: [compilers, interpreters, jit, bytecode, performance, cpython, v8, llvm]
@@ -50,8 +50,8 @@ Python's lexer is unusual in emitting `INDENT` and `DEDENT` tokens (the whitespa
 The parser turns the token stream into a tree. `ast.dump` shows it:
 
 ```text
-FunctionDef(name='add', args=arguments(args=[arg('total'), arg('x')]),
-  body=[Return(value=BinOp(left=Name('total', Load()), op=Add(), right=Name('x', Load())))])
+FunctionDef(name='add', args=arguments(args=[arg(arg='total'), arg(arg='x')]),
+  body=[Return(value=BinOp(left=Name(id='total', ctx=Load()), op=Add(), right=Name(id='x', ctx=Load())))])
 ```
 
 Every language builds this shape. What differs is what happens next.
@@ -125,7 +125,7 @@ leaq (%rdi,%rsi), %rax
 retq
 ```
 
-(`lea` is the compiler's favourite three-operand add.) Without the no-inline attribute both compilers delete the function entirely and put the `add` instruction directly in the caller's loop, where Rust's LLVM backend then vectorises it to add four `i64`s per instruction.
+(`lea` is the compiler's favourite three-operand add.) Without the no-inline attribute both compilers delete the function entirely and put the `add` instruction directly in the caller's loop, where Rust's LLVM backend then vectorises it: with the default x86-64 target that is SSE2 `paddq`, two `i64`s per instruction across several accumulators, and four per instruction with AVX2 if you compile with `-C target-cpu=native` on a machine that has it.
 
 ### The trace, side by side
 
@@ -158,7 +158,7 @@ CPython 3.14 also ships an experimental copy-and-patch JIT (PEP 744, off by defa
 
 Two mechanisms make V8's speculation pay:
 
-- **Hidden classes (shapes) and inline caches.** Objects created the same way share a hidden class describing their layout. A property access site remembers the hidden class it last saw and the offset of the property; if the next object matches, the load is one memory read at a fixed offset, exactly like a compiled struct field. A site that sees one shape is *monomorphic* (fastest), a few shapes *polymorphic* (a short chain of checks), many shapes *megamorphic* (a hash lookup, never optimised). Adding properties in different orders, or deleting properties, creates new shapes.
+- **Hidden classes (shapes) and inline caches.** Objects created the same way share a hidden class describing their layout. A property access site remembers the hidden class it last saw and the offset of the property; if the next object matches, the load is one memory read at a fixed offset, exactly like a compiled struct field. A site that sees one shape is *monomorphic* (fastest), up to four shapes *polymorphic* (a short chain of checks), more than that *megamorphic* (a lookup in a global cache keyed by shape and property name, with no fixed-offset load for the optimiser to emit). Adding properties in different orders, or deleting properties, creates new shapes.
 - **Inlining across the profile.** Because the JIT sees which function a call site actually reaches, it inlines through indirect calls and interfaces that an AOT compiler must leave as calls. This is the one structural advantage a JIT has over AOT: it optimises for what the program *does*, not for what the type system *allows*.
 
 The price is **deoptimisation**. Measured: a loop whose `+` had only seen integers ran in 0.47 ms; after one call with an array of strings, the next integer call took 11.2 ms (deoptimise, re-profile, recompile) and every call after that 2.35 ms, five times slower, for the life of the process, because the site's feedback now says "number or string" and the generic path stays. A function that keeps flipping between shapes of input never settles, and that is the "fast for an hour, then slow" bug.
@@ -171,7 +171,7 @@ Go compiles to machine code ahead of time with a compiler designed for speed of 
 
 Rust compiles through LLVM with the full optimiser. Generics are **monomorphised**: `Vec<i32>` and `Vec<String>` become two separate compiled types, each specialised, which is why Rust iterators and closures compile to the same code as a hand-written loop ("zero-cost abstraction"), why `a.iter().sum()` vectorises, and also why Rust compile times are long and binaries large. There is no runtime type dispatch unless you ask for it with `dyn Trait`.
 
-What AOT gives up is runtime knowledge. It cannot see which branch is hot or which interface implementation is live, so it generates code that is correct for all of them. Profile-guided optimisation (PGO) feeds a recorded profile back into a second compile; Go, Rust and Clang all support it, and the gains are typically in the range of a few percent to about fifteen.
+What AOT gives up is runtime knowledge. It cannot see which branch is hot or which interface implementation is live, so it generates code that is correct for all of them. Profile-guided optimisation (PGO) feeds a recorded profile back into a second compile; Go, Rust and Clang all support it, and [Go's documentation](https://go.dev/doc/pgo) reports gains of around 2–14% on a representative set of programs as of Go 1.22.
 
 ## The numbers, side by side
 
@@ -183,7 +183,7 @@ The same work in each runtime, measured on one machine (AMD Ryzen 9 9950X3D; eac
 | CPython `sum(range(n))` | 48 ms | 4.8 ns | the loop is in C; each element is still created as an object |
 | CPython `sum(list)` | 23 ms | 2.3 ns | the loop is in C; elements already exist |
 | Node, monomorphic loop, warm | 5.0 ms | 0.50 ns | TurboFan compiled the loop to integer adds with overflow checks and bounds checks |
-| Go | 1.8 ms | 0.18 ns | AOT scalar loop with bounds checks |
+| Go | 1.8 ms | 0.18 ns | AOT scalar loop; the bounds check is proved away, but nothing is vectorised |
 | Rust `iter().sum()` | 1.3 ms | 0.13 ns | AOT, bounds checks elided, vectorised |
 | NumPy `arr.sum()` | not measured here | order of 0.1–1 ns | one call into a compiled, vectorised kernel over contiguous memory |
 
@@ -201,11 +201,11 @@ The lesson in the first table is that "Python is slow" is really "Python *byteco
 
 **CPython's counters.** Every adaptive instruction carries a counter in its inline cache. `RESUME` becomes `RESUME_CHECK` after the function has run a few times; `BINARY_OP` decrements its counter on each execution and, when it reaches zero, calls the specialiser, which inspects the operands and rewrites the opcode. A specialised instruction that fails its guard (an `int` site that receives a `str`) does the generic operation *and* decrements a miss counter; too many misses and it reverts to the adaptive form, backs off exponentially, and may respecialise later. All of this lives in the bytecode array itself, which is why `dis` can show it and why a function's bytecode is different after it has run.
 
-**V8's feedback lattice.** Each `Add` slot moves monotonically up a lattice: `None → SignedSmall → Number → NumberOrOddball → String → Any`. Feedback never narrows again without a full reset, which is why one string call is permanent. Small integers (31-bit "Smis") are stored as tagged immediates; anything else is a heap-allocated double. The `overflow` and `not a Smi` deopt reasons in the trace are that boundary being crossed.
+**V8's feedback lattice.** Each `Add` slot moves monotonically up a lattice: `None → SignedSmall → Number → NumberOrOddball` on the numeric side, with separate `String` and `BigInt` branches that meet the numeric ones only at `Any` (V8's `BinaryOperationFeedback` encodes each state as a bit mask, and combining is a bitwise OR). Feedback never narrows again without a full reset, which is why one string call is permanent. Small integers ("Smis", 32-bit in a default 64-bit Node build and 31-bit with pointer compression) are stored as tagged immediates; anything else is a heap-allocated double. The `overflow` and `not a Smi` deopt reasons in the trace are that boundary being crossed.
 
-**Go's static knowledge.** The compiler knows `total` and `x` are `int64`, so the SSA backend emits one `ADDQ`; there is no check because there is nothing to check. What Go *does* add at run time is bounds checks on every slice index (unless it can prove them away) and write barriers on pointer stores while the garbage collector is marking; those, and the absence of vectorisation, are the whole gap to Rust in the table.
+**Go's static knowledge.** The compiler knows `total` and `x` are `int64`, so the SSA backend emits one `ADDQ`; there is no check because there is nothing to check. What Go *does* add at run time is bounds checks on slice indexes it cannot prove safe and write barriers on pointer stores while the garbage collector is marking. In the summing loop the check is proved away (`-d=ssa/check_bce/debug=1` reports none), so the gap to Rust in the table is vectorisation.
 
-**LLVM's freedom.** Rust hands LLVM a fully typed SSA program with no aliasing between `&mut` references, which is more than C can promise. LLVM inlines `add` into its caller, sees a reduction over a contiguous slice, and emits AVX2 instructions adding four `i64`s at a time; that is the 0.13 ns. The same freedom is why Rust compile times are long: every generic instantiation is optimised separately.
+**LLVM's freedom.** Rust hands LLVM a fully typed SSA program with no aliasing between `&mut` references, which is more than C can promise. LLVM inlines `add` into its caller, sees a reduction over a contiguous slice, and emits vector adds over several accumulators (SSE2 `paddq` on the default target, AVX2 with `target-cpu=native`); that is the 0.13 ns. The same freedom is why Rust compile times are long: every generic instantiation is optimised separately.
 
 ## What the pipeline does to production
 
@@ -302,7 +302,7 @@ hints:
 - **Believing "compiled" means fast and "interpreted" means slow.** V8 and the JVM interpret first and reach near-native speed; CPython compiles to bytecode and stays slow. The speed comes from knowing types and avoiding allocation, not from the label.
 - **Benchmarking a JIT on its first call.** The number is the interpreter plus the compiler, 5–10× the steady state.
 - **Passing mixed types through one hot function.** One string through an integer site costs 5× for the rest of the process's life; the fix is to keep call sites monomorphic.
-- **Rewriting the whole service instead of the hot loop.** A Python service's profile is usually 90% C already; moving the one pure-Python loop into NumPy or Rust captures most of the gain at a fraction of the cost.
+- **Rewriting the whole service instead of the hot loop.** A Python service's profile is often mostly C already; moving the one pure-Python loop into NumPy or Rust captures most of the gain at a fraction of the cost.
 - **Using threads for CPU-bound Python.** The GIL serialises them; the job gets no faster and often slower from contention.
 - **Choosing a JVM for a 100 ms serverless function.** Cold start dominates; a native binary starts in a couple of milliseconds.
 - **Assuming the CPython JIT is on and helps.** In 3.14 it is off by default, experimental, and on the loop measured here it was not faster.

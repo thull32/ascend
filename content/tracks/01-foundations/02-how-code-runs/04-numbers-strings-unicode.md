@@ -9,7 +9,7 @@ problems: [reverse-integer, sum-of-two-integers]
 ---
 A billing job sums a day of transactions in cents and reports a negative total. A JavaScript client receives a 64-bit order ID as JSON and stores it with the last digit changed. A test asserts `0.1 + 0.2 == 0.3` and fails, so someone "fixes" it with rounding and introduces a cent-level drift. A username validator says a name is 7 characters long to a human, 8 in Python, 10 in JavaScript and 15 in Go, and it is the same name. A loop that builds a CSV line by `+=` takes minutes on a file that should take seconds, but only in one of the two services that run the same code.
 
-None of these are exotic. Every one comes from the gap between the number or text you think you have and the bits the machine actually stores. This lesson is the map of that gap for integers, floating point and strings, with each language's behaviour actually run (CPython 3.14, Node 24, Go 1.27, Rust 1.98, gcc 13) rather than recalled, because the behaviour differs and the differences are where the incidents are.
+Every one comes from the gap between the number or text you think you have and the bits the machine stores. This lesson is the map of that gap for integers, floating point and strings, with each language's behaviour actually run (CPython 3.14, Node 24, Go 1.27, Rust 1.98, gcc 13) rather than recalled, because the behaviour differs and the differences are where the incidents are.
 
 ## Integers: widths, two's complement, and what happens at the edge
 
@@ -36,13 +36,13 @@ That last cell deserves a second look. The function `int check(int x) { return x
 
 The overflow bugs that recur:
 
-**Midpoint in binary search.** `mid = (lo + hi) / 2` overflows a 32-bit `int` when `lo + hi > 2^31 - 1`. Run in both C and Go with `lo = 2,000,000,000` and `hi = 2,100,000,000`: `(lo + hi) / 2` gives `-97483648`; `lo + (hi - lo) / 2` gives `2050000000`. Java's `Arrays.binarySearch` shipped this bug for years. Write `lo + (hi - lo) / 2` everywhere, including Python, where it is harmless, because your interviewer may be reading your code as Java.
+**Midpoint in binary search.** `mid = (lo + hi) / 2` overflows a 32-bit `int` when `lo + hi > 2^31 - 1`. Run in both C and Go with `lo = 2,000,000,000` and `hi = 2,100,000,000`: `(lo + hi) / 2` gives `-97483648`; `lo + (hi - lo) / 2` gives `2050000000`. Java's `Arrays.binarySearch` shipped this bug for about nine years before [Joshua Bloch wrote it up in 2006](https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/). Write `lo + (hi - lo) / 2` everywhere, including Python, where it is harmless, because your interviewer may be reading your code as Java.
 
 **Multiplying before dividing.** `total_bytes * 100 / capacity` for a percentage overflows a 32-bit int at 21 MB of `total_bytes`. Reorder, or widen.
 
 **Hash computations.** A polynomial rolling hash multiplies repeatedly; in Go and Java it wraps (fine and intended if you take it modulo something), in Python it grows without bound (correct and slow), in Rust debug it panics (a test failure you will see once). The [modular arithmetic lesson](/learn/foundations/math-for-engineers/modular-arithmetic-and-hashing-math) covers the overflow-safe form.
 
-**The 64-bit ID in JSON.** `JSON.parse('{"id": 9007199254740993}').id` is `9007199254740992` in Node: the parser produces a double, $2^{53} + 1$ is not representable, and it rounds to the nearest even significand. `Number.MAX_SAFE_INTEGER` is $2^{53} - 1$, the line beyond which `n + 1 === n` becomes possible. Every API that hands out 64-bit IDs (Twitter's `id_str` convention is the well-known example) sends them as JSON *strings* for this reason, and a client that needs arithmetic on them uses `BigInt` (`9007199254740993n + 1n` is `9007199254740994n`, exactly).
+**The 64-bit ID in JSON.** `JSON.parse('{"id": 9007199254740993}').id` is `9007199254740992` in Node: the parser produces a double, $2^{53} + 1$ is not representable, and it rounds to the nearest even significand. `Number.MAX_SAFE_INTEGER` is $2^{53} - 1$, the line beyond which `n + 1 === n` becomes possible. APIs that hand out 64-bit IDs send them as JSON *strings* for this reason (X, formerly Twitter, returns both `id` and `id_str` in its v1.1 API and [strings by default in v2](https://docs.x.com/fundamentals/x-ids)), and a client that needs arithmetic on them uses `BigInt` (`9007199254740993n + 1n` is `9007199254740994n`, exactly).
 
 **Reversing an integer.** [Reverse Integer](/practice/reverse-integer) exists only because of overflow: the reverse of 1,534,236,469 is 9,646,324,351, which does not fit in 32 bits, and the problem asks you to detect that *before* it happens, using only 32-bit arithmetic.
 
@@ -159,7 +159,7 @@ Single-precision `float32` has 23 fraction bits and about 7 decimal digits; meas
 |---|---|---|---|---|
 | `int64` of smallest units (cents) | all integers to $9.2 \times 10^{18}$ | fixed | one machine word, one instruction | money, counters, IDs |
 | Arbitrary-precision int (Python `int`, `BigInt`) | every integer | unbounded | allocation per result, cost grows with digits | hashes and factorials in Python, IDs beyond $2^{53}$ in JavaScript |
-| Decimal (`Decimal`, `BigDecimal`, `numeric`) | decimal fractions to chosen precision | huge | software arithmetic, 10–100× slower than a double | financial arithmetic with fractions of a unit, tax rates |
+| Decimal (`Decimal`, `BigDecimal`, `numeric`) | decimal fractions to chosen precision | huge | software arithmetic, many times slower than a hardware double | financial arithmetic with fractions of a unit, tax rates |
 | `float64` | binary fractions with $\le 53$ significant bits | $\pm 1.8 \times 10^{308}$ | one instruction, vectorisable | physics, statistics, anything measured |
 | `float32` / `bfloat16` | 24 / 8 significant bits | narrower | half or a quarter of the memory bandwidth | ML weights and activations, graphics |
 
@@ -183,7 +183,7 @@ Each `+=` copies everything accumulated so far, so the total copying is $k + 2k 
 | V8, `s += piece` | 7.6 ms | `+` builds a **cons string** (a rope: a node pointing at both halves) without copying; the string is flattened once, on first indexed access, in 0.6 ms |
 | V8, `parts.push(piece)` then `join("")` | 3.1 ms | one allocation of the final size |
 
-The CPython fast path is not part of the language: it needs the target to be a local (a module-level `s` is stored with `STORE_NAME`, not `STORE_FAST`, and the same loop at module level took 4 seconds for 100,000 pieces), it needs the reference count to be exactly one (a debugger, a closure, a `keep = s` line, or a list holding an old value defeats it), and PyPy does not have it. V8's rope is more robust but costs an extra flatten and more memory. `join` and builders (`strings.Builder` in Go, `String::with_capacity` plus `push_str` in Rust, `StringBuilder` in Java) are linear in every runtime and are the answer when the code must be fast everywhere:
+The CPython fast path is not part of the language: it needs the target to be a local (a module-level `s` is stored with `STORE_NAME`, not `STORE_FAST`, and the same loop at module level took 4 seconds for 100,000 pieces), it needs the reference count to be exactly one (a debugger, a closure, a `keep = s` line, or a list holding an old value defeats it), and [PyPy's performance notes](https://www.pypy.org/performance.html) say the same loop is quadratic there. V8's rope is more robust but costs an extra flatten and more memory. `join` and builders (`strings.Builder` in Go, `String::with_capacity` plus `push_str` in Rust, `StringBuilder` in Java) are linear in every runtime and are the answer when the code must be fast everywhere:
 
 ```python
 line = ",".join(fields)                     # Python: one allocation, O(total length)
@@ -195,7 +195,7 @@ for _, f := range fields { sb.WriteString(f); sb.WriteByte(',') }
 line := sb.String()
 ```
 
-Slicing follows the container rule from the [previous lesson](/learn/foundations/how-code-runs/values-references-and-mutation): Python `s[a:b]` copies, Go `s[a:b]` shares the bytes ($O(1)$, but pins the whole original in memory), Java copies since 7u6 (it used to share and leak), Rust `&s[a..b]` is a borrowed view. A function that takes substrings of a 1 GB log in Python copies; in Go it keeps the gigabyte alive as long as any substring exists.
+Slicing follows the container rule from the [previous lesson](/learn/foundations/how-code-runs/values-references-and-mutation): Python `s[a:b]` copies, Go `s[a:b]` shares the bytes ($O(1)$, but pins the whole original in memory), Java copies since 7u6 (it used to share, and a kept substring pinned its parent), Rust `&s[a..b]` is a borrowed view. A function that takes substrings of a 1 GB log in Python copies; in Go it keeps the gigabyte alive as long as any substring exists.
 
 ## Unicode: four different lengths for one string
 
@@ -239,7 +239,7 @@ Grapheme clusters are the messiest unit because they are defined by rules, not a
 
 - **Truncation in the middle of a character.** Go's `s[:2]` on `"héllo…"` returns `"h\xc3"`, half of é, invalid UTF-8 that a JSON encoder later rejects or replaces with U+FFFD. JavaScript's `"👍".slice(0, 1)` returns `"\ud83d"`, a lone surrogate that cannot be encoded to UTF-8 at all. Python slicing is code-point safe but can still split a grapheme (the modifier from its emoji).
 - **Reversing a string.** `"ab👍".split("").reverse().join("")` in JavaScript produces two broken surrogates followed by `ba`; `[..."ab👍"].reverse().join("")` gives `👍ba`, correct for this string and still wrong for `"é"` (the accent moves to the wrong letter). The interview answer is "reverse by grapheme cluster, which needs a library", and knowing that is the point.
-- **Database column limits.** MySQL `VARCHAR(255)` counts characters, but its legacy `utf8` charset is 3-byte-max and rejects emoji (`Incorrect string value`); `utf8mb4` is real UTF-8. Postgres `varchar(n)` counts characters. Redis and most byte-oriented stores count bytes. A "255-character" limit enforced in JavaScript by `.length` admits up to 1,020 bytes of emoji.
+- **Database column limits.** MySQL `VARCHAR(255)` counts characters, but its legacy `utf8` charset is 3-byte-max and rejects emoji (`Incorrect string value`); `utf8mb4` is real UTF-8. Postgres `varchar(n)` counts characters. Redis and most byte-oriented stores count bytes. A "255-character" limit enforced in JavaScript by `.length` admits up to 765 bytes (255 three-byte characters such as CJK), and one enforced by counting code points admits up to 1,020 bytes of emoji.
 - **Equality.** `"é"` (U+00E9) and `"é"` (e plus combining acute) render identically and compare unequal (`len` 1 versus 2). Normalise (NFC composes, NFD decomposes; `unicodedata.normalize`, `String.prototype.normalize`) before comparing user input, and casefold rather than lowercase for case-insensitive matches: `"Straße".casefold()` is `"strasse"` while `.lower()` leaves `ß` alone.
 - **Indexing cost.** Python's `str` stores each string in the narrowest fixed width that fits all its code points (PEP 393), so `s[i]` is $O(1)$; Go and Rust store UTF-8, so `s[i]` is a *byte* and the $i$-th code point is $O(n)$ away; JavaScript's `s[i]` is a UTF-16 unit, half an emoji.
 
@@ -300,7 +300,7 @@ hints:
 
 **CPython strings** (PEP 393) pick the narrowest width that holds every code point in the string: 1 byte per code point for Latin-1, 2 for anything up to U+FFFF, 4 otherwise. Measured: `"abc"` is 44 bytes (41 of header), `"abé"` 60 (still 1 byte per code point, but a non-ASCII string also caches its UTF-8 form's length), `"ab€"` 64 (2 bytes per code point), `"ab😀"` 72 (4 per code point). One hundred ASCII characters cost 141 bytes; ninety-nine ASCII characters plus one emoji cost 460, because the whole string is promoted to 4 bytes per code point. That is the price of $O(1)$ indexing.
 
-**V8** stores integers that fit in 31 bits as tagged immediates (Smis) inside the pointer word, and every other number as a heap-allocated double (HeapNumber). Strings come in several representations: sequential one-byte (Latin-1) or two-byte (UTF-16), cons strings (ropes, the result of `+`), sliced strings (views into a parent, for substrings longer than about 13 characters) and external strings. `s.length` is stored, not computed; indexing a cons string flattens it first, which is the 0.6 ms in the table above.
+**V8** stores small integers as tagged immediates (Smis) inside the pointer word (31 bits with pointer compression, as in Chrome; 32 bits in a default 64-bit Node build), and every other number as a heap-allocated double (HeapNumber). Strings come in several representations: sequential one-byte (Latin-1) or two-byte (UTF-16), cons strings (ropes, the result of `+`), sliced strings (views into a parent, for substrings longer than about 13 characters) and external strings. `s.length` is stored, not computed; indexing a cons string flattens it first, which is the 0.6 ms in the table above.
 
 **Go** strings are a two-word header (pointer, byte length) over immutable UTF-8 bytes; `s[a:b]` copies the header and shares the bytes, and `range` decodes UTF-8 on the fly, yielding runes. Nothing guarantees the bytes are valid UTF-8, which is how `s[:2]` can produce `"h\xc3"`. **Rust** `String` and `&str` guarantee valid UTF-8 at the type level: slicing at a non-boundary panics rather than producing garbage, and `.chars()` decodes.
 
@@ -310,11 +310,9 @@ hints:
 
 **Emoji rejected or mangled by the database.** *Symptom:* inserts fail with `Incorrect string value: '\xF0\x9F...'`, or names come back with `?`. *Diagnosis:* a MySQL column or connection in the legacy `utf8` (3-byte) charset; the 4-byte sequences for anything above U+FFFF do not fit. *Fix:* `utf8mb4` on the column, the table and the connection; re-check any `VARCHAR(255)` indexes, whose byte budget shrinks when each character may be 4 bytes.
 
-**A length limit that means four different things.** *Symptom:* the front end accepts a 255-"character" display name, the API accepts it, the database rejects or silently truncates it. *Diagnosis:* the front end counted UTF-16 units, the API counted code points, the store counted bytes; an emoji-heavy name is 255 units, 128 code points and 512 bytes. *Fix:* pick one unit (bytes of UTF-8 is the honest one for storage; grapheme clusters for what a user sees), enforce it at every layer with the same function, and state it in the API contract.
+**A length limit that means four different things.** *Symptom:* the front end accepts a 255-"character" display name, the API accepts it, the database rejects or silently truncates it. *Diagnosis:* the front end counted UTF-16 units, the API counted code points, the store counted bytes; 127 emoji plus one letter is 255 units, 128 code points and 509 bytes. *Fix:* pick one unit (bytes of UTF-8 is the honest one for storage; grapheme clusters for what a user sees), enforce it at every layer with the same function, and state it in the API contract.
 
-**Cent-level drift in a ledger.** *Symptom:* two systems that sum the same transactions disagree by a few cents at month end; the difference grows with volume. *Diagnosis:* one system sums in `float64`; each addition can be off by half an ulp, and a million additions of values near $10^{6}$ accumulate errors of the order of $10^{-10} \times 10^{6}$ each, which surfaces as cents. *Fix:* integer cents (or micros) end to end, `Decimal` where fractions of a cent are contractual, and a reconciliation check that treats any non-zero difference as a bug rather than rounding.
-
-**A 50 MB body held alive by a 12-byte substring.** *Symptom:* a Go service's memory grows with the number of cached keys far faster than the keys' sizes explain. *Diagnosis:* the keys were sliced out of large response bodies, and each slice keeps its parent's backing array reachable; a heap profile shows the bodies. *Fix:* `strings.Clone` (Go 1.18+) on anything small that outlives something large; the same applies to `bytes` slices.
+**Cent-level drift in a ledger.** *Symptom:* two systems that sum the same transactions disagree by a few cents at month end; the difference grows with volume. *Diagnosis:* one system sums in `float64`; each addition can be off by half an ulp of the running total, and after a million additions of values near $10^{6}$ the total is near $10^{12}$, where an ulp is $1.2 \times 10^{-4}$, so a million roundings of up to $6 \times 10^{-5}$ each surface as cents. *Fix:* integer cents (or micros) end to end, `Decimal` where fractions of a cent are contractual, and a reconciliation check that treats any non-zero difference as a bug rather than rounding.
 
 ## Interviewer follow-ups
 
@@ -326,26 +324,22 @@ hints:
 
 **"Your binary search uses `(lo + hi) / 2`. Any issue?"** *Model answer:* in a 32-bit language it overflows once `lo + hi` exceeds $2^{31} - 1$, which happens for arrays over about a billion elements; `lo + (hi - lo) / 2` cannot overflow. In Python it is harmless. *Common wrong answer:* "no, the array can't be that big", which is the assumption that shipped the bug in Java's standard library.
 
-**"How would you build a large string in a loop, and why?"** *Model answer:* collect the pieces and join once (or use a builder), because every immutable-string concatenation copies in principle; CPython and V8 have fast paths (in-place resize when the refcount is one; ropes) but they are runtime-specific and fragile, and `join` is linear everywhere. *Common wrong answer:* "`+=` is fine, I benchmarked it", which measured one runtime under one set of conditions.
-
 ## What mid-level engineers get wrong
 
-- **Trusting a constant expression to reveal a runtime's arithmetic.** Go folds `0.1 + 0.2` to `0.3` at compile time; the same expression on variables gives the usual answer. Test with values the compiler cannot see.
 - **Writing an overflow check in C that the compiler deletes.** `x + 1 > x` is folded to true; the shipped binary has no check. Use unsigned arithmetic or the overflow intrinsics.
-- **Rounding money to "fix" float drift.** Rounding each step hides the error and makes it non-reproducible; integer cents remove it.
-- **Enforcing a string limit with `.length` in JavaScript and expecting it to bound bytes.** It bounds UTF-16 units; the byte count can be double.
+- **Rounding money to "fix" float drift.** It hides the error; integer cents remove it.
+- **Enforcing a string limit with `.length` in JavaScript and expecting it to bound bytes.** It bounds UTF-16 units; the UTF-8 byte count can be three times as large.
 - **Reversing or truncating by index.** Any of the four units can split a character that a human sees as one; only grapheme segmentation is safe, and it needs a library.
-- **Sorting a list with a NaN in it and trusting the result.** Every comparison is false, the sort's invariant is broken, and the output can be the input unchanged.
-- **Relying on the `+=` fast path.** It disappears when a second reference exists or the target is not a local, turning a 1 ms loop into a 4 s one with no code change.
+- **Relying on the `+=` fast path.** A second reference or a non-local target turns a 1 ms loop into a 4 s one with no code change.
 
 ## Senior signals
 
-- You state the integer type and overflow behaviour of the language you are writing before you write arithmetic on large values, you know that C's signed overflow is undefined and that the compiler will delete a naive check, and you write `lo + (hi - lo) // 2` by reflex.
+- You state the overflow behaviour of your language before writing arithmetic on large values, know that C's signed overflow is undefined, and write `lo + (hi - lo) // 2` by reflex.
 - You know that JavaScript has no integer type, where $2^{53}$ comes from in the bit layout, and why 64-bit IDs travel as strings.
 - You can unpack a double into sign, exponent and fraction, explain why 0.1 rounds up and 0.3 rounds down, and trace the tie-to-even that makes `0.1 + 0.2` land one ulp high.
-- You never compare floats with `==` in production code, you pick a tolerance with a stated scale, you keep money in integers or decimals, and you know that a NaN breaks sorting.
-- You build strings with `join` or a builder and can name the runtime fast path that makes `+=` linear (refcount-one resize in CPython, cons strings in V8) and the conditions that defeat it.
-- You can say what "length" means in each of four units, derive the UTF-8 bytes and UTF-16 surrogates of a code point by hand, and name the normalisation step before comparing user-entered text.
+- You compare floats with a tolerance of stated scale, keep money in integers or decimals, and know that a NaN breaks sorting.
+- You build strings with `join` or a builder and can name the fast paths that make `+=` linear (CPython's refcount-one resize, V8's cons strings) and what defeats them.
+- You can say what "length" means in four units, derive UTF-8 bytes and UTF-16 surrogates by hand, and normalise user text before comparing it.
 - You know which of your storage layers count bytes and which count characters, and you set limits accordingly.
 
 ## Check yourself

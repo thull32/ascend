@@ -9,7 +9,7 @@ problems: [two-sum, valid-parentheses, contains-duplicate, daily-temperatures]
 ---
 Two candidates solve the same problem in the same time with the same code. One gets a strong hire; the other gets a "solid but not senior". The difference is nearly always what was said between the problem statement and the last line of code: whether the interviewer could follow the reasoning, whether the approach was chosen out loud or appeared by magic, whether the complexity discussion was crisp or mumbled, and what happened at the moment the candidate got stuck.
 
-This is not a soft skill bolted on to the technical ones. An interview is a forty-five-minute simulation of working with you, and what a senior engineer does at work is make their reasoning visible so that other people can check it, build on it, and trust it. Silence followed by correct code is what a strong mid-level engineer produces. Visible reasoning followed by correct code is what gets someone put in charge of a design.
+This is not a soft skill bolted on to the technical ones. An interview is a forty-five-minute simulation of working with you, and what a senior engineer does at work is make their reasoning visible so that other people can check it and build on it.
 
 There is a script. It follows the [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) step by step, and once you have it, thinking aloud stops competing with thinking. This lesson gives the script, two full transcripts with the signals an interviewer records marked in brackets, the protocol for taking a hint, and what happens to your words after the round ends.
 
@@ -261,7 +261,7 @@ Your words outlive the round. What follows is how coding interviews are typicall
 
 **A written debrief, built from observations.** Within hours the interviewer writes it up, and the strong ones write observations before judgments: "at minute twelve, said the inner loop was a membership query and proposed a map; at minute thirty, traced `[3, 3]` unprompted". Quotes and timestamps carry more weight than adjectives, because they let a reader who was not in the room check the judgment.
 
-**A committee that reads the debriefs, not the code.** The hiring decision is usually made by people who never see your editor. They read three to five debriefs side by side, look for consistency between interviewers, and weigh the level: at senior, communication and collaboration are not tie-breakers but core competencies, because the job is to make reasoning visible to other people. Interviewers are calibrated against each other over time, which dampens one idiosyncratic scorer.
+**A committee that reads the debriefs, not the code.** Where a company uses a hiring committee, the decision is made by people who never see your editor. They read the debriefs side by side, look for consistency between interviewers, and weigh the level: at senior, communication and collaboration are not tie-breakers but core competencies, because the job is to make reasoning visible to other people. Interviewers are calibrated against each other over time, which dampens one idiosyncratic scorer.
 
 Three consequences follow directly. Silence is unrecordable: a minute of it produces no observation, so it can only lower the estimate. A hint is recorded together with what you did after it, and the "after" is the grade; a hint followed by an unaided derivation is a positive line. And narrating decisions is what makes the debrief writable at all: the reasons you say out loud are the quotes; the code you type is an attachment.
 
@@ -287,13 +287,13 @@ If you do not know, say so and reason from what you do know. "I'm not certain; m
 
 ## The same narration outside the room
 
-The claim-mechanism-cost-limits structure and the hint protocol are how senior engineers operate in design reviews, not only interviews. A reviewer's "have you considered the write path?" is a hint, and the four steps apply unchanged: stop, restate, derive what it changes in the design, confirm and continue from the affected section. At companies that describe their engineering culture publicly, Netflix among them, decisions are expected to be made with full context shared and disagreement actively sought before commitment; the engineer who narrates reasons and integrates challenges cleanly is the one who functions in that environment, and [Netflix culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews) covers what that looks like in the loop itself.
+The claim-mechanism-cost-limits structure and the hint protocol are how senior engineers operate in design reviews, not only interviews. A reviewer's "have you considered the write path?" is a hint, and the four steps apply unchanged: stop, restate, derive what it changes in the design, confirm and continue from the affected section. Netflix's [published culture memo](https://jobs.netflix.com/culture) asks for "context not control" and expects the person making a decision to seek out different opinions first, which it calls "farming for dissent"; the engineer who narrates reasons and integrates challenges cleanly is the one who functions in that environment, and [Netflix culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews) covers what that looks like in the loop itself.
 
 ## Interviewer follow-ups
 
 **"You asked for n before choosing an approach. Why does it matter that much?"** *Model answer:* because the constraint decides which complexity class is acceptable, and the class decides the technique: at n = 20 an exponential search is fine, at 10⁵ anything quadratic is 10¹⁰ operations and out; asking first means I choose from the constraints rather than pattern-match and retrofit. *Common wrong answer:* "to show I'm thorough", which names the impression instead of the reason.
 
-**"You said O(n) expected. What would make it worse?"** *Model answer:* the hash map's average case assumes keys spread across buckets; adversarial or degenerate keys collide and degrade lookups toward O(n), which is why CPython and V8 randomise string hashing; for integer keys with a bad pattern the same can happen, so worst case is O(n²) for the whole pass and expected O(n). *Common wrong answer:* "nothing, hash maps are O(1)".
+**"You said O(n) expected. What would make it worse?"** *Model answer:* the hash map's average case assumes keys spread across buckets; adversarial or degenerate keys collide and degrade lookups toward O(n), which is why CPython randomises its string hashes per process; for integer keys with a bad pattern the same can happen, so worst case is O(n²) for the whole pass and expected O(n). *Common wrong answer:* "nothing, hash maps are O(1)".
 
 **"If I gave you a hint you disagreed with, what would you do?"** *Model answer:* restate it so I know I understood it, say once and briefly why I would have gone another way and what I think it costs, then follow the hint unless you withdraw it, because you may be steering toward the follow-up you want to ask; arguing past one sentence costs more than either approach. *Common wrong answer:* "I'd explain why my approach is better" with no stopping rule.
 
@@ -305,9 +305,6 @@ The claim-mechanism-cost-limits structure and the hint protocol are how senior e
 
 - **Going silent to think.** The thinking may be excellent, but a minute without speech is a minute with no observation in the debrief, and the estimate can only move down.
 - **Announcing the technique instead of deriving it.** "This is a sliding window" with no bottleneck named reads as recall; the same answer preceded by "the brute force rechecks every window from scratch" reads as reasoning.
-- **Rubber-stamping hints.** "Of course" costs a second hint, and two hints on one problem is the difference between "guided" and "unaided" in the write-up.
-- **Narrating keystrokes.** The interviewer stops listening before the decision that mattered arrives.
-- **Hedging the complexity.** "Probably O(n log n)" tells the reader the candidate cannot analyse their own code; the three-part form takes ten seconds longer.
 - **Arguing with a hint.** One sentence of disagreement is judgment; a paragraph is a collaboration flag.
 - **Ending without a summary.** Nobody says what was tested and what was not, so the debrief assumes nothing was.
 

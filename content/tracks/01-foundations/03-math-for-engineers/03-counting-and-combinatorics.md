@@ -73,9 +73,9 @@ Trace $\binom{10}{3}$:
 | 2 | 8 | $8 \cdot 9 = 72$ | $72 / 2$ | 36 | $\binom{9}{2}$ |
 | 3 | 36 | $36 \cdot 10 = 360$ | $360 / 3$ | 120 | $\binom{10}{3}$ |
 
-The division is exact at every step because of the identity $\binom{m}{i} = \binom{m-1}{i-1} \cdot \frac{m}{i}$: after step $i - 1$ the running value is $\binom{n-k+i-1}{i-1}$, multiplying by $n - k + i$ gives $i \cdot \binom{n-k+i}{i}$, an integer multiple of $i$. Multiply *before* dividing, always; `result // i * (n - k + i)` truncates at $i = 2$ in the trace above ($8 // 2 = 4$, then $36$: correct by luck, and at $i = 3$, $36 // 3 = 12$, $12 \cdot 10 = 120$, also luck; on $\binom{10}{4}$ it fails).
+The division is exact at every step because of the identity $\binom{m}{i} = \binom{m-1}{i-1} \cdot \frac{m}{i}$: after step $i - 1$ the running value is $\binom{n-k+i-1}{i-1}$, multiplying by $n - k + i$ gives $i \cdot \binom{n-k+i}{i}$, an integer multiple of $i$. Multiply *before* dividing, always. `result // i * (n - k + i)` happens to work on the trace above ($8 // 2 = 4$, $4 \cdot 9 = 36$; $36 // 3 = 12$, $12 \cdot 10 = 120$), but on $\binom{10}{4}$ it computes $7 // 2 = 3$ at $i = 2$ and ends wrong.
 
-In JavaScript this loop is exact as long as the *intermediate product* stays below $2^{53}$. Every $\binom{n}{k}$ with $n \le 56$ is below $2^{53}$ (the largest, $\binom{56}{28} = 7.6 \times 10^{15}$, is under $9.0 \times 10^{15}$); at $n = 57$ the middle coefficient is $1.5 \times 10^{16}$ and the result is silently rounded. Beyond that, `BigInt`. Under a modulus you cannot divide at all, so you either build Pascal's triangle ($O(nk)$ additions) or precompute factorials and their [modular inverses](/learn/foundations/math-for-engineers/number-theory-essentials).
+In JavaScript this loop is exact as long as the *intermediate product* stays below $2^{53}$. Every $\binom{n}{k}$ with $n \le 56$ is below $2^{53}$ (the largest, $\binom{56}{28} = 7.6 \times 10^{15}$, is under $9.0 \times 10^{15}$), and at $n = 57$ the middle coefficient is $1.5 \times 10^{16}$. The product before each division is up to $k$ times the running value, though, so the loop runs out first: in Node 24 it first returns a wrong value at $\binom{56}{23}$, and it is exact for every $n \le 55$. Beyond that, `BigInt`. Under a modulus you cannot divide at all, so you either build Pascal's triangle ($O(nk)$ additions) or precompute factorials and their [modular inverses](/learn/foundations/math-for-engineers/number-theory-essentials).
 
 ## Subsets and bit strings
 
@@ -116,7 +116,7 @@ If you put $n + 1$ items into $n$ boxes, some box has at least two. Obvious, and
 - Any array of $n + 1$ integers drawn from $1..n$ contains a duplicate. That guarantee is the premise of [Find the Duplicate Number](/practice/find-duplicate-number), where the duplicate's existence lets you use cycle detection instead of a hash set.
 - A hash table with $m$ buckets and more than $m$ keys *must* have a collision, no matter how good the hash. Collision handling is not optional.
 - Among any 367 people two share a birthday. (With random birthdays you only need 23 for a coin-flip chance; that is probability, not pigeonhole.)
-- Any sequence of $n^2 + 1$ distinct numbers contains a monotone subsequence of length $n + 1$ (Erdős–Szekeres): label each element with the length of the longest increasing run ending there; if no label exceeds $n$, some label is shared by $n + 1$ elements, and those must form a decreasing subsequence.
+- Any sequence of $n^2 + 1$ distinct numbers contains a monotone subsequence of length $n + 1$ (Erdős–Szekeres): label each element with the length of the longest increasing subsequence ending there; if no label exceeds $n$, some label is shared by $n + 1$ elements, and those must form a decreasing subsequence.
 - Any lossless compressor that shrinks some inputs must expand others: there are $2^n$ inputs of $n$ bits and only $2^n - 1$ shorter outputs.
 
 The generalised form: $n$ items in $m$ boxes means some box has at least $\lceil n / m \rceil$. That is the "average chain length is $n/m$, so some chain is at least that" argument for hash tables.
@@ -166,15 +166,15 @@ The reason to know these numbers is to make decisions quickly. A reference table
 
 Reading the table: subsets are fine to $n \approx 25$ and borderline at 30. Orderings die at 12. Pairs and triples are fine into the thousands ($\binom{5000}{2} \approx 1.2 \times 10^7$; $\binom{500}{3} \approx 2 \times 10^7$), which is why $O(n^2)$ pair enumeration is acceptable for "n up to a few thousand" and $O(n^3)$ for "n up to a few hundred".
 
-**Test-case counting and pairwise coverage.** Three fields, each valid, empty or malformed, is $3^3 = 27$ combinations; eight boolean flags is $2^8 = 256$; a matrix of eight three-valued options is $3^8 = 6{,}561$ CI jobs. You will not run 6,561 jobs. *Pairwise* testing covers every pair of values of every pair of factors at least once, on the evidence that most interaction bugs involve two factors. For three factors with three values each, nine rows suffice, and here they are, built by the rule $c = (a + b) \bmod 3$:
+**Test-case counting and pairwise coverage.** Three fields, each valid, empty or malformed, is $3^3 = 27$ combinations; eight boolean flags is $2^8 = 256$; a matrix of eight three-valued options is $3^8 = 6{,}561$ CI jobs. You will not run 6,561 jobs. *Pairwise* testing covers every pair of values of every pair of factors at least once. For three factors with three values each, nine rows suffice, and here they are, built by the rule $c = (a + b) \bmod 3$:
 
 ```text
 (0,0,0) (0,1,1) (0,2,2) (1,0,1) (1,1,2) (1,2,0) (2,0,2) (2,1,0) (2,2,1)
 ```
 
-Check any two columns: all nine value pairs appear exactly once, because for fixed $(a, b)$ the third is determined and for fixed $(a, c)$ or $(b, c)$ the remaining value is determined too. Nine rows instead of 27; for larger matrices, tools (PICT, AllPairs) compute covering arrays, and the count grows roughly with the *log* of the number of factors rather than exponentially.
+Check any two columns: all nine value pairs appear exactly once, because for fixed $(a, b)$ the third is determined and for fixed $(a, c)$ or $(b, c)$ the remaining value is determined too. Nine rows instead of 27. The evidence behind pairwise testing is [NIST's studies of real failures](https://csrc.nist.gov/projects/automated-combinatorial-testing-for-software), which found most were triggered by one or two parameters and progressively fewer by three or more. For larger matrices, tools (PICT, AllPairs) compute covering arrays, and the count grows roughly with the *log* of the number of factors rather than exponentially.
 
-**Replica placement and the number of copysets.** A 12-node cluster storing each chunk on 3 nodes can use any of $\binom{12}{3} = 220$ node triples. If placement is random, after enough chunks every triple holds some chunk, so *any* simultaneous failure of 3 nodes loses data with probability 1. If placement is restricted to 4 disjoint triples (the copyset idea), only $4/220 \approx 1.8\%$ of 3-node failures hit a set that holds a whole chunk. The trade is recovery parallelism: with 220 sets a failed node's data is rebuilt from 11 peers at once; with 4 sets, from 2. The count $\binom{n}{r}$ is the whole design space, and choosing how much of it to use is the decision.
+**Replica placement and the number of copysets.** A 12-node cluster storing each chunk on 3 nodes can use any of $\binom{12}{3} = 220$ node triples. If placement is random, after enough chunks every triple holds some chunk, so *any* simultaneous failure of 3 nodes loses data with probability 1. If placement is restricted to 4 disjoint triples (the idea behind [Copysets](https://www.usenix.org/conference/atc13/technical-sessions/presentation/cidon), USENIX ATC 2013), only $4/220 \approx 1.8\%$ of 3-node failures hit a set that holds a whole chunk. The trade is recovery parallelism: with 220 sets a failed node's data is rebuilt from 11 peers at once; with 4 sets, from 2. The count $\binom{n}{r}$ is the whole design space, and choosing how much of it to use is the decision.
 
 **ID sizing.** A random 8-character identifier over 62 alphanumerics has $62^8 = 2.18 \times 10^{14}$ values, about 47.6 bits. Whether that is "enough" depends on the birthday bound, not on the count alone, and that is the next lesson.
 
@@ -190,21 +190,21 @@ When you do need every element of a space rather than its size, the enumeration 
 | Gray code (flip one bit per step) | each subset differs from the previous by one item | $O(1)$ | no | fastest when the per-item update is incremental | subset-sum style incremental evaluation |
 | Counting DP (Pascal, stars-and-bars) | none: produces counts only | $O(nk)$ table | n/a | $O(nk)$ total, not per item | you need the number, not the items |
 
-The most common mismatch is enumerating when only the count was asked for: "how many paths" is $\binom{m+n-2}{m-1}$ in microseconds, and a DFS that lists them all is $48{,}620$ recursive calls for a $10 \times 10$ grid and $1.4 \times 10^{11}$ for $20 \times 20$.
+The most common mismatch is enumerating when only the count was asked for: "how many paths" is $\binom{m+n-2}{m-1}$ in microseconds, and a DFS that lists them all visits $48{,}620$ paths for a $10 \times 10$ grid and $3.5 \times 10^{10}$ for $20 \times 20$.
 
 ## Under the hood
 
-**`math.comb` and Python's big integers.** `math.comb(n, k)` returns the exact integer using the multiplicative method with big-integer arithmetic; measured, $\binom{52}{5}$ takes 0.3 µs and $\binom{1000}{500}$ (a 300-digit number) about 20 µs. The cost is dominated by multiplying and dividing numbers that grow with the answer's size. Since Python 3.11, converting an integer of more than 4,300 digits to a decimal string raises `ValueError` unless you raise the limit with `sys.set_int_max_str_digits`, because decimal conversion is quadratic in the digit count and was a denial-of-service vector; if you ever print $\binom{100000}{50000}$ you will meet it.
+**`math.comb` and Python's big integers.** `math.comb(n, k)` returns the exact integer using the multiplicative method with big-integer arithmetic; measured, $\binom{52}{5}$ takes 0.3 µs and $\binom{1000}{500}$ (a 300-digit number) about 20 µs. The cost is dominated by multiplying and dividing numbers that grow with the answer's size. Since Python 3.11 (and security releases of the older versions), converting an integer of more than 4,300 digits to a decimal string raises `ValueError` unless you raise the limit with `sys.set_int_max_str_digits`, because decimal conversion is super-linear in the digit count and was a denial-of-service vector (CVE-2020-10735); if you ever print $\binom{100000}{50000}$ you will meet it.
 
 **`itertools.combinations`** keeps an array of $k$ indices and advances the rightmost index that can still move, resetting those after it: lexicographic order with $O(k)$ state and amortised $O(1)$ work per item, all in C. `itertools.permutations` does the same with a rotation scheme. Both are generators, so enumerating $12!$ permutations uses constant memory; `list(permutations(range(12)))` would allocate 479 million tuples and exhaust memory long before it finishes.
 
-**JavaScript numbers.** Every $\binom{n}{k}$ with $n \le 56$ is exact in a double; the loop's intermediate products stay under $2^{53}$ when you multiply then divide in the order shown. $20!$ is not exact in a double ($2.43 \times 10^{18} > 2^{53}$), so a factorial-based formula silently rounds in JavaScript from $n = 19$ upward even where the final answer would fit.
+**JavaScript numbers.** Every $\binom{n}{k}$ with $n \le 56$ fits a double exactly, and the multiply-then-divide loop computes all of them correctly up to $n = 55$. Factorials are exact in a double only up to $22!$ (its odd part still fits in 53 bits; $23!$'s does not), so in Node 24 a factorial-based formula first goes wrong at $\binom{23}{2}$, which comes out as `253.00000000000003`.
 
 ## Failure modes in production
 
 **The CI matrix that grew a dimension.** *Symptom:* adding one more three-valued option triples the job count; a matrix of eight options is 6,561 jobs and the pipeline takes a day. *Diagnosis:* the product rule; every option multiplies. *Fix:* a pairwise covering array (nine rows for three options; tens of rows for eight) for the interaction tests, plus a small set of hand-chosen full-combination smoke tests.
 
-**A factorial or product that overflowed.** *Symptom:* a scheduling service reports a negative or nonsensical number of orderings, or a JavaScript dashboard shows a "count" that ends in suspicious zeros. *Diagnosis:* $21!$ exceeds $2^{64}$; $\binom{57}{28}$ exceeds $2^{53}$; $n!/(k!(n-k)!)$ overflows long before $\binom{n}{k}$ does. *Fix:* the multiplicative formula with symmetry, `BigInt` or arbitrary-precision integers when the answer itself is large, and a test at the boundary ($n = 56$ and $57$ in JavaScript).
+**A factorial or product that overflowed.** *Symptom:* a scheduling service reports a negative or nonsensical number of orderings, or a JavaScript dashboard shows a "count" that ends in suspicious zeros. *Diagnosis:* $21!$ exceeds $2^{64}$; $\binom{57}{28}$ exceeds $2^{53}$; $n!/(k!(n-k)!)$ overflows long before $\binom{n}{k}$ does. *Fix:* the multiplicative formula with symmetry, `BigInt` or arbitrary-precision integers when the answer itself is large, and a test at the boundary ($n = 55$ and $56$ for the loop in JavaScript).
 
 **Double-counted users in analytics.** *Symptom:* the "reached by any campaign" number exceeds the number of users who exist. *Diagnosis:* per-segment counts were added; users in two segments were counted twice. *Fix:* inclusion–exclusion when you have the intersections, or compute the union directly with a distinct count (or a HyperLogLog sketch, whose merge *is* a union) when you do not.
 
@@ -323,7 +323,7 @@ hints:
 
 ## What mid-level engineers get wrong
 
-- **Computing $n!/(k!(n-k)!)$ literally.** Overflows 64 bits at $n = 21$ and a double at $n = 19$, long before $\binom{n}{k}$ does; the multiplicative form never exceeds the answer.
+- **Computing $n!/(k!(n-k)!)$ literally.** Overflows 64 bits at $n = 21$ and loses exactness in a double at $n = 23$, long before $\binom{n}{k}$ does; the multiplicative form stays within a factor $k$ of the answer.
 - **Dividing before multiplying in the multiplicative loop.** Truncates on many inputs and passes the small tests by luck.
 - **Adding overlapping counts.** Segment sizes, "any of" filters, blocked-cell subtractions: without inclusion–exclusion the union is over-counted.
 - **Treating $2^{30}$ as "about a million".** It is a billion; subsets are fine at 20 and not at 30 in an interpreted language.
@@ -334,7 +334,7 @@ hints:
 ## Senior signals
 
 - You size the search space before choosing an approach: "$2^{20}$, enumerate it" or "$15!$, we need pruning or DP", said within the first minute, and you convert it to seconds using the runtime's cost per operation.
-- You compute binomials with the multiplicative formula, can prove the division is exact at every step, know the JavaScript limit ($n \le 56$), and know that under a modulus you need Pascal's triangle or modular inverses instead.
+- You compute binomials with the multiplicative formula, can prove the division is exact at every step, know where JavaScript's doubles stop being exact, and know that under a modulus you need Pascal's triangle or modular inverses instead.
 - You recognise the five shapes (orderings, subsets, $k$-subsets, lattice paths, stars-and-bars) in a problem statement even when it is dressed up as servers, tasks, robots or replicas.
 - You use pigeonhole as a *proof* tool: "there are $n + 1$ values in a range of $n$, so a duplicate exists, so cycle detection applies."
 - You correct overlapping counts with inclusion–exclusion rather than double-counting, can derive derangements from it, and know that estimating a union from parts is what makes distinct-count analytics hard.

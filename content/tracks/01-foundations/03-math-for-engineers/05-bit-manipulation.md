@@ -65,14 +65,14 @@ x | (1 << i)          # set bit i
 x & ~(1 << i)         # clear bit i
 x ^ (1 << i)          # toggle bit i
 (x >> i) & 1          # read bit i as 0 or 1
-x & (1 << i) != 0     # WRONG in Python and C: != binds tighter than &
+x & (1 << i) != 0     # WRONG in C and JavaScript: != binds tighter than &
 (x & (1 << i)) != 0   # test bit i, correctly parenthesised
 (1 << k) - 1          # the low k bits all set: 0b0111 for k = 3
 x & ((1 << k) - 1)    # keep the low k bits, i.e. x mod 2^k
 (x >> lo) & ((1 << (hi - lo)) - 1)   # extract bits lo..hi-1 as a number
 ```
 
-Operator precedence is the single most common bit-manipulation bug. In Python, C, C++, Java and JavaScript, comparison operators bind *tighter* than `&`, `|` and `^`, so `x & 1 == 0` parses as `x & (1 == 0)`, which is `x & 0`, which is always falsy: an "is even" test that never fires. Parenthesise every bitwise sub-expression that sits next to a comparison.
+Operator precedence is a classic bit-manipulation bug. In C, C++, Java and JavaScript, comparison operators bind *tighter* than `&`, `|` and `^`, so `x & 1 == 0` parses as `x & (1 == 0)`. In C and JavaScript that is `x & 0`, always falsy: an "is even" test that never fires (gcc's `-Wall` warns "suggest parentheses around comparison in operand of '&'"). In Java it does not compile, because `int & boolean` is a type error. Python is the exception: its bitwise operators bind tighter than comparisons, so there `x & 1 == 0` means what it looks like. Parenthesise every bitwise sub-expression that sits next to a comparison anyway; the habit survives a change of language.
 
 Trace the idioms on a Unix mode. `0o644` is `110 100 100`: owner read+write, group read, others read. "Can the group write?" is bit 4 (the `2` of the middle triple): `(mode >> 3) & 2` → `110100 & 010` = `000`, no. "Make it group-writable" is `mode | (2 << 3)` = `110100100 | 000010000` = `110110100` = `0o664`. "Remove all execute permission" is `mode & ~0o111` = `& 110110110`, which leaves `0o664` unchanged because no execute bit was set. A `chmod` call is three mask operations.
 
@@ -124,7 +124,7 @@ Kernighan's loop is $O(\text{set bits})$, which beats the $O(\text{width})$ shif
 
 ### Popcount in hardware, and the SWAR fallback
 
-x86 has had a `POPCNT` instruction since 2008 (Nehalem; the SSE4.2/ABM era), ARM has `CNT` in NEON, and both count a 64-bit word in a single instruction with a throughput of about one per cycle. In every language the fastest popcount is the one that reaches that instruction: `int.bit_count()` in Python 3.10+, `Integer.bitCount` and `Long.bitCount` in Java (JIT intrinsics), `x.count_ones()` in Rust (`llvm.ctpop`), `bits.OnesCount64` in Go (a compiler intrinsic that checks CPU support once at start-up), `__builtin_popcountll` in C. Measured in CPython 3.14 on 100,000 random 64-bit integers: Kernighan's loop 909 ns per value (about 32 iterations of interpreted bytecode each), `bin(x).count("1")` 90 ns, `x.bit_count()` 15 ns, of which nearly all is the method-call overhead.
+x86 has had a `POPCNT` instruction since the late 2000s (Intel added it with Nehalem, AMD with its ABM extension), and it counts a 64-bit word in one instruction with a throughput of about one per cycle. ARM's NEON `CNT` counts the bits of each byte in a vector register, so a 64-bit word takes `CNT` plus a horizontal add (Go's arm64 output for `bits.OnesCount64` is `VCNT` then `VUADDLV`). In every language the fastest popcount is the one that reaches that instruction: `int.bit_count()` in Python 3.10+, `Integer.bitCount` and `Long.bitCount` in Java (JIT intrinsics), `x.count_ones()` in Rust (`llvm.ctpop`), `bits.OnesCount64` in Go (a compiler intrinsic that, at the default `GOAMD64=v1`, tests a CPU-feature flag the runtime sets at start-up before each `POPCNTQ`), `__builtin_popcountll` in C. Measured in CPython 3.14 on 100,000 random 64-bit integers: Kernighan's loop 909 ns per value (about 32 iterations of interpreted bytecode each), `bin(x).count("1")` 90 ns, `x.bit_count()` 15 ns, of which nearly all is the method-call overhead.
 
 JavaScript has no popcount, so it needs the **SWAR** trick ("SIMD within a register"): count bits in every 2-bit field in parallel, then every 4-bit field, then every byte. Trace it on the 8-bit value `10110101` (five set bits):
 
@@ -135,7 +135,7 @@ JavaScript has no popcount, so it needs the **SWAR** trick ("SIMD within a regis
 | 2 | `(x & 0x33) + ((x >> 2) & 0x33)` | `0011 0010` | each 4-bit field holds the sum of its two pairs: 3, 2 |
 | 3 | `(x + (x >> 4)) & 0x0F` | `0101` | the byte's total: 5 |
 
-Step 1 works because a 2-bit field `ab` minus its own high bit `a` is exactly $a + b$ (`11 - 1 = 10`, `10 - 1 = 01`, `01 - 0 = 01`, `00 - 0 = 00`). For 32 bits the masks are `0x55555555`, `0x33333333`, `0x0F0F0F0F`, and the last step multiplies by `0x01010101` and shifts right by 24 to sum the four byte counts; twelve operations, no loop, no branch. This is what every runtime's software fallback does, and it is what `bit_count` compiles to on a CPU without `POPCNT`.
+Step 1 works because a 2-bit field `ab` minus its own high bit `a` is exactly $a + b$ (`11 - 1 = 10`, `10 - 1 = 01`, `01 - 0 = 01`, `00 - 0 = 00`). For 32 bits the masks are `0x55555555`, `0x33333333`, `0x0F0F0F0F`, and the last step multiplies by `0x01010101` and shifts right by 24 to sum the four byte counts; twelve operations, no loop, no branch. This is the standard software fallback: rustc (LLVM) inlines exactly this sequence for `count_ones` when the target has no `POPCNT`, while gcc for a generic x86-64 target calls the libgcc helper `__popcountdi2` instead.
 
 ### XOR cancels pairs
 
@@ -202,17 +202,17 @@ Python's `int` acts as an unbounded bitset (`reach |= reach << w` works on it di
 
 **The instructions.** Beyond `POPCNT`, x86 offers `LZCNT` and `TZCNT` (leading and trailing zero count; `bit_length` and lowest-set-bit index in one instruction), `BSF`/`BSR`, and the BMI2 pair `PDEP`/`PEXT` (scatter and gather bits by a mask, used by chess engines and some hash tables). AVX-512 adds `VPOPCNTDQ`, popcount over 512 bits at once. A single core can popcount memory at roughly one 64-bit word per cycle, so counting the bits of a billion words is about 0.3 s of arithmetic and is bounded by the 8 GB of memory traffic, not by the counting.
 
-**CPython.** An `int` is an array of 30-bit digits, so `&`, `|`, `^` and shifts on big integers run digit by digit, $O(\text{digits})$; `x & -x` on a 10,000-bit integer walks 334 digits. `int.bit_count()` calls the C compiler's builtin, which becomes `POPCNT` when the interpreter is built with that target feature and the SWAR routine otherwise. `bit_length()` is a leading-zero count on the top digit plus 30 per lower digit.
+**CPython.** An `int` is an array of 30-bit digits, so `&`, `|`, `^` and shifts on big integers run digit by digit, $O(\text{digits})$; `x & -x` on a 10,000-bit integer walks 334 digits. `int.bit_count()` calls the C compiler's builtin, which becomes `POPCNT` when the interpreter is built with that target feature and a software routine otherwise (inline SWAR from clang, a libgcc call from gcc). `bit_length()` is a leading-zero count on the top digit plus 30 per lower digit.
 
-**V8.** Small integers are 31-bit tagged values; a bitwise operator on two Smis is a few machine instructions in optimised code, but every result is re-tagged, and any operand outside 31 bits goes through `ToInt32`, which converts a double to an integer by the same mod-$2^{32}$ truncation that makes `2**32 | 0` zero. `Math.clz32` is the one bit instruction JavaScript exposes directly.
+**V8.** Small integers are tagged values (Smis, 32-bit in a default 64-bit Node build and 31-bit with pointer compression); a bitwise operator on two Smis is a few machine instructions in optimised code, but every result is re-tagged, and any operand that is not a Smi goes through `ToInt32`, which converts a double to an integer by the same mod-$2^{32}$ truncation that makes `2**32 | 0` zero. `Math.clz32` is the one bit instruction JavaScript exposes directly.
 
-**Rust and Go.** `count_ones`, `leading_zeros`, `trailing_zeros` compile to the instructions above when the target has them (`-C target-cpu=native`, or Go's `GOAMD64=v2`+); otherwise the compiler emits the SWAR sequence. Go's `math/bits` functions are intrinsified by the compiler and check CPU features once at start-up when the target level is `v1`.
+**Rust and Go.** `count_ones`, `leading_zeros`, `trailing_zeros` compile to the instructions above when the target has them (`-C target-cpu=native`, or Go's `GOAMD64=v2`+); otherwise Rust emits the SWAR sequence, and Go at `v1` emits a runtime feature check that branches to `POPCNTQ` or to a software routine.
 
 ## Language traps, collected
 
 | Trap | Where | What happens | Fix |
 |---|---|---|---|
-| `x & 1 == 0` | Python, C, Java, JS | Parses as `x & (1 == 0)` | Parenthesise |
+| `x & 1 == 0` | C, C++, JS (a compile error in Java; correct in Python) | Parses as `x & (1 == 0)` | Parenthesise |
 | Bitwise ops on values $\ge 2^{31}$ | JavaScript | Truncated to signed 32-bit; `2**31 \| 0` is negative | `>>> 0`, `BigInt`, or arithmetic (`Math.floor(x / 2)`) |
 | `1 << 32` | JavaScript | Shift count taken mod 32, result is `1` | Use `2 ** 32` or `BigInt` |
 | `~x` on a huge Python int | Python | $-x - 1$, a negative number, not a bit flip of a fixed width | Mask: `~x & ((1 << w) - 1)` |
@@ -226,7 +226,7 @@ Python's `int` acts as an unbounded bitset (`reach |= reach << w` works on it di
 
 **Feature flags that started interfering.** *Symptom:* a Node service gains its 32nd flag and unrelated flags flip on and off together. *Diagnosis:* the flag set is a JavaScript `number` used with `|` and `&`; bit 31 is the sign bit and bit 32 wraps to bit 0 (`1 << 32 === 1`). *Fix:* a `BigInt` mask, two 31-bit words, or a `Set` of flag names; and a test that sets the highest flag alone.
 
-**An "is even" check that never fires.** *Symptom:* every record takes the odd branch; a half-the-rows sampling returns everything. *Diagnosis:* `n & 1 == 0` parsed as `n & (1 == 0)`, always 0, always falsy. *Fix:* `(n & 1) == 0`, and a linter rule (most catch this).
+**An "is even" check that never fires.** *Symptom:* every record takes the odd branch; a half-the-rows sampling returns everything. *Diagnosis:* in C or JavaScript, `n & 1 == 0` parsed as `n & (1 == 0)`, always 0, always falsy. *Fix:* `(n & 1) == 0`, and a warning or lint rule (gcc's `-Wparentheses`, part of `-Wall`, catches it).
 
 **A bit-parallel loop that hangs.** *Symptom:* the XOR-and-carry adder passes every positive test and hangs on the first negative operand in Python. *Diagnosis:* Python's negative integers have infinitely many leading ones, so the carry never becomes zero. *Fix:* mask both operands and the carry to the intended width each iteration, and convert the result back with the two's-complement reinterpretation.
 
@@ -336,7 +336,7 @@ hints:
 
 ## What mid-level engineers get wrong
 
-- **Forgetting that comparison binds tighter than `&`.** `x & 1 == 0` is always false; the branch never runs and the tests that would catch it were written with the same bug.
+- **Forgetting that comparison binds tighter than `&` in C and JavaScript.** `x & 1 == 0` is always false there; the branch never runs and the tests that would catch it were written with the same bug.
 - **Using JavaScript bitwise operators past 31 bits.** Flags, hashes and masks silently wrap; `>>> 0` and `BigInt` exist for this.
 - **Treating `~x` in Python as a fixed-width flip.** It is $-x - 1$; masking to a width is required to get the bit pattern you meant.
 - **Writing an $O(\text{width})$ bit loop in an interpreted language on a hot path.** Sixty-four bytecode iterations per word against one instruction: a 60× gap before allocation.
@@ -364,11 +364,11 @@ hints:
   explanation: >-
     Numbers are 64-bit floats, but every bitwise operator works on a signed 32-bit view of its operands: bit 31 is the sign bit, and shift counts are masked to 5 bits, so 32 becomes 0 and 1 << 32 is 1 << 0. Overflowing past bit 31 would give 0, not 1.
 - q: >-
-    Why does `x & (x - 1) == 0` in Python not correctly test whether x is a power of two, even for positive x?
-  options: ["Python ints have no fixed width, so the trick fails", "The test only works on unsigned, fixed-width integers", "== binds tighter than &, so it is x & ((x - 1) == 0)", "x - 1 underflows when x = 1, breaking the smallest case"]
-  answer: 2
+    Why does `x & (x - 1) == 0` in JavaScript not correctly test whether x is a positive power of two?
+  options: ["The test only works on unsigned, fixed-width integers", "== binds tighter than &, so it is x & ((x - 1) == 0)", "x - 1 underflows when x = 1, breaking the smallest case", "JavaScript numbers are doubles, so the trick fails"]
+  answer: 1
   explanation: >-
-    Comparison has higher precedence than bitwise AND in Python (and C, Java, JavaScript), so the expression tests x & False, which is 0, for every x except 1. Parenthesise: (x & (x - 1)) == 0. The trick itself works fine on Python's arbitrary-width positive integers.
+    Comparison has higher precedence than bitwise AND in JavaScript (and C), so the expression is x & false, which is 0, for every x except 1. Parenthesise: (x & (x - 1)) == 0. The trick itself works on JavaScript numbers below 2^31, whose bitwise operators see a 32-bit integer. Python gives & the higher precedence, so the unparenthesised form happens to work there, and in Java it does not compile.
 - q: >-
     An array holds every integer from 0 to n exactly once except one that is missing. Which approach finds it in O(n) time and O(1) space with no risk of overflow in a fixed-width language?
   options: ["Sort the array in place, then scan for the gap", "Sum 0..n with n(n+1)/2 and subtract the array sum", "XOR together all indices 0..n and all array values", "Insert all values into a hash set, then probe 0..n"]

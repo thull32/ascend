@@ -118,7 +118,7 @@ Then remember what a constraint in a prompt is: a request. Under pressure (a fai
 | "Never edit shipped migrations" | Claude Code: `"deny": ["Edit(migrations/**)", "Write(migrations/**)"]` in `.claude/settings.json`; a CI job that fails when a file under `migrations/` with an existing version changes |
 | "Do not modify the tests during implementation" | A `PreToolUse` hook that denies `Edit`/`Write` on `tests/**` for the implementation step (see [the agentic workflow](/learn/ai-assisted-engineering/tools-and-workflows/agentic-coding-workflow)) |
 | "No new dependencies" | CI fails if the lockfile changes without a `deps:` label; `CODEOWNERS` routes lockfile changes to a named reviewer |
-| "Do not touch `.env`" | `"deny": ["Read(./.env)", "Read(./.env.*)"]` plus a sandbox filesystem deny, because a shell `cat` is not the Read tool |
+| "Do not touch `.env`" | `"deny": ["Read(./.env)", "Read(./.env.*)"]` plus a sandbox filesystem deny, because a Python one-liner that opens the file is invisible to the rule |
 | "Stay inside `api/orders/`" | A worktree or checkout containing only what the task needs; review of `git diff --stat` before anything else |
 
 The spec states the intent; the harness and the pipeline enforce it. [MCP and integrations](/learn/ai-assisted-engineering/tools-and-workflows/mcp-and-integrations) ranks the enforcement layers by how well they hold.
@@ -139,7 +139,7 @@ Leave out general advice ("write clean, well-tested code"), anything the agent c
 
 ### This repository's CLAUDE.md, annotated
 
-The file at the root of this repository is 26 lines and 1,732 characters, about 430 tokens: under a quarter of a percent of a 200,000-token window, loaded into every session. Here it is, with what each part is doing.
+The file at the root of this repository is 26 lines and 1,735 characters, about 430 tokens: under a quarter of a percent of a 200,000-token window, loaded into every session. Here it is, with what each part is doing.
 
 ```markdown
 # Ascend
@@ -183,13 +183,13 @@ The loading rules differ, and they decide where a line must live to be seen. At 
 
 | Tool | Files | Loading rule |
 |---|---|---|
-| Claude Code | `~/.claude/CLAUDE.md`, `./CLAUDE.md` (or `.claude/CLAUDE.md`), `CLAUDE.local.md`, `.claude/rules/*.md` | User and project files load in full at session start; project wins on conflict; a rule file with a `paths:` front matter (glob list) loads only when a matching file enters the context, one without it loads at start; `@path` imports pull other files in; edits apply at `/clear` or `/compact`; `/init` drafts one |
+| Claude Code | `~/.claude/CLAUDE.md`, `./CLAUDE.md` (or `.claude/CLAUDE.md`), `CLAUDE.local.md`, `.claude/rules/*.md`; `AGENTS.md` when there is no `CLAUDE.md` | User and project files load in full at session start and are concatenated, broadest first, so project lines come later; nothing resolves a contradiction between them; subdirectory files load when Claude reads files there; a rule file with a `paths:` front matter (glob list) loads only when a matching file is read, one without it loads at start; `@path` imports nest up to four hops; edits apply at `/clear`, `/compact` or restart; `/init` drafts one |
 | OpenAI Codex | `~/.codex/AGENTS.override.md` or `~/.codex/AGENTS.md`, then `AGENTS.md` (or `AGENTS.override.md`) in each directory from the project root down to the working directory | One file per directory, concatenated root-first so the closest file appears last and overrides; stops at 32 KiB total (`project_doc_max_bytes`); `/init` scaffolds one |
 | Cursor | `.cursor/rules/*.mdc`, `AGENTS.md` (root and nested), `CLAUDE.md` | A rule's front matter (`description`, `globs`, `alwaysApply`) sets one of four types: always applied, applied when the model judges it relevant from the description, attached when a file matching `globs` is in context, or only when mentioned; nested `AGENTS.md` files combine with the closest taking precedence; rules apply to the agent, not to Tab completion |
 | GitHub Copilot | `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, `AGENTS.md`, root `CLAUDE.md` or `GEMINI.md` | Repository-wide file always; an instructions file's `applyTo:` glob scopes it to matching paths; the nearest `AGENTS.md` wins; on GitHub.com the path-specific files apply to the cloud agent and code review |
-| Gemini CLI | `~/.gemini/GEMINI.md`, `GEMINI.md` in the workspace and parents, files found when a tool touches a directory | Global, then workspace, then just-in-time discovery up to a boundary such as `.git`; `context.fileName` can point at `AGENTS.md` instead; `@file` imports nest to depth 5 |
+| Gemini CLI | `~/.gemini/GEMINI.md`, `GEMINI.md` in the workspace and parents, files found when a tool touches a directory | Global, then workspace, then just-in-time discovery in that directory and its ancestors up to a trusted root; `context.fileName` can point at `AGENTS.md` instead; `@file` imports nest to depth 5 |
 
-`AGENTS.md` itself is a plain-Markdown convention with one rule, "the closest `AGENTS.md` to the edited file wins; explicit user chat prompts override everything", stewarded since December 2025 by the Agentic AI Foundation under the Linux Foundation, and read by Codex, Cursor, Copilot, Gemini CLI (by configuration) and many others; Claude Code's documentation lists it as loadable alongside `CLAUDE.md`.
+[`AGENTS.md`](https://agents.md/) itself is a plain-Markdown convention with one rule, "the closest `AGENTS.md` to the edited file wins; explicit user chat prompts override everything", stewarded since December 2025 by the Agentic AI Foundation under the Linux Foundation, and read by Codex, Cursor, Copilot, Gemini CLI (by configuration) and many others. Claude Code, at the time of writing, reads it directly when a repository has no `CLAUDE.md`, and alongside `CLAUDE.md` if you change one setting.
 
 ### Nesting and scope
 
@@ -205,7 +205,7 @@ Two consequences for where you write things. First, nesting is real in every too
 
 ### One source of truth across tools
 
-If your team uses several tools, keep one canonical file and point the others at it, for example with a symlink (`ln -s AGENTS.md CLAUDE.md`, the same trick the AGENTS.md site recommends for the older `AGENT.md` name) or a one-line tool-specific file that imports it, and keep only genuinely tool-specific settings in the tool-specific files. Copilot and Cursor read `CLAUDE.md` directly, and Gemini CLI can be told to read `AGENTS.md`, so the symlink is often unnecessary; check the current documentation for the tools you run.
+If your team uses several tools, keep one canonical file and point the others at it, for example with a symlink (`ln -s AGENTS.md CLAUDE.md`, the same trick the AGENTS.md site recommends for the older `AGENT.md` name) or a one-line tool-specific file that imports it, and keep only genuinely tool-specific settings in the tool-specific files. Copilot and Cursor read `CLAUDE.md` directly, Claude Code reads `AGENTS.md` when no `CLAUDE.md` exists, and Gemini CLI can be told to read `AGENTS.md`, so the symlink is often unnecessary; check the current documentation for the tools you run.
 
 ### Maintaining memory files
 
@@ -237,7 +237,7 @@ sys.exit(1 if missing else 0)
 Run against this repository's file today:
 
 ```text
-CLAUDE.md: 26 lines, 1,732 chars, about 433 tokens
+CLAUDE.md: 26 lines, 1,735 chars, about 433 tokens
 paths mentioned: 9, missing: 0
 ```
 
@@ -301,7 +301,7 @@ What generalises: a spec for agents is a contract with examples, a checkable def
 
 **"Why ask the agent to report decisions the spec did not cover?"** Model answer: because agents fill gaps silently and the report turns each default into a ten-second review decision; it also tells you which lines the next version of the spec needs. Common wrong answer: "so the summary is longer", which confuses the report with the agent's self-assessment, a claim rather than evidence.
 
-**"Your monorepo has a root `AGENTS.md` and one in `web/`. A rule differs between them. What happens?"** Model answer: in every current tool the closer file wins for work under `web/`, and a chat instruction overrides both; the right fix is to delete the duplicate so one convention lives in one place. Common wrong answer: "the root file has priority", which is backwards.
+**"Your monorepo has a root `AGENTS.md` and one in `web/`. A rule differs between them. What happens?"** Model answer: in the tools that define an order, the closer file wins for work under `web/` (Codex and Claude Code place it later in the prompt; Cursor and Copilot give the nearest file precedence), and a chat instruction overrides both; the right fix is to delete the duplicate so one convention lives in one place. Common wrong answer: "the root file has priority", which is backwards.
 
 ## What mid-level engineers get wrong
 

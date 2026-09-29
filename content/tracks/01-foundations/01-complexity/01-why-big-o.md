@@ -168,7 +168,7 @@ Six bytecodes per iteration, and each bytecode is a dispatch through the interpr
 
 All three are $O(n)$. The constants are 11.2, 2.4 and 0.19: a 60× spread inside one growth class, on one machine, for one line of code. That is what "we drop the constant" is asking you to accept, and it is why the next lesson's "which class fits in a second" table is quoted to one significant figure.
 
-The other assumption to price is unit-cost memory. On the same machine, a C loop that sums an array three different ways gives these per-element times (best of several runs; the exact figures are specific to this CPU's 32 KB L1, 1 MB L2 and 96 MB L3, but the shape is universal):
+The other assumption to price is unit-cost memory. On the same machine, a C loop that sums an array three different ways gives these per-element times (best of several runs; the exact figures are specific to this CPU's 48 KB L1 data cache and 1 MB L2 per core and the 96 MB L3 on its V-Cache chiplet, but the shape is universal):
 
 | Working set | Sequential scan | Random index (independent loads) | Pointer chase (dependent loads) |
 |---|---|---|---|
@@ -198,13 +198,13 @@ The model lets you add two numbers in one step because it assumes they fit in a 
 | `a + b` | 50 ns | 120 ns | | 6,000 ns |
 | `a * b` | | 4.5 µs | 180 µs | 6.4 ms |
 
-Addition is linear in the digit count (the 100,000-digit add is 50× the 1,000-digit one). Multiplication goes up by about 40× for each 10× in digits, which is the signature of Karatsuba's $\Theta(d^{1.585})$ algorithm ($10^{1.585} \approx 38$), the one CPython switches to once an operand exceeds 70 of its internal 30-bit digits (about 600 decimal digits). Naive `fib(100000)` or a factorial loop is not $O(n)$ additions; it is $O(n)$ additions on numbers whose length grows with $n$, which is $O(n^2)$ digit operations.
+Addition is linear in the digit count (the 100,000-digit add is 50× the 1,000-digit one). Multiplication goes up by about 40× for each 10× in digits, which is the signature of Karatsuba's $\Theta(d^{1.585})$ algorithm ($10^{1.585} \approx 38$), the one CPython switches to once both operands exceed 70 of its internal 30-bit digits (2,100 bits, about 630 decimal digits; `KARATSUBA_CUTOFF` in `Objects/longobject.c`). Naive `fib(100000)` or a factorial loop is not $O(n)$ additions; it is $O(n)$ additions on numbers whose length grows with $n$, which is $O(n^2)$ digit operations.
 
-Strings have the same problem. Hashing a key reads every byte: measured, 10 ns for an 8-character string, 160 ns for 1 KB, 110 µs for 1 MB. A hash map keyed by 1 KB strings does not do $O(1)$ lookups in any sense that matters; it does $O(L)$ lookups where $L$ is the key length, and a successful lookup then compares the full key as well. When keys are long, say so: "$O(n \cdot L)$ where $L$ is the average key length" is the senior version of "$O(n)$".
+Strings have the same problem. Hashing a key reads every byte: measured, 10 ns for an 8-character string, 160 ns for 1 KB, 110 µs for 1 MB. CPython stores a `str`'s hash on the object after the first call, so looking up with the *same* string object again skips the hashing; a key built fresh for each request, which is the usual case, pays it every time. A hash map keyed by 1 KB strings does not do $O(1)$ lookups in any sense that matters; it does $O(L)$ lookups where $L$ is the key length, and a successful lookup then compares the full key as well. When keys are long, say so: "$O(n \cdot L)$ where $L$ is the average key length" is the senior version of "$O(n)$".
 
 ### Constants are sometimes the whole story
 
-Real sort implementations (Python's Timsort, Rust's and C++'s pattern-defeating quicksort variants) switch to insertion sort, which is $O(n^2)$, for runs shorter than a few dozen elements. They do this because insertion sort's constant is so small that it beats merge or quick sort until $n$ is around 16–32. When $n$ is bounded and small, the constant factor *is* the cost, and the asymptotic answer is irrelevant.
+Real sort implementations switch to insertion sort, which is $O(n^2)$, for short inputs. CPython's Timsort sorts any list shorter than 64 elements with binary insertion sort and uses it to extend short runs to 32–64 elements; libstdc++'s `std::sort` (an introsort) leaves partitions of 16 or fewer elements to a final insertion sort; Rust's `sort_unstable` insertion-sorts any slice of 20 or fewer. They do this because insertion sort's constant is so small that it beats merge or quick sort until $n$ is somewhere between 16 and 64, depending on the implementation. When $n$ is bounded and small, the constant factor *is* the cost, and the asymptotic answer is irrelevant.
 
 Be careful which folklore you repeat, though. "A linear scan beats a hash lookup below ten elements" is true in compiled code, where a comparison is one cycle and a hash is twenty. Measured in CPython 3.14, `x in a_set` (about 13 ns) beats `x in a_list` already at $n = 3$ (23 ns), because every list comparison is itself a dynamic dispatch costing about 10 ns, so the hash's fixed overhead has nothing to beat. The crossover exists; where it sits depends on what one comparison costs in your runtime, and the only way to know is to measure at your $n$.
 
@@ -249,7 +249,7 @@ def common_elements(a, b):
     return result
 ```
 
-If `b` is a list, this is $O(|a| \cdot |b|)$. If you convert `b` to a set first ($O(|b|)$), the loop becomes $O(|a|)$ and the total is $O(|a| + |b|)$. For two lists of 10,000 elements that is the difference between 100 million comparisons and 20,000 hash operations. The conversion costs memory ($O(|b|)$ extra) and, in a compiled language with very small `b`, may be slower. You should be able to say all of that in about fifteen seconds; that is the standard a senior interviewer holds you to.
+If `b` is a list, this is $O(|a| \cdot |b|)$. If you convert `b` to a set first ($O(|b|)$), the loop becomes $O(|a|)$ and the total is $O(|a| + |b|)$. For two lists of 10,000 elements that is the difference between 100 million comparisons and 20,000 hash operations. The conversion costs memory ($O(|b|)$ extra) and, in a compiled language with very small `b`, may be slower. You should be able to say all of that in about fifteen seconds.
 
 Scale the same arithmetic up and it becomes a capacity argument. A service handling $10^5$ requests per second that does an $O(n^2)$ pass over a 1,000-item candidate list per request needs $10^6 \times 10^5 = 10^{11}$ inner-loop executions per second; at a few nanoseconds each that is hundreds of CPU cores doing nothing else. The same service with an $O(n)$ pass needs $10^8$ per second, well within one machine. At Netflix scale, where a personalisation call can look at thousands of candidates per member and the fleet serves hundreds of millions of members, the growth class of the per-request loop decides whether the feature is affordable at all, before anyone has profiled a line.
 
@@ -348,7 +348,7 @@ hints:
 
 **"You said this is O(n). What is the actual cost per element, roughly, and what does it depend on?"** *Model answer:* in CPython a simple loop body is about six bytecodes at roughly 2 ns each, so around 10 ns per element; the same loop in Go or Rust is 0.2–1 ns per element if the data is contiguous, and 20–100 ns per element if each step follows a pointer to a cache-cold node. So the per-element constant depends on the runtime and on the memory access pattern more than on the arithmetic. *Common wrong answer:* "it's O(n), so the constant doesn't matter": it matters by a factor of 50–500 within the class, which decides whether the feature fits in its latency budget.
 
-**"Your solution hashes each record as a key. Is the lookup really O(1)?"** *Model answer:* it is $O(L)$ in the key length, because the hash reads every byte and a hit compares the whole key; independent of $n$, so still "constant" with respect to the input count, but a 2 KB key costs about 200× an 8-byte one. If keys are large, I hash once to a fixed-size digest and key by that. *Common wrong answer:* "yes, hashing is constant time", which hides the key length entirely.
+**"Your solution hashes each record as a key. Is the lookup really O(1)?"** *Model answer:* it is $O(L)$ in the key length, because the hash reads every byte and a hit compares the whole key; independent of $n$, so still "constant" with respect to the input count, but a 2 KB key reads 256 times the bytes of an 8-byte one, and on the machine above takes roughly 30 times as long to hash (about 320 ns against 10 ns; fixed call overhead dominates the short key). If keys are large, I hash once to a fixed-size digest and key by that. *Common wrong answer:* "yes, hashing is constant time", which hides the key length entirely.
 
 **"Both candidates are O(n log n). How do you pick?"** *Model answer:* the class no longer decides, so I look at constants: memory access pattern (sequential beats pointer-chasing), allocation per element, and whether the data fits in cache; then I benchmark both at the real $n$ with representative data and report the minimum of several runs. *Common wrong answer:* picking the one with the "cleverer" algorithm, or the one with the smaller number of lines.
 
@@ -400,7 +400,7 @@ hints:
   options: ["O(n), because long keys cause many more collisions", "O(1), because hashing is constant time for any key", "O(L) in key length, since hashing reads every byte", "O(log n), because long keys force a tree-based map"]
   answer: 2
   explanation: >-
-    Hashing a 2 KB key touches every byte, and a successful lookup also compares the full key. That is O(L) per operation regardless of n. It is still independent of n, so it is not O(n); calling it O(1) hides a 200× factor relative to short keys.
+    Hashing a 2 KB key touches every byte, and a successful lookup also compares the full key. That is O(L) per operation regardless of n. It is still independent of n, so it is not O(n); calling it O(1) hides that every lookup reads 2,048 bytes where a short key reads eight.
 - q: >-
     A colleague insists that a linear scan over a list is faster than a set lookup for fewer than ten elements, citing a C++ benchmark. In CPython the set wins already at three elements. Why does the crossover move?
   options: ["CPython sets skip hashing for lists shorter than ten elements", "Each list comparison in CPython is a dynamic dispatch costing about as much as a hash", "CPython lists store elements non-contiguously, so scans miss cache", "C++ hash tables are slower than CPython sets at small sizes"]

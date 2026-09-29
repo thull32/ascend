@@ -7,9 +7,9 @@ difficulty: medium
 tags: [complexity, recurrences, master-theorem, recursion-tree, divide-and-conquer, akra-bazzi]
 problems: [pow-x-n, merge-k-sorted-lists]
 ---
-You write merge sort, and you know it is $O(n \log n)$ because everyone says so. Then you write something that splits the input into three parts, recurses on two of them and does a linear scan to combine, and you have no idea what it costs. Or you write a recursive solution that calls itself twice on $n - 1$ and cannot say whether that is polynomial or exponential (it is exponential, and the interviewer is waiting for you to notice). Or you write a recursive binary search in Python, slice the list at each call, and ship something that is $\Theta(n)$ while believing it is $\Theta(\log n)$.
+You know merge sort is $O(n \log n)$ because everyone says so. Then you write something that splits the input into three parts, recurses on two of them and combines with a linear scan, and you have no idea what it costs. Or a recursion that calls itself twice on $n - 1$ (exponential, and the interviewer is waiting for you to notice). Or a recursive binary search in Python that slices the list at each call, and is $\Theta(n)$ while you believe it is $\Theta(\log n)$.
 
-Loops you can count directly. Recursion you have to *unroll*, and the tool for that is a recurrence: an equation giving the cost on $n$ in terms of the cost on smaller inputs. This lesson covers writing one from code, four ways to solve it, the recurrences the famous shortcut refuses and how to solve those anyway, and how to check the answer against the running program.
+Loops you can count directly. Recursion you have to *unroll*, and the tool for that is a recurrence: an equation giving the cost on $n$ in terms of the cost on smaller inputs. This lesson covers writing one from code, solving it four ways, and checking the answer against the running program.
 
 ## From code to recurrence
 
@@ -31,21 +31,9 @@ $$
 T(n) = 2\,T(n/2) + \Theta(n), \qquad T(1) = \Theta(1).
 $$
 
-Writing the recurrence is mechanical once you ask two questions: **how many recursive calls, on what size**, and **how much work outside the calls**. The second is where mistakes hide: "outside the calls" includes every slice, concatenation and `in` test, not only the line you think of as the combine step.
+Writing the recurrence is mechanical once you ask two questions: **how many recursive calls, on what size**, and **how much work outside the calls**. The second is where mistakes hide: "outside the calls" includes every slice, concatenation and `in` test, not only the line you think of as the combine step. A binary search is $T(n/2) + 1$; the same search that slices before recursing is $T(n/2) + n$. The table of common recurrences near the end of this lesson pairs each code shape with its recurrence and solution.
 
-| Code shape | Recurrence |
-|---|---|
-| Binary search: one call on half, $O(1)$ work | $T(n) = T(n/2) + 1$ |
-| Binary search that slices the list before recursing | $T(n) = T(n/2) + n$ |
-| Traverse a linked list recursively | $T(n) = T(n - 1) + 1$ |
-| Naive Fibonacci | $T(n) = T(n-1) + T(n-2) + 1$ |
-| Towers of Hanoi | $T(n) = 2\,T(n-1) + 1$ |
-| Generate all subsets by include/exclude | $T(n) = 2\,T(n-1) + O(1)$ (plus output) |
-| Fast exponentiation ($x^n$ via $x^{n/2}$ squared) | $T(n) = T(n/2) + 1$ |
-| Strassen matrix multiply | $T(n) = 7\,T(n/2) + O(n^2)$ |
-| Karatsuba multiplication | $T(n) = 3\,T(n/2) + O(n)$ |
-
-Floors and ceilings ($n/2$ versus $\lfloor n/2 \rfloor$ and $\lceil n/2 \rceil$) do not change the asymptotic answer for any recurrence in this lesson: the master theorem is proved for the floor-and-ceiling versions, where the tree's depth lies between $\log_b n - 1$ and $\log_b n + 1$ and the extra level costs at most a constant factor. Pretending $n$ is a power of $b$ is a simplification the theorem has already paid for.
+Floors and ceilings ($\lfloor n/2 \rfloor$ versus $n/2$) do not change the asymptotic answer for any recurrence here: the master theorem is proved for the floor-and-ceiling versions, whose depth differs by at most one level, a constant factor.
 
 ## Method 1: draw the recursion tree
 
@@ -65,7 +53,7 @@ Every level does $n$ work, there are $\log_2 n$ levels of merging plus one level
 {"type": "recursion", "algorithm": "merge-sort-tree", "values": [38, 27, 43, 3, 9, 82, 10, 5], "title": "Merge sort's recursion tree", "caption": "Eight elements, three levels of splitting. Each level merges a total of eight elements, so the work is n per level times log n levels."}
 ```
 
-The tree answers three questions: the depth, the work per level, and whether the per-level work is constant, shrinking or growing as you go down. That last question decides everything, and there are exactly three regimes.
+What decides the answer is whether the per-level work is constant, shrinking or growing as you go down. There are three regimes.
 
 **Same work at every level.** The table above: work-per-level times depth, $\Theta(n \log n)$.
 
@@ -79,7 +67,7 @@ For binary search, $T(n) = T(n/2) + 1$: one node per level, constant work, $\log
 {"type": "recursion", "algorithm": "binary-search-recursive", "values": [4, 9, 15, 22, 31, 47, 58, 66, 73, 90], "title": "One branch per level", "caption": "Each call makes a single recursive call on half the range: a chain, not a tree. Depth log n, constant work per node."}
 ```
 
-For Hanoi, $T(n) = 2T(n-1) + 1$: the tree has depth $n$ (the size drops by one, not by half) and doubles in width at each level, so it has $2^n - 1$ nodes of constant work: $\Theta(2^n)$. Recognise this shape instantly: *two calls that each reduce $n$ by a constant* is exponential.
+For Hanoi, $T(n) = 2T(n-1) + 1$: the tree has depth $n$ (the size drops by one, not by half) and doubles in width at each level, so it has $2^n - 1$ nodes of constant work: $\Theta(2^n)$.
 
 ```viz
 {"type": "recursion", "algorithm": "hanoi", "n": 4, "title": "Towers of Hanoi", "caption": "Moving n discs takes 2^n - 1 moves. Each level of the recursion doubles the number of calls and only reduces n by one."}
@@ -123,7 +111,7 @@ The tree at $n = 16$ confirms it and shows why "polynomially" matters:
 | 3 | 27 | 2 | 54 |
 | 4 (leaves) | 81 | 1 | 81 |
 
-Each level is $3/2$ times the one above, a geometric series whose sum is at most $3 \times$ its last term, and the last term is the leaf count $3^{\log_2 16} = 81 = 16^{1.585}$. Total 211, within the bound. The geometric growth is what the $\varepsilon$ guarantees: were $f$ only a logarithmic factor smaller than $n^{\log_b a}$, the levels would not shrink geometrically and the leaves would not dominate cleanly (that is the gap case below).
+Each level is $3/2$ times the one above, a geometric series whose sum is at most $3 \times$ its last term, and the last term is the leaf count $3^{\log_2 16} = 81 = 16^{1.585}$. Total 211, within the bound. The geometric growth is what the $\varepsilon$ guarantees: were $f$ only a logarithmic factor smaller than $n^{\log_b a}$, the levels would not grow geometrically and the leaves would not dominate cleanly (that is the gap case below).
 
 ### Case 2 worked: merge sort and binary search
 
@@ -215,33 +203,31 @@ The second trap is the opposite: the guess is *false*, and no strengthening resc
 | Recurrence | Solution | Canonical algorithm |
 |---|---|---|
 | $T(n) = T(n/2) + 1$ | $\Theta(\log n)$ | binary search, fast exponentiation |
-| $T(n) = T(n/2) + n$ | $\Theta(n)$ | quickselect (average), the root dominates |
+| $T(n) = T(n/2) + n$ | $\Theta(n)$ | quickselect (average), binary search that slices |
 | $T(n) = 2T(n/2) + 1$ | $\Theta(n)$ | tree traversal on a balanced tree |
 | $T(n) = 2T(n/2) + n$ | $\Theta(n \log n)$ | merge sort, quicksort (average) |
 | $T(n) = 2T(n/2) + n \log n$ | $\Theta(n \log^2 n)$ | a merge step that sorts |
 | $T(n) = 3T(n/2) + n$ | $\Theta(n^{1.585})$ | Karatsuba |
 | $T(n) = T(n - 1) + 1$ | $\Theta(n)$ | recursive list traversal |
 | $T(n) = T(n - 1) + n$ | $\Theta(n^2)$ | quicksort worst case, selection sort |
-| $T(n) = 2T(n - 1) + 1$ | $\Theta(2^n)$ | Hanoi, subset enumeration |
+| $T(n) = 2T(n - 1) + 1$ | $\Theta(2^n)$ | Hanoi, include/exclude subset enumeration |
 | $T(n) = T(n-1) + T(n-2) + 1$ | $\Theta(\phi^n) \approx \Theta(1.618^n)$ | naive Fibonacci |
 | $T(n) = n \cdot T(n - 1)$ | $\Theta(n!)$ | permutation enumeration |
 | $T(n) = T(\sqrt n) + 1$ | $\Theta(\log \log n)$ | interpolation search, van Emde Boas |
 
-The pattern behind the table: **halving with one call** is logarithmic; **halving with two calls** is linear or linearithmic depending on the combine cost; **decrementing with one call** is linear or quadratic; **decrementing with two calls** is exponential. Place a recursive function in one of those four boxes and you have its complexity in seconds.
+The pattern behind the table: **halving with one call** is logarithmic with constant work and linear with linear work; **halving with two calls** is linear or linearithmic depending on the combine cost; **decrementing with one call** is linear or quadratic; **decrementing with two calls** is exponential.
 
 ## Recurrences in disguise
 
-**Memoisation changes the recurrence.** Naive Fibonacci makes $\Theta(\phi^n)$ calls, but with a memo each distinct $n$ is computed once: $n$ states, $O(1)$ work each, $\Theta(n)$. The recurrence for a memoised function is "distinct states times work per state", the idea behind [dynamic programming](/learn/algorithms/dynamic-programming/the-dp-mindset). Whether the $O(1)$ is honest is a separate question: the numbers reach $\Theta(n)$ digits, so the bit-level total is $\Theta(n^2)$, as the [cost model lesson](/learn/foundations/complexity/why-big-o) measures.
+**Memoisation changes the recurrence.** Naive Fibonacci makes $\Theta(\phi^n)$ calls, but with a memo each distinct $n$ is computed once: $n$ states, $O(1)$ work each, $\Theta(n)$. The cost of a memoised function is "distinct states times work per state", the idea behind [dynamic programming](/learn/algorithms/dynamic-programming/the-dp-mindset).
 
 **Unbalanced splits.** A pivot that always lands at the 10th percentile gives $T(n) = T(n/10) + T(9n/10) + n$: each full level does $n$ work and the depth is $\log_{10/9} n \approx 6.6 \log_2 n$, still $\Theta(n \log n)$ with a larger constant. Any *constant-fraction* split gives $n \log n$; only removing a *constant number* of elements degrades to quadratic. That is why a random pivot suffices: a constant-fraction-or-better split has probability at least $1/2$ at every level, so the expected depth is $O(\log n)$.
 
 **Multiple variables.** Merging $k$ sorted lists of total length $n$ by repeatedly merging pairs is $T(k) = 2T(k/2) + n$ in the number of lists, with $n$ fixed: $\log k$ levels of $n$ work, $\Theta(n \log k)$, the same as a heap by a different route. The [k-way merge lesson](/learn/data-structures/heaps/top-k-and-k-way-merge) compares the two.
 
-**Stack depth is a recurrence too.** The tree's depth is the space cost: $\log n$ for $2T(n/2) + n$, $n$ for $2T(n-1) + 1$ even though the time is exponential. The [space complexity lesson](/learn/foundations/complexity/space-complexity-and-memory-hierarchy) covers why that matters; the failure modes below show it mattering.
-
 ## Under the hood: checking a recurrence against the running program
 
-A recurrence is a prediction, and predictions can be tested. Two instruments do it.
+A recurrence is a prediction you can test, two ways.
 
 **Count.** Add a call counter and a per-depth work counter to merge sort. Measured in CPython 3.14.7 on 1,024 elements: 2,047 calls, exactly $2n - 1$; 10 levels of merging, each merging exactly 1,024 elements, $n \log_2 n$ in total. The tree in Method 1 is not a metaphor; it is what the interpreter executes.
 
@@ -254,21 +240,22 @@ A recurrence is a prediction, and predictions can be tested. Two instruments do 
 | 65,536 | 56 ms | 53 |
 | 262,144 | 256 ms | 54 |
 
-Flat at about 54 ns across a 256× range of $n$: the recurrence is right, and the constant is 54 ns per comparison-and-append in the interpreter. On $O(n^2)$ code the ratio climbs in proportion to $n / \log n$; on the slicing binary search below it climbs the same way, which is how that bug is caught.
+Flat at about 54 ns across a 256× range of $n$: the recurrence is right, and the constant is 54 ns per comparison-and-append in the interpreter. On $O(n^2)$ code the ratio would climb in proportion to $n / \log n$.
 
-The built-in `sorted()` on the same data costs 5–6 ns per unit, ten times less, because it runs in C, and its recurrence differs from the textbook's. CPython's `list.sort` is Timsort: it detects runs that are already ordered, extends short runs to 32–64 elements with binary insertion sort, and only then merges (with the powersort merge policy since Python 3.11). So the tree's leaves are runs of 32–64 elements sorted in $\Theta(m^2)$ time with a tiny constant, removing the bottom five or six levels, and on already-sorted input there is one run and the cost is $n - 1$ comparisons, $\Theta(n)$. V8's `Array.prototype.sort` (since V8 7.0) and Java's object sort are also Timsort. The recurrence for "a sort" is a worst-case description of a structure whose real cost depends on the data.
+The built-in `sorted()` on the same data costs 5–6 ns per unit, ten times less, because it runs in C, and its recurrence differs from the textbook's. CPython's `list.sort` is Timsort: it detects runs that are already ordered, extends short runs to 32–64 elements with binary insertion sort, and only then merges (with the powersort merge policy since Python 3.11). The tree's leaves are runs of 32–64 elements, which removes the bottom five or six levels, and on already-sorted input there is one run and $n - 1$ comparisons, $\Theta(n)$. V8's `Array.prototype.sort` (since V8 7.0) and Java's `Arrays.sort` for objects are also Timsort. The recurrence for "a sort" is a worst-case description of a structure whose real cost depends on the data.
 
-**Recursion depth is enforced, not theoretical.** CPython's default recursion limit is 1,000 frames, so any $T(n - 1) + \ldots$ recurrence raises `RecursionError` once $n$ passes about 1,000, whatever its time complexity. Since Python 3.12 pure-Python calls do not consume the C stack, so raising the limit is bounded by memory (a few hundred bytes per frame) rather than by a segmentation fault; it is still a deliberate fix, not a default. V8 allows on the order of 10,000 frames for a small function, and a native thread in C, Go or Rust has a few megabytes of stack, roughly $10^5$ small frames. A halving recurrence never comes near these; a decrementing one hits them the first time the input is long.
+**Recursion depth is enforced, not theoretical.** The tree's depth is the stack cost, and CPython's default recursion limit is 1,000 frames, so any $T(n - 1) + \ldots$ recurrence raises `RecursionError` once $n$ passes about 1,000. Since Python 3.11 most pure-Python calls do not consume the C stack, so raising the limit is bounded by memory rather than by a segmentation fault. V8 allows on the order of 10,000 small frames, and a native C or Rust thread with a few megabytes of stack roughly $10^5$ (a goroutine's stack grows to 1 GB). A halving recurrence never comes near these; a decrementing one hits them the first time the input is long.
 
 ## Failure modes in production
 
 **A divide-and-conquer that copies before it recurses.** *Symptom:* a "binary search" over a million-element list takes milliseconds instead of microseconds, and doubling the list doubles the time. *Diagnosis:* the recursive call slices (`xs[:mid]`, `xs[mid+1:]`), so the recurrence is $T(n/2) + n$, case 3, $\Theta(n)$. Measured (same machine): the slicing version takes 8.7 µs at $n = 10^4$, 291 µs at $10^5$ and 3.3 ms at $10^6$, a factor of 10 per factor of 10; the index-passing version takes 0.6, 0.7 and 0.9 µs. *Fix:* pass `lo` and `hi` instead of slicing, or iterate. The [values and references lesson](/learn/foundations/how-code-runs/values-references-and-mutation) lists which operations copy.
 
-**Quicksort meets sorted input.** *Symptom:* a nightly job that re-sorts an already ordered export takes hours; p99 spikes only for tenants whose data arrives pre-sorted. *Diagnosis:* a first-element pivot on sorted input splits $0 : n - 1$ every time, so the recurrence collapses from $2T(n/2) + n$ to $T(n - 1) + n$: $\Theta(n^2)$ with recursion depth $n$. Measured in CPython: 8,000 random elements sort in 3.6 ms; the same 8,000 pre-sorted take 589 ms, and doubling $n$ quadruples it (37 ms at 2,000, 148 ms at 4,000). With a random pivot, sorted input takes 4 ms. *Fix:* a random or median-of-three pivot, introsort (which switches to heapsort past depth $2 \log_2 n$, as C++ `std::sort` does), or the library sort, which is Timsort and $\Theta(n)$ on sorted input.
+**Quicksort meets sorted input.** *Symptom:* a nightly job that re-sorts an already ordered export takes hours; p99 spikes only for tenants whose data arrives pre-sorted. *Diagnosis:* a first-element pivot on sorted input splits $0 : n - 1$ every time, so the recurrence collapses from $2T(n/2) + n$ to $T(n - 1) + n$: $\Theta(n^2)$ with recursion depth $n$. Measured in CPython: 8,000 random elements sort in 3.6 ms; the same 8,000 pre-sorted take 589 ms, and doubling $n$ quadruples it (37 ms at 2,000, 148 ms at 4,000). With a random pivot, sorted input takes 4 ms. *Fix:* a random or median-of-three pivot, introsort (which switches to heapsort past depth $2 \log_2 n$, as libstdc++'s `std::sort` does), or the library sort, which is Timsort and $\Theta(n)$ on sorted input.
 
 **A decrementing recursion on a long chain.** *Symptom:* a recursive linked-list walk, tree walk or JSON flattener passes every test and crashes in production with `RecursionError: maximum recursion depth exceeded` (Python) or `RangeError: Maximum call stack size exceeded` (Node). *Diagnosis:* the time recurrence $T(n - 1) + 1$ is fine; the *depth* recurrence is also $n$, and $n$ was 1,000 in tests and 200,000 in the incident. A BST built from sorted keys is a chain, which turns a "balanced, $\log n$ deep" assumption into this failure. *Fix:* iterate with an explicit stack; for trees, balance them or traverse iteratively. Raising the recursion limit is only a fix when $n$ is bounded.
 
 **A combine step with a hidden quadratic.** *Symptom:* a merge-sort-shaped function is as slow as a bubble sort. *Diagnosis:* the merge builds its output with `result = result + [x]` (which copies `result` each time), or a string with `+=`, or checks `x in result` on a list, so the combine is $\Theta(n^2)$ and the recurrence becomes $2T(n/2) + n^2$, case 3, $\Theta(n^2)$; the divide-and-conquer structure buys nothing. Time the combine alone against its input size to confirm. *Fix:* `append`, a preallocated output, `"".join`, a set for membership.
+
 ## Choosing a method
 
 | Method | Applies to | Effort | Gives | Weak spot |
@@ -378,27 +365,24 @@ hints:
 
 **"One half's result is used twice, so you call the function three times on $n/2$. How much does that cost?"** *Model answer:* $3T(n/2) + n$ instead of $2T(n/2) + n$, which is $\Theta(n^{1.585})$ instead of $\Theta(n \log n)$: a polynomial factor, because the extra call is made at *every* node. Compute each subresult once and return both. *Common wrong answer:* "it is $3/2$ times slower", true only if the extra call happened once at the top.
 
-**"How would you check that your recurrence is right?"** *Model answer:* count calls and per-depth work and compare to the tree; time at several $n$ and divide by the prediction, looking for a flat ratio; or the doubling test (for $n \log n$, doubling $n$ costs a bit more than 2×; for $n^2$, 4×). *Common wrong answer:* "run it on the sample input and see that it is fast", which measures one $n$ and cannot tell $n \log n$ from $n^2$.
-
 **"Is memoised Fibonacci $O(n)$?"** *Model answer:* $O(n)$ additions, so $O(n)$ in the RAM model; but $\text{fib}(n)$ has $\Theta(n)$ digits, so the bit-level cost is $\Theta(n^2)$. Modulo a prime the digits stay bounded and it is genuinely $O(n)$; matrix exponentiation gets $O(\log n)$. *Common wrong answer:* "$O(n)$" with no mention of number size, or "$O(\log n)$ with memoisation", which confuses the memo with a different algorithm.
 
 ## What mid-level engineers get wrong
 
 - **Applying the master theorem to $T(n - 1)$ shapes.** It needs division by $b > 1$; subtractive recurrences are sums or exponentials, solved by unrolling.
 - **Reading the depth as the time.** "$\log n$ deep, so $O(\log n)$" holds only for one call per level; two calls per level with $\log n$ depth means $n$ leaves and at least $\Theta(n)$.
-- **Forgetting that slicing is work.** A Python recursion that slices its input has $+n$ in its combine whether or not the code "does anything" with the slice; it turns $\Theta(\log n)$ binary search into $\Theta(n)$.
+- **Forgetting that slicing is work.** A recursion that slices its input has $+n$ in its combine, which turns $\Theta(\log n)$ binary search into $\Theta(n)$.
 - **Believing lopsided splits are quadratic.** A $1 : 99$ split is still $\Theta(n \log n)$; only removing a constant *number* of elements is quadratic. The converse mistake is assuming quicksort is always $n \log n$ and shipping a first-element pivot.
-- **Analysing the code they meant to write.** The recurrence must match the call graph as written: the redundant second call to the same subproblem, the `in` test on a list inside the merge, the string built with `+=`.
-- **Ignoring the base case's cost.** Real sorts switch to insertion sort at 16–64 elements; that sets the constant, and leaves costing $\Theta(m^2)$ for fixed $m$ is the honest description of `sorted()`.
+- **Analysing the code they meant to write.** The recurrence must match the call graph as written, including a redundant second call or an `in` test on a list inside the merge.
+- **Ignoring the base case's cost.** Real sorts switch to insertion sort at 16–64 elements, and that sets the constant.
 
 ## Senior signals
 
-- You write the recurrence from code by answering "how many calls, on what size, plus what work", and "what work" includes slices, concatenations and membership tests.
 - You solve by recursion tree first, name the regime (root-dominated, leaf-dominated, equal per level) and can produce the level table for a small $n$ on a whiteboard.
-- You state the master theorem's three cases from memory, apply it to $a = 3, b = 2$ style questions in seconds, check regularity for case 3, and know the four shapes it refuses (log-factor gaps, subtractive recurrences, unequal splits, square-root shrinkage) and the tool for each.
+- You state the master theorem's three cases from memory, check regularity for case 3, and know the four shapes it refuses (log-factor gaps, subtractive recurrences, unequal splits, square-root shrinkage) and the tool for each.
 - You can run Akra–Bazzi on $T(n) = T(n/2) + T(n/4) + n$ and cross-check the $\Theta(n)$ answer against the geometric per-level sum.
 - You recognise "two calls on $n - 1$" as exponential and "two calls on $n/2$ with linear combine" as $n \log n$ instantly, and you know any constant-fraction split, however lopsided, is still $n \log n$.
-- You explain that memoisation replaces the recurrence with (distinct states) × (work per state); you give the recursion depth as the space cost, know CPython's 1,000-frame default, and convert decrementing recursions to iteration when $n$ is unbounded.
+- You explain that memoisation replaces the recurrence with (distinct states) × (work per state), give the recursion depth as the space cost, and convert decrementing recursions to iteration when $n$ is unbounded.
 - Before trusting a recurrence for code that will see a growing $n$, you instrument it: count calls, divide the time by the prediction, look for a flat line.
 
 ## Check yourself

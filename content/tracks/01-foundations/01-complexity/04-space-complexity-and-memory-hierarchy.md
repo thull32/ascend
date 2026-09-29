@@ -68,11 +68,11 @@ The stack is finite and its size is a runtime decision, so "$O(n)$ stack" has a 
 |---|---|---|
 | CPython | 1,000 frames (`sys.getrecursionlimit()`); frames live on a heap-allocated per-thread stack, not the C stack, since 3.11 | `RecursionError`, catchable |
 | Node.js / V8 | about 1 MB of stack, roughly 10,000 frames for a small function | `RangeError: Maximum call stack size exceeded`, catchable |
-| Java | 512 KB–1 MB per thread (`-Xss`), roughly 10,000–20,000 frames | `StackOverflowError` |
-| C, C++, Rust | 8 MB main thread on Linux (`ulimit -s`), 2 MB for Rust spawned threads | guard page hit, `SIGSEGV`, process dies |
-| Go | starts at 2 KB per goroutine, grows by copying, up to 1 GB on 64-bit | fatal `stack overflow`, not recoverable |
+| Java | 1 MB per thread on Linux/x64, 2 MB on AArch64 (`-Xss`), roughly 10,000–20,000 frames | `StackOverflowError` |
+| C, C++, Rust | 8 MB main thread on Linux (`ulimit -s`), 2 MB for Rust spawned threads | guard page hit: `SIGSEGV` in C and C++; Rust prints "has overflowed its stack" and aborts; either way the process dies |
+| Go | at least 2 KB per goroutine (since Go 1.19 the starting size tracks the average stack in use), grows by copying, up to 1 GB on 64-bit | fatal `stack overflow`, not recoverable |
 
-A recursive DFS over a linked list of 100,000 nodes, or over a path-shaped tree, works in Go and fails everywhere else. That is why the iterative version with an explicit stack is the production form of every deep recursion, and why saying "$O(n)$ stack, which exceeds CPython's limit at $n = 1{,}000$" is the answer that shows you know where the memory is. The [call stack lesson](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
+A recursive DFS over a linked list of 100,000 nodes, or over a path-shaped tree, works in Go, fails at the defaults in CPython, Node and Java, and in C or Rust survives on an 8 MB main thread only if each frame is under about 80 bytes. That is why the iterative version with an explicit stack is the production form of every deep recursion, and why saying "$O(n)$ stack, which exceeds CPython's limit at $n = 1{,}000$" is the answer that shows you know where the memory is. The [call stack lesson](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
 
 ### Reporting it in an interview
 
@@ -97,7 +97,7 @@ The model counts words. CPython counts objects, and every object carries a heade
 | `()` / `(1, 2, 3)` | 48 / 72 | pointers stored inline, no capacity field |
 | `{}` / `{"a": 1, "b": 2, "c": 3}` | 64 / 184 | header + a separate table: index array plus 24-byte entries |
 | `set()` | 216 | an 8-slot table allocated up front |
-| instance with three attributes | ~104 total | 48-byte object with values stored inline (3.13+); `__slots__` brings it to 64 |
+| instance with three attributes | 48 (~104 total) | 48-byte object with values stored inline (3.13+); `__slots__` brings it to 56 (64 after allocator rounding) |
 
 And at scale, measured with `tracemalloc` for one million elements:
 
@@ -111,7 +111,7 @@ And at scale, measured with `tracemalloc` for one million elements:
 | 100,000 instances (three attributes) | 10 MB | 104 per record |
 | 100,000 `__slots__` instances | 6.4 MB | 64 per record |
 
-The 5× gap between the list of ints and the typed array is where "a million small records" becomes 2 GB. The number to carry around: a Python object costs 16 bytes of header before it holds anything, a pointer to it costs another 8, and the allocator rounds every request up to a multiple of 16. In Java the header is 12–16 bytes and a boxed `Integer` is 16; in JavaScript a heap number is 16 or more, though V8 stores small integers inline. Go and Rust have no per-value header: a `[]int64` of a million entries is 8 MB, and a struct is the sum of its fields plus alignment padding.
+The 5× gap between the list of ints and the typed array is where "a million small records" becomes 2 GB. The number to carry around: a Python object costs 16 bytes of header before it holds anything, a pointer to it costs another 8, and the allocator rounds every request up to a multiple of 16. In Java the header is 12–16 bytes on 64-bit HotSpot (8 with JDK 25's opt-in compact object headers, [JEP 519](https://openjdk.org/jeps/519)) and a boxed `Integer` is 16 with the default compressed class pointers; in JavaScript a number that is not a small integer lives in a separately allocated heap object with its own header, though V8 stores small integers inline in the tagged pointer. Go and Rust have no per-value header: a `[]int64` of a million entries is 8 MB, and a struct is the sum of its fields plus alignment padding.
 
 ## The memory hierarchy
 
@@ -127,9 +127,9 @@ The RAM model says every access costs one unit. Real machines have a hierarchy, 
 | NVMe SSD | TBs | ~20–100 µs | ~100,000 |
 | Network round trip (same DC) | | ~100–500 µs | ~1,000,000 |
 
-The exact numbers vary by machine and year; the ratios are what to remember. On the desktop used for this lesson's measurements (32 KB L1, 1 MB L2, 96 MB L3), a dependent pointer chase measured 0.9 ns per hop from L1, 2.5 ns from L2, 22 ns from L3 and 100 ns from DRAM. A cache miss to DRAM costs as much as a few hundred arithmetic instructions. An algorithm whose reads all hit L1 and one whose reads all miss to DRAM differ by roughly a hundred times per access, and both are "$O(n)$".
+The exact numbers vary by machine and year; the ratios are what to remember. On the desktop used for this lesson's measurements (48 KB L1 data cache, 1 MB L2, 96 MB L3), a dependent pointer chase measured 0.9 ns per hop from L1, 2.5 ns from L2, 22 ns from L3 and 100 ns from DRAM. A cache miss to DRAM costs as much as a few hundred arithmetic instructions. An algorithm whose reads all hit L1 and one whose reads all miss to DRAM differ by roughly a hundred times per access, and both are "$O(n)$".
 
-Data moves between levels in **cache lines**, 64 bytes at a time on nearly all current x86 and ARM CPUs (Apple's M-series uses 128). When you read one byte, you get its 63 neighbours for free. If the next thing you need is one of those neighbours, it is already in L1: a hit. If it is at a random other address: a miss, and another 64-byte fetch. On top of that, the hardware **prefetcher** notices sequential access patterns and starts fetching the next lines before you ask, so a linear scan through an array rarely waits for memory at all.
+Data moves between levels in **cache lines**, 64 bytes at a time on nearly all current x86 and many Arm CPUs. Apple's porting guide for Apple silicon warns that its line size is different and tells you to query `sysctl hw.cachelinesize` rather than assume 64. When you read one byte, you get its 63 neighbours for free. If the next thing you need is one of those neighbours, it is already in L1: a hit. If it is at a random other address: a miss, and another 64-byte fetch. On top of that, the hardware **prefetcher** notices sequential access patterns and starts fetching the next lines before you ask, so a linear scan through an array rarely waits for memory at all.
 
 ```viz
 {"type": "memory", "scenario": "cache-lines", "title": "Cache lines and locality", "caption": "Sequential access pulls each 64-byte line once and uses all of it. Scattered access pulls a whole line for every element and uses a fraction of it."}
@@ -175,7 +175,7 @@ When linked lists genuinely win:
 - **You need stable addresses**: a pointer to an element must stay valid after other insertions. Arrays invalidate pointers on resize.
 - **Lock-free queues and allocators**, where linking a node with one atomic pointer swap is the whole point.
 
-Everything else, including most "the queue could get long" cases, is better served by a dynamic array or a ring buffer. Rust's `LinkedList` documentation says outright that a `Vec` or `VecDeque` is almost always the better choice, and Go's standard library keeps `container/list` largely for the LRU case.
+Everything else, including most "the queue could get long" cases, is better served by a dynamic array or a ring buffer. Rust's `LinkedList` documentation says outright that "it is almost always better to use `Vec` or `VecDeque`", because array-based containers are faster, use less memory and make better use of the CPU cache.
 
 ## Layout matters within an array too
 

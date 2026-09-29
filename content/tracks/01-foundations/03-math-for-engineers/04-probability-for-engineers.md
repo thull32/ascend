@@ -9,7 +9,7 @@ problems: [insert-delete-getrandom, kth-largest-array]
 ---
 A service generates random 64-bit request IDs. A load balancer sends each request to a random backend. A hash table picks a bucket by hashing. A quicksort picks a pivot at random. A monitoring pipeline keeps a sample of one in a thousand events. A client retries a flaky call. Every one of those is a bet, and the question a senior engineer must answer is not "can it go wrong?" (it can) but "how often, and how badly?"
 
-Answering that needs a small amount of probability used precisely. Not measure theory: expected value, one product formula, one approximation, and a handful of results that recur in hashing, sampling, retries and load balancing. Most engineers can compute the probability of one coin flip. Fewer can say how many random 32-bit IDs you can issue before a collision is more likely than not (about 77,000, not two billion), why a dependency at 50% success rate under naive retries sees double the load, or why sending each request to the less loaded of *two* random servers is exponentially better than sending it to one. Every claim in this lesson is derived, and the important ones are checked against a simulation you can rerun.
+Answering that needs a small amount of probability used precisely: expected value, one product formula, one approximation, and a handful of results that recur in hashing, sampling, retries and load balancing. How many random 32-bit IDs can you issue before a collision is more likely than not (about 77,000, not two billion)? Why is sending each request to the less loaded of *two* random servers exponentially better than one? Every claim here is derived, and the important ones are checked against a simulation you can rerun.
 
 ## Expected value and why linearity is the whole trick
 
@@ -33,7 +33,7 @@ The engineering consequence is **retry amplification**: if every client retries 
 
 $$E[\text{comparisons}] = \sum_{i<j} \frac{2}{j - i + 1} \le \sum_{i=1}^{n} \sum_{d=1}^{n} \frac{2}{d} \approx 2n \ln n \approx 1.39\, n \log_2 n.$$
 
-No input can be bad on average, because the randomness is in the pivots, not the data. That is the whole argument, and it fits on an index card.
+No input can be bad on average, because the randomness is in the pivots, not the data.
 
 ## The birthday bound
 
@@ -106,7 +106,7 @@ There are two kinds, and an interviewer will want to know which one you are prop
 | Examples | quicksort, quickselect, seeded hashing | Bloom filter, HyperLogLog, Miller–Rabin, sketches |
 | Acceptable for | anything | cache admission, dedup hints, analytics, primality; never billing or authorisation |
 
-The engineering judgement is whether the application tolerates the error. A senior engineer says which kind they are building and what the error rate is; a mid-level engineer says "it uses hashing so it's fast".
+The engineering judgement is whether the application tolerates the error, and a senior engineer states which kind they are building and its error rate.
 
 ## Reservoir sampling
 
@@ -163,13 +163,13 @@ The fullest bin is about $\ln n / \ln \ln n$. The argument: a bin receives at le
 
 Now the result every load-balancer designer knows. Pick **two** random bins and put the ball in the less full one. Simulated: maximum load 3 at $n = 10^4$ and 4 at $n = 10^6$, against 7 and 9 for one choice. Formally the maximum drops to $\ln \ln n / \ln 2 + O(1)$: doubly logarithmic, about 4 for any $n$ you will meet. The mechanism: for a bin to reach load $k + 1$, *both* sampled bins must already have load $\ge k$, so the fraction of bins at each level is roughly the *square* of the fraction at the level below. Squaring at every step is doubly exponential decay, and the levels run out after $\log \log n$ steps.
 
-This is "the power of two choices", and it is the algorithm behind Nginx's `random two least_conn`, Envoy's least-request balancer (which samples two hosts by default), HAProxy's two-draw `random` balancer, and the choice-of-two picker Netflix described for its Zuul edge proxy. Choosing among *all* $n$ servers (true least-connections) is only marginally better than two and needs an up-to-date global view of load; two random probes get almost all the benefit with none of the coordination, and they degrade gracefully when load information is stale.
+This is "the power of two choices", and it is the algorithm behind Nginx's `random two least_conn`, Envoy's least-request balancer (which samples two hosts by default) and HAProxy's `random` balancer (two draws by default). Choosing among *all* $n$ servers (true least-connections) is only marginally better than two and needs an up-to-date global view of load; two random probes get almost all the benefit with none of the coordination, and they degrade gracefully when load information is stale.
 
 ```viz
 {"type": "network", "scenario": "load-balancer-least-conn", "title": "Least-loaded routing", "caption": "Each request goes to a backend with fewer active connections. Sampling two backends at random and picking the emptier one gets almost all of this benefit with no global view of the load."}
 ```
 
-The same idea appears in hashing: cuckoo hashing and two-choice hashing bound the longest chain at $O(\log \log n)$ instead of $O(\log n / \log \log n)$, which is why some high-performance tables give every key two candidate buckets.
+The same idea appears in hashing: two-choice hashing bounds the longest chain at $O(\log \log n)$ instead of $O(\log n / \log \log n)$, and cuckoo hashing goes further, giving every key exactly two candidate slots so that a lookup probes at most two.
 
 ## Tails, fan-out and hedging
 
@@ -183,13 +183,13 @@ The same computation tells you that a batch job with 10,000 independent tasks ea
 
 ## Under the hood: where the randomness comes from
 
-**`random` is not `secrets`.** CPython's `random` module is a Mersenne Twister (MT19937): a 19,937-bit state, a period of $2^{19937} - 1$, excellent statistical properties, and *complete predictability* after observing 624 outputs. It is right for sampling, shuffling and simulations and wrong for tokens, session IDs or anything an attacker benefits from guessing; those use `secrets` or `os.urandom`, which read the operating system's cryptographic generator (on Linux, the `getrandom` system call). V8's `Math.random()` is xorshift128+, also predictable; `crypto.getRandomValues` is the secure one. UUIDv4 draws its 122 random bits from the secure source.
+**`random` is not `secrets`.** CPython's `random` module is a Mersenne Twister (MT19937): a 19,937-bit state, a period of $2^{19937} - 1$, excellent statistical properties, and *complete predictability* after observing 624 outputs. It is right for sampling, shuffling and simulations and wrong for tokens, session IDs or anything an attacker benefits from guessing; those use `secrets` or `os.urandom`, which read the operating system's cryptographic generator (on Linux, the `getrandom` system call). V8's `Math.random()` is xorshift128+, which [V8's own write-up](https://v8.dev/blog/math-random) says is not cryptographically secure; `crypto.getRandomValues` is the secure one. A UUIDv4 has 122 random bits, and Python's `uuid4` draws them from `os.urandom`.
 
-**Uniform integers without modulo bias.** `rand() % n` is biased whenever the generator's range is not a multiple of $n$: with a 32-bit generator and $n = 3$, the values $0$ and $1$ are each slightly more likely than $2$, by about $n / 2^{32}$. Negligible for $n = 3$; not for $n$ near $2^{31}$. CPython's `randint` and `randrange` use rejection sampling on `getrandbits` (draw enough bits, reject values $\ge n$, repeat), which is exact.
+**Uniform integers without modulo bias.** `rand() % n` is biased whenever the generator's range is not a multiple of $n$: with a 32-bit generator and $n = 3$, $2^{32} \bmod 3 = 1$, so the value $0$ gets one extra chance and is more likely than $1$ or $2$ by a relative $3 / 2^{32}$. Negligible for $n = 3$; not for $n$ near $2^{31}$. CPython's `randint` and `randrange` use rejection sampling on `getrandbits` (draw enough bits, reject values $\ge n$, repeat), which is exact.
 
-**Seeded hashing.** CPython randomises `str` and `bytes` hashes per process with SipHash (the 1-3 variant since 3.11), keyed by a random seed at start-up, so that an attacker cannot precompute keys that collide in your dictionaries. Rust's `HashMap` uses SipHash-1-3 with per-map random keys; Go seeds its map hash per process. That seed is what makes the hash table Las Vegas rather than a target.
+**Seeded hashing.** CPython randomises `str` and `bytes` hashes per process with SipHash (the 1-3 variant since 3.11), keyed by a random seed at start-up, so that an attacker cannot precompute keys that collide in your dictionaries. Rust's `HashMap` uses SipHash-1-3 with random keys; Go gives every map its own random hash seed. That seed is what makes the hash table Las Vegas rather than a target.
 
-**Two-choice balancers as implemented.** Envoy's least-request policy samples two healthy hosts and compares their active-request counters, falling back to a weighted variant when host weights differ; the counters are local to the proxy, so the "load" it sees is its own view, not the backend's global load, and the doubly logarithmic bound still holds because the choice only has to be *better than random*, not exact.
+**Two-choice balancers as implemented.** [Envoy's least-request policy](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/load_balancers) samples two healthy hosts and compares their active-request counters, switching to a weighted round robin with load-adjusted weights when host weights differ; the counters are local to the proxy, so the "load" it sees is its own view, not the backend's global load, and the doubly logarithmic bound still holds because the choice only has to be *better than random*, not exact.
 
 ## Failure modes in production
 
@@ -201,7 +201,7 @@ The same computation tells you that a batch job with 10,000 independent tasks ea
 
 **A biased sample.** *Symptom:* "a 0.1% sample of events" over-represents the morning, or the first tenants, or the first 1,000 events of each hour. *Diagnosis:* the sample was "the first $k$" or "every $m$-th" on a periodic stream, not uniform. *Fix:* Bernoulli sampling per event when a variable-size sample is fine, reservoir sampling when exactly $k$ are needed from an unknown $n$, and a hash-of-ID sample (`hash(id) mod 1000 == 0`) when the same entities must be sampled consistently across systems.
 
-**A Monte Carlo structure whose error rate silently grew.** *Symptom:* a Bloom filter sized for one million keys is holding ten million and its false-positive rate is 40% instead of 1%; the cache admission it guards has stopped admitting. *Diagnosis:* the error rate of a sketch is a function of its size and its fill; nobody monitored the fill. *Fix:* measure the false-positive rate in production (probe with keys known to be absent), alarm on fill, and resize or rotate.
+**A Monte Carlo structure whose error rate silently grew.** *Symptom:* a Bloom filter sized for one million keys at 1% is holding ten million, and its false-positive rate is over 99% (the standard formula with the original 9.6 bits and 7 hashes per key); the cache admission it guards has stopped admitting. *Diagnosis:* the error rate of a sketch is a function of its size and its fill; nobody monitored the fill. *Fix:* measure the false-positive rate in production (probe with keys known to be absent), alarm on fill, and resize or rotate.
 
 ## Exercises
 
@@ -314,11 +314,11 @@ hints:
 
 ## What mid-level engineers get wrong
 
-- **Sizing an ID space by its count rather than its square root.** $2^{32}$ IDs collide at 77,000; the pair count, not the draw count, is what matters.
+- **Sizing an ID space by its count rather than its square root.** $2^{32}$ IDs collide at 77,000.
 - **Retrying without a budget.** Load multiplies by $1/p$ and the dependency being retried is the one least able to absorb it.
-- **Expecting "uniform" to mean "even".** With $n$ balls in $n$ bins the fullest holds about $\ln n / \ln \ln n$ and a third of the bins are empty; two choices are needed to flatten it.
+- **Expecting "uniform" to mean "even".** With $n$ balls in $n$ bins a third of the bins are empty and the fullest is several times the average.
 - **Taking "the first 1,000" as a random sample.** Uniformity over a stream of unknown length needs reservoir sampling or a per-item coin.
-- **Using `random` (or `Math.random`) for tokens.** Mersenne Twister and xorshift are predictable from their outputs; secrets need the OS generator.
+- **Using `random` (or `Math.random`) for tokens.** Both are predictable from their outputs.
 - **Promising a p99 without doing the fan-out arithmetic.** A 1% backend tail across 100 backends is a 63% frontend tail; hedging and deadlines are the fix, not a faster backend.
 - **Multiplying probabilities that are not independent.** Correlated failures (same rack, same deploy, same bad input) make $1 - (1 - p)^n$ an underestimate, sometimes wildly.
 
@@ -331,7 +331,6 @@ hints:
 - You can prove reservoir sampling uniform for general $k$ with the telescoping product, and you know the skip-ahead and weighted variants exist and when they matter.
 - You know that uniform random placement gives a max load of $\Theta(\log n / \log \log n)$ and a third of bins empty, that two random choices cut the max to $\Theta(\log \log n)$, and you can name a load balancer that uses it.
 - You compute $1 - (1 - p)^n$ for fan-out before promising a latency SLO, and you reach for hedged requests with the $p^2$ arithmetic and the 5% load cost stated.
-- You know which random source you are using (Mersenne Twister, xorshift, the OS CSPRNG) and why it matters for the use.
 
 ## Check yourself
 

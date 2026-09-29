@@ -94,7 +94,7 @@ One more shape you will see: $O(\log \log n)$ and $O(\sqrt{n})$. $\sqrt{10^{12}}
 
 ## Under the hood: the constant inside log n
 
-"Thirty probes" sounds free until you ask what one probe costs. Binary search on a sorted array of 8-byte integers, measured in C on one desktop machine (best of three runs over a million random targets; the figures are specific to that CPU's 32 KB L1, 1 MB L2 and 96 MB L3, but the shape holds everywhere):
+"Thirty probes" sounds free until you ask what one probe costs. Binary search on a sorted array of 8-byte integers, measured in C on one desktop machine (best of three runs over a million random targets; the figures are specific to that CPU's 48 KB L1 data cache and 1 MB L2 per core and 96 MB L3, but the shape holds everywhere):
 
 | $n$ | Array size | Probes | Time per search | Time per probe |
 |---|---|---|---|---|
@@ -106,7 +106,7 @@ One more shape you will see: $O(\log \log n)$ and $O(\sqrt{n})$. $\sqrt{10^{12}}
 
 The probe count grows exactly as $\log_2 n$ predicts. The cost per probe does not stay constant; it rises fivefold, and the reason is the memory hierarchy. Every search starts at the same midpoint, then one of the same two quarter-points, then one of the same four eighth-points: the top $k$ levels of the implicit search tree touch only $2^k$ distinct cache lines, and for $k$ up to about 20 those million lines (64 MB) stay resident in L3 across searches. Only the bottom $\log_2 n - 20$ levels, whose midpoints are spread across the whole array, miss to DRAM at roughly 70–100 ns each. For $n = 2^{26}$ that is about six DRAM misses plus twenty cheap probes, which is what the 474 ns is made of.
 
-This is the mechanism behind two design decisions. B-trees pack hundreds of keys per node so that a lookup makes three or four node visits instead of thirty, each of which is a sequential scan within one cache line or page. The Eytzinger layout stores a sorted array in breadth-first order so that the next probe's candidates are adjacent in memory and can be prefetched. Both leave the algorithm at $\Theta(\log n)$ and cut the constant by three to ten times. "$\log n$" tells you the count; the hardware tells you the price.
+This is the mechanism behind two design decisions. B-trees pack hundreds of keys per node so that a lookup makes three or four node visits instead of thirty, each of which is a sequential scan within one cache line or page. The Eytzinger layout stores a sorted array in breadth-first order so that the next probe's candidates are adjacent in memory and can be prefetched. Both leave the algorithm at $\Theta(\log n)$ and attack the constant. Khuong and Morin's [study of array layouts for searching](https://arxiv.org/abs/1509.05053) found that a plain sorted array with a good branch-free binary search is best while the data is small, and the Eytzinger layout (with prefetching) is usually fastest once it is large. "$\log n$" tells you the count; the hardware tells you the price.
 
 ## Comparing growth rates
 
@@ -234,7 +234,7 @@ The interview move: when asked "can you do better than $O(n \log n)$?", answer w
 
 **Measuring the wrong input size.** *Symptom:* a validation routine that "loops once" takes minutes on some requests. *Diagnosis:* the loop runs up to the *value* of a numeric field (a count, a timestamp, an ID), not the length of the input; a client sent $10^{12}$ and the loop obliged. *Fix:* make the loop bound a property of the data's size or a hard cap, and reject values above it at the boundary.
 
-**Ignoring the base of the logarithm on disk.** *Symptom:* a lookup structure that is "$O(\log n)$" costs 30 ms per query once the data outgrows RAM. *Diagnosis:* it is a binary tree with one node per disk page: 30 levels means 30 dependent page reads at about 1 ms each on a spinning disk, or 30 × 100 µs on an SSD. *Fix:* a B-tree or a sorted-run structure whose fan-out matches the page size: 3–4 levels, 3–4 reads. Same class, tenfold fewer I/Os.
+**Ignoring the base of the logarithm on disk.** *Symptom:* a lookup structure that is "$O(\log n)$" costs milliseconds per query once the data outgrows RAM. *Diagnosis:* it is a binary tree with one node per disk page: 30 levels means 30 dependent page reads. A flash read is on the order of 100 µs (it depends on the drive and the queue depth), so that is about 3 ms on an SSD; a spinning disk at 7,200 rpm waits 4.2 ms on average for rotation alone (half of an 8.3 ms revolution) before any seek, so it is a quarter of a second or more. *Fix:* a B-tree or a sorted-run structure whose fan-out matches the page size: 3–4 levels, 3–4 reads. Same class, tenfold fewer I/Os.
 
 ```exercise
 id: count-halvings
@@ -371,7 +371,7 @@ hints:
 - You can produce $c$ and $n_0$ for a concrete bound on request and you know the $n_0$ is often in the thousands, which is why constants matter below it.
 - You decode a constraint like $n \le 10^5$ into "quadratic is out, $n \log n$ is intended" before you start designing, and $n \le 20$ into "subset enumeration is fine", and you can say where the $10^8$-per-second budget comes from.
 - You keep separate variables for separate inputs ($O(V + E)$, $O(nm)$, $O(n \cdot L)$) and do not collapse them without saying what you assumed.
-- You can do $\log_2$ of a billion in your head (about 30), explain why base does not matter asymptotically but does matter for a B-tree, and put a price on a probe (nanoseconds from cache, about 100 ns from DRAM, tens of microseconds from disk).
+- You can do $\log_2$ of a billion in your head (about 30), explain why base does not matter asymptotically but does matter for a B-tree, and put a price on a probe (nanoseconds from cache, about 100 ns from DRAM, tens to hundreds of microseconds from an SSD, milliseconds from a spinning disk).
 - You answer "can you do better?" with a lower bound when one exists, and you know the comparison-sorting bound and how counting sort steps around it.
 - You state which case (worst, average, amortised) you are reporting and what distributional assumption the average rests on.
 - When the input is a number, you know the input size is its digit count and can say why trial division is exponential.
@@ -396,7 +396,7 @@ hints:
   options: ["The compiler vectorises searches on small arrays but not on large ones", "Only the bottom few probes miss cache; the top of the search tree stays resident", "The larger array needs more probes, so each one is slower", "Every probe on the large array is a 100 ns DRAM miss, averaged with loop overhead"]
   answer: 1
   explanation: >-
-    Every search visits the same midpoints at the top levels, so those cache lines stay hot across searches; only the last several probes, whose positions are spread over the whole array, miss to DRAM. That is why the per-probe average rises to 18 ns rather than to 100 ns. Probe count does not change per-probe cost, and binary search cannot be vectorised.
+    Every search visits the same midpoints at the top levels, so those cache lines stay hot across searches; only the last several probes, whose positions are spread over the whole array, miss to DRAM. That is why the per-probe average rises to 18 ns rather than to 100 ns. Probe count does not change per-probe cost, and a plain binary search is a chain of dependent probes that the compiler does not vectorise at any size.
 - q: >-
     A function loops over an array of n strings and, for each, checks membership in a Python list that accumulates the results so far. What is its complexity, and what one change fixes it?
   options: ["O(n²); switch the results to a set", "O(n log n); sort the list before looping", "O(n); the loop is already linear", "O(n²); preallocate the list up front"]

@@ -146,7 +146,15 @@ The agent writes `repro.sh`; git performs a binary search over the commits betwe
 | 2 | c5 … c8 (4) | c6 | 1 (bad) | bug is in c5 … c6 |
 | 3 | c5 … c6 (2) | c5 | 1 (bad) | **c5 is the first bad commit** |
 
-Three runs for eight commits; about ten for a thousand, because $\log_2 1000 \approx 10$. Each step halves the range whatever the answer, so the cost is bounded before you start, which a model's guess about which commit "looks suspicious" is not. Two things make bisect run reliably: the script must be deterministic (a flaky reproduction sends the search down the wrong half, and there is no recovery), and a commit that cannot be built should return 125 so git skips it instead of misclassifying it.
+Three runs for eight commits; about ten for a thousand, because $\log_2 1000 \approx 10$. Each step halves the range whatever the answer, so the cost is bounded before you start, which a model's guess about which commit "looks suspicious" is not. Two things make bisect run reliably: the script must be deterministic (a flaky reproduction sends the search down the wrong half, and bisect cannot notice), and a commit that cannot be built should return 125 so git skips it instead of misclassifying it.
+
+### Under the hood: what bisect does with your answers
+
+Bisect keeps two sets of marks, good and bad. Its candidates are the commits that are ancestors of the bad mark and not of any good mark, and at each step it checks out one that splits them and prints the budget before you spend it; the [git documentation](https://git-scm.com/docs/git-bisect)'s own example reads `Bisecting: 675 revisions left to test after this (roughly 10 steps)`. Every answer removes about half the candidates for good, which is exactly why a wrong answer is so expensive: the true culprit may now sit in the half that was thrown away, and every later step narrows the wrong range with complete confidence.
+
+`git bisect run` reads your script's exit code: 0 marks the commit good, 1 to 127 except 125 marks it bad, 125 skips it, and any other code aborts the run. That last rule matters when an agent writes the script: if its final command dies from a signal, the shell reports 128 plus the signal number and the search stops rather than recording a crash as the bug.
+
+Three commands cover the ways a run goes wrong. `git bisect log` prints every mark so far; when you find one that a flaky run got wrong, save the log, delete that line and `git bisect replay` the file to resume from the corrected state instead of starting over. `git bisect skip` handles untestable commits, at a cost the documentation spells out: skip the commit next to the culprit and git can only name a range. And `git bisect start --first-parent` follows only the first parent at each merge, so a merged branch full of broken intermediate commits is judged by its merge commit alone.
 
 ## Guardrails on production actions
 
@@ -176,9 +184,9 @@ A tier-1 tool, as an MCP tool in the shape from [MCP and integrations](/learn/ai
 
 ```python
 import os, re, httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
-mcp = FastMCP("ops")
+mcp = MCPServer("ops")
 API = os.environ["DEPLOY_API_URL"]
 TOKEN = os.environ["OPS_SCALE_TOKEN"]          # scoped: scale only, no delete, no IAM
 SERVICE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
@@ -228,7 +236,7 @@ Blameless analysis applies when an agent caused the incident too. "The AI made a
 | The dashboard query the model drafted shows p99 "recovering" while users still time out | The query averages per-instance p99s, or its label filter matches nothing and draws a flat line | Read every generated query before trusting its graph; aggregate histograms, never percentiles of percentiles; confirm the series has samples |
 | The model's confident "root cause" is rolled back and the incident continues | Anchoring on the first story; the deploy was correlated in time but not causal | Require one confirmed prediction per hypothesis before acting; check evidence against, and timing |
 | A flaky test is "fixed" and returns a month later on faster CI machines | A timing change (sleep, retry, longer timeout) made the race rarer | Reject fixes that cannot be stated as an ordering or state change; script the interleaving |
-| Bisect names an innocent commit | The reproduction script was flaky or a build failure was classified as bad | Run the script five times on the known-bad commit first; return 125 for unbuildable commits |
+| Bisect names an innocent commit | The reproduction script was flaky or a build failure was classified as bad | Run the script five times on the known-bad commit first; return 125 for unbuildable commits; correct a wrong mark with `git bisect log` and `git bisect replay` |
 | An agent restarted the wrong deployment at 02:20 | It held a credential for a tier-2 action and acted on an unverified hypothesis | Remove write credentials; put actions behind runbook tools with dry-run and human approval; route remediations through the canary |
 | The postmortem's action items are "improve monitoring" and "add tests" | Generated items with no owner, date or threshold | Rewrite each item with a metric, a threshold, an owner and a date, or delete it |
 
@@ -367,7 +375,7 @@ hints:
   options: ["The range contained more than 1,000 commits, which exceeds what bisect can search", "Bisect always needs the bad commit to be given first, and the order was swapped", "The regression is in a merge commit, which bisect cannot check out", "The reproduction script was flaky or classified an unbuildable commit as bad"]
   answer: 3
   explanation: >-
-    Bisect halves the range on each answer with no way to recover from a wrong one, so a script that fails intermittently, or one that returns a bad exit code when the commit merely does not build, sends the search into the wrong half. Test the script repeatedly on the known-bad commit first and return 125 for commits to skip. Range size only adds steps, and merge commits are searchable.
+    Bisect halves the range on each answer with no way to detect a wrong one, so a script that fails intermittently, or one that returns a bad exit code when the commit merely does not build, sends the search into the wrong half. Test the script repeatedly on the known-bad commit first and return 125 for commits to skip. Range size only adds steps, and merge commits are searchable.
 - q: >-
     An agent has been told in its instructions not to touch production during a code freeze, but its environment holds production database credentials with write access. What is the real control?
   options: ["Monitor its actions closely and alert on any production writes", "Remove the write-capable credentials from the agent's environment", "Repeat the instruction in capital letters at the top of every prompt", "Require it to ask for confirmation before running each command"]

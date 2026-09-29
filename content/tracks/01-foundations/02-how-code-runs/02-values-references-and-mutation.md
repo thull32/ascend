@@ -83,7 +83,7 @@ In the other three languages the fix is a decision, not a compiler error: `sorte
 
 ## Under the hood: CPython names, PyObjects and reference counts
 
-In CPython every value is a `PyObject` on the heap, and every variable, attribute, list slot and dictionary value is an 8-byte pointer to one. The object begins with a 16-byte header: `ob_refcnt` (8 bytes, how many pointers currently refer to it) and `ob_type` (8 bytes, a pointer to the type object). A list adds `ob_size`, a pointer `ob_item` to a separately allocated array of element pointers, and `allocated` (the capacity), so `sys.getsizeof([1, 2, 3])` reports 80: a 56-byte object (header, GC bookkeeping and the three list fields) plus 3 × 8 bytes of element pointers.
+In CPython every value is a `PyObject` on the heap, and every variable, attribute, list slot and dictionary value is an 8-byte pointer to one. The object begins with a 16-byte header: `ob_refcnt` (8 bytes, how many pointers currently refer to it) and `ob_type` (8 bytes, a pointer to the type object). A list adds `ob_size`, a pointer `ob_item` to a separately allocated array of element pointers, and `allocated` (the capacity), so `sys.getsizeof([1, 2, 3])` reports 88 on CPython 3.14: a 56-byte object (header, GC bookkeeping and the three list fields) plus a 4-slot array of element pointers, 32 bytes. The literal is built by extending an empty list, which allocates exactly but rounds up to an even number of slots, since the allocator's 16-byte granularity makes the odd slot free.
 
 Assignment never copies an object; it changes which object a name points at and adjusts counts. Trace this snippet with `sys.getrefcount` in mind (it always reports one more than you expect, because its own argument is a reference):
 
@@ -99,13 +99,13 @@ b = None
 |---|---|---|---|
 | 1 | `a = [1, 2, 3]` | 1 | The name `a` |
 | 2 | `b = a` | 2 | `a`, `b` (8 bytes copied; no element touched) |
-| 3 | `b.append(4)` | 2 (3 for the duration of the call: the bound method holds one) | `a`, `b`; `a` now sees `[1, 2, 3, 4]` |
+| 3 | `b.append(4)` | 2 (3.14 calls the method without building a bound-method object and borrows `b` from the local) | `a`, `b`; `a` now sees `[1, 2, 3, 4]` |
 | 4 | `del a` | 1 | `b` |
 | 5 | `b = None` | 0 | Nobody: the list is freed *now*, and its four element pointers are decremented in turn |
 
 Step 5 is why CPython's memory tracks live data closely and why `with` blocks release files promptly. The [memory management lesson](/learn/foundations/how-code-runs/memory-management) covers what happens to cycles that never reach zero.
 
-Two details change what you observe. Since 3.12, `None`, `True`, `False`, the small integers from −5 to 256 and interned strings are *immortal* (PEP 683): their count is pinned at a sentinel that increments and decrements do not change, so `sys.getrefcount(None)` returns a huge constant. And the small-int cache is why `x = 256; y = 256; x is y` is `True` while the same test at 257 may be `False`: `is` compares addresses, `==` compares values, and only `==` is a promise.
+Two details change what you observe. Since 3.12, `None`, `True`, `False`, the small integers from −5 to 256 and the interpreter's statically allocated strings are *immortal* ([PEP 683](https://peps.python.org/pep-0683/)): their count is pinned at a sentinel that increments and decrements do not change, so `sys.getrefcount(None)` returns a huge constant (3,221,225,472 on 3.14). A string you intern at run time with `sys.intern` is not immortal on 3.14; its count still moves. And the small-int cache is why `x = 256; y = 256; x is y` is `True` while the same test at 257 may be `False`: `is` compares addresses, `==` compares values, and only `==` is a promise.
 
 The "Python passes lists by reference but ints by value" folklore is not two rules. It is one rule (a reference to the object, everywhere) plus the fact that ints, strings and tuples are immutable, so no operation on them can be observed through another name. `x += 1` on an int must produce a new object because the old one cannot change; `xs += [1]` on a list calls `list.__iadd__`, which mutates in place, and every other name for that list sees it.
 
@@ -145,7 +145,7 @@ const p = {}; p.x = 1; p.y = 2;   // map chain: {} -> {x} -> {x, y}
 const q = {}; q.y = 2; q.x = 1;   // map chain: {} -> {y} -> {y, x}: a DIFFERENT map
 ```
 
-A property access site such as `o.x` keeps an **inline cache**: the map it last saw and the offset of `x` in that map. If the next object has the same map, the read is one comparison and one load at a fixed offset, the same cost as a struct field in C. A site that sees one map is monomorphic; up to four maps is polymorphic (a short chain of comparisons); more than that is megamorphic, and V8 gives up on the cache and falls back to a hash lookup on every access, an order of magnitude slower and never optimised by the JIT. Adding properties in different orders, adding them after construction, or `delete`-ing one (which drops the object into slow "dictionary mode") all fragment the maps. The rule that follows: initialise every property in the constructor, in the same order, and never `delete`. The [source-to-execution lesson](/learn/foundations/how-code-runs/from-source-to-execution) shows what the JIT does with a monomorphic site.
+A property access site such as `o.x` keeps an **inline cache**: the map it last saw and the offset of `x` in that map. If the next object has the same map, the read is one comparison and one load at a fixed offset, the same cost as a struct field in C. A site that sees one map is monomorphic; up to four maps is polymorphic (a short chain of comparisons); more than that is megamorphic: V8 stops tracking maps at that site and looks up every access in a global stub cache keyed by map and property name, so the JIT can no longer compile the read as a fixed-offset load. Adding properties in different orders, adding them after construction, or `delete`-ing one (which can switch the object to slow, dictionary-mode properties) all fragment the maps. The rule that follows: initialise every property in the constructor, in the same order, and never `delete`. The [source-to-execution lesson](/learn/foundations/how-code-runs/from-source-to-execution) shows what the JIT does with a monomorphic site.
 
 ## Go: values by default, with three reference-like types
 
@@ -293,7 +293,7 @@ A senior engineer picks one per codebase area and states it. What they do not do
 
 **"Why does the borrow checker reject a push while a reference to an element is alive, and how do you fix it without cloning?"** Model answer: the push may reallocate, which would leave the reference dangling; the rule is one mutable borrow or many shared, never both. End the shared borrow first (use it, or copy the element out as a `Copy` value) and then push. Common wrong answer: "add `.clone()`", which compiles but hides an O(n) copy that ordering would have avoided.
 
-**"Why does the order in which you add properties to a JavaScript object affect performance?"** Model answer: V8 assigns hidden classes through a transition tree keyed by property order, so `{x, y}` and `{y, x}` have different maps and a property-access site that sees both becomes polymorphic; past four maps it goes megamorphic and every access is a hash lookup. Common wrong answer: "objects are hash maps, so order does not matter", which is what V8 falls back to only when the fast path fails.
+**"Why does the order in which you add properties to a JavaScript object affect performance?"** Model answer: V8 assigns hidden classes through a transition tree keyed by property order, so `{x, y}` and `{y, x}` have different maps and a property-access site that sees both becomes polymorphic; past four maps it goes megamorphic and every access goes through a global cache lookup instead of a fixed-offset load. Common wrong answer: "objects are hash maps, so order does not matter", which is what V8 falls back to only when the fast path fails.
 
 ## What mid-level engineers get wrong
 
@@ -410,5 +410,5 @@ hints:
   options: ["Treats them as one shape, since the property sets are equal", "Sees two hidden classes and uses a polymorphic inline cache", "Rebuilds one object into the other's shape on first access", "Throws, because objects with different shapes cannot be mixed"]
   answer: 1
   explanation: >-
-    Hidden classes are assigned by the order of property additions, so the two factories produce two maps. A site that sees a handful of maps becomes polymorphic, a short chain of checks; past four it becomes megamorphic and falls back to hash lookups. V8 never rewrites objects to match, and the property sets being equal does not merge the maps.
+    Hidden classes are assigned by the order of property additions, so the two factories produce two maps. A site that sees a handful of maps becomes polymorphic, a short chain of checks; past four it becomes megamorphic and falls back to a generic cache lookup. V8 never rewrites objects to match, and the property sets being equal does not merge the maps.
 ```

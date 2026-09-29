@@ -37,7 +37,7 @@ Six steps, each with an output you could write on a whiteboard:
 
 The arrows back from *Test* are the important part. The first pass is rarely right, and the protocol says where to go when it is not: a wrong answer on an example you understood means the optimisation is broken, back to step 4; a wrong answer on a case you had not considered usually means you misread the problem, back to step 1.
 
-Each step makes the next one cheaper: understanding first means the examples test the right problem, examples first means the brute force can be checked, brute force first means the optimisation targets a known bottleneck rather than a guessed technique, and optimising first means the code is written once. Skipping a step moves the time to debugging, where it costs three times as much and earns no credit. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) lays the same steps against a clock.
+Each step makes the next one cheaper: understanding first means the examples test the right problem, examples first means the brute force can be checked, brute force first means the optimisation targets a known bottleneck rather than a guessed technique, and optimising first means the code is written once. Skipping a step moves the time to debugging, where it costs more and earns no credit. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) lays the same steps against a clock.
 
 ## Walkthrough 1: the longest substring without repeats
 
@@ -224,7 +224,7 @@ Why the $O(n)$ claim holds, as an argument rather than a slogan: `right` takes e
 
 > Given an array of integers `nums` and an integer `target`, return the indices of two distinct elements whose values add to `target`. Exactly one such pair exists.
 
-This is [Two Sum](/practice/two-sum), the most-asked warm-up in the industry, and the second pass is where the protocol stops feeling like a checklist.
+This is [Two Sum](/practice/two-sum), a standard warm-up, and the second pass is where the protocol stops feeling like a checklist.
 
 ### Understand
 
@@ -344,7 +344,7 @@ The same six steps fit a production task with an algorithmic core. Take the tick
 - **Optimise.** One pass with a map from user to best-so-far, replacing the entry when the new event's timestamp is at least as large: $O(n)$ time, $O(\text{users})$ space. It is `last_seen` from the first walkthrough with a comparison instead of an unconditional overwrite.
 - **Code and test.** The out-of-order example is the trace to do by hand; the exercise below has it as a test.
 
-The difference from an interview is that step 4 often stops early. At ten thousand events a day the sort finishes in milliseconds and the map is over-engineering. At $10^9$ events a day, around 100 GB at 100 bytes each, the sort no longer fits in one process and the map is the design. At the scale of a large streaming service's event pipeline, on the order of $10^{12}$ events a day (the order Netflix has quoted publicly), the "map" is keyed state inside a stream processor: the stream is partitioned by user ID so each worker owns a share of the keys and holds the best-so-far map for that share, checkpointed so a crash does not lose it. The algorithm did not change between the ticket and the platform; only where the map lives did. Knowing when to stop optimising is part of the skill, and it needs the numbers from step 3.
+The difference from an interview is that step 4 often stops early. At ten thousand events a day the sort finishes in milliseconds and the map is over-engineering. At $10^9$ events a day, around 100 GB at 100 bytes each, the sort no longer fits in one process and the map is the design. At the scale of a large company's event pipeline, on the order of $10^{12}$ events a day, the "map" is keyed state inside a stream processor: the stream is partitioned by user ID so each worker owns a share of the keys and holds the best-so-far map for that share, checkpointed so a crash does not lose it. The algorithm did not change between the ticket and the platform; only where the map lives did. Knowing when to stop optimising is part of the skill, and it needs the numbers from step 3.
 
 ## Failure modes in interviews and production
 
@@ -459,11 +459,11 @@ hints:
 
 ## What mid-level engineers get wrong
 
-- **Typing within thirty seconds.** The first ten minutes produce code for a problem that was never restated; when it fails there is no example to check against and no brute force to compare with, so debugging is guesswork.
+- **Typing within thirty seconds.** The code is for a problem that was never restated, and when it fails there is no example or brute force to check against.
 - **Treating "brute force" as an insult.** They skip it, then cannot say what work the optimised version saves, so the optimisation is pattern-matched on the problem title and breaks on the variant.
 - **Leaving complexity as a letter.** "It is O(n²)" with no number against the stated $n$; they cannot tell that $O(n^2)$ at $n = 2{,}000$ ($4 \times 10^6$, fine) and at $n = 10^5$ ($10^{10}$, not fine) are different situations.
 - **Testing only the examples they were given.** The interviewer's examples explain the problem, not break code; the bug lives in the example nobody wrote, which is why `"abba"` exists.
-- **Optimising by reflex.** Reaching for the $O(n)$ structure at $n = 5{,}000$ when the $O(n \log n)$ sort was finished, tested and took 3 ms; the extra code is a liability with no benefit.
+- **Optimising by reflex.** Reaching for the $O(n)$ structure at $n = 5{,}000$ when the tested $O(n \log n)$ sort took 3 ms.
 
 ## Senior signals
 
@@ -472,10 +472,8 @@ hints:
 - You convert Big-O into an operation count against the stated `n`, say whether it fits, and can say where your "operations per second" figure comes from and what it depends on.
 - You argue linearity with monotonicity ("both pointers only move right, so total movement is at most 2n") instead of asserting it, and you can put an order of magnitude on one iteration in your runtime (tens of nanoseconds for a dict-backed window in CPython, a third of that under a JIT).
 - You trace an example by hand through your own code before declaring it done, and you keep at least one example whose only purpose is to break a bug you know is tempting.
-- You know the brute force is a test oracle, and in production you write the differential test that checks the fast path against it.
 - When a hint arrives you restate it, place it in the loop, derive the consequence and resume at that step; you do not restart.
-- You know when to stop: an $O(n \log n)$ solution to a problem with `n = 1,000` is finished, and you say so.
-- You notice representation issues (UTF-16 code units, integer width) that the problem statement does not mention.
+- You know when to stop, and you notice representation issues (UTF-16 code units, integer width) the statement does not mention.
 
 ## Check yourself
 

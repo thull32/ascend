@@ -7,7 +7,7 @@ difficulty: easy
 tags: [patterns, interview, problem-solving, catalogue]
 problems: [maximum-subarray, next-greater-element, longest-consecutive-sequence, course-schedule, daily-temperatures, subarray-sum-equals-k]
 ---
-Interview problems are not infinite. A few thousand distinct ones exist in the wild, and nearly all of them are one of about thirty techniques wearing a costume. The costume changes (candies, meeting rooms, servers, gas stations, DNA strings) but the technique underneath is decided by a small number of properties of the input and the question: is the input sorted, is the question about contiguous ranges, does "the smallest k that works" have a monotone structure, is there a dependency order.
+Interview problems are not infinite. The ones in circulation number in the thousands, and most of them are one of about thirty techniques wearing a costume. The costume changes (candies, meeting rooms, servers, gas stations, DNA strings) but the technique underneath is decided by a small number of properties of the input and the question: is the input sorted, is the question about contiguous ranges, does "the smallest k that works" have a monotone structure, is there a dependency order.
 
 Experienced engineers do not solve interview problems from scratch. They read the statement, notice two or three signals, map them to a pattern, and spend their time on what is new. This lesson is that mapping, written down, then exercised on two problems from signal to traced code, one of whose loudest signal points at the wrong pattern. It will not make you good at any individual pattern; each has its own lesson in the [Interview Patterns](/learn/interview-patterns/array-patterns/two-pointers) track. What it gives you is the first thirty seconds of every problem: *what kind of thing is this?*
 
@@ -57,7 +57,7 @@ Read for those four things before you think about any technique. Then consult th
 | **math** | Pow, big-number arithmetic on strings, geometry counting, digit manipulation | varies | [math-and-geometry](/learn/interview-patterns/combinatorial-patterns/math-and-geometry) |
 | **design** | "Implement a class that supports…"; LRU, min-stack, time-based store; every operation must be O(1) or O(log n) | per operation | [design-problems](/learn/interview-patterns/combinatorial-patterns/design-problems) |
 
-The table is not a lookup you memorise. It is a summary of a habit: notice the input structure, the question shape, the constraints and the answer's structure, and let those choose.
+The table summarises a habit rather than a lookup to memorise: read the four properties above and let them choose.
 
 ## A decision walk
 
@@ -92,7 +92,7 @@ flowchart TD
 
 This is [Daily Temperatures](/practice/daily-temperatures). **Signals:** *for each element*, the *next* element to the right satisfying a comparison. "For each element, the next greater thing" is the monotonic-stack row of the table, nearly verbatim. Now run the [problem-solving loop](/learn/foundations/problem-solving/the-problem-solving-loop) on it rather than stopping at the pattern's name.
 
-**Understand:** strictly warmer, so an equal temperature does not count; the answer is a distance in days, not an index; the bounded temperature range (0 to 200) is a signal for a follow-up, not for the main solution. **Examples:**
+**Understand:** strictly warmer, so an equal temperature does not count; the answer is a distance in days, not an index; the bounded range (0 to 200) is a signal for a follow-up. **Examples:**
 
 | Input | Output | Why |
 |---|---|---|
@@ -151,7 +151,7 @@ This is [Subarray Sum Equals K](/practice/subarray-sum-equals-k), and its loudes
 | `[1, -1, 1, -1]`, 0 | 4 | `[1, -1]` twice, `[-1, 1]`, and the whole array |
 | `[]`, 5 | 0 | empty |
 
-**Brute force:** every start, then extend the end with a running sum: $n(n+1)/2 \approx 2 \times 10^8$ additions at $n = 2 \times 10^4$. Measured on one machine (AMD Ryzen 9 9950X3D, CPython 3.14.7, random values in $[-1000, 1000]$): 3.0 s natively, against a 4-second limit enforced by a browser runtime slower than native. Not safe. The repeated work: the sum of `nums[i..j]` is recomputed for each `i` even though it is `prefix[j+1] - prefix[i]`.
+**Brute force:** every start, then extend the end with a running sum: $n(n+1)/2 \approx 2 \times 10^8$ additions at $n = 2 \times 10^4$. Measured on one machine (AMD Ryzen 9 9950X3D, CPython 3.14.7, random values in $[-1000, 1000]$): 3.0 s natively, against a 4-second limit enforced by WebAssembly runtimes slower than native (Pyodide in the browser, and CPython for WASI in the server's grader, whose verdict is the one recorded). Not safe. The repeated work: the sum of `nums[i..j]` is recomputed for each `i` even though it is `prefix[j+1] - prefix[i]`.
 
 **Optimise:** a subarray sum is a difference of two prefix sums, so "subarray ending at `j` sums to `k`" becomes "some earlier prefix equals `prefix[j+1] - k`". Walk once, keeping a frequency map of prefixes seen so far; at each position add the count of the prefix you need. Seed the map with `{0: 1}` for the empty prefix, or subarrays that start at index 0 are never counted. $O(n)$ time, $O(n)$ space; measured 2.2 ms at $n = 2 \times 10^4$, about 1,400 times faster than the brute force.
 
@@ -198,9 +198,9 @@ The second walkthrough, as a strong candidate narrates it, with the signals an i
 >
 > *[states the boundary case before coding and verifies it on an example]*
 >
-> "If you told me all values were positive, I would go back to the window and drop the map: O(1) space."
+> "If all values were positive, I would go back to the window and drop the map: O(1) space."
 >
-> *[names the condition under which the rejected pattern becomes the better one]*
+> *[names when the rejected pattern becomes the better one]*
 
 ## Under the hood: where the operations-per-second budget comes from
 
@@ -217,7 +217,7 @@ Every pattern decision above leaned on a number: "10⁸ simple operations per se
 
 Read the rule of thumb off the table. **Compiled code** does $10^9$ simple operations per second, more when the loop vectorises; $10^8$ is ten times pessimistic. **A JIT** does $10^9$ on integer arithmetic and about $10^8$ once each iteration touches a hash map. **CPython** reaches $10^8$ only for an empty loop; any real body, with a dict operation, a call or an append, runs at $2$ to $5 \times 10^7$ per second, so $10^8$ is several times optimistic. The honest budget: $10^9$ per second compiled, $10^8$ under a JIT with real work in the body, $10^7$ in CPython, then scale by what one iteration does (a dict probe 20 to 50 ns in CPython, a DRAM cache miss about 100 ns in any language, as the [cost model lesson](/learn/foundations/complexity/why-big-o) measured). This machine is a fast 2025 desktop; a laptop or a judge's shared server runs two to three times slower, which is why the numbers are quoted to one significant figure.
 
-Time limits come from the same arithmetic. Judges run a reference solution in the intended complexity and multiply its time by a factor, commonly two to five, so the intended solution passes with slack and one class worse does not. Some judges give interpreted languages a per-language multiplier; others give every language the same limit, which is why competitive Python usually runs under PyPy. On this platform each problem carries a `time_limit_ms` (4,000 ms for the problems above) applied per test in both languages, with Python running as Pyodide, CPython compiled to WebAssembly inside a Web Worker, slower than native by a factor to treat as a few. So a solution measured at 3 s natively is a failed submission, and at $n = 2 \times 10^4$ the gap between $O(n^2)$ and $O(n)$ is not "faster"; it is failing versus 2 ms.
+Time limits come from the same arithmetic: they are set with slack above a reference solution in the intended complexity, so that solution passes and one class worse does not. Some judges scale the limit per language and others do not, which is why competitive Python often runs under PyPy where a judge offers it. On this platform each problem carries a `time_limit_ms` (4,000 ms for the problems above) applied per test in both languages. Python runs as CPython compiled to WebAssembly twice: Pyodide in a Web Worker for instant feedback, then CPython for WASI in the server's sandbox, whose verdict is the one recorded. Both are slower than native by a factor to treat as a few. So a solution measured at 3 s natively is a failed submission, and at $n = 2 \times 10^4$ the gap between $O(n^2)$ and $O(n)$ is not "faster"; it is failing versus 2 ms.
 
 ## Two more statements, read for signals
 
@@ -245,7 +245,7 @@ Some problems admit two approaches, and the constraints pick. Say both, with the
 | Subarray with sum k | sliding window | $O(n)$ | $O(1)$ | yes | all values positive |
 | | prefix sums plus hash map | $O(n)$ | $O(n)$ | yes | negatives allowed |
 
-The same choices appear outside interviews at every scale. A recommender that scores millions of candidates per request and needs the best few hundred keeps them in a bounded heap rather than sorting, because $k \ll n$: the top-k row, and the shape of candidate ranking as large streaming services including Netflix describe it publicly. A build system or pipeline scheduler ordering jobs by declared dependencies is the topological-sort row in a different costume.
+The same choices appear outside interviews at every scale. A recommender that scores millions of candidates per request and needs the best few hundred keeps them in a bounded heap rather than sorting, because $k \ll n$: the top-k row. A build system or pipeline scheduler ordering jobs by declared dependencies is the topological-sort row in a different costume.
 
 ## Signals that mislead
 
@@ -269,7 +269,7 @@ Pattern matching on surface words has failure modes, and the difference between 
 
 ## Building the reflex
 
-Pattern recognition is not memorised from a table; it is built by solving problems and, after each one, writing one sentence: *the signal was X, the pattern was Y, and the thing that made it non-obvious was Z.* Ten problems per pattern with that sentence attached is enough for the reflex to form. Two hundred problems without it is not, which is why engineers who have "done 400 LeetCode problems" still freeze on the 401st. Ascend's practice problems are tagged by pattern so you can do this deliberately: pick a pattern, solve its problems until the signal is automatic, then move on.
+The reflex is built by solving problems and, after each one, writing one sentence: *the signal was X, the pattern was Y, and the thing that made it non-obvious was Z.* Solving hundreds of problems without that sentence is how engineers still freeze on the next one. Ascend's practice problems are tagged by pattern so you can do this deliberately: pick a pattern, solve its problems until the signal is automatic, then move on.
 
 ## Exercises
 
@@ -371,19 +371,15 @@ hints:
 
 **"Temperatures arrive as a stream and you must emit each day's answer as soon as it is known."** *Model answer:* the stack solution already does that: an answer is known at the moment its index is popped, so emit on pop. The cost is that unresolved indices stay buffered, and a strictly decreasing stream buffers everything, so memory is $O(n)$ in the worst case and the last answers arrive only at end of stream. *Common wrong answer:* "you need the whole array first", which the pop-time emission disproves.
 
-**"Why seed the prefix map with `{0: 1}`?"** *Model answer:* it represents the empty prefix before index 0. A subarray `nums[0..j]` that sums to `k` has `prefix[j+1] - k == 0`, and without the seed that lookup finds nothing; `[5]` with `k = 5` returns 0 instead of 1. *Common wrong answer:* "to avoid a missing-key error", which `.get(…, 0)` already handles.
-
-**"All values are now positive. Does anything change?"** *Model answer:* the window sum becomes monotone, so a sliding window counts the subarrays in $O(n)$ time and $O(1)$ space; the prefix map still works but its $O(n)$ space is now unnecessary. I would say the switch and why it is now valid. *Common wrong answer:* "no, the prefix map is always the answer to this problem".
+**"Why seed the prefix map with `{0: 1}`?"** *Model answer:* it represents the empty prefix before index 0; without it `[5]` with `k = 5` returns 0 instead of 1. *Common wrong answer:* "to avoid a missing-key error", which `.get(…, 0)` already handles.
 
 **"Top-k frequent: heap or bucket sort?"** *Model answer:* the heap is $O(n \log k)$ and $O(k)$ extra beyond the counts, and it works on a stream; bucket sort is $O(n)$ and $O(n)$ space and needs all counts first. With $k$ near $n$ the heap's log factor buys nothing; with $k$ small and memory tight, or with a stream, the heap wins. *Common wrong answer:* "heap, because it is the top-k pattern", with no reference to $k$, $n$ or memory.
 
 ## What mid-level engineers get wrong
 
 - **Choosing the pattern from the problem title.** "Subarray" becomes sliding window and "minimum" becomes greedy before the constraints are read; the solution passes the examples and fails the hidden negative or the `{1, 3, 4}` coins.
-- **Reading examples before constraints.** The examples explain the problem; the constraints decide the approach. `n ≤ 20` and `n ≤ 10⁵` are different problems with the same examples.
-- **Quoting $10^8$ per second for CPython.** A loop body with a dict operation runs at $2$ to $5 \times 10^7$ per second, so an $O(n^2)$ plan at $n = 2 \times 10^4$ that "should take two seconds" takes three natively and fails in the browser runtime.
+- **Quoting $10^8$ per second for CPython.** A loop body with a dict operation runs at $2$ to $5 \times 10^7$ per second, so an $O(n^2)$ plan at $n = 2 \times 10^4$ that "should take two seconds" takes three natively and fails in the WebAssembly runtimes that grade it.
 - **Naming the tool as the algorithm.** "I will use a hash map" has no complexity; "for each end, look up the count of the prefix I need" does.
-- **Memorising the table without the property.** The row for sliding window says "contiguous"; the property it needs is monotone, and the row is useless without it.
 - **Committing to one pattern in silence.** When the follow-up changes a constraint, the candidate who listed two options switches in a sentence; the one who did not starts over.
 
 ## Senior signals
@@ -392,7 +388,6 @@ hints:
 - You name the signal, not only the pattern: "contiguous and monotone, so sliding window" rather than "I think this is sliding window".
 - You can say why the tempting wrong pattern fails on this problem (sliding window with negatives, greedy without an exchange argument) and under what change to the constraints it would become right.
 - When two patterns fit you state both with time, space and streaming behaviour, and let the constraints or the follow-up choose.
-- You know where "10⁸ operations per second" comes from and that it is ten times pessimistic for compiled code and several times optimistic for CPython with a real loop body.
 - You treat "recursion", "hash map" and "sort" as tools, not answers, and can say which algorithmic idea they are serving.
 - You recognise the same technique under different costumes (course schedule, build systems and package managers are one problem; "next warmer day" and "stock span" are another).
 
@@ -434,5 +429,5 @@ hints:
   options: ["Comfortable: 4 × 10^8 steps is well under 10^9 per second", "Fine, because limits are per test and the tests are independent", "Impossible in any language, since 10^8 per second is universal", "Unsafe: about 2 × 10^8 loop bodies at a few times 10^7 per second is seconds"]
   answer: 3
   explanation: >-
-    n(n+1)/2 at n = 2 × 10^4 is about 2 × 10^8 loop bodies. A CPython body with an add and a compare runs at a few times 10^7 per second, so the brute force measured about 3 seconds natively and would be slower in the browser runtime; that is a failing submission, not a comfortable one. The same count is well under a second in compiled code, which is why the budget must be attached to a runtime.
+    n(n+1)/2 at n = 2 × 10^4 is about 2 × 10^8 loop bodies. A CPython body with an add and a compare runs at a few times 10^7 per second, so the brute force measured about 3 seconds natively and would be slower in the WebAssembly runtimes that grade it; that is a failing submission, not a comfortable one. The same count is well under a second in compiled code, which is why the budget must be attached to a runtime.
 ```

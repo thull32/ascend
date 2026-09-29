@@ -106,11 +106,11 @@ the incident report as the on-call engineer would:
 Be specific to this design. Do not give generic advice about monitoring.
 ```
 
-Then `/premortem docs/design/webhook-ingestion.md` produces a report that names the section of *this* document that should have raised the failure. Other tools have equivalents (prompt files in Copilot and Cursor, custom commands in Gemini CLI); where there is none, the same text pasted with the document attached works, and the discipline is the same: the author triages the report in the document, visibly.
+Then `/premortem docs/design/webhook-ingestion.md` produces a report that names the section of *this* document that should have raised the failure. Other tools have equivalents (prompt files in Copilot, custom commands in Cursor and Gemini CLI); where there is none, the same text pasted with the document attached works, and the discipline is the same: the author triages the report in the document, visibly.
 
 ## ADRs with AI
 
-An architecture decision record captures one decision in a page. A widely used format, from Michael Nygard, has a title, a status, the context, the decision and its consequences.
+An architecture decision record captures one decision in a page. A widely used format, from [Michael Nygard's 2011 post](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions), has a title, a status, the context, the decision and its consequences, and he asks for all the consequences, "not just the 'positive' ones".
 
 ```text
 ADR-031: Idempotent webhook ingestion in Postgres

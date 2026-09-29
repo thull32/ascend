@@ -178,7 +178,7 @@ def check(fast, slow, trials=500):
 
 Keep `n` small: the point is coverage of *shapes*, and small inputs hit empty, single, duplicate and all-equal cases constantly. Run against the `end`-instead-of-`max` bug with the seed used for this lesson, the check fails on the second trial with `[[2, 7], [1, 7], [2, 4], [1, 8]]`: the bug returns `[[1, 7]]`, the sweep `[[1, 8]]`. Four intervals is more than a hand trace wants, which is what shrinking is for, below.
 
-**Property tests.** For some problems you cannot write a brute force but you can state properties of any correct output. Merged intervals must be sorted by start, pairwise non-overlapping and non-touching, and cover exactly the same set of points as the input. A sort's output must be a permutation of the input and be non-decreasing. Checking the properties is often trivial even when computing the answer is not. The same idea runs at fleet scale: automated canary analysis, which Netflix open-sourced as Kayenta, compares a new deployment's metrics against the baseline's, a property test whose output is a service.
+**Property tests.** For some problems you cannot write a brute force but you can state properties of any correct output. Merged intervals must be sorted by start, pairwise non-overlapping and non-touching, and cover exactly the same set of points as the input. A sort's output must be a permutation of the input and be non-decreasing. Checking the properties is often trivial even when computing the answer is not. The same idea runs at fleet scale: automated canary analysis, which Google and Netflix [released as the open-source Kayenta](https://cloud.google.com/blog/products/gcp/introducing-kayenta-an-open-automated-canary-analysis-tool-from-google-and-netflix) in 2018, compares a new deployment's metrics against the baseline's, a property test whose output is a service.
 
 ## Under the hood: what the harness does with your answer
 
@@ -227,7 +227,7 @@ The mid-level habit is the debugger first and the trace never. The senior habit 
 
 Most engineers glance at an error, guess, and change something. The error usually says exactly what happened; the skill is reading the right line.
 
-- **Read the last line first, then the trace bottom-up.** Python and Node print the exception type and message last and the innermost frame above it. `IndexError: list index out of range` at `nums[hi]` says `hi` is `-1` or `n`, and both are taxonomy rows (empty input; `hi` initialised as `n`).
+- **Find the message, then the innermost frame of your own code.** Python prints the exception type and message last, with the innermost frame just above it ("most recent call last"), so read it bottom-up; Node prints the message first and the frames innermost first, so read it top-down. `IndexError: list index out of range` at `nums[hi]` says `hi` is out of range, and the likely values are both taxonomy rows (empty input; `hi` initialised as `n`).
 - **Distinguish your frames from library frames.** The topmost frames in your own file are where to look; a frame in `sorted` or `Map.get` means you passed something wrong *into* it.
 - **`RecursionError` / `Maximum call stack size exceeded`** means a missing base case or an input deeper than the default limit (1,000 frames in CPython; on the order of 10,000 in V8 for a simple function). A linked list of 10⁵ nodes traversed recursively will hit it; see [the call stack](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack).
 - **`TypeError: unsupported operand` / `undefined is not a function`** is almost always a value that was `None` or `undefined` because a lookup missed. Trace back to the lookup.
@@ -377,7 +377,7 @@ hints:
 - **Generating random inputs without boundaries.** Random intervals over a large range almost never nest or touch; the shrunk counterexample `[[1, 1], [0, 2]]` is what small ranges and shrinking find in 27 runs.
 - **Tracing the code they meant.** The trace shows the algorithm working while the code on the screen has `end` where `max` should be; rule one exists because this is the most common trace failure.
 - **Changing the code before reading the error.** Toggling `<` to `<=` after an `IndexError` fixes nothing; the error named the index and the row.
-- **Comparing floats with `==`.** `0.1 + 0.2 == 0.3` is `False` in every IEEE-754 language; a tolerance or a rounding rule is part of the test, not an afterthought.
+- **Comparing floats with `==`.** `0.1 + 0.2 == 0.3` is `False` in double precision in every language; a tolerance or a rounding rule is part of the test, not an afterthought.
 - **Ending without saying what was not tested.** The interviewer then has to assume nothing was; one sentence listing the untested rows and why they are safe changes the grade.
 
 ## Senior signals

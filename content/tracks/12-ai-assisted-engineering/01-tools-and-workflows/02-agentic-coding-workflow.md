@@ -36,7 +36,7 @@ The unit of delegation is a task that satisfies three conditions:
 
 1. **One concern.** It changes one behaviour. "Add the limiter and also tidy the middleware" is two tasks.
 2. **A mechanical done condition.** A command that exits 0 when the task is complete: specific tests, a type check, a linter.
-3. **A diff you can review in one sitting.** The widely cited SmartBear study of code review at Cisco (2006) found that reviewers' ability to find defects fell off beyond roughly 200–400 lines per review and beyond about an hour to ninety minutes in one sitting; the exact figures depend on the code and the reviewer, but later measurements of review effectiveness show the same shape. Beyond that size, reviewers skim.
+3. **A diff you can review in one sitting.** The widely cited SmartBear study of code review at Cisco (2006, about 2,500 reviews over ten months) found that reviewers' ability to find defects fell off beyond roughly 200–400 lines per review and beyond about an hour to ninety minutes in one sitting; the exact figures depend on the code and the reviewer, but later measurements of review effectiveness show the same shape. Beyond that size, reviewers skim.
 
 | Too big | Decomposed |
 |---|---|
@@ -109,7 +109,7 @@ $ claude --permission-mode plan                     # read-only: no edits, no mu
   (plan mode: nothing was changed)
 
 > Leave app/auth/login.py alone this step; generalising it is step 5. Otherwise approved.
-  [Shift+Tab: back to the default mode, which asks before writes]
+  [Shift+Tab: back to the default (Manual) mode, which asks before writes]
 
 > Write tests/test_ratelimit.py for step 1 only. Run it and show me the failure.
   Do not implement.
@@ -255,7 +255,7 @@ The loop also has a cost curve. Each iteration resends the whole transcript, inc
 
 ## Under the hood: modes, hooks and worktrees
 
-A permission mode is a policy the harness applies between the model's proposal and the tool's execution. In the default mode, read-only tools (file reads, search, commands the harness classifies as read-only) run without asking and anything that writes or reaches the network prompts you. `acceptEdits` moves file edits and common filesystem commands into the pre-approved set. Plan mode goes the other way: the harness withholds every mutating tool, so the model can read and search but a request to edit is refused until you switch modes. `auto` mode replaces your judgement with a classifier model's, and `bypassPermissions` removes the check entirely, which is why organisations can disable it. Allow, ask and deny rules refine whichever mode is active by matching the tool call as a string, `Bash(pytest:*)` or `Read(./.env)`; matching is on the request, not on what the command does, which is the gap a sandbox closes.
+A permission mode is a policy the harness applies between the model's proposal and the tool's execution. In the default mode, read-only tools (file reads, search, commands the harness classifies as read-only) run without asking and anything that writes or reaches the network prompts you. `acceptEdits` moves file edits and common filesystem commands into the pre-approved set. Plan mode goes the other way: the model can read, search and run commands the harness judges read-only, but edits stay blocked until you approve a plan or switch modes. `auto` mode replaces your judgement with a classifier model's (and in recent versions it is the mode a session starts in), and `bypassPermissions` removes the check entirely, which is why organisations can disable it. Allow, ask and deny rules refine whichever mode is active by matching the tool call as a string, `Bash(pytest:*)` or `Read(./.env)`; matching is on the request, not on what the command does, which is the gap a sandbox closes.
 
 Hooks are the harness calling out to you at fixed points in the loop: before a tool call (with the power to deny or rewrite it), after one, when the model stops, when a session starts. Because the hook runs before execution, it holds when the model is wrong, tired or being manipulated, which an instruction in the prompt does not. The observation the model receives is whatever the hook said, so a good reason string steers the next decision.
 

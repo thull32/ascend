@@ -34,7 +34,7 @@ Every arrow is a place your code and prompts can persist. For each tool your tea
 | Is there an audit log of usage? | You cannot investigate what you cannot see |
 | Where are local transcripts stored? | Plain-text session logs on laptops are a secret store nobody planned |
 
-The last row is the one people forget, so be concrete about it. At the time of writing, Claude Code writes every session as a JSON-lines transcript under `~/.claude/projects/` (a hook receives its exact path as `transcript_path`), and Codex keeps `~/.codex/history.jsonl` unless `[history] persistence = "none"` is set. Both are ordinary files, readable by anything that runs as you and included in any laptop backup. A secret that entered a prompt is therefore on disk as well as at the vendor, and "the vendor retains it for thirty days" says nothing about the copy in your home directory.
+The last row is the one people forget, so be concrete about it. At the time of writing, Claude Code writes every session as a JSON-lines transcript under `~/.claude/projects/` (a hook receives its exact path as `transcript_path`), and Codex keeps `~/.codex/history.jsonl` unless `[history] persistence = "none"` is set, plus session transcripts under `~/.codex/sessions`. Both are ordinary files, readable by anything that runs as you and included in any laptop backup. A secret that entered a prompt is therefore on disk as well as at the vendor, and "the vendor retains it for thirty days" says nothing about the copy in your home directory.
 
 Consumer and business terms often differ. A developer using a personal account on company code may be under entirely different retention and training terms from the ones your security team approved.
 
@@ -49,17 +49,17 @@ Note what is missing from the defences: `.gitignore`. It tells git not to track 
 
 ## Which layer stops which read
 
-Take one secret, `.env` in the repository root, and three ways an agent can read it. Each column is a control people believe protects the file; each cell says whether it does. The rule syntax is Claude Code's at the time of writing; the shape of the answer is the same in every tool.
+Take one secret, `.env` in the repository root, and five ways an agent can read it. Each column is a control people believe protects the file; each cell says whether it does. The rule syntax is Claude Code's at the time of writing; the shape of the answer is the same in every tool.
 
-| How the agent reads it | `permissions.deny: ["Read(./.env)"]` | `permissions.deny: ["Bash(cat .env*)"]` | A `PreToolUse` hook that inspects commands | `sandbox.filesystem.deny: ["read: ./.env"]` | Secret not on disk at all |
+| How the agent reads it | `permissions.deny: ["Read(./.env)"]` | `permissions.deny: ["Bash(cat .env*)"]` | A `PreToolUse` hook that inspects commands | `sandbox.filesystem.denyRead: ["./.env"]` | Secret not on disk at all |
 |---|---|---|---|---|---|
-| The file tool: `Read(.env)` | Stops it | No effect: different tool | No effect unless the hook also matches file reads | Stops it | Stops it |
-| Shell: `cat .env` | No effect: the rule names the file tool | Stops it: the string matches | Stops it if the pattern is in the hook | Stops it: the process cannot open the file | Stops it |
-| Shell: `python -c "print(open('.env').read())"` | No effect | No effect: `cat` does not appear | Only if the hook guesses this shape; the next shape differs | Stops it | Stops it |
-| Shell: `cp .env /tmp/x && cat /tmp/x` | No effect | No effect: `cat`'s argument is `/tmp/x` | Only if the hook parses compound commands | Stops it: the copy also needs to read | Stops it |
+| The file tool: `Read(.env)` | Stops it | No effect: different tool | No effect unless the hook also matches file reads | No effect: file tools are not sandboxed; only permission rules govern them | Stops it |
+| Shell: `cat .env` | Stops it: Claude Code also applies `Read` rules to file commands it recognises, such as `cat`, `head` and `tail` | Stops it: the string matches | Stops it if the pattern is in the hook | Stops it: the process cannot open the file | Stops it |
+| Shell: `python -c "print(open('.env').read())"` | No effect: no command the parser recognises names the file | No effect: `cat` does not appear | Only if the hook guesses this shape; the next shape differs | Stops it | Stops it |
+| Shell: `grep -r PASSWORD .` | No effect: the command never names the file | No effect | Only if the hook knows which files a recursive search opens | Stops it: grep cannot open the file | Stops it |
 | An MCP server's own file access | No effect | No effect | No effect | Stops it only if the server runs inside the sandbox | Stops it |
 
-Read the columns left to right and the pattern is unmistakable: rules and hooks stop the shape of command they were written for and nothing else, while the operating-system sandbox stops every shape because it acts where the read happens, and the empty disk stops everything because there is nothing to read.
+Read the columns left to right and the pattern is unmistakable: rules and hooks stop the shapes of command they were written for or can parse and nothing else; the operating-system sandbox stops every shell shape because it acts where the read happens, though it does not cover the file tools, which only the rules govern; and the empty disk stops everything because there is nothing to read. One detail makes the first column stronger than it looks: in Claude Code, at the time of writing, `Read` deny rules are also merged into the sandbox's configuration when the sandbox is on, so a single line covers the file tool and every shell shape. Without the sandbox, it covers only the shapes in its column.
 
 ## The same question in other tools
 
@@ -89,16 +89,17 @@ Rules are convenience. Sandboxes and the absence of secrets are safety.
     ]
   },
   "sandbox": {
+    "enabled": true,
     "filesystem": {
-      "deny": ["read: ./.env", "read: ./.env.*", "read: ./secrets/**",
-               "read: ~/.aws/**", "read: ~/.ssh/**", "read: ~/.kube/**"]
+      "denyRead": ["./.env", "./.env.*", "./secrets",
+                   "~/.aws", "~/.ssh", "~/.kube"]
     },
     "network": { "allowedDomains": ["github.com", "api.github.com", "pypi.org", "files.pythonhosted.org"] }
   }
 }
 ```
 
-The `permissions.deny` lines are the convenience layer; the `sandbox` block is the one the table above says holds. The network allowlist matters as much as the file rules: a secret that is read but cannot leave the machine is a much smaller incident.
+The `Read` lines are the only layer that governs the file tool, and the `Bash` lines catch the obvious shell shapes; the `sandbox` block is the one the table above says holds for every shell shape. The network allowlist matters as much as the file rules: a secret that is read but cannot leave the machine is a much smaller incident.
 
 3. **Run autonomous agents in a sandbox** (a container or dev container) that does not contain production credentials. What is not there cannot leak.
 
@@ -126,7 +127,7 @@ Replay the opening scenario as a chain of events, and note which control would h
 | Step | What happened | Control that breaks the chain |
 |---|---|---|
 | 1 | Production credentials lived in a `.env` file on the laptop | Short-lived credentials from SSO; production secrets never on developer disks |
-| 2 | The agent read `.env` while exploring | A sandbox filesystem deny for `.env*`, with the file-tool and shell rules as the convenience layer |
+| 2 | The agent read `.env` while exploring | A sandbox filesystem deny for `.env*` for every shell shape, plus the file-tool rule, which the sandbox does not cover |
 | 3 | The agent ran with the developer's full environment | A dev container that holds only local-development credentials |
 | 4 | The contents entered the transcript and went to the vendor | Nothing can recall it now; this is where rotation starts |
 | 5 | The session log on disk kept a copy | Periodic cleanup of local transcripts; full-disk encryption |
@@ -157,7 +158,7 @@ Anything the agent reads can instruct it: a README, a code comment, a dependency
 {"type": "ml", "scenario": "rag-pipeline", "title": "Retrieved text is data, not instructions", "caption": "Whatever an agent reads (a document chunk, a README, a code comment) is assembled into the prompt beside your instructions. A system prompt saying so reduces the risk; only permissions and sandboxing bound the damage when it fails."}
 ```
 
-The variant that defeats human review is text you cannot see. Unicode has code points that render as nothing: zero-width spaces and joiners (U+200B to U+200D, U+2060, U+FEFF) and the tag characters (U+E0000 to U+E007F), a block that mirrors printable ASCII and was designed for language tagging. Editors and diff viewers draw them as nothing; a tokenizer turns them into tokens the model reads like any others. Security researchers demonstrated in 2025 that instructions hidden this way in agent rules files pass review and are followed. Six lines of Python find them:
+The variant that defeats human review is text you cannot see. Unicode has code points that render as nothing: zero-width spaces and joiners (U+200B to U+200D, U+2060, U+FEFF) and the tag characters (U+E0000 to U+E007F), a block that mirrors printable ASCII and was designed for language tagging. Editors and diff viewers draw them as nothing; a tokenizer turns them into tokens the model reads like any others. Security researchers demonstrated in March 2025 ([Pillar Security's "Rules File Backdoor"](https://www.pillar.security/blog/new-vulnerability-in-github-copilot-and-cursor-how-hackers-can-weaponize-code-agents)) that instructions hidden this way in agent rules files pass review and are followed. Six lines of Python find them:
 
 ```python
 import sys, unicodedata
@@ -195,8 +196,8 @@ Mitigations, in order of how much they enforce:
 
 Models can reproduce fragments of their training data, most often well-known code. If a verbatim copy of copyleft-licensed code lands in a proprietary product, you may inherit licence obligations you did not intend.
 
-- **Filters.** Some tools offer a setting that blocks suggestions matching public code. GitHub's, at the time of writing, compares a suggestion together with about 150 characters of surrounding code against public code on GitHub and can either block the suggestion or attach a reference to the matching repository and licence. Turn blocking on where your policy requires it, and know that a 150-character window catches verbatim reproduction, not paraphrase.
-- **Contracts.** Some vendors offer intellectual-property indemnity on business tiers, and the conditions move between documents. GitHub's Copilot-specific terms, which carried the defence-of-claims clause, were deprecated on 5 March 2026 and replaced by its Generative AI Services Terms, under which the clause applies to customers whose agreement already provides for defence of third-party claims (volume-licensing customers). The condition that the public-code filter be set to block, once in the product terms, had earlier moved into a separate mitigations document. The durable advice is the boring one: read the current terms, not a summary of last year's.
+- **Filters.** Some tools offer a setting that blocks suggestions matching public code. GitHub's, at the time of writing, [compares a suggestion together with about 150 characters of surrounding code](https://docs.github.com/en/copilot/concepts/completions/code-referencing) against public code on GitHub and can either block the suggestion or attach a reference to the matching repository and licence. Turn blocking on where your policy requires it, and know that a 150-character window catches verbatim reproduction, not paraphrase.
+- **Contracts.** Some vendors offer intellectual-property indemnity on business tiers, and the conditions move between documents. GitHub's Copilot-specific terms, which carried the defence-of-claims clause, were deprecated on 5 March 2026 for new subscriptions and renewals and replaced by its [Generative AI Services Terms](https://github.com/customer-terms/github-generative-ai-services-terms), under which the clause applies when the customer's own agreement already provides for the defence of third-party claims. The conditions attached to such commitments, such as which filters must be on, sit in a separately referenced mitigations document rather than in the terms themselves. The durable advice is the boring one: read the current terms, not a summary of last year's.
 - **Content exclusion is not an agent control.** GitHub's content exclusion (a Business and Enterprise feature) keeps excluded paths out of completions, chat on GitHub.com, the CLI and code review, but at the time of writing it is not honoured by the Edit and Agent modes of Copilot Chat in VS Code and other editors. For agent work, the sandbox and the deny rules above are the controls; content exclusion is a completion-time courtesy.
 - **Suspicion heuristics.** A long block with distinctive comments, an unusual variable naming style, or anything resembling a licence header is worth a search before you accept it.
 - **Dependencies** suggested by an agent get the same licence review as any other dependency, and the same existence check as in [Verifying AI-written code](/learn/ai-assisted-engineering/tools-and-workflows/verifying-ai-code).
@@ -320,7 +321,7 @@ hints:
 
 ## Interviewer follow-ups
 
-**"An agent ran `python -c "print(open('.env').read())"`. Your settings deny `Read(./.env)` and `Bash(cat .env*)`. Why did it work, and what stops it?"** Model answer: the file-tool rule governs a different tool and the shell rule matches a string that does not contain `cat`; only an operating-system sandbox that denies the process the read, or a machine with no secret on it, stops every shape. Common wrong answer: "add a deny for python too", which is the next string in an endless list.
+**"An agent ran `python -c "print(open('.env').read())"`. Your settings deny `Read(./.env)` and `Bash(cat .env*)`. Why did it work, and what stops it?"** Model answer: the file-tool rule covers the Read tool and, at most, the file commands the harness recognises, such as `cat`, and the shell rule matches a string that does not contain `cat`; only an operating-system sandbox that denies the process the read, or a machine with no secret on it, stops every shape. Common wrong answer: "add a deny for python too", which is the next string in an endless list.
 
 **"A key was pasted into a chat and the developer deleted the conversation. Are we done?"** Model answer: no; deleting cannot un-send a request already made, the local transcript on disk is untouched, and retention terms describe the future. Rotate today, then fix why the key was on disk. Common wrong answer: "the vendor's retention is short, so the risk expires".
 
@@ -333,7 +334,7 @@ hints:
 ## What mid-level engineers get wrong
 
 - **Treating `.gitignore` as access control.** It only affects tracking; the agent reads ignored files like any others.
-- **Stacking string rules and calling it a sandbox.** `Read(./.env)` plus `Bash(cat .env*)` stops two shapes of read out of unlimited; a filesystem deny in the sandbox stops the read itself.
+- **Stacking string rules and calling it a sandbox.** `Read(./.env)` plus `Bash(cat .env*)` stops the shapes a parser recognises out of an unlimited set; a filesystem deny in the sandbox stops the read itself.
 - **Believing deletion or short retention undoes a leak.** The request was sent, the transcript is on disk, and only rotation makes the key worthless.
 - **Using a personal account "for a quick question".** Different retention and training terms from the ones security approved, and company code in a history nobody audits.
 - **Reviewing rules files by eye.** Zero-width and tag characters render as nothing; only a scanner sees them.
@@ -343,7 +344,7 @@ hints:
 ## Senior signals
 
 - You know **where prompts and code go** for each tool your team uses, including the transcripts on the laptop, and you get answers from contracts rather than marketing.
-- You can say, for any way an agent might read a secret, **which layer stops it**: file-tool rules and shell patterns for their exact shapes, hooks for what they can parse, the sandbox for every shape, and an empty disk for everything.
+- You can say, for any way an agent might read a secret, **which layer stops it**: file-tool rules and shell patterns for their exact shapes, hooks for what they can parse, the sandbox for every shell shape, and an empty disk for everything.
 - You treat **`.gitignore` as irrelevant to agents** and keep secrets out of reach with short-lived credentials, sandbox deny rules and egress allowlists.
 - You **rotate any secret that enters a prompt**, the same day, without debating retention policies or deleting conversations.
 - You treat **everything an agent reads as potential instructions**, scan rules files for invisible characters in CI, and sandbox work on untrusted repositories.
@@ -364,7 +365,7 @@ hints:
   options: ["A memory-file instruction telling the agent never to read configuration files", "A sandbox filesystem rule denying reads of .env, or no secret on the disk at all", "A third deny rule naming python, since the first two did not mention it", "Marking .env in .gitignore, which agents apply to their file reads"]
   answer: 1
   explanation: >-
-    The file-tool rule governs a different tool and the shell rule matches a string that does not appear; both stop only the shapes they name. A sandbox deny acts where the read happens and stops every shape, and a secret that is not on the machine cannot be read by any of them. Another string rule is one more entry in an unbounded list, instructions are requests, and .gitignore is not an access control.
+    The file-tool rule covers the Read tool and at most the file commands a harness recognises, and the shell rule matches a string that does not appear; both stop only the shapes they name. A sandbox deny acts where the read happens and stops every shape, and a secret that is not on the machine cannot be read by any of them. Another string rule is one more entry in an unbounded list, instructions are requests, and .gitignore is not an access control.
 - q: >-
     Why can an instruction hidden in a rules file pass code review and still be followed by an agent?
   options: ["Reviewers only read the first hundred lines of any Markdown file", "Zero-width and tag characters render as nothing but tokenize into text the model reads", "Agents load rules files without showing them in the diff, so review never sees them", "Rules files are exempt from review because they contain no executable code"]

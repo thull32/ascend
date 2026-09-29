@@ -9,7 +9,7 @@ problems: [pow-x-n, binary-search-basic, sqrt-x]
 ---
 A colleague says the new index lookup is "O(log n), so it doesn't matter how big the table gets". A product manager asks how many users a 32-bit ID space supports. An interviewer asks whether trying every subset of 40 items is feasible. An on-call engineer asks why a dependency was hit by 1,000 retries in the same millisecond. All four questions have the same shape: how fast does something grow when you keep doubling, and how many times can you halve before you hit one?
 
-That shape is the logarithm, and its mirror image is the exponential. Engineers fluent with both size caches, pick algorithms, tune retry policies and reject infeasible brute force in seconds. This lesson derives the handful of rules from the definition, then applies each one to an engineering problem with real numbers.
+That shape is the logarithm, and its mirror image is the exponential. This lesson derives the handful of rules from the definition, then applies each one to an engineering problem with real numbers.
 
 ## What a logarithm counts
 
@@ -48,7 +48,7 @@ floor_log2(1024)      # 10
 (999).bit_length()    # 10  -> ceil_log2(1000), for n >= 1 use (n - 1).bit_length()
 ```
 
-The loop form is worth internalising because the loop *is* the definition: every algorithm that halves its problem each step runs for exactly this many steps. Binary search halves the candidate range every comparison, so on 8 elements it needs at most $\log_2 8 = 3$:
+The loop *is* the definition: every algorithm that halves its problem each step runs for exactly this many steps. Binary search halves the candidate range every comparison, so on 8 elements it needs at most $\log_2 8 = 3$:
 
 ```viz
 {"type": "array", "algorithm": "binary-search", "values": [2, 5, 8, 12, 16, 23, 38, 56], "target": 23, "title": "Three halvings", "caption": "Eight candidates become four, then two, then one. The step count is log2 of the array length, not the array length."}
@@ -91,7 +91,7 @@ The most important table in this lesson:
 
 A thousand items to a trillion, a billion-fold increase, moves $\log_2 n$ from 10 to 40; anything in a 64-bit integer has a log of at most 64, so an $O(\log n)$ operation costs "a few dozen steps" whatever $n$ is. The third column is why $O(n \log n)$ is treated as almost linear: sorting a million items costs about 20 million comparisons. The fourth is the warning: $n^2$ at a billion is $10^{18}$, thirty years at $10^9$ operations per second.
 
-"Free" has a precise meaning once you attach nanoseconds. Order-of-magnitude costs, which depend on the CPU generation and memory system (treat each as within a factor of two): a register or L1 operation ~1 ns, an L3 hit ~10–20 ns, a DRAM access on a cache miss ~100 ns, an NVMe random read ~100 µs, a cross-region round trip ~100 ms.
+"Free" has a precise meaning once you attach nanoseconds (orders of magnitude that depend on the hardware): an L1 operation ~1 ns, a DRAM miss ~100 ns, an NVMe random read ~100 µs, a cross-region round trip ~100 ms.
 
 **Case A: binary search over 1,000 sorted 4-byte integers.** The array is 4 KB and sits in L1. Ten comparisons at ~1 ns each: about 10 ns, a tenth of *one* DRAM miss. An "O(1)" hash lookup whose bucket is not in cache costs one or two misses, 100–200 ns, and loses ten-fold: the log is free because the constant it competes with is bigger than the whole log.
 
@@ -101,7 +101,7 @@ The rule: $O(\log n)$ is free when each step is a register or cache operation an
 
 ### A rule of thumb for feasibility
 
-A core does on the order of $10^8$ to $10^9$ simple operations per second, so $n \log n$ at $n = 10^7$ ($2.3 \times 10^8$) finishes well under a second, $n^2$ at $n = 10^5$ ($10^{10}$) takes tens of seconds, and $2^n$ at $n = 40$ ($1.1 \times 10^{12}$) takes eighteen minutes. When an interviewer gives you $n \le 10^5$, they are telling you $n^2$ will not pass and $n \log n$ will.
+A core does on the order of $10^8$ to $10^9$ simple operations per second, so $n \log n$ at $n = 10^7$ ($2.3 \times 10^8$) finishes in about a second, while $n^2$ at $n = 10^5$ ($10^{10}$) takes tens of seconds: $n \le 10^5$ in an interview means $n^2$ will not pass.
 
 ## The base matters when you count disk reads
 
@@ -118,7 +118,7 @@ Change of base is what turned 30 into 3: $\log_2 10^9 \approx 29.9$ divided by $
 
 ## The powers of two you must know
 
-Every capacity estimate in your career is a power of two dressed up. Memorise these; you will use them weekly.
+Most capacity estimates are a power of two dressed up. Memorise these.
 
 | Power | Exact | As bytes | Where you meet it |
 |---|---|---|---|
@@ -127,12 +127,12 @@ Every capacity estimate in your career is a power of two dressed up. Memorise th
 | $2^{12}$ | 4,096 | 4 KiB | The standard virtual-memory page |
 | $2^{16}$ | 65,536 | 64 KiB | TCP/UDP ports, `u16`, UTF-16 code units |
 | $2^{20}$ | 1,048,576 | 1 MiB | A million entries |
-| $2^{24}$ | 16,777,216 | 16 MiB | 24-bit colour; largest exact integer in a `float32` |
+| $2^{24}$ | 16,777,216 | 16 MiB | 24-bit colour; every integer up to here is exact in a `float32` |
 | $2^{30}$ | 1,073,741,824 | 1 GiB | A billion operations, one second of CPU |
 | $2^{31}$ | 2,147,483,648 | 2 GiB | `INT_MAX + 1`; the 2038 problem |
 | $2^{32}$ | 4,294,967,296 | 4 GiB | IPv4 address space, `u32`, a 4-byte hash, a 32-bit address space |
 | $2^{40}$ | ≈ 1.1 × 10¹² | 1 TiB | |
-| $2^{53}$ | 9,007,199,254,740,992 | 8 PiB | Largest integer a `float64`, and so a JavaScript `Number`, holds exactly |
+| $2^{53}$ | 9,007,199,254,740,992 | 8 PiB | Every integer up to here is exact in a `float64`, and so a JavaScript `Number` |
 | $2^{64}$ | ≈ 1.8 × 10¹⁹ | 16 EiB | `u64`; a 64-bit hash or ID space |
 | $2^{128}$ | ≈ 3.4 × 10³⁸ | | UUIDs, IPv6 |
 
@@ -144,7 +144,7 @@ A worked capacity question: "We assign each event a random 32-bit ID. Is that en
 
 If $\log n$ is the friendly function, $2^n$ is its hostile twin: each additional item doubles the work. It counts every subset of $n$ items (each in or out), every bit string of length $n$, the calls of an unmemoised Fibonacci-style recursion (about $1.618^n$), and the requests of a fan-out that doubles at each of $d$ levels ($2^d$).
 
-Exponentials feel abstract because they start slowly. $2^{10}$ is a thousand. $2^{20}$ is a million. $2^{30}$ is a billion, about one second of work. $2^{40}$ is a trillion, eighteen minutes. $2^{50}$ is thirteen days. Each +10 in the exponent multiplies the time by a thousand, so "can I enumerate all subsets of 40 items?" is no, while 25 items is routine, and the [meet-in-the-middle lesson](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation) turns a $2^{40}$ search into two $2^{20}$ ones.
+Exponentials start slowly: $2^{20}$ is a million, $2^{30}$ a billion (about one second of work), $2^{40}$ a trillion (eighteen minutes), $2^{50}$ thirteen days. Each +10 in the exponent multiplies the time by a thousand, so "can I enumerate all subsets of 40 items?" is no, while 25 items is routine, and the [meet-in-the-middle lesson](/learn/algorithms/technique-mastery/meet-in-the-middle-and-randomisation) turns a $2^{40}$ search into two $2^{20}$ ones.
 
 Factorials are worse still: $10! = 3{,}628{,}800$; $12! \approx 4.8 \times 10^8$, about the last feasible value for brute force; $20! \approx 2.4 \times 10^{18}$ barely fits in a `u64` and $21!$ does not. When a problem says "try every ordering" and $n$ can be 15, an interviewer expects you to notice that $15! \approx 1.3 \times 10^{12}$ and find structure that prunes the search.
 
@@ -152,7 +152,7 @@ Factorials are worse still: $10! = 3{,}628{,}800$; $12! \approx 4.8 \times 10^8$
 
 Not every exponential is a cost. The same doubling that makes brute force infeasible is what makes dynamic arrays cheap, retry storms survivable and moving averages forgetful.
 
-**Geometric series.** A dynamic array that doubles copies its contents at sizes 1, 2, 4, …, up to $n$, and $1 + 2 + 4 + \cdots + n < 2n$ because a geometric series is dominated by its last term. That is the whole reason `append` is amortised $O(1)$; the [amortised analysis lesson](/learn/foundations/complexity/amortized-analysis) makes it rigorous. Growing by a fixed 100 slots instead copies $100 + 200 + \cdots + n \approx n^2/200$ elements: quadratic. Between the two, a factor of 1.5 (Java's `ArrayList`, MSVC's `vector`) copies under $3n$ and wastes at most 50% of capacity, against $2n$ and 100% for doubling (libstdc++, Rust's `Vec`); CPython's `list` grows by about 1.125×, copying around $9n$ for 12.5% slack. The principle, **the total of a halving or doubling series is a constant times its largest term**, is also the fact behind the [master theorem](/learn/foundations/complexity/recurrences-and-master-theorem).
+**Geometric series.** A dynamic array that doubles copies its contents at sizes 1, 2, 4, …, up to $n$, and $1 + 2 + 4 + \cdots + n < 2n$ because a geometric series is dominated by its last term. That is the whole reason `append` is amortised $O(1)$; the [amortised analysis lesson](/learn/foundations/complexity/amortized-analysis) makes it rigorous. Growing by a fixed 100 slots instead copies $100 + 200 + \cdots + n \approx n^2/200$ elements: quadratic. Between the two, a factor of 1.5 (Java's `ArrayList`, MSVC's `vector`) copies under $3n$ and leaves at most a third of capacity unused, against $2n$ and half for doubling (libstdc++, Rust's `Vec`); CPython's `list` grows by about 1.125×, copying around $9n$ for 12.5% slack. The principle, **the total of a halving or doubling series is a constant times its largest term**, is also the fact behind the [master theorem](/learn/foundations/complexity/recurrences-and-master-theorem).
 
 ### Retry backoff with jitter, step by step
 
@@ -250,21 +250,21 @@ for i in range(1, n + 1):
         ...
 ```
 
-Total work is $n/1 + n/2 + n/3 + \cdots + n/n = n \cdot H_n \approx n \ln n$. The harmonic number $H_n$ grows like $\ln n$, which is why "for each $i$, step through multiples of $i$" (the sieve of Eratosthenes, divisor enumeration) is $O(n \log n)$ and not $O(n^2)$.
+Total work is $n/1 + n/2 + n/3 + \cdots + n/n = n \cdot H_n \approx n \ln n$. The harmonic number $H_n$ grows like $\ln n$, which is why "for each $i$, step through multiples of $i$" (divisor enumeration, or a sieve that marks multiples of every $i$) is $O(n \log n)$ and not $O(n^2)$. The sieve of Eratosthenes steps only from primes, which brings it down to $O(n \log \log n)$.
 
 ## Under the hood
 
-**Integer logs are one instruction.** x86 has had `BSR` (bit scan reverse: index of the highest set bit) since the 386, and `LZCNT` (count leading zeros) since Haswell in 2013; ARM has `CLZ`. `floor_log2(n)` is `63 - LZCNT(n)` for a 64-bit register. They differ on zero (`BSR` undefined, `LZCNT` returns the operand width), and each language picks a convention: Python's `(0).bit_length()` is 0, `Math.clz32(0)` is 32, Rust's `0u32.ilog2()` panics.
+**Integer logs are one instruction.** x86 has had `BSR` (bit scan reverse: index of the highest set bit) since the 386, and `LZCNT` (count leading zeros) on Intel since Haswell in 2013; ARM has `CLZ`. `floor_log2(n)` is `63 - LZCNT(n)` for a 64-bit register. They differ on zero (`BSR` undefined, `LZCNT` returns the operand width), and each language picks a convention: Python's `(0).bit_length()` is 0, `Math.clz32(0)` is 32, Rust's `0u32.ilog2()` panics.
 
 **CPython.** `int.bit_length()` on a value that fits one 30-bit digit calls `_Py_bit_length` (in `Include/internal/pycore_bitutils.h` since 3.10), which uses the compiler's `__builtin_clz` when available and a small lookup table otherwise; for multi-digit ints it counts whole digits and applies the same routine to the top digit. `int.bit_count()` (added in 3.10) goes through `__builtin_popcount`, which becomes a `POPCNT` instruction when the build targets a CPU that has it and a bit-twiddling sequence when it does not. `math.log2(n)` on an int converts to a `float64` first when it fits, so integers above $2^{53}$ are rounded before the log: `math.log2(2**60 - 1)` returns `60.0`, and flooring it gives 60 where `(2**60 - 1).bit_length() - 1` correctly gives 59. Only an int too large for a double is split as $m \cdot 2^e$, which is why `math.log2(2**1000)` is exactly `1000.0`.
 
-**JavaScript.** `Math.clz32` compiles to `LZCNT`/`BSR` in V8, so `31 - Math.clz32(n)` is the exact floor log for $1 \le n < 2^{32}$; above that, loop over `Math.floor(n / 2)`, because `>>` and `<<` work on signed 32-bit views (`1 << 32` is 1). `Math.log2` is a floating-point library routine: correctly rounded builds return exactly $k$ for $2^k$, but engines have shipped results a rounding error below $k$, so never floor it to bucket integers.
+**JavaScript.** `Math.clz32` compiles to `LZCNT`/`BSR` in V8, so `31 - Math.clz32(n)` is the exact floor log for $1 \le n < 2^{32}$; above that, loop over `Math.floor(n / 2)`, because `>>` and `<<` work on signed 32-bit views (`1 << 32` is 1). `Math.log2` is a floating-point library routine, and the ECMAScript specification only asks for an "implementation-approximated" result, so an engine may return a value a rounding error below $k$ for $2^k$; never floor it to bucket integers.
 
 **Rust and Go.** `u64::ilog2` (stable since 1.67) is `63 - leading_zeros()` with a panic on zero; Go's `bits.Len64` is a compiler intrinsic that lowers to the same instruction. The [bit manipulation lesson](/learn/foundations/math-for-engineers/bit-manipulation) covers the rest of the family.
 
 ## Failure modes in production
 
-**Synchronised retry spikes.** *Symptom:* after a brief outage, a dependency's request graph shows sharp bursts at 1 s, 2 s, 4 s, 8 s, each burst re-triggering its overload. *Diagnosis:* every client backs off exponentially from the same failure instant with no jitter, so the arrivals stay in lockstep; the dependency never sees the smooth decay the exponent promised. *Fix:* full jitter on every sleep, a cap, a retry budget per client (retries at most 10% of first attempts) and a circuit breaker so clients stop retrying an open failure. The [resilience patterns lesson](/learn/system-design/building-blocks/resilience-patterns) covers the breaker.
+**Synchronised retry spikes.** *Symptom:* after a brief outage, a dependency's request graph shows sharp bursts at 1 s, 2 s, 4 s, 8 s, each burst re-triggering its overload. *Diagnosis:* every client backs off from the same failure instant with no jitter, so the arrivals stay in lockstep. *Fix:* full jitter on every sleep, a cap, a retry budget per client (retries at most 10% of first attempts) and a circuit breaker so clients stop retrying an open failure. The [resilience patterns lesson](/learn/system-design/building-blocks/resilience-patterns) covers the breaker.
 
 **A moving average that lags an incident by ten minutes.** *Symptom:* latency doubled at 10:00 but the smoothed line only crosses the alert threshold at 10:12. *Diagnosis:* the EMA uses $\alpha = 0.001$ at one sample per second, a half-life of 693 s; it is doing what the formula says. A cousin failure is a running-sum average kept in `float32`: past $2^{24}$ (16.7 million) the sum can no longer absorb small additions (`16777216.0 + 0.5` is `16777216.0`) and the average silently freezes. *Fix:* choose $\alpha$ from the half-life you want (about $0.693 / h$); keep sums in `float64` or as integer nanoseconds; prefer histograms (HDR, DDSketch) for latency, which have no decay to tune.
 
@@ -285,21 +285,21 @@ Retry policies, measured for 1,000 clients that fail together, base 100 ms, cap 
 
 ## Interviewer follow-ups
 
-**"You said O(log n) is basically free. When is it not?"** *Model answer:* when each step is a dependent memory access rather than a register operation. Binary search over 4 GB of integers is about 26 cache misses, roughly 2.6 µs, while a hash lookup is one or two misses; over 4 KB the same search is 10 ns and beats the hash. So the answer depends on where the data lives, and that is why B-trees, Eytzinger layouts and hash indexes exist. *Common wrong answer:* "It is always negligible because 30 is a small number", which ignores that each of the 30 can cost 100 ns.
+**"You said O(log n) is basically free. When is it not?"** *Model answer:* when each step is a dependent memory access: over 4 GB of integers binary search is about 26 cache misses, 2.6 µs, against one or two misses for a hash lookup; over 4 KB it is 10 ns and wins. *Common wrong answer:* "It is always negligible because 30 is a small number", which ignores that each of the 30 can cost 100 ns.
 
-**"Both a binary tree and a B-tree are O(log n). Why does the B-tree win on disk?"** *Model answer:* the base of the log is the fan-out and the height is the number of page reads. For $10^9$ keys, fan-out 2 gives 30 reads, fan-out 1,000 gives 3, and with the top two levels cached, one. Change of base, $\log_{1000} n = \log_2 n / 9.97$, is the whole argument. *Common wrong answer:* "Because the B-tree is balanced", which is true of both.
+**"Both a binary tree and a B-tree are O(log n). Why does the B-tree win on disk?"** *Model answer:* the base of the log is the fan-out and the height is the number of page reads: for $10^9$ keys, 30 reads at fan-out 2, 3 at fan-out 1,000, one with the top levels cached. *Common wrong answer:* "Because the B-tree is balanced", which is true of both.
 
-**"Design the retry policy for a client of a flaky downstream."** *Model answer:* exponential base with a cap, full jitter, a maximum attempt count, a deadline on the total wait, a retry budget capping retries at a fraction of live traffic, and only for idempotent calls; then trace it: base 100 ms, cap 10 s, five attempts, mean wait 1.55 s. *Common wrong answer:* "Retry three times with a one-second sleep", which synchronises every client and triples the load on a dependency that is already failing.
+**"Design the retry policy for a client of a flaky downstream."** *Model answer:* exponential base with a cap, full jitter, a maximum attempt count, a deadline on the total wait, a retry budget capping retries at a fraction of live traffic, and only for idempotent calls. *Common wrong answer:* "Retry three times with a one-second sleep", which synchronises every client and triples the load on a failing dependency.
 
-**"How do you choose alpha for a smoothed latency metric?"** *Model answer:* from the half-life you want, $\alpha \approx 0.693 / h$; TCP uses 1/8 for a five-sample half-life, and a dashboard that should react within about ten samples wants $\alpha \approx 0.07$. Smaller is smoother and later; larger is noisier and sooner. *Common wrong answer:* "0.5 sounds balanced", which has a one-sample half-life and is barely smoother than the raw series.
+**"How do you choose alpha for a smoothed latency metric?"** *Model answer:* from the half-life you want, $\alpha \approx 0.693 / h$; TCP uses 1/8 for a five-sample half-life, and a dashboard that should react within about ten samples wants $\alpha \approx 0.07$. *Common wrong answer:* "0.5 sounds balanced", which has a one-sample half-life and is barely smoother than the raw series.
 
 ## What mid-level engineers get wrong
 
-- **Treating $O(\log n)$ as $O(1)$ in a memory-bound loop.** A billion binary searches over a 4 GB array cost 2.6 µs each, thirteen times a hash lookup; the "free" log became the whole runtime.
+- **Treating $O(\log n)$ as $O(1)$ in a memory-bound loop.** Over a 4 GB array each search costs thirteen hash lookups.
 - **Fixed-delay retries.** Every client retries at the same instant; the dependency sees the outage repeat every second until someone turns the clients off.
 - **Sizing memory with $10^9$ for a GiB.** Off by 7% at gigabytes and 10% at terabytes, which is exactly the headroom the plan claimed to leave.
 - **Flooring a float log to bucket integers.** Correct on the developer's machine, off by one at powers of two on another engine.
-- **Confusing "log n is small" with "n log n is n".** At $n = 10^9$ the log factor is 30×; when a linear-time alternative exists, a 30× gap is worth an afternoon.
+- **Confusing "log n is small" with "n log n is n".** At $n = 10^9$ the log factor is 30×, worth an afternoon when a linear alternative exists.
 
 ## Exercises
 
@@ -437,13 +437,12 @@ hints:
 
 ## Senior signals
 
-- You decode constraints: "$n \le 10^5$" means quadratic is out and $n \log n$ is expected; "$n \le 20$" means $2^n$ is intended.
-- You derive the log rules from the exponent rules in four lines and use change of base as a tool: $\log_{1000} n = \log_2 n / 9.97$ is why a B-tree over a billion keys is three page reads and, with the top levels cached, one.
-- You say when $O(\log n)$ is free (register-level steps, 30 ns) and when it is not (30 dependent cache misses, 3 µs), with a hash lookup's cost beside both.
+- You derive the log rules from the exponent rules and use change of base as a tool: $\log_{1000} n = \log_2 n / 9.97$ is why a B-tree over a billion keys is three page reads.
+- You say when $O(\log n)$ is free (register-level steps) and when it is not (dependent cache misses), with a hash lookup's cost beside both.
 - You do capacity arithmetic from $2^{10} \approx 10^3$, carry the 2.4%-per-step error, and know that 32-bit IDs run out in a day at 50k/s and collide within seconds.
 - You recognise "the total is a constant times the largest term" as the reason doubling arrays are amortised $O(1)$ and exponential backoff halves load each round.
-- You specify a retry policy with numbers (base, cap, full jitter, attempt limit, deadline, budget) and can trace five attempts by hand.
-- You pick an EMA's $\alpha$ from a half-life ($0.693/\alpha$), quote TCP's 1/8, and reach for a histogram when the question is a percentile.
+- You specify a retry policy with numbers (base, cap, full jitter, attempt limit, deadline, budget).
+- You pick an EMA's $\alpha$ from a half-life and reach for a histogram when the question is a percentile.
 - You use `bit_length` / `clz` / `ilog2` for integer logs and can explain why `math.log2(2**60 - 1)` floors to the wrong answer.
 
 ## Check yourself

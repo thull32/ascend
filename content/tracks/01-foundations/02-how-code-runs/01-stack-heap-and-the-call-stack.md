@@ -51,7 +51,7 @@ long score(long n) {
 }
 ```
 
-The convention says: the first six integer or pointer arguments arrive in registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), so `n` is in `rdi`; the return value leaves in `rax`; the `call` instruction pushes an 8-byte **return address**; and `rsp` must be a multiple of 16 at the instant of every `call`, so that callees can spill 16-byte vector registers with aligned stores. Compiled without optimisation, the prologue is `push rbp; mov rbp, rsp; sub rsp, 32`, and one layout that satisfies every rule is:
+The convention says: the first six integer or pointer arguments arrive in registers (`rdi`, `rsi`, `rdx`, `rcx`, `r8`, `r9`), so `n` is in `rdi`; the return value leaves in `rax`; the `call` instruction pushes an 8-byte **return address**; and `rsp` must be a multiple of 16 at the instant of every `call`, so that callees can spill 16-byte vector registers with aligned stores. As written, `score` calls nothing, so GCC 13 at `-O0` never moves `rsp` for it: the locals sit in the red zone described below. Give it a call to make and the prologue becomes `push rbp; mov rbp, rsp; sub rsp, N`. The tightest layout that satisfies every rule, with `N = 32`, is:
 
 | Offset from `rbp` | Bytes | Contents | Why here |
 |---|---|---|---|
@@ -63,9 +63,9 @@ The convention says: the first six integer or pointer arguments arrive in regist
 | −24 to −18 | 7 | Padding | Keeps `n` 8-aligned |
 | −32 to −25 | 8 | `n`, copied from `rdi` | Unoptimised code spills arguments so the debugger can see them |
 
-Locals plus the spilled argument need 25 bytes, but the compiler reserves 32, because the frame's bottom is where the *next* `call` happens and must again be 16-aligned. On entry `rsp` is 8 mod 16 (the caller was aligned, then `call` pushed 8 bytes); `push rbp` makes it 0 mod 16; `sub rsp, 32` keeps it there. The whole frame is 8 + 8 + 32 = 48 bytes.
+Locals plus the spilled argument need 25 bytes, but the reservation must be 32, because the frame's bottom is where the *next* `call` happens and must again be 16-aligned. On entry `rsp` is 8 mod 16 (the caller was aligned, then `call` pushed 8 bytes); `push rbp` makes it 0 mod 16; `sub rsp, 32` keeps it there. The whole frame is 8 + 8 + 32 = 48 bytes. GCC 13 (with `-fno-stack-protector`) uses exactly these offsets for `acc`, `count` and `tag` but spills `n` to `rbp−40` and reserves 48, and Ubuntu's GCC, which enables the stack protector by default, puts an 8-byte canary at `rbp−8` and moves `tag` directly beneath it. The rules fix a minimum, not the layout.
 
-Three details matter later. The compiler owns the layout: at `-O2` this function is three instructions with no frame at all, the locals live in registers, and the `push rbp` disappears (GCC and Clang omit the frame pointer at `-O1` and above unless you pass `-fno-omit-frame-pointer`, which profilers want). Frame size is a property of the binary, not the source. The return address sits at a known offset above the locals, so writing past the end of `tag` overwrites it and lets an attacker choose where the function "returns"; stack canaries and address randomisation exist because of this layout. And leaf functions may use a 128-byte **red zone** below `rsp` without moving it, so tiny functions have no visible frame at all.
+Three details matter later. The compiler owns the layout: at `-O2` GCC folds this function to two instructions (`lea rax, [rdi+rdi+98]; ret`, since `'a'` is 97) with no frame at all, and the `push rbp` disappears (GCC omits the frame pointer at `-O1` and above unless you pass `-fno-omit-frame-pointer`, which profilers want). Frame size is a property of the binary, not the source. The return address sits at a known offset above the locals, so writing past the end of `tag` overwrites it and lets an attacker choose where the function "returns"; stack canaries and address randomisation exist because of this layout. And leaf functions may use a 128-byte **red zone** below `rsp` without moving it, so tiny functions have no visible frame at all.
 
 ```viz
 {"type": "memory", "scenario": "call-stack", "n": 3, "title": "Frames pushed and popped", "caption": "Each call pushes a frame with its return address and locals; each return pops it. The stack pointer is the only state the machine needs."}
@@ -107,8 +107,8 @@ Now scale it. At 32 bytes per frame, an 8 MiB stack holds 8 × 1,048,576 / 32 = 
 Now the other region. In C, `malloc(24)` under glibc does the following:
 
 1. Add 8 bytes for the chunk's **size header** and round up to a multiple of 16: 24 + 8 = 32, so a 32-byte chunk, which is also the minimum chunk size on 64-bit. `malloc(1)` costs the same 32 bytes; `malloc(25)` costs 48. The header's low three bits are flags (previous chunk in use, allocated by `mmap`, non-main arena), which is only possible because sizes are always multiples of 16.
-2. Look in the thread-local **tcache**: 64 bins in 16-byte steps covering chunks from 32 to 1,040 bytes, up to 7 cached chunks per bin. A hit is a handful of instructions and no lock.
-3. Miss: try the fastbins (chunks up to 128 bytes), then the sorted small and large bins, then split the **top chunk** at the end of the arena, and if that is exhausted, ask the kernel for more with `brk` or `mmap`.
+2. Look in the thread-local **tcache**: 64 bins in 16-byte steps covering chunks from 32 to 1,040 bytes, up to 7 cached chunks per bin (16 since glibc 2.43; 2.42 added optional tcache bins for large blocks). A hit is a handful of instructions and no lock.
+3. Miss: try the fastbins (chunks up to 128 bytes; glibc 2.43 removed them), then the sorted small and large bins, then split the **top chunk** at the end of the arena, and if that is exhausted, ask the kernel for more with `brk` or `mmap`.
 4. Requests of 128 KiB and above skip the arena and get their own `mmap` mapping (the threshold adapts upward to 32 MiB as large blocks are freed). Those pages are backed only when touched, at roughly a microsecond of page fault per 4 KiB page.
 
 The returned pointer is 16-byte aligned and points 16 bytes into the chunk; the 8 bytes immediately after your 24 are the *next* chunk's `prev_size` field, which is only meaningful when this chunk is free. That overlap is why `malloc_usable_size` reports 24 for a 32-byte chunk rather than 16.
@@ -139,7 +139,7 @@ func makePoint() *Point {
 }
 ```
 
-**Python.** Every value is a heap object. An integer, a string, a list: all `PyObject`s allocated on the heap with a reference count and a type pointer. What the interpreter's "stack" holds is references to those objects. Even the frame itself was a heap-allocated `PyFrameObject` until Python 3.11 moved frame data into a per-thread chunk that behaves like a stack (`_PyInterpreterFrame`), creating a full frame object only when a traceback or `sys._getframe` needs one. A Python frame is still hundreds of bytes, and a Python-to-Python call costs on the order of 50–100 ns depending on version and argument count, where a C call costs 1–2 ns.
+**Python.** Every value is a heap object. An integer, a string, a list: all `PyObject`s allocated on the heap with a reference count and a type pointer. What the interpreter's "stack" holds is references to those objects. Even the frame itself was a heap-allocated `PyFrameObject` until Python 3.11 moved frame data into a per-thread chunk that behaves like a stack (`_PyInterpreterFrame`), creating a full frame object only when a traceback or `sys._getframe` needs one. A 3.14 frame is 80 bytes of fixed fields plus 8 bytes per local and per evaluation-stack slot, and a Python-to-Python call measured about 10 ns on CPython 3.14 on this track's test machine, where a C call costs 1–2 ns.
 
 **JavaScript (V8).** Similar to Python in spirit: objects live on the heap and the stack holds tagged references. V8 cheats where it can: small integers (Smis, 31 bits on 64-bit builds with pointer compression) are stored directly in the tagged word without allocation, and the optimising compiler performs escape analysis to keep short-lived objects out of the heap entirely.
 
@@ -215,7 +215,7 @@ You have re-implemented the call stack: the `True` marker is the return address,
 
 ## Tail calls, and why you cannot rely on them
 
-A call in *tail position* (the last thing the function does, with nothing to compute afterwards) does not need its frame after the callee starts, so the compiler could reuse it. Scheme requires this. C compilers do it at `-O2` when they can prove it safe. Rust and Go do not guarantee it. CPython refuses on purpose (the maintainers prefer real tracebacks). ECMAScript 2015 specified it, but only Safari's JavaScriptCore shipped it, so in Node it does not happen. If you need a loop, write a loop; tail-recursive Python and JavaScript still overflow.
+A call in *tail position* (the last thing the function does, with nothing to compute afterwards) does not need its frame after the callee starts, so the compiler could reuse it. Scheme requires this. C compilers do it at `-O2` when they can prove it safe. Rust and Go do not guarantee it. CPython refuses on purpose (the maintainers prefer real tracebacks). ECMAScript 2015 specified it and Safari's JavaScriptCore [shipped it in 2016](https://webkit.org/blog/6240/ecmascript-6-proper-tail-calls-in-webkit/), but V8 does not do it: a strict-mode tail-recursive sum overflows at 10,000 levels in Node 24. If you need a loop, write a loop; tail-recursive Python and JavaScript still overflow.
 
 ```python
 def sum_to(n, acc=0):          # tail call, still 1,000-frame limited in CPython
@@ -224,7 +224,7 @@ def sum_to(n, acc=0):          # tail call, still 1,000-frame limited in CPython
 
 ## Stack size as a capacity number
 
-Stacks cost address space before you use them, which is what capped thread-per-request servers long before CPU ran out. Goroutines and async runtimes exist largely to escape that cap: a goroutine starts at 2 KiB and a Rust async task's state machine is often a few hundred bytes, so a million of either fits where a thousand threads would not. The [async and event loops lesson](/learn/systems/concurrency/async-and-event-loops) is the other half of that story.
+Stacks cost address space before you use them, which capped thread-per-request servers long before CPU ran out. Goroutines and async runtimes escape that cap: a goroutine starts at 2 KiB and a Rust async task's state machine is often a few hundred bytes, so a million of either fits where a thousand threads would not. The [async and event loops lesson](/learn/systems/concurrency/async-and-event-loops) is the other half of that story.
 
 A related production bug: recursive-descent parsers for JSON, YAML, XML and regular expressions with attacker-controlled nesting depth. `[[[[[[...]]]]]]` 100,000 levels deep is a few hundred kilobytes of input and, in a naive parser, a stack overflow that takes down the process. Mature parsers cap nesting: `serde_json` refuses documents deeper than 128 levels by default, Jackson 2.15 added a default limit of 1,000, and CPython's `json` decoder participates in the interpreter's recursion check so it raises rather than crashes. Cap yours too.
 
@@ -265,7 +265,7 @@ A related production bug: recursive-descent parsers for JSON, YAML, XML and regu
 - Assuming tail recursion is optimised in Python or JavaScript because "the compiler handles it". Consequence: a tail-recursive loop overflows at exactly the same depth as the non-tail version.
 - Estimating recursion depth without a frame size. Consequence: a parser that is fine at 1,000 levels dies at 20,000 because a local buffer made each frame 4 KiB.
 - Putting a large array on the stack in code that runs in threads, containers or on Alpine. Consequence: a crash that reproduces only in production, where the thread's stack is smaller than the developer's main thread.
-- Believing Go recursion is unlimited. Consequence: a 1 GB goroutine stack fatal error, unrecoverable, with `morestack` copies degrading latency long before it.
+- Believing Go recursion is unlimited. Consequence: an unrecoverable fatal error at 1 GB, with `morestack` copies degrading latency long before it.
 - Ignoring struct field order in Go or C. Consequence: 50% more memory and cache traffic for a hot struct, invisible in the source.
 
 ```exercise
@@ -324,7 +324,6 @@ hints:
 - When a tree or graph problem allows deep inputs, you say "this could be a chain, so I'll use an explicit stack" and you can write the post-order version with a state marker, not only pre-order.
 - You know that in Python and JavaScript the interesting question is allocation count, not stack versus heap, and you can point at the line in a loop that allocates.
 - You can explain a stack overflow as a page fault into a guard page, read the `segfault at … sp …` line in `dmesg`, and tell it apart from a null-pointer dereference.
-- You can explain Go's escape analysis in one sentence, and why Go can copy stacks and C cannot.
 - You treat `sys.setrecursionlimit` as a patch with a known failure mode, and you recognise attacker-controlled nesting depth as a denial-of-service vector and cap it.
 - You reorder struct fields by size when a struct is allocated in bulk, and you can compute `sizeof` by hand.
 

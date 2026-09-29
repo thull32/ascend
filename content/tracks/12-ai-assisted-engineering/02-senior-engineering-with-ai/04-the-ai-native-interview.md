@@ -16,7 +16,7 @@ When the assistant can write the code, the interview measures everything around 
 Policies vary widely and are changing quickly. At the time of writing:
 
 - Many companies still run classic rounds with no AI, and treat undisclosed use as misconduct.
-- Some have introduced rounds where an AI assistant is allowed, or provided in the interview environment, and the use of it is part of what is assessed; several large companies described such rounds publicly during 2025.
+- Some have introduced rounds where an AI assistant is allowed, or provided in the interview environment, and the use of it is part of what is assessed. Canva, for example, [wrote in June 2025](https://www.canva.dev/blog/engineering/yes-you-can-use-ai-in-our-interviews/) that it expects backend, machine-learning and frontend candidates to use tools such as Copilot, Cursor and Claude in its technical interviews.
 - Take-home assignments increasingly assume AI use and probe understanding in a follow-up discussion.
 
 Policies can differ between teams in the same company and between rounds in the same loop. Ask the recruiter, for each round: is AI allowed; which tool (theirs or yours); can the interviewer see the assistant's transcript; and is the transcript graded afterwards? Never assume.
