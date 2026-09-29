@@ -7,7 +7,7 @@ use sea_orm::{ConnectionTrait, Statement};
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/healthz", get(healthz)).route("/readyz", get(readyz))
+    Router::new().route("/healthz", get(healthz)).route("/readyz", get(readyz)).route("/features", get(features))
 }
 
 /// Liveness: the process is up.
@@ -30,4 +30,15 @@ async fn readyz(State(state): State<AppState>) -> (StatusCode, Json<serde_json::
             "build": crate::build_info::BUILD_ID,
         })),
     )
+}
+
+/// Which optional features this deployment has, so the UI can hide what
+/// cannot work (the coach without an AI key, recovery email without a
+/// provider) instead of offering it and failing.
+async fn features(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "ai": state.coach.enabled(),
+        "email": state.mailer.enabled(),
+        "contact": state.config.contact_email,
+    }))
 }

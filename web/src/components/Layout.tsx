@@ -1,7 +1,9 @@
 import { BookOpen, Code2, LogOut, Map, MessageSquare, Mic, Moon, Search, Sun, User as UserIcon, Menu, X, LayoutDashboard, Play } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useFeatures } from "../lib/queries";
 import { applyTheme, cn, loadTheme } from "../lib/utils";
 import { SearchDialog } from "./SearchDialog";
 
@@ -110,6 +112,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </nav>
         )}
       </header>
+      {!immersive && <VerifyBanner />}
       <main className={cn("mx-auto w-full max-w-7xl flex-1 px-4 py-6", immersive && "max-w-none px-0 py-0")}>{children}</main>
       {!immersive && (
         <footer className="border-t border-line py-6 text-center text-xs text-muted">
@@ -117,10 +120,71 @@ export function Layout({ children }: { children: ReactNode }) {
           <a className="hover:text-fg" href="https://github.com/thull32/ascend" target="_blank" rel="noreferrer">
             Read the code
           </a>{" "}
-          — it is part of the curriculum.
+          — it is part of the curriculum. ·{" "}
+          <Link className="hover:text-fg" to="/privacy">
+            Privacy
+          </Link>{" "}
+          ·{" "}
+          <Link className="hover:text-fg" to="/terms">
+            Terms
+          </Link>
         </footer>
       )}
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
+    </div>
+  );
+}
+
+/** Asks an unverified learner to confirm their address, which is what makes
+ *  password reset possible. Hidden when this deployment cannot send email,
+ *  and for the rest of the session once dismissed. */
+function VerifyBanner() {
+  const { user } = useAuth();
+  const features = useFeatures();
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem("ascend:verify-dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [note, setNote] = useState<string | null>(null);
+  if (!user || user.email_verified || dismissed || !features.data?.email) return null;
+  return (
+    <div className="border-b border-line bg-elev" data-testid="verify-banner">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-2 text-sm">
+        <span>
+          Confirm <strong>{user.email}</strong> so you can reset your password if you ever forget it.
+        </span>
+        <button
+          className="text-accent"
+          onClick={async () => {
+            try {
+              await api.post("/auth/email/resend");
+              setNote("Sent. Check your inbox.");
+            } catch (e) {
+              setNote(e instanceof Error ? e.message : "Could not send the link.");
+            }
+          }}
+        >
+          Send the link again
+        </button>
+        {note && <span className="text-muted">{note}</span>}
+        <button
+          className="ml-auto text-muted hover:text-fg"
+          aria-label="Dismiss"
+          onClick={() => {
+            try {
+              sessionStorage.setItem("ascend:verify-dismissed", "1");
+            } catch {
+              /* ignore */
+            }
+            setDismissed(true);
+          }}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }

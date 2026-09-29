@@ -39,6 +39,17 @@ export default function Register() {
         <Button type="submit" className="w-full" disabled={busy}>
           Create account
         </Button>
+        <p className="text-xs text-muted">
+          By creating an account you agree to the{" "}
+          <Link to="/terms" className="text-accent">
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link to="/privacy" className="text-accent">
+            privacy
+          </Link>{" "}
+          notes.
+        </p>
       </form>
       <p className="mt-4 text-sm text-muted">
         Already have one?{" "}

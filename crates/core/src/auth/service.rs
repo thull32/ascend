@@ -48,6 +48,7 @@ pub struct CurrentUser {
     pub weekly_hours: i16,
     pub preferred_language: String,
     pub timezone: Option<String>,
+    pub email_verified: bool,
     pub onboarded: bool,
     pub created_at: chrono::DateTime<Utc>,
 }
@@ -70,6 +71,7 @@ impl From<users::Model> for CurrentUser {
             weekly_hours: u.weekly_hours,
             preferred_language: u.preferred_language,
             timezone: u.timezone,
+            email_verified: u.email_verified_at.is_some(),
             onboarded: u.onboarded_at.is_some(),
             created_at: u.created_at,
         }
@@ -123,13 +125,7 @@ impl AuthService {
         // Registration still says when an email is taken: without an email
         // round trip there is no way to avoid that, and it is rate limited.
         // The login endpoint, which attackers probe at scale, reveals nothing.
-        if let Some(check) = &self.breached
-            && check.is_breached(&input.password).await == Some(true)
-        {
-            return Err(AppError::validation(
-                "password has appeared in a data breach, so attackers try it early; choose a different one",
-            ));
-        }
+        self.screen_password(&input.password).await?;
         let password_hash = password::hash(input.password).await?;
         // A bad zone must not block sign-up: fall back to UTC, and the
         // browser sets it again once the learner is signed in.
@@ -149,6 +145,7 @@ impl AuthService {
             weekly_hours: Set(8),
             preferred_language: Set("python".into()),
             timezone: Set(timezone),
+            email_verified_at: Set(None),
             onboarded_at: Set(None),
             last_login_at: Set(Some(now)),
             created_at: Set(now),
@@ -261,7 +258,14 @@ impl AuthService {
             )
             .exec(&self.db)
             .await?;
-        Ok(res.rows_affected)
+        let links = self
+            .db
+            .execute_raw(Statement::from_string(
+                DatabaseBackend::Postgres,
+                "DELETE FROM email_tokens WHERE expires_at < now()",
+            ))
+            .await?;
+        Ok(res.rows_affected + links.rows_affected())
     }
 
     /// Records this browser as a known device for `user_id` and returns the
@@ -357,6 +361,169 @@ impl AuthService {
         if update.onboarded == Some(true) {
             active.onboarded_at = Set(Some(Utc::now()));
         }
+        active.updated_at = Set(Utc::now());
+        Ok(active.update(&self.db).await?.into())
+    }
+}
+
+/// A new password, as sign-up and reset both require it (NIST SP 800-63B-4:
+/// at least 15 characters for a single factor, no composition rules).
+#[derive(Debug, Deserialize, Validate)]
+struct NewPassword<'a> {
+    #[validate(length(min = 15, max = 200, message = "must be at least 15 characters"))]
+    password: &'a str,
+}
+
+/// What a single-use email link is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkPurpose {
+    Reset,
+    Verify,
+}
+
+impl LinkPurpose {
+    fn as_str(self) -> &'static str {
+        match self {
+            LinkPurpose::Reset => "reset",
+            LinkPurpose::Verify => "verify",
+        }
+    }
+
+    /// Reset links are short-lived (they grant the account); verification
+    /// links only confirm an address the learner already signed up with.
+    fn ttl(self) -> Duration {
+        match self {
+            LinkPurpose::Reset => Duration::hours(1),
+            LinkPurpose::Verify => Duration::days(7),
+        }
+    }
+}
+
+/// A link to email: who it goes to and the raw token (never stored).
+#[derive(Debug, Clone)]
+pub struct EmailLink {
+    pub email: String,
+    pub display_name: String,
+    pub token: String,
+}
+
+const INVALID_LINK: &str = "this link is invalid or has expired; ask for a new one";
+
+impl AuthService {
+    /// Rejects passwords that are too short or known from breaches.
+    pub async fn screen_password(&self, password: &str) -> AppResult<()> {
+        NewPassword { password }.validate()?;
+        if let Some(check) = &self.breached
+            && check.is_breached(password).await == Some(true)
+        {
+            return Err(AppError::validation(
+                "password has appeared in a data breach, so attackers try it early; choose a different one",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Creates a single-use link token for `user`, replacing any older link
+    /// of the same purpose, and returns what to email.
+    async fn issue_link(&self, user: &users::Model, purpose: LinkPurpose) -> AppResult<EmailLink> {
+        let raw = token::generate();
+        let txn = self.db.begin().await?;
+        txn.execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "DELETE FROM email_tokens WHERE user_id = $1 AND purpose = $2",
+            [user.id.into(), purpose.as_str().into()],
+        ))
+        .await?;
+        txn.execute_raw(Statement::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            "INSERT INTO email_tokens (token_hash, user_id, purpose, email, expires_at) VALUES ($1, $2, $3, $4, $5)",
+            [
+                token::hash(&raw).into(),
+                user.id.into(),
+                purpose.as_str().into(),
+                user.email.clone().into(),
+                (Utc::now() + purpose.ttl()).into(),
+            ],
+        ))
+        .await?;
+        txn.commit().await?;
+        Ok(EmailLink { email: user.email.clone(), display_name: user.display_name.clone(), token: raw })
+    }
+
+    /// Consumes a link token atomically: the row is deleted as it is read,
+    /// so a link works once even if clicked twice at the same moment.
+    /// Returns the user it belongs to, if the address has not changed since.
+    async fn consume_link(&self, raw: &str, purpose: LinkPurpose) -> AppResult<users::Model> {
+        if !token::looks_valid(raw) {
+            return Err(AppError::validation(INVALID_LINK));
+        }
+        let row = self
+            .db
+            .query_one_raw(Statement::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                "DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = $2 AND expires_at > now() \
+                 RETURNING user_id, email",
+                [token::hash(raw).into(), purpose.as_str().into()],
+            ))
+            .await?
+            .ok_or_else(|| AppError::validation(INVALID_LINK))?;
+        let user_id: Uuid = row.try_get("", "user_id")?;
+        let email: String = row.try_get("", "email")?;
+        Users::find_by_id(user_id)
+            .one(&self.db)
+            .await?
+            .filter(|u| u.email == email)
+            .ok_or_else(|| AppError::validation(INVALID_LINK))
+    }
+
+    /// Starts a password reset. `None` when no account has that address;
+    /// callers must respond identically either way.
+    pub async fn start_password_reset(&self, email: &str) -> AppResult<Option<EmailLink>> {
+        let email = email.trim().to_lowercase();
+        let Some(user) = Users::find().filter(users::Column::Email.eq(&email)).one(&self.db).await? else {
+            return Ok(None);
+        };
+        Ok(Some(self.issue_link(&user, LinkPurpose::Reset).await?))
+    }
+
+    /// Sets a new password from a reset link, signs the account out
+    /// everywhere, and signs this browser in. Following the link also proves
+    /// the learner controls the address, so it counts as verification.
+    pub async fn reset_password(
+        &self,
+        raw: &str,
+        new_password: String,
+        user_agent: Option<String>,
+    ) -> AppResult<(CurrentUser, NewSession)> {
+        self.screen_password(&new_password).await?;
+        let user = self.consume_link(raw, LinkPurpose::Reset).await?;
+        let password_hash = password::hash(new_password).await?;
+        let now = Utc::now();
+        let mut active: users::ActiveModel = user.clone().into();
+        active.password_hash = Set(password_hash);
+        active.email_verified_at = Set(Some(user.email_verified_at.unwrap_or(now)));
+        active.last_login_at = Set(Some(now));
+        active.updated_at = Set(now);
+        let user = active.update(&self.db).await?;
+        Sessions::delete_many().filter(sessions::Column::UserId.eq(user.id)).exec(&self.db).await?;
+        let session = self.create_session(user.id, user_agent).await?;
+        Ok((user.into(), session))
+    }
+
+    /// Starts verification of the learner's current address; `None` when it
+    /// is already verified.
+    pub async fn start_verification(&self, user_id: Uuid) -> AppResult<Option<EmailLink>> {
+        let user = Users::find_by_id(user_id).one(&self.db).await?.ok_or(AppError::NotFound("user"))?;
+        if user.email_verified_at.is_some() {
+            return Ok(None);
+        }
+        Ok(Some(self.issue_link(&user, LinkPurpose::Verify).await?))
+    }
+
+    pub async fn verify_email(&self, raw: &str) -> AppResult<CurrentUser> {
+        let user = self.consume_link(raw, LinkPurpose::Verify).await?;
+        let mut active: users::ActiveModel = user.clone().into();
+        active.email_verified_at = Set(Some(user.email_verified_at.unwrap_or_else(Utc::now)));
         active.updated_at = Set(Utc::now());
         Ok(active.update(&self.db).await?.into())
     }

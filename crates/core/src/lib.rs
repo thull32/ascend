@@ -19,6 +19,7 @@ pub mod ai;
 pub mod auth;
 pub mod config;
 pub mod content;
+pub mod email;
 pub mod entities;
 pub mod error;
 pub mod services;

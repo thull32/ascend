@@ -14,6 +14,8 @@ export interface User {
   preferred_language: "python" | "javascript" | "typescript";
   /** IANA time zone; streak days are counted in it. null means UTC. */
   timezone: string | null;
+  /** The learner followed a verification or password-reset link. */
+  email_verified: boolean;
   onboarded: boolean;
   created_at: string;
 }

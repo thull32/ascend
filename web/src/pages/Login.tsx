@@ -35,6 +35,11 @@ export default function Login() {
       >
         <Field label="Email" type="email" value={email} onChange={setEmail} autoComplete="email" />
         <Field label="Password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+        <p className="-mt-2 text-right text-xs">
+          <Link to="/forgot-password" className="text-accent">
+            Forgot your password?
+          </Link>
+        </p>
         {error ? <ErrorBox error={error} /> : null}
         <Button type="submit" className="w-full" disabled={busy}>
           Sign in

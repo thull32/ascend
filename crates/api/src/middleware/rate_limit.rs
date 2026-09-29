@@ -44,6 +44,11 @@ pub const PASSWORD_ATTEMPTS: SharedQuota = SharedQuota::per_minute(10);
 /// Model-calling routes: 20 per minute per session (IP when there is no
 /// session cookie). The daily budget is enforced separately.
 pub const AI_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
+/// Password-reset emails: 3 an hour per address, so nobody can flood a
+/// stranger's inbox (the per-IP auth limit covers the rest).
+pub const RESET_PER_ADDRESS: SharedQuota = SharedQuota { limit: 3, period: Duration::from_secs(3600) };
+/// Verification emails: 3 an hour per account.
+pub const VERIFY_PER_ACCOUNT: SharedQuota = SharedQuota { limit: 3, period: Duration::from_secs(3600) };
 /// Graded submissions: 20 per minute per session. Each can hold a grading
 /// slot for its whole time budget.
 pub const GRADE_PER_SESSION: SharedQuota = SharedQuota::per_minute(20);
@@ -82,7 +87,8 @@ impl Limiters {
         self.charge(&key, PASSWORD_ATTEMPTS).await
     }
 
-    async fn charge(&self, key: &str, quota: SharedQuota) -> Option<Response> {
+    /// Charges one request to a shared key; the response to send if refused.
+    pub async fn charge(&self, key: &str, quota: SharedQuota) -> Option<Response> {
         match self.shared.check(key, quota).await {
             Ok(Ok(())) => None,
             Ok(Err(wait)) => Some(throttled(wait)),

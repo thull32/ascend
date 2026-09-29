@@ -19,6 +19,8 @@ pub struct Model {
     /// IANA time zone name; `None` means UTC. Days (streaks) are the
     /// learner's local days.
     pub timezone: Option<String>,
+    /// When the learner followed a verification or reset link.
+    pub email_verified_at: Option<DateTime<Utc>>,
     pub onboarded_at: Option<DateTime<Utc>>,
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,

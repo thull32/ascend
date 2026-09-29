@@ -31,6 +31,8 @@ struct TestApp {
     /// Each test app is a distinct client address: the per-IP limits are
     /// shared through Postgres, and parallel tests must not share one.
     client_ip: String,
+    /// Every email the app sent.
+    emails: Arc<std::sync::Mutex<Vec<ascend_core::email::Email>>>,
 }
 
 fn config(url: &str) -> Config {
@@ -56,6 +58,8 @@ fn config(url: &str) -> Config {
         grader_dir: grader_dir(),
         grader_slots: None,
         pwned_passwords_url: None,
+        email: ascend_core::config::EmailConfig { resend_api_key: None, from: None, base_url: None },
+        contact_email: None,
     }
 }
 
@@ -98,10 +102,12 @@ async fn test_app() -> Option<TestApp> {
     let db = state::connect_db(&cfg).await.expect("connect");
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/content");
     let curriculum = load_curriculum(&ContentSource::Disk(fixtures)).expect("fixture content loads");
-    let st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum, grader()).expect("state");
+    let mut st = state::AppState::build(Arc::new(cfg), db.clone(), curriculum, grader()).expect("state");
+    let emails = Arc::new(std::sync::Mutex::new(Vec::new()));
+    st.mailer = ascend_core::email::Mailer::Memory(emails.clone());
     let id = uuid::Uuid::now_v7().as_u128();
     let client_ip = format!("fd00::{:x}:{:x}", (id >> 16) & 0xffff, id & 0xffff);
-    Some(TestApp { router: app::build(st.clone()), db, state: st, client_ip })
+    Some(TestApp { router: app::build(st.clone()), db, state: st, client_ip, emails })
 }
 
 struct Res {
@@ -306,6 +312,125 @@ async fn breached_passwords_are_refused_at_sign_up_and_an_outage_does_not_block_
     let down = AuthService::new(app.db.clone(), Duration::from_secs(3600), Duration::from_secs(1800))
         .with_breach_check(BreachedPasswords::new("http://127.0.0.1:9").unwrap());
     assert!(down.register(input("a-breached-passphrase-123"), None).await.is_ok());
+}
+
+impl TestApp {
+    /// Waits for the background task to send an email to `to` whose subject
+    /// contains `subject`, and returns the token in its link.
+    async fn link_token(&self, to: &str, subject: &str) -> String {
+        for _ in 0..100 {
+            let found =
+                self.emails.lock().unwrap().iter().rev().find(|e| e.to == to && e.subject.contains(subject)).cloned();
+            if let Some(e) = found {
+                let at = e.text.find("#token=").expect("link with a token");
+                return e.text[at + 7..].split_whitespace().next().unwrap().to_string();
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("no '{subject}' email to {to}");
+    }
+}
+
+fn session_from(r: &Res) -> String {
+    r.headers
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|v| v.starts_with("ascend_session="))
+        .map(|v| v.split(';').next().unwrap().to_string())
+        .expect("session cookie")
+}
+
+#[tokio::test]
+async fn a_forgotten_password_is_reset_by_email_and_signs_out_everywhere() {
+    let Some(app) = test_app().await else { return };
+    let (old_session, me) = app.register().await;
+    let email = me["email"].as_str().unwrap().to_string();
+
+    let r =
+        app.call("POST", "/api/auth/password/forgot", Some(json!({"email": email.to_uppercase()})), None, true).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let token = app.link_token(&email, "Reset").await;
+
+    // A weak password is refused without spending the link.
+    let weak = app
+        .call("POST", "/api/auth/password/reset", Some(json!({"token": token, "password": "short"})), None, true)
+        .await;
+    assert_eq!(weak.status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = json!({"token": token, "password": "a-brand-new-passphrase"});
+    let reset = app.call("POST", "/api/auth/password/reset", Some(body.clone()), None, true).await;
+    assert_eq!(reset.status, StatusCode::OK, "{:?}", reset.body);
+    assert_eq!(reset.body["email_verified"], true, "following the link proves the address");
+    let new_session = session_from(&reset);
+    assert_eq!(app.call("GET", "/api/auth/me", None, Some(&new_session), false).await.status, StatusCode::OK);
+    assert_eq!(
+        app.call("GET", "/api/auth/me", None, Some(&old_session), false).await.status,
+        StatusCode::UNAUTHORIZED,
+        "every other session is signed out"
+    );
+    // The link works once.
+    let again = app.call("POST", "/api/auth/password/reset", Some(body), None, true).await;
+    assert_eq!(again.status, StatusCode::UNPROCESSABLE_ENTITY);
+    // The new password signs in; the old one does not.
+    let login = |password: &str| json!({"email": email, "password": password});
+    let ok = app.call("POST", "/api/auth/login", Some(login("a-brand-new-passphrase")), None, true).await;
+    assert_eq!(ok.status, StatusCode::OK);
+    let old = app.call("POST", "/api/auth/login", Some(login("correct-horse-battery")), None, true).await;
+    assert_eq!(old.status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn reset_requests_reveal_nothing_and_links_expire() {
+    let Some(app) = test_app().await else { return };
+    let before = app.emails.lock().unwrap().len();
+    let unknown = format!("nobody-{}@example.com", uuid::Uuid::now_v7());
+    let r = app.call("POST", "/api/auth/password/forgot", Some(json!({"email": unknown})), None, true).await;
+    assert_eq!(r.status, StatusCode::OK, "same answer for an unknown address");
+    app.state.tasks.close();
+    app.state.tasks.wait().await;
+    assert_eq!(app.emails.lock().unwrap().len(), before, "and no email");
+
+    let Some(app) = test_app().await else { return };
+    let (_, me) = app.register().await;
+    let email = me["email"].as_str().unwrap().to_string();
+    app.call("POST", "/api/auth/password/forgot", Some(json!({"email": email})), None, true).await;
+    let token = app.link_token(&email, "Reset").await;
+    // Only this account's link: tests share the database and run in parallel.
+    app.db
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "UPDATE email_tokens SET expires_at = now() - interval '1 minute' WHERE purpose = 'reset' AND email = $1",
+            [email.clone().into()],
+        ))
+        .await
+        .unwrap();
+    let body = json!({"token": token, "password": "a-brand-new-passphrase"});
+    let expired = app.call("POST", "/api/auth/password/reset", Some(body), None, true).await;
+    assert_eq!(expired.status, StatusCode::UNPROCESSABLE_ENTITY, "{:?}", expired.body);
+
+    // Three requests an hour per address: nobody can flood a stranger's inbox.
+    for _ in 0..3 {
+        app.call("POST", "/api/auth/password/forgot", Some(json!({"email": email})), None, true).await;
+    }
+    let flood = app.call("POST", "/api/auth/password/forgot", Some(json!({"email": email})), None, true).await;
+    assert_eq!(flood.status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn sign_up_sends_a_verification_link() {
+    let Some(app) = test_app().await else { return };
+    let (cookie, me) = app.register().await;
+    assert_eq!(me["email_verified"], false);
+    let email = me["email"].as_str().unwrap().to_string();
+    let token = app.link_token(&email, "Confirm").await;
+    let r = app.call("POST", "/api/auth/email/verify", Some(json!({"token": token})), None, true).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["email_verified"], true);
+    let again = app.call("POST", "/api/auth/email/verify", Some(json!({"token": token})), None, true).await;
+    assert_eq!(again.status, StatusCode::UNPROCESSABLE_ENTITY, "single use");
+    let resend = app.call("POST", "/api/auth/email/resend", None, Some(&cookie), true).await;
+    assert_eq!(resend.body["already_verified"], true);
 }
 
 #[tokio::test]

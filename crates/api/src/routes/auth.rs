@@ -10,18 +10,22 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 
 use crate::error::ApiResult;
 use crate::extractors::{AppJson, CurrentUser, DEVICE_COOKIE, SESSION_COOKIE};
-use crate::middleware::rate_limit::{Bucket, limit};
+use crate::middleware::rate_limit::{Bucket, RESET_PER_ADDRESS, VERIFY_PER_ACCOUNT, limit};
 use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     let throttled = Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
+        .route("/password/forgot", post(forgot_password))
+        .route("/password/reset", post(reset_password))
+        .route("/email/verify", post(verify_email))
         .layer(middleware::from_fn_with_state(state, |s, r, n| limit(Bucket::Auth, s, r, n)));
     Router::new()
         .merge(throttled)
         .route("/logout", post(logout))
         .route("/logout-all", post(logout_all))
+        .route("/email/resend", post(resend_verification))
         .route("/me", get(me).patch(update_profile).delete(delete_account))
 }
 
@@ -74,6 +78,7 @@ async fn register(
     AppJson(input): AppJson<RegisterInput>,
 ) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
     let (user, session) = state.auth.register(input, user_agent(&headers)).await?;
+    send_verification(&state, user.id);
     let device = state.auth.remember_device(user.id).await?;
     let jar = jar.add(session_cookie(&state, session.token, session.expires_at)).add(device_cookie(&state, device));
     Ok((jar, Json(user)))
@@ -146,4 +151,118 @@ async fn delete_account(
     state.auth.delete_account(user.id, body.password).await?;
     let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/").build());
     Ok((jar, Json(serde_json::json!({ "deleted": true }))).into_response())
+}
+
+// ---------- account recovery and verification ----------
+
+/// Emails a verification link in the background (a slow provider must not
+/// slow sign-up). Nothing is sent when email is not set up.
+fn send_verification(state: &AppState, user_id: uuid::Uuid) {
+    if !state.mailer.enabled() {
+        return;
+    }
+    let (auth, mailer, origin) = (state.auth.clone(), state.mailer.clone(), state.config.public_origin.clone());
+    state.tasks.spawn(async move {
+        match auth.start_verification(user_id).await {
+            Ok(Some(link)) => {
+                // The token rides in the fragment, which browsers never send
+                // to a server or in a Referer header.
+                let url = format!("{origin}/verify-email#token={}", link.token);
+                let email = ascend_core::email::verify_address(&link.email, &link.display_name, &url);
+                if let Err(e) = mailer.send(&email).await {
+                    tracing::error!(error = %e, "verification email failed");
+                }
+            }
+            Ok(None) => {}
+            Err(e) => tracing::error!(error = %e, "could not start verification"),
+        }
+    });
+}
+
+fn email_unavailable() -> ascend_core::AppError {
+    ascend_core::AppError::Unavailable {
+        message: "email is not set up on this server yet, so passwords cannot be reset by email".into(),
+        retry_after_secs: None,
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct ForgotPassword {
+    email: String,
+}
+
+/// Always answers the same way, whether or not an account exists, and does
+/// the work in the background so timing does not tell either.
+async fn forgot_password(State(state): State<AppState>, AppJson(body): AppJson<ForgotPassword>) -> ApiResult<Response> {
+    if !state.mailer.enabled() {
+        return Err(email_unavailable().into());
+    }
+    let email = body.email.trim().to_lowercase();
+    if email.is_empty() || email.len() > 320 || !email.contains('@') {
+        return Err(crate::error::bad_request("enter the email address you signed up with"));
+    }
+    if let Some(throttled) = state.limiter.charge(&format!("reset:{email}"), RESET_PER_ADDRESS).await {
+        return Ok(throttled);
+    }
+    let (auth, mailer, origin) = (state.auth.clone(), state.mailer.clone(), state.config.public_origin.clone());
+    state.tasks.spawn(async move {
+        match auth.start_password_reset(&email).await {
+            Ok(Some(link)) => {
+                let url = format!("{origin}/reset-password#token={}", link.token);
+                let message = ascend_core::email::password_reset(&link.email, &link.display_name, &url);
+                if let Err(e) = mailer.send(&message).await {
+                    tracing::error!(error = %e, "password reset email failed");
+                }
+            }
+            Ok(None) => {}
+            Err(e) => tracing::error!(error = %e, "could not start a password reset"),
+        }
+    });
+    Ok(Json(serde_json::json!({ "ok": true })).into_response())
+}
+
+#[derive(serde::Deserialize)]
+struct ResetPassword {
+    token: String,
+    password: String,
+}
+
+/// Sets the new password, signs out every other session, and signs this
+/// browser in.
+async fn reset_password(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    headers: HeaderMap,
+    AppJson(body): AppJson<ResetPassword>,
+) -> ApiResult<(CookieJar, Json<ascend_core::auth::CurrentUser>)> {
+    let (user, session) = state.auth.reset_password(&body.token, body.password, user_agent(&headers)).await?;
+    let device = state.auth.remember_device(user.id).await?;
+    let jar = jar.add(session_cookie(&state, session.token, session.expires_at)).add(device_cookie(&state, device));
+    Ok((jar, Json(user)))
+}
+
+#[derive(serde::Deserialize)]
+struct VerifyEmail {
+    token: String,
+}
+
+async fn verify_email(
+    State(state): State<AppState>,
+    AppJson(body): AppJson<VerifyEmail>,
+) -> ApiResult<Json<ascend_core::auth::CurrentUser>> {
+    Ok(Json(state.auth.verify_email(&body.token).await?))
+}
+
+async fn resend_verification(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> ApiResult<Response> {
+    if user.email_verified {
+        return Ok(Json(serde_json::json!({ "sent": false, "already_verified": true })).into_response());
+    }
+    if !state.mailer.enabled() {
+        return Err(email_unavailable().into());
+    }
+    if let Some(throttled) = state.limiter.charge(&format!("verify:{}", user.id), VERIFY_PER_ACCOUNT).await {
+        return Ok(throttled);
+    }
+    send_verification(&state, user.id);
+    Ok(Json(serde_json::json!({ "sent": true })).into_response())
 }

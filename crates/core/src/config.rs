@@ -32,6 +32,22 @@ pub struct Config {
     /// Pwned Passwords range API for screening new passwords
     /// (`PWNED_PASSWORDS_URL`; empty disables the check).
     pub pwned_passwords_url: Option<String>,
+    pub email: EmailConfig,
+    /// `CONTACT_EMAIL`: shown on the privacy page for data requests.
+    pub contact_email: Option<String>,
+}
+
+/// Outgoing email (password resets, address verification) via Resend.
+#[derive(Debug, Clone)]
+pub struct EmailConfig {
+    /// `RESEND_API_KEY`. Without it, development logs messages and
+    /// production reports account recovery as unavailable.
+    pub resend_api_key: Option<SecretString>,
+    /// `EMAIL_FROM`, e.g. `Ascend <noreply@example.com>`, on a domain
+    /// verified with the provider. Required when a key is set.
+    pub from: Option<String>,
+    /// `RESEND_BASE_URL`, for tests.
+    pub base_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +138,15 @@ impl Config {
             grader_dir: var_or("GRADER_DIR", "runtimes/grader").into(),
             pwned_passwords_url: Some(var_or("PWNED_PASSWORDS_URL", "https://api.pwnedpasswords.com"))
                 .filter(|u| !u.trim().is_empty()),
+            contact_email: std::env::var("CONTACT_EMAIL").ok().filter(|c| c.contains('@')),
+            email: EmailConfig {
+                resend_api_key: std::env::var("RESEND_API_KEY")
+                    .ok()
+                    .filter(|k| !k.trim().is_empty())
+                    .map(SecretString::from),
+                from: std::env::var("EMAIL_FROM").ok().filter(|f| !f.trim().is_empty()),
+                base_url: std::env::var("RESEND_BASE_URL").ok().filter(|u| !u.trim().is_empty()),
+            },
             grader_slots: std::env::var("GRADER_SLOTS").ok().map(|v| v.parse()).transpose().map_err(|_| {
                 ConfigError::Invalid { name: "GRADER_SLOTS", reason: "must be a positive integer".into() }
             })?,
@@ -133,6 +158,12 @@ impl Config {
     fn validate(&self) -> Result<(), ConfigError> {
         if !self.database_url.expose_secret().starts_with("postgres") {
             return Err(ConfigError::Invalid { name: "DATABASE_URL", reason: "must be a postgres:// URL".into() });
+        }
+        if self.email.resend_api_key.is_some() && self.email.from.is_none() {
+            return Err(ConfigError::Invalid {
+                name: "EMAIL_FROM",
+                reason: "required with RESEND_API_KEY (an address on a domain verified with Resend)".into(),
+            });
         }
         if self.env == Environment::Production && !self.cookie_secure {
             return Err(ConfigError::Invalid {

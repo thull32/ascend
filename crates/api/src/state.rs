@@ -32,6 +32,8 @@ pub struct AppState {
     pub tasks: tokio_util::task::TaskTracker,
     /// Validator for content responses; see [`crate::build_info::content_etag`].
     pub content_etag: Arc<str>,
+    /// Sends password-reset and verification links.
+    pub mailer: ascend_core::email::Mailer,
 }
 
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
@@ -138,6 +140,16 @@ impl AppState {
             },
         );
         let coach = CoachService::new(db.clone(), curriculum.clone(), client, budget, config.ai.model.clone());
+        let mailer = match (&config.email.resend_api_key, &config.email.from) {
+            (Some(key), Some(from)) => {
+                ascend_core::email::Mailer::resend(key.clone(), from.clone(), config.email.base_url.clone())?
+            }
+            _ if config.is_production() => {
+                tracing::warn!("RESEND_API_KEY not set: password reset and email verification are unavailable");
+                ascend_core::email::Mailer::Disabled
+            }
+            _ => ascend_core::email::Mailer::Log,
+        };
         Ok(Self {
             auth: match &config.pwned_passwords_url {
                 Some(url) => AuthService::new(db.clone(), config.session_ttl, config.session_idle)
@@ -154,6 +166,7 @@ impl AppState {
             limiter: Arc::new(crate::middleware::rate_limit::Limiters::new(SharedLimiter::new(db.clone()))),
             tasks: tokio_util::task::TaskTracker::new(),
             content_etag: crate::build_info::content_etag(&curriculum.version, crate::app::index_html()).into(),
+            mailer,
             config,
             db,
             curriculum,
