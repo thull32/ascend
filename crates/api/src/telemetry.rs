@@ -108,6 +108,8 @@ pub fn init(json: bool, service: &'static str) -> Telemetry {
         }
     });
 
+    // W3C trace context, so a trace continues into the grading service.
+    opentelemetry::global::set_text_map_propagator(opentelemetry_sdk::propagation::TraceContextPropagator::new());
     tracing_subscriber::registry().with(filter).with(logs).with(traces).init();
     for p in problems {
         tracing::warn!(problem = %p, "telemetry export disabled");
@@ -132,6 +134,23 @@ impl Telemetry {
             tracing::warn!(error = %e, "metrics flush failed");
         }
     }
+}
+
+/// The current span's trace context as headers (`traceparent`), for a call
+/// to another service. Empty when the span is not being traced.
+pub fn trace_headers() -> Vec<(String, String)> {
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+    let cx = tracing::Span::current().context();
+    let mut carrier = std::collections::HashMap::new();
+    opentelemetry::global::get_text_map_propagator(|p| p.inject_context(&cx, &mut carrier));
+    carrier.into_iter().collect()
+}
+
+/// The caller's trace context from a request's headers.
+pub fn remote_context(headers: &axum::http::HeaderMap) -> opentelemetry::Context {
+    let carrier: std::collections::HashMap<String, String> =
+        headers.iter().filter_map(|(k, v)| Some((k.as_str().to_owned(), v.to_str().ok()?.to_owned()))).collect();
+    opentelemetry::global::get_text_map_propagator(|p| p.extract(&carrier))
 }
 
 /// Gauges read when metrics are collected: connection-pool use (the first

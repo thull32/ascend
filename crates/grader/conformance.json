@@ -1,5 +1,5 @@
 {
-  "description": "When a returned value matches an expected one. Every implementation of the rule must give these answers: web/src/runner/harness.ts (browser, JavaScript), the Python harness in web/src/runner/py.worker.ts (browser, Pyodide), scripts/validate_problems.py (reference solutions), and crates/grader/src/compare.rs (the server's recorded verdict). Floats compare after JavaScript's Math.round(v * 1e6) / 1e6, halves towards +infinity on the scaled binary value; Python's round() rounds halves to even and disagreed at the half-way cases below.",
+  "description": "When a returned value matches an expected one. The rule is one file, crates/grader/harness/compare.js, run by V8 in the browser (web/src/runner/harness.ts re-exports it) and by QuickJS on the server (the grader's recorded verdict); these cases pin its answers in both engines. Floats compare after JavaScript's Math.round(v * 1e6) / 1e6, halves towards +infinity on the scaled binary value; Python's round() rounds halves to even and disagreed at the half-way cases below, which is why the rule is no longer reimplemented per language.",
   "cases": [
     {"expected": 2, "actual": 2.0, "match": true},
     {"expected": 0.333333, "actual": 0.3333333333333333, "match": true},

@@ -78,3 +78,13 @@ Password reset or verification emails not arriving: `ascend_emails_total{outcome
 on the dashboard, then `railway logs --service ascend` for "email failed";
 the provider's error is logged, not shown to learners. Without
 `RESEND_API_KEY` production reports email as unavailable and the UI hides it.
+
+## Backups
+
+Railway backs up the Postgres volume on the schedules set on the volume itself
+(Postgres service, Backups tab). `.railway/railway.ts` cannot set them, so check
+there after recreating the database. Turn on daily and weekly backups.
+
+To restore, pick a backup in the Backups tab and restore it. Railway stages the
+restore as a change that takes the service down briefly. Review it before
+deploying. Afterwards, check `/api/readyz` and sign in.

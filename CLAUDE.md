@@ -8,7 +8,8 @@ Free learning platform taking mid-level engineers to senior at top-tier companie
 - `make db` Postgres on :5433 · `make web` build SPA · `make run` server on :8080 · `make check` everything CI runs
 - API integration tests: `TEST_DATABASE_URL=postgres://ascend:ascend@localhost:5433/ascend_test cargo test -p ascend-api --test api`
 - Content: `cargo run -q -p ascend-core --example validate_content -- ./content` (add `CONTENT_LENIENT=1` while authoring)
-- Problems: `python3 scripts/validate_problems.py [content/problems/<slug>.md]` (executes reference solutions)
+- Problems: `python3 scripts/validate_problems.py [content/problems/<slug>.md]` (structure only). Reference solutions
+  (`solutions/`) are graded by the server sandbox: `cargo run -q -p ascend-api -- --grade-solutions [PREFIX]`
 - Quizzes: `make quizzes` after editing any quiz (canonical option order; CI checks it). `make minutes` after editing lesson prose.
 - Web: `cd web && pnpm typecheck && pnpm test`; e2e: `make e2e` (needs a running server)
 

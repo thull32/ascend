@@ -30,8 +30,9 @@ export default defineRailway(() => {
 
   const db = postgres("Postgres", { region });
   db.networking = { privateNetworkEndpoint: "postgres" };
-  // Railway volume backups: daily kept for 6 days, weekly for a month.
-  db.volumeMounts = { "postgres-volume": { mountPath: "/var/lib/postgresql/data", backupSchedules: ["DAILY", "WEEKLY"] } };
+  // Volume backup schedules are not managed here (the config engine ignores
+  // them); they are set on the Postgres volume in the dashboard. See
+  // docs/RUNBOOK.md, "Backups".
   const dbVolume = volume("postgres-volume", {
     region,
     sizeMB: 50000,
@@ -115,7 +116,9 @@ export default defineRailway(() => {
   });
 
   const jaeger = service("jaeger", {
-    source: image("jaegertracing/jaeger:2.21.0@sha256:3d0ac795ff98aa04d1be04311d2dac6c25b4bfc8322dc02e53bc5b170c5018c3"),
+    // Held at 2.20: 2.21 removed the v1 query API (/api/services,
+    // /api/traces) that Grafana's Jaeger data source calls.
+    source: image("jaegertracing/jaeger:2.20.0@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8"),
     networking: { privateNetworkEndpoint: "jaeger" },
   });
 

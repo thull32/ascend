@@ -12,11 +12,12 @@
 //!
 //! Sessions, email links and rate-limit keys have their own sweeps.
 //!
-//! Deletes run in batches of [`BATCH`] so no statement holds locks for long
-//! or builds a huge WAL burst, and one round does at most [`MAX_BATCHES`]
-//! per kind: a backlog drains over several rounds instead of one long one.
-//! The round takes a transaction-scoped advisory lock, so with several
-//! replicas only one runs it at a time; the others skip.
+//! Deletes run in batches of [`BATCH`], each committed in its own
+//! transaction, so no transaction holds row locks for long or builds a huge
+//! WAL burst, and one round does at most [`MAX_BATCHES`] per kind: a backlog
+//! drains over several rounds instead of one long one. Every batch takes a
+//! transaction-scoped advisory lock first, so with several replicas only one
+//! deletes at a time; a replica that finds the lock taken stops its round.
 use sea_orm::*;
 use serde::Serialize;
 
@@ -111,31 +112,14 @@ const DEVICES: Rule = Rule {
             SELECT token_hash FROM login_devices WHERE last_used_at < now() - make_interval(days => $1) LIMIT $2)",
 };
 
-async fn expire<C: ConnectionTrait>(db: &C, rule: &Rule, days: i32) -> AppResult<u64> {
-    let mut total = 0;
-    for _ in 0..MAX_BATCHES {
-        let n = db
-            .execute_raw(Statement::from_sql_and_values(
-                DatabaseBackend::Postgres,
-                rule.sql,
-                [days.into(), BATCH.into()],
-            ))
-            .await?
-            .rows_affected();
-        total += n;
-        if n < BATCH as u64 {
-            break;
-        }
-    }
-    if total > 0 {
-        tracing::info!(kind = rule.name, deleted = total, "retention");
-        crate::metrics::get().retention_deleted.add(total, &[crate::metrics::kv("kind", rule.name)]);
-    }
-    Ok(total)
+/// Whether the batch ran or another replica holds the retention lock.
+enum Batch {
+    Deleted(u64),
+    Busy,
 }
 
-/// Runs one retention round.
-pub async fn run(db: &DatabaseConnection, policy: Policy) -> AppResult<Report> {
+/// One batch in its own transaction, under the advisory lock.
+async fn batch(db: &DatabaseConnection, rule: &Rule, days: i32) -> AppResult<Batch> {
     let txn = db.begin().await?;
     let locked: bool = txn
         .query_one_raw(Statement::from_sql_and_values(
@@ -149,17 +133,63 @@ pub async fn run(db: &DatabaseConnection, policy: Policy) -> AppResult<Report> {
         .unwrap_or(false);
     if !locked {
         txn.rollback().await?;
-        return Ok(Report::default());
+        return Ok(Batch::Busy);
     }
-    let report = Report {
-        ran: true,
-        submissions: expire(&txn, &SUBMISSIONS, policy.submissions_days).await?,
-        conversations: expire(&txn, &CONVERSATIONS, policy.conversations_days).await?,
-        interviews: expire(&txn, &INTERVIEWS, policy.interviews_days).await?,
-        ai_usage: expire(&txn, &AI_USAGE, policy.ai_usage_days).await?,
-        activity_days: expire(&txn, &ACTIVITY, policy.activity_days).await?,
-        devices: expire(&txn, &DEVICES, policy.devices_days).await?,
-    };
+    let n = txn
+        .execute_raw(Statement::from_sql_and_values(DatabaseBackend::Postgres, rule.sql, [days.into(), BATCH.into()]))
+        .await?
+        .rows_affected();
     txn.commit().await?;
+    Ok(Batch::Deleted(n))
+}
+
+/// Expires one kind of row. `None` when another replica holds the lock.
+async fn expire(db: &DatabaseConnection, rule: &Rule, days: i32) -> AppResult<Option<u64>> {
+    let mut total = 0;
+    let mut busy = false;
+    for _ in 0..MAX_BATCHES {
+        match batch(db, rule, days).await? {
+            Batch::Busy => {
+                busy = true;
+                break;
+            }
+            Batch::Deleted(n) => {
+                total += n;
+                if n < BATCH as u64 {
+                    break;
+                }
+            }
+        }
+    }
+    if total > 0 {
+        tracing::info!(kind = rule.name, deleted = total, "retention");
+        crate::metrics::get().retention_deleted.add(total, &[crate::metrics::kv("kind", rule.name)]);
+    }
+    Ok(if busy && total == 0 { None } else { Some(total) })
+}
+
+/// Runs one retention round. Stops early, with `ran: false` if nothing was
+/// deleted, when another replica is running one.
+pub async fn run(db: &DatabaseConnection, policy: Policy) -> AppResult<Report> {
+    let mut report = Report { ran: true, ..Report::default() };
+    let rules: [(&Rule, i32, &mut u64); 6] = [
+        (&SUBMISSIONS, policy.submissions_days, &mut report.submissions),
+        (&CONVERSATIONS, policy.conversations_days, &mut report.conversations),
+        (&INTERVIEWS, policy.interviews_days, &mut report.interviews),
+        (&AI_USAGE, policy.ai_usage_days, &mut report.ai_usage),
+        (&ACTIVITY, policy.activity_days, &mut report.activity_days),
+        (&DEVICES, policy.devices_days, &mut report.devices),
+    ];
+    let mut any = false;
+    for (rule, days, out) in rules {
+        match expire(db, rule, days).await? {
+            Some(n) => {
+                *out = n;
+                any = true;
+            }
+            None => break,
+        }
+    }
+    report.ran = any;
     Ok(report)
 }

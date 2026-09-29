@@ -346,8 +346,10 @@ constraints, and a "Follow-up" question a senior interviewer would ask.
 Editorial: the naive approach and its complexity, the key insight, the
 optimal approach with complexity analysis, a Python reference solution in a
 ```python fence, common mistakes, and how to discuss it in an interview.
-The Python reference solution **must pass every test** — run
-`python3 scripts/validate_problems.py content/problems/<slug>.md`.
+The reference solutions **must pass every test**. The graded copies live in
+`solutions/` (`solutions/problems/<slug>.js`, `solutions/exercises/<lesson>/<id>.py|.js`)
+and the server's sandbox grades them: `cargo run -q -p ascend-api -- --grade-solutions <slug>`.
+`python3 scripts/validate_problems.py content/problems/<slug>.md` checks the structure.
 ```
 
 Tests: 6–12 per problem, covering edge cases (empty, single element,

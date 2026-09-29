@@ -51,9 +51,11 @@ pub fn build(state: AppState) -> Router {
         .nest("/api", api)
         .fallback(get(static_handler))
         .layer(middleware::from_fn(security_headers::apply))
-        .layer(middleware::from_fn(crate::middleware::metrics::record))
         .layer(CompressionLayer::new().br(true).gzip(true))
         .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
+        // Outside the timeout, so a request it cuts off is still recorded
+        // (as a 503, counted against the availability objective).
+        .layer(middleware::from_fn(crate::middleware::metrics::record))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|req: &Request<Body>| {

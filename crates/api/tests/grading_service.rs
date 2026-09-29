@@ -85,3 +85,40 @@ async fn a_full_service_answers_busy_and_the_client_retries_then_reports_it() {
     assert!(first.is_ok(), "{first:?}");
     assert!(matches!(second, Err(GradeError::Busy)), "{second:?}");
 }
+
+#[tokio::test]
+async fn a_replica_that_drops_the_request_is_retried_with_the_trace_context() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    // A stand-in for the service: the first connection is dropped after the
+    // request arrives (a replica dying mid-request); the second is answered.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let mut seen = Vec::new();
+        for attempt in 0..2 {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 64 * 1024];
+            let n = socket.read(&mut buf).await.unwrap();
+            seen.push(String::from_utf8_lossy(&buf[..n]).to_lowercase());
+            if attempt == 1 {
+                let body =
+                    r#"{"compile_error":null,"cases":[],"passed":[true],"stopped":null,"budget":1000,"elapsed":5}"#;
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        }
+        seen
+    });
+    fn trace() -> Vec<(String, String)> {
+        vec![("traceparent".into(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into())]
+    }
+    let remote = RemoteGrader::new(&url, TOKEN.to_string().into()).unwrap().with_trace_headers(trace);
+    let outcome = remote.run(job("def add(a, b):\n    return a + b\n")).await.unwrap();
+    assert_eq!(outcome.passed, vec![true]);
+    let seen = server.await.unwrap();
+    assert_eq!(seen.len(), 2, "the dropped request was retried");
+    assert!(seen[1].contains("traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-"), "{}", seen[1]);
+}

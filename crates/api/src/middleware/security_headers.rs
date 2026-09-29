@@ -1,7 +1,7 @@
 //! Defence-in-depth response headers. The CSP names every third-party origin
 //! the app deliberately uses: jsDelivr (the Pyodide runtime and its
-//! packages), PyPI (pure-Python wheels Pyodide installs on import) and Google
-//! Fonts. `unsafe-eval` and `wasm-unsafe-eval` exist for the in-browser code
+//! packages) and PyPI (pure-Python wheels Pyodide installs on import); fonts
+//! are self-hosted. `unsafe-eval` and `wasm-unsafe-eval` exist for the in-browser code
 //! runners: the JS sandbox evaluates learner code with `new Function` and
 //! Pyodide compiles WebAssembly. Worker scripts are served through this same
 //! middleware, so the runners run under this policy too; there is no

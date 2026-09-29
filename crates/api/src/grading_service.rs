@@ -88,7 +88,12 @@ async fn grade(State(service): State<Arc<Service>>, headers: HeaderMap, Json(job
     if !authorised(&service, &headers) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
-    match service.grader.run(job).await {
+    use tracing::Instrument;
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+    let span = tracing::info_span!("grade", cases = job.cases.len());
+    // Continue the API's trace; without a traceparent this is a new one.
+    let _ = span.set_parent(telemetry::remote_context(&headers));
+    match service.grader.run(job).instrument(span).await {
         Ok(outcome) => Json(outcome).into_response(),
         Err(GradeError::Busy) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
         Err(e) => {

@@ -195,7 +195,8 @@ bucket is per replica, which is fine for what it guards.
 - **API replicas** scale with request CPU. Each holds `DATABASE_POOL_MAX` (15) connections and a rolling
   deploy briefly doubles them, so Postgres's 100 connections support about four replicas; boot warns when
   headroom drops below 10. Past that, put PgBouncer (transaction mode) in front for the app and keep a
-  direct connection for migrations, whose advisory lock is session-scoped.
+  direct connection for migrations: their advisory lock is transaction-scoped but held open for the
+  whole run, pinning a server connection, and long DDL should not queue behind app traffic.
 - **Grader replicas** scale with grading CPU, independently: 2 runs each, and the API retries a busy
   replica once. `GraderSaturated` says when to add one.
 - **Postgres** is the next bottleneck: the hot read paths (curriculum, lessons, problems) never touch it,

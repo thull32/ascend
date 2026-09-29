@@ -130,7 +130,9 @@ pub fn redact_credentials(text: &str) -> String {
 pub async fn load_grader(config: &Config) -> anyhow::Result<Option<GradingBackend>> {
     if let (Some(url), Some(token)) = (&config.grader_url, &config.grader_token) {
         tracing::info!(%url, "grading delegated to the grading service");
-        return Ok(Some(GradingBackend::Remote(RemoteGrader::new(url, token.clone())?)));
+        return Ok(Some(GradingBackend::Remote(
+            RemoteGrader::new(url, token.clone())?.with_trace_headers(crate::telemetry::trace_headers),
+        )));
     }
     let dir = config.grader_dir.clone();
     let mut options = ascend_grader::Options::default();

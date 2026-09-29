@@ -34,7 +34,8 @@ The server runs code in WebAssembly (crate `ascend-grader`):
   stack on a dedicated thread, concurrency by a semaphore (half the cores, 1 to 4), and volume by a shared
   rate limit of 20 submissions a minute per session. A full queue answers 503 with `Retry-After`.
 - **Comparison on the host.** The harness in the sandbox reports what the learner's function returned;
-  the host compares with the expected values, using a Rust port of the browser's comparison rules. The
+  the host compares with the expected values, running the browser's own rule (`harness/compare.js`) in a
+  separate QuickJS instance outside the sandbox (originally a Rust port; merged in `e47282a`). The
   expected values never enter the sandbox. Code that tampers with the harness from inside can only report
   return values of its choosing, which it could do anyway by returning them.
 

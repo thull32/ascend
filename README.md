@@ -39,7 +39,7 @@ Operating it: [`docs/SLO.md`](docs/SLO.md) (objectives and alerts) and [`docs/RU
 - **Backend:** Rust 2024, [Axum 0.8](https://github.com/tokio-rs/axum), [SeaORM 2](https://www.sea-ql.org/SeaORM/) on PostgreSQL 17, Tokio
 - **AI:** Anthropic Messages API over a small typed client (streaming SSE, JSON-schema outputs, prompt caching)
 - **Frontend:** React 19, TypeScript (strict), Vite, Tailwind 4, TanStack Query, CodeMirror 6, Pyodide, Mermaid, KaTeX
-- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (2,000+ tests, including every visualisation in the curriculum rendered and checked for frames that change after they are recorded); Playwright end-to-end on desktop and mobile against the production Docker image in CI (which also checks the container stops cleanly on SIGTERM), plus opt-in live-AI and full-content crawl suites; a validator that executes every problem's reference solution against its tests
+- **Tests:** Rust unit tests and API integration tests against real Postgres; Vitest (2,000+ tests, including every visualisation in the curriculum rendered and checked for frames that change after they are recorded); Playwright end-to-end on desktop and mobile against the production Docker image in CI (which also checks the container stops cleanly on SIGTERM), plus an opt-in live-AI suite, a stub-model AI suite in CI and a nightly full-content crawl; reference solutions for all 1,430 exercises and problems, graded in CI by the same server sandbox that grades learners
 - **Deploy:** one ~85 MB distroless image on [Railway](https://railway.com), migrations on boot, health-checked rollouts
 
 ## Run it locally
