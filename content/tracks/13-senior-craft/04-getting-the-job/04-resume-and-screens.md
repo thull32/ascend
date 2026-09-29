@@ -32,7 +32,7 @@ flowchart TD
 5. **Hiring-manager review.** For many senior roles the manager reads the shortlist, or every resume. Managers read the bullets for decisions and scope: what the recruiter scans, the manager probes.
 6. **Memory.** Notes and outcomes stay attached to your record. A later recruiter can read how your last process went, and cool-down periods after a rejection are enforced through the same record.
 
-The popular belief that an ATS silently rejects resumes for their formatting is mostly a misunderstanding: automatic rejection usually comes from knockout questions. Formatting matters for a different reason. A garbled parse is what the recruiter sees and searches, and a skill buried in a graphic cannot match a search.
+The popular belief that an ATS silently rejects resumes for their formatting is, by recruiters' common accounts, mostly a misunderstanding: automatic rejection usually comes from knockout questions. Formatting matters for a different reason. A garbled parse is what the recruiter sees and searches, and a skill buried in a graphic cannot match a search.
 
 ## Under the hood: three ways into the pipeline
 
@@ -42,7 +42,7 @@ The popular belief that an ATS silently rejects resumes for their formatting is 
 
 **Sourcing** runs the other way: a recruiter searches LinkedIn and the ATS for titles, skills and employers, and messages people who match. Your public profile is a second resume that is searched the same way, so keep its bullets in step with the real one.
 
-In many systems the first recorded source sticks. If you apply cold and then ask for a referral, the application may stay tagged as cold. Ask for the referral first and let the referral link or form create the record.
+Recruiters commonly report that the first recorded source sticks unless someone edits it by hand. If you apply cold and then ask for a referral, the application may stay tagged as cold. Ask for the referral first and let the referral link or form create the record.
 
 ## What a senior resume must prove
 
@@ -199,7 +199,7 @@ The pitch, in full:
 
 > "I'm a backend engineer with six years in payments. For the last three I've been on the payments platform, where I designed the ledger's multi-currency schema, which three teams build on, and led the move to automated reconciliation, which took finance's month-end check from two days to two hours. Before that I spent three years on checkout. I'm looking for a senior role where I own a larger distributed system, and your platform team's work on <specific thing> is that kind of problem."
 
-**The salary question.** Norms and law depend on where you are and where the job is. Several US states, including California, Colorado, New York and Washington, require pay ranges in job postings, and many US jurisdictions bar employers from asking about salary history. The EU pay transparency directive, which member states were required to bring into national law by June 2026, gives applicants the right to information on the starting pay or its range, for example in the posting or before the interview, and bars questions about pay history; national rules and timing vary. A sound default:
+**The salary question.** Norms and law depend on where you are and where the job is. Several US states, including [California](https://www.dir.ca.gov/dlse/California_Equal_Pay_Act.htm), [Colorado](https://leg.colorado.gov/bills/sb19-085), [New York](https://dol.ny.gov/pay-transparency) and [Washington](https://lni.wa.gov/workers-rights/wages/equal-pay-opportunities-act/), require pay ranges in job postings (with employer-size thresholds), and many US jurisdictions bar employers from asking about salary history. The [EU pay transparency directive](https://commission.europa.eu/strategy-and-policy/policies/justice-and-fundamental-rights/gender-equality/equal-pay/eu-action-equal-pay_en), which member states were required to bring into national law by 7 June 2026, gives applicants the right to information on the starting pay or its range, for example in the posting or before the interview, and bars questions about pay history; national rules and timing vary. A sound default:
 
 > "I'd like to understand the level and scope before we talk numbers, and I'm confident we'll find something fair if it's the right match. Could you share the range for this role?"
 

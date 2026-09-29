@@ -63,7 +63,7 @@ TCP keepalive (`SO_KEEPALIVE`) is a different mechanism with a similar name: emp
 
 Every hop that holds idle connections has an idle timeout, and they must be ordered: **the side that sends requests must give up on an idle connection before the side that receives them.** A load balancer is the client of its backends, so the backend's keep-alive timeout must be *longer* than the balancer's idle timeout.
 
-The textbook mismatch is an AWS Application Load Balancer (idle timeout 60 s by default) in front of Node.js (`server.keepAliveTimeout` 5 s by default). Trace one backend connection:
+The textbook mismatch is an AWS Application Load Balancer (idle timeout 60 s by default) in front of Node.js (`server.keepAliveTimeout` 5 s by default in every release through Node.js 26). Trace one backend connection:
 
 | Time since last response | Backend (Node.js) | Load balancer |
 |---|---|---|
@@ -85,7 +85,7 @@ Requests the server received after its timer fired failed; that starts at 990 ms
 
 | Server | Default keep-alive (idle) timeout |
 |---|---|
-| Node.js `http.Server` | 5 s (`keepAliveTimeout`) |
+| Node.js `http.Server` | 5 s (`keepAliveTimeout`) through Node.js 26; a change merged in April 2026 raises it to 65 s from the next major release |
 | gunicorn | 2 s (`--keep-alive`) |
 | Apache httpd | 5 s (`KeepAliveTimeout`) |
 | NGINX (client side) | 75 s (`keepalive_timeout`) |
@@ -205,7 +205,7 @@ The fixes, in rough order of preference: **balance per request at L7**, with a p
 
 ## HTTP/2 connection coalescing
 
-HTTP/2 and HTTP/3 let a client send requests for *several* origins over one connection. A browser holding a connection to `api.example.com` may send a request for `static.example.com` over it when the connection is authoritative for both: the certificate it received covers the new name (for example `*.example.com` in its subject alternative names) and, in Chrome's rule, the new name resolves to the same IP address as the existing connection (Firefox accepts an address anywhere in the new name's DNS answer, and honours the server's `ORIGIN` frame from RFC 8336). One handshake then serves two origins.
+HTTP/2 and HTTP/3 let a client send requests for *several* origins over one connection. A browser holding a connection to `api.example.com` may send a request for `static.example.com` over it when the connection is authoritative for both. [RFC 9113](https://www.rfc-editor.org/rfc/rfc9113.html#section-9.1.1) requires the certificate it received to cover the new name (for example `*.example.com` in its subject alternative names); browsers also check that the new name resolves to the connection's IP address, with details that differ between them, and RFC 8336 defines an `ORIGIN` frame a server can send to list the origins it serves. One handshake then serves two origins.
 
 It breaks anything that routes by connection instead of by request:
 
@@ -237,7 +237,7 @@ However careful the timeouts, some checked-out connections will be dead. A pool 
 |---|---|---|
 | Go `net/http` | `MaxIdleConnsPerHost` is 2, `MaxConnsPerHost` unlimited, `IdleConnTimeout` 90 s on the default transport | At a concurrency of 100 to one host, 98 connections are closed after every use: a handshake per request and thousands of sockets in `TIME_WAIT` |
 | Python `requests` | Pooling only through a `Session`; each adapter keeps 10 connections per host | `requests.get()` in a loop opens a connection per call; more than 10 threads on one session log "Connection pool is full, discarding connection" |
-| Node.js `http` | Recent versions keep connections alive on the global agent; older versions did not; `maxSockets` unlimited | Older code opened a connection per request; unlimited sockets means no bulkhead |
+| Node.js `http` | Since Node.js 19 the global agent keeps connections alive (5 s timeout); earlier versions did not; `maxSockets` unlimited | Older code opened a connection per request; unlimited sockets means no bulkhead |
 | HikariCP (JDBC) | Pool size 10, max lifetime 30 minutes, idle timeout 10 minutes | Sensible, but check max lifetime against any proxy or firewall that kills idle connections sooner |
 
 ```go

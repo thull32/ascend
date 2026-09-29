@@ -14,13 +14,13 @@ This lesson uses only what Netflix has published about its culture (the culture 
 
 Three public sources are worth your time, in this order:
 
-1. **The culture memo** at jobs.netflix.com/culture. It is the current, official statement and is revised periodically. At the time of writing it is organised in five sections (The Dream Team, People Over Process, Uncomfortably Exciting, Artistic Expression, and Great and Always Better) and lists eight valued behaviours: selflessness, judgement, candour, creativity, courage, inclusion, curiosity and resilience.
-2. **The 2009 culture deck**, "Netflix Culture: Freedom & Responsibility", published by Reed Hastings, Netflix's co-founder, and Patty McCord, then its chief talent officer. It was shared very widely and explains the reasoning behind many ideas that survive in the memo.
+1. **The culture memo** at [jobs.netflix.com/culture](https://jobs.netflix.com/culture). It is the current, official statement and is revised periodically. At the time of writing it is built on four core principles (The Dream Team, People Over Process, Uncomfortably Exciting, and Great and Always Better), with artistic expression as a subsection of its own, and lists eight valued behaviours: selflessness, judgement, candour, creativity, courage, inclusion, curiosity and resilience.
+2. **The 2009 culture deck**, ["Netflix Culture: Freedom & Responsibility"](https://www.slideshare.net/slideshow/culture-1798664/1798664), published by Reed Hastings, Netflix's co-founder, and widely credited to him and Patty McCord, then its chief talent officer. It was shared very widely and explains the reasoning behind many ideas that survive in the memo.
 3. ***No Rules Rules*** (2020), by Reed Hastings and Erin Meyer: a book-length account of how the practices work day to day, with examples, including where they went wrong.
 
 | Theme | 2009 deck | Current memo, at the time of writing |
 |---|---|---|
-| Form and tone | A long slide deck, blunt in places | Shorter prose in five sections |
+| Form and tone | A long slide deck, blunt in places | Shorter prose around four core principles |
 | Performance | The keeper test, and in so many words: adequate performance earns a generous severance | The keeper test in two forms: would I fight to keep them, and would I hire them again; parting ways quickly is described as fairer to everyone; managers judge the whole record, not the bets that did not pay off; regular conversations to avoid surprises |
 | Valued behaviours | Nine, including judgement, communication, curiosity, courage and selflessness | Eight, now including inclusion and resilience |
 | Decisions | Context, not control; highly aligned, loosely coupled | The same, plus informed captains, farming for dissent, and disagreeing then committing |
@@ -55,7 +55,7 @@ Managers are expected to give their teams context (strategy, metrics, assumption
 
 ### Informed captains, farming for dissent, disagree then commit
 
-For each significant decision, one person, the informed captain, gathers input, actively seeks out disagreement ("farming for dissent"), makes the call and owns the result. After the decision, the memo expects everyone, including those who argued for something else, to disagree then commit. Big decisions are often written up in memos that invite comments, which makes written communication part of the job ([Design docs and RFCs](/learn/senior-craft/technical-leadership/design-docs-and-rfcs)).
+For each significant decision, one person, the informed captain, gathers input, actively seeks out disagreement ("farming for dissent"), makes the call and owns the result. After the decision, the memo expects everyone, including those who argued for something else, to disagree then commit. The memo also describes sharing information internally "through memos where they can comment and ask questions", which makes written communication part of the job ([Design docs and RFCs](/learn/senior-craft/technical-leadership/design-docs-and-rfcs)).
 
 ### Candour, the 4A guidelines and sunshining
 
@@ -73,7 +73,7 @@ None of this is inside knowledge. It is what the published culture implies, chec
 
 **The pay conversation centres on your market.** If the aim is the top of your personal market for the role and location, the useful question is what that market is, and the evidence is competing offers and public data for comparable roles. Recruiters commonly ask about it directly.
 
-**Senior used to mean nearly everyone.** For many years Netflix was widely reported to hire mostly experienced engineers under a single senior title, meaning someone who operates independently with context and little oversight ([What senior means](/learn/senior-craft/technical-leadership/what-senior-means)). Public reporting in recent years indicates added engineering levels and some early-career hiring, so read the posting for the level you are being considered for. The old expectation remains the useful one: you will get context, not a tightly specified ticket.
+**Senior used to mean nearly everyone.** For many years Netflix was widely reported to hire mostly experienced engineers under a single senior title, meaning someone who operates independently with context and little oversight ([What senior means](/learn/senior-craft/technical-leadership/what-senior-means)). Public reporting describes engineering levels added in 2022 and some early-career hiring, and current job postings carry the level in the title (for example "Software Engineer 4/5"), so read the posting for the level you are being considered for. The old expectation remains the useful one: you will get context, not a tightly specified ticket.
 
 ## The typical shape of the loop
 

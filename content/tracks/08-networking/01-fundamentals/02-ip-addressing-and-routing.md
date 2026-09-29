@@ -7,7 +7,7 @@ difficulty: easy
 tags: [networking, ip, ipv6, cidr, subnets, routing, longest-prefix-match, bgp, anycast, ecmp]
 problems: []
 ---
-A packet addressed to 104.20.23.154 leaves a laptop. Nothing on the laptop, or on any of the routers in between, has a route to that specific address. Each device knows only "addresses that look like this go that way", and the packet arrives because every one of those coarse decisions is consistent with the others. When they stop being consistent, the failures are spectacular: in February 2008 a Pakistani ISP announced a more specific route for part of YouTube's address space and, for about two hours, much of the internet's YouTube traffic followed it into a black hole. In October 2021 Facebook withdrew the routes to its own DNS servers during maintenance and disappeared from the internet for about six hours.
+A packet addressed to 104.20.23.154 leaves a laptop. Nothing on the laptop, or on any of the routers in between, has a route to that specific address. Each device knows only "addresses that look like this go that way", and the packet arrives because every one of those coarse decisions is consistent with the others. When they stop being consistent, the failures are spectacular: in February 2008 a Pakistani ISP announced a more specific route for part of YouTube's address space and, for about two hours, much of the internet's YouTube traffic followed it into a black hole. In October 2021 a maintenance command cut Facebook's backbone, Facebook's DNS servers withdrew their own routes as they were designed to, and Facebook disappeared from the internet for about six hours.
 
 Both incidents are the same three mechanisms working as designed: prefixes, longest-prefix match, and a global protocol (BGP) in which networks tell each other which prefixes they can reach. This lesson works the address arithmetic by hand, traces a forwarding decision through a routing table and the kernel's data structure, traces BGP's route selection, and shows how anycast puts one address in many places. Those are the tools for reading a VPC route table, explaining why a service in one subnet cannot reach another, and answering "how does anycast work?" in an interview.
 
@@ -56,7 +56,7 @@ You have 192.168.10.0/24 and need subnets for 100 hosts, 50 hosts and 20 hosts, 
 | Link 2 | /30 | 192.168.10.228/30 | .228 – .231 | 2 |
 | Spare | | 192.168.10.232/29 and .240/28 | .232 – .255 | |
 
-Allocating the /27 first and the /25 second would have left the /25 nowhere to start on a multiple of 128 without a gap. The reverse operation is **summarisation**: 10.20.4.0/24 through 10.20.7.0/24 share their first 22 bits, so a router can advertise the single route 10.20.4.0/22 instead of four, which is how the global table stays at around a million IPv4 prefixes rather than billions of addresses.
+Allocating the /27 first and the /25 second would have left the /25 nowhere to start on a multiple of 128 without a gap. The reverse operation is **summarisation**: 10.20.4.0/24 through 10.20.7.0/24 share their first 22 bits, so a router can advertise the single route 10.20.4.0/22 instead of four, which is how the global table stays at about 1.1 million IPv4 prefixes (the [CIDR Report](https://www.cidr-report.org/as2.0/)'s count in September 2026) rather than billions of addresses.
 
 ### Reserved and private ranges
 
@@ -175,7 +175,7 @@ Four consequences follow from the table. Nothing outside can start a connection 
 
 ## BGP: how the world's routers learn prefixes
 
-Inside one organisation, routers run OSPF or IS-IS and compute shortest paths ([routing algorithms](/learn/networking/network-algorithms/routing-algorithms) covers Dijkstra and Bellman-Ford). Between the roughly 75,000 autonomous systems (ASes) on the internet, routers run **BGP**, a path-vector protocol whose currency is policy.
+Inside one organisation, routers run OSPF or IS-IS and compute shortest paths ([routing algorithms](/learn/networking/network-algorithms/routing-algorithms) covers Dijkstra and Bellman-Ford). Between the roughly 80,000 autonomous systems (ASes) on the internet (the CIDR Report counted about 79,500 in September 2026), routers run **BGP**, a path-vector protocol whose currency is policy.
 
 An AS announces "I can reach 203.0.113.0/24" to its neighbours, with an **AS path**: the list of ASes the announcement passed through, each prepending itself. A router that sees its own AS in a path discards it, which is the loop prevention. Each router picks one best route per prefix and re-announces only that one, subject to export policy. The commercial rules, known after Gao and Rexford: prefer routes learned from **customers** (they pay you) over **peers** (settlement-free) over **providers** (you pay them), and announce peer and provider routes only to customers, so nobody carries traffic between two parties who do not pay them.
 
@@ -206,8 +206,8 @@ That order explains why traffic between two hosts in one city can cross another 
 
 - **More-specific hijack.** Any AS can announce any prefix, and longest-prefix match prefers the more specific one wherever both are heard. The YouTube incident was a /24 inside a /22. The partial fix is **RPKI**: address holders publish signed Route Origin Authorisations stating which AS may originate a prefix and up to what length (`maxLength`), and routers that validate drop "invalid" announcements. It stops accidental origin hijacks; it does not stop a forged AS path.
 - **Route leak.** An AS re-announces routes it learned from one provider to another, breaking the export rules above; traffic for large networks flows through a small one that cannot carry it.
-- **Withdrawal.** In the Facebook outage, a maintenance command disconnected the backbone, and Facebook's DNS servers, designed to stop announcing their prefixes when they cannot reach the data centres, did exactly that. With no route to the authoritative DNS servers, every resolver's queries for facebook.com failed, and the retry storm from billions of clients raised load on public resolvers.
-- **Slow convergence.** After a failure, BGP explores alternative paths one update at a time, rate-limited by a per-neighbour advertisement interval (30 s by default for eBGP in many implementations), so reconvergence takes tens of seconds to minutes and some destinations black-hole meanwhile.
+- **Withdrawal.** In the Facebook outage, a maintenance command disconnected the backbone, and Facebook's DNS servers, designed to stop announcing their prefixes when they cannot reach the data centres, did exactly that. With no route to the authoritative DNS servers, every resolver's queries for facebook.com failed, and the retry storm from clients and apps raised load on public resolvers: [Cloudflare wrote](https://blog.cloudflare.com/october-2021-facebook-outage/) that resolvers worldwide were handling 30 times more queries than usual.
+- **Slow convergence.** After a failure, BGP explores alternative paths one update at a time, rate-limited by a per-neighbour advertisement interval (RFC 4271 suggests 30 s for eBGP; implementations differ), so reconvergence takes tens of seconds to minutes and some destinations black-hole meanwhile.
 
 ## Anycast: one address, many places
 
@@ -285,7 +285,7 @@ tests:
     label: the /25 is the most specific
   - args: [[["0.0.0.0/0", "default"], ["10.0.0.0/8", "R1"], ["10.20.0.0/16", "R2"], ["10.20.4.0/22", "R3"], ["10.20.5.0/25", "R4"], ["10.20.5.200/32", "R5"]], "10.20.5.130"]
     expected: "R3"
-    label: two addresses past the end of the /25
+    label: just past the end of the /25
   - args: [[["0.0.0.0/0", "default"], ["10.0.0.0/8", "R1"], ["10.20.0.0/16", "R2"], ["10.20.4.0/22", "R3"], ["10.20.5.0/25", "R4"], ["10.20.5.200/32", "R5"]], "10.20.5.200"]
     expected: "R5"
     label: a host route beats everything

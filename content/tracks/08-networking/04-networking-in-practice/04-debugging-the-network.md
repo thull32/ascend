@@ -337,7 +337,7 @@ Latency that clusters at particular values is a timer firing, and the value name
 
 | Latency | Usual cause |
 |---|---|
-| About 1 s, then 2 s, 3 s on this kernel; 1 s, 3 s, 7 s on older ones | SYN retransmission. The classic schedule doubles from 1 s. Linux 6.18 here has `net.ipv4.tcp_syn_linear_timeouts = 4`: a SYN to a black hole was retransmitted at 1.0, 2.0, 3.1, 4.1, 5.1 and then 7.1 s |
+| About 1 s, then 2 s, 3 s on Linux 6.5 and later; 1 s, 3 s, 7 s before 6.5 | SYN retransmission. The classic schedule doubles from 1 s. Linux 6.18 here has `net.ipv4.tcp_syn_linear_timeouts = 4`, the default since 6.5: a SYN to a black hole was retransmitted at 1.0, 2.0, 3.1, 4.1, 5.1 and then 7.1 s |
 | About 200 ms or more extra | A data segment retransmitted after a timeout (Linux's minimum RTO is 200 ms), often tail loss |
 | About 40 ms | Nagle's algorithm meeting delayed ACKs on small writes (the FIN above was acknowledged after 48 ms for the same reason) |
 | About 5 s | A DNS query lost or unanswered: the resolver's default timeout |

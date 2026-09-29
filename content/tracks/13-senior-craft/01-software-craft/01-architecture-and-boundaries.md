@@ -89,7 +89,7 @@ What it buys: fast tests with fakes, several entry points sharing one set of rul
 
 ## This repository: a core crate and an api crate
 
-Ascend's backend is two Rust crates with one hard boundary between them. The module doc in `crates/core/src/lib.rs` states the contract: the domain layer is "transport-agnostic: no Axum, no HTTP types. The API crate is a thin adapter that maps HTTP to these services and back."
+Ascend's backend is two main Rust crates with one hard boundary between them (a third, `crates/grader`, runs learner code in a WebAssembly sandbox for core and knows nothing of HTTP either). The module doc in `crates/core/src/lib.rs` states the contract: the domain layer is "transport-agnostic: no Axum, no HTTP types. The API crate is a thin adapter that maps HTTP to these services and back."
 
 The rule is written down (the repository's `CLAUDE.md` says "`crates/core` must not depend on HTTP types. Routes stay thin; logic lives in services."), but it is not *enforced* by a document. It is enforced by the build graph: `crates/core/Cargo.toml` does not list `axum`, `tower` or `http` as dependencies, so a `use axum::...` in core fails to compile. `crates/api/Cargo.toml` depends on `ascend-core`, never the reverse. That is the cheapest possible fitness function: the compiler runs it on every build.
 
@@ -111,16 +111,20 @@ async fn login(
     headers: HeaderMap,
     AppJson(input): AppJson<LoginInput>,
 ) -> ApiResult<Response> {
-    if let Some(throttled) = state.limiter.check_password_attempt(&input.email) {
+    let device = known_device(&state, &jar, &input.email).await?;
+    if let Some(throttled) = state.limiter.check_password_attempt(&input.email, device.as_deref()).await {
         return Ok(throttled);
     }
     let (user, session) = state.auth.login(input, user_agent(&headers)).await?;
-    let jar = jar.add(session_cookie(&state, session.token, session.expires_at));
+    let mut jar = jar.add(session_cookie(&state, session.token, session.expires_at));
+    if device.is_none() {
+        jar = jar.add(device_cookie(&state, state.auth.remember_device(user.id).await?));
+    }
     Ok((jar, Json(user)).into_response())
 }
 ```
 
-The one step that is not translation is a throttle: ten password attempts per minute per account, answered with a `429` before the service runs. Rate limiting is an edge policy that lives with the other limiters in the api crate, so the domain's `login` stays a pure "check these credentials" use case that a CLI could call without inheriting HTTP throttling.
+The one step that is not translation is a throttle: ten password attempts per minute, answered with a `429` before the service runs, charged to this browser's own bucket when its `ascend_device` cookie is known for the account and to the account's bucket otherwise ([security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) explains why). The quotas and keys are edge policy in the api crate's middleware, while the counting itself lives in core (`services::rate_limit`, in Postgres, so every replica charges one allowance); the domain's `login` stays a pure "check these credentials" use case that a CLI could call without inheriting HTTP throttling.
 
 Even the body extractor is an adapter decision. `AppJson` (in `crates/api/src/extractors.rs`) wraps Axum's `Json` so that a rejected body comes back in the API's own `{"code": ..., "message": ...}` shape instead of Axum's plain-text rejection, while keeping the status Axum chose: `400 bad_request` for JSON that does not parse, `413` for an oversized body, `415` for the wrong content type, and `422 validation_error` for well-formed JSON with the wrong fields. Every handler with a JSON body uses it, so clients handle every error the same way. The first version collapsed all of these into `422 validation_error`, which told a client whose serialiser was broken that a field value was wrong; keeping the distinction is transport vocabulary, so it lives in the adapter.
 
@@ -149,7 +153,7 @@ That is a defensible trade-off, not an accident. The one boundary that changes o
 
 Cargo compiles each crate with one `rustc` invocation, and that invocation can name only the crates passed to it as `--extern name=path` flags, which Cargo passes for the crate's *direct* dependencies. Everything else in the graph is compiled and linked but cannot be named. `cargo tree`, which reads the lockfile without compiling anything, shows the difference on this repository:
 
-- `cargo tree -p ascend-core --depth 1 -e normal` lists 23 direct dependencies (`sea-orm`, `reqwest`, `tokio`, `argon2`, `serde` and the rest), with no `axum`, `tower` or `http`.
+- `cargo tree -p ascend-core --depth 1 -e normal` lists 25 direct dependencies (`sea-orm`, `reqwest`, `tokio`, `argon2`, `serde`, the `ascend-grader` sandbox and the rest), with no `axum`, `tower` or `http`.
 - `cargo tree -p ascend-core -i http -e normal` shows that `http` 1.5.0 *is* in core's graph, pulled in by `reqwest` through `hyper` and `http-body`. It is compiled into every build, and core still cannot write `use http::HeaderMap`.
 - `cargo tree -p ascend-core -i axum` fails: Axum is not in core's graph at all.
 
@@ -163,7 +167,7 @@ error[E0433]: cannot find module or crate `axum` in this scope
   |     ^^^^ use of unresolved module or unlinked crate `axum`
 ```
 
-The architectural change is therefore a one-line diff to `crates/core/Cargo.toml`, which no reviewer misses. Counting the source makes the two boundaries concrete: of core's 40 Rust files, none mentions `axum::`, `tower::` or `http::`, and 22 mention `sea_orm`. One boundary is hard and one is deliberately soft. In the other direction, the only api file that queries the database itself is the readiness probe in `routes/health.rs`, whose `SELECT 1` exists to test the connection.
+The architectural change is therefore a one-line diff to `crates/core/Cargo.toml`, which no reviewer misses. Counting the source makes the two boundaries concrete: of core's 42 Rust files, none mentions `axum::`, `tower::` or `http::`, and 23 mention `sea_orm`. One boundary is hard and one is deliberately soft. In the other direction, the only api file that queries the database itself is the readiness probe in `routes/health.rs`, whose `SELECT 1` exists to test the connection.
 
 Other ecosystems need a tool for the same guarantee. In Python every installed package is importable from everywhere, so import-linter parses `import` statements into a graph and fails CI on a forbidden edge. Go's toolchain refuses imports of a package under an `internal/` directory from outside its parent tree; Java's module system exports packages explicitly in `module-info.java`; ArchUnit checks rules against compiled bytecode inside a unit test. The cheaper the check, the earlier it runs, and Cargo's runs before a line of the crate compiles.
 
@@ -358,7 +362,7 @@ Notice the design choice in the prompt: unknown layers are **default deny**. A n
 | Modular monolith (Ascend's crates) | The compiler or a linter | One commit across modules | Real-database tests, in process | One deploy | Small teams whose boundaries still move |
 | Microservices | The network | Versioned contracts, ordered rollouts | Contract tests plus integration | N deploys, tracing, partial failure | Independent teams or scaling profiles |
 
-Hexagonal architecture is not only a textbook shape: Netflix's engineering blog described its studio applications adopting it in 2020 so that a data source could be replaced behind a port without touching business logic.
+Hexagonal architecture is not only a textbook shape: in March 2020 Netflix's engineering blog described a Studio Workflows team building a new application on it because it needed "to swap data sources without impacting business logic", starting against the monolith's data and moving to new microservices as they came online.
 
 ## Interviewer follow-ups
 
@@ -368,7 +372,7 @@ Hexagonal architecture is not only a textbook shape: Netflix's engineering blog 
 
 **"After a refactor, every log line says `request_id=-`. What happened?"** Model answer: the layer order changed, so the tracing span is created before the request-ID layer sets the header; in Axum each `.layer` wraps what came before, so the last call runs first. Restore the order and add a test that inspects an emitted line. Common wrong answer: "the UUID generator is broken."
 
-**"When would you split Ascend into services?"** Model answer: when a team or a scaling profile needs to move independently (the AI coach's cost and latency profile is the likeliest candidate), along a crate boundary that has proven stable, after moving rate-limit state to a shared store, as ADR 0001's revisit trigger says. Common wrong answer: "when the codebase is big", which is not a reason by itself.
+**"When would you split Ascend into services?"** Model answer: when a team or a scaling profile needs to move independently (the AI coach's cost and latency profile is the likeliest candidate), along a crate boundary that has proven stable. Replicas alone no longer force it: the security rate limits already moved into Postgres, the precondition ADR 0001's revisit trigger named (as "Redis"). Common wrong answer: "when the codebase is big", which is not a reason by itself.
 
 ## What mid-level engineers get wrong
 

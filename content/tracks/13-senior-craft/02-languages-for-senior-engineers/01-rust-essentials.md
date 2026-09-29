@@ -368,6 +368,10 @@ Argon2id with the crate's default parameters (19,456 KiB of memory, two passes, 
 The coach route (`crates/api/src/routes/coach.rs`) streams a model reply to the browser and must save the full reply even if the tab closes mid-stream:
 
 ```rust
+let (request, hold) = state.coach.prepare_turn(user.id, &conv, input, progress.as_ref()).await?;
+// A failure to start the stream drops `hold`, which releases it.
+let upstream = client.stream(&request).await?;
+
 let (tx, rx) = sse::channel();
 let coach = state.coach.clone();
 // The spawned task outlives the request; `.instrument` carries the request
@@ -377,7 +381,7 @@ state.tasks.spawn(
         futures::pin_mut!(upstream);
         let (reply, usage, error) = sse::pump(upstream, &tx).await;
         // … log any stream error and the token usage …
-        if let Err(e) = coach.finish_turn(user.id, conv.id, reply, usage).await {
+        if let Err(e) = coach.finish_turn(conv.id, reply, usage, hold).await {
             tracing::error!(error = %e, "failed to persist coach reply");
         }
     }
@@ -404,7 +408,8 @@ sequenceDiagram
     T->>T: finish_turn persists reply
 ```
 
-- **Cancellation is dropping.** Dropping a future stops it at whatever `.await` it was parked on; the code after that point never runs, and there is no `finally`, only destructors. So the must-complete work lives in a spawned task that owns `tx`, `upstream`, `coach`, `conv` and `user`; the HTTP response owns only `rx`, and a disconnect drops only that.
+- **Cancellation is dropping.** Dropping a future stops it at whatever `.await` it was parked on; the code after that point never runs, and there is no `finally`, only destructors. So the must-complete work lives in a spawned task that owns `tx`, `upstream`, `coach`, `conv` and `hold`; the HTTP response owns only `rx`, and a disconnect drops only that.
+- **A budget hold is a value with a destructor.** `prepare_turn` reserves the call's worst case in the daily AI budget and returns a `Reservation`. `settle(mut self, usage)` takes it by value, so it can be settled once, and `Drop` releases an unsettled hold by spawning the database update (destructors cannot `await`). An early `?`, a panic or a failed stream start therefore cannot leak budget, which `a_budget_hold_caps_the_call_at_what_is_left_and_releases_itself` checks by dropping one.
 - **A closed receiver is not an error here.** In `pump`, `let _ = tx.send(ev).await;` ignores the `Err` a closed channel returns immediately, and the loop keeps draining `upstream`.
 - **The bound is backpressure.** `sse::channel()` is `mpsc::channel(64)`. A slow reader fills the buffer, `send(...).await` waits, `pump` stops pulling from upstream, and the slowdown propagates to the model connection instead of into memory.
 - **`match &ev` then `send(ev)`.** `pump` inspects the event through a borrow, then moves it into the channel. The `Done` arm copies the counts out with `usage = *u`, which compiles because `Usage` derives `Copy`.
@@ -424,7 +429,7 @@ The [actors, channels and CSP](/learn/systems/concurrency/actors-channels-and-cs
 
 **Symptom: after moving hashing to `spawn_blocking`, a credential-stuffing burst OOM-kills the pod.** Diagnosis: the blocking pool bounds *threads* (512), not memory, and each Argon2 call holds 19 MiB: 200 concurrent attempts is about 3.7 GiB. Fix: a semaphore in front of the work, sized to the CPU count, which is what `HASH_PERMITS` is; waiting callers cost a parked task instead of a thread and 19 MiB, and the auth rate limit bounds how many wait.
 
-**Symptom: after a deploy, a few conversations are missing the assistant's last reply, and the log never says "coach turn complete" for them.** Diagnosis: the reply task was a bare `tokio::spawn`; graceful shutdown waited for open connections, not detached tasks, and dropping the runtime when `main` returned cancelled the task before `finish_turn`. Fix: spawn through a `TaskTracker`; on shutdown `main` calls `tasks.close()` and waits up to 30 seconds for `tasks.wait()`, bounded so a hung upstream cannot block the deploy.
+**Symptom: after a deploy, a few conversations are missing the assistant's last reply, and the log never says "coach turn complete" for them.** Diagnosis: the reply task was a bare `tokio::spawn`; graceful shutdown waited for open connections, not detached tasks, and dropping the runtime when `main` returned cancelled the task before `finish_turn`. Fix: spawn through a `TaskTracker`; on shutdown `serve::finish_tasks` calls `tasks.close()` and waits up to 30 seconds for `tasks.wait()`, bounded so a hung upstream cannot block the deploy, and `crates/api/tests/shutdown.rs` checks both that a task finishes and that it cannot hold the process forever.
 
 **Symptom: "coach stream error" lines lack the `request_id` every other line of the request carries.** Diagnosis: a spawned task does not inherit the current `tracing` span. Fix: `.instrument(tracing::Span::current())`, called in the handler while the request span is still current.
 

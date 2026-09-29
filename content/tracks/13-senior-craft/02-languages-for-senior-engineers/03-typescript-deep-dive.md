@@ -100,7 +100,7 @@ export interface RunRequest { id: number; kind: "run"; code: string; entry: stri
 export interface EvalRequest { id: number; kind: "eval"; code: string; timeLimitMs: number }
 export type RunnerRequest = RunRequest | EvalRequest;
 
-export interface RunResponse { id: number; kind: "run"; results: TestResult[]; compileError?: string; totalMs: number }
+export interface RunResponse { id: number; kind: "run"; results: TestResult[]; compileError?: string; totalMs: number; compiled?: string }
 export interface EvalResponse { id: number; kind: "eval"; stdout: string; error?: string; ms: number }
 export interface ReadyResponse { id: -1; kind: "ready" }
 export interface StatusResponse { id: -1; kind: "status"; message: string }

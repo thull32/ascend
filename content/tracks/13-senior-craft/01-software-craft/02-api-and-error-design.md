@@ -8,19 +8,17 @@ tags: [api-design, error-handling, http, idempotency, pagination, versioning, se
 ---
 A mobile team files a bug: "the app shows *Something went wrong* for everything." You look at the API. Validation failures return `500` with a stack trace. A missing record returns `200 {"error": "not found"}`. Rate limiting returns `503`, so the client's retry library hammers the server harder. And last month someone reworded an error message, which broke the client code that was string-matching on it. Every one of those decisions was local and reasonable. Together they make an API nobody can build on.
 
-An API contract is not the happy-path JSON schema. It is everything a caller can observe: status codes, error codes, which operations are safe to retry, how pages are ordered, what happens under load, and which changes will never be made without warning. This lesson treats errors as the largest part of that contract and uses this repository's `AppError` as the worked example.
+An API contract is not the happy-path JSON schema. It is everything a caller can observe: status codes, error codes, which operations are safe to retry, how pages are ordered, what happens under load, and which changes will never be made without warning. Errors are the largest part of it, and this repository's `AppError` is the worked example.
 
 ## Everything observable is the contract
 
-Hyrum's law puts it bluntly: with enough users, every observable behaviour of your API will be depended on by somebody, whatever the documentation promises. Error message wording, field order, the exact status of a timeout, how long a request takes: someone's code relies on it.
+Hyrum's law puts it bluntly: with enough users, every observable behaviour of your API will be depended on by somebody, whatever the documentation promises. Message wording, field order, a timeout's status, latency: someone relies on each.
 
 You cannot stop that, but you can give callers something better to depend on. The senior move is to **separate what machines read from what humans read**:
 
 - A **stable, machine-readable code** (`validation_error`, `rate_limited`) that you promise never to rename.
 - A **human message** you are free to reword, translate or improve.
 - A **status code** that tells generic infrastructure (retry libraries, proxies, monitoring) which broad class of outcome this is.
-
-Once the code exists, reviewers can reject any client change that string-matches on a message.
 
 ## A taxonomy built on what the caller should do
 
@@ -38,10 +36,10 @@ Classify errors by the **caller's next action**, not by which library failed. A 
 | We are unavailable or the feature is off | 503 | Retry later or degrade | Yes, later |
 | We have a bug | 500 | Report it | Maybe; it may fail again |
 
-Three distinctions that interviewers probe:
+Three distinctions interviewers probe:
 
-- **401 vs 403.** 401 means "I do not know who you are"; the fix is to authenticate. 403 means "I know who you are and the answer is no"; re-authenticating will not help. A client that logs the user out on 403 is buggy.
-- **403 vs 404.** Returning 403 for another user's private resource confirms that it exists. When existence itself is sensitive, return 404 for both "missing" and "not yours".
+- **401 vs 403.** 401 means "I do not know who you are"; the fix is to authenticate. 403 means "I know who you are and the answer is no"; logging in again as the same user will not help ([RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) says a client should not automatically repeat a 403 with the same credentials). A client that logs the user out on 403 is buggy.
+- **403 vs 404.** Returning 403 for another user's private resource confirms that it exists. When existence itself is sensitive, return 404 for both "missing" and "not yours"; RFC 9110 explicitly allows a server that wishes to hide a forbidden resource's existence to answer 404 instead.
 - **429 vs 503.** 429 says "you, specifically, are over a limit"; 503 says "everyone is affected". Retry libraries and load balancers treat them differently, so do not use one for the other.
 
 ## Ascend's error type, end to end
@@ -57,6 +55,7 @@ pub enum AppError {
     Conflict(String),
     RateLimited { message: String, retry_after_secs: Option<u64> },
     AiDisabled,
+    Unavailable { message: String, retry_after_secs: Option<u64> },
     AiUpstream(String),
     Database(#[from] sea_orm::DbErr),
     Internal(String),
@@ -75,7 +74,7 @@ let status = match &e {
     AppError::NotFound(_) => StatusCode::NOT_FOUND,
     AppError::Conflict(_) => StatusCode::CONFLICT,
     AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
-    AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
+    AppError::AiDisabled | AppError::Unavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
     AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
     AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
 };
@@ -86,14 +85,16 @@ let message = match &e {
     other => other.to_string(),
 };
 // ... build the response, then, if the domain knows when to retry, say so:
-if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+if let AppError::RateLimited { retry_after_secs: Some(secs), .. }
+| AppError::Unavailable { retry_after_secs: Some(secs), .. } = e
+{
     res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
 }
 ```
 
 The body is `{"code": "...", "message": "..."}`. The frontend's single fetch wrapper, `web/src/lib/api.ts`, turns every non-2xx response into an `ApiError(status, code, message)` so components branch on `e.code === "rate_limited"` rather than on text.
 
-The most important line is the one that swallows detail. A `DbErr` can contain a hostname, a constraint name, or a fragment of SQL; an `Internal` string can contain a file path. Those go to the logs, where the request ID ties them to the user's report, and the client gets `"internal error"`. Leaking internals is not only an information-disclosure risk; it also creates contract you never meant to offer, because clients start matching on it.
+The key line swallows detail. A `DbErr` can contain a hostname, a constraint name, or a fragment of SQL; an `Internal` string can contain a file path. Those go to the logs, where the request ID ties them to the user's report, and the client gets `"internal error"`. Leaking internals is not only an information-disclosure risk; it also creates contract you never meant to offer, because clients start matching on it.
 
 ## Every error a client can see
 
@@ -111,14 +112,16 @@ The most important line is the one that swallows detail. A `DbErr` can contain a
 | `AppError::Forbidden` | deleting someone else's comment | 403 | `forbidden` | | Give up |
 | `AppError::NotFound`, `api_not_found` | a missing or not-yours interview; an unknown `/api` path | 404 | `not_found` | | Give up |
 | `AppError::Conflict` | an email already registered; an interview already ended | 409 | `conflict` | | Re-read, reconcile, resend |
-| Rate-limit middleware | the per-IP, per-account or per-session bucket is empty | 429 | `rate_limited` | GCRA's wait, rounded up, at least 1 s | Wait, then resend |
+| Rate-limit middleware | the per-IP, per-account, per-device or per-session bucket is empty | 429 | `rate_limited` | GCRA's wait, rounded up, at least 1 s | Wait, then resend |
+| Rate-limit middleware | Postgres, which holds the shared limits, is unreachable | 503 | `unavailable` | | Retry shortly |
 | `AppError::RateLimited` | the daily AI budget; the provider throttling Ascend | 429 | `rate_limited` | seconds to the next UTC midnight; 30 | Wait, then resend |
 | `AppError::AiUpstream` | the provider is overloaded or rejected the request | 502 | `ai_upstream` | | Retry with backoff |
 | `AppError::AiDisabled` | no API key configured | 503 | `ai_disabled` | | Degrade: hide AI features |
+| `AppError::Unavailable` | every code-grading slot stayed busy for 20 s | 503 | `unavailable` | 5 | Retry after the delay |
 | `TimeoutLayer` | a handler still running after 240 s | 503 | none: empty body | | Retry with backoff if idempotent |
 | `AppError::Database`, `Internal` | a failed query, a bug | 500 | `database_error`, `internal_error` | | Report it; retry sparingly |
 
-Two rows share a status with different codes (403 `csrf` and 403 `forbidden`; 429 from the middleware and from the domain), which is exactly why the code exists: the status tells generic infrastructure the class, and the code tells the client which case it is.
+Several statuses carry more than one code (403 `csrf` and `forbidden`; 503 `ai_disabled` and `unavailable`), which is why the code exists: the status tells infrastructure the class, the code tells the client the case.
 
 ## Under the hood: how a JSON body becomes 400, 413, 415 or 422
 
@@ -146,7 +149,7 @@ Two rows share a status with different codes (403 `csrf` and 403 `forbidden`; 42
 - Provider `401`/`403` becomes `AiUpstream("the AI coach is temporarily unavailable")`, also a 502. An earlier wording, "AI provider rejected our credentials", told every user about the server's configuration; the learner only needs to know the feature is down, and the operator reads the status in the logs.
 - Provider `400` becomes `AiUpstream("the AI provider rejected the request")`: a fixed string, with the provider's body sent to the logs, never to the browser.
 
-That last one is the lesson. If the API forwarded the provider's 401, a client would reasonably conclude that the *user's* session had expired (this SPA's auth context in `web/src/lib/auth.tsx` treats a 401 as signed out) and send them to log in again, for a problem that is entirely the server's API key. An upstream status describes the relationship between you and your vendor; your caller needs a status that describes the relationship between them and you.
+That last one is the lesson. If the API forwarded the provider's 401, a client would reasonably conclude that the *user's* session had expired (this SPA's auth context in `web/src/lib/auth.tsx` treats a 401 as signed out) and send them to log in again. An upstream status describes the relationship between you and your vendor; your caller needs a status that describes the relationship between them and you.
 
 ## What a review flagged, and what changed
 
@@ -226,9 +229,9 @@ hints:
 
 Networks fail after the server has done the work but before the client hears about it. The client cannot tell "never arrived" from "succeeded, reply lost", so it retries. Whether that retry is safe is a property of the API, and callers need to know it.
 
-The cheapest way to make retries safe is to **design operations to be idempotent by construction**. Ascend's `PUT /api/progress/lessons/{track}/{module}/{lesson}` sends the desired state (`{"status": "completed"}`), and the service writes it with an upsert keyed on `(user_id, lesson_slug)` (`crates/core/src/services/progress.rs`). Sending it once or five times leaves the same row. The streak log it also writes is idempotent the same way: `activity_days` has one row per user per UTC day, inserted with `ON CONFLICT DO NOTHING`, and the integration test `activity_counts_toward_the_streak_and_is_recorded_once_per_day` sends the same PUT twice and asserts a single row.
+The cheapest way to make retries safe is to **design operations to be idempotent by construction**. Ascend's `PUT /api/progress/lessons/{track}/{module}/{lesson}` sends the desired state (`{"status": "completed"}`), and the service writes it with an upsert keyed on `(user_id, lesson_slug)` (`crates/core/src/services/progress.rs`). Sending it once or five times leaves the same row. The streak log it also writes is idempotent the same way: `activity_days` has one row per user per day (the learner's own calendar day), inserted with `ON CONFLICT DO NOTHING`, and the integration test `activity_counts_toward_the_streak_and_is_recorded_once_per_day` sends the same PUT twice and asserts a single row.
 
-`POST /api/comments` is different: two identical posts create two comments. When an operation is inherently "create a new thing" or "move money", the client supplies an **idempotency key**: a unique ID per logical operation, sent as a header. The server records the key with a hash of the request and the response. A retry with the same key gets the stored response without re-executing; the same key with a *different* body is a client bug and gets a client error (422 is a common choice); a retry that arrives while the first attempt is still running gets a 409 or waits.
+`POST /api/comments` is different: two identical posts create two comments. When an operation is inherently "create a new thing" or "move money", the client supplies an **idempotency key**: a unique ID per logical operation, sent as a header. The server records the key with a hash of the request and the response. A retry with the same key gets the stored response without re-executing; the same key with a *different* body is a client bug and gets a client error; a retry that arrives while the first attempt is still running gets a 409 or waits. The IETF's [`Idempotency-Key` header draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) recommends `422` and `409` for those two cases; it reached revision 07 in October 2025 without becoming an RFC, so treat them as convention, not standard.
 
 ```viz
 {"type": "system", "algorithm": "idempotency-key", "title": "Idempotency keys turn retries into replays", "caption": "The second request carries the same key, so the server returns the stored result instead of charging twice. Keys need a TTL and must be scoped per caller."}
@@ -244,7 +247,7 @@ Traced for `POST /payments` with `Idempotency-Key: k1`, where the server stores 
 | 4 | the same as 1, while 1 is still running | `(k1, h1, in progress)` | refuses, or waits for 1 to finish | `409` |
 | 5 | key `k1`, 25 hours later, with a 24-hour TTL | expired | treats it as new: a second charge | `201` |
 
-Row 5 is why the TTL must outlast every client's retry window. The details that separate a senior design: scope keys per authenticated caller (so one user cannot replay another's response), store the key in the same transaction as the side effect, and expire keys after a window your clients' retry policies fit inside. The full pattern, including exactly-once illusions, is in [idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
+Row 5 is why the TTL must outlast every client's retry window. The details that separate a senior design: scope keys per authenticated caller (so one user cannot replay another's response), store the key in the same transaction as the side effect, and set the TTL as row 5 demands. The full pattern, including exactly-once illusions, is in [idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
 
 The error taxonomy also decides what **callers' resilience machinery** does. A circuit breaker should count timeouts and 5xx responses as failures, and must not count 4xx: a buggy client sending invalid requests should not open the breaker for every other caller.
 
@@ -273,7 +276,7 @@ ORDER BY created_at, id
 LIMIT 50;
 ```
 
-With an index on `(target_kind, target_slug, created_at)` the second query costs the same on page 1 and page 5,000. The `id` tiebreaker makes the order total, so two rows with the same timestamp are never skipped. Encode the cursor as an opaque string (base64 of the tuple) so clients cannot construct or depend on its internals, and so you can change it later.
+With an index on `(target_kind, target_slug, created_at)` the second query costs the same on page 1 and page 5,000. The `id` tiebreaker makes the order total, so two rows with the same timestamp are never skipped. Encode the cursor as an opaque string (base64 of the tuple) so clients cannot construct it.
 
 ### A page boundary, traced
 
@@ -297,8 +300,6 @@ Ascend today does not paginate comments: `CommentService::list` returns the newe
 
 ## Evolving a contract without breaking callers
 
-Some changes are safe for any reasonable client; some break someone.
-
 | Usually safe (additive) | Breaking |
 |---|---|
 | Adding an optional request field | Making an optional field required |
@@ -318,9 +319,9 @@ A breaking change, worked. Suppose `GET /api/auth/me` must replace the boolean `
 | N+2, migrate | both | `onboarded_at`, falling back to `onboarded` | Old tabs and old app versions still get `onboarded` |
 | N+3, contract | `onboarded_at` only | `onboarded_at` | Only after logs show no client version reading the old field for a full window |
 
-For clients you do not ship yourself, announce the removal with a `Sunset` header (RFC 8594) carrying the date, log the client version on each request so "nobody reads it" is a query rather than a hope, and keep the old field for the window your slowest client needs (months for mobile apps, which users do not update on your schedule).
+For clients you do not ship yourself, put the removal date in your changelog and docs. The `Deprecation` ([RFC 9745](https://www.rfc-editor.org/rfc/rfc9745.txt)) and `Sunset` ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594.html)) headers say the same for a whole endpoint (deprecated; likely to stop responding on a date), but neither can name a single field. Log the client version on each request so "nobody reads it" is a query rather than a hope, and keep the old field for the window your slowest client needs (months for mobile apps, which users do not update on your schedule).
 
-When you must break, you choose a versioning strategy: a path prefix (`/v2/...`), a header, or per-client pinned versions where the server keeps translating old shapes (the approach popularised by date-versioned public APIs). All of them cost a period where you run two contracts, so the real skill is needing it rarely.
+When you must break, you choose a versioning strategy: a path prefix (`/v2/...`), a header, or per-client pinned versions where the server keeps translating old shapes. All of them cost a period where you run two contracts, so the real skill is needing it rarely.
 
 Ascend has an unusual advantage: the SPA and the API ship in the same binary, so there is only one client version per deploy. Almost. A browser tab opened before a deploy keeps running the old JavaScript against the new API until it reloads. `crates/api/src/app.rs` serves `index.html` with `no-cache` and hashed assets as `immutable`, so a reload always picks up the new bundle, but between deploy and reload the API must still accept the previous client's requests. Since commit `8f82820` the server answers a code chunk from the previous build with a `404` instead of `index.html`, and the SPA reloads once when a chunk fails to load, which shortens that window without closing it: an old tab that needs no new chunk keeps sending old requests until the user reloads. "Backward compatible for one release" is the practical rule even for a monolith.
 
@@ -363,7 +364,7 @@ Caching is part of the contract too. Content responses carry an `ETag`, and a br
 
 **"How do you remove a field from a public API?"** Model answer: expand and contract on the contract: add the replacement, move clients, announce a sunset date, measure reads of the old field per client version, and remove it only when the logs show nobody has read it for a full release window. Common wrong answer: "bump to `/v2`" for every change, or "remove it and see who complains."
 
-**"What should a client do on 429, 503 and 500?"** Model answer: on 429, wait for `Retry-After` and resend; on 503, retry with exponential backoff and jitter, and degrade if it persists; on 500, retry only idempotent requests, once or twice. A circuit breaker counts timeouts and 5xx, never 4xx. Common wrong answer: "retry everything three times immediately", which turns an overload into an outage.
+**"What should a client do on 429, 503 and 500?"** Model answer: on 429, wait for `Retry-After` and resend; on 503, retry with exponential backoff and jitter, and degrade if it persists; on 500, retry only idempotent requests, once or twice. Common wrong answer: "retry everything three times immediately", which turns an overload into an outage.
 
 ## What mid-level engineers get wrong
 
@@ -383,7 +384,7 @@ Caching is part of the contract too. Content responses carry an `ETag`, and a br
 - You **translate upstream errors** into your own semantics instead of forwarding a vendor's status to your users.
 - You make operations **idempotent by construction** where possible, and specify idempotency keys (scope, storage, TTL, conflicting reuse) where not.
 - You choose **cursor pagination** for anything that grows, with a unique tiebreaker, and you document caps and tolerant-reader rules as part of the contract.
-- You can list **every error a client can see**, including the ones your framework and middleware produce, and you remove fields by expand and contract with measured usage.
+- You can list **every error a client can see**, framework and middleware ones included.
 
 ## Check yourself
 

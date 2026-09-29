@@ -40,7 +40,7 @@ None of this is written on your first-day checklist, and most of it happens in c
 
 **The onboarding buddy.** Many teams assign a peer to answer your questions. Use them heavily; their impression of how you learn reaches your manager informally.
 
-**Probation.** In several countries, particularly in Europe, a probation period of a few months with a shorter notice period is standard, set by contract or by law. Some companies elsewhere have an introductory period. In the US most employment is at will and a formal probation is less common. Read your contract. At a company that uses something like Netflix's keeper test ([Netflix: culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)), the check is continuous rather than a single date.
+**Probation.** In many European countries a probation period of a few months, with a shorter notice period, is standard, set by contract or by law; across the EU, [Directive (EU) 2019/1152](https://employment-social-affairs.ec.europa.eu/policies-and-activities/rights-work/labour-law/working-conditions/transparent-and-predictable-working-conditions_en) limits it to six months in general. Some companies elsewhere have an introductory period. In the US, employment is [presumed at will in every state except Montana](https://www.ncsl.org/labor-and-employment/at-will-employment-overview), and a formal probation is less common. Read your contract. At a company that uses something like Netflix's keeper test ([Netflix: culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)), the check is continuous rather than a single date.
 
 ## The plan, week by week
 

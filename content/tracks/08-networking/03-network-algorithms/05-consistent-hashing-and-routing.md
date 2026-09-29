@@ -74,7 +74,7 @@ The V = 1 row reproduces $H_{10} \approx 2.93$; the standard deviation falls by 
 
 ### Beyond random placement
 
-Random placement never gets perfectly even, so mature systems stop placing points at random. Cassandra historically defaulted to 256 random tokens per node, then lowered the default and paired far fewer tokens with an allocation algorithm that chooses positions to balance ownership. The limit of that idea is **fixed slots**: Redis Cluster maps every key to one of 16,384 slots with `CRC16(key) mod 16384` (a CRC from [Error detection](/learn/networking/network-algorithms/error-detection) doing duty as a hash) and keeps an explicit slot-to-node map, so moving a slot moves exactly that slot's keys and balancing is editing the map. Kafka's partitions are the same design. The ring and its variants remain the right tool when there is no central map to keep consistent.
+Random placement never gets perfectly even, so mature systems stop placing points at random. Cassandra defaulted to 256 random tokens per node until version 4.0 lowered the default to 16 and switched on an allocation algorithm that chooses token positions to balance ownership. The limit of that idea is **fixed slots**: Redis Cluster maps every key to one of 16,384 slots with `CRC16(key) mod 16384` (a CRC from [Error detection](/learn/networking/network-algorithms/error-detection) doing duty as a hash) and keeps an explicit slot-to-node map, so moving a slot moves exactly that slot's keys and balancing is editing the map. Kafka's partitions are the same design. The ring and its variants remain the right tool when there is no central map to keep consistent.
 
 ## Rendezvous hashing
 
@@ -186,7 +186,7 @@ A slow or unlucky node keeps receiving its share while its queue grows. **Consis
 | 7 | user:15 | a | 3 | 1, 3, 2 | a |
 | 8 | user:16 | b | 4 | 2, 3, 2 | b |
 
-Final loads are a 2, b 4, c 2, against 2, 6, 0 on the plain ring. Two requests lost their cache affinity; in exchange no node exceeds 125% of the mean. Vimeo contributed an implementation to HAProxy (`hash-balance-factor`) after using it in front of its video caches.
+Final loads are a 2, b 4, c 2, against 2, 6, 0 on the plain ring. Two requests lost their cache affinity; in exchange no node exceeds the cap, $\lceil 1.25 \times \text{mean} \rceil$ (4 here, against 6 on the plain ring). Vimeo contributed an implementation to HAProxy (`hash-balance-factor`) after using it in front of its video caches.
 
 ### Routing in a mesh
 
@@ -435,9 +435,9 @@ hints:
   explanation: >-
     Every consistent-hashing scheme maps one key to one owner by design, so no amount of better hashing, more virtual nodes or a different scheme splits a single hot key. Replicating it to several nodes and spreading its reads, key splitting, request coalescing or a small cache in front address traffic skew; bounded-load hashing can also overflow requests to the next node.
 - q: >-
-    What does consistent hashing with bounded loads (capacity factor 1.25) trade away to guarantee that no node exceeds 125% of the average load?
-  options: ["Some locality, since overflow goes to the next node", "Simplicity, as each request needs a central coordinator", "Nothing, since it is strictly better than plain hashing", "Determinism, since requests are assigned at random"]
-  answer: 0
+    What does consistent hashing with bounded loads (capacity factor 1.25) trade away to cap every node at 1.25 times the average load, rounded up?
+  options: ["Determinism, since requests are assigned at random", "Nothing, since it is strictly better than plain hashing", "Simplicity, as each request needs a central coordinator", "Some locality, since overflow goes to the next node"]
+  answer: 3
   explanation: >-
     The owner is still found on the ring, but a node at capacity is skipped and the request walks clockwise to the next node with room; in the lesson's trace two of eight requests moved from cache-b to cache-c. Those overflow requests lose their cache affinity; in exchange the maximum load is capped. Routing stays deterministic for a given load state and needs no coordinator.
 ```

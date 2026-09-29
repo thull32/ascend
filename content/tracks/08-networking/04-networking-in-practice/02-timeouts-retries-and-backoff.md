@@ -9,7 +9,7 @@ problems: []
 ---
 A downstream service pauses for four seconds during a deploy. Every caller, configured with a 30-second default timeout and three retries, keeps its threads pinned and then retries in lockstep. The downstream comes back to nine times its normal load, falls over properly, and the incident that should have been a blip lasts forty minutes. Nobody wrote a bug. They accepted defaults.
 
-Timeouts and retries are the two knobs that decide whether a partial failure stays partial. Both are usually set wrong, in the same two directions: timeouts too long, retries too eager. This lesson measures both instead of asserting them: a packet capture of what Linux does with a connect that never answers, a simulation of 1,000 clients retrying against a full server under five backoff strategies, a retry budget traced token by token, and hedged requests on a heavy-tailed latency distribution.
+Timeouts and retries are the two knobs that decide whether a partial failure stays partial. Both are usually set wrong, in the same two directions: timeouts too long, retries too eager.
 
 ## There is no such thing as "the timeout"
 
@@ -63,7 +63,7 @@ The schedule below was captured on Linux 6.18 (WSL2) inside an unprivileged netw
 | 8 to 11 | 11.3, 19.5, 35.6, 67.9 | none |
 | `connect()` raises `ETIMEDOUT` | 133.4 s | 130.3 s |
 
-The right-hand column is the textbook: the SYN retransmission timeout starts at 1 s and doubles, `tcp_syn_retries=6` allows six retransmissions, and the kernel gives up one doubled timeout after the last, 1 + 2 + 4 + 8 + 16 + 32 + 64 = 127 s in theory and 130.3 s measured (the timers ran a few percent long on this VM). The left-hand column is what this kernel does by default: `net.ipv4.tcp_syn_linear_timeouts=4` holds the timeout at 1 s for four retransmissions before the doubling starts from 1 s, so the first five retransmissions are a second apart, 11 SYNs go out, and the kernel still gives up after about 133 s. Either way, **a connect with no application timeout to a black-holed address blocks for over two minutes.**
+The right-hand column is the textbook, and the default before Linux 6.5: the SYN retransmission timeout starts at 1 s and doubles, `tcp_syn_retries=6` allows six retransmissions, and the kernel gives up one doubled timeout after the last, 1 + 2 + 4 + 8 + 16 + 32 + 64 = 127 s in theory and 130.3 s measured (the timers ran a few percent long on this VM). The left-hand column is the default since Linux 6.5, which added `net.ipv4.tcp_syn_linear_timeouts=4`: the timeout stays at 1 s for four retransmissions before the doubling starts from 1 s, so the first five retransmissions are a second apart, 11 SYNs go out, and the kernel still gives up after about 131 s by the kernel documentation's count (133 s measured). Either way, **a connect with no application timeout to a black-holed address blocks for over two minutes.**
 
 Three consequences follow:
 
@@ -79,8 +79,6 @@ Connect timeouts should be a small multiple of the RTT, because a handshake that
 
 Set too high and a slow dependency holds your threads and connections open (Little's law from [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) tells you exactly how many). Set too low and you cancel work that would have succeeded, then retry it, doubling the load precisely when the dependency is struggling. A timeout at the p50 cancels half of all calls by definition; at the p99 it cancels 1%.
 
-The check before you ship: plot the dependency's latency histogram and draw the timeout on it. If it cuts through the body of the distribution, you have a load amplifier, not a safety net.
-
 ## Deadlines compose down the call chain
 
 A user request enters at the edge with a 1,000 ms budget. It calls a service which calls a database. If each hop sets its own timeout independently, the numbers do not add up:
@@ -91,7 +89,7 @@ Service timeout:  2,000 ms   (someone's default)
 DB timeout:       5,000 ms   (someone else's default)
 ```
 
-At 1,001 ms the edge gives up and returns a 504. The service is still waiting, the database is still working, and the resources for a request nobody wants stay allocated for another four seconds. Under load those orphaned requests are the majority of the work the system is doing.
+At 1,001 ms the edge gives up and returns a 504. The service is still waiting, the database is still working, and the resources for a request nobody wants stay allocated for another four seconds. Under load, that orphaned work competes with requests someone is still waiting for.
 
 The fix is **deadline propagation**: the edge computes an absolute deadline, and every hop passes the remaining budget downstream, subtracting its own expected cost.
 
@@ -225,7 +223,7 @@ A per-request count ("up to 3 attempts") gives 27× in the example above. A **re
 }
 ```
 
-The rules from the gRPC retry design (gRFC A6): `token_count` starts at `maxTokens` and stays between 0 and `maxTokens`; every failed attempt subtracts 1, every success adds `tokenRatio`; retries and hedges are sent only while `token_count > maxTokens / 2`. The policy's own backoff is full jitter: retry $n$ waits a random time in $[0, \min(\text{initialBackoff} \times \text{multiplier}^{n-1}, \text{maxBackoff})]$. Trace a hard-down server:
+The rules from the gRPC retry design (gRFC A6): `token_count` starts at `maxTokens` and stays between 0 and `maxTokens`; every failed attempt subtracts 1, every success adds `tokenRatio`; retries and hedges are sent only while `token_count > maxTokens / 2`. The policy's own backoff is not full jitter: retry $n$ waits $\min(\text{initialBackoff} \times \text{multiplier}^{n-1}, \text{maxBackoff})$ times a random factor in $[0.8, 1.2]$, as the spec has said since 2024 and grpc-go implements. Trace a hard-down server:
 
 | Step | Attempt | Result | Tokens after | Retry allowed (tokens > 5)? |
 |---|---|---|---|---|
@@ -244,7 +242,7 @@ After three retries, amplification is exactly 1.0×. When the server heals, toke
 | gRPC `retryThrottling` | Token bucket per server name, as traced | None; you choose `maxTokens` and `tokenRatio` |
 | Envoy `retry_budget` | Concurrent retries ≤ a percentage of active requests | 20% of active requests, floor of 3 concurrent retries |
 | Finagle `RetryBudget` | Each request deposits, each retry withdraws, over a sliding window | 20% of requests, 10 retries/s floor, 10 s window |
-| Linkerd `retryBudget` | Same shape as Finagle | `retryRatio: 0.2`, `minRetriesPerSecond: 10`, `ttl: 10s` |
+| Linkerd `retryBudget` (ServiceProfile) | Same shape as Finagle | `retryRatio: 0.2`, `minRetriesPerSecond: 10`, `ttl: 10s` |
 
 The floor matters for low-traffic clients: at 2 requests per second, 20% is 0.4 retries per second, which would make retries useless, so a fixed minimum keeps them working.
 
@@ -286,7 +284,7 @@ def backoff_sleep(attempt, base=0.1, cap=10.0):
     time.sleep(random.uniform(0, ceiling))
 ```
 
-TCP's retransmission is the same idea one layer down: a timeout that starts near the measured RTT plus variance and doubles on each retransmit, as the SYN capture above showed. The difference is that TCP resends bytes with the same sequence numbers and the receiver deduplicates them, so it never has to ask whether the retry is safe.
+TCP's retransmission is the same idea one layer down (a timeout that doubles on each retransmit, as the SYN capture showed), except that the receiver deduplicates resent bytes by sequence number, so TCP never has to ask whether a retry is safe.
 
 ```viz
 {"type": "network", "scenario": "tcp-retransmit", "title": "TCP retransmission is a retry with no idempotency question", "caption": "Lost segments are resent with the same sequence numbers; the receiver deduplicates by design. Application retries have no such guarantee."}
@@ -359,7 +357,7 @@ What the numbers say:
 - **No backoff** finishes at 0.90 s, the floor for 1,000 clients at 100 per bucket, by sending 46 attempts per success. On a real server each rejection costs CPU, and 9,100 arrivals per 100 ms against a capacity of 100 is how a **metastable failure** starts: the retry load alone keeps the server saturated after the original trigger is gone (Bronson et al., "Metastable Failures in Distributed Systems", HotOS 2021).
 - **Exponential without jitter** cut attempts to 5,500 but took 32.8 s: the herd stays a herd, arriving in waves of 900, 800, 700 at 110, 320, 730 ms and so on, with idle buckets in between. 318 of the 328 buckets before the last success had unused capacity.
 - **Every jittered variant** needed 2,722–3,971 attempts and finished in 2–3.7 s. Full jitter has the highest first-bucket peak because its first retry window (0–100 ms) overlaps the initial burst; after that it is the smoothest.
-- **The ranking among jittered variants depends on parameters.** Decorrelated jitter won every column here. With base 50 ms, cap 5 s and 200 admissions per bucket, equal jitter finished first (0.76 s against 0.87 s) while decorrelated still made the fewest attempts (2,615). Across seeds 1–20 the main run varied little: full jitter 3,936–3,994 attempts, decorrelated 2,705–2,764. The gap between jitter and no jitter did not move.
+- **The ranking among jittered variants depends on parameters.** Decorrelated jitter won every column here; with base 50 ms, cap 5 s and 200 admissions per bucket, equal jitter finished first (0.76 s against 0.87 s). Across seeds 1–20 the gap between jitter and no jitter did not move.
 
 ## Circuit breakers: the cap on retries
 
@@ -433,8 +431,6 @@ Each line removes one way for a partial failure to spread. The forty-minute inci
 
 **"A dependency's host is terminated and your calls to its old IP hang. Why, and for how long?"** Model answer: the address is black-holed, so SYNs get no reply and no RST; the kernel retransmits on its own schedule and gives up after about 130 s with default `tcp_syn_retries=6`. Set an explicit connect timeout or `TCP_SYNCNT`, and remove the endpoint from discovery. Common wrong answer: "the connection is refused, so it fails immediately", which is only true when a live host answers with a RST.
 
-**"Why is `grpc-timeout` a duration and not a timestamp?"** Model answer: a duration is converted to an absolute deadline on the receiver's own clock, so clock skew between hosts cannot make a request look expired or immortal; the price is that request transit time is not deducted. Common wrong answer: "to save bytes on the wire."
-
 **"Full jitter can sleep for 0 ms. Isn't that the same as not backing off?"** Model answer: individual sleeps can be short, but the expected sleep is half the ceiling and the ceiling doubles, so the population spreads out; in the simulation full jitter needed 3,971 attempts against 46,000 with no backoff. If a floor matters, equal jitter guarantees half the ceiling. Common wrong answer: "yes, so use plain exponential", which measured 32.8 s to drain the herd.
 
 **"Retries are configured at three tiers with three attempts each. What do you change?"** Model answer: retry in one layer, usually the one closest to the failing dependency (or the mesh), give that layer a budget, make the others fail fast, and propagate a deadline so an outer layer never retries work an inner layer is still doing. Common wrong answer: "lower each tier to two attempts", which still gives 8× when the bottom is down.
@@ -444,9 +440,7 @@ Each line removes one way for a partial failure to spread. The forty-minute inci
 ## What mid-level engineers get wrong
 
 - **Setting only a read timeout.** A trickling server never trips it, and a black-holed connect blocks for 130 s before the read timer even starts.
-- **Retrying at every layer.** Each layer's policy looks reasonable in its own code review; together they multiply to 27× or more.
 - **Retrying a read timeout on a non-idempotent call.** The first attempt may have succeeded, and the customer is charged twice.
-- **Backoff without jitter.** Load arrives in synchronised waves, and recovery takes several times longer than with any jittered variant.
 - **Dropping the request context.** Starting outbound calls from a fresh context stops both deadline propagation and cancellation at that line.
 - **Treating hedging as free.** Without cancellation and a budget, hedges double load exactly when a shared dependency slows down.
 
@@ -524,7 +518,6 @@ hints:
 - You propagate **deadlines** down the call chain, know that `grpc-timeout` is a relative duration immune to clock skew, and pass the request context to every outbound call so cancellation cascades.
 - You can do the **amplification math** ($(1 - p^k)/(1 - p)$ per tier, $k^d$ when the bottom is down) and you bound retries with a **budget** you can trace token by token.
 - You retry connect failures freely and read timeouts only with idempotency, and you treat retry policy and idempotency as one decision.
-- You use **jittered** backoff and can quote what happens without it: synchronised waves, idle capacity, and a herd that drains many times more slowly.
 - You treat hedging as a tail-latency tool tied to a high percentile, budgeted and cancelled, and you know it fails when slowness is shared.
 
 ## Check yourself

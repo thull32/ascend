@@ -18,11 +18,11 @@ A container is not a small virtual machine. It is an ordinary Linux process that
 - **cgroups** cap what it may consume: CPU, memory, number of processes.
 - The **image** supplies its filesystem: a stack of read-only layers plus metadata (entrypoint, environment, user). The running container adds one thin writable layer on top.
 
-Production consequences follow directly. Containers start in milliseconds because nothing boots; the kernel is shared. Isolation is weaker than a VM's for the same reason, which is why multi-tenant platforms add sandboxing layers. When a process exceeds its cgroup memory limit, the kernel's OOM killer sends SIGKILL and you see exit code **137** (128 + signal 9), usually with no application log at all. [Processes and threads](/learn/systems/operating-systems/processes-and-threads) covers the kernel side.
+Consequences follow. Containers start in milliseconds because nothing boots; the kernel is shared. Isolation is weaker than a VM's for the same reason, which is why multi-tenant platforms add sandboxing layers. When a process exceeds its cgroup memory limit, the kernel's OOM killer sends SIGKILL and you see exit code **137** (128 + signal 9), usually with no application log at all. [Processes and threads](/learn/systems/operating-systems/processes-and-threads) covers the kernel side.
 
 ## Under the hood: digests, layers and overlayfs
 
-An image is a JSON **manifest** that lists a config blob and a sequence of layer blobs, each identified by the SHA-256 of its bytes; the image's digest is the SHA-256 of the manifest itself. A tag such as `node:24-trixie-slim` is a mutable pointer to a digest, and BuildKit records the resolution: in this app's CI log for run 36441384084, the web stage starts `FROM docker.io/library/node:24-trixie-slim@sha256:8ec5d755…`. Pinning `@sha256:` in the Dockerfile makes that resolution part of the reviewed code instead of an accident of build time. This Dockerfile did not pin until commit `8f82820`: its three `FROM` lines now carry the digests that run recorded (`node:24-trixie-slim@sha256:8ec5d755…` among them), and `.github/dependabot.yml` opens a grouped weekly pull request when a tag moves, so a base-image upgrade arrives as a reviewed diff instead of a silent change between two builds of one commit.
+An image is a JSON **manifest** that lists a config blob and a sequence of layer blobs, each identified by the SHA-256 of its bytes; the image's digest is the SHA-256 of the manifest itself. A tag such as `node:24-trixie-slim` is a mutable pointer to a digest, and BuildKit records the resolution: in this app's CI log for run 36441384084, the web stage starts `FROM docker.io/library/node:24-trixie-slim@sha256:8ec5d755…`. Pinning `@sha256:` in the Dockerfile makes that resolution part of the reviewed code instead of an accident of build time. This Dockerfile did not pin until commit `8f82820`: its three `FROM` lines now carry the digests that run recorded (`node:24-trixie-slim@sha256:8ec5d755…` among them), and Dependabot opens a weekly pull request when a tag moves, so a base-image upgrade is a diff that must pass CI, the production-image job included, before it merges itself.
 
 Each layer is a tar archive of the files one step added, changed or deleted (steps such as `ENV` change only metadata and add no layer). Content addressing deduplicates across images: in the same run, one 29.83 MB layer (`6b37362b…`) was downloaded once and served both the Node stage and the Rust stage, because both base images are built on the same Debian trixie slim layer.
 
@@ -52,11 +52,11 @@ d = layer_digest({**layer, "content/intro.md": "# Intro!\n"}, mtime=0)
 print(a == b, a == c, a == d)   # True False False
 ```
 
-Rebuilding identical sources later produces a different digest unless timestamps are normalised, which is what `SOURCE_DATE_EPOCH` support in BuildKit exists for.
+Rebuilding identical sources later gives a different digest unless timestamps are normalised, which BuildKit's `SOURCE_DATE_EPOCH` support exists for.
 
 ## Layers are a cache: how BuildKit decides
 
-BuildKit gives every step a cache key built from the step's definition and its parent's key. For `COPY`, the key includes a checksum of the copied files' *contents* (not their timestamps). For `RUN`, it includes only the command string and environment: BuildKit never inspects what the command would fetch, so `RUN apt-get update` stays cached with stale package indexes until something above it changes. When one key changes, that step **and every step after it** in the stage misses.
+BuildKit gives every step a cache key built from the step's definition and its parent's key. For `COPY`, the key includes a checksum of the copied files' *contents* and metadata such as permissions, but not their modification times. For `RUN`, it includes only the command string and environment: BuildKit never inspects what the command would fetch, so `RUN apt-get update` stays cached with stale package indexes until something above it changes. When one key changes, that step **and every step after it** in the stage misses.
 
 ```text
 # Naive: any change to any file rebuilds every dependency
@@ -175,12 +175,16 @@ flowchart LR
   subgraph S2["Stages: planner and builder (Rust)"]
     D["recipe.json from manifests"] --> E["cargo chef cook (cached)"]
     E --> F["compile ascend-api, embedding web/dist and content/"]
-    F --> G["run --check-content"]
+    F --> G["run --check-content, then --prepare-grader"]
+  end
+  subgraph S4["Stage: runtimes"]
+    R["CPython and QuickJS for WASI, pinned by SHA-256"]
   end
   subgraph S3["Stage: runtime"]
-    H["distroless, non-root"] --> I["one binary"]
+    H["distroless, non-root"] --> I["one binary plus grader runtimes"]
   end
   C --> F
+  R --> G
   G --> I
 ```
 
@@ -188,20 +192,21 @@ flowchart LR
 |---|---|---|---|
 | web | `node:24-trixie-slim` | pnpm, `node_modules`, the SPA source, `web/dist` | `web/dist`, inside the binary |
 | planner | `cargo-chef` on Rust 1.98, slim trixie | manifests, sources, `recipe.json` | nothing |
-| builder | the same | toolchain, compiled dependencies, sources, `content/`, `web/dist`, the release binary | `/ascend-api` only |
+| runtimes | the same | CPython and QuickJS for WASI, fetched and checked by SHA-256 | via the builder |
+| builder | the same | toolchain, compiled dependencies, sources, `content/`, `web/dist`, the release binary | `/ascend-api`, and the runtimes with Python's standard library precompiled |
 | runtime | `distroless/cc-debian13:nonroot` | glibc, OpenSSL, libstdc++, CA certificates, time zones, a `nonroot` user | all of it |
 
-`docker history` on a local build from 26 September lists 22 layers totalling 62 MB unpacked: 21 distroless layers of about 32 MB (glibc 13.7 MB, libssl 8.1 MB, time zone data 4.4 MB, libstdc++ 2.7 MB, CA certificates 0.3 MB) and one 29.9 MB layer holding the binary. `docker image ls` reports 84.5 MB on disk and 22.4 MB compressed. The toolchain layer the builder starts from is 289 MB compressed by itself.
+`docker history` on a local build from 26 September lists 22 layers totalling 62 MB unpacked: 21 distroless layers of about 32 MB (glibc 13.7 MB, libssl 8.1 MB, time zone data 4.4 MB, libstdc++ 2.7 MB, CA certificates 0.3 MB) and one 29.9 MB layer holding the binary. `docker image ls` reports 84.5 MB on disk and 22.4 MB compressed. The toolchain layer the builder starts from is 289 MB compressed by itself. Since commit `25fd477` the image also carries the grader's runtimes, about 55 MB by the Dockerfile's count.
 
 The builder's `include_dir!` macros (in `crates/api/src/app.rs` and `crates/core/src/content/loader.rs`) embed the SPA and the curriculum; `ASCEND_BUILD_ID` gives the binary its commit, which `/api/readyz` reports and content ETags include; and `--check-content` fails the build on a broken lesson. Embedding content makes every lesson change a new image and a deploy, which is a feature here: lessons are versioned, validated and rolled back like code.
 
-Distroless has no shell and no package manager: less for an attacker to use, and no `docker exec … sh` for you. You debug through logs, metrics and ephemeral debug containers. `.dockerignore` keeps `target/`, `node_modules`, `.git` and `.env` out of the build context: smaller uploads, fewer spurious `COPY . .` misses, and no local secrets in a layer.
+Distroless has no shell and no package manager: less for an attacker, and no `docker exec … sh` for you, so you debug through logs, metrics and ephemeral debug containers. `.dockerignore` keeps `target/`, `node_modules`, `.git` and `.env` out of the build context: smaller uploads, fewer spurious `COPY . .` misses, and no local secrets in a layer.
 
 ## Entrypoint, PID 1 and signals
 
 The runtime stage ends with `ENTRYPOINT ["/usr/local/bin/ascend-api"]`, the exec form, so the binary itself is PID 1. That matters for three reasons.
 
-**Signals.** The kernel applies no default action to signals sent to a namespace's PID 1 from inside it: a signal with no installed handler is ignored. Only SIGKILL and SIGSTOP from an ancestor namespace are forced. So a PID 1 without a SIGTERM handler ignores `docker stop`, which waits 10 seconds by default before SIGKILL; Kubernetes waits `terminationGracePeriodSeconds`, 30 by default; Railway waits its draining setting, which defaults to 0 and which this app has set to 60 since [CI/CD and deployment](/learn/senior-craft/software-craft/ci-cd-and-deployment) found the gap. `crates/api/src/main.rs` installs the handler through Tokio:
+**Signals.** A namespace's PID 1 receives only the signals it has installed a handler for, whether they come from inside the namespace or from the host; the only exceptions are SIGKILL and SIGSTOP sent from an ancestor namespace ([pid_namespaces(7)](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)). So a PID 1 without a SIGTERM handler ignores `docker stop`, which waits 10 seconds by default before SIGKILL; Kubernetes waits `terminationGracePeriodSeconds`, 30 by default; Railway waits its draining setting, which defaults to 0 and which this app has set to 60 since [CI/CD and deployment](/learn/senior-craft/software-craft/ci-cd-and-deployment) found the gap. `crates/api/src/main.rs` installs the handler through Tokio:
 
 ```rust
 // crates/api/src/main.rs (excerpt)
@@ -219,7 +224,7 @@ let terminate = async {
 
 ## Kubernetes in one page
 
-This app runs on a platform-as-a-service that builds the image, runs one replica, checks `/api/readyz` before moving traffic, terminates TLS and collects logs. It does not use Kubernetes. At larger scale, and in most senior interviews, Kubernetes is the substrate, and you must be able to read its core objects:
+This app runs on a platform-as-a-service that builds the image, gates traffic on `/api/readyz` and terminates TLS; it does not use Kubernetes. At larger scale, and in most senior interviews, Kubernetes is the substrate, and you must be able to read its core objects:
 
 | Object | What it is | Why you care |
 |---|---|---|
@@ -231,7 +236,7 @@ This app runs on a platform-as-a-service that builds the image, runs one replica
 | ConfigMap and Secret | Configuration and credentials injected as env or files | Same image, different environments |
 | Probes | Readiness, liveness and startup checks | Remove from rotation versus restart |
 
-Everything works by **reconciliation**: you declare desired state, and controllers loop forever comparing it with actual state and acting to close the gap. A Deployment for this app would read:
+Everything works by **reconciliation**: controllers loop forever comparing declared state with actual state and acting to close the gap. A Deployment for this app would read:
 
 ```yaml
 apiVersion: apps/v1
@@ -260,7 +265,7 @@ spec:
             limits: { memory: 512Mi }
 ```
 
-Read it as decisions. The image is pinned by digest. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The grace period covers the 240-second request timeout plus draining. The memory limit is where exit 137 will come from. Three replicas also change this codebase's arithmetic: the in-memory rate limiter would give each client up to three times its budget (`docs/ARCHITECTURE.md` names the fix: move it to Redis, "the `Limiters` type is the seam"); each pod opens up to 20 database connections, so four pods during a surge can hold 80 of a small Postgres's roughly 100; and every pod runs the migrator at boot, which is why boot takes a Postgres advisory lock before planning migrations (`crates/api/src/migrate.rs`, added after a review of this module found that three pods would race).
+Read it as decisions. The image is pinned by digest. Readiness uses the dependency-checking endpoint and liveness the process-only one, so a database blip removes pods from rotation instead of restarting all of them. The grace period covers the 240-second request timeout plus draining. The memory limit is where exit 137 will come from. Three replicas also change this codebase's arithmetic: the security rate limits already live in Postgres, so only the loose 1,200-a-minute general bucket triples; each pod opens up to 20 database connections, so four pods during a surge can hold 80 of the 100 connections Postgres allows by default; and every pod runs the migrator at boot, which is why boot takes a Postgres advisory lock before planning migrations (`crates/api/src/migrate.rs`).
 
 ## A rolling update, traced
 
@@ -278,7 +283,7 @@ With `replicas: 3`, `maxSurge: 1` and `maxUnavailable: 0`, the controller may ru
 
 Under the hood, the Deployment controller (`pkg/controller/deployment/rolling.go`) computes both moves on every sync. Scale up by `min(replicas + maxSurge − total, replicas − new)`. Scale down old pods by at most `available − (replicas − maxUnavailable)`, where a new pod counts as available only after it has been Ready for `minReadySeconds`. Readiness gates traffic separately: the EndpointSlice controller marks a pod's endpoint ready only while its readiness probe passes, and kube-proxy and load balancers send traffic only to ready endpoints. Percentages resolve against `replicas`, surge rounding up and unavailable rounding down, so the defaults of 25% and 25% become 1 and 0 on three replicas; if both round to zero, the controller sets unavailable to 1. The old ReplicaSet is kept at zero (ten revisions by default) so `kubectl rollout undo` can scale it back up.
 
-On removal, Kubernetes updates endpoints and sends SIGTERM concurrently, so a pod can receive requests for a moment after SIGTERM. The `preStop` sleep holds SIGTERM back a few seconds while load balancers catch up; the built-in `sleep` action (on by default since Kubernetes 1.30) matters here because a distroless image has no `sleep` binary to exec.
+On removal, Kubernetes updates endpoints and sends SIGTERM concurrently, so a pod can receive requests for a moment after SIGTERM. The `preStop` sleep holds SIGTERM back a few seconds while load balancers catch up; the built-in `sleep` action (on by default since Kubernetes 1.30, stable since 1.34) matters here because a distroless image has no `sleep` binary to exec.
 
 ```exercise
 id: rolling-update
@@ -354,7 +359,7 @@ Suppose v2 cannot reach a dependency, so its readiness probe fails every 5 secon
 
 Nothing else happens by itself. After `progressDeadlineSeconds` (600 by default) without progress, the Deployment's `Progressing` condition turns false with reason `ProgressDeadlineExceeded`, and `kubectl rollout status` exits non-zero, which is how a pipeline notices. Kubernetes does **not** roll back; `kubectl rollout undo`, or a controller such as Argo Rollouts or Flagger running canary analysis, does. With `maxSurge: 0, maxUnavailable: 1` instead, the same stuck rollout leaves two old pods serving: a third of capacity gone until someone acts. Choosing surge over unavailability is choosing to pay one pod rather than risk capacity.
 
-The opposite failure is worse: v2 passes readiness and is broken in a way `SELECT 1` cannot see. The rollout completes on schedule. Readiness proves an instance can serve; only the canary analysis in the previous lesson proves it serves correctly.
+The opposite failure is worse: v2 passes readiness and is broken in a way `SELECT 1` cannot see, so the rollout completes. Readiness proves an instance can serve; only the canary analysis in the previous lesson proves it serves correctly.
 
 ## Service meshes
 
@@ -364,11 +369,11 @@ Clusters often add a **service mesh**: a proxy beside every pod handling mutual 
 {"type": "system", "algorithm": "service-mesh", "title": "Sidecar proxies carry the cross-cutting concerns", "caption": "Each service talks to its local proxy; proxies handle mTLS, retries and telemetry. The cost is an extra hop per call and a control plane to operate."}
 ```
 
-The price is latency per hop, a control plane to run, and retries configured far from the code that knows whether an operation is idempotent. [Service meshes and proxies](/learn/networking/networking-in-practice/service-meshes-and-proxies) goes deeper.
+The price is latency per hop, a control plane, and retries configured far from the code that knows what is idempotent. [Service meshes and proxies](/learn/networking/networking-in-practice/service-meshes-and-proxies) goes deeper.
 
 ## Infrastructure as code with Terraform
 
-Infrastructure as code describes the environment (networks, databases, DNS, buckets, IAM, services) in files, reviews it in pull requests and applies it with a tool. Terraform (and its open-source fork OpenTofu) is the dominant declarative one. This app does not use it; were its database on AWS, the declaration would look like this:
+Infrastructure as code describes the environment (networks, databases, DNS, buckets, IAM, services) in files, reviews it in pull requests and applies it with a tool. Terraform (and its open-source fork OpenTofu) is a widely used declarative one. This app does not use it; were its database on AWS, the declaration would look like this:
 
 ```text
 # abridged: credentials, networking and parameter groups omitted
@@ -428,12 +433,12 @@ Drift, step by step:
 
 Locking, step by step:
 
-1. An engineer's apply takes the lock: the S3 backend writes a lock file beside the state (`use_lockfile`, added in Terraform 1.10) or, in older setups, an item in a DynamoDB table, recording an ID, the operation, who and when.
+1. An engineer's apply takes the lock: the S3 backend writes a lock file beside the state (`use_lockfile`, added in Terraform 1.10) or, in older setups, an item in a DynamoDB table (now deprecated), recording an ID, the operation, who and when.
 2. A CI apply starting a second later fails with "Error acquiring the state lock" and prints that record.
 3. Without the lock, both read state serial 41, both create resources, both write serial 42, and the second write wins: the first apply's resources exist in AWS and not in state, billed and invisible until the next apply fails on a name that "already exists".
 4. `terraform force-unlock <ID>` is for a lock whose holder is known to be dead, never for one that is inconvenient.
 
-State holds every attribute, including database passwords, in plain text (`sensitive = true` only hides CLI output), so it lives in an encrypted, access-controlled remote backend, never in Git. Split state by lifecycle and ownership (network, data, services) so one apply cannot touch everything.
+State holds every attribute, including database passwords, in plain text (`sensitive = true` only hides CLI output; since Terraform 1.11 a provider's write-only arguments, such as `password_wo`, keep a value out of state), so it lives in an encrypted, access-controlled remote backend, never in Git. Split state by lifecycle and ownership (network, data, services) so one apply cannot touch everything.
 
 ## Railway's IaC: the same idea without a state file
 
@@ -466,11 +471,11 @@ const app = service("ascend", {
 | Secrets | plain text in state | `preserve()` keeps the value in Railway, out of the file |
 | Drift check in CI | `plan -detailed-exitcode` | `railway config plan --detailed-exit-code`, exit 2 when changes are pending |
 
-Two more details show the craft. The database URL is wired by **reference** (`db.env.DATABASE_URL`), so rotating credentials cannot leave the app pointing at a stale copy. And `CONTENT_LENIENT` used to be `preserve()`, leaving a build setting (Railway passes service variables to the Docker build as build arguments) to whatever someone last typed in the dashboard; a leftover lenient value would have let a lesson with a dangling cross-reference ship. It is now the literal `"0"`. `preserve()` is for values that must stay out of the repository; every other setting belongs in the reviewed file.
+Two more details show the craft. The database URL is wired by **reference** (`db.env.DATABASE_URL`), so rotating credentials cannot leave a stale copy. And `CONTENT_LENIENT` used to be `preserve()`, leaving a build setting (Railway passes service variables to the Docker build as build arguments) to whatever someone last typed in the dashboard, where a leftover lenient value would ship broken lessons; it is now the literal `"0"`. `preserve()` is for values that must stay out of the repository; every other setting belongs in the reviewed file.
 
 ## GitOps
 
-GitOps applies reconciliation to delivery. A Git repository holds the desired state of the cluster (manifests with image digests), and an agent inside the cluster (Argo CD and Flux are the common ones) keeps the cluster matching it. A deploy is a merged pull request that changes a digest; rollback is `git revert`; audit is `git log`; drift is corrected on the agent's next sync. The security argument: in push-based deploys CI holds credentials that can change production, while in pull-based GitOps CI only builds images and opens pull requests, and production credentials never leave the cluster.
+GitOps applies reconciliation to delivery. A Git repository holds the desired state of the cluster (manifests with image digests), and an agent inside the cluster (Argo CD and Flux are the common ones) keeps the cluster matching it. A deploy is a merged pull request that changes a digest; rollback is `git revert`; audit is `git log`; drift is corrected on the next sync. The security argument: in push-based deploys CI holds credentials that can change production, while in GitOps production credentials never leave the cluster.
 
 ## Failure modes
 
@@ -515,7 +520,6 @@ GitOps applies reconciliation to delivery. A Git repository holds the desired st
 - **Deleting a secret in a later layer.** The bytes stay in the earlier layer.
 - **Tags instead of digests.** The same Dockerfile builds different images on different days.
 - **A liveness probe that checks the database.** A database blip restarts every pod at once.
-- **Believing Kubernetes rolls back a failed rollout.** It stops and reports; someone or something must undo.
 - **Applying a plan without reading it**, or running Terraform from laptops with local state and no lock.
 - **A shell-form entrypoint.** SIGTERM never reaches the app, or a distroless container never starts.
 

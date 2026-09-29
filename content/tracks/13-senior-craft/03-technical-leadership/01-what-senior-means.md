@@ -14,7 +14,7 @@ Both did the task. Only one owned the problem. "Senior" is not a number of years
 
 ## The levels rubric
 
-Public career frameworks (several companies, Dropbox and GitLab among them, publish theirs) use different words for the same four axes. Read each row as "what you are given" on the left and "what you produce" on the right.
+Public career frameworks (several companies publish theirs, among them [Dropbox](https://dropbox.github.io/dbx-career-framework/), which defines each level by scope, collaborative reach and levers for impact, and [GitLab](https://handbook.gitlab.com/handbook/engineering/careers/)) use different words for the same four axes. Read each row as "what you are given" on the left and "what you produce" on the right.
 
 | Axis | Mid-level (L4, E4, SDE II) | Senior (L5, E5, SDE III) | Staff (L6, E6), for contrast |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Titles and numbering differ, but large companies line up roughly like this. Trea
 | Amazon | SDE II (L5) | SDE III / Senior (L6) | Principal (L7) |
 | Microsoft | 61–62 (SDE II) | 63–64 (Senior) | 65–67 (Principal) |
 
-Three things about ladders are worth knowing. First, at many large companies senior is a **career level**: you are not required to progress beyond it, while the levels below it carry an expectation of promotion within a few years. Second, titles do not travel: "senior" at a 30-person startup often maps to mid-level at a large company, and down-levelling on a move is common and negotiable only with evidence of scope. Third, Netflix historically hired almost entirely at a single senior level with a very high bar, where "senior" meant operating independently with little oversight. It has since introduced a more conventional ladder, but independent judgement at senior remains the defining trait of its published culture (see [Netflix culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)).
+Three things about ladders are worth knowing. First, at many large companies senior is commonly described as a **career level**: you are not required to progress beyond it, while the levels below it carry an expectation of promotion within a few years. Second, titles do not travel: "senior" at a 30-person startup often maps to mid-level at a large company, and down-levelling on a move is common and negotiable only with evidence of scope. Third, Netflix is widely reported to have used a single senior level for software engineers for most of its history, with a very high bar, where "senior" meant operating independently with little oversight. Its engineering job postings now carry levels (titles such as "Software Engineer 4/5"), but judgement and "context, not control" remain central to its [published culture memo](https://jobs.netflix.com/culture) (see [Netflix culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)).
 
 ## Worked example 1: login protection at two scopes
 
@@ -68,7 +68,7 @@ The opening story, phase by phase. The mid-level version is not bad work; it is 
 | Framing | Treats the ticket as the spec | Asks support why it exists: 40 account-takeover reports last month. Reads the auth logs: attempts come from about 12,000 IPs, most under 2 attempts a minute each |
 | Goal | "Token bucket, 5 attempts a minute per IP" | "Cut takeover attempts reaching password verification by 90%, with login p99 under 300 ms" |
 | Design | Middleware; no doc | One page: per-IP and per-account limits, a bounded hashing pool, an alert on failed-login rate; CAPTCHA and a vendor WAF rule listed as alternatives with reasons |
-| Risk found | None looked for | A 4-core host completes perhaps 100–200 hashes a second, so 300 attempts a second queue up. Tokio's blocking pool allows up to 512 threads by default, and 512 concurrent hashes × 19 MiB ≈ 9.5 GiB. One hash per CPU caps it at 4 × 19 = 76 MiB |
+| Risk found | None looked for | At tens of milliseconds per hash per core (it depends on the CPU), a 4-core host completes perhaps 100–200 hashes a second, so 300 attempts a second queue up. Tokio's blocking pool allows up to 512 threads by default, and 512 concurrent hashes × 19 MiB ≈ 9.5 GiB. One hash per CPU caps it at 4 × 19 = 76 MiB |
 | Launch | Merged and deployed | Shadow mode first (log, do not block) for a week: 0.3% of real logins would have been limited, all from one office NAT, so the per-IP limit rose and per-account became the main defence |
 | Operate | Nothing added | Dashboard, alert routed to on-call, a runbook, a 15-minute walk-through with the rotation |
 | Report | "Done" in stand-up | A paragraph to security and support: takeover attempts reaching hashing down 92% in 30 days, p99 unchanged at 180 ms |
@@ -146,7 +146,7 @@ The clearest judgement signals are subtractive. Declining to build a generic plu
 
 Promotion processes differ by company and change every few years, so treat this as the common shape rather than any one company's current rules.
 
-**The packet.** A promotion case is usually a written document: a summary from the manager, the candidate's own account of their work, feedback from peers who worked with them, and links to artefacts (design docs, launch results, postmortems, review threads). At several large companies the people deciding are not the candidate's manager. Committees of more senior engineers or managers from elsewhere in the organisation read packets from people they have never met, often many in one session, which is why the packet's first paragraph and its evidence links carry so much weight.
+**The packet.** A promotion case is usually a written document: a summary from the manager, the candidate's own account of their work, feedback from peers who worked with them, and links to artefacts (design docs, launch results, postmortems, review threads). At several large companies, by widely reported accounts, the people deciding are not the candidate's manager. Committees of more senior engineers or managers from elsewhere in the organisation read packets from people they have never met, often many in one session, which is why the packet's first paragraph and its evidence links carry so much weight.
 
 **How a reader reads it.** Readers map each claim to the rubric's axes and look for three properties: the claim is **at the next level** (a project, not a ticket), it is **attributable** ("I designed", not "we shipped"), and it is **sustained** (evidence across several quarters, not one heroic month). Here are two packet paragraphs describing the login project; the brackets are what a reader typically writes in the margin.
 
@@ -190,7 +190,7 @@ There are several legitimate shapes of senior work, and each produces evidence a
 | Team multiplier (reviews, mentoring, templates) | High, diffuse | Low unless measured | Seen as "not delivering" | Slow; needs numbers |
 | Glue work (coordination, onboarding, process) | High for the team | Low at many companies | Career stalls if unrecognised | Rarely credited alone |
 
-Glue work is the trap: it is essential, and Tanya Reilly's widely shared talk "Being Glue" documents how it goes uncredited when it is not tied to an outcome. The senior move is to do it in service of a project you own and to report it as part of that project's result.
+Glue work is the trap: it is essential, and Tanya Reilly's widely shared talk ["Being Glue"](https://noidea.dog/glue) documents how it goes uncredited when it is not tied to an outcome. The senior move is to do it in service of a project you own and to report it as part of that project's result.
 
 ## How it shows up in interviews
 

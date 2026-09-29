@@ -7,35 +7,33 @@ difficulty: hard
 tags: [security, authentication, authorization, oauth, pkce, oidc, jwt, sessions, refresh-tokens, rbac, rebac, zanzibar, saml, sso, webauthn, mfa, key-rotation, senior-craft]
 problems: []
 ---
-A product that started with email and password grows three new doors in one year. The mobile app calls the API, a partner's server pulls nightly exports, and an enterprise customer will sign only if its employees log in through the customer's own identity provider. The team ships all three with JSON Web Tokens valid for 24 hours, kept in `localStorage` and signed with one HMAC secret that every service knows. Six months later an XSS bug on a marketing page exfiltrates tokens that keep working for a day after the victims click "log out", a token minted for the reporting service is accepted by the billing API because nobody checked the audience, and rotating the shared secret, the only fix, logs out every user at once.
+A product that started with email and password grows three new doors in a year: a mobile app, a partner's nightly export job, and an enterprise customer whose employees must log in through its own identity provider. The team ships all three with 24-hour JSON Web Tokens in `localStorage`, signed with one HMAC secret every service knows. Six months later an XSS bug exfiltrates tokens that work for a day after their owners log out, the billing API accepts a token minted for reporting because nobody checked the audience, and rotating the shared secret, the only fix, logs out everyone.
 
-Each of those is a missing mechanism, not a missing library. This lesson traces the mechanisms on concrete requests, from the OAuth flows to key rotation, with Ascend as the baseline: it does the simplest correct thing for one first-party web app, and the lesson says exactly where that stops.
+Each is a missing mechanism, not a missing library. This lesson traces the mechanisms on concrete requests, with Ascend, one first-party web app, as the baseline.
 
 ## Three questions, five artifacts
 
-Authentication asks who is calling. Authorization asks whether they may do this, to this resource, now. Delegation asks whether this *application* may act for this user, within limits the user agreed to. OAuth 2 answers only delegation: it exists so that a third-party app never sees the user's password, and it says nothing about who the user is. OpenID Connect (OIDC) adds authentication on top of OAuth. SAML predates both and answers authentication for enterprise single sign-on.
+Authentication asks who is calling; authorization asks whether they may do this, to this resource, now; delegation asks whether this *application* may act for this user within limits the user agreed to. OAuth 2 answers only delegation, so a third-party app never sees the user's password. OpenID Connect (OIDC) adds authentication on top; SAML predates both and serves enterprise single sign-on.
 
 | Artifact | Answers | Held by | Presented to | Format |
 |---|---|---|---|---|
 | Session cookie | Which login is this browser? | The browser | The app that issued it | Opaque random string |
-| Access token | May the bearer call this API with these scopes? | A client application | A resource server (API) | Opaque or a JWT |
+| Access token | May the bearer call this API with these scopes? | A client | An API | Opaque or a JWT |
 | Refresh token | May this client get a new access token? | A client | The authorization server only | Usually opaque |
-| ID token | Who logged in, when and how? | The client (relying party) | Nobody: the client consumes it | Always a signed JWT |
-| SAML assertion | Who logged in, with which attributes? | The service provider, via the browser | The provider's assertion consumer URL, once | Signed XML |
+| ID token | Who logged in, when and how? | The client | Nobody: the client consumes it | A signed JWT |
+| SAML assertion | Who logged in, with which attributes? | The service provider, via the browser | Its assertion consumer URL, once | Signed XML |
 
-Incidents come from using one artifact as another: an ID token accepted by an API, or "Sign in with X" implemented by accepting any valid access token and reading a user ID from it, which lets every app the user ever authorised log in as them.
+Incidents come from using one artifact as another: an ID token accepted by an API, or "Sign in with X" that accepts any valid access token, letting every app the user authorised log in as them.
 
 ## Ascend's baseline, and what it does not do
 
-Ascend authenticates with email and password only. `AuthService::login` in `crates/core/src/auth/service.rs` verifies an Argon2id hash (against a dummy hash when the email is unknown, so timing does not reveal accounts) and creates a session: `token::generate` in `token.rs` draws 32 random bytes and encodes them as 43 URL-safe base64 characters, and the `sessions` table stores only `token::hash`, the hex SHA-256, as its primary key, with `expires_at` set `SESSION_TTL_DAYS` (default 30) after login. `crates/api/src/routes/auth.rs` puts the raw token in a cookie named `ascend_session` with `Path=/`, `HttpOnly`, `SameSite=Lax`, a `Secure` flag from configuration (production refuses to boot without it) and a `Max-Age` matching the expiry.
+Ascend authenticates with email and password only. `AuthService::login` verifies an Argon2id hash (against a dummy hash for unknown emails, so timing reveals nothing) and creates a session: 32 random bytes as 43 URL-safe base64 characters, stored only as their SHA-256 and expiring `SESSION_TTL_DAYS` (default 30) after login. The raw token travels in an `HttpOnly`, `SameSite=Lax`, `Secure` cookie, and the CSRF middleware's exact `Origin` check and required custom header stop another site spending it. A second cookie, `ascend_device`, marks browsers that signed in before, so guesses cannot lock owners out; [security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) walks that code.
 
-On each request the extractor in `crates/api/src/extractors.rs` resolves the cookie once and caches the user in request extensions. `authenticate` rejects anything that is not 43 URL-safe characters before touching the database, hashes the rest, loads the row by primary key, deletes it if expired, and refreshes `last_seen_at` at most hourly. Because `crates/api/src/middleware/csrf.rs` requires an exact `Origin` (or `Referer` origin) match and an `X-Requested-With` header on every mutating request, another site cannot spend the ambient cookie. [Security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) and the case study's [authentication lesson](/learn/case-study-ascend/the-system/authentication-and-security) walk that code line by line.
-
-What Ascend does not have: OAuth or OIDC (no third-party clients, no "Sign in with…"), SSO or SAML, MFA or passkeys, a password reset or change flow, JWTs, refresh tokens or signing keys. Authorization is a `role` column holding `user` or `admin`, read through `CurrentUser::is_admin`, plus ownership checks in the services. A reviewer would still raise two points. The 30-day lifetime is absolute, counted from login, with no idle timeout, so a session unused for four weeks still works. And `docs/adr/0002-server-side-sessions.md` names the trigger that would change the design, "A second service must authenticate users without calling this one", with its answer: short-lived signed tokens minted from the session, which stays the source of truth. That hybrid is what the rest of this lesson builds.
+What Ascend does not have: OAuth, OIDC, SAML, MFA, password reset, JWTs, refresh tokens or signing keys. Authorization is a `role` column plus ownership checks. A review found the 30-day lifetime was absolute, so a session unused for four weeks still worked; since commit `427ed78` a session idle for `SESSION_IDLE_DAYS` (14 by default) is signed out too, pinned by `an_idle_session_is_signed_out`. `docs/adr/0002-server-side-sessions.md` names the trigger for a redesign, "A second service must authenticate users without calling this one", answered by short-lived signed tokens minted from the session. That hybrid is what the rest of this lesson builds.
 
 ## The authorization-code flow with PKCE, request by request
 
-A single-page app at `https://app.example.com` wants to read orders from `https://api.example.com` for the user, through the identity provider (IdP) `https://id.example.com`. The app is a public client: anything it ships is readable, so it cannot hold a client secret. PKCE (RFC 7636) replaces the secret with a one-time proof. The verifier below is the example from RFC 7636's appendix, so you can check the arithmetic.
+A single-page app at `https://app.example.com` wants to read orders from `https://api.example.com` for the user, through the identity provider (IdP) `https://id.example.com`. As a public client it cannot keep a secret, so PKCE (RFC 7636) replaces the secret with a one-time proof. The verifier below is the RFC's own example.
 
 ```python
 import base64, hashlib, secrets
@@ -54,32 +52,32 @@ print(challenge_for("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"))
 # E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
 ```
 
-The SHA-256 digest is 32 bytes (hex `13d31e96…70f9c3`), and 32 bytes encode to 44 base64 characters, the last one a `=` that base64url drops: 43. One hash took 0.18 µs in Python 3.14 on this lesson's machine, so PKCE costs nothing measurable.
+The digest is 32 bytes (hex `13d31e96…70f9c3`), 44 base64 characters with a trailing `=` that base64url drops: 43.
 
 | # | Request | Parameters that matter | Who checks what |
 |---|---|---|---|
-| 1 | Client, in memory | `verifier`, `state=af0ifjsldkj`, `nonce=n-0S6_WzA2Mj`, all random, kept for the callback | |
-| 2 | `GET https://id.example.com/authorize?…` | `response_type=code`, `client_id=spa-7`, `redirect_uri=https://app.example.com/callback`, `scope=openid orders:read`, `state`, `nonce`, `code_challenge=E9Melhoa…-cM`, `code_challenge_method=S256` | IdP: `redirect_uri` equals a registered URI exactly; remembers the challenge with the code it will issue |
-| 3 | User and IdP | Password and a second factor, consent to `orders:read` | The app never sees the password |
-| 4 | `302 Location: https://app.example.com/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=af0ifjsldkj&iss=https://id.example.com` | The code is single use and short-lived (RFC 6749 recommends at most 10 minutes) | Client: `state` equals the stored value; `iss` is the IdP it started with |
-| 5 | `POST https://id.example.com/token`, form-encoded | `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id=spa-7`, `code_verifier=dBjftJeZ…EjXk` | IdP: base64url(SHA-256(verifier)) equals the stored challenge; code unused and unexpired; `redirect_uri` and `client_id` match step 2 |
+| 1 | Client, in memory | `verifier`, `state=af0ifjsldkj`, `nonce=n-0S6_WzA2Mj`, all random | |
+| 2 | `GET https://id.example.com/authorize?…` | `response_type=code`, `client_id=spa-7`, `redirect_uri=https://app.example.com/callback`, `scope=openid orders:read`, `state`, `nonce`, `code_challenge=E9Melhoa…-cM`, `code_challenge_method=S256` | IdP: `redirect_uri` exactly matches a registered URI; stores the challenge with the code |
+| 3 | User and IdP | Password, a second factor, consent to `orders:read` | The app never sees the password |
+| 4 | `302 Location: https://app.example.com/callback?code=SplxlOBeZQQYbYS6WxSbIA&state=af0ifjsldkj&iss=https://id.example.com` | A single-use code (RFC 6749 recommends at most 10 minutes' life) | Client: `state` matches; `iss` is the IdP it started with |
+| 5 | `POST https://id.example.com/token`, form-encoded | `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id=spa-7`, `code_verifier=dBjftJeZ…EjXk` | IdP: base64url(SHA-256(verifier)) equals the challenge; code fresh; `redirect_uri` and `client_id` match step 2 |
 | 6 | `200 {"access_token": "…", "token_type": "Bearer", "expires_in": 600, "refresh_token": "…", "id_token": "eyJ…", "scope": "openid orders:read"}` | | Client validates the ID token, including `nonce` |
 | 7 | `GET https://api.example.com/orders` with `Authorization: Bearer <access token>` | | API: signature, `iss`, `aud`, `exp`, scope, then authorization |
 
-A confidential client (a server-side web app) runs the same flow and also authenticates at step 5 with a secret or a signed assertion. It should still use PKCE, which also stops code injection.
+A confidential client (a server-side web app) also authenticates at step 5 with a secret or a signed assertion, and still uses PKCE.
 
 ## What each parameter defeats, and why the implicit flow is gone
 
 | Attack | How it works | Defence |
 |---|---|---|
-| Code interception | A malicious app registered for the same custom URL scheme, a proxy log or a `Referer` leak captures `code` at step 4 | PKCE: redeeming the code needs the verifier, which never left the client |
-| Code injection | An attacker plants a stolen code in the victim's callback, binding the victim's session to someone else's tokens | PKCE ties the code to this browser's verifier; `nonce` ties the ID token to this login |
-| Login CSRF | A forged callback logs the victim into the attacker's account, where they then save a card or upload files | `state`, bound to the browser's pre-login session and checked at step 4 |
-| Loose redirect URIs | The IdP accepts wildcards or any path on a domain, so a crafted link delivers the code to an attacker's page or an open redirector | Exact string match against registered URIs |
-| Mix-up | A client that trusts several IdPs sends a code from one to another's token endpoint | The `iss` response parameter (RFC 9207), or one redirect URI per IdP |
-| `plain` PKCE | `code_challenge_method=plain` sends the verifier itself at step 2, so anyone who reads the request can redeem the code | Accept only `S256` |
+| Code interception | An app registered for the same custom URL scheme, a proxy log or a `Referer` leak captures `code` at step 4 | PKCE: redeeming needs the verifier, which never left the client |
+| Code injection | A stolen code planted in the victim's callback binds their session to someone else's tokens | PKCE ties the code to this browser; `nonce` ties the ID token to this login |
+| Login CSRF | A forged callback logs the victim into the attacker's account | `state`, bound to the pre-login session and checked at step 4 |
+| Loose redirect URIs | Wildcards or any path on a domain let a crafted link deliver the code to an attacker's page | Exact string match against registered URIs |
+| Mix-up | A client trusting several IdPs sends one IdP's code to another's token endpoint | The `iss` response parameter (RFC 9207), or one redirect URI per IdP |
+| `plain` PKCE | The verifier itself travels at step 2, so anyone reading the request can redeem the code | Accept only `S256` |
 
-The implicit flow (`response_type=token`) skipped steps 5 and 6 and returned the access token in the URL fragment at step 4, because browsers could not make cross-origin POSTs before CORS. The token then sat in browser history, was readable by every script on the callback page, survived through any redirect that preserved the fragment, could not be bound to the client that asked for it, and came without a refresh token, so apps renewed it with hidden iframes that third-party-cookie blocking later broke. The OAuth 2.0 Security Best Current Practice (RFC 9700, 2025) says clients should not use it, and the OAuth 2.1 draft removes it together with the resource-owner password grant, which handed the user's password to the client. Code plus PKCE replaces both.
+The implicit flow (`response_type=token`) returned the access token in the URL fragment at step 4, from before browsers could make cross-origin POSTs. The token sat in browser history, was readable by every script on the page, could not be bound to its client, and had no refresh token, so apps renewed it through hidden iframes that third-party-cookie blocking broke. [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.txt) (January 2025) says clients should not use it and must not use the password grant; the OAuth 2.1 draft removes both.
 
 ## Client credentials and the device flow
 
@@ -94,20 +92,20 @@ Content-Type: application/x-www-form-urlencoded
 grant_type=client_credentials&scope=orders:export
 ```
 
-The `Basic` value is base64 of `export-job:s3cret`, which is why a shared secret is the weakest option: prefer `private_key_jwt` or mutual TLS (RFC 8705), so the IdP stores only a public key and a leaked config file is not a credential. The response carries an access token and no refresh token, because the client can ask again. Cache it until shortly before `expires_in`; fetching a token per request multiplies IdP load by your request rate.
+The `Basic` value is base64 of `export-job:s3cret`, so a leaked config file is a credential; `private_key_jwt` or mutual TLS (RFC 8705) leaves the IdP holding only a public key. No refresh token comes back, because the client can ask again: cache the access token until shortly before `expires_in` rather than multiplying IdP load by your request rate.
 
 The device flow (RFC 8628) serves a TV or a CLI that has no browser or no keyboard:
 
 | # | Step | Exchange |
 |---|---|---|
-| 1 | Device asks for codes | `POST /device_authorization` with `client_id=tv-app&scope=openid profile` returns `device_code`, `user_code: "WDJB-MJHT"`, `verification_uri`, `expires_in: 1800`, `interval: 5` |
-| 2 | Device shows the code | "Visit id.example.com/device and enter WDJB-MJHT", often as a QR code of `verification_uri_complete` |
-| 3 | Device polls every 5 s | `POST /token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=…` returns `400 {"error": "authorization_pending"}` |
+| 1 | Device asks for codes | `POST /device_authorization` (`client_id=tv-app&scope=openid profile`) returns `device_code`, `user_code: "WDJB-MJHT"`, `verification_uri`, `expires_in: 1800`, `interval: 5` |
+| 2 | Device shows the code | "Visit id.example.com/device and enter WDJB-MJHT", often as a QR code |
+| 3 | Device polls every 5 s | `POST /token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code` returns `400 {"error": "authorization_pending"}` |
 | 4 | Device polls too fast | `slow_down`: the interval grows by 5 seconds for every later poll |
-| 5 | User approves on a phone | Signs in at the IdP, types the code, approves the request |
-| 6 | Next poll | `200` with tokens, or `access_denied`, or `expired_token` after 30 minutes |
+| 5 | User approves on a phone | Signs in at the IdP, types the code, approves |
+| 6 | Next poll | `200` with tokens, `access_denied`, or `expired_token` after 30 minutes |
 
-The user code is short enough to type: 8 letters from the 20-consonant alphabet in RFC 8628's example give $20^8 \approx 2.6 \times 10^{10}$ codes, about 34.6 bits, safe only because codes expire and the entry page limits guesses. The known abuse is device-code phishing: an attacker starts a flow and sends the victim a genuine IdP link with the attacker's code, and the victim's approval delivers tokens to the attacker's device. Approval screens that name the requesting app, short expiry and allowing the flow only where needed are the defences.
+The user code is short enough to type: 8 letters from RFC 8628's suggested 20-consonant alphabet give $20^8 \approx 2.6 \times 10^{10}$ codes, about 34.6 bits, safe only because codes expire and guesses are limited. The known abuse is device-code phishing: the attacker starts a flow and sends the victim a genuine IdP link with the attacker's code, and the victim's approval delivers tokens to the attacker. Approval screens naming the app, short expiry and enabling the flow only where needed defend against it.
 
 ## OIDC: the ID token, nonce, discovery and JWKS
 
@@ -123,15 +121,15 @@ The ID token from step 6, decoded (header, then payload):
 The client validates it in this order (OIDC Core, section 3.1.3.7, lists the full set):
 
 1. `iss` equals the issuer from discovery, byte for byte.
-2. `aud` contains the client's own `client_id`, and `azp` equals it when there are several audiences.
-3. The signature verifies with the key whose `kid` matches in the IdP's key set, under the algorithm configured for that key.
+2. `aud` contains the client's `client_id` (with several audiences, `azp` equals it).
+3. The signature verifies with the matching `kid` from the IdP's key set, under the algorithm configured for that key.
 4. `exp` is in the future, within a small leeway; `iat` is recent.
-5. `nonce` equals the value stored at step 1, so an ID token captured from another login cannot be replayed into this one.
-6. The user is identified by the pair (`iss`, `sub`), never by `email`: addresses change and get reassigned, and an IdP that lets users set unverified emails would let anyone claim yours.
+5. `nonce` equals the value stored at step 1, so an ID token from another login cannot be replayed into this one.
+6. The user is the pair (`iss`, `sub`), never `email`: addresses get reassigned, and an IdP that allows unverified emails lets anyone claim yours.
 
 The ID token is for the client. An API must not accept it as a credential: its audience is the client, and it carries no scopes.
 
-Discovery removes hand configuration: `GET https://id.example.com/.well-known/openid-configuration` returns the issuer, the authorization, token and userinfo endpoints, the supported algorithms and `jwks_uri`, which serves the public keys:
+Discovery (`GET https://id.example.com/.well-known/openid-configuration`) returns the issuer, the endpoints, the supported algorithms and `jwks_uri`, which serves the public keys:
 
 ```json
 {"keys": [
@@ -140,15 +138,15 @@ Discovery removes hand configuration: `GET https://id.example.com/.well-known/op
 ]}
 ```
 
-Verifiers cache this set (minutes to a day, from its `Cache-Control`), look up each token's `kid`, and on an unknown `kid` refetch once, rate-limited, before failing. The refetch is what lets rotation (below) go unnoticed; the rate limit stops a flood of tokens with random `kid` values from becoming a flood of requests to the IdP.
+Verifiers cache this set (typically minutes to a day, per `Cache-Control`) and on an unknown `kid` refetch once, rate-limited, before failing: the refetch lets rotation go unnoticed, and the limit stops random `kid` values flooding the IdP.
 
 ## Under the hood: verifying a JWT
 
-A JWT is three base64url segments, `header.payload.signature`, and the signature covers the ASCII bytes of `header.payload`. A correct verifier decodes the header and reads `kid`; finds that key in its own key set and takes the algorithm from its configuration for that key, never from the header; verifies the signature; and only then parses the payload and checks claims.
+A JWT is three base64url segments, `header.payload.signature`, and the signature covers the bytes of `header.payload`. A correct verifier reads `kid`, finds that key in its own set, takes the algorithm from its own configuration for that key, never the header, verifies, and only then checks claims.
 
-The second step is where two classic library bugs lived. RFC 7519 allows unsecured JWTs with `"alg": "none"`, and some libraries skipped verification when they saw it. In algorithm confusion, a token with `"alg": "HS256"` sent to an API expecting RS256 made libraries use the RSA public key, which anyone can download from the JWKS, as the HMAC secret, so the attacker could sign any claims with it. RFC 8725, the JWT best current practices, says what the fix is: pin the algorithm per key.
+The middle step hid two classic library bugs. RFC 7519 allows unsecured JWTs with `"alg": "none"`, and some libraries skipped verification when they saw it. In algorithm confusion, a token saying `"alg": "HS256"` sent to an API expecting RS256 made libraries use the downloadable RSA public key as the HMAC secret, so anyone could sign claims. RFC 8725, the JWT best current practices, requires caller-specified algorithms, each key used with exactly one.
 
-What a token costs, measured with Node 24.21 and OpenSSL 3.5.8 on one core of this lesson's machine, for a 10-claim payload of 194 bytes and for the same claims plus email, name, roles and 40 group names:
+Measured with Node 24.21 and OpenSSL 3.5.8 on one core of this lesson's machine, for a 194-byte, 10-claim payload and for the same plus email, name, roles and 40 groups:
 
 | Algorithm | Token | With 40 groups | Verify, signature only | Sign |
 |---|---|---|---|---|
@@ -157,7 +155,7 @@ What a token costs, measured with Node 24.21 and OpenSSL 3.5.8 on one core of th
 | ES256 | 407 B | 2,230 B | 49.7 µs | 29.1 µs |
 | EdDSA (Ed25519) | 407 B | 2,230 B | 45.4 µs | 17.4 µs |
 
-RSA verifies fast and signs slowly (verification uses a small public exponent), which suits an IdP that signs once and APIs that verify on every request. Every scheme costs tens of microseconds, against a session lookup's network round trip to a store, on the order of 0.2 to 1 ms inside one region. HS256 is symmetric: every verifier holds a key that can also mint tokens, so it fits only a service verifying its own tokens.
+RSA verifies fast and signs slowly (a small public exponent), which suits an IdP that signs once and APIs that verify every request. Every scheme costs tens of microseconds, against a session store's round trip of up to a millisecond. HS256 is symmetric: every verifier can also mint tokens.
 
 ## Sessions versus JWTs in depth
 
@@ -166,29 +164,27 @@ Where the credential lives decides what an attacker needs:
 | Storage | Page script can read it | Sent automatically | Main threat | Mitigation |
 |---|---|---|---|---|
 | `HttpOnly` cookie (Ascend) | No | Yes, subject to `SameSite` | CSRF | `SameSite`, an exact `Origin` check, a custom header |
-| `localStorage` | Yes | No | XSS reads it and replays it from anywhere until it expires | None survives an XSS; keep long-lived tokens out |
-| Memory, with the refresh token in an `HttpOnly` cookie | While the page lives | No | XSS acts during the page's life | Short access tokens; CSRF protection on the refresh endpoint |
+| `localStorage` | Yes | No | XSS reads it and replays it until expiry | None; keep long-lived tokens out |
+| Memory, refresh token in an `HttpOnly` cookie | While the page lives | No | XSS acts while the page lives | Short access tokens; CSRF protection on refresh |
 | Backend-for-frontend (BFF) | No | The BFF's cookie | CSRF on the BFF | As for any cookie; OAuth tokens never reach the browser |
 
-Size: Ascend's whole cookie is 58 bytes (`ascend_session=` and 43 characters). The smallest JWT above is 6 times that, and one that carries group memberships passes 2 KB. Browsers are required to support only about 4 KB per cookie (RFC 6265 asks for at least 4,096 bytes), many proxies and servers cap request headers at around 8 KB in total by default, and a cookie rides on every request, including those for scripts and images. Past a limit the symptom is a `431` or `400` from a proxy and one user who cannot log in, usually the one in the most groups.
+Size: Ascend's cookie is 58 bytes (`ascend_session=` and 43 characters); the smallest JWT above is 6 times that, and one carrying groups passes 2 KB. RFC 6265 requires browsers to support only 4,096 bytes per cookie, and nginx and Apache cap a single request header at about 8 KB by default. Past a limit one user, usually the one in the most groups, gets a `431` or `400`.
 
-Revocation: a session is a row. Deleting it, which is what Ascend's `logout` does, or deleting every row for a user through `idx_sessions_user_id`, which is `logout_everywhere`, takes effect on the next request. A JWT stays valid until `exp` unless every verifier consults something: a denylist of `jti` values kept for the token's lifetime, a per-user "reject tokens issued before T" timestamp, or introspection at the IdP (RFC 7662). Each is a lookup per request, the cost the JWT was chosen to avoid, so the working answer is a short access-token lifetime with revocation at the refresh step.
+Revocation: a session is a row, so Ascend's `logout` and `logout_everywhere` take effect on the next request. A JWT stays valid until `exp` unless every verifier consults a `jti` denylist, a per-user "issued before T" cutoff or IdP introspection (RFC 7662), each a per-request lookup, the cost JWTs were chosen to avoid. The working answer is short access tokens, revoked at refresh.
 
 ## When a JWT becomes the session
 
-A long-lived JWT as the only login state fails in five specific ways:
+A long-lived JWT as the only login state fails in five ways:
 
-1. **Logout does nothing on the server.** A stolen copy works until `exp`.
-2. **Authorization goes stale.** Roles are copied in at issue, so a demoted admin stays one until expiry.
-3. **Size creeps.** Each feature adds a claim until requests pass header limits.
-4. **XSS becomes account takeover.** A token in `localStorage` is replayed from the attacker's machine; an `HttpOnly` session cookie can be abused only while the victim's page is open.
-5. **One key forges everyone.** A leaked signing key mints tokens for any user, and replacing it logs everyone out unless rotation was designed in.
-
-Ascend's ADR 0002 rejects JWTs on the same grounds: "Stateless verification is irrelevant with one service; revocation needs a denylist anyway; tokens in JavaScript-readable storage are exposed to XSS."
+1. **Logout does nothing on the server**: a stolen copy works until `exp`.
+2. **Authorization goes stale**: a demoted admin stays one until expiry.
+3. **Size creeps** with every claim until requests pass header limits.
+4. **XSS becomes account takeover**: a token in `localStorage` is replayed from the attacker's machine, while an `HttpOnly` cookie can be abused only while the victim's page is open.
+5. **One key forges everyone**, and replacing it logs everyone out unless rotation was designed in.
 
 ## Refresh-token rotation with reuse detection, traced
 
-The hybrid keeps access tokens short, 5 to 15 minutes, and puts revocation on the refresh token, which only the authorization server sees and can store like a session. Rotation issues a new refresh token on every use and retires the old one; all tokens descended from one login form a **family**. A retired token presented again proves two parties hold the family, and the server cannot tell which is legitimate, so it revokes the family.
+The hybrid keeps access tokens short, 5 to 15 minutes, and puts revocation on the refresh token, which only the authorization server sees. Rotation (RFC 9700) issues a new refresh token on every use and retires the old one; the tokens descended from one login form a **family**. A retired token presented again proves two holders, and the server, unable to tell which is legitimate, revokes the family.
 
 | Time | Actor | Presents | Server state afterwards | Result |
 |---|---|---|---|---|
@@ -198,9 +194,9 @@ The hybrid keeps access tokens short, 5 to 15 minutes, and puts revocation on th
 | 10:40 | Attacker refreshes | R1 | F revoked | reuse detected, nothing issued |
 | 10:50 | App refreshes | R2 | F revoked | rejected: the user signs in again |
 
-If the attacker refreshes first (R1 for R2′), the app's next refresh presents R1, now retired, and the family dies with R2′ in it. Either way the theft is caught at the second presentation. Rotation cannot catch a thief who takes the *current* token from a device that then goes silent, which is why families also get an absolute lifetime (30 days, say) and an idle limit.
+If the attacker refreshes first (R1 for R2′), the app's next refresh presents the retired R1 and the family dies with R2′ in it: either way the second presentation catches the theft. A thief who takes the *current* token from a device that then goes silent is not caught, hence absolute and idle lifetimes per family.
 
-Strict detection has a false positive: two tabs refreshing at once, or a response lost after the server rotated, make the legitimate app present a just-retired token. Servers therefore allow a grace period of a few seconds in which the previous token returns the current successor, and clients allow one refresh in flight, with other callers waiting for its result. Sender-constrained tokens (DPoP, RFC 9449, or certificate-bound tokens) go further: a stolen token is useless without the private key that proves possession.
+Strict detection has a false positive: two tabs refreshing at once, or a response lost after rotation, make the legitimate app present a just-retired token. Servers allow a grace period of seconds in which the previous token returns the current successor; clients keep one refresh in flight. Sender-constrained tokens (DPoP, RFC 9449, or certificate-bound) make a stolen token useless without the holder's private key.
 
 ```exercise
 id: refresh-token-rotation
@@ -273,31 +269,31 @@ hints:
 
 ## Access-token lifetime, audience and scope
 
-Lifetime trades exposure against issuer load. With a million active clients, 10-minute access tokens mean about 1,667 refreshes per second at the authorization server ($10^6 / 600$ s); 60-minute tokens mean about 278. A stolen token, or a demoted user's old permissions, lasts that long. Five to fifteen minutes is the usual compromise; long-running jobs refresh rather than ask for long tokens.
+Lifetime trades exposure against issuer load: with a million active clients, 10-minute access tokens mean about 1,667 refreshes per second ($10^6 / 600$ s) and 60-minute tokens about 278, while a stolen token or a demoted user's old permissions lasts that long.
 
 Every API checks, on every request, before any business logic:
 
 - **Issuer**: `iss` is the IdP it trusts.
-- **Audience**: `aud` names this API. With resource indicators (RFC 8707) a client asks for a token for one API, so a token for `billing-api` fails at `orders-api`, and a compromised API cannot replay its callers' tokens elsewhere.
-- **Type**: access tokens in the RFC 9068 profile carry `"typ": "at+jwt"`. Checking it stops an ID token being accepted in the common misconfiguration where the client ID and the API's audience are the same string.
-- **Time**: `exp` and `nbf` with a leeway for clock skew, typically 30 to 60 seconds.
+- **Audience**: `aud` names this API. With resource indicators (RFC 8707) a token for `billing-api` fails at `orders-api`, and a compromised API cannot replay its callers' tokens.
+- **Type**: RFC 9068 access tokens carry `"typ": "at+jwt"`, which rejects an ID token even where the client ID equals the API's audience.
+- **Time**: `exp` and `nbf`, with a leeway for clock skew, typically 30 to 60 seconds.
 - **Scope**: whole space-separated tokens, so `orders:read` is not found inside `orders:readonly`.
 
-Scopes are ceilings on what the client may do for the user, not permissions: the API still decides whether *this user* may read *this order*. When an API calls another on the user's behalf, it exchanges the token (RFC 8693) for one with the downstream audience and a narrower scope rather than forwarding the original. The claim checks are an exercise in [security in design](/learn/system-design/building-blocks/security-in-design).
+Scopes are ceilings on what the client may do for the user, not permissions: the API still decides whether *this user* may read *this order*. An API calling another for the user exchanges the token (RFC 8693) for one with the downstream audience and a narrower scope instead of forwarding it.
 
 ## Authorization models: RBAC, ABAC and ReBAC
 
 | Model | Decision | Example rule | Fits | Breaks when |
 |---|---|---|---|---|
-| RBAC | User to roles to permissions | `admin` may delete any comment | A few roles; permissions not tied to single resources | Access depends on the resource, and roles such as `project-42-editor` multiply |
-| ABAC | A policy over attributes of subject, resource, action and context | Allow `read` if `subject.dept == resource.dept` and `resource.level <= subject.clearance` | Compliance rules; time, device or location conditions | "Who can read X?" needs every policy evaluated; attributes are fetched per check |
-| ReBAC | A walk over relationship tuples | A document's viewers include its editors and its folder's viewers | Sharing, groups and hierarchies: documents, drives, repositories | Deep graphs need caching, and correctness under concurrent edits needs snapshots |
+| RBAC | User to roles to permissions | `admin` may delete any comment | A few roles, not tied to single resources | Access depends on the resource, and roles such as `project-42-editor` multiply |
+| ABAC | A policy over subject, resource, action and context attributes | Allow `read` if `subject.dept == resource.dept` | Compliance rules; time, device or location conditions | "Who can read X?" needs every policy evaluated |
+| ReBAC | A walk over relationship tuples | A document's viewers include its folder's viewers | Sharing, groups, hierarchies: documents, drives, repositories | Deep graphs need caching; concurrent edits need snapshots |
 
-Ascend is RBAC plus ownership. `CommentService::delete` allows the author or an admin and returns `Forbidden` otherwise; `InterviewService::get` returns `NotFound` for someone else's interview, so another user's record is indistinguishable from a missing one. "The author may" is already an attribute check, which is typical: real systems mix models.
+Ascend is RBAC plus ownership: only the author or an admin deletes a comment, and someone else's interview returns `NotFound`, like a missing one. "The author may" is already an attribute check; real systems mix models.
 
 ### A Zanzibar check, traced
 
-Google's Zanzibar paper (USENIX ATC 2019) describes the ReBAC service behind Drive and other products; OpenFGA and SpiceDB are open-source systems built on its model. Facts are tuples `object#relation@subject`, and a namespace configuration defines relations in terms of each other:
+Google's Zanzibar paper (USENIX ATC 2019) describes the ReBAC service behind Drive, Calendar, YouTube and other products; OpenFGA and SpiceDB are open-source systems inspired by it. Facts are tuples `object#relation@subject`, and a namespace configuration defines relations in terms of each other:
 
 ```text
 doc.viewer    = this ∪ doc.editor ∪ (doc.parent → folder.viewer)
@@ -319,7 +315,7 @@ group:platform#member@user:bo
 4. Its direct tuple names a userset, `group:platform#member`, so check whether Bo is in it.
 5. `group:platform#member@user:bo` exists: allowed, via roadmap, eng and platform.
 
-Each step is an indexed read; production checks run branches in parallel and cache subproblems. The subtle part is time. If Ana removes Bo from the folder and then adds a secret paragraph, a check evaluated on a stale replica could still show Bo the new text; the paper calls this the "new enemy" problem. Zanzibar returns a consistency token, a "zookie", with each write, and later checks are evaluated at a snapshot at least that new.
+Each step is an indexed read; production checks run branches in parallel and cache subproblems. The subtle part is time: if Ana removes Bo from the folder and then adds a secret paragraph, a check on a stale replica could still show Bo the new text, the paper's "new enemy" problem. When content is saved, the client obtains a consistency token, a "zookie", stored with that version; later checks on it run at a snapshot at least that new, so they see every earlier ACL change.
 
 ```viz
 {"type": "graph", "algorithm": "bfs", "directed": true, "start": "doc#viewer",
@@ -399,7 +395,7 @@ hints:
 
 ## SSO and SAML: assertions and signature wrapping
 
-Single sign-on means one login at an IdP serves many applications, each keeping its own session created from the IdP's statement. Enterprise customers mostly bring SAML 2.0. In the service-provider-initiated flow, the app (the SP) redirects the browser to the IdP with a deflated, base64 `AuthnRequest` carrying an ID; the IdP authenticates the user and returns a page that auto-POSTs a base64 `SAMLResponse` to the SP's assertion consumer service (ACS) URL. Trimmed, the part that matters:
+Single sign-on means one login at an IdP serves many applications, each with its own session; enterprise customers mostly bring SAML 2.0. In the SP-initiated flow the app (the service provider) redirects the browser to the IdP with a deflated, base64 `AuthnRequest`, and the IdP authenticates the user and returns a page that auto-POSTs a base64 `SAMLResponse` to the SP's assertion consumer service (ACS) URL. Trimmed:
 
 ```text
 <samlp:Response ID="_r1" InResponseTo="_req42" Destination="https://app.example.com/saml/acs">
@@ -417,18 +413,18 @@ Single sign-on means one login at an IdP serves many applications, each keeping 
 </samlp:Response>
 ```
 
-The SP checks the signature with the IdP's certificate from its metadata, `Issuer`, `Audience` (its own entity ID), `Recipient` and `Destination` (its ACS URL), both time windows, `InResponseTo` (an ID it issued and has not seen answered), and that the assertion ID has not been used before.
+The SP checks the signature with the IdP's metadata certificate, `Issuer`, `Audience` (its entity ID), `Recipient` and `Destination` (its ACS URL), both time windows, `InResponseTo` (an unanswered ID it issued), and that the assertion ID is unused.
 
-**Why XML signature wrapping bit people.** An XML signature does not sign "the document". `Reference URI="#_a7"` means: find the element whose ID is `_a7`, canonicalise it and compare its digest. The validator therefore answers "is element `_a7` intact?", while the application asks "what is the NameID of the assertion?", usually with an XPath such as the first `Assertion`. Mallory holds a genuine signed assertion for her own account. She adds a forged, unsigned assertion (`ID="_evil"`, NameID `admin@example.com`) where the application looks and moves her signed one where it does not, for example inside an `Extensions` element. The validator finds `_a7`, whose digest still matches, and reports success; the application reads the first assertion and logs Mallory in as admin.
+**Why XML signature wrapping bit people.** An XML signature does not sign "the document": `Reference URI="#_a7"` means find the element with ID `_a7`, canonicalise it and compare its digest. The validator answers "is `_a7` intact?"; the application asks "what is the NameID?", usually via an XPath such as the first `Assertion`. Mallory adds a forged unsigned assertion (NameID `admin@example.com`) where the application looks and moves her genuine one where it does not, such as an `Extensions` element. The validator finds `_a7` intact; the application logs her in as admin.
 
-A 2012 USENIX Security paper, "On Breaking SAML: Be Whoever You Want to Be", found wrapping variants in most of the frameworks it tested. A 2018 disclosure found a relative: with an IdP account `admin@example.com.evil.com`, insert a comment, `admin@example.com<!---->.evil.com`; canonicalisation ignores comments, so the signature still verifies, while several libraries returned only the text before the comment. Parser differentials, where the signature check and the application use two XML parsers that disagree, were still being fixed in widely used libraries in 2024 and 2025. The fixes: read identity only from the element the validator returned (verify, then use; never verify, then search), reject more than one assertion or an unexpected structure, parse once, and keep the library patched, because here a dependency bug is an authentication bypass.
+A 2012 USENIX Security paper, "On Breaking SAML: Be Whoever You Want to Be", found wrapping vulnerabilities in 11 of the 14 frameworks it analysed. A 2018 Duo Security disclosure (CERT VU#475445) found a relative: `admin@example.com<!---->.evil.com` still verifies, because canonicalisation ignores comments, while several libraries returned only the text before the comment. Parser differentials, where signature checking and the application use two XML parsers that disagree, still produced bypasses in 2025 (ruby-saml's CVE-2025-25291 and CVE-2025-25292). The fixes: read identity only from the element the validator returned, reject more than one assertion, parse once, and keep the library patched.
 
 ## MFA and WebAuthn
 
 | Factor | Mechanism | Stops credential stuffing | Stops real-time phishing |
 |---|---|---|---|
 | SMS code | A code sent to a phone number | Yes | No, and SIM swaps steal it |
-| TOTP (RFC 6238) | HMAC-SHA-1 of a 30-second counter, truncated to 6 digits | Yes | No: a proxy relays the code inside its window |
+| TOTP (RFC 6238) | HMAC of a 30-second counter, truncated to 6 digits | Yes | No: a proxy relays the code in its window |
 | Push approval | Tap "approve" in an app | Yes | No, and repeated prompts wear users down |
 | WebAuthn and passkeys | A signature over a server challenge and the origin | Yes | Yes |
 
@@ -448,18 +444,18 @@ assert totp(b"12345678901234567890", 59, digits=8) == "94287082"
 print(totp(b"12345678901234567890", 59))    # 287082
 ```
 
-A guess succeeds one time in a million, about three in a million when the server also accepts the neighbouring windows for clock drift, so the verification endpoint needs its own attempt limit. WebAuthn authentication, traced:
+A guess succeeds one time in a million, about three in a million if neighbouring windows are accepted for clock drift, so verification needs its own attempt limit. WebAuthn authentication, traced:
 
-1. The server makes a random challenge (the specification asks for at least 16 bytes), stores it with the pending login, and sends it with `rpId: "example.com"` and the user's credential IDs.
+1. The server sends a fresh random challenge (the specification asks for at least 16 bytes) with `rpId: "example.com"` and the user's credential IDs.
 2. The browser, not the page, writes `clientDataJSON`: `{"type": "webauthn.get", "challenge": "…", "origin": "https://example.com"}`.
-3. The authenticator finds its credential for `example.com`, asks for a touch or biometric, and signs `authenticatorData` (the SHA-256 of the rpId, presence and verification flags, a counter) followed by SHA-256 of `clientDataJSON`, with the private key it created at registration.
-4. The server checks the challenge is its own and unused, the origin and rpId hash are its own, the flags it requires are set, and the signature verifies with the public key stored at registration.
+3. The authenticator finds its credential for `example.com`, asks for a touch or biometric, and signs `authenticatorData` (the rpId's SHA-256, flags, a counter) plus the SHA-256 of `clientDataJSON` with its private key.
+4. The server checks the challenge, origin, rpId hash and flags, and verifies the signature with the public key stored at registration.
 
-On a look-alike domain, step 2 records the look-alike origin and step 3 finds no credential for its rpId, so there is nothing to relay. No code-based factor has that property. Recovery is every factor's weak point: a recovery flow that falls back to email or SMS inherits their weaknesses.
+On a look-alike domain, step 2 records the look-alike origin and step 3 finds no credential for its rpId, so there is nothing to relay; no code-based factor has that property. Recovery is every factor's weak point: a fallback to email or SMS inherits their weaknesses.
 
 ## Key rotation procedures
 
-Every signing key, client secret and certificate needs a rehearsed rotation that nobody notices. The pattern is overlap. For signing keys published in a JWKS, with verifiers caching it for up to an hour and access tokens living ten minutes:
+Every signing key, secret and certificate needs a rehearsed, unnoticed rotation, and the pattern is overlap. For JWKS signing keys cached by verifiers for up to an hour, with ten-minute access tokens:
 
 | Step | JWKS publishes | IdP signs with | Tokens in circulation | Verifiers |
 |---|---|---|---|---|
@@ -468,66 +464,64 @@ Every signing key, client secret and certificate needs a rehearsed rotation that
 | After one cache TTL | K1, K2 | K2 | K1 and K2 | Every cache has refreshed and knows K2 |
 | After one token lifetime more | K2 | K2 | K2 | Every K1 token has expired |
 
-Sign with K2 the moment it exists instead, and every verifier whose cache predates it rejects every new token for up to an hour unless it refetches on an unknown `kid`. Emergency rotation after a compromise skips the waits: remove K1 at once and accept that its tokens fail; clients with refresh tokens recover without a prompt, because refresh tokens are checked at the IdP, not with K1.
+Sign with K2 the moment it exists instead, and every verifier whose cache predates it rejects new tokens for up to an hour unless it refetches on an unknown `kid`. Emergency rotation skips the waits: remove K1 at once and accept that its tokens fail; clients recover through refresh tokens, which the IdP checks without K1.
 
-The same overlap applies elsewhere. Symmetric secrets (webhook HMAC keys, cookie-signing keys) are checked against the current and previous value. OAuth client secrets come two at a time, so a client deploys the new one before the old is revoked. SAML IdPs publish the next certificate in metadata before signing with it, and an SP that pinned one certificate by hand breaks on rotation day.
+The same overlap applies elsewhere: webhook and cookie-signing secrets are checked against current and previous values, OAuth client secrets come two at a time, and SAML IdPs publish the next certificate in metadata first, so an SP that pinned one certificate by hand breaks on rotation day.
 
-Ascend has none of these keys. Its session tokens are random values looked up by hash, so nothing needs rotating; the emergency equivalent of revoking a signing key is deleting rows from `sessions` (one user's through log-out-everywhere, everyone's with a single `DELETE`), after which everyone signs in again. Its one external credential, the AI provider key, is `preserve()` in `.railway/railway.ts`, so rotating it is a variable change and a redeploy.
+Ascend has none of these keys: its emergency equivalent is deleting rows from `sessions` (one user's, or everyone's with one `DELETE`), and its AI provider key, `preserve()` in `.railway/railway.ts`, rotates with a variable change and a redeploy.
 
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| A wave of 401s right after a key rotation, recovering within the hour | The IdP signed with a new `kid` before verifiers' JWKS caches refreshed | Publish first, wait one cache TTL, then sign; refetch on unknown `kid`, rate-limited |
-| Users with two tabs are logged out at random | Concurrent refreshes present a just-retired token and trip reuse detection | A grace period of seconds; one in-flight refresh per client |
-| A token issued for one API works at another | The API does not check `aud`, or both share an audience | Per-API audiences via resource indicators; check `aud` and `typ` |
-| A demoted admin keeps admin rights for hours | Roles baked into long-lived tokens | Short access tokens; check roles at the resource; bump a per-user token version on role change |
-| Some users get 431 or 400 at login, always the same people | Tokens or cookies carrying group lists pass header limits | Keep tokens small; look group membership up server-side |
-| Any user can log in as any other through SAML | Signature wrapping, or the NameID read from a different element than the one verified | Use the verified element only; reject multiple assertions; patch the library |
-| "Token not yet valid" from one host only | That host's clock has drifted past the leeway | NTP on every host; 30 to 60 seconds of leeway |
+| A wave of 401s right after a key rotation, gone within the hour | The IdP signed with a new `kid` before JWKS caches refreshed | Publish, wait one cache TTL, then sign; refetch on unknown `kid` |
+| Users with two tabs are logged out at random | Concurrent refreshes trip reuse detection | A grace period of seconds; one refresh in flight |
+| A token for one API works at another | No `aud` check, or a shared audience | Per-API audiences; check `aud` and `typ` |
+| A demoted admin keeps admin rights for hours | Roles baked into long-lived tokens | Short access tokens; roles checked at the resource |
+| The same users get 431 or 400 at login | Group lists in tokens or cookies pass header limits | Small tokens; look groups up server-side |
+| Any user can log in as any other through SAML | Signature wrapping: NameID read from an unverified element | Use only the verified element; patch the library |
+| "Token not yet valid" from one host only | That host's clock drifted past the leeway | NTP everywhere; 30 to 60 seconds of leeway |
 
 ## Trade-offs
 
 | | Opaque session (Ascend) | JWT access plus rotating refresh | Reference token with introspection | BFF holding OAuth tokens |
 |---|---|---|---|---|
-| Per-request cost | One store lookup, about a millisecond | Signature check, 8–50 µs measured, no I/O | A call to the IdP, or a cache | A session lookup at the BFF |
-| Revocation | Immediate | At the next refresh; access tokens live out their minutes | Immediate, or after the cache TTL | Immediate |
-| Size on the wire | 58-byte cookie | 0.4 to 2.5 KB per request | A short opaque string | A short cookie |
-| Many services verify | Each must call the session store | Yes, offline, with the public key | Each must call the IdP | Only the BFF calls APIs |
-| Secret material | Nothing to rotate | Signing keys and a rotation procedure | Credentials for introspection | OAuth client credentials on the server |
-| Fits | One first-party web app | Many APIs, mobile and third-party clients | High-value APIs that need instant revocation | Browser apps using an external IdP |
+| Per-request cost | One store lookup, about a millisecond or less | Signature check, 8–50 µs measured, no I/O | A call to the IdP, or a cache | A session lookup at the BFF |
+| Revocation | Immediate | At the next refresh | Immediate, or after the cache TTL | Immediate |
+| Size on the wire | 58-byte cookie | 0.4 to 2.5 KB | A short opaque string | A short cookie |
+| Many services verify | Each calls the session store | Offline, with the public key | Each calls the IdP | Only the BFF calls APIs |
+| Secret material | None to rotate | Signing keys and a rotation procedure | Introspection credentials | OAuth client credentials |
+| Fits | One first-party web app | Many APIs, mobile and third-party clients | High-value APIs needing instant revocation | Browser apps on an external IdP |
 
 ## Interviewer follow-ups
 
-**"Our SPA logs in through an external IdP. Where do the tokens live?"** Model answer: preferably not in the browser. A backend-for-frontend runs the code flow with PKCE as a confidential client, keeps the tokens server-side, and gives the browser an `HttpOnly`, `SameSite` session cookie with CSRF protection. If the SPA must hold tokens, access tokens live in memory for minutes and refresh tokens rotate with reuse detection. Common wrong answer: "a 24-hour JWT in `localStorage`", which turns one XSS into day-long account takeover.
+**"Our SPA logs in through an external IdP. Where do the tokens live?"** Model answer: preferably not in the browser: a backend-for-frontend runs the code flow with PKCE as a confidential client, keeps the tokens, and gives the browser an `HttpOnly` session cookie with CSRF protection. If the SPA must hold tokens, access tokens live in memory for minutes and refresh tokens rotate with reuse detection. Common wrong answer: "a 24-hour JWT in `localStorage`", which turns one XSS into day-long takeover.
 
-**"How do you log a user out everywhere when APIs verify JWTs offline?"** Model answer: revoke every refresh-token family for the user so no new access tokens are issued, and accept that outstanding access tokens live out their 5 to 15 minutes; if that is too long, APIs check a per-user "not before" timestamp or a `jti` denylist kept only for the token lifetime. Common wrong answer: "delete the token on the client", which does nothing to a stolen copy.
+**"How do you log a user out everywhere when APIs verify JWTs offline?"** Model answer: revoke every refresh-token family for the user and accept that outstanding access tokens live out their minutes; if that is too long, APIs check a per-user "not before" timestamp or a short-lived `jti` denylist. Common wrong answer: "delete the token on the client", which leaves a stolen copy working.
 
-**"Rotate the signing key with zero downtime."** Model answer: publish the new key in the JWKS, wait at least the longest cache TTL, switch signing, wait at least the longest token lifetime, remove the old key; verifiers select keys by `kid` and refetch on an unknown one. Common wrong answer: "swap the key in config and restart", which rejects every token signed with the old key and, if the order is reversed, every new one.
+**"Model permissions for folders, documents, groups and link sharing."** Model answer: ReBAC: relationship tuples, `viewer` defined as direct viewers plus editors plus the parent folder's viewers, cached graph walks, and consistency tokens stored with content so an unshare precedes later edits. Common wrong answer: a role per document, or ACLs copied down the folder tree, which go stale when a folder moves.
 
-**"Model permissions for folders, documents, groups and link sharing."** Model answer: ReBAC: relationship tuples, `viewer` defined as direct viewers plus editors plus the parent folder's viewers, checks evaluated as cached graph walks, and a consistency token on writes so an unshare is respected before later edits. Common wrong answer: a role per document, or ACL lists copied down the folder tree, which explode in size and go stale when a folder moves.
-
-**"A customer wants SAML SSO. What does your service check on each response?"** Model answer: a signature by the IdP's metadata certificate over the exact element whose NameID is used, exactly one assertion, issuer, audience, recipient and destination, the time windows, `InResponseTo`, and a replay cache of assertion IDs, through a maintained, patched library. Common wrong answer: "verify the signature", which is precisely the check that wrapping attacks pass.
+**"A customer wants SAML SSO. What does your service check on each response?"** Model answer: the IdP's signature over the exact element whose NameID is used, exactly one assertion, issuer, audience, recipient, destination, time windows, `InResponseTo` and a replay cache, via a patched library. Common wrong answer: "verify the signature", precisely the check wrapping attacks pass.
 
 ## What mid-level engineers get wrong
 
 - **Accepting an ID token as an API credential.** Its audience is the client, and it carries identity, not permission.
-- **Implicit flow or `plain` PKCE in new code.** Tokens in URLs and verifiers in the front channel both leak.
-- **Trusting the JWT header's `alg`.** The verifier's own configuration picks the algorithm, per key.
+- **Implicit flow or `plain` PKCE in new code.** Tokens in URLs and verifiers in the front channel leak.
+- **Trusting the JWT header's `alg`** instead of the verifier's per-key configuration.
 - **Long-lived JWTs as sessions.** Logout, demotion and theft all wait for `exp`.
-- **Rotation without reuse detection, or reuse detection without a grace period.** The first misses theft; the second logs out users with two tabs.
-- **Checking scope and forgetting the resource.** `orders:read` says the client may read orders, not that this user may read this order.
-- **Identifying users by email from an IdP.** The stable key is (`iss`, `sub`).
-- **Treating SAML signature validation as "the response is trusted".** Only the element that was verified is trusted.
+- **Rotation without reuse detection, or detection without a grace period.** The first misses theft; the second logs out two-tab users.
+- **Checking scope and forgetting the resource.** `orders:read` does not mean this user may read this order.
+- **Identifying IdP users by email** instead of (`iss`, `sub`).
+- **Trusting a SAML response because a signature verified.** Only the verified element is trusted.
 
 ## Senior signals
 
 - You can trace the code flow with PKCE request by request and name the attack each of `state`, `nonce`, `code_challenge`, exact redirect matching and `iss` defeats.
-- You separate the five artifacts (session, access, refresh, ID token, assertion) and never let one stand in for another.
-- You choose between opaque sessions, JWTs and a BFF from measured costs (a 58-byte cookie against 0.4 to 2.5 KB tokens, microseconds against a round trip) and from how revocation must work.
-- You design refresh-token rotation with families, reuse detection, a grace period and absolute lifetimes, and you know what it cannot catch.
-- You pick RBAC, ABAC or ReBAC from the shape of the permission, can walk a Zanzibar check by hand, and know why consistency tokens exist.
-- You run key rotation as publish, wait, switch, wait, retire, and you can say what Ascend's design saves it from: there are no signing keys to rotate.
+- You never let one of the five artifacts stand in for another.
+- You choose between opaque sessions, JWTs and a BFF from measured costs and from how revocation must work.
+- You design refresh-token rotation with families, reuse detection, a grace period and absolute lifetimes, and know what it cannot catch.
+- You pick RBAC, ABAC or ReBAC from the shape of the permission and can walk a Zanzibar check by hand.
+- You run key rotation as publish, wait, switch, wait, retire.
 
 ## Check yourself
 

@@ -43,7 +43,7 @@ And what you pay:
 - **Loss and reordering are yours.** Loss on a healthy wired path is well under 1%; Wi-Fi, mobile and congested links are worse, and silence is indistinguishable from loss.
 - **No congestion control.** A UDP sender pushing 100 Mbit/s into a 10 Mbit/s link loses 90% of its packets and starves every TCP flow sharing the link.
 - **Size is bounded by the path.** A datagram larger than the path MTU is fragmented at the IP layer, and losing any fragment loses the whole datagram, so real protocols keep datagrams near 1,200 bytes ([layers and encapsulation](/learn/networking/fundamentals/layers-and-encapsulation) derives the number). DNS advertises 1,232 bytes (the 1,280-byte IPv6 minimum MTU minus 40 bytes of IPv6 header and 8 of UDP); a larger answer returns with the TC bit set and is re-queried over TCP, 180 ms instead of 60 at a 60 ms RTT ([DNS](/learn/networking/fundamentals/dns)).
-- **Middleboxes distrust it.** NATs expire idle UDP mappings in about 30 seconds (versus hours or days for TCP), and some networks drop UDP that is not DNS.
+- **Middleboxes distrust it.** Many NATs expire idle UDP mappings in about 30 seconds (Linux conntrack's default for a UDP flow that has seen no reply is 30 s; [RFC 4787](https://www.rfc-editor.org/rfc/rfc4787.html) asks for at least two minutes, and cheap devices ignore it), versus hours or days for TCP, and some networks drop UDP that is not DNS.
 
 ## Under the hood: where UDP datagrams die
 
@@ -211,7 +211,7 @@ QUIC (RFC 9000, 2021) is the strongest evidence that the choice is about *where*
 - **Streams.** Reliable, ordered delivery per stream; a lost packet stalls only the streams whose data it carried. A stream ID's low two bits encode who opened it and whether it is bidirectional. HTTP/3 puts each request on its own stream.
 - **Packet numbers never repeat.** A retransmission carries the lost data in a new packet with a new number, so an ACK is never ambiguous about which copy it acknowledges, a problem TCP needs timestamps and Karn's rule to work around. ACK frames list up to many ranges, like an unbounded SACK, plus the receiver's ACK delay for accurate RTT samples.
 - **Handshake.** Transport and TLS 1.3 handshakes run together: 1 RTT for a new connection, 0 RTT for resumption, with the replay caveats in [TLS and PKI](/learn/networking/fundamentals/tls-and-pki).
-- **Encryption of almost everything.** Payload and most of the header are encrypted, and packet numbers are masked by header protection, so middleboxes cannot ossify the protocol; only the flags byte, version and connection IDs are visible.
+- **Encryption of almost everything.** Payload and most of the header are encrypted, and packet numbers are masked by header protection, so middleboxes cannot ossify the protocol; what stays visible is the header form bit and packet type in the first byte, the version and connection IDs, and in handshake packets a token and a length field.
 - **Connection IDs.** A connection is identified by IDs chosen by each endpoint, not the 4-tuple, so a phone moving from Wi-Fi to mobile keeps its connection after a path validation exchange (`PATH_CHALLENGE`/`PATH_RESPONSE`).
 - **Anti-amplification.** A client's first packet must be padded to at least 1,200 bytes, and a server may send at most three times what it has received from an unvalidated address, so QUIC servers cannot be used to reflect floods.
 
@@ -235,7 +235,7 @@ c3 00 00 00 01 08 83 94 c8 f0 3e 51 57 08 00 00 44 9e 00 00 00 02
 
 Header plus the 1,182 counted bytes is exactly 1,200: the client padded its first datagram to the minimum size QUIC requires, so that the server's three-times amplification budget is large enough for its reply. The length field is one of the variable-length integers the second exercise encodes.
 
-The cost is that all of this runs in user space: each datagram crosses the system-call boundary and the NIC's TCP offloads do not apply. QUIC servers historically used a few times the CPU per byte of kernel TCP with offloads; UDP GSO/GRO and batched system calls narrowed the gap, and the remaining difference is one reason large CDNs rolled HTTP/3 out gradually. [HTTP/2 and HTTP/3](/learn/networking/application-protocols/http-2-and-http-3) covers the application side.
+The cost is that all of this runs in user space: each datagram crosses the system-call boundary and the NIC's TCP offloads do not apply. [Google's 2017 QUIC paper](https://research.google/pubs/the-quic-transport-protocol-design-and-internet-scale-deployment/) reports that its servers first used about 3.5 times the CPU of TLS over TCP to serve YouTube, and about twice after optimisation; UDP GSO/GRO and batched system calls have narrowed the gap since, and the remaining difference is one reason large CDNs rolled HTTP/3 out gradually. [HTTP/2 and HTTP/3](/learn/networking/application-protocols/http-2-and-http-3) covers the application side.
 
 ### Under the hood: how QUIC decides a packet is lost
 
@@ -277,7 +277,7 @@ Run on this machine, the server's single `recv()` returned 200 bytes: two messag
 |---|---|---|---|
 | UDP receive buffer overflow | Metrics or logs undercount at peak; no errors anywhere | `RcvbufErrors` rising in `/proc/net/snmp` or `nstat` | Larger `SO_RCVBUF` (raise `rmem_max`), `SO_REUSEPORT` with more readers, less work per datagram |
 | Missing TCP framing | Works in tests, corrupt or merged messages in production | Messages parsed per `recv()`; a capture shows two messages in one segment or one message across two | Length-prefix framing with a buffer that carries partial messages |
-| NAT expiry for UDP | Sessions die after ~30 s of silence on home or mobile networks | Traffic resumes only after the client sends first | Keepalives every 15–25 s; QUIC and WireGuard do this |
+| NAT expiry for UDP | Sessions die after ~30 s of silence on home or mobile networks | Traffic resumes only after the client sends first | Keepalives every 15–25 s; QUIC's PING frames and WireGuard's `PersistentKeepalive` exist for this |
 | UDP blocked | HTTP/3 or a VPN fails on some corporate networks | Handshakes time out on UDP while TCP to the same port works | TCP fallback (browsers race HTTP/3 against HTTP/2); TURN over TCP 443 for WebRTC |
 | Reflection and amplification | Your UDP service floods a victim with large responses to spoofed small requests | Outbound bandwidth spikes to sources that never completed an exchange | Rate-limit responses per source, never expose UDP services such as memcached publicly, prefer protocols with QUIC-style 3× limits |
 | Head-of-line stalls on lossy links | Interactive stream freezes for a round trip or 200 ms at a time | Loss correlated with stalls; `ss -ti` shows retransmits | UDP for real-time media; QUIC streams for multiplexed requests; keep enough data in flight for fast recovery |
@@ -288,7 +288,7 @@ Run on this machine, the server's single `recv()` returned 200 bytes: two messag
 
 | | TCP | UDP | QUIC | SCTP |
 |---|---|---|---|---|
-| Setup cost | 1 RTT (+1 for TLS 1.3) | 0 | 1 RTT with TLS, 0 on resumption | 2 RTT (4-way handshake) |
+| Setup cost | 1 RTT (+1 for TLS 1.3) | 0 | 1 RTT with TLS, 0 on resumption | 1 RTT (4-way handshake; data rides on the third packet, COOKIE ECHO) |
 | Head-of-line blocking | Whole connection | None | Per stream | Per stream |
 | Message boundaries | No | Yes | Per stream frames | Yes |
 | Congestion control | Kernel | None (application's job) | User-space library | Kernel |

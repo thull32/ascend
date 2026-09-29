@@ -119,7 +119,7 @@ Each message carries a version and a nonce. A `DiscoveryResponse` has `version_i
 | 3 | Envoy → istiod | CDS | v41 | a1 | ACK: v41 applied |
 | 4 | istiod → Envoy | EDS, then LDS, RDS | v41 | a2, a3, a4 | Endpoints, listeners, routes; each ACKed the same way |
 | 5 | istiod → Envoy | CDS | v42 | b7 | A push containing an invalid cluster |
-| 6 | Envoy → istiod | CDS | v41 | b7 | NACK with `error_detail`; Envoy keeps running v41 |
+| 6 | Envoy → istiod | CDS | v41 | b7 | NACK with `error_detail`; the invalid cluster is not applied and the acknowledged version stays v41 (Envoy may still apply the push's valid clusters) |
 
 A NACK is safe for the proxy and silent for the operator: the new policy you applied is not in force. `istioctl proxy-status` shows per-type sync state (`SYNCED`, `STALE`, `NOT SENT`), and istiod exports a rejection counter (`pilot_total_xds_rejects`). In state-of-the-world xDS, every LDS or CDS response carries the *complete* set, so a single endpoint change in a large mesh can mean resending thousands of resources to thousands of proxies; **incremental (delta) xDS** sends only what changed.
 
@@ -243,7 +243,7 @@ For a real Envoy sidecar, reason in orders of magnitude and measure your own con
 
 - **Latency** per proxy is typically sub-millisecond at the p50 and can reach several milliseconds at the p99, depending on TLS, the number of filters, access logging, and above all CPU throttling when a sidecar's CPU limit is small. A request crossing five service hops crosses ten proxies.
 - **Memory** runs from tens of megabytes to hundreds per sidecar, and depends mostly on how much configuration is pushed: clusters times endpoints. Without scoping, every sidecar holds every service in the mesh.
-- **CPU** scales with requests per second, TLS handshakes and telemetry. Istio publishes per-release measurements of its sidecar, which have been on the order of a few tenths of a vCPU per 1,000 requests per second.
+- **CPU** scales with requests per second, TLS handshakes and telemetry. Istio publishes per-release measurements: for 1.24, a sidecar with 2 worker threads used about 0.2 vCPU and 60 MB per 1,000 requests per second with 1 KB payloads.
 
 ## Retries and timeouts in two places
 
@@ -294,7 +294,7 @@ Mesh metrics also measure from the proxy's point of view. A request that the sid
 | Startup and shutdown race | Connection refused or 503s in the first seconds of a pod's life; errors during termination; batch Jobs never finish | Errors correlate with pod age or termination, not load | Kubernetes native sidecars (init containers with `restartPolicy: Always`, on by default since 1.29), or Istio's `holdApplicationUntilProxyStarts`; tune drain duration |
 | Retries in app and mesh | Upstream sees many times the user traffic during a partial outage | `x-envoy-attempt-count` above 1 on requests that the app also retried; `URX` flags | Retry in one layer with a budget; the other fails fast |
 | STRICT mTLS breaks plaintext callers | Right after switching to STRICT, an external load balancer or Prometheus outside the mesh marks targets down while mesh traffic works | Inbound Envoy logs show failed TLS handshakes from node or LB addresses | Port-level `PERMISSIVE` for the health or metrics port, Istio's probe rewrite for kubelet probes, or health checks through the gateway |
-| Idle-timeout mismatch | Sporadic 503 `UC` ("upstream connect error or disconnect/reset before headers") after quiet periods | The app closes idle keep-alive connections first: Node.js `keepAliveTimeout` defaults to 5 s, gunicorn to 2 s, while Envoy keeps upstream connections for up to an hour | Make the app's idle timeout longer than the proxy's, or set the proxy's upstream `idle_timeout` shorter; allow retry on reset for idempotent routes |
+| Idle-timeout mismatch | Sporadic 503 `UC` ("upstream connect error or disconnect/reset before headers") after quiet periods | The app closes idle keep-alive connections first: Node.js `keepAliveTimeout` defaults to 5 s (through Node.js 26), gunicorn to 2 s, while Envoy keeps upstream connections for up to an hour | Make the app's idle timeout longer than the proxy's, or set the proxy's upstream `idle_timeout` shorter; allow retry on reset for idempotent routes |
 
 ## Should you run one?
 
@@ -352,10 +352,10 @@ A common middle path is an **API gateway** at the edge for north-south traffic (
     UO is upstream overflow: the local proxy's circuit-breaker thresholds (concurrency caps such as max_pending_requests) were full, so it failed fast in 0 ms and payments never saw the request. The cause is often a slow upstream holding requests open or limits sized too small, but the 503 itself came from the caller's side. A missing route would be NR.
 - q: >-
     istiod pushes a CDS update that contains an invalid cluster. What does Envoy send back, and which configuration does it run afterwards?
-  options: ["The new version with an error attached; it drops clusters until fixed", "The previous version, the new nonce and an error; it keeps old clusters", "Nothing; it closes the stream and reconnects to get a fresh snapshot", "The new version and nonce; it applies every cluster it managed to parse"]
+  options: ["The new version with an error attached; it drops clusters until fixed", "The previous version, the new nonce and an error; the bad cluster is not applied", "Nothing; it closes the stream and reconnects to get a fresh snapshot", "The new version and nonce; it reports the whole push as accepted"]
   answer: 1
   explanation: >-
-    A NACK is a DiscoveryRequest that repeats the last accepted version_info, echoes the rejected response's nonce and fills error_detail. Envoy keeps serving with the configuration it last ACKed, which is safe for traffic but means the new policy is silently not in force until someone notices the rejection.
+    A NACK is a DiscoveryRequest that repeats the last accepted version_info, echoes the rejected response's nonce and fills error_detail. The invalid cluster is not applied (Envoy may still apply the valid clusters in the same push), which is safe for traffic but means the rejected policy is silently not in force until someone notices. A NACK never reports the new version, and Envoy neither drops its clusters nor reconnects.
 - q: >-
     After a namespace's PeerAuthentication is switched to STRICT, an external load balancer marks every backend unhealthy while service-to-service traffic keeps working. What is the most likely cause?
   options: ["The control plane stopped pushing endpoints to the load balancer", "STRICT mode disables the application's health endpoint entirely", "Its plaintext health checks now fail the required mTLS handshake", "Sidecars now reject any request that lacks a traceparent header"]
@@ -373,5 +373,5 @@ A common middle path is an **API gateway** at the edge for north-south traffic (
   options: ["The app's sidecar is not ready yet when the request arrives", "Envoy's route timeout is shorter than the app's p99 latency", "Outlier detection ejects the app after five consecutive 5xx", "The app times out idle connections before Envoy does"]
   answer: 3
   explanation: >-
-    Node.js closes idle keep-alive connections after 5 s by default, while Envoy keeps pooled upstream connections far longer, so Envoy sometimes sends a request on a connection the app closed a moment earlier and gets a reset: UC. A route timeout would show UT, ejection would show UH, and a startup race correlates with pod age, not idle periods.
+    Node.js closes idle keep-alive connections after 5 s by default (through Node.js 26), while Envoy keeps pooled upstream connections far longer, so Envoy sometimes sends a request on a connection the app closed a moment earlier and gets a reset: UC. A route timeout would show UT, ejection would show UH, and a startup race correlates with pod age, not idle periods.
 ```

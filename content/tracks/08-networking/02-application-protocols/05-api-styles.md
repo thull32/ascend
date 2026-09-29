@@ -44,7 +44,7 @@ REST's strength is that every piece of infrastructure already speaks HTTP semant
 {"type": "network", "scenario": "http-request", "title": "REST reuses HTTP's caching machinery", "caption": "The first response carries an ETag; the revalidation sends If-None-Match and gets a body-less 304. GraphQL and gRPC calls are POSTs and get none of this for free."}
 ```
 
-Its weakness is the aggregated view: resources are normalised, screens are not. The mitigations are compound documents (`?include=items`), sparse fieldsets (`?fields=id,status,totalCents`), and a **backend for frontend** (BFF): an API layer owned by the client team that exposes screen-shaped endpoints and fans out over the data-centre network, where five calls cost a few milliseconds instead of two mobile round trips. Netflix's engineering blog describes a long version of this journey, from one API with per-device adapter code written by UI teams to a federated GraphQL gateway in which each domain team owns a subgraph; its Java framework for writing those subgraph services, DGS, is open source. Federation keeps GraphQL's one-request client model while splitting ownership, and moves the N+1 and cost problems into the gateway's query planner, which must batch calls to each subgraph.
+Its weakness is the aggregated view: resources are normalised, screens are not. The mitigations are compound documents (`?include=items`), sparse fieldsets (`?fields=id,status,totalCents`), and a **backend for frontend** (BFF): an API layer owned by the client team that exposes screen-shaped endpoints and fans out over the data-centre network, where five calls cost a few milliseconds instead of two mobile round trips. Netflix's engineering blog describes both ends of this journey. In 2012 its device API let each UI team write server-side adapter code (in Groovy) behind its own custom endpoints, a BFF in all but name; in 2020 it described moving its studio API to a federated GraphQL gateway in which each domain team owns a Domain Graph Service, and [DGS](https://github.com/Netflix/dgs-framework), its Spring Boot framework for writing those services, is open source. Federation keeps GraphQL's one-request client model while splitting ownership, and moves the N+1 and cost problems into the gateway's query planner, which must batch calls to each subgraph.
 
 ## GraphQL under the hood: resolvers and DataLoader
 
@@ -98,9 +98,9 @@ users(first: 50) { orders(first: 20) { items(first: 10) { product { name } } } }
 nodes = 50 + 50*20 + 50*20*10 + 50*20*10 = 50 + 1,000 + 10,000 + 10,000 = 21,050
 ```
 
-The screen query above costs 1 + 3 + 30 + 30 = 64 with a 10-item cap. A server that computes this before execution can reject anything above a budget (say 5,000) along with queries deeper than a depth limit; GitHub's public GraphQL API, for example, requires `first` or `last` on every connection and caps a query's total node count. Execution timeouts backstop the estimate.
+The screen query above costs 1 + 3 + 30 + 30 = 64 with a 10-item cap. A server that computes this before execution can reject anything above a budget (say 5,000) along with queries deeper than a depth limit; GitHub's public GraphQL API, for example, requires `first` or `last` (between 1 and 100) on every connection, rejects any call that could return more than 500,000 nodes, and charges each query points against an hourly budget (5,000 for a user), estimated from the worst-case number of connection fetches divided by 100. Execution timeouts backstop the estimate.
 
-**Persisted queries** go further. With Apollo's automatic persisted queries, the client first sends only a SHA-256 hash in `extensions.persistedQuery`; an unknown hash returns `PersistedQueryNotFound`; the client resends the full query once and the server stores it; later calls send only the hash, and can do so as a `GET`, so the URL becomes a CDN cache key. For this small query the hash-only body (151 bytes) is larger than the query itself (128), so the benefit is cacheability and control, not bytes. First-party apps often go further still and accept only hashes registered at build time, which turns the query language into an allowlist.
+**Persisted queries** go further. With Apollo's automatic persisted queries, the client first sends only a SHA-256 hash in `extensions.persistedQuery`; an unknown hash returns an error with code `PERSISTED_QUERY_NOT_FOUND`; the client resends the full query once and the server stores it; later calls send only the hash, and can do so as a `GET`, so the URL becomes a CDN cache key. For this small query the hash-only body (151 bytes) is larger than the query itself (128), so the benefit is cacheability and control, not bytes. First-party apps often go further still and accept only hashes registered at build time, which turns the query language into an allowlist.
 
 ## HTTP caching per style
 
@@ -118,7 +118,7 @@ RPC styles (gRPC, Thrift, JSON-RPC) design around operations: `CancelSubscriptio
 
 ## Idempotency keys, traced
 
-A client sends "create order" and the connection times out. The request never arrived, or it was processed and the response lost, or it is still running; the client cannot tell which, and a retry of a non-idempotent operation can charge a card twice. The fix is identical in every style; only the key's location differs: an `Idempotency-Key` header on a REST `POST` (an IETF draft, popularised by payment APIs), an argument on a GraphQL mutation, a `request_id` field in a gRPC message. Operations that set a value (`PUT /users/42/email`) or delete one are naturally idempotent and need no key.
+A client sends "create order" and the connection times out. The request never arrived, or it was processed and the response lost, or it is still running; the client cannot tell which, and a retry of a non-idempotent operation can charge a card twice. The fix is identical in every style; only the key's location differs: an `Idempotency-Key` header on a REST `POST` (an IETF working-group draft, still not an RFC in 2026, that lists Stripe's payment API as an implementation), an argument on a GraphQL mutation, a `request_id` field in a gRPC message. Operations that set a value (`PUT /users/42/email`) or delete one are naturally idempotent and need no key.
 
 The server keeps, per key, a fingerprint of the request body, a state and the stored response. A retried POST with key `K`:
 
@@ -130,7 +130,7 @@ The server keeps, per key, a fingerprint of the request body, a state and the st
 | 5 s | K with body B′ | complete, hash differs | Client bug: reject, create nothing | 422 Unprocessable Content |
 | 24 h + 1 s | K, B | expired | Treated as a new key | 201 order-2 |
 
-The transaction is the part people get wrong. If the key is written after the order commits and the process dies in between, the retry finds no key and creates a second order. If the key is written first and the order fails, the key must be released, or every retry replays a failure. Retention (24 hours is common) must exceed the longest client retry window.
+The transaction is the part people get wrong. If the key is written after the order commits and the process dies in between, the retry finds no key and creates a second order. If the key is written first and the order then fails, decide deliberately: release the key so that a retry runs again, or store the failure so that retries replay it (Stripe stores and replays even a 500 once execution has begun). A key left "in progress" after a crash blocks every retry. Retention must exceed the longest client retry window; Stripe lets keys be pruned once they are at least 24 hours old.
 
 ### A transactional key store
 
@@ -173,7 +173,7 @@ print(create_order("k1", '{"amount": 10}', 90000)) # 201 order-2 (key expired)
 print(db.execute("SELECT COUNT(*) FROM orders").fetchone()[0], "orders")
 ```
 
-`BEGIN IMMEDIATE` takes SQLite's write lock before the lookup, so two concurrent requests with one key cannot both see "absent"; in Postgres the equivalent is inserting the key first with `ON CONFLICT DO NOTHING` and checking whether a row was inserted, which serialises duplicates on the primary key. The rollback path is what keeps a failed order from leaving behind a key that would replay the failure forever. [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) covers storage choices and consumer-side deduplication.
+`BEGIN IMMEDIATE` takes SQLite's write lock before the lookup, so two concurrent requests with one key cannot both see "absent"; in Postgres the equivalent is inserting the key first with `ON CONFLICT DO NOTHING` and checking whether a row was inserted, which serialises duplicates on the primary key. The rollback path releases the key when the order fails, so a retry runs the order again instead of replaying the failure. [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) covers storage choices and consumer-side deduplication.
 
 ```viz
 {"type": "system", "scenario": "idempotency-key", "title": "A retried request with an idempotency key", "caption": "The first request stores its result under the key; a retry with the same key and body is answered from the store instead of repeating the side effect."}
@@ -347,7 +347,7 @@ A useful error answers three questions for the calling code: was it the caller's
 |---|---|---|---|
 | REST | HTTP status: 4xx caller, 5xx server | Problem Details (RFC 9457), `application/problem+json` | `Retry-After` on 429 and 503 |
 | GraphQL | HTTP 200; entry in `errors` with a `path` | `extensions.code` | A custom `extensions` field |
-| gRPC | `grpc-status` code | `google.rpc.Status` details (`ErrorInfo`, `BadRequest`) | `RetryInfo`; `UNAVAILABLE` retryable by convention |
+| gRPC | `grpc-status` code | `google.rpc.Status` details (`ErrorInfo`, `BadRequest`) | `RetryInfo`; `UNAVAILABLE` means retry with backoff if the call is idempotent |
 
 ```text
 HTTP/1.1 429 Too Many Requests
@@ -359,7 +359,7 @@ Retry-After: 30
  "instance": "/v1/orders", "request_id": "7f3a9c02"}
 ```
 
-The status tells generic infrastructure what happened, `type` is a stable code for client logic, `Retry-After` says when to come back, and `request_id` joins a support ticket to a trace. It must not contain a stack trace, SQL or internal host names. Gateways that expose gRPC as REST map codes (`INVALID_ARGUMENT` to 400, `NOT_FOUND` to 404, `RESOURCE_EXHAUSTED` to 429, `UNAVAILABLE` to 503, `DEADLINE_EXCEEDED` to 504). GraphQL allows partial success, one failed field with `data` for the rest, so dashboards that count 5xx see nothing; monitor the `errors` array.
+The status tells generic infrastructure what happened, `type` is a stable code for client logic, `Retry-After` says when to come back, and `request_id` joins a support ticket to a trace. It must not contain a stack trace, SQL or internal host names. Gateways that expose gRPC as REST map codes (`INVALID_ARGUMENT` to 400, `NOT_FOUND` to 404, `RESOURCE_EXHAUSTED` to 429, `UNAVAILABLE` to 503, `DEADLINE_EXCEEDED` to 504). GraphQL allows partial success, one failed field with `data` for the rest, and servers speaking plain `application/json` answer it with 200, so dashboards that count 5xx see nothing; monitor the `errors` array. The GraphQL-over-HTTP working draft moves towards status codes that intermediaries can count: with its `application/graphql-response+json` media type, a request that produced no data gets a 4xx or 5xx, and a partial success gets a custom `294`.
 
 ```viz
 {"type": "system", "scenario": "token-bucket", "requests": 10, "title": "A token bucket per API key decides when to answer 429", "caption": "Capacity sets the burst a client may send; the refill rate sets its sustained rate. A rejected request should carry Retry-After computed from when the next token arrives."}
@@ -367,15 +367,15 @@ The status tells generic infrastructure what happened, `type` is a stable code f
 
 `Retry-After` should be computed, not constant. A bucket of capacity 100 refilling at 100 tokens per minute gains one token every 0.6 s, so an empty bucket answers `Retry-After: 1` (the header takes whole seconds); a client told to wait 30 s by a hard-coded value either waits too long or, if every client gets the same number, returns in a synchronised wave at second 30.
 
-Only errors that mean "nothing happened" (429, 503 before processing, gRPC `UNAVAILABLE`) are safe to retry blindly; a timeout or a 500 after processing began needs an idempotency key first. [Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) covers the limiters.
+Only errors that mean "nothing happened" (a 429, or a 503 sent before processing) are safe to retry blindly. gRPC's `UNAVAILABLE` is not on that list: the [status-code documentation](https://github.com/grpc/grpc/blob/master/doc/statuscodes.md) warns that retrying non-idempotent operations is not always safe, because the same code covers a connection that broke after some of the request had already been sent. A timeout, a 500 after processing began, or an `UNAVAILABLE` on a write needs an idempotency key first. [Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) covers the limiters.
 
 ## Versioning and evolution
 
 | Style | How versions work | Removing something | Signal to clients |
 |---|---|---|---|
-| REST | Major version in the path (`/v1`) or media type; additive changes within it | Ship `/v2` alongside, migrate, retire `/v1` | `Deprecation` and `Sunset` (RFC 8594) response headers, docs |
+| REST | Major version in the path (`/v1`) or media type; additive changes within it | Ship `/v2` alongside, migrate, retire `/v1` | `Deprecation` (RFC 9745) and `Sunset` (RFC 8594) response headers, docs |
 | GraphQL | One evolving schema, no versions | Add the replacement, mark the old field `@deprecated(reason: ...)`, watch per-field usage by client until it reaches zero, then remove | Introspection shows deprecations |
-| gRPC | Protobuf compatibility rules; package `v1`, `v2` for breaks | `reserved` numbers; new package for breaking changes | `deprecated = true` option, generated warnings |
+| gRPC | Protobuf compatibility rules; package `v1`, `v2` for breaks | `reserved` numbers; new package for breaking changes | `deprecated = true` option (`@Deprecated` in Java; no effect in most languages) |
 
 In every style, adding optional fields is safe only if clients are **tolerant readers** that ignore unknown fields; adding an enum value breaks a client with an exhaustive `switch`; making an optional input required breaks every old caller. Mobile clients stay installed for years, so "remove" really means "measure usage, then remove". [API design and versioning](/learn/system-design/building-blocks/api-design-and-versioning) covers the organisational side.
 

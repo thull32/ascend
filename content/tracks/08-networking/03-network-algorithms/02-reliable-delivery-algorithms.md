@@ -193,7 +193,7 @@ bytes_retrans:2896 retrans:0/3 dsack_dups:2 reordering:8 reord_seen:1
 A TCP ACK means "the peer's kernel has these bytes in its receive buffer". It does not mean the peer application read them, let alone acted on them. If the process crashes after the ACK, the data is gone and the sender never knows. That is the end-to-end argument: reliability that matters to the application has to be implemented again by the application, and when you do that you rebuild this lesson.
 
 - **Kafka consumer offsets are cumulative ACKs.** Committing offset 1,042 says "everything before 1,042 is processed". A slow or poisoned message at 1,000 blocks the commit for everything after it, GBN's head-of-line problem, and a consumer that processes in parallel must track completion per message and commit only the lowest contiguous point.
-- **SQS and RabbitMQ acknowledgements are Selective Repeat.** Each message is acked individually, and the visibility timeout is a per-message retransmission timer.
+- **SQS acknowledgements are Selective Repeat.** Each message is deleted individually, and the visibility timeout (30 s by default) is a per-message retransmission timer. RabbitMQ acks individually too, but an ack with `multiple` set is cumulative, and unacked messages are redelivered only when the channel closes, not on a per-message timer.
 - **Idempotency keys are sequence numbers.** Retransmission guarantees duplicates, so the receiver must deduplicate, as the alternating bit did; see [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
 - **Resumable streams** (SSE's `Last-Event-ID`, a WebSocket protocol with numbered messages) are a cumulative ACK sent at reconnect time.
 

@@ -7,13 +7,13 @@ difficulty: easy
 tags: [interviews, languages, python, java, javascript, go, cpp, rust]
 problems: [k-closest-points, meeting-rooms-ii, task-scheduler]
 ---
-A 45-minute coding round contains about 30 minutes of actual coding. If your language costs you 30 seconds every time you reach for an idiom (the heap API, a comparator, a type the compiler rejects), six of those moments cost three minutes: ten percent of the round, and usually the follow-up question you never reach. An engineer who writes Java every day but interviews in Python "because it is shorter" can lose more to unfamiliarity than they save in keystrokes. The reverse is also common: a fluent Python programmer who picks Java for a Java shop spends the round wrestling generics.
+A 45-minute coding round typically leaves about 30 minutes for actual coding once introductions and questions are counted. If your language costs you 30 seconds every time you reach for an idiom (the heap API, a comparator, a type the compiler rejects), six of those moments cost three minutes: ten percent of the round, and usually the follow-up question you never reach. An engineer who writes Java every day but interviews in Python "because it is shorter" can lose more to unfamiliarity than they save in keystrokes. The reverse is also common: a fluent Python programmer who picks Java for a Java shop spends the round wrestling generics.
 
 The choice is an optimisation with measurable inputs: what the role requires, how fluent you are, how much the standard library does for you, how fast the result runs, and which traps the language sets. This lesson measures those inputs on one problem written six times, gives you the toolkit to have in your fingers, and a plan for switching languages without damaging a loop.
 
 ## What interviewers actually expect
 
-Most large companies let you use any mainstream language in general coding rounds. The rubric measures problem solving, correctness, code quality, testing and communication; nobody deducts points for choosing Python over Java. But fluency is visible within minutes: whether you write idiomatic code, whether you know the cost of the calls you make, and whether you stop to look things up.
+Large companies commonly let candidates use any mainstream language in general coding rounds; candidate reports and prep guides agree on this, and your recruiter can confirm it. The rubrics companies and candidates describe score problem solving, correctness, code quality, testing and communication, not the language itself. But fluency is visible within minutes: whether you write idiomatic code, whether you know the cost of the calls you make, and whether you stop to look things up.
 
 The language is constrained in three situations. Domain roles expect the domain's language (Swift or Kotlin for mobile, C++ for low-latency systems, TypeScript for frontend). Some teams run practical rounds in their production stack. And some online assessments support a fixed list. Ask your recruiter which applies; they will tell you.
 

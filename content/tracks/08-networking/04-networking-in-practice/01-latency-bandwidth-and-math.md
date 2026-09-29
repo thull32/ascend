@@ -219,7 +219,7 @@ Round these aggressively; they are for reasoning, not for reports.
 | Main memory reference | 100 ns |
 | SSD random read | 100 µs |
 | Round trip within a data centre | 0.5 ms |
-| Round trip within a region (across availability zones) | 1–2 ms |
+| Round trip within a region (across availability zones; AWS keeps them within 100 km) | 1–2 ms |
 | Round trip across a continent (US east to west) | 60–70 ms |
 | Round trip transatlantic | 70–90 ms |
 | Round trip US to east Asia | 150–200 ms |

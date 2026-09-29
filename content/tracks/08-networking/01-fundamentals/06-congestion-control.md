@@ -136,7 +136,7 @@ Theory is cleaner than any real path, so here is one. From the machine this less
 |---|---|---|---|---|---|
 | 0 ms | 10 | ∞ | 31 ms | 0 | Initial window after the TLS handshake |
 | 52–128 ms | 13 → 48 | ∞ | 33 → 44 ms | 0 | Slow start: each ACK adds a segment |
-| 136 ms | 55 | **55** | 41 ms | 0 | HyStart exit: RTT had risen ~10 ms above the round's minimum, so slow start ended **without a loss** |
+| 136 ms | 55 | **55** | 41 ms | 0 | HyStart exit: the round's RTT samples had risen well above the connection's minimum RTT, so slow start ended **without a loss** |
 | 150–242 ms | 56 → 62 | 55 | 41 → 56 ms | 0 | Congestion avoidance: about one segment per RTT; RTT keeps rising as the bottleneck queue fills |
 | 246 ms | 60 | **43** | 51 ms | 1 | First loss: ssthresh = 62 × 0.7 = 43.4, Cubic's β |
 | 250–295 ms | 58 → 43 | 43 | ~50 ms | 2 | The window steps down over one RTT (proportional rate reduction), not in one jump |
@@ -252,7 +252,7 @@ You measure it by comparing the RTT under load with the RTT of an empty path. Th
 - **Flow queueing.** `fq_codel` gives each flow its own queue and serves them round-robin, so the call's small packets do not wait behind the backup's. It is the default queueing discipline on many Linux distributions, and "smart queue management" on a home router is usually this.
 - **ECN.** Instead of dropping, the router sets the Congestion Experienced bits in the IP header; the receiver echoes it (`ECE`), and the sender reduces its window as if a loss had happened, without losing the packet.
 
-The classic buffer-sizing rule for routers is one bandwidth-delay product, divided by the square root of the number of flows when many flows share the link. A buffer much bigger than that adds only delay.
+The classic buffer-sizing rule for routers is one bandwidth-delay product, divided by the square root of the number of flows when many flows share the link (the refinement from Appenzeller, Keslassy and McKeown's 2004 paper [*Sizing Router Buffers*](http://yuba.stanford.edu/~nickm/papers/sigcomm2004.pdf)). A buffer much bigger than that adds only delay.
 
 ## BBR: model the pipe instead of filling it
 
@@ -270,7 +270,7 @@ Their product is the BDP, the amount of data that fills the pipe without buildin
 | PROBE_BW | Steady state: an eight-phase gain cycle of 1.25, 0.75, then six rounds at 1.0; probe for more bandwidth briefly, then drain what the probe queued |
 | PROBE_RTT | If RTprop has not been refreshed in 10 s, cut inflight to 4 packets for at least 200 ms to measure the empty-queue RTT |
 
-Because BBR aims at the BDP instead of the buffer limit, it keeps queues short on bloated paths. Because it does not halve on random loss, it can run near link speed on a long path with 1% loss where Cubic, by the Mathis formula, would crawl. Google has deployed it for google.com and YouTube traffic.
+Because BBR aims at the BDP instead of the buffer limit, it keeps queues short on bloated paths. Because it does not halve on random loss, it can run near link speed on a long path with 1% loss where Cubic, by the Mathis formula, would crawl. Google runs it for google.com and YouTube traffic and [reported](https://cloud.google.com/blog/products/networking/tcp-bbr-congestion-control-comes-to-gcp-your-internet-just-got-faster) that it raised YouTube's network throughput by 4% on average globally, and by more than 14% in some countries, compared with Cubic.
 
 It has costs. The original version ignores loss almost entirely, so on shallow-buffered paths it can sustain high retransmission rates, and its share against Cubic flows depends heavily on buffer depth (it can starve them in shallow buffers and lose to them in deep ones). The PROBE_RTT dip is visible as a periodic throughput drop every ten seconds. It needs accurate pacing, historically supplied by the `fq` queueing discipline. Later versions (BBRv2, BBRv3) add responses to loss and ECN to address the coexistence problems.
 
@@ -320,7 +320,7 @@ Per-socket selection is also possible (`setsockopt(TCP_CONGESTION)`), which is h
 ## Under the hood: congestion control in Linux
 
 - **Pluggable modules.** Each algorithm implements `struct tcp_congestion_ops` (hooks for every ACK, loss, and state change). `net.ipv4.tcp_available_congestion_control` lists what is loaded; on this WSL2 kernel it is `reno cubic`, with Cubic the default, and BBR would need its module (`tcp_bbr`) loaded first.
-- **HyStart** (on by default with Cubic) samples the RTT of the first ACKs of each round and exits slow start when the round's minimum RTT exceeds the previous round's by more than an eighth of it, clamped to 4–16 ms. That is the loss-free exit at a window of 55 in the trace.
+- **HyStart** (on by default with Cubic) takes the minimum RTT of the first eight ACKs of each round and exits slow start when it exceeds the connection's minimum RTT by more than an eighth of that minimum, clamped to 4–16 ms (`tcp_cubic.c`; a second detector watches the length of ACK trains). On a short path the eighth is under the 4 ms floor (a 15.5 ms minimum gives 1.9 ms), so the floor decides. That is the loss-free exit at a window of 55 in the trace.
 - **Proportional rate reduction** (RFC 6937, Linux 3.2 and later) spreads the window reduction after a loss across the recovery round trip, sending about one new segment for every two acknowledged, instead of stopping dead and then bursting. That is the stepped descent from 62 to 43.
 - **Pacing.** Since Linux 4.13, TCP can pace internally (a high-resolution timer per socket); the `fq` qdisc paces too. BBR depends on pacing; Cubic benefits from it by avoiding line-rate bursts into shallow buffers.
 - **Per-route overrides.** `ip route change default via … initcwnd 20` or `congctl bbr` sets the initial window or the algorithm per destination, which is how some servers use a larger initial window towards their own CDN nodes only.

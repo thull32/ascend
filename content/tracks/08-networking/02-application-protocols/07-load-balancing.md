@@ -39,7 +39,7 @@ An **L4** balancer works on packets and connections. It sees the 5-tuple (source
 | Cost | Cheap per packet; line rate | Parsing, TLS and a second connection |
 | Examples | Maglev, Katran, IPVS, AWS NLB | Envoy, NGINX, HAProxy, AWS ALB |
 
-Terminating TLS at L7 means the proxy holds private keys, pays the handshake CPU (one full handshake per new client connection, the round trip measured in [TLS and PKI](/learn/networking/fundamentals/tls-and-pki)), and either sends plaintext to backends or re-encrypts, paying again on the backend leg. A proxy that only needs the host name can read SNI from the ClientHello and forward at L4 without decrypting.
+Terminating TLS at L7 means the proxy holds private keys, pays the handshake CPU (a full handshake for every new client connection that does not resume a session; the round trip is measured in [TLS and PKI](/learn/networking/fundamentals/tls-and-pki)), and either sends plaintext to backends or re-encrypts, paying again on the backend leg. A proxy that only needs the host name can read SNI from the ClientHello and forward at L4 without decrypting.
 
 ## L4 forwarding: NAT, DSR and tunnelling
 
@@ -53,7 +53,7 @@ DSR and tunnelling suit asymmetric traffic such as video: small requests in, lar
 
 ### Keeping many L4 machines consistent: Maglev
 
-Routers hash flows across a pool of L4 machines, and a router or pool change can send the next packet of an established flow to a machine that has never seen it. Maglev (Google, 2016) makes every machine compute the backend from the same consistent-hash lookup table (65,537 entries in Google's deployment), so any machine picks the same backend without coordination, and a backend change moves only the flows that backend owned. Each machine also keeps a local connection table, so established flows keep their backend even while the table changes. [Hashing at scale](/learn/data-structures/hashing/hashing-at-scale) traces the Maglev table fill slot by slot; the load-balancing detail it adds is that the lookup table handles *new* flows and the connection table protects *existing* ones.
+Routers hash flows across a pool of L4 machines, and a router or pool change can send the next packet of an established flow to a machine that has never seen it. Maglev (Google, 2016) makes every machine compute the backend from the same consistent-hash lookup table, so any machine picks the same backend without coordination, and a backend change moves only the flows that backend owned. Each machine also keeps a local connection table, so established flows keep their backend even while the table changes. The table size must be prime, and [the paper](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf) chooses it larger than 100 times the number of backends so that their shares differ by at most 1%; its evaluation uses 65,537 entries, which is also Envoy's default for its Maglev policy. [Hashing at scale](/learn/data-structures/hashing/hashing-at-scale) traces the Maglev table fill slot by slot; the load-balancing detail it adds is that the lookup table handles *new* flows and the connection table protects *existing* ones.
 
 ```viz
 {"type": "system", "scenario": "consistent-hashing", "nodes": 4, "keys": ["10.1.4.7:51220", "10.9.0.3:40112", "172.16.2.9:33810", "10.1.4.7:51221", "192.0.2.44:60001", "10.3.3.3:45678"], "title": "Hashing flows to backends so every balancer agrees", "caption": "Each flow hashes to a point on the ring and belongs to the next backend clockwise. Adding a backend moves only the flows in one arc; the rest of the established connections keep their backend."}
@@ -81,7 +81,7 @@ Twenty backends share 1,000 requests per second, normally 20 ms each. One degrad
 | 6 | 9, -1, -1 | a | 2, -1, -1 |
 | 7 | 7, 0, 0 | a | 0, 0, 0 |
 
-Five of seven to `a`, never more than two in a row, and the scores return to zero, so the pattern repeats.
+Five of seven to `a`, spread through the cycle rather than sent as one burst, and the scores return to zero, so the pattern repeats. That repetition sets the longest run: the cycle ends `a, a` and the next begins `a, a`, so `a` gets four in a row across the join, against five for the naive order. This is the exact table in NGINX's [2012 commit](https://github.com/nginx/nginx/commit/52327e0627f49dbda1e8db695e63a4b0af4448b1) that introduced the algorithm.
 
 ```exercise
 id: smooth-weighted-round-robin
@@ -150,7 +150,7 @@ Two failure modes remain. Many balancers each see only their own counts, so all 
 
 ## Power of two choices, measured
 
-**Power of two choices (P2C)**: pick two backends at random and send the request to the less loaded. The classic balls-into-bins result: placing $n$ items in $n$ bins uniformly at random leaves the fullest bin with about $\ln n / \ln \ln n$ items, while the better of two random bins gives about $\ln \ln n / \ln 2$. *Measured* with a 20-line simulation on this machine (10 seeds each, $n$ items into $n$ bins):
+**Power of two choices (P2C)**: pick two backends at random and send the request to the less loaded. The classic balls-into-bins result (Azar, Broder, Karlin and Upfal; [surveyed by Mitzenmacher, Richa and Sitaraman](https://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)): placing $n$ items in $n$ bins uniformly at random leaves the fullest bin with about $\ln n / \ln \ln n$ items, while the better of two random bins gives about $\ln \ln n / \ln 2$. *Measured* with a 20-line simulation on this machine (10 seeds each, $n$ items into $n$ bins):
 
 | $n$ | One random choice: max load | Two choices: max load | $\ln n / \ln \ln n$ | $\ln \ln n / \ln 2$ |
 |---|---|---|---|---|
@@ -158,7 +158,7 @@ Two failure modes remain. Many balancers each see only their own counts, so all 
 | 10,000 | 6–8 (mean 6.8) | 3–4 (mean 3.2) | 4.15 | 3.20 |
 | 100,000 | 7–8 (mean 7.6) | 3–4 (mean 3.6) | 4.71 | 3.53 |
 
-The formulas are leading terms, and the one-choice formula underestimates at practical sizes, but the shape holds: one extra sample halves the worst case and makes it grow extremely slowly. Equally important, randomness breaks the herd: balancers with stale counts do not all pick the same target, because each compares a different random pair. Envoy's `LEAST_REQUEST` policy samples two hosts by default, NGINX offers `random two least_conn`, and Finagle and Linkerd compare a latency estimate (an exponentially weighted moving average of response time) so that "less loaded" means "expected to answer sooner".
+The formulas are leading terms, and the one-choice formula underestimates at practical sizes, but the shape holds: one extra sample halves the worst case and makes it grow extremely slowly. Equally important, randomness breaks the herd: balancers with stale counts do not all pick the same target, because each compares a different random pair. Envoy's `LEAST_REQUEST` policy samples two hosts by default (`choice_count: 2`), HAProxy's `random` balancer takes two draws by default, NGINX offers `random two least_conn`, and Finagle's default client balancer is P2C over outstanding requests. Finagle's optional Peak EWMA balancer and Linkerd's proxy compare a latency estimate instead (a peak-sensitive exponentially weighted moving average of response time), so that "less loaded" means "expected to answer sooner".
 
 ```exercise
 id: p2c-least-requests
@@ -220,7 +220,7 @@ hints:
 
 **Consistent hashing** sends every request with the same key (user id, cache key) to the same backend while it is healthy, which is right when the backend holds something worth reusing: a warm cache or a local shard. Plain hashing overloads whichever backend owns a hot key; **bounded loads** caps each backend at $c$ times the average and spills the excess clockwise. With $c = 1.25$ and four backends averaging 100 in-flight requests, none takes more than 125. Envoy offers ring hash and Maglev policies; [Consistent hashing and routing](/learn/networking/network-algorithms/consistent-hashing-and-routing) covers rings, virtual nodes and rendezvous hashing.
 
-New backends need **slow start** under any load-aware algorithm, because a fresh instance has an empty cache, a cold JIT and unfilled pools, and least-requests would otherwise flood it. A linear ramp over 60 s gives it 25% of a full share at 15 s and 50% at 30 s. AWS target groups offer 30 to 900 s (off by default); Envoy's `slow_start_config` takes a window and an aggression exponent that shapes the curve; HAProxy has `slowstart` per server.
+New backends need **slow start** under any load-aware algorithm, because a fresh instance has an empty cache, a cold JIT and unfilled pools, and least-requests would otherwise flood it. A linear ramp over 60 s gives it 25% of a full share at 15 s and 50% at 30 s. AWS target groups offer a linear ramp of 30 to 900 s, off by default and only with round robin: an ALB target group refuses slow start with least outstanding requests, so there you choose between the ramp and load awareness. Envoy's `slow_start_config` takes a window, an aggression exponent that shapes the curve (1.0 is linear) and a floor of 10% of full weight by default; HAProxy has `slowstart` per server, a linear ramp from 0 to 100%.
 
 | Algorithm | State needed | Good for | Fails when |
 |---|---|---|---|
@@ -246,8 +246,8 @@ Recovery runs the same arithmetic in reverse: AWS's default healthy threshold of
 
 The opening incident came from three mistakes:
 
-1. **The check tested a shared dependency.** If every instance calls the same database, a database failure fails every check at once. The check that removes an instance from rotation should answer "can this process serve requests". Kubernetes separates a *liveness* probe (restart a wedged process) from a *readiness* probe (remove it from balancing), and neither should call shared dependencies. A service that cannot work without the database should fail requests fast behind a circuit breaker, not hide from the balancer.
-2. **Nothing failed open.** When most backends look unhealthy at once, a broken check or shared dependency is likelier than forty simultaneous machine failures. Envoy's **panic threshold** (50% by default) balances across all hosts, ignoring health, when fewer than half are healthy.
+1. **The check tested a shared dependency.** If every instance calls the same database, a database failure fails every check at once. The check that removes an instance from rotation should answer "can this process serve requests". Kubernetes separates a *liveness* probe (restart a wedged process) from a *readiness* probe (remove the pod from the Service's endpoints). Its documentation suggests a readiness probe may also check each required back-end service; when that back end is shared by every pod, this is exactly the check that ejects the whole fleet at once, so keep shared dependencies out of both probes. A service that cannot work without the database should fail requests fast behind a circuit breaker, not hide from the balancer.
+2. **Nothing failed open.** When most backends look unhealthy at once, a broken check or shared dependency is likelier than forty simultaneous machine failures. Envoy's **panic threshold** (50% by default) balances across all hosts, ignoring health, when fewer than half are healthy. An AWS ALB fails open the same way: when every target in a target group is unhealthy, it routes to all of them.
 3. **Readmission was slow.** High healthy thresholds add intervals of outage after the dependency returns.
 
 Outlier detection can eject a cluster into an outage too, so Envoy caps it (these are its defaults, apart from the comments):
@@ -295,20 +295,20 @@ Move session state into a shared store or a signed cookie, and keep affinity onl
 | | GeoDNS | Anycast |
 |---|---|---|
 | How a region is chosen | Authoritative DNS answers by resolver location, latency or weight | BGP delivers packets to the nearest announcing region |
-| Failover | Health-checked records; bounded by TTLs and caching | Withdraw the route: seconds |
+| Failover | Health-checked records; bounded by TTLs and caching | Withdraw the route; as fast as BGP converges |
 | Control | Fine: per query, weighted | Coarse: announcement changes |
 | Blind spot | Resolver location is not the user's | Route changes can move long-lived flows |
 
 Global cloud balancers combine an anycast front end with L7 proxies that can forward to another region, and some clients (video, games) receive a list of regional endpoints and measure them themselves.
 
-The hard constraint is capacity, not routing. If one of $N$ regions fails, the rest absorb its traffic, so each can run at no more than $(N-1)/N$ of capacity at peak: 50% with two regions, 67% with three, 75% with four. Netflix has described running active-active across AWS regions and practising regional evacuation, shifting all traffic out of a region, as a routine exercise; the routing is the easy part, and the practice proves the remaining regions can take the load and already hold the data they need.
+The hard constraint is capacity, not routing. If one of $N$ regions fails, the rest absorb its traffic, so each can run at no more than $(N-1)/N$ of capacity at peak: 50% with two regions, 67% with three, 75% with four. Netflix described running active-active across AWS regions in 2013 and rehearsing regional evacuation, shifting all traffic out of a region, in its Chaos Kong exercises. Its 2018 write-up of Project Nimble shows where the time goes: a failover took about 50 minutes, of which 3 to 5 went to provisioning and about 25 to instance start-up, because its clusters autoscale with daily traffic rather than idle at N-1 headroom. Nimble keeps pre-booted "dark" instances in shadow groups outside the serving path, sized by time of day for the traffic a failover would bring, and attaches them on demand, which brought failover under 10 minutes. Headroom can be held as standby capacity instead of low utilisation, but it has to exist before the failover starts; the routing is the easy part.
 
 ## Under the hood: where balancing runs
 
-- **IPVS** is the Linux kernel's L4 balancer (used by kube-proxy in IPVS mode): a connection table in the kernel and schedulers including round robin, weighted and least connections, with NAT, DSR and tunnelling modes.
+- **IPVS** is the Linux kernel's L4 balancer (used by kube-proxy's IPVS mode, which Kubernetes deprecated in v1.35 and plans to remove in v1.43 in favour of its nftables mode): a connection table in the kernel and schedulers including round robin, weighted and least connections, with NAT, DSR and tunnelling modes.
 - **Katran** (Facebook, open source) runs in the kernel's XDP hook as an eBPF program, choosing a backend with Maglev hashing and encapsulating the packet before the normal network stack sees it, which is what lets one machine forward at line rate.
-- **Envoy** runs balancing per worker thread: each worker has its own connection pools and least-request counts, so an 8-worker proxy is 8 independent balancers, which is one more reason P2C's tolerance of stale counts matters.
-- **NGINX and HAProxy** implement smooth weighted round robin (`upstream` default in NGINX), least connections, hashing, and random-two variants, with active checks in HAProxy and NGINX Plus and passive `max_fails`/`fail_timeout` in open-source NGINX.
+- **Envoy** picks hosts on each worker thread, and each worker keeps its own connection pools, but the in-flight counts that least-request compares are per-host atomic counters shared by every worker in the process. What no Envoy sees is the requests other Envoys send: 500 sidecars in front of one service are 500 independent balancers, which is one more reason P2C's tolerance of stale counts matters.
+- **NGINX** defaults to the smooth weighted round robin traced above, and **HAProxy**'s `roundrobin` is also weighted and adjusts weights on the fly. Both offer least connections, hashing and random-two variants, with active checks in HAProxy and NGINX Plus and passive `max_fails`/`fail_timeout` in open-source NGINX.
 
 ## Production failure modes
 

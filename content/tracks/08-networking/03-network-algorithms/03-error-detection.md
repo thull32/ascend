@@ -9,7 +9,7 @@ problems: []
 ---
 Bits flip. A marginal optic turns a 1 into a 0 on the wire, a cosmic ray hits a router's packet buffer, a NIC firmware bug corrupts a DMA transfer, a laptop's non-ECC RAM holds a socket buffer a few milliseconds too long. None of these announce themselves. The receiver gets a packet that looks exactly like a packet, and unless something along the way was checking, your service parses it, stores it and serves it back.
 
-Amazon S3's multi-hour outage in July 2008 is the canonical story: a handful of internal state messages had a single corrupted bit, the messages carried no checksum, and the corrupted state spread through the system's gossip protocol until the cluster could not function. The fix was to checksum the messages. Every layer of the network checks *something*, almost nobody knows exactly what, and the gaps between those checks are where silent corruption lives.
+Amazon S3's outage of about eight hours on 20 July 2008 is the canonical story: a handful of internal state messages had a single corrupted bit, the messages carried no checksum, and the corrupted state spread through the system's gossip protocol until the cluster could not function. Among AWS's fixes was adding checksums to those messages. Every layer of the network checks *something*, almost nobody knows exactly what, and the gaps between those checks are where silent corruption lives.
 
 All error detection works the same way. The sender computes a short value `f(data)` of r bits and sends it along. The receiver recomputes `f` over what arrived and compares. An error goes undetected only if the corrupted data happens to produce the same check value. The schemes differ in which errors are *guaranteed* to be caught, how likely a random error is to slip through (at best about $2^{-r}$), how fast `f` runs, and whether it survives an adversary who is trying.
 
@@ -95,7 +95,7 @@ Addition does not care about order, and a carry can cancel a borrow. To put numb
 
 The two-bit row is the one that surprises people. Two flips in the same bit position of different words, one 0 → 1 and one 1 → 0, add and subtract the same power of two; the chance of that is about 1/16 × 1/2 = 1/32, which is what the simulation found. Swapped words are invisible because addition commutes, and `0x0000` and `0xFFFF` are the same number in one's complement, so a word flipping from all zeros to all ones is invisible too. For random damage the miss rate falls to $2^{-16} \approx 0.0015\%$, which the last row reproduced.
 
-Real traffic was measured too. Stone and Partridge, "When the CRC and TCP Checksum Disagree" (SIGCOMM 2000), found packets failing the TCP checksum far more often than link error rates could explain. They had passed every link-level CRC: the corruption happened inside hosts and routers, in memory and on buses, and some of it was of kinds the Internet checksum cannot see. Suppose one packet in 100,000 is corrupted between the sender's application and the receiver's, and the checksum misses one in 65,536 of those: one packet in about $6.5 \times 10^9$ is delivered corrupted, which a service handling a million packets per second meets about every two hours.
+Real traffic was measured too. Stone and Partridge, ["When the CRC and TCP Checksum Disagree"](https://conferences.sigcomm.org/sigcomm/2000/conf/paper/sigcomm2000-9-1.pdf) (SIGCOMM 2000), found between 1 packet in 1,100 and 1 in 32,000 failing the TCP checksum, on links whose CRCs should have let through about 1 error in 4 billion. They had passed every link-level CRC: the corruption happened inside hosts and routers, in memory and on buses, and some of it was of kinds the Internet checksum cannot see. Suppose one packet in 100,000 is corrupted between the sender's application and the receiver's, and the checksum misses one in 65,536 of those: one packet in about $6.5 \times 10^9$ is delivered corrupted, which a service handling a million packets per second meets about every two hours.
 
 ### Where it is used, and where it was removed
 
@@ -323,7 +323,7 @@ Between CRCs and SHA-256 sit the **fast non-cryptographic hashes** (xxHash, Murm
 |---|---|---|---|---|
 | Parity | 1 | Odd numbers of flipped bits | None | Not measured; one XOR per word |
 | Internet checksum | 16 | Single-bit errors; misses swaps and about 3% of two-bit errors | None | 0.3 in a Python `sum()`; the kernel's C and assembly version is many times faster |
-| CRC-32 / CRC-32C | 32 | All bursts ≤ 32 bits, all odd-bit errors; else ~$2^{-32}$ | None (linear) | 8.5 (`zlib.crc32`) |
+| CRC-32 / CRC-32C | 32 | All bursts ≤ 32 bits; all 1- to 3-bit errors in up to 91,607 data bits (CRC-32); every odd count (CRC-32C only, which has the $x + 1$ factor); else ~$2^{-32}$ | None (linear) | 8.5 (`zlib.crc32`) |
 | xxHash-style 64-bit | 64 | Good distribution, no formal burst guarantee | None | Not measured; same order as CRC |
 | SHA-256 | 256 | Effectively everything | Collision- and preimage-resistant, but the digest needs a trusted channel | 2.8 (OpenSSL 3.5 with SHA extensions) |
 | HMAC-SHA256 / AEAD tag | 128–256 | Effectively everything | Unforgeable without the key | 2.8 for HMAC-SHA256 |
@@ -343,11 +343,11 @@ Put the checks back on the stack from [Layers and encapsulation](/learn/networki
 | TCP | 16-bit checksum, pseudo-header + data | End to end | Only by NATs |
 | TLS 1.3 | 128-bit AEAD tag per record | End to end between the TLS endpoints | Never |
 | HTTP | Nothing by default (`Repr-Digest` exists but is rarely sent) | Optional | Not applicable |
-| Your storage | S3 object checksums (CRC32, CRC32C, SHA-256), Kafka CRC-32C, ZFS and Btrfs block checksums, database page checksums | Data at rest and in transit to it | By your code |
+| Your storage | S3 object checksums (CRC-64/NVME by default; CRC32, CRC32C, SHA-256 and others), Kafka CRC-32C, ZFS and Btrfs block checksums, database page checksums | Data at rest and in transit to it | By your code |
 
 The CRC is strong but local: each switch and router strips it and generates a fresh one, so corruption *inside* a device (in buffer memory, on a backplane) is covered by a new, valid CRC. From one host's memory to another's, the only end-to-end check below TLS is the weak 16-bit transport checksum, which is the gap Stone and Partridge measured.
 
-This is the **end-to-end argument** (Saltzer, Reed and Clark, 1984): a check inside the network can improve performance, by catching errors early and retransmitting locally, but only a check performed by the endpoints can guarantee correctness, because only they see the whole path. For data you store, compute a checksum where the data is created and verify it where it is consumed. When you upload to S3, send a checksum header so the service verifies what it received against what you computed, and verify again when you read it back.
+This is the **end-to-end argument** (Saltzer, Reed and Clark, 1984): a check inside the network can improve performance, by catching errors early and retransmitting locally, but only a check performed by the endpoints can guarantee correctness, because only they see the whole path. For data you store, compute a checksum where the data is created and verify it where it is consumed. When you upload to S3, the checksum header (sent by default by current AWS SDKs) lets the service verify what it received against what the client computed; verify again when you read it back.
 
 At the transport layer, corruption looks exactly like loss, because the receiver discards a segment whose checksum fails without telling anyone:
 

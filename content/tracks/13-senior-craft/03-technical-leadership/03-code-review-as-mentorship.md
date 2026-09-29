@@ -19,7 +19,7 @@ In priority order:
 3. **Maintainability.** Will the next engineer understand and safely change this?
 4. **Consistency.** Style and conventions, which formatters and linters should enforce, not humans.
 
-Google's public engineering-practices guide states the standard well: approve a change once it definitely improves the overall health of the code, even if it is not perfect. Review is not for proving you are clever, rewriting the change the way you would have written it, or enforcing taste that no document records. Every comment spends the author's time; spend it at the top of the list.
+Google's public [engineering-practices guide](https://google.github.io/eng-practices/review/reviewer/standard.html) states the standard well: reviewers should favour approving a change once it "definitely improves the overall code health" of the system, even if it is not perfect. Review is not for proving you are clever, rewriting the change the way you would have written it, or enforcing taste that no document records. Every comment spends the author's time; spend it at the top of the list.
 
 ## Review in passes
 
@@ -32,7 +32,7 @@ Reading a diff top to bottom mixes design questions with typos and tends to find
 5. **Readability.** Names, structure, comments that explain why.
 6. **Nits.** Label them, or better, leave them to tooling.
 
-Size matters more than skill. A commonly cited guideline, from a published case study of review at Cisco, is to review no more than about 200 to 400 lines at a sitting, because defect-finding drops as the diff grows. Ask for large changes to be split into a stack (refactor, then feature, then cleanup).
+Size matters more than skill. A commonly cited guideline comes from SmartBear's study of a Cisco team: review no more than 200 to 400 lines at a time, over 60 to 90 minutes, and no faster than about 500 lines an hour, because defect-finding drops beyond that ([SmartBear's summary](https://smartbear.com/learn/code-review/best-practices-for-peer-code-review/)). It is one vendor's study of one team, so read the numbers as an order of magnitude, not a threshold. Ask for large changes to be split into a stack (refactor, then feature, then cleanup).
 
 ## Label every comment
 
@@ -44,7 +44,7 @@ Size matters more than skill. A commonly cited guideline, from a published case 
 | `nit:` | Trivial; never blocks | "nit: typo in the log message." |
 | `praise:` | A specific thing done well | "praise: the table-driven test makes the edge cases easy to see." |
 
-Google's guide uses the "Nit:" prefix; the fuller vocabulary above is often called "conventional comments". Praise is not decoration: it tells the author which habits to keep.
+Google's guide asks reviewers to prefix unimportant points with "Nit:". [Conventional Comments](https://conventionalcomments.org/) formalises a fuller vocabulary close to the one above: labels such as `praise`, `nitpick`, `suggestion`, `issue` and `question`, plus `(blocking)` and `(non-blocking)` decorations. Praise is not decoration: it tells the author which habits to keep.
 
 ## A real diff, reviewed twice
 
@@ -180,7 +180,7 @@ for wait_hours in (24, 16, 10, 8, 4, 1):
 | 4 h | 1.75 | 9.1 | 6.4 | Engineering time |
 | 1 h | 1.38 | 11.6 | 6.4 | Engineering time |
 
-Read it two ways. Above about ten working hours, review latency sets the team's output: a three-day wait (24 working hours) leaves the team at 3.8 PRs a day, 41% below what its engineers could write. Below the crossover, faster review stops raising throughput and instead shrinks work in progress: at a one-hour wait the team carries 6.4 × 1.38 ≈ 9 open PRs instead of 16, which means fewer stale branches, fewer conflicts and less context held in people's heads. Google's guide sets one business day as the maximum time to respond, and this arithmetic is one reason why.
+Read it two ways. Above about ten working hours, review latency sets the team's output: a three-day wait (24 working hours) leaves the team at 3.8 PRs a day, 41% below what its engineers could write. Below the crossover, faster review stops raising throughput and instead shrinks work in progress: at a one-hour wait the team carries 6.4 × 1.38 ≈ 9 open PRs instead of 16, which means fewer stale branches, fewer conflicts and less context held in people's heads. Google's guide sets ["one business day"](https://google.github.io/eng-practices/review/reviewer/speed.html) as the maximum time to respond, and this arithmetic is one reason why.
 
 The wait itself grows sharply with reviewer load. Modelled as a single-server queue (M/M/1), the mean wait is $\frac{\rho}{1-\rho}$ times the review time: with 30-minute reviews, a reviewer at 50% utilisation adds a 30-minute wait, at 80% two hours, at 90% four and a half. A senior who does 60% of a team's reviews is running near the right-hand end of that curve.
 
@@ -201,13 +201,13 @@ The diff above was high-risk on two rows at once (auth and async), in a 52-file 
 
 ## Under the hood: how review is enforced
 
-**Branch protection.** Hosting platforms enforce review with repository rules: a required number of approvals, required status checks (CI must pass), and an option to dismiss approvals when new commits are pushed, so an approval covers the code that merges, not an earlier version.
+**Branch protection.** Hosting platforms enforce review with repository rules: a required number of approvals, required status checks (CI must pass), and an option to dismiss approvals when pushed commits change the diff, so an approval covers the code that merges, not an earlier version ([GitHub's protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)).
 
-**Ownership files.** A `CODEOWNERS` file maps path patterns to owners. On GitHub the last matching pattern in the file wins, owners are requested automatically, and a rule can require an owner's approval. Large monorepos use per-directory `OWNERS` files (Chromium's are public) so ownership lives next to the code. Google also runs a "readability" programme, described publicly, in which a change needs approval from someone certified in the language's style, which spreads style knowledge without a style reviewer on every change.
+**Ownership files.** A `CODEOWNERS` file maps path patterns to owners. On [GitHub](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners) the last matching pattern in the file wins, owners are requested automatically, and a rule can require an owner's approval. Large monorepos use per-directory `OWNERS` files so ownership lives next to the code; [Chromium's](https://github.com/chromium/chromium/blob/main/docs/code_reviews.md) are public, apply recursively to subdirectories, and require a positive review from an owner of each directory a change touches. Google also runs a "readability" programme, described in the study below, in which every change must be authored or reviewed by someone certified in the language's style, which spreads style knowledge without a style reviewer on every change.
 
 **Merge queues.** When many PRs merge a day, each passing CI on its own base does not mean they pass together. A merge queue tests each change against the queue ahead of it before merging, trading a little latency for a main branch that stays green.
 
-**What research reports.** A published study of review at Google ("Modern Code Review: A Case Study at Google", 2018) found that most changes there are small, most have one reviewer, and turnaround is typically measured in hours. Small changes and fast turnaround are policies that reinforce each other, as the Little's law table shows.
+**What research reports.** A study of review at Google ([Sadowski et al., "Modern Code Review: A Case Study at Google"](https://sback.it/publications/icse2018seip.pdf), ICSE-SEIP 2018), covering about 9 million reviewed changes, found that most changes are small, fewer than 25% have more than one reviewer, and the median time for the whole review is under 4 hours, with first feedback on small changes in under an hour. Small changes and fast turnaround are policies that reinforce each other, as the Little's law table shows. The same study lists education as one of four things Google developers expect from review (with maintaining norms, gatekeeping and accident prevention), and finds that the average number of comments on an author's changes falls as they gain experience there, which is the trend the mentoring section tells you to watch. An earlier study at Microsoft ([Bacchelli and Bird, ICSE 2013](https://www.microsoft.com/en-us/research/publication/expectations-outcomes-and-challenges-of-modern-code-review/)) found that "while finding defects remains the main motivation for review, reviews are less about defects than expected", with knowledge transfer and team awareness among the other benefits: the shared-understanding purpose at the top of this lesson, measured.
 
 ## Being reviewed, as a senior
 

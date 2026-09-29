@@ -29,11 +29,11 @@ A shared scale decides who is woken up and how much process applies. Severity co
 | SEV3 | Business hours; a ticket; postmortem optional |
 | SEV4 | Ticket; reviewed at the weekly operations meeting |
 
-The thresholds are illustrative; every organisation tunes its own. Two rules make any version work. **Declare early and downgrade freely:** a false alarm costs a few minutes of process, while a late declaration costs uncoordinated responders and silent stakeholders. And **severity follows user impact, not technical interest:** a fascinating kernel bug nobody notices is a SEV4.
+The thresholds are illustrative; every organisation tunes its own. Two rules make any version work. **Declare early and downgrade freely:** a false alarm costs a few minutes of process, while a late declaration costs uncoordinated responders and silent stakeholders. Google's SRE book gives a simple trigger: declare if a second team is needed, if customers can see the problem, or if it is still unsolved after an hour of focused analysis. And **severity follows user impact, not technical interest:** a fascinating kernel bug nobody notices is a SEV4.
 
 ## Roles
 
-The structure comes from the Incident Command System that US emergency services built for large wildfires, adapted for software; PagerDuty's public incident-response documentation is a good modern description.
+The structure comes from the Incident Command System, which Southern California fire agencies developed through the FIRESCOPE programme after the disastrous 1970 fire season ([Cal OES history](https://firescope.caloes.ca.gov/SiteCollectionDocuments/ICS%20History%20and%20Progression.pdf)), adapted for software. Google's SRE book (chapter ["Managing Incidents"](https://sre.google/sre-book/managing-incidents/)) bases its roles on it: incident command, an ops lead whose team is the only one modifying the system, communication, and planning. [PagerDuty's public incident-response documentation](https://response.pagerduty.com/before/different_roles/) cuts the roles differently, with a deputy, a scribe, subject-matter experts and separate customer and internal liaisons. The four below are the common core.
 
 - **Incident commander (IC).** Owns coordination and decisions: priorities, assignments, which mitigation to try, when to escalate or stand down. The IC does *not* debug. The moment the IC starts reading logs, nobody is coordinating.
 - **Operations lead.** Directs the technical investigation and gives specific tasks to the engineers debugging.
@@ -55,7 +55,7 @@ flowchart LR
     M -. "not working" .-> T
 ```
 
-The goal during an incident is to stop user harm, not to find the root cause. The most useful question is **"what changed?"** (deploys, config, flags, traffic, dependencies), because most incidents follow a change. **One change at a time, announced:** two simultaneous mitigations make it impossible to know which worked, and they can interact badly.
+The goal during an incident is to stop user harm, not to find the root cause. The most useful question is **"what changed?"** (deploys, config, flags, traffic, dependencies), because most incidents follow a change: Google's [SRE book](https://sre.google/sre-book/introduction/) reports that "roughly 70% of outages are due to changes in a live system". **One change at a time, announced:** two simultaneous mitigations make it impossible to know which worked, and they can interact badly.
 
 | Mitigation | Time to effect | Risk | Destroys evidence? | Use when |
 |---|---|---|---|---|
@@ -142,7 +142,7 @@ External updates state impact and action in plain language: no internal system n
 
 ## The postmortem, written in full
 
-A postmortem is a written analysis whose goal is learning, not judgement. It is **blameless** for a practical reason: the people closest to a failure know the most about it, and if describing their actions honestly gets them punished, they stop describing them honestly. Google's SRE book (chapter "Postmortem Culture") makes the same argument. Blameless does not mean accountability-free: people are accountable for completing the action items.
+A postmortem is a written analysis whose goal is learning, not judgement. It is **blameless** for a practical reason: the people closest to a failure know the most about it, and if describing their actions honestly gets them punished, they stop describing them honestly. Google's SRE book (chapter ["Postmortem Culture"](https://sre.google/sre-book/postmortem-culture/)) makes the same argument: "an atmosphere of blame risks creating a culture in which incidents and issues are swept under the rug". Blameless does not mean accountability-free: people are accountable for completing the action items.
 
 ### Summary and impact
 
@@ -191,11 +191,11 @@ Follow-through is a mechanism, not a virtue. A weekly operations review walks op
 
 ## Under the hood: paging, rotations and on-call load
 
-**The alert pipeline.** Metrics feed alerting rules; a router (Prometheus Alertmanager is a common open-source one) groups related alerts, suppresses alerts implied by others, and applies silences; a paging service then runs an **escalation policy**: notify the primary, and if nobody acknowledges within a set time (often 5 to 15 minutes), notify the secondary, then a manager. An acknowledged page stops the escalation; an unacknowledged one keeps climbing.
+**The alert pipeline.** Metrics feed alerting rules; a router ([Prometheus Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/) is a common open-source one) groups related alerts, suppresses alerts implied by others that are already firing (inhibition), and applies silences; a paging service then runs an **escalation policy**: notify the primary, and if nobody acknowledges within a set timeout (a per-policy setting; [PagerDuty's default](https://support.pagerduty.com/main/docs/escalation-policies) is 30 minutes), notify the secondary, then a manager. An acknowledged page stops the escalation; an unacknowledged one keeps climbing.
 
-**What should page.** Page on symptoms users feel, when a human must act now. Everything else becomes a ticket. Google's SRE Workbook (chapter "Alerting on SLOs") recommends multi-window burn-rate alerts: page when the error budget is burning at 14.4 times the sustainable rate over an hour (2% of a 30-day budget gone), or 6 times over six hours (5%); open a ticket at about 1 times over three days (10%). A short window confirms the burn is still happening, so the page stops soon after the problem does. The 14:12 page above was a fast-burn alert.
+**What should page.** Page on symptoms users feel, when a human must act now. Everything else becomes a ticket. Google's SRE Workbook (chapter ["Alerting on SLOs"](https://sre.google/workbook/alerting-on-slos/)) recommends multi-window burn-rate alerts: page when the error budget is burning at 14.4 times the sustainable rate over an hour (2% of a 30-day budget gone), or 6 times over six hours (5%); open a ticket at about 1 times over three days (10%). Each long window is paired with a short one a twelfth as long (5 minutes, 30 minutes and 6 hours), and both must be burning for the alert to fire. The short window confirms the burn is still happening, so the page stops soon after the problem does. The 14:12 page above was a fast-burn alert.
 
-**How rotations are sized.** Google's SRE book (chapter "Being On-Call") describes the reasoning behind its guidance: an incident with its follow-up work takes about six hours on average, so a 12-hour shift can absorb about two; a single-site rotation needs about eight engineers so each spends roughly one week a month on call; and on-call should stay a minority of each engineer's time. Beyond that load, responders stop investigating and start silencing.
+**How rotations are sized.** Google's SRE book (chapter "Being On-Call") describes the reasoning behind its guidance: an incident with its follow-up work takes about six hours on average, so a 12-hour shift can absorb about two; a single-site rotation needs at least eight engineers so each spends roughly one week a month on call (six per site for a two-site team); and on-call should take no more than 25% of an SRE's time, with at least 50% left for engineering ([the chapter](https://sre.google/sre-book/being-on-call/)). Beyond that load, responders stop investigating and start silencing.
 
 **Handoffs.** Weekly primary and secondary shifts, a written handoff (open incidents, recent risky changes, noisy alerts), and follow-the-sun rotations across time zones where the team spans them, so nobody is paged at 3 a.m. for work a colleague could do at 11 a.m.
 

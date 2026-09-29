@@ -30,7 +30,7 @@ Choose the leftmost option that solves the problem, and do the arithmetic. Witho
 
 ## Paved roads, not golden cages
 
-Netflix engineers have described in public talks and posts the idea of a **paved road**: a well-supported default path (libraries, templates, deployment tooling, observability) that teams are free to leave, provided they take on the cost of owning whatever they build instead. Mandating a platform and forbidding everything else tends to produce a platform that stops improving, because it has no competition.
+Netflix engineers have described in public talks and posts (the 2018 TechBlog post "Full Cycle Developers at Netflix" among them) the idea of a **paved road**: a well-supported default path (libraries, templates, deployment tooling, observability) that teams are free to leave, provided they take on the cost of owning whatever they build instead. Mandating a platform and forbidding everything else tends to produce a platform that stops improving, because it has no competition.
 
 The principle for any shared solution: **make the right thing the easy thing.** New services generated from the template get the shared client, the standard logging and the default alerts without anyone deciding to. Opting out is allowed and explicit. The platform earns adoption by being better than what teams would build, and you measure it as a product: adoption, time for a new service to reach production, and incidents in the class it was meant to prevent.
 
@@ -60,7 +60,7 @@ And it names the sponsor: the director over all nine teams, who has agreed to de
 
 ## The long tail, with numbers
 
-Organisation-wide migrations tend to have the same shape. Actively maintained services move quickly, because their owners want the improvement. The last 10 to 20% often take as long as the rest together: services owned by teams that were reorganised, services nobody fully understands, and special cases the new system does not support.
+Organisation-wide migrations tend to have the same shape. Actively maintained services move quickly, because their owners want the improvement. A commonly reported pattern is that the last 10 to 20% take as long as the rest together: services owned by teams that were reorganised, services nobody fully understands, and special cases the new system does not support.
 
 Applied to the plan: 25 services migrate themselves in the first eight weeks. The ten unusual ones cost the two-person squad about two weeks per pair, around ten weeks. The final five need a feature or a deletion, and a deletion needs someone with authority to say "this service is dead". Without a funded squad and a sponsor, the migration stalls at about 90% indefinitely, and the organisation now maintains two clients instead of one, which is worse than either. The [migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) lesson covers the technical patterns (strangler fig, dual writes, backfills) that make each individual migration safe.
 
@@ -79,7 +79,7 @@ Four numbers matter more than the rest:
 
 1. **Adoption by traffic, not only by count.** At week 10 the tracker showed 31 of 40 services adopted (77%) but only 58% of outbound calls, because one legacy service that had not moved carried a quarter of all traffic. Count alone would have declared victory while the riskiest caller was still on the old code.
 2. **Time in stage.** A service four weeks in "trial" is stuck, and the blocker is usually not technical: a team with no capacity, or no owner at all.
-3. **The bottleneck stage.** Whichever stage holds the most unfinished services is where the next week's effort goes. In weeks 1–4 it was "aware" (teams had not scheduled it); by week 10 it was "trial" (unusual code).
+3. **The bottleneck stage.** Whichever stage short of adoption holds the most services is where the next week's effort goes. In weeks 1–4 it was "aware" (teams had not scheduled it); by week 10 it was "trial" (unusual code).
 4. **The outcome metric.** Adoption is a means. The end is the incident class: peak load multiplication on a dependency during its slowdowns, which went from up to 9× before to about 1.2× after (the arithmetic is in the RFC). Report both, and lead with the outcome.
 
 The weekly update to the teams is one table (service, owner, stage, weeks in stage, blocker, date) plus one sentence about what changed. Teams that finish get named in it.
@@ -101,11 +101,11 @@ Read it the way a sponsor would. Weeks 2 to 8 are the self-serve segment: the co
 
 ## Conway's law and team boundaries
 
-Systems tend to mirror the communication structure of the organisations that build them, as Melvin Conway observed in 1968. Two teams that rarely talk produce a clumsy interface between their services; one team owning two services tends to couple them. For a senior engineer that has three consequences:
+Systems tend to mirror the communication structure of the organisations that build them. Melvin Conway's [1968 Datamation paper](https://www.melconway.com/Home/Committees_Paper.html) put it as organisations being "constrained to produce designs which are copies of the communication structures of these organizations". Two teams that rarely talk produce a clumsy interface between their services; one team owning two services tends to couple them. For a senior engineer that has three consequences:
 
 - **Cross-team friction is often an architecture signal.** If every feature needs coordinated changes by three teams, the boundaries are probably in the wrong place.
 - **Team design is architecture design.** Organisations can shape teams to get the architecture they want (the "inverse Conway manoeuvre"). *Team Topologies* (Skelton and Pais) names four team types, stream-aligned, platform, enabling and complicated-subsystem, which is useful vocabulary for these conversations.
-- **Platforms need an interaction mode.** A platform team that must be consulted on every change becomes a bottleneck; one that offers self-service with good defaults scales. The adoption plan above is deliberately self-service for 25 of 40 services.
+- **Platforms need an interaction mode.** [Team Topologies](https://teamtopologies.com/key-concepts) names three: collaboration, X-as-a-service and facilitation. A platform team stuck collaborating on every change becomes a bottleneck; one that offers X-as-a-service, self-service with good defaults, scales. The adoption plan above is deliberately self-service for 25 of 40 services.
 
 ## Working with product managers
 
@@ -170,7 +170,7 @@ a time behind a flag.
 | The ask | Implicit | Two explicit asks with a date | An executive's job is to decide |
 | Risk | In a later section | Named, with its mitigation | Surprises cost more trust than bad news |
 
-The same structure holds in a two-minute conversation: "One decision from you. Retries caused the February outage; the fix is agreed and 25 of 40 services can do it alone. The other 15 need two engineers for a quarter, and I need a yes on deleting three dead services by August 1." Amazon's publicly described "working backwards" practice, which starts a project from a press release and FAQ written for the customer, applies the same discipline: write for the reader's decision, not the author's effort.
+The same structure holds in a two-minute conversation: "One decision from you. Retries caused the February outage; the fix is agreed and 25 of 40 services can do it alone. The other 15 need two engineers for a quarter, and I need a yes on deleting three dead services by August 1." Amazon's publicly described "working backwards" practice, which starts a project from a press release and FAQ written for the customer ([Werner Vogels described it in 2006](https://www.allthingsdistributed.com/2006/11/working_backwards.html)), applies the same discipline: write for the reader's decision, not the author's effort.
 
 Managing up is the same skill at a smaller distance: tell your manager about problems while they are small, bring options rather than only problems, and know what your manager is measured on, so your work makes their goals easier to reach. A status update to leadership keeps the shape: a TL;DR with status colour and reason, what changed, risks with mitigations, and one explicit ask. Move to amber the week you see risk, not the week before the date: an executive who sees red without amber first stops trusting the colours.
 
@@ -182,7 +182,7 @@ Managing up is the same skill at a smaller distance: tell your manager about pro
 
 **Staff-level impact is judged by other teams.** Promotion cases at staff level lean on evidence from outside the candidate's team: feedback from the leads who adopted the work, adoption and outcome numbers, and the written trail (RFC, adoption plan, postmortems). An engineer who shipped a library and cannot show who uses it has shown senior scope, not staff scope; [what senior means](/learn/senior-craft/technical-leadership/what-senior-means) covers how packets are read.
 
-**Delivery metrics give the organisation a baseline.** The DORA research programme popularised four: deployment frequency, lead time for changes, change failure rate and time to restore service. Capture before-and-after numbers at the start of the work, not when you write your promotion case.
+**Delivery metrics give the organisation a baseline.** The DORA research programme popularised four: deployment frequency, lead time for changes, change failure rate and time to restore service. The set is version-dependent: DORA renamed the last one failed deployment recovery time in 2023 and added a fifth, deployment rework rate, in 2024 ([DORA's history of the metrics](https://dora.dev/insights/dora-metrics-history/)). Capture before-and-after numbers at the start of the work, not when you write your promotion case.
 
 ## Measuring the impact, and writing it down
 
@@ -216,7 +216,7 @@ Most successful migrations combine the middle two and hold the mandate in reserv
 | Platform nobody uses | Adoption flat after launch; teams keep their own versions | Built before the third real use; solved the platform team's problem | Start from a pattern or library; recruit two teams as design partners |
 | Stalled at 90% | Months at the same count; old and new both maintained | No squad, no sponsor, no deprecation dates | Fund the tail from day one; sponsor decides deletions |
 | Vanity adoption | Tracker says 90%; incidents in the class continue | Counting services, not traffic or outcome | Report adoption by traffic and the outcome metric |
-| Platform as bottleneck | Teams wait weeks for the platform team to act | Consultation interaction mode | Self-service defaults, docs, codemods |
+| Platform as bottleneck | Teams wait weeks for the platform team to act | Collaboration on every change where X-as-a-service was needed | Self-service defaults, docs, codemods |
 | Executive surprise | Project jumps from green to red | Status reported by effort, not risk | Amber when risk appears, with a mitigation and an ask |
 | Mandate backlash | Teams comply minimally and route around the standard | Mandate without evidence or migration help | Evidence, RFC, better reference implementation, then deadlines |
 

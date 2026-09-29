@@ -57,11 +57,11 @@ TcpExtListenOverflows           48213              0.0
 TcpExtListenDrops               48213              0.0
 ```
 
-For a `LISTEN` socket, `Recv-Q` is the accept-queue length and `Send-Q` its limit; `129` against `128` means your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel drops the handshake, the client retransmits its SYN after the initial **one-second** timeout, and connect latency clusters at 1 s and 3 s: check `ListenOverflows` first. (SYN floods target the other queue; **SYN cookies**, on by default, let the server encode the handshake state in its ISN and keep none.)
+For a `LISTEN` socket, `Recv-Q` is the accept-queue length and `Send-Q` its limit; `129` against `128` means your process is not calling `accept()` fast enough, usually because its event loop or thread pool is saturated. The kernel drops the handshake, the client retransmits its SYN after the initial **one-second** timeout, and connect latency clusters at whole seconds (1 s and 3 s from clients on Linux before 6.5, 1, 2 and 3 s from 6.5 on, whose first SYN retries are 1 s apart): check `ListenOverflows` first. (SYN floods target the other queue; **SYN cookies**, on by default, let the server encode the handshake state in its ISN and keep none.)
 
 ### Refused versus silent
 
-A SYN to a port with nothing listening gets an immediate `RST`: `ECONNREFUSED` in one RTT. A SYN into a firewall that drops packets gets nothing, and Linux retransmits it `tcp_syn_retries` times (default 6) with the timeout doubling: 1, 2, 4, 8, 16, 32 seconds, then a final 64-second wait. That is 127 seconds before `ETIMEDOUT`, the "just over two minutes" from the opening. Every client needs its own connect timeout rather than the kernel's.
+A SYN to a port with nothing listening gets an immediate `RST`: `ECONNREFUSED` in one RTT. A SYN into a firewall that drops packets gets nothing, and Linux keeps retransmitting it. Before Linux 6.5 it retransmitted `tcp_syn_retries` times (default 6) with the timeout doubling: 1, 2, 4, 8, 16, 32 seconds, then a final 64-second wait, 127 seconds before `ETIMEDOUT`. Since 6.5, `tcp_syn_linear_timeouts` (default 4) adds four retransmissions at a fixed 1-second spacing before the doubling starts, so the SYN goes out again at 1, 2, 3, 4, 5, 7, 11, 19, 35 and 67 s and the connect fails at 131 s ([kernel documentation](https://docs.kernel.org/networking/ip-sysctl.html)). Either way it is the "just over two minutes" from the opening. Every client needs its own connect timeout rather than the kernel's.
 
 ## Data, cumulative ACKs and delayed ACKs
 
@@ -256,7 +256,7 @@ Flow control converges on the reader's pace (20 KiB per round trip), and a pause
 
 Three production consequences:
 
-- **The receiver's buffer is the window.** Linux autotunes the receive buffer between the bounds in `net.ipv4.tcp_rmem` (the default maximum on recent kernels is about 6 MB). If an application sets `SO_RCVBUF` explicitly, autotuning is switched off for that socket, and a "tuned" 256 KB buffer can cap a cross-region transfer far below what the default would have reached. Cross-region replication that is mysteriously slow with no loss is usually a window, not a link.
+- **The receiver's buffer is the window.** Linux autotunes the receive buffer between the bounds in `net.ipv4.tcp_rmem` (the default maximum depends on RAM: up to 6 MB before Linux 6.16, up to 32 MB since). If an application sets `SO_RCVBUF` explicitly, autotuning is switched off for that socket, and a "tuned" 256 KB buffer can cap a cross-region transfer far below what the default would have reached. Cross-region replication that is mysteriously slow with no loss is usually a window, not a link.
 - **Zero window.** A receiver that stops reading (a stalled consumer, a full disk, a garbage collection pause) advertises `win 0`. The sender stops and sends periodic **zero-window probes** until the window reopens. In a capture, `win 0` from one side means that side's application is the bottleneck; the network is idle and innocent.
 - **Send-Q and Recv-Q tell you who is slow.** On an established socket, `Recv-Q` in `ss` is bytes received but not yet read by your process, and `Send-Q` is bytes not yet acknowledged by the peer. Growing `Recv-Q` means your application is slow; growing `Send-Q` means the peer or the path is.
 
@@ -369,7 +369,7 @@ CLOSE_WAIT means the peer has sent FIN, the kernel has ACKed it, and your applic
 
 ### The idle-timeout race
 
-An AWS Application Load Balancer keeps idle connections for 60 seconds by default; Node's HTTP server closes idle keep-alive connections after 5 (`keepAliveTimeout`). The backend's FIN can cross the balancer's next request on the same connection, and that request becomes a 502. Every hop's idle timeout must be longer than the one in front of it, so the client side of each connection always closes first.
+An AWS Application Load Balancer keeps idle connections for 60 seconds by default; Node's HTTP server, in current releases, closes idle keep-alive connections after about 5 (`keepAliveTimeout` is 5 s, plus a 1 s `keepAliveTimeoutBuffer` since Node 22.19 and 24.6; Node's development branch raises the default to 65 s). The backend's FIN can cross the balancer's next request on the same connection, and that request becomes a 502. Every hop's idle timeout must be longer than the one in front of it, so the client side of each connection always closes first.
 
 ## Reading a live connection with `ss -ti`
 
@@ -410,7 +410,7 @@ That connection is limited by congestion, not by the receiver: even a fraction o
 
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
-| Accept-queue overflow | Connect latency clusters at 1 s and 3 s under load | `ss -lnt` Recv-Q at the limit; `ListenOverflows` rising | Accept faster (event loop or pool saturation), raise backlog and `somaxconn` |
+| Accept-queue overflow | Connect latency clusters at whole seconds (1 s, then 2 or 3 s) under load | `ss -lnt` Recv-Q at the limit; `ListenOverflows` rising | Accept faster (event loop or pool saturation), raise backlog and `somaxconn` |
 | Nagle and delayed ACK | Requests take a flat 40 ms (Linux peer) or 200 ms (Windows peer) regardless of load | Capture shows the second small write waiting for an ACK | One write per message, or `TCP_NODELAY` |
 | Ephemeral port exhaustion | `EADDRNOTAVAIL` on connect above a fixed rate to one destination | `ss -tan state time-wait` count near the port range; rate ≈ ports / 60 | Keep-alive pooling; server closes first; more destination or source addresses |
 | CLOSE_WAIT leak | File descriptors climb until `EMFILE` | Thousands of sockets in CLOSE_WAIT, owned by your process | Close responses and sockets on every path |
@@ -439,13 +439,13 @@ That connection is limited by congestion, not by the receiver: even a fraction o
 
 - Treating `tcp_fin_timeout` as the TIME_WAIT duration; on Linux TIME_WAIT is a compiled-in 60 seconds.
 - Setting `SO_RCVBUF` "for performance", which disables autotuning and caps long-distance throughput.
-- Relying on the kernel's defaults for dead peers: 127 seconds to fail a connect, about 15 minutes to fail a write, two hours to the first keepalive.
+- Relying on the kernel's defaults for dead peers: over two minutes to fail a connect (127 s, or 131 s since Linux 6.5), about 15 minutes to fail a write, two hours to the first keepalive.
 - Splitting one message across several small writes and then chasing a 40 ms latency mode in the wrong layer.
 - Reading `Send-Q` and `Recv-Q` backwards: growing `Recv-Q` means your application is slow to read; growing `Send-Q` means the peer or the path is slow.
 
 ## Senior signals
 
-- You read a TCP problem as a state-machine question: which side is in which state, and which timer or queue is involved. Connection latency at exactly 1 s and 3 s is a full accept queue; 40 ms or 200 ms is Nagle plus delayed ACK; two minutes is SYNs into a silent firewall.
+- You read a TCP problem as a state-machine question: which side is in which state, and which timer or queue is involved. Connection latency at exact whole seconds (1 s, then 2 or 3 s) is a full accept queue; 40 ms or 200 ms is Nagle plus delayed ACK; two minutes is SYNs into a silent firewall.
 - You know TIME_WAIT is on the side that closes first, can derive the roughly 470 connections per second per destination limit, and fix it with connection reuse rather than `tcp_tw_recycle` or RST-on-close.
 - You treat CLOSE_WAIT build-up as an application resource leak, not a kernel tuning problem.
 - You set connect, request and idle timeouts explicitly, and you order idle timeouts so each hop's is longer than the one in front of it.
@@ -472,7 +472,7 @@ That connection is limited by congestion, not by the receiver: even a fraction o
   options: ["Host B advertises a much larger receive window than A", "Host A has SYN cookies enabled and B does not", "A has no listener and sends RST; B's SYNs are silently dropped", "Host B is overloaded and cannot accept new connections"]
   answer: 2
   explanation: >-
-    A port with no listener makes the kernel reply with RST, which produces ECONNREFUSED in one RTT. A firewall or security group that drops SYNs silently produces SYN retransmissions at 1, 2, 4, 8, 16 and 32 seconds and a final wait until tcp_syn_retries is exhausted, about 127 seconds on Linux defaults. An overloaded host would still answer or overflow its queue, not fail at a fixed two minutes. That is why clients need an explicit connect timeout.
+    A port with no listener makes the kernel reply with RST, which produces ECONNREFUSED in one RTT. A firewall or security group that drops SYNs silently produces SYN retransmissions with growing gaps until the retry budget is exhausted, about 127 seconds on Linux defaults before 6.5 and 131 seconds since. An overloaded host would still answer or overflow its queue, not fail at a fixed two minutes. That is why clients need an explicit connect timeout.
 - q: >-
     Your service has 9,000 sockets in CLOSE_WAIT and is approaching its file-descriptor limit. Which statement is true?
   options: ["The kernel will reap CLOSE_WAIT sockets after 60 s", "Your code received FIN but never called close()", "Nagle's algorithm is holding the sockets' final FIN", "Peers never sent their final ACK; shorten TIME_WAIT"]

@@ -244,7 +244,7 @@ hints:
 - **Field numbers 1 to 15 have one-byte tags**; 16 to 2,047 take two. Give the hottest fields the small numbers. Valid numbers run to 536,870,911, with 19,000 to 19,999 reserved.
 - **Defaults are not sent.** In proto3 a scalar equal to its zero value (0, `""`, `false`) is omitted, so the receiver cannot tell zero from unset: a `discount_percent` of 0 and a missing discount look identical. Declare the field `optional` (explicit presence, accepted in proto3 without an experimental flag since protobuf 3.15) or use a wrapper message when the difference matters.
 - **Repeated scalars are packed** in proto3: `seasons` cost 8 bytes packed, and would cost 9 as three tagged varints; the gap grows with the list. Parsers accept either form.
-- **Order and duplicates.** Encoders usually write fields in number order, but parsers accept any order; for a repeated scalar field the last value wins, and nested messages merge. Concatenating two encoded messages therefore merges them, which some systems use to patch messages without decoding.
+- **Order and duplicates.** Encoders usually write fields in number order, but parsers accept any order; when a singular scalar field appears twice the last value wins, repeated fields append, and nested messages merge ([encoding guide](https://protobuf.dev/programming-guides/encoding/)). Concatenating two encoded messages therefore merges them, which some systems use to patch messages without decoding.
 
 ```exercise
 id: protobuf-encode-message
@@ -440,7 +440,7 @@ Clients can retry automatically from a service config:
  "retryThrottling": {"maxTokens": 10, "tokenRatio": 0.1}}
 ```
 
-`maxAttempts` includes the first call and clients cap it at 5. `retryThrottling` is the retry budget: the client holds 10 tokens, each failure costs 1, each success earns 0.1, and retries stop while tokens are at or below half (5). In a total outage retrying stops after five failures, so retries cannot triple the load on a service that is already down, and they resume only once successes, each worth a tenth of a failure, lift the count back above 5. Hedging (`hedgingPolicy`) sends a second copy after a delay and keeps the first answer, trading extra load for tail latency, and is only for idempotent methods.
+`maxAttempts` includes the first call and clients cap it at 5. The wait before retry $n$ is $\min(\text{initialBackoff} \times \text{multiplier}^{n-1}, \text{maxBackoff}) \times U(0.8, 1.2)$ ([gRFC A6](https://github.com/grpc/proposal/blob/master/A6-client-retries.md)): with the config above, about 50 ms and then 100 ms, each within ±20%, which spreads clients apart but less than full jitter would. `retryThrottling` is the retry budget: the client holds 10 tokens, each failure costs 1, each success earns 0.1, and retries stop while tokens are at or below half (5). In a total outage retrying stops after five failures, so retries cannot triple the load on a service that is already down, and they resume only once successes, each worth a tenth of a failure, lift the count back above 5. Hedging (`hedgingPolicy`) sends a second copy after a delay and keeps the first answer, trading extra load for tail latency, and is only for idempotent methods.
 
 ```viz
 {"type": "system", "scenario": "retry-backoff", "title": "Retries with exponential backoff", "caption": "Each retry waits longer than the last, with jitter so that clients do not retry in lockstep. A retry budget caps the extra load when every call is failing."}

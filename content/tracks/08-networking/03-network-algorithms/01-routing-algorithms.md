@@ -9,7 +9,7 @@ problems: []
 ---
 A packet leaving your laptop for a server on another continent crosses somewhere between ten and twenty routers, none of which has a complete picture of the internet, and none of which agreed on anything with the others in advance. Each one looks at the destination address, consults a table, and forwards. The whole question of routing is: how do those tables get filled in so that a sequence of independent local decisions adds up to a path that arrives, and keeps arriving when a link goes down at 3 a.m.?
 
-There are three answers in production, and you already know the algorithms behind two of them. Link-state routing (OSPF, IS-IS) floods a map of the network to every router and has each one run Dijkstra. Distance-vector routing (RIP, and EIGRP with repairs) is Bellman-Ford executed by gossip between neighbours. Path-vector routing (BGP) is distance-vector with the whole path attached, so that policy can override distance. Which one is in play tells you how fast a failure heals, what the failure looks like, and why "shortest" is not what the internet optimises. This lesson runs all of them on the same five routers, so you can compare the traces line by line.
+There are three answers in production, and you already know the algorithms behind two of them. Link-state routing (OSPF, IS-IS) floods a map of the network to every router and has each one run Dijkstra. Distance-vector routing (RIP, and EIGRP with repairs) is Bellman-Ford executed by gossip between neighbours. Path-vector routing (BGP) is distance-vector with the whole path attached, so that policy can override distance. Which one is in play tells you how fast a failure heals, what the failure looks like, and why "shortest" is not what the internet optimises. All three run below on the same five routers, so you can compare the traces line by line.
 
 ## The forwarding table is the output, not the algorithm
 
@@ -30,13 +30,7 @@ Destination        Next hop        Interface   Metric
 0.0.0.0/0          192.0.2.1       eth2        -
 ```
 
-A packet for 10.2.3.4 matches both `10.0.0.0/8` and `10.2.0.0/16`; the longer prefix wins, whatever the metrics say. The protocols differ in *what information they exchange* and *who does the computation*, and that single distinction explains almost every property below.
-
-| Family | What is exchanged | Who computes | Bad-news convergence | Examples |
-|---|---|---|---|---|
-| Link-state | Every link and its cost | Every router, independently, via Dijkstra | Detection + flooding + SPF: sub-second when tuned | OSPF, IS-IS |
-| Distance-vector | Your own best distance to each destination | Each router, from neighbours' vectors | Count to infinity: minutes | RIP, EIGRP (with DUAL) |
-| Path-vector | Distances plus the list of ASes on the path | Each router, by policy | Path exploration: tens of seconds to minutes | BGP |
+A packet for 10.2.3.4 matches both `10.0.0.0/8` and `10.2.0.0/16`; the longer prefix wins, whatever the metrics say. The protocols differ in *what information they exchange* and *who does the computation*, and that single distinction explains almost every property below (the comparison table near the end collects them).
 
 ## One topology for every algorithm
 
@@ -57,7 +51,7 @@ The right answers, which every algorithm below must reproduce: from A, the cheap
 Every link-state router does three things:
 
 1. **Discover neighbours** with hello packets on each interface. OSPF defaults are a hello every 10 s and a neighbour declared dead after 40 s without one on broadcast links; Bidirectional Forwarding Detection (BFD) cuts detection to about 150 ms with three missed 50 ms probes.
-2. **Flood a link-state advertisement** (LSA) describing its own links and costs to every router in the area. Each LSA carries a sequence number; a router that receives a newer LSA installs it, acknowledges it, and re-floods it on every interface except the one it arrived on. An equal or older copy is acknowledged and dropped.
+2. **Flood a link-state advertisement** (LSA) describing its own links and costs to every router in the area. Each LSA carries a sequence number; a router that receives a newer LSA installs it, acknowledges it, and re-floods it on every interface except the one it arrived on. A duplicate is acknowledged and dropped; for an older copy, the router sends its newer one back.
 3. **Run Dijkstra** from itself over the resulting **link-state database** (LSDB), which is identical on every router, and install the first hop of each shortest path in the FIB.
 
 ### SPF from A, traced
@@ -100,7 +94,7 @@ Seven transmissions, every router updated in two hops. A flood crosses each link
 
 ### Where the convergence time goes
 
-Convergence is detection, plus flooding, plus a deliberate SPF delay, plus FIB programming. The algorithm is the cheap part: on this machine a pure-Python heap Dijkstra takes 0.05 ms on a 100-router, 400-link graph and 0.7 ms on 1,000 routers and 4,000 links (measured, averaged over 20 runs). Router implementations in C are faster still. What costs time is the 40 s dead interval when a failure does not raise loss of signal, the SPF throttle (vendors wait tens of milliseconds before the first run so that a burst of LSAs is batched, then back off towards seconds while a link keeps flapping), and writing thousands of changed prefixes into hardware.
+Convergence is detection, plus flooding, plus a deliberate SPF delay, plus FIB programming. The algorithm is the cheap part: on this machine a pure-Python heap Dijkstra takes 0.05 ms on a 100-router, 400-link graph and 0.7 ms on 1,000 routers and 4,000 links (measured, averaged over 20 runs). What costs time is the 40 s dead interval when a failure does not raise loss of signal, the SPF throttle (an initial delay that batches a burst of LSAs, 0 ms in FRRouting and 200 ms in Junos by default, then a hold time that backs off to 5 s in both while a link keeps flapping), and writing thousands of changed prefixes into hardware.
 
 ### OSPF areas: link-state inside, distance-vector between
 
@@ -185,11 +179,11 @@ Thirteen rounds. With RIP's 30 s periodic updates that is six and a half minutes
 | 6 | 14 | 16 | 16 | 16 | |
 | 7 | 16 | 16 | 16 | 16 | converged |
 
-Seven rounds instead of thirteen, and still a loop. Split horizon only stops a router from echoing a route to the neighbour it came from, which kills two-router loops. The loop above runs through three routers, and each one's advertisement is legitimate from where it stands. The fixes add information: a **hold-down** timer (ignore any new route to a destination for a while after it goes unreachable; 180 s by default in Cisco's RIP), triggered updates (send on change instead of waiting 30 s), or EIGRP's **DUAL**, which accepts a new next hop only if that neighbour's own distance is strictly less than the router's previous best (the *feasibility condition*, which guarantees the neighbour's path does not run back through you) and otherwise queries its neighbours before using it. The general lesson reaches well beyond routers: any system that forwards second-hand claims without provenance can turn one stale fact into a persistent loop, which is also a gossip and cache-invalidation bug.
+Seven rounds instead of thirteen, and still a loop. Split horizon only stops a router from echoing a route to the neighbour it came from, which kills two-router loops. The loop above runs through three routers, and each one's advertisement is legitimate from where it stands. The fixes add information: a **hold-down** timer (ignore any new route to a destination for a while after it goes unreachable; 180 s by default in Cisco's RIP), triggered updates (send on change instead of waiting 30 s), or EIGRP's **DUAL**, which accepts a new next hop only if that neighbour's own distance is strictly less than the router's previous best (the *feasibility condition*, which guarantees the neighbour's path does not run back through you) and otherwise queries its neighbours before using it. Any system that forwards second-hand claims without provenance, gossip and cache invalidation included, can turn one stale fact into a persistent loop.
 
 ## Path-vector: BGP and the primacy of policy
 
-The internet is roughly seventy-five thousand **autonomous systems** (ASes), each a network under one administration: an ISP, a cloud, a university, Netflix's AS2906. Inside an AS, OSPF or IS-IS computes shortest paths. Between ASes nobody will flood their topology to a competitor, there is no common metric, and the goal is not "shortest": an ISP wants traffic to go where it earns money or where a contract says it must. BGP keeps distance-vector's structure and fixes its loop problem with one change: each advertisement carries the **list of ASes it has passed through**, and an AS that sees its own number in an incoming `AS_PATH` discards the route. There is no count-to-infinity because the path itself proves where the route has been.
+The IPv4 internet held roughly 78,000 **autonomous systems** (ASes) at the start of 2026, each a network under one administration: an ISP, a cloud, a university, Netflix's AS2906. Inside an AS, OSPF or IS-IS computes shortest paths. Between ASes nobody will flood their topology to a competitor, there is no common metric, and the goal is not "shortest": an ISP wants traffic to go where it earns money or where a contract says it must. BGP keeps distance-vector's structure and fixes its loop problem with one change: each advertisement carries the **list of ASes it has passed through**, and an AS that sees its own number in an incoming `AS_PATH` discards the route. There is no count-to-infinity because the path itself proves where the route has been.
 
 ```viz
 {"type": "network", "scenario": "bgp-path", "title": "AS_PATH growing as a route propagates between ASes"}
@@ -250,7 +244,7 @@ BGP is slow on purpose. RFC 4271 suggests a minimum route advertisement interval
 
 ### Hijacks, leaks and RPKI
 
-A hijack is an AS announcing a prefix it does not own. Longest-prefix match wins in every FIB, so announcing a more-specific `/24` of someone's `/22` attracts their traffic worldwide within minutes. In 2008 an ISP announced a more-specific of YouTube's prefix to block it domestically, the announcement leaked upstream, and the site was unreachable for much of the world for about two hours. **RPKI** is the deployed defence: prefix holders publish signed Route Origin Authorisations saying which AS may originate a prefix and up to what length, and validating routers drop announcements that fail. It checks the origin only, not the path; path validation (ASPA, BGPsec) is still being deployed, and coverage of both is partial and growing.
+A hijack is an AS announcing a prefix it does not own. Longest-prefix match wins in every FIB, so announcing a more-specific `/24` of someone's `/22` attracts their traffic worldwide within minutes. In 2008 an ISP announced a more-specific of YouTube's prefix to block it domestically, the announcement leaked upstream, and the site was unreachable for much of the world for about two hours. **RPKI** is the deployed defence: prefix holders publish signed Route Origin Authorisations saying which AS may originate a prefix and up to what length, and validating routers drop announcements that fail. It checks the origin only, not the path. Path validation is at an early stage: BGPsec (RFC 8205) is standardised but rarely deployed, and ASPA was still an IETF draft in 2026.
 
 ## Anycast: routing as a load balancer
 
@@ -265,7 +259,7 @@ The wire formats are small and old:
 | Protocol | Transport | Timers (defaults) | Notable detail |
 |---|---|---|---|
 | RIP v2 | UDP 520 | Update 30 s, route timeout 180 s, garbage collection 120 s | Metric 1–15, 16 = infinity, 25 routes per message |
-| OSPF v2 | IP protocol 89, multicast 224.0.0.5 and .6 | Hello 10 s, dead 40 s, retransmit 5 s, LSA refresh 30 min, MaxAge 1 h | 20-byte LSA header: age, type, link-state ID, advertising router, sequence number, a 16-bit Fletcher checksum, length |
+| OSPF v2 | IP protocol 89, multicast 224.0.0.5 and .6 | Hello 10 s, dead 40 s, retransmit 5 s, LSA refresh 30 min, MaxAge 1 h | 20-byte LSA header: age, options, type, link-state ID, advertising router, sequence number, a 16-bit Fletcher checksum, length |
 | BGP-4 | TCP 179 | Hold time 90 s suggested by RFC 4271, 180 s common; keepalive a third of it | UPDATE messages carry withdrawals, attributes and prefixes; BFD for fast failure detection |
 
 The Fletcher checksum on every LSA is the kind of check covered in [Error detection](/learn/networking/network-algorithms/error-detection): a corrupted LSA installed in every router's database would give everyone the same wrong map.
@@ -278,7 +272,7 @@ The Fletcher checksum on every LSA is the kind of check covered in [Error detect
 | Microloops | Bursts of loss and TTL-exceeded messages for tens to hundreds of milliseconds after every topology change | Routers install their new FIBs at different moments; one uses the new path through a neighbour still using the old one back | Loop-free alternates or TI-LFA (precomputed backup next hops), ordered FIB updates |
 | Adjacency stuck in EXSTART or EXCHANGE | Two OSPF neighbours never reach FULL; the routes behind them are missing | Interface MTU mismatch: the larger side's database description packets are dropped by the smaller side | Match the MTUs (ignoring MTU in OSPF is a stopgap that hides the real mismatch) |
 | Route leak or hijack | Traffic to a prefix suddenly crosses an unexpected AS, with added latency and loss | Public BGP collectors and looking glasses show an unexpected origin or a more-specific prefix | RPKI origin validation, customer prefix filters, max-prefix limits on sessions, announcing your own more-specifics during the incident |
-| FIB exhaustion | Routers log hardware table exhaustion and some prefixes become unreachable or fall back to slow software forwarding | Route count exceeds the TCAM partition: on 12 August 2014 the global IPv4 table crossed 512,000 routes, the default IPv4 allocation on some widely deployed platforms | Re-partition the hardware table, filter or aggregate, carry a default route instead of the full table |
+| FIB exhaustion | Routers log hardware table exhaustion and some prefixes become unreachable or fall back to slow software forwarding | Route count exceeds the TCAM partition: in August 2014 the global IPv4 table passed 512,000 routes, the default IPv4 allocation on Cisco's widely deployed Catalyst 6500 and 7600 (Sup720) | Re-partition the hardware table, filter or aggregate, carry a default route instead of the full table |
 
 ## The three algorithms as one table
 
@@ -288,7 +282,7 @@ The Fletcher checksum on every LSA is the kind of check covered in [Error detect
 | Loop prevention | Consistent SPF on an identical database | None inherent; split horizon, hold-down, hop cap | Own AS in `AS_PATH` |
 | Bad-news convergence | Detection + flooding + SPF, tens to hundreds of ms when tuned | Count to infinity, minutes | Path exploration, tens of seconds to minutes |
 | Metric | Additive link cost | Hop count | Policy ladder, then AS count |
-| Scale limit | LSDB size and SPF per area | 15 hops | Global table (about a million IPv4 prefixes in the mid-2020s) and update churn |
+| Scale limit | LSDB size and SPF per area | 15 hops | Global table (about 1.05 million IPv4 prefixes at the start of 2026) and update churn |
 | Trust model | One administrator | One administrator | Adversarial; RPKI covers origin |
 
 ## Interviewer follow-ups
@@ -308,7 +302,6 @@ The Fletcher checksum on every LSA is the kind of check covered in [Error detect
 - **Equating hops with distance.** On the lesson's topology the fewest-hop path to E costs 9 and the cheapest costs 7; OSPF follows cost.
 - **Assuming BGP picks the shortest or fastest path.** `LOCAL_PREF` overrides `AS_PATH`, and `AS_PATH` counts ASes, not milliseconds or hops.
 - **Believing split horizon prevents all loops**, then being surprised by a three-router loop that counts to 16.
-- **Timing convergence by the algorithm.** Dead intervals, SPF throttles and FIB programming dominate; the Dijkstra run is a millisecond.
 - **Reading traceroute as the path of your packets.** ECMP sends probes and flows on different paths, return paths differ, and routers deprioritise replies to probes.
 - **Putting long-lived TCP on anycast without a plan** for connections that move when a BGP route changes.
 
@@ -386,7 +379,6 @@ hints:
 ## Senior signals
 
 - You name the family before debugging a routing incident: "that's a link-state domain, so five minutes to reroute means detection or a hold-down timer, not the algorithm" versus "that's BGP, so three minutes of path exploration is normal".
-- You can trace SPF and a distance-vector count to infinity on the same whiteboard topology, and show why split horizon misses a three-router loop.
 - You know OSPF is link-state inside an area and distance-vector between areas, and that the area-0 hub rule is what keeps summaries from looping.
 - You can run the BGP decision process on a set of routes, say why `LOCAL_PREF` beats `AS_PATH`, and know `MED` is compared only between routes from the same neighbouring AS.
 - You explain asymmetric routing from hot-potato exits and independent policies, and you ask for traceroute from both ends.

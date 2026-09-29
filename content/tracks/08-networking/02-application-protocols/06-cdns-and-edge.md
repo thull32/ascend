@@ -22,14 +22,14 @@ A CDN is a distributed cache with a routing layer in front and a hierarchy behin
 ## Getting the user to an edge: anycast and DNS
 
 - **DNS-based steering.** Your hostname is a `CNAME` to the CDN, whose authoritative DNS answers with addresses of a PoP near the querying resolver. It gives fine control (per-PoP load, health, cost), with the resolver-location blind spot from [DNS](/learn/networking/fundamentals/dns) and failover bounded by TTLs.
-- **Anycast.** Every PoP announces the same prefix over BGP and routing delivers each client to a nearby one ([IP addressing and routing](/learn/networking/fundamentals/ip-addressing-and-routing)). Failover is a route withdrawal, in seconds; the cost is less control, and a route change can move a long-lived TCP flow to a PoP that has never seen it.
+- **Anycast.** Every PoP announces the same prefix over BGP and routing delivers each client to a nearby one ([IP addressing and routing](/learn/networking/fundamentals/ip-addressing-and-routing)). Failover is a route withdrawal, as fast as BGP converges rather than bounded by DNS TTLs; the cost is less control, and a route change can move a long-lived TCP flow to a PoP that has never seen it.
 
 *Measured:* `example.com` resolved to Cloudflare anycast addresses. An HTTP/1.1 request to `104.20.23.154` was answered by the Los Angeles PoP (`cf-ray` ending `-LAX`) with `Age: 10242` and `cf-cache-status: HIT`; a request to the **same IP** a minute later was answered by Dallas (`-DFW`) with `Age: 5`. Routing had moved between the two, and the two PoPs held independent copies, one 2.8 hours old and one 5 seconds old. Later, two requests to DFW on one connection, 0.2 s apart, carried `Age: 4` and then `Age: 0`, consistent with several cache servers or a refresh inside one PoP. `Age` describes one copy in one cache, so "the CDN has it" is always "some PoPs have some copies".
 
 | | DNS steering | Anycast |
 |---|---|---|
 | Granularity | Per resolver, per query | Per BGP route |
-| Failover time | DNS TTL plus client caching | Route withdrawal, seconds |
+| Failover time | DNS TTL plus client caching | Route withdrawal, as fast as BGP converges |
 | Load control | Fine: answer with any PoP | Coarse: shift by changing announcements |
 | Failure mode | Users routed by their resolver's location | Mid-connection route change breaks long TCP flows |
 
@@ -68,7 +68,7 @@ If a PoP spread requests randomly over its servers, every popular object would e
 {"type": "system", "scenario": "consistent-hashing", "nodes": 4, "keys": ["/trailers/42", "/img/poster-7.jpg", "/js/app.3f9a.js", "/api/rows?page=1", "/video/seg-0042.m4s", "/css/site.81c.css"], "title": "Mapping cache keys to servers inside a PoP", "caption": "Each key is owned by the next server clockwise. Adding a server moves only the keys between it and its predecessor; every other server keeps its cache warm."}
 ```
 
-The cost is a hot key: one viral object lands on one server. CDNs detect hot objects and replicate them to several servers in the PoP, which is the exception that keeps the rule.
+Fastly's [clustering documentation](https://www.fastly.com/documentation/guides/full-site-delivery/fastly-vcl/clustering-in-vcl/) describes this layout concretely. A request lands on a random *delivery* server, which hashes the cache key and hands the request to the one *fetch* server that owns that part of the key space; the fetch server goes to the origin and stores the object. Without this, an object would have to be cached on every server in the PoP before a hit was guaranteed. The cost is a hot key: one viral object lands on one server. Fastly's answers are that copies may also sit on other servers, where they are evicted more aggressively than on the owner, and that for an exceptionally popular object each delivery server forwards one request to the fetch server, which collapses them into a single origin fetch: coalescing at two levels inside one PoP.
 
 ## Request coalescing, traced
 
@@ -155,13 +155,13 @@ hints:
 
 ## Cache keys: the silent hit-ratio killer
 
-By default a CDN's cache key is roughly scheme, host, path and the full query string, plus the values of request headers named in the response's `Vary`. nginx's default `proxy_cache_key` is `$scheme$proxy_host$request_uri`. Anything that makes two equivalent requests produce different keys splits the cache:
+Defaults differ by vendor, and the default is what bites. Cloudflare's default key is the scheme, host, path and full query string (plus a few request headers such as `Origin`), and it ignores `Vary` apart from `Accept-Encoding` unless configured to honour it. Fastly hashes the URL with its query string plus `Host`, and honours `Vary` by storing variants of one object. CloudFront builds the key from a cache policy, and its recommended `CachingOptimized` policy leaves query strings and cookies out entirely, which invites the opposite mistake: a parameter that does change the response serves one variant to everyone. nginx's default `proxy_cache_key` is `$scheme$proxy_host$request_uri`. Anything that makes two equivalent requests produce different keys splits the cache:
 
 | Fragmenter | Example | Fix |
 |---|---|---|
 | Tracking parameters | `?utm_source=mail&utm_id=8f3` | Allowlist the parameters that change the response |
 | Parameter order and case | `?a=1&b=2` versus `?b=2&a=1` | Sort parameters, lowercase the host |
-| `Vary: User-Agent` | Thousands of distinct strings | Normalise to a device class at the edge and vary on that |
+| `Vary: User-Agent` where the CDN honours it | Thousands of distinct strings | Normalise to a device class at the edge and vary on that |
 | `Vary: Cookie`, cookies in the key | One entry per session | Strip cookies on cacheable paths |
 | Per-user experiment flags | A/B flag in a cookie | Put the bucket, not the user, in the key |
 
@@ -289,10 +289,10 @@ Purging is the slow, expensive and error-prone way to change cached content:
 
 1. **Versioned URLs for static assets.** A content hash in the filename (`app.3f9a.js`) with `Cache-Control: public, max-age=31536000, immutable` never needs invalidating; the short-TTL HTML decides which names are current.
 2. **Short TTLs with `stale-while-revalidate`** for content that changes on its own schedule: at most one TTL stale, one refresh per TTL per key, nobody waiting.
-3. **Purge by tag** for content that must change now. The origin tags responses (`Surrogate-Key: title-42 genre-drama` or `Cache-Tag`, by vendor) and one purge of `title-42` invalidates every page mentioning title 42, where purge-by-URL would need every URL listed, including variants you do not know about.
+3. **Purge by tag** for content that must change now. The origin tags responses (`Surrogate-Key: title-42 genre-drama` at Fastly, `Cache-Tag` at Cloudflare; CloudFront added tag invalidation in April 2026, with a header name you configure) and one purge of `title-42` invalidates every page mentioning title 42, where purge-by-URL would need every URL listed, including variants you do not know about.
 4. **Soft purge** where supported: mark stale instead of deleting, so the edge revalidates but can still serve the old copy if the origin struggles.
 
-Purges propagate to every PoP in time that vendors quote from well under a second to seconds, depending on the provider and the purge type, so a correction is not visible everywhere at the same moment and a purge followed immediately by a check from one location proves little. The failure to design against is the **purge storm**: a hard purge of a hot object, or of everything, makes every PoP miss at once, and without coalescing and a shield it is a self-inflicted outage timed to your deploy.
+Purges propagate to every PoP in times that vendors quote from well under a second to seconds, depending on the provider and the purge type. Fastly documents about 150 ms for URL and surrogate-key purges and up to 2 minutes for a purge-all; Cloudflare [reported](https://blog.cloudflare.com/instant-purge/) a median under 150 ms for tag, hostname and prefix purges in 2024; CloudFront states that invalidations take effect within 5 s at the 95th percentile. A correction is therefore not visible everywhere at the same moment, and a purge followed immediately by a check from one location proves little. The failure to design against is the **purge storm**: a hard purge of a hot object, or of everything, makes every PoP miss at once, and without coalescing and a shield it is a self-inflicted outage timed to your deploy.
 
 ## Under the hood: a CDN node
 
@@ -303,18 +303,18 @@ Commercial CDNs run their own software, but nginx and Varnish expose the same me
 | Cache key | `proxy_cache_key` (default `$scheme$proxy_host$request_uri`) | `vcl_hash`: URL plus Host by default |
 | Coalescing | `proxy_cache_lock` (off by default) | Built in: a waiting list per object |
 | Serve stale while refreshing | `proxy_cache_use_stale updating` + `proxy_cache_background_update` | `grace` |
-| Serve stale on error | `proxy_cache_use_stale error timeout http_5xx` | `grace` with a failing backend |
+| Serve stale on error | `proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504` | `grace` with a failing backend |
 | TTL override | `proxy_cache_valid` | `beresp.ttl` in `vcl_backend_response` |
 
-Both cache errors if told to: `proxy_cache_valid 404 1m` caches not-found responses (negative caching), which protects the origin from repeated lookups of missing objects and also keeps a wrongly returned 404 alive for a minute. Storage is a mix of memory for hot objects and SSD for the long tail, with eviction by LRU variants ([LRU cache](/learn/advanced-data-structures/caches-and-eviction/lru-cache)).
+Both cache errors if told to: `proxy_cache_valid 404 1m` caches not-found responses (negative caching), which protects the origin from repeated lookups of missing objects and also keeps a wrongly returned 404 alive for a minute. In nginx the keys and metadata live in a shared-memory zone (the documentation sizes 1 MB at about 8,000 keys) and the bodies in files, and a cache manager process removes the least recently used data once the cache exceeds `max_size` ([LRU cache](/learn/advanced-data-structures/caches-and-eviction/lru-cache)).
 
 ## Dynamic content and edge compute
 
-Uncacheable responses still benefit: TLS terminates near the user and the edge reuses warm connections to the origin, out of slow start, often over the CDN's backbone. **Edge compute** runs your code in the PoP: V8 isolates (Cloudflare Workers), WebAssembly (Fastly Compute), functions attached to CloudFront. Good uses are small and stateless: rejecting requests with invalid tokens before they cost origin capacity, normalising cache keys, redirects and header rewrites, A/B bucketing, assembling pages from cached fragments. The limits are CPU time per request (typically milliseconds), memory, and **data gravity**: edge code that reads a database 150 ms away has added a hop. It pays off when its data is in the request, the cache, or an eventually consistent edge store.
+Uncacheable responses still benefit: TLS terminates near the user and the edge reuses warm connections to the origin, out of slow start, often over the CDN's backbone. **Edge compute** runs your code in the PoP: V8 isolates (Cloudflare Workers), WebAssembly (Fastly Compute), functions attached to CloudFront. Good uses are small and stateless: rejecting requests with invalid tokens before they cost origin capacity, normalising cache keys, redirects and header rewrites, A/B bucketing, assembling pages from cached fragments. The limits are CPU time per request (Cloudflare Workers allow 10 ms on the free plan and 30 s by default on paid plans, and Cloudflare reports that the average Worker uses about 2.2 ms; CloudFront Functions are built for sub-millisecond work in 2 MB of memory), memory, and **data gravity**: edge code that reads a database 150 ms away has added a hop. It pays off when its data is in the request, the cache, or an eventually consistent edge store.
 
 ## Netflix Open Connect: push instead of pull
 
-Netflix delivers video through its own CDN, Open Connect, announced in 2012. Its public documentation and engineering blog describe a design that inverts usual CDN assumptions, because the traffic is unusual: one tenant, a finite catalogue of very large objects, and demand predictable by title, region and hour.
+Netflix delivers video through its own CDN, Open Connect, which it began building in 2011. Its public documentation and engineering blog describe a design that inverts usual CDN assumptions, because the traffic is unusual: one tenant, a finite catalogue of very large objects, and demand predictable by title, region and hour.
 
 ```mermaid
 flowchart LR
@@ -326,7 +326,7 @@ flowchart LR
     end
     X["Appliances at internet<br/>exchange points"]
     C[Member device] -->|press play| P
-    P -->|ranked appliance URLs| C
+    P -->|appliance URLs| C
     C -->|stream video segments| A
     C -.->|fallback| X
     O[(Origin storage)] -.->|off-peak fill| X
@@ -334,7 +334,7 @@ flowchart LR
 ```
 
 - **Appliances inside ISPs.** Netflix provides Open Connect Appliances (OCAs) at no charge to qualifying ISPs, which install them in their networks; more sit at internet exchange points where Netflix peers. Traffic from an embedded appliance never crosses the ISP's transit links, which is the ISP's incentive.
-- **Control plane elsewhere.** Browsing, recommendations, authentication and playback authorisation run in AWS; only video bytes come from Open Connect. On play, the steering service picks appliances that hold the files, are healthy and are well placed for the client's network (embedded appliances learn which client prefixes to serve through BGP sessions with the ISP), and returns ranked URLs; the client streams from the best and can switch.
+- **Control plane elsewhere.** The Netflix application and its playback services run in AWS; appliances hold no member data and do two things, report their health, routes and stored files to the control plane, and serve files. On play, the playback services check authorisation and choose the files, and a steering service picks appliances that hold them, are healthy and are close to the client in the network (embedded appliances learn which client prefixes they serve through BGP sessions with the ISP's routers), then hands their URLs to the client, which streams from them.
 - **Proactive caching.** Instead of pulling a title on first miss, Netflix predicts what each location needs and fills appliances in a nightly off-peak **fill window** through a tiered fill hierarchy, so evening peak traffic is almost entirely hits and fill uses capacity that would sit idle. Within a site, content is spread with consistent hashing, the same idea as the PoP hashing above.
 - **Efficiency per box.** The appliances run FreeBSD and NGINX, and Netflix engineers have published work on in-kernel TLS and related optimisations that let one server stream hundreds of gigabits per second of encrypted video.
 

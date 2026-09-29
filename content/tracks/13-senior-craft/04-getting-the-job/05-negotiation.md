@@ -63,7 +63,7 @@ The recruiter's job is to close the hire. That makes them the person who carries
 
 **Sign-on clawbacks.** Leaving within the clawback period (commonly twelve months, sometimes more) means repaying all of the bonus or a pro-rata share. Some agreements demand the gross amount, which is more than you received after tax withholding. Read the clause before you sign.
 
-**Relocation.** In the US, relocation support is generally taxable income; some companies gross it up to cover the tax and some do not. It usually has a clawback too.
+**Relocation.** In the US, relocation support is generally taxable income: moving-expense reimbursements are no longer excluded from income for non-military employees ([IRS Publication 525](https://www.irs.gov/publications/p525)). Some companies gross it up to cover the tax and some do not. It usually has a clawback too.
 
 Some companies depart from this template entirely. Netflix has described paying mostly in salary at the top of each person's market, with optional stock options ([Netflix: culture and interviews](/learn/senior-craft/getting-the-job/netflix-culture-and-interviews)). Always ask for the full breakdown and the vesting schedule in writing.
 
@@ -215,7 +215,7 @@ The four-year totals are within 1% of each other, and the offers are very differ
 
 Your share count is fixed at conversion; everything after that is exposure to one company's stock. If a large part of your pay vests in shares and you also keep what vests, your income and your savings rise and fall together. Decide deliberately how much you hold after each vest.
 
-**Tax, in general terms.** In the US, RSUs are generally taxed as ordinary income when they vest, on the shares' market value that day. Employers withhold, commonly by selling or holding back some of the shares, at a flat supplemental rate (the federal rate has been 22% for most amounts in recent years) that can be below your marginal rate. An illustrative quarter: 125 shares vest at \$200, which is \$25,000 of income; \$5,500 is withheld at 22%; at a 35% marginal federal rate you owe \$8,750, so \$3,250 arrives as a bill at filing, before state and other taxes. If you keep the shares, a later sale produces a gain or loss relative to the vest-day value. Sign-on bonuses are usually withheld at the same supplemental rate. Other countries tax equity at different moments and rates, and rules change: check with a tax professional where you live.
+**Tax, in general terms.** In the US, RSUs are generally taxed as ordinary income when they vest, on the shares' market value that day. Employers withhold, commonly by selling or holding back some of the shares, at a flat supplemental rate (federally 22%, or 37% on supplemental wages above \$1 million in a calendar year, per [IRS Publication 15](https://www.irs.gov/publications/p15) for 2026) that can be below your marginal rate. An illustrative quarter: 125 shares vest at \$200, which is \$25,000 of income; \$5,500 is withheld at 22%; at a 35% marginal federal rate you owe \$8,750, so \$3,250 arrives as a bill at filing, before state and other taxes. If you keep the shares, a later sale produces a gain or loss relative to the vest-day value. Sign-on bonuses are usually withheld at the same supplemental rate. Other countries tax equity at different moments and rates, and rules change: check with a tax professional where you live.
 
 ## Startup options: strike, 409A, preferences and dilution
 
@@ -232,7 +232,7 @@ An illustrative grant, in round numbers: 40,000 options at a \$1.00 strike in a 
 
 A \$200M sale sounds like success and leaves your options worth nothing. Real cap tables have several share classes and terms, so ask for the fully diluted share count, the latest preferred price, the preference terms and the 409A value.
 
-**Leaving.** Suppose you leave after two years with 20,000 vested options. You typically have 90 days to exercise (the US tax rule for incentive stock options is tied to three months after leaving; some companies extend the window, which converts the options to non-qualified ones). Exercising costs \$20,000 in cash, and if the 409A value is then \$2.00, non-qualified options create \$20,000 of taxable income on the spread, for shares you cannot sell yet. Incentive stock options avoid regular tax at exercise but can trigger the alternative minimum tax.
+**Leaving.** Suppose you leave after two years with 20,000 vested options. You typically have 90 days to exercise (the US tax rule for incentive stock options, [26 U.S.C. § 422(a)(2)](https://www.law.cornell.edu/uscode/text/26/422), requires exercise within three months of leaving; some companies extend the window, which converts the options to non-qualified ones). Exercising costs \$20,000 in cash, and if the 409A value is then \$2.00, non-qualified options create \$20,000 of taxable income on the spread, for shares you cannot sell yet. Incentive stock options avoid regular tax at exercise but can trigger the alternative minimum tax ([IRS Topic 427](https://www.irs.gov/taxtopics/tc427)).
 
 ## The order of conversations
 

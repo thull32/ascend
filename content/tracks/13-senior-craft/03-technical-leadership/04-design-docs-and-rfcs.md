@@ -20,7 +20,7 @@ Write a design doc when any of these hold:
 - It touches security, privacy or compliance, or adds infrastructure someone must operate.
 - Reasonable engineers would disagree.
 
-Size the document to the risk. A reversible two-week change deserves a one-pager (problem, proposal, alternatives, risks). A new storage layer deserves the full skeleton. A widely read description of design docs at Google puts larger projects at roughly ten to twenty pages and incremental changes at a one-to-three-page "mini design doc". A twelve-page doc for a reversible decision is its own failure: it teaches people that docs are bureaucracy.
+Size the document to the risk. A reversible two-week change deserves a one-pager (problem, proposal, alternatives, risks). A new storage layer deserves the full skeleton. Malte Ubl's widely read [description of design docs at Google](https://www.industrialempathy.com/posts/design-docs-at-google/) puts the sweet spot for larger projects at "around 10-20ish pages" and incremental changes at a one-to-three-page "mini design doc". A twelve-page doc for a reversible decision is its own failure: it teaches people that docs are bureaucracy.
 
 A **design doc** is usually about a project one team owns. An **RFC** (request for comments) proposes a change that many teams must adopt: a shared standard, a platform capability, a convention. The audience is wider, adoption is voluntary until mandated, and the process (who may object, and until when) matters more.
 
@@ -62,7 +62,7 @@ Every goal is checkable, and every non-goal answers a question a reviewer would 
 
 ### Where the numbers come from
 
-If each attempt fails independently with probability $f$ and a layer makes up to three attempts, the expected retries per request are $f + f^2$, so each layer multiplies load by $1 + f + f^2$, and two layers multiply it by the square of that. A retry budget caps retries at a fixed fraction of requests, which is the per-client budget of 10% described in Google's SRE book (chapter "Handling Overload").
+If each attempt fails independently with probability $f$ and a layer makes up to three attempts, the expected retries per request are $f + f^2$, so each layer multiplies load by $1 + f + f^2$, and two layers multiply it by the square of that. A retry budget caps retries at a fixed fraction of requests, which is the per-client budget of 10% described in Google's SRE book (chapter ["Handling Overload"](https://sre.google/sre-book/handling-overload/)): a request is retried only while retries are below 10% of the client's requests. The book pairs it with a per-request cap of three attempts and gives its own numbers for one layer: with the cap alone, load when most requests are rejected grows to "just below 3X"; with the budget added, to about 1.1×. The last row of the table below is those two numbers compounded across two layers.
 
 ```python
 def per_layer(f, attempts, budget=None):
@@ -127,7 +127,7 @@ DECISION LOG
 2026-03-13  Final comment period closed with no blocking objection: Accepted
 ```
 
-The backoff itself is "full jitter": sleep a random time between zero and the capped exponential delay, which the AWS Architecture Blog's analysis of backoff showed spreads retries better than fixed or equal jitter.
+The backoff itself is "full jitter": sleep a random time between zero and the capped exponential delay. Marc Brooker's [simulation on the AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) found backoff without jitter "the clear loser" on both work and time, and "equal jitter" slower than full jitter while doing slightly more work; "decorrelated jitter" came close to full jitter.
 
 ## How the review meeting runs
 
@@ -220,7 +220,7 @@ This app streams AI coach replies to the browser, and a reply can take tens of s
 
 **Decision: B.** C solves a problem listed as a non-goal, at a cost in latency and operations. **Consequences:** a reply in flight when the process is killed is lost, so graceful shutdown must wait for in-flight tasks; the task must not depend on the request's lifetime; the channel must be bounded. **Revisit if** crash-time loss becomes visible in the data.
 
-The consequences list shows how a consequence can be understood and still missed in code. The first implementation started the task with a bare `tokio::spawn`, and nothing waited for it at shutdown: once connections drained, `main` returned and the runtime dropped any reply whose browser had already gone. The fix spawns these tasks on a `TaskTracker` (`state.tasks`), and `crates/api/src/main.rs` now waits up to 30 seconds for them after the server stops accepting connections, bounded so a hung upstream cannot block the deploy. A consequence that says "must" is a requirement: give it a test or a checklist item, or it stays prose. [Building the AI coach](/learn/case-study-ascend/product-systems/building-the-ai-coach) and [Rust essentials](/learn/senior-craft/languages-for-senior-engineers/rust-essentials) walk through the code.
+The consequences list shows how a consequence can be understood and still missed in code. The first implementation started the task with a bare `tokio::spawn`, and nothing waited for it at shutdown: once connections drained, `main` returned and the runtime dropped any reply whose browser had already gone. The fix spawns these tasks on a `TaskTracker` (`state.tasks`), and `crates/api/src/main.rs` now waits up to 30 seconds for them after the server stops accepting connections, bounded so a hung upstream cannot block the deploy. A consequence that says "must" is a requirement: give it a test or a checklist item, or it stays prose. This one got its test later: `background_tasks_get_to_finish_but_not_forever` in `crates/api/tests/shutdown.rs` (commit `95b6623`). [Building the AI coach](/learn/case-study-ascend/product-systems/building-the-ai-coach) and [Rust essentials](/learn/senior-craft/languages-for-senior-engineers/rust-essentials) walk through the code.
 
 ## ADRs: the decision log that outlives the doc
 
@@ -255,15 +255,15 @@ Then run a **pre-mortem**: assume it is a year later and the design failed, and 
 | The library fell behind a language upgrade and teams forked it | Medium | No | Named owner and an upgrade policy in the RFC |
 | A bug in the library broke every service at once | Low | Staged rollout | Per-service flag kept until Phase 4 |
 
-The third row was missing from the risks, and the pre-mortem found it in ten minutes. Imagining the failure as having already happened, the technique Gary Klein named the pre-mortem, tends to surface risks that "what could go wrong?" does not, because it asks for a story rather than a probability.
+The third row was missing from the risks, and the pre-mortem found it in ten minutes. Imagining the failure as having already happened, the technique Gary Klein named the [premortem](https://hbr.org/2007/09/performing-a-project-premortem) in the Harvard Business Review in 2007, tends to surface risks that "what could go wrong?" does not, because it asks for a story rather than a probability.
 
 ## Under the hood: how design review works at scale
 
-**Rust's RFC process** is public and a good model: an RFC is a pull request; a sub-team member proposes a disposition (merge, close or postpone); once the relevant team members sign off, a final comment period of ten calendar days is announced, and a new blocking concern can still stop it. **Python's PEPs** follow a similar arc to a decision by the steering council.
+**[Rust's RFC process](https://github.com/rust-lang/rfcs/blob/master/README.md)** is public and a good model: an RFC is a pull request; a sub-team member proposes a disposition (merge, close or postpone); once all members of that sub-team sign off, a final comment period of ten calendar days ("so that it is open for at least 5 business days") is announced, and substantial new arguments raised during it cancel the period and send the RFC back into discussion. **Python's PEPs** follow a similar arc; under [PEP 1](https://peps.python.org/pep-0001/) "the final authority for PEP approval is the Steering Council", which may hand a PEP to a PEP-Delegate.
 
-**The IETF** decides by "rough consensus", and RFC 7282 explains the mechanism: the question is not whether everyone agrees but whether every objection has been heard and answered, which is a better test for an internal RFC than counting votes.
+**The IETF** decides by "rough consensus", and [RFC 7282](https://www.rfc-editor.org/rfc/rfc7282.html) explains the mechanism: "lack of disagreement is more important than agreement", and rough consensus "is achieved when all issues are addressed, but not necessarily accommodated". The question is not whether everyone agrees but whether every objection has been heard and answered, which is a better test for an internal RFC than counting votes.
 
-**Amazon** has described, in its shareholder letters, replacing slide decks with six-page narrative memos read silently at the start of meetings. The mechanism is the same as the first ten minutes of the meeting above: everyone argues with the same text, and the author cannot skate over a gap with delivery.
+**Amazon** has described, in its [2017 shareholder letter](https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders), replacing slide decks with six-page narrative memos read silently at the start of meetings. The mechanism is the same as the first ten minutes of the meeting above: everyone argues with the same text, and the author cannot skate over a gap with delivery.
 
 **Why async review works.** Ten reviewers commenting in parallel on a document cost each of them an hour; the same review as a meeting serialises everyone through one conversation and surfaces only what the loudest people think of in the room. The meeting is for the residue.
 
