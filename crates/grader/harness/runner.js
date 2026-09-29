@@ -7,7 +7,21 @@
 // keywords are stripped when the server embeds this file, so keep every
 // export a plain `export function` or `export const`.
 
+// Browser APIs graded code cannot rely on, because the server's QuickJS does
+// not have them: in graded code they throw the same clear error in the
+// browser and on the server, so a solution cannot pass in one and fail in
+// the other. (TextEncoder, TextDecoder and structuredClone exist in both:
+// the server polyfills them in grade_main.js.)
 export const PRELUDE = `
+const __unavailable = (name) => new Proxy(function () {}, {
+  get() { throw new ReferenceError(name + " is not available in graded code (it runs without browser APIs)"); },
+  apply() { throw new ReferenceError(name + " is not available in graded code (it runs without browser APIs)"); },
+  construct() { throw new ReferenceError(name + " is not available in graded code (it runs without browser APIs)"); },
+});
+const URL = __unavailable("URL"), URLSearchParams = __unavailable("URLSearchParams"), Intl = __unavailable("Intl");
+const crypto = __unavailable("crypto"), fetch = __unavailable("fetch");
+const setTimeout = __unavailable("setTimeout"), setInterval = __unavailable("setInterval");
+const clearTimeout = __unavailable("clearTimeout"), clearInterval = __unavailable("clearInterval");
 class ListNode { constructor(val = 0, next = null) { this.val = val; this.next = next; } }
 class TreeNode { constructor(val = 0, left = null, right = null) { this.val = val; this.left = left; this.right = right; } }
 class Node { constructor(val = 0, neighbors = null) { this.val = val; this.neighbors = neighbors || []; } }

@@ -241,9 +241,10 @@ def probe(what):
     assert!(got[4].as_str().is_some_and(|s| s.starts_with("blocked")), "socket: {:?}", got[4]);
     assert!(got[5].as_str().is_some_and(|s| s.starts_with("blocked")), "exec: {:?}", got[5]);
 
-    let js = "function probe() { return [typeof std, typeof os, typeof fetch, typeof print, typeof require]; }";
+    let js = "function probe() { let net; try { fetch('https://example.com'); net = 'reached'; } catch (e) { net = 'blocked'; } \
+              return [typeof std, typeof os, net, typeof print, typeof require]; }";
     let o = g.run(job(Language::JavaScript, js, "probe", vec![json!([])])).await.unwrap();
-    assert_eq!(actuals(&o)[0], json!(["undefined", "undefined", "undefined", "undefined", "undefined"]));
+    assert_eq!(actuals(&o)[0], json!(["undefined", "undefined", "blocked", "undefined", "undefined"]));
 }
 
 #[tokio::test]
@@ -295,4 +296,21 @@ async fn a_full_queue_refuses_instead_of_piling_up() {
     });
     assert_eq!(a.unwrap().stopped, Some(Stop::TimeLimit));
     assert!(matches!(b, Err(ascend_grader::GradeError::Busy)), "{b:?}");
+}
+
+#[tokio::test]
+async fn graded_javascript_sees_the_same_web_apis_as_the_browser() {
+    let Some(g) = grader() else { return };
+    // The browser has these and QuickJS does not; the server polyfills them.
+    let js = "function f() { const b = new TextEncoder().encode('héllo 😀'); \
+              const c = structuredClone({ a: [1, { b: 2 }], m: new Map([[1, 2]]) }); \
+              return [b.length, Array.from(b.slice(0, 3)), new TextDecoder().decode(b), c.a[1].b, c.m.get(1)]; }";
+    let o = g.run(job(Language::JavaScript, js, "f", vec![json!([])])).await.unwrap();
+    assert_eq!(actuals(&o)[0], json!([11, [104, 195, 169], "héllo 😀", 2, 2]), "{o:?}");
+    // These are absent on the server, so graded code gets a clear error in
+    // both places rather than passing only in the browser.
+    let js = "function f() { return new URL('https://example.com').host; }";
+    let o = g.run(job(Language::JavaScript, js, "f", vec![json!([])])).await.unwrap();
+    let err = errors(&o)[0].clone().unwrap_or_default();
+    assert!(err.contains("URL is not available in graded code"), "{err}");
 }

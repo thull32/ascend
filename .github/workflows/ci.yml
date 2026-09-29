@@ -33,8 +33,10 @@ jobs:
           --health-cmd "pg_isready -U ascend" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       TEST_DATABASE_URL: postgres://ascend:ascend@localhost:5432/ascend_test
-      # Grading tests must run here, not skip for want of the runtimes.
+      # Grading tests must run here, not skip for want of the runtimes, and
+      # every exercise and problem must have passing reference solutions.
       GRADER_REQUIRED: "1"
+      REQUIRE_ALL_SOLUTIONS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
