@@ -88,3 +88,16 @@ there after recreating the database. Turn on daily and weekly backups.
 To restore, pick a backup in the Backups tab and restore it. Railway stages the
 restore as a change that takes the service down briefly. Review it before
 deploying. Afterwards, check `/api/readyz` and sign in.
+
+## Prometheus storage
+
+Metrics live on the `prometheus-data` volume, mounted at `/prometheus`. `.railway/railway.ts` creates
+the volume, but Railway's config engine does not attach it, so after recreating the service:
+
+    railway volume list                      # "Attached to: N/A" means it is not mounted
+    railway volume --service <prometheus service id> attach --volume prometheus-data --yes
+    railway volume --service <prometheus service id> update --volume prometheus-data --mount-path /prometheus
+
+The service runs with `RAILWAY_RUN_UID=0`, because the volume is owned by root and the image runs as
+`nobody`. If Prometheus logs `fs_type=OVERLAYFS_SUPER_MAGIC` at start-up, the volume is not mounted,
+and metrics are lost on every deploy.

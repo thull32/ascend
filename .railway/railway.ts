@@ -102,9 +102,13 @@ export default defineRailway(() => {
   const prometheus = service("prometheus", {
     source: github(REPO, { rootDirectory: "ops/prometheus" }),
     networking: { privateNetworkEndpoint: "prometheus" },
+    // The config engine creates the volume but does not attach it: attach
+    // once with `railway volume --service <prometheus id> attach --volume
+    // prometheus-data` (mount path /prometheus). See docs/RUNBOOK.md.
     volumeMounts: { "prometheus-data": { mountPath: "/prometheus" } },
     healthcheck: "/-/ready",
-    env: { PORT: "9090" },
+    // Railway mounts volumes owned by root; the image runs as nobody.
+    env: { PORT: "9090", RAILWAY_RUN_UID: "0" },
   });
 
   const alertmanager = service("alertmanager", {
