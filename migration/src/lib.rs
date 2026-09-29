@@ -26,6 +26,7 @@ mod m0009_shared_rate_limits;
 mod m0010_login_devices;
 mod m0011_user_timezones;
 mod m0012_email_tokens;
+mod m0013_retention_indexes;
 
 pub struct Migrator;
 
@@ -45,6 +46,7 @@ impl MigratorTrait for Migrator {
             Box::new(m0010_login_devices::Migration),
             Box::new(m0011_user_timezones::Migration),
             Box::new(m0012_email_tokens::Migration),
+            Box::new(m0013_retention_indexes::Migration),
         ]
     }
 }

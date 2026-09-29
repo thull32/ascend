@@ -94,20 +94,25 @@ async fn main() -> anyhow::Result<()> {
     ascend_core::auth::password::warm_up().await;
     let app = app::build(state.clone());
 
-    // Background maintenance: sweep expired sessions and prune rate-limiter
-    // state hourly.
+    // Background maintenance, hourly: sweep expired sessions and email
+    // links, prune rate-limiter state, and apply the retention policy.
     {
         let auth = state.auth.clone();
         let limiter = state.limiter.clone();
+        let db = state.db.clone();
         tokio::spawn(async move {
             let mut tick = tokio::time::interval(Duration::from_secs(3600));
             loop {
                 tick.tick().await;
                 limiter.prune().await;
                 match auth.sweep_expired().await {
-                    Ok(n) if n > 0 => tracing::info!(removed = n, "swept expired sessions"),
+                    Ok(n) if n > 0 => tracing::info!(removed = n, "swept expired sessions and links"),
                     Ok(_) => {}
                     Err(e) => tracing::warn!(error = %e, "session sweep failed"),
+                }
+                // One replica per round (advisory lock); see retention.rs.
+                if let Err(e) = ascend_core::services::retention::run(&db, Default::default()).await {
+                    tracing::warn!(error = %e, "retention round failed");
                 }
             }
         });

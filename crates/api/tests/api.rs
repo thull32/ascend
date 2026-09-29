@@ -434,6 +434,79 @@ async fn sign_up_sends_a_verification_link() {
 }
 
 #[tokio::test]
+async fn retention_keeps_what_the_privacy_page_promises() {
+    use ascend_core::services::retention::{Policy, run};
+    let Some(app) = test_app().await else { return };
+    let (cookie, _) = app.register().await;
+    let id = user_id(&app, &cookie).await;
+    let db = &app.db;
+    let exec = |sql: String| async move {
+        db.execute_raw(Statement::from_string(sea_orm::DatabaseBackend::Postgres, sql)).await.unwrap();
+    };
+    let sub = |target: &str, passed: bool, days: i32| {
+        format!(
+            "INSERT INTO submissions (id, user_id, target_kind, target_slug, language, code, passed, passed_count, \
+             total_count, runtime_ms, results, created_at) VALUES (gen_random_uuid(), '{id}', 'problem', '{target}', \
+             'python', '-- {passed} {days}', {passed}, 0, 1, 1, '[]', now() - interval '{days} days')"
+        )
+    };
+    // Target T: an old fail, an old pass, a fail after the pass, a recent fail.
+    for (passed, days) in [(false, 200), (true, 190), (false, 185), (false, 1)] {
+        exec(sub("retention-t", passed, days)).await;
+    }
+    // Target U: one old attempt, which is also the latest.
+    exec(sub("retention-u", false, 300)).await;
+    exec(format!(
+        "INSERT INTO conversations (id, user_id, title, context, created_at, updated_at) VALUES \
+         (gen_random_uuid(), '{id}', 'old', '{{}}', now() - interval '500 days', now() - interval '400 days'), \
+         (gen_random_uuid(), '{id}', 'recent', '{{}}', now() - interval '500 days', now() - interval '10 days')"
+    ))
+    .await;
+    exec(format!(
+        "INSERT INTO ai_usage (user_id, day, requests, input_tokens, output_tokens) VALUES \
+         ('{id}', current_date - 100, 1, 1, 1), ('{id}', current_date - 10, 1, 1, 1)"
+    ))
+    .await;
+    exec(format!(
+        "INSERT INTO activity_days (user_id, day) VALUES ('{id}', current_date - 450), ('{id}', current_date - 5)"
+    ))
+    .await;
+
+    // While another replica holds the round's lock, this one skips.
+    let blocker = sea_orm::TransactionTrait::begin(&app.db).await.unwrap();
+    blocker
+        .execute_raw(Statement::from_sql_and_values(
+            sea_orm::DatabaseBackend::Postgres,
+            "SELECT pg_advisory_xact_lock($1)",
+            [0x5245_5445_4e54_i64.into()],
+        ))
+        .await
+        .unwrap();
+    assert!(!run(&app.db, Policy::default()).await.unwrap().ran);
+    blocker.rollback().await.unwrap();
+
+    let report = run(&app.db, Policy::default()).await.unwrap();
+    assert!(report.ran);
+    let kept = |sql: &'static str| count(&app, sql, id);
+    assert_eq!(
+        kept("SELECT count(*)::bigint AS n FROM submissions WHERE user_id = $1 AND target_slug = 'retention-t'").await,
+        2,
+        "the latest attempt and the latest pass stay"
+    );
+    assert_eq!(
+        kept("SELECT count(*)::bigint AS n FROM submissions WHERE user_id = $1 AND target_slug = 'retention-t' AND passed").await,
+        1
+    );
+    assert_eq!(
+        kept("SELECT count(*)::bigint AS n FROM submissions WHERE user_id = $1 AND target_slug = 'retention-u'").await,
+        1
+    );
+    assert_eq!(kept("SELECT count(*)::bigint AS n FROM conversations WHERE user_id = $1").await, 1);
+    assert_eq!(kept("SELECT count(*)::bigint AS n FROM ai_usage WHERE user_id = $1").await, 1);
+    assert_eq!(kept("SELECT count(*)::bigint AS n FROM activity_days WHERE user_id = $1").await, 1);
+}
+
+#[tokio::test]
 async fn csrf_rejects_requests_without_header_or_with_foreign_origin() {
     let Some(app) = test_app().await else { return };
     let (cookie, _) = app.register().await;
