@@ -1,0 +1,108 @@
+# SLO recording and alerting rules. The objectives and their reasoning are in
+# docs/SLO.md; keep the two in step.
+#
+# Series (from the app's OpenTelemetry instruments, after OTLP translation):
+#   http_server_request_duration_seconds_{bucket,count,sum}
+#       {http_request_method, http_route, http_response_status_code, job, instance}
+#   ascend_grader_runs_total{language, outcome}
+#   ascend_grader_duration_seconds_bucket, ascend_grader_queue_wait_seconds_bucket
+#   ascend_ai_first_token_seconds_bucket, ascend_ai_tokens_total{kind},
+#   ascend_ai_budget_total{decision}, ascend_rate_limited_total{bucket},
+#   ascend_db_pool_connections{state}, ascend_grader_slots{state}
+groups:
+  - name: slo-recording
+    interval: 30s
+    rules:
+      # Availability SLI: the share of API requests that did not fail on our
+      # side (5xx). Streaming and static responses are included; 4xx are the
+      # client's and do not count against us.
+      - record: slo:api_errors:ratio_rate5m
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*", http_response_status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*"}[5m])), 1e-9)
+      - record: slo:api_errors:ratio_rate30m
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*", http_response_status_code=~"5.."}[30m]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*"}[30m])), 1e-9)
+      - record: slo:api_errors:ratio_rate1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*", http_response_status_code=~"5.."}[1h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*"}[1h])), 1e-9)
+      - record: slo:api_errors:ratio_rate6h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*", http_response_status_code=~"5.."}[6h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*"}[6h])), 1e-9)
+      # Latency SLI: the share of ordinary API requests (not model calls, not
+      # grading) answered within 250 ms (a histogram boundary).
+      - record: slo:api_fast:ratio_rate1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_bucket{job="ascend-api", http_route=~"/api.*", http_route!~".*(coach|interviews|submissions).*", le="0.25"}[1h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route=~"/api.*", http_route!~".*(coach|interviews|submissions).*"}[1h])), 1e-9)
+      # Grading SLI: share of graded submissions finished (queue + run)
+      # within 5 s, excluding learners' own time-limit failures.
+      - record: slo:grading_fast:ratio_rate1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_bucket{job="ascend-api", http_route="/api/submissions", http_request_method="POST", le="5"}[1h]))
+          /
+          clamp_min(sum(rate(http_server_request_duration_seconds_count{job="ascend-api", http_route="/api/submissions", http_request_method="POST"}[1h])), 1e-9)
+
+  - name: slo-alerts
+    rules:
+      # Multi-window burn-rate alerts for a 99.5% availability objective over
+      # 30 days (error budget 0.5%). A burn rate of 14.4 spends 2% of the
+      # month's budget in an hour; 6 spends 5% in six hours (Google SRE
+      # workbook, "Alerting on SLOs").
+      - alert: ApiErrorBudgetFastBurn
+        expr: slo:api_errors:ratio_rate1h > (14.4 * 0.005) and slo:api_errors:ratio_rate5m > (14.4 * 0.005)
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: "API 5xx rate is burning the monthly error budget 14x too fast"
+          runbook: "docs/RUNBOOK.md#api-errors"
+      - alert: ApiErrorBudgetSlowBurn
+        expr: slo:api_errors:ratio_rate6h > (6 * 0.005) and slo:api_errors:ratio_rate30m > (6 * 0.005)
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: "API 5xx rate is burning the monthly error budget 6x too fast"
+          runbook: "docs/RUNBOOK.md#api-errors"
+      - alert: ApiSlow
+        expr: slo:api_fast:ratio_rate1h < 0.95
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Fewer than 95% of ordinary API requests finish within 250 ms"
+          runbook: "docs/RUNBOOK.md#latency"
+      - alert: GradingSlow
+        expr: slo:grading_fast:ratio_rate1h < 0.95
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Fewer than 95% of graded submissions finish within 5 s: add grader replicas"
+          runbook: "docs/RUNBOOK.md#grading"
+      - alert: GraderSaturated
+        expr: sum(ascend_grader_slots{state="busy"}) / clamp_min(sum(ascend_grader_slots{state="total"}), 1) > 0.8
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Grading slots are over 80% busy: add grader replicas"
+          runbook: "docs/RUNBOOK.md#grading"
+      - alert: DbPoolNearlyExhausted
+        expr: max by (instance) (ascend_db_pool_connections{state="in_use"} / ascend_db_pool_connections{state="max"}) > 0.9
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: "A replica is using over 90% of its database pool"
+          runbook: "docs/RUNBOOK.md#database-connections"
+      - alert: NoTelemetry
+        expr: absent(up{job="ascend-api"}) and absent(http_server_request_duration_seconds_count{job="ascend-api"})
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: "No metrics from the API for 15 minutes"
+          runbook: "docs/RUNBOOK.md#telemetry"

@@ -63,9 +63,22 @@ pub fn init(json: bool, service: &'static str) -> Telemetry {
     let tracer =
         env("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT").and_then(
             |endpoint| match opentelemetry_otlp::SpanExporter::builder().with_http().with_endpoint(endpoint).build() {
-                Ok(exporter) => Some(
-                    SdkTracerProvider::builder().with_batch_exporter(exporter).with_resource(resource(service)).build(),
-                ),
+                Ok(exporter) => {
+                    // Head sampling keeps trace volume bounded as traffic
+                    // grows: OTEL_TRACES_SAMPLE_RATIO of new traces (default
+                    // all), and a sampled parent's children always.
+                    let ratio = env("OTEL_TRACES_SAMPLE_RATIO").and_then(|r| r.parse::<f64>().ok()).unwrap_or(1.0);
+                    let sampler = opentelemetry_sdk::trace::Sampler::ParentBased(Box::new(
+                        opentelemetry_sdk::trace::Sampler::TraceIdRatioBased(ratio.clamp(0.0, 1.0)),
+                    ));
+                    Some(
+                        SdkTracerProvider::builder()
+                            .with_sampler(sampler)
+                            .with_batch_exporter(exporter)
+                            .with_resource(resource(service))
+                            .build(),
+                    )
+                }
                 Err(e) => {
                     problems.push(format!("trace exporter: {e}"));
                     None

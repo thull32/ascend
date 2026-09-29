@@ -1,0 +1,23 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: ${PROMETHEUS_URL}
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+      alertmanagerUid: alertmanager
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: ${JAEGER_URL}
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    access: proxy
+    url: ${ALERTMANAGER_URL}
+    jsonData:
+      implementation: prometheus

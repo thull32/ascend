@@ -94,6 +94,10 @@ deploy that changes a response's shape invalidates cached copies), and builds an
   emails so timing does not reveal which emails are registered. Password attempts are limited per account,
   or per device for a browser that has signed in to that account before (an `ascend_device` cookie), so
   an attacker's guesses cannot lock the owner out.
+- Account recovery: a single-use, one-hour reset link (256-bit token in the URL fragment, stored hashed in
+  `email_tokens`, consumed atomically) sets a new password, signs out every session and proves the
+  address; sign-up sends a seven-day verification link. Mail goes through Resend's HTTP API; requests
+  answer the same way whether or not an account exists.
 - Opaque 256-bit session tokens in an `HttpOnly`, `SameSite=Lax`, `Secure` cookie. The database stores only
   the SHA-256 of the token, so a database leak cannot be replayed. Sessions expire after 30 days, or after
   14 days unused; they are revocable individually or all at once, and an hourly task sweeps dead rows.
@@ -132,8 +136,11 @@ network APIs removed, and enforces wall-clock limits by terminating the worker. 
 code also goes to `/api/submissions`, and the server grades it itself in a WebAssembly sandbox
 (`crates/grader`: CPython and QuickJS compiled to WASI, run by Wasmtime with time, memory, stack and
 concurrency limits, and compared with the expected values on the host). Only the server's verdict is
-recorded. See [ADR 0003](adr/0003-client-side-code-execution.md) and
-[ADR 0005](adr/0005-server-side-grading.md).
+recorded. The harness and the comparison rule are one file each, shared by the browser and the server
+(`crates/grader/harness`), and every exercise and problem has reference solutions the server grades in CI
+(`solutions/`). In production the grading runs in a separate service (`--serve-grader`) with no secrets.
+See [ADR 0003](adr/0003-client-side-code-execution.md), [ADR 0005](adr/0005-server-side-grading.md) and
+[ADR 0006](adr/0006-scaling-the-deployment.md).
 
 ## Visualisations
 
@@ -145,18 +152,51 @@ with a JSON fence (` ```viz {"type": "graph", "algorithm": "dijkstra", …} `).
 ## Operations
 
 - **Config** is read once from the environment and validated at boot (`crates/core/src/config.rs`);
-  production refuses to start with insecure cookies.
+  production refuses to start with insecure cookies, or with `RESEND_API_KEY` but no `EMAIL_FROM`.
 - **Logs** are JSON in production, one line per request with the request ID.
+- **Metrics and traces** (`crates/core/src/metrics.rs`, `crates/api/src/telemetry.rs`) are pushed over
+  OTLP when `OTEL_EXPORTER_OTLP_{METRICS,TRACES}_ENDPOINT` are set: request durations by route template
+  and status, grading runs and queue wait, AI tokens and budget decisions, rate-limit refusals,
+  retention, email, and pool and grading-slot gauges. Every replica labels its data with its
+  `RAILWAY_REPLICA_ID`. No label or span carries personal data; only spans are exported, never log events.
+  SLOs and alerts: [SLO.md](SLO.md); what to do when one fires: [RUNBOOK.md](RUNBOOK.md).
 - **Health**: `/api/healthz` (liveness) and `/api/readyz` (database reachable, AI configured, content
-  version). Railway gates rollouts on `/api/readyz`.
+  version, build). Railway gates rollouts on `/api/readyz`. `/api/features` tells the UI which optional
+  features (AI, email) this deployment has.
 - **Migrations** run on boot before the server binds; a failing migration exits non-zero and the previous
   deployment keeps serving.
-- **Shutdown** drains in-flight requests on SIGTERM.
+- **Shutdown** drains in-flight requests on SIGTERM (25 s), then background work (30 s), inside Railway's
+  60 s drain window; tested in `crates/api/tests/shutdown.rs`.
+- **Maintenance**, hourly on every replica: sweep expired sessions and email links, prune rate-limit state,
+  and run the retention round (`crates/core/src/services/retention.rs`), which one replica at a time takes
+  through an advisory lock.
+
+## Deployment
+
+`.railway/railway.ts` declares everything ([ADR 0006](adr/0006-scaling-the-deployment.md)):
+
+| Service | What | Replicas | Reached |
+|---|---|---|---|
+| `ascend` | API and SPA (this binary) | 2+ | public domain |
+| `grader` | same image, `--serve-grader`: the WebAssembly runtimes and a token, no other secrets | 2+ | private network |
+| `Postgres` | primary, 50 GB volume | 1 | private network |
+| `prometheus` | OTLP metrics receiver, SLO rules, 30 days on a volume | 1 | private network |
+| `alertmanager` | routes alerts to `ALERT_WEBHOOK_URL` | 1 | private network |
+| `jaeger` | traces (in memory) | 1 | private network |
+| `grafana` | provisioned dashboards over the three above | 1 | public domain, sign-in |
 
 ## Scaling notes
 
 Replicas share everything that matters through Postgres: sessions, budgets and the security rate limits
-(sign-up, login, password attempts and model calls, as GCRA state in an `UNLOGGED` table updated by one
-conditional upsert). Only the loose general bucket is per replica, which is fine for what it guards. So
-more replicas need no other change. Postgres is the
-bottleneck long before the app servers; the hot read paths (curriculum, lessons, problems) never touch it.
+(sign-up, login, password attempts, model calls and graded submissions, as GCRA state in an `UNLOGGED`
+table updated by one conditional upsert), and the retention round's advisory lock. Only the loose general
+bucket is per replica, which is fine for what it guards.
+
+- **API replicas** scale with request CPU. Each holds `DATABASE_POOL_MAX` (15) connections and a rolling
+  deploy briefly doubles them, so Postgres's 100 connections support about four replicas; boot warns when
+  headroom drops below 10. Past that, put PgBouncer (transaction mode) in front for the app and keep a
+  direct connection for migrations, whose advisory lock is session-scoped.
+- **Grader replicas** scale with grading CPU, independently: 2 runs each, and the API retries a busy
+  replica once. `GraderSaturated` says when to add one.
+- **Postgres** is the next bottleneck: the hot read paths (curriculum, lessons, problems) never touch it,
+  and retention bounds the tables that grow per attempt and per message.

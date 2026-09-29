@@ -32,6 +32,7 @@ rate limiting, structured logs with request IDs, append-only migrations, content
 cost-bounded LLM features, and a React frontend with sandboxed code runners.
 
 Start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), then the decision records in [`docs/adr/`](docs/adr/).
+Operating it: [`docs/SLO.md`](docs/SLO.md) (objectives and alerts) and [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
 
 ## Stack
 

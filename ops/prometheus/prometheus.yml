@@ -1,0 +1,20 @@
+# Nothing is scraped: the app pushes over OTLP to /api/v1/otlp/v1/metrics.
+# Prometheus maps the OTLP resource's service.name to `job` and
+# service.instance.id (the Railway replica id) to `instance`.
+global:
+  evaluation_interval: 30s
+
+rule_files:
+  - rules.yml
+
+otlp:
+  # Keep these resource attributes as labels on every series.
+  promote_resource_attributes:
+    - service.version
+    - deployment.environment.name
+  translation_strategy: UnderscoreEscapingWithSuffixes
+
+storage:
+  tsdb:
+    # Replicas push on their own 15 s clocks; tolerate a little skew.
+    out_of_order_time_window: 5m
