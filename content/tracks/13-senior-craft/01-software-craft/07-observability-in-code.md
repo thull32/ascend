@@ -258,7 +258,7 @@ pub async fn record(req: Request<Body>, next: Next) -> Response {
 }
 ```
 
-Why two layers: the template exists only after routing, but a request refused before routing (the general rate limit, a CSRF failure) must still be counted, so the outer layer times everything and reads back what the inner one stamped. No label carries personal data.
+Why two layers: the template exists only after routing, but a request refused before routing (the general rate limit, a CSRF failure) must still be counted, so the outer layer times everything and reads back what the inner one stamped. "Everything" has to include the 240 s timeout: `record` used to sit inside `TimeoutLayer`, so a request the timeout cut off was dropped with the future that would have recorded it, and a hung endpoint could not spend availability budget. Since commit `2f1daaa` it sits outside, and the timeout's 503 lands on route `/api (unrouted)`. No label carries personal data.
 
 `docs/SLO.md` builds on this histogram: 99.5% of API requests without a 5xx over 30 days; 95% of ordinary API requests within 250 ms; 95% of graded submissions within 5 s. Both thresholds are bucket boundaries, as the percentile section requires; the multi-window burn-rate alerts are derived in [Observability](/learn/system-design/building-blocks/observability).
 
@@ -270,7 +270,7 @@ A trace is a tree of **spans**, each with a start, a duration, attributes and a 
 {"type": "system", "algorithm": "request-flow", "title": "Each hop is a span", "caption": "A trace links the spans for every hop of one request under a single trace ID, so the slow hop is visible instead of inferred."}
 ```
 
-Because Ascend logs through the `tracing` crate, the `request` span already existed, and exporting it took one more layer in `telemetry.rs`: the `tracing-opentelemetry` bridge feeding an OTLP exporter to Jaeger. It passes spans, never log events, so learner text in a log line cannot reach the trace store. Today that is mostly the one span: no function carries `#[tracing::instrument]` yet, so a slow trace shows the total, not the step. **OpenTelemetry** is the vendor-neutral standard for the APIs, SDKs and collector, so instrumentation survives a change of backend.
+Because Ascend logs through the `tracing` crate, the `request` span already existed, and exporting it took one more layer in `telemetry.rs`: the `tracing-opentelemetry` bridge feeding an OTLP exporter to Jaeger. It passes spans, never log events, so learner text in a log line cannot reach the trace store. Inside the API that is still the one span: no function carries `#[tracing::instrument]` yet, so a slow trace shows the total, not the query. The only child is in another process, the grading service's `grade` span, covered below. **OpenTelemetry** is the vendor-neutral standard for the APIs, SDKs and collector, so instrumentation survives a change of backend.
 
 ## traceparent, decoded
 
@@ -295,16 +295,16 @@ Ascend's request ID is a 128-bit UUID (122 of the bits random), the same width a
 
 ## Propagation across three hops
 
-Follow one request through an edge proxy, the API and a grading service (IDs illustrative). Ascend has that last hop since commit `c0b3151` but propagates nothing yet: the API neither reads nor sends `traceparent`, and the grading service creates no spans, so the table is what propagation would add. The trace-id is `4bf92f3577b34da6a3ce929d0e0e4736` throughout.
+Follow one request through an edge proxy, the API and a grading service (IDs illustrative). Ascend has had that last hop since commit `c0b3151`, and since `2f1daaa` the trace crosses it: `telemetry.rs` installs the W3C `TraceContextPropagator`, `RemoteGrader` asks for the current span's context as headers on every attempt, retries included, and the grading service extracts it and runs the job in a `grade` span whose parent it names. `a_replica_that_drops_the_request_is_retried_with_the_trace_context` checks that the header reaches the second attempt. The last column shows where Ascend is simpler than the full chain. The trace-id is `4bf92f3577b34da6a3ce929d0e0e4736` throughout.
 
-| Step | Where | Arrives with parent-id | Creates span | Span's parent | Sends `traceparent` |
-|---|---|---|---|---|---|
-| 1 | edge | none: starts the trace | `5b8a9c3f2e1d0c7b` (server) | none | `00-4bf9…4736-5b8a9c3f2e1d0c7b-01` |
-| 2 | API | `5b8a9c3f2e1d0c7b` | `e7d6c5b4a3928170` (server) | edge span | |
-| 3 | API | | `1f2e3d4c5b6a7980` (client, the outbound call) | API server span | `00-4bf9…4736-1f2e3d4c5b6a7980-01` |
-| 4 | grader | `1f2e3d4c5b6a7980` | `0a1b2c3d4e5f6071` (server) | API client span | |
+| Step | Where | Arrives with parent-id | Creates span | Span's parent | Sends `traceparent` | In Ascend |
+|---|---|---|---|---|---|---|
+| 1 | edge | none: starts the trace | `5b8a9c3f2e1d0c7b` (server) | none | `00-4bf9…4736-5b8a9c3f2e1d0c7b-01` | none: `make_span_with` never extracts an incoming header |
+| 2 | API | `5b8a9c3f2e1d0c7b` | `e7d6c5b4a3928170` (server) | edge span | | `request` (`TraceLayer`), so a root span: the trace starts here |
+| 3 | API | | `1f2e3d4c5b6a7980` (client, the outbound call) | API server span | `00-4bf9…4736-1f2e3d4c5b6a7980-01` | no client span: the header names `request` as the parent |
+| 4 | grader | `1f2e3d4c5b6a7980` | `0a1b2c3d4e5f6071` (server) | API client span | | `grade`, a child of `request` |
 
-Three rules come out of the table. The trace-id never changes. The parent-id on the wire is the span that made the call, the client span when there is one, so a slow network hop shows as a gap between client and server spans. The flags pass through, so a parent-based sampler downstream follows the root's decision. A hop that drops the header does not fail; it starts a second trace, and the tree silently splits, the same break the spawned-task gap caused inside one process.
+Three rules come out of the table. The trace-id never changes. The parent-id on the wire is the span that made the call, the client span when there is one, so a slow network hop shows as a gap between client and server spans. The flags pass through, so a parent-based sampler downstream follows the root's decision: Ascend's grader keeps a `grade` span exactly when the API sampled the request. A hop that drops the header does not fail; it starts a second trace, and the tree silently splits, the same break the spawned-task gap caused inside one process.
 
 ## Sampling: head versus tail, with arithmetic
 

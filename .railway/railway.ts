@@ -30,8 +30,9 @@ export default defineRailway(() => {
 
   const db = postgres("Postgres", { region });
   db.networking = { privateNetworkEndpoint: "postgres" };
-  // Volume backup schedules are not managed here (the config engine ignores
-  // them); they are set on the Postgres volume in the dashboard. See
+  // Volume backup schedules are not managed here (an earlier attempt used a
+  // shape the engine ignored); they are set on the Postgres volume in the
+  // dashboard. See
   // docs/RUNBOOK.md, "Backups".
   const dbVolume = volume("postgres-volume", {
     region,
@@ -47,7 +48,6 @@ export default defineRailway(() => {
     replicas: { [region]: 2 },
     healthcheck: "/healthz",
     healthcheckTimeout: 120,
-    networking: { privateNetworkEndpoint: "grader" },
     env: {
       // Shared with the API, which references it. Set once in Railway.
       GRADER_TOKEN: preserve(),
@@ -101,11 +101,7 @@ export default defineRailway(() => {
   const promData = volume("prometheus-data", { region, sizeMB: 10000, allowOnlineResize: true });
   const prometheus = service("prometheus", {
     source: github(REPO, { rootDirectory: "ops/prometheus" }),
-    networking: { privateNetworkEndpoint: "prometheus" },
-    // The config engine creates the volume but does not attach it: attach
-    // once with `railway volume --service <prometheus id> attach --volume
-    // prometheus-data` (mount path /prometheus). See docs/RUNBOOK.md.
-    volumeMounts: { "prometheus-data": { mountPath: "/prometheus" } },
+    volumeMounts: { "/prometheus": promData },
     healthcheck: "/-/ready",
     // Railway mounts volumes owned by root; the image runs as nobody.
     env: { PORT: "9090", RAILWAY_RUN_UID: "0" },
@@ -113,7 +109,6 @@ export default defineRailway(() => {
 
   const alertmanager = service("alertmanager", {
     source: github(REPO, { rootDirectory: "ops/alertmanager" }),
-    networking: { privateNetworkEndpoint: "alertmanager" },
     // A Discord or Slack incoming webhook, or any Alertmanager webhook URL.
     env: { ALERT_WEBHOOK_URL: preserve(), PORT: "9093" },
     healthcheck: "/-/ready",
@@ -123,7 +118,6 @@ export default defineRailway(() => {
     // Held at 2.20: 2.21 removed the v1 query API (/api/services,
     // /api/traces) that Grafana's Jaeger data source calls.
     source: image("jaegertracing/jaeger:2.20.0@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8"),
-    networking: { privateNetworkEndpoint: "jaeger" },
   });
 
   const grafana = service("grafana", {

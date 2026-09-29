@@ -82,7 +82,7 @@ the provider's error is logged, not shown to learners. Without
 ## Backups
 
 Railway backs up the Postgres volume on the schedules set on the volume itself
-(Postgres service, Backups tab). `.railway/railway.ts` cannot set them, so check
+(Postgres service, Backups tab). `.railway/railway.ts` does not set them, so check
 there after recreating the database. Turn on daily and weekly backups.
 
 To restore, pick a backup in the Backups tab and restore it. Railway stages the
@@ -91,12 +91,16 @@ deploying. Afterwards, check `/api/readyz` and sign in.
 
 ## Prometheus storage
 
-Metrics live on the `prometheus-data` volume, mounted at `/prometheus`. `.railway/railway.ts` creates
-the volume, but Railway's config engine does not attach it, so after recreating the service:
+Metrics live on the `prometheus-data` volume, which `.railway/railway.ts` mounts at `/prometheus`
+(`volumeMounts: { "/prometheus": promData }`: mount path to volume). The config engine silently ignores
+any other shape, so check after recreating the service:
 
     railway volume list                      # "Attached to: N/A" means it is not mounted
     railway volume --service <prometheus service id> attach --volume prometheus-data --yes
     railway volume --service <prometheus service id> update --volume prometheus-data --mount-path /prometheus
+
+If `railway config plan` ever proposes setting a volume attachment to null, it is about to detach
+it; stop and fix the file (`railway config pull --json` shows the shapes the engine reads).
 
 The service runs with `RAILWAY_RUN_UID=0`, because the volume is owned by root and the image runs as
 `nobody`. If Prometheus logs `fs_type=OVERLAYFS_SUPER_MAGIC` at start-up, the volume is not mounted,

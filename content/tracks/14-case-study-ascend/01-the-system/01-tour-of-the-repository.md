@@ -253,7 +253,7 @@ ADR 0001 records the decision: a single Rust binary serves the API and the built
 Compare Ascend with the textbook web stack. Step through it, then map each box.
 
 ```viz
-{"type": "system", "algorithm": "request-flow", "title": "The textbook request path", "caption": "Map each box to Ascend: the CDN is the browser cache plus immutable hashed assets, the load balancer is Railway's edge in front of one replica, and there is no Redis because the hot data is compiled into the binary."}
+{"type": "system", "algorithm": "request-flow", "title": "The textbook request path", "caption": "Map each box to Ascend: the CDN is the browser cache plus immutable hashed assets, the load balancer is Railway's edge in front of two replicas, and there is no Redis because the hot data is compiled into the binary."}
 ```
 
 Concretely, Ascend sets `Cache-Control: public, max-age=31536000, immutable` on content-hashed files under `/assets/` and `no-cache` on `index.html`, which gets most of a CDN's benefit for a single-region product.
@@ -264,7 +264,7 @@ One claim deserves a correction. Shipping the SPA inside the API binary does not
 
 | Concern | Today | At 100x | Why |
 |---|---|---|---|
-| Replicas | One API replica, two behind a `PHASE_2` flag, one region | Several, and a second region | Availability |
+| Replicas | Two API replicas since `PHASE_2` was switched on (`eed6d46`), one region | Several, and a second region | Availability |
 | Rate limiting | Security limits in Postgres, one upsert per check; a per-replica flood bucket | The shared table on its own store if its writes show up on the primary | Every login, model call and graded run writes a row |
 | Grading | A `grader` service (ADR 0006), 2 replicas of 2 slots, no secrets | More grader replicas when `GraderSaturated` fires | Grading CPU scales apart from requests |
 | Database connections | `DATABASE_POOL_MAX` 15 per replica, checked at boot | PgBouncer past about four replicas | A rolling deploy doubles the replicas |
@@ -289,9 +289,11 @@ All four were corrected in `7154e9f`. Three changed the comment to describe the 
 
 Drift never runs out. Writing this track turned up three more, with three outcomes:
 
-- `crates/api/src/middleware/security_headers.rs` said the CSP allowed the Pyodide CDN "and nothing else", and that the runners' Web Workers "get a separate, stricter policy via the worker script itself". The policy also allowed PyPI and Google Fonts, and there was never a second policy. The comment was fixed to list every third-party origin, and has since drifted again: `39052ce` dropped Google Fonts from the policy, and the comment still names it. A stricter worker policy is a separate decision, weighed in [Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security).
+- `crates/api/src/middleware/security_headers.rs` said the CSP allowed the Pyodide CDN "and nothing else", and that the runners' Web Workers "get a separate, stricter policy via the worker script itself". The policy also allowed PyPI and Google Fonts, and there was never a second policy. The comment was fixed to list every third-party origin, then drifted again when `39052ce` dropped Google Fonts from the policy and left the comment naming it; `2f1daaa` fixed it a second time ("fonts are self-hosted", which `font-src 'self' data:` matches). A comment that enumerates what the code does goes stale with every change to the list. A stricter worker policy is a separate decision, weighed in [Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security).
 - The module comment at the top of `crates/api/tests/api.rs` said that without `TEST_DATABASE_URL` "the tests print a notice and pass". Since the code-review commit they only do that off CI; the comment now says both halves.
 - In `migration/src/m0004_community.rs`, the comment above `idx_comments_target` says "all comments on target X, oldest first", while `CommentService::list` fetches the newest 500 and reverses them. The index serves both directions. This one stays wrong on purpose: shipped migrations are never edited, comments included, because the file is a record of what ran.
+
+One such list is stale as you read this. The module comment of `crates/api/src/app.rs` gives the outer layers "from the outside in" and goes from tracing straight to the timeout: `metrics::record` is not in it, because `3658224` added the layer and `2f1daaa` moved it, and neither touched the list.
 
 The senior response is neither outrage nor indifference. Trust the code, fix the comment in the same change, and where the claim matters (the anchors did), add a test that makes the claim true by construction.
 
@@ -327,7 +329,7 @@ The senior response is neither outrage nor indifference. Trust the code, fix the
 ## Senior signals
 
 - You read a new codebase in a fixed order (intent, stack, boot, surface, one slice, guarantees) and come out with a list of *verified* claims and open questions, not a vague impression.
-- You describe the architecture by its boundaries and its state: "one process, shared state in Postgres except a per-replica flood bucket, hot reads from memory, learner code graded in a sandbox".
+- You describe the architecture by its boundaries and its state: "one binary, shared state in Postgres except a per-replica flood bucket, hot reads from memory, learner code graded in a sandbox".
 - You can say what a boundary rule really means ("no inbound transport types in the domain") and where it bends, and you propose turning review-only rules into CI checks.
 - You name the rejected alternatives for each big decision and the failure mode each choice prevents, which is what makes a decision defensible.
 - You order the 100x changes by what becomes *incorrect* first (per-process rate limits, fixed before the second replica) versus what merely gets slower.
@@ -361,9 +363,9 @@ The senior response is neither outrage nor indifference. Trust the code, fix the
   explanation: >-
     The artifact is atomic but browsers are not. index.html is served no-cache so a reload picks up the new bundle, but an open tab keeps the old code in memory. API changes must stay backward compatible for at least one release; a single artifact does not remove that duty.
 - q: >-
-    Ascend goes from one replica to three. The password-attempt limit lives in Postgres, while the 1,200-a-minute general bucket stays in each process. What changes for a client whose requests are spread across all three?
-  options: ["Password attempts triple; the general allowance stays the same for every client", "Both limits roughly triple, since each replica keeps its own copy of the state", "Both stay the same, since every replica reads its limits from the same database", "Password attempts stay at ten a minute; the general allowance roughly triples"]
-  answer: 3
+    Ascend scales out to three replicas. The password-attempt limit lives in Postgres, while the 1,200-a-minute general bucket stays in each process. What changes for a client whose requests are spread across all three?
+  options: ["Password attempts triple; the general allowance stays the same for every client", "Password attempts stay at ten a minute; the general allowance roughly triples", "Both stay the same, since every replica reads its limits from the same database", "Both limits roughly triple, since each replica keeps its own copy of the state"]
+  answer: 1
   explanation: >-
     The password bucket is one GCRA row per account in a shared table, so every replica charges the same allowance, which replicas_share_the_security_limits pins with two app instances over one database. The general bucket is governor state in each process, so three replicas give a client up to three times 1,200 a minute. That is accepted on purpose: it only stops floods of cheap reads, and a database write on every request would cost more than it protects.
 - q: >-

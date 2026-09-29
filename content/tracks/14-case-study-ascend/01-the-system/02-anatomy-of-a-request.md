@@ -6,7 +6,7 @@ minutes: 40
 difficulty: hard
 tags: [case-study, axum, middleware, http, error-handling, extractors, request-lifecycle]
 ---
-You tap "Mark complete" at the end of a lesson and the button turns green about thirty milliseconds later. In between, the request crossed a TLS terminator, seven layers of middleware wrapped around the whole app, three more wrapped around the API, four extractors, one service, three database round trips and a single function that turns domain errors into status codes, and then went back out through most of those layers in reverse.
+You tap "Mark complete" at the end of a lesson and the button turns green about thirty milliseconds later. In between, the request crossed a TLS terminator, eight layers of middleware wrapped around the whole app, three more wrapped around the API, four extractors, one service, three database round trips and a single function that turns domain errors into status codes, and then went back out through most of those layers in reverse.
 
 Every one of those steps is ordinary. The interesting part is the *order*. Move the request-ID layer inside the tracer and every log line says `request_id=-`. Put the timeout outside the tracer and timed-out requests vanish from your logs. Check the body before the session and you parse JSON for strangers. This lesson follows one real request through `crates/api` in the order the code applies it, and shows what each position buys.
 
@@ -41,9 +41,11 @@ Router::new()
     .nest("/api", api)
     .fallback(get(static_handler))
     .layer(middleware::from_fn(security_headers::apply))
-    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(CompressionLayer::new().br(true).gzip(true))
     .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
+    // Outside the timeout, so a request it cuts off is still recorded
+    // (as a 503, counted against the availability objective).
+    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(
         TraceLayer::new_for_http()
             .make_span_with(|req: &Request<Body>| {
@@ -89,10 +91,10 @@ flowchart TD
   SN --> SR["SetRequestId"]
   SR --> PR["PropagateRequestId"]
   PR --> TR["Trace span"]
-  TR --> TO["Timeout 240 s"]
+  TR --> MR["Metrics: time the request"]
+  MR --> TO["Timeout 240 s"]
   TO --> CO["Compression"]
-  CO --> MR["Metrics: time the request"]
-  MR --> SH["Security headers"]
+  CO --> SH["Security headers"]
   SH --> P{"path under /api?"}
   P -->|no| SPA["Static SPA handler, from memory"]
   P -->|yes| BL["Body limit 512 KiB"]
@@ -112,9 +114,9 @@ flowchart TD
 | `SetRequestId` | Puts a fresh UUID in `x-request-id` if none survived sanitising | Outside everything that logs, so every other layer can read it | Inside `Trace`, every span logs `request_id=-` because `make_span_with` reads the header before it exists |
 | `PropagateRequestId` | Copies the id onto the response | Outside the timeout | Inside it, a timed-out request returns without an id, which is exactly the one a user will report |
 | `Trace` | One span per request, one INFO line per response with status and latency | Outside the timeout, inside the id | Inside the timeout, a timed-out request's span is dropped and it never logs a response |
+| `metrics::record` | Records `http.server.request.duration` by method, route template and status | Outside the timeout, security headers and every `/api` layer, so timeouts, rate-limit and CSRF refusals and SPA assets are all timed | Inside the `/api` layers, refusals would vanish from the availability SLO. Until `2f1daaa` it sat inside the timeout, so a request the 240 s timeout ended was never recorded and a hung endpoint looked healthy on the dashboard |
 | `Timeout` | Returns 503 if the handler has not produced a response within 240 s | Outside compression and headers so it bounds all inner work | Inner layers could hold a connection indefinitely |
 | `Compression` | Brotli or gzip by `Accept-Encoding` | Outside the handlers; its default predicate skips `text/event-stream` | SSE tokens would be buffered by the compressor and arrive in lumps |
-| `metrics::record` | Records `http.server.request.duration` by method, route template and status | Outside security headers and every `/api` layer, so rate-limit and CSRF refusals and SPA assets are timed too | Inside the `/api` layers, refusals would vanish from the availability SLO; it already sits inside the timeout, so a request the 240 s timeout ends is never recorded |
 | `metrics::stamp_route` | Copies the matched template (`/api/problems/{slug}`) onto the response for `record` to read | A `route_layer`, the only place the template is known | Raw paths as labels would make one series per problem slug |
 | `Security headers` | CSP, HSTS, `X-Frame-Options`, `nosniff` on every response it wraps | Innermost of the outer group so it sees routes, SPA, 404s and rejections | Outside `Timeout` it would also decorate the timeout's 503; today it does not |
 | `DefaultBodyLimit` | Sets the 512 KiB limit that body extractors enforce | `/api` only; the SPA takes no bodies | Nothing reads bodies outside `/api` |
@@ -169,8 +171,8 @@ tests:
     expected: ["in:b", "out:b"]
     hidden: true
     label: outermost layer rejects
-  - args: [[["security_headers", "compression", "timeout", "trace", "propagate_request_id", "set_request_id", "sanitise_request_id"], ["csrf", "rate_limit", "body_limit"]], "rate_limit"]
-    expected: ["in:sanitise_request_id", "in:set_request_id", "in:propagate_request_id", "in:trace", "in:timeout", "in:compression", "in:security_headers", "in:body_limit", "in:rate_limit", "out:rate_limit", "out:body_limit", "out:security_headers", "out:compression", "out:timeout", "out:trace", "out:propagate_request_id", "out:set_request_id", "out:sanitise_request_id"]
+  - args: [[["security_headers", "compression", "timeout", "metrics", "trace", "propagate_request_id", "set_request_id", "sanitise_request_id"], ["csrf", "rate_limit", "body_limit"]], "rate_limit"]
+    expected: ["in:sanitise_request_id", "in:set_request_id", "in:propagate_request_id", "in:trace", "in:metrics", "in:timeout", "in:compression", "in:security_headers", "in:body_limit", "in:rate_limit", "out:rate_limit", "out:body_limit", "out:security_headers", "out:compression", "out:timeout", "out:metrics", "out:trace", "out:propagate_request_id", "out:set_request_id", "out:sanitise_request_id"]
     hidden: true
     label: Ascend's stack returning a 429
   - args: [[["security_headers", "compression"], ["csrf", "rate_limit_general"], ["rate_limit_auth"]], null]
@@ -363,17 +365,17 @@ The same rule reaches upstream errors through one constructor. `AiUpstream(Strin
 
    and its `IntoResponse` picks a code from the status: 400 `bad_request` for malformed JSON, 413 `payload_too_large`, 415 `unsupported_media_type`, and 422 `validation_error` only for well-formed JSON of the wrong shape. The difference matters to clients: a 400 means "your bytes are broken", a 422 means "your fields are wrong", and a client that treats them alike cannot tell a serialisation bug from a form error. `malformed_json_uses_the_api_error_shape` now asserts 400. `Path` and `Query` rejections still answer in plain text, and two coach handlers still take an optional body through Axum's own `Json`.
 3. *Retry hints.* The middleware's 429 always said `Retry-After: 60`, though the general bucket refilled far faster. GCRA, the algorithm behind every bucket, knows exactly when the next request would be allowed, and the middleware now says so, rounded up to whole seconds (`throttled_responses_say_when_to_retry` checks the header). The client uses it: `web/src/main.tsx` retries failed *queries* on 429, 5xx and network errors, waiting as long as `Retry-After` asks (at most ten seconds), and never retries a mutation. The 429s that come from the domain rather than the middleware used to carry no hint at all, because `RateLimited(String)` had nowhere to put one, even though the AI budget knows exactly when it resets. The variant now carries `retry_after_secs`, the mapping above turns it into the header, the budget fills it with the seconds until the next UTC midnight, and a provider's own 429 asks for 30 seconds. The fix was a type change, not a header tweak: once the domain error could express "when", every producer could say it and one place could send it (`rate_limited_errors_carry_retry_after_when_known` pins the mapping). The newest variant reused the idea: `Unavailable` arrived with server-side grading, and when every sandbox slot stays busy for 20 seconds it answers 503 with `Retry-After: 5`. It says the server cannot do the work right now, which is different from `RateLimited` (the client is sending too much), and a client that can tell them apart knows whether slowing down will help.
-4. *The timeout is outside everything.* Still open. The timeout's 503 has an empty body and, because it is produced outside the security-headers layer, no CSP or HSTS header. The status is honest; the shape is not.
+4. *The timeout is outside the contract.* Still open. The timeout's 503 has an empty body and, because it is produced outside the security-headers layer, no CSP or HSTS header. The status is honest and, since `2f1daaa` moved the metrics layer outside it, counted; the shape is not.
 
 ## The way back out, and the 100x view
 
-The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID; since `3658224` the same response also lands in the request-duration histogram, and one request in five exports its span to Jaeger.
+The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID; since `3658224` the same response also lands in the request-duration histogram (recorded just inside `Trace`, so the timeout's own 503 is counted too), and one request in five exports its span to Jaeger.
 
 At 100x the order stays and the parameters change:
 
 - **Per-route deadlines.** A single 240 s timeout is sized for the slowest AI endpoint and applied to everything. A stuck query on an ordinary route can hold one of the pool's connections (15 in production) for four minutes; fifteen of those and every route waits the pool's 5 s acquire timeout and fails. Give CRUD routes deadlines of a few seconds, set a Postgres `statement_timeout`, and keep long deadlines for the AI routes only.
 - **Load shedding.** A concurrency limit in front of the database-backed routes fails fast under overload instead of queueing until the timeout.
-- **Traces below the request.** The `request` span is exported now, but it has no children, so a slow request shows its total and not which query was slow, and no `traceparent` crosses the hop to the grading service ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). Child spans and W3C trace context are the next step; the sanitiser already has the right shape: accept a propagated identifier only when it is well formed.
+- **Traces below the request.** The `request` span is exported, and since `2f1daaa` a submission's trace continues into the grading service: the API sends a W3C `traceparent` and the grader records a child `grade` span. Inside the API the span still has no children, so a slow request shows its total and its grading run but not which query was slow ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). Child spans for queries and the model call are the next step. Reading an incoming `traceparent` at the edge is the other; the sanitiser already has the right shape for it: accept a propagated identifier only when it is well formed.
 
 ## Failure modes
 
@@ -382,7 +384,7 @@ At 100x the order stays and the parameters change:
 | `SetRequestId` moved inside `Trace` | Every log line reads `request_id=-`; users quote ids that match nothing | `make_span_with` reads the header before the layer that sets it has run | Id layers outermost; `request_ids_are_server_controlled` pins the sanitiser, not the order, so add an assertion on a log line |
 | A new mutating endpoint without `CurrentUser` | Anonymous writes succeed; rows with no owner, or a 500 when the service expects one | An integration test that calls every non-GET route without a cookie and expects 401 | A `route_layer` that requires a session for the private router group |
 | One slow query with no `statement_timeout` (none is set today) | Every route, including health checks, fails after exactly 5 s | Pool acquire timeouts in the logs and `DbPoolNearlyExhausted`; `pg_stat_activity` shows the pool's connections all running the same statement | `statement_timeout` for the app role, per-route deadlines of a few seconds, 240 s only on AI routes |
-| The global timeout fires | A 503 with an empty body and no CSP or HSTS; the frontend shows its generic `http_error` | The `Trace` line shows status 503 and a latency of 240,000 ms; the request-duration histogram, inside the timeout, never sees it | Produce the timeout inside the security-headers layer, with the API's `{code, message}` body |
+| The global timeout fires | A 503 with an empty body and no CSP or HSTS; the frontend shows its generic `http_error` | The `Trace` line shows status 503 and a latency of 240,000 ms; since `2f1daaa` the histogram counts it as a 503 on route `/api (unrouted)`, because the timeout's response never reached `stamp_route`, and it spends availability budget | Produce the timeout inside the security-headers layer, with the API's `{code, message}` body |
 | A database error returned verbatim | Constraint and column names in a response body | `internal_details_are_not_returned` fails, or a scanner finds SQL text in a 500 | One mapping function; `Database` and `Internal` log the detail and say "internal error" |
 
 ## Interviewer follow-ups
@@ -407,7 +409,7 @@ At 100x the order stays and the parameters change:
 ## Senior signals
 
 - You can read an Axum (or Tower, or Express) middleware chain and state the request order without running it, and explain what each position protects.
-- You put request IDs outermost, logging outside timeouts, and inner deadlines shorter than outer ones, and you can say what breaks otherwise.
+- You put request IDs outermost, logging and metrics outside timeouts, and inner deadlines shorter than outer ones, and you can say what breaks otherwise.
 - You treat extractor order as policy: authenticate before parsing bodies, and make the safe default (auth required) the easy one.
 - You know that lazy per-request auth keeps public hot paths off the database, that it stops middleware from keying limits by an authenticated user, and how keying on a cookie digest sidesteps that safely.
 - You map domain errors to HTTP in one place, log internals with the request ID, and then look for the leaks: misclassified database errors, framework rejections that lose their status, and timeouts that bypass the contract.

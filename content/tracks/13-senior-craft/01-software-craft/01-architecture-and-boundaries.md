@@ -237,9 +237,11 @@ Router::new()
     .nest("/api", api)
     .fallback(get(static_handler))
     .layer(middleware::from_fn(security_headers::apply))
-    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(CompressionLayer::new().br(true).gzip(true))
     .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
+    // Outside the timeout, so a request it cuts off is still recorded
+    // (as a 503, counted against the availability objective).
+    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(TraceLayer::new_for_http() /* span records request_id */)
     .layer(PropagateRequestIdLayer::x_request_id())
     .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
@@ -248,7 +250,7 @@ Router::new()
     .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
 ```
 
-Read outermost first: drop a client-supplied request ID unless it is a UUID, set one if none survived, propagate it to the response, open a tracing span, start the timeout, compress, start the metrics timer, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
+Read outermost first: drop a client-supplied request ID unless it is a UUID, set one if none survived, propagate it to the response, open a tracing span, start the metrics timer, start the timeout, compress, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
 
 - **Sanitising outside everything.** The first version trusted any `x-request-id` a client sent, so a caller could put arbitrary text into every log line of its request, or reuse one ID across many requests to muddy correlation. The check has to run before `SetRequestIdLayer`, which only fills the header when it is absent.
 - **Request ID before tracing.** The span reads `x-request-id` from the headers. Swap the two and every span records `-`.
@@ -256,7 +258,7 @@ Read outermost first: drop a client-supplied request ID unless it is a UUID, set
 - **240 seconds.** Deliberately above the AI client's own default timeout of 180 seconds (`AI_TIMEOUT_SECS` in `crates/core/src/config.rs`). Nested timeouts should shrink as you go inward, so the innermost call fails first with a specific error instead of the outer layer killing it with a generic one.
 - **503, not 408.** The first version answered a handler timeout with `408 Request Timeout`, which tells the client that *it* was too slow sending the request. Here the server failed to produce a response in time, so it now returns `503 Service Unavailable`, the status that retry logic and dashboards read as a server-side failure.
 - **Security headers outside the router.** They apply to everything, including the SPA fallback and error responses, which are exactly the pages attackers frame or sniff.
-- **Metrics split across the router.** The latency histogram is labelled by route template, which exists only after routing, yet refusals before routing must be counted too. So `metrics::record`, outside the router, times the request, and `stamp_route`, a `route_layer` that runs only on matched routes, copies the template onto the response for it to read ([observability in code](/learn/senior-craft/software-craft/observability-in-code) has the code).
+- **Metrics split across the router.** The latency histogram is labelled by route template, which exists only after routing, yet refusals before routing must be counted too. So `metrics::record`, outside the router, times the request, and `stamp_route`, a `route_layer` that runs only on matched routes, copies the template onto the response for it to read ([observability in code](/learn/senior-craft/software-craft/observability-in-code) has the code). It used to sit inside the timeout, which meant a request cut off at 240 s produced no measurement at all: the one failure an availability objective most needs to see. Commit `2f1daaa` moved it outside, so the timeout's 503 is recorded; for an API request, on route `/api (unrouted)`, because the response never passed `stamp_route`.
 - **Rate limiting before CSRF.** A flood of forged requests still spends the attacker's rate budget, and the cheap check runs first.
 - **Body limit only on `/api`.** Static assets never read a body; the JSON API caps it at 512 KiB before a handler allocates anything.
 
@@ -284,7 +286,7 @@ Ascend is a single binary. Its boundaries are crates and modules, checked by the
 
 Network boundaries buy independent deployment and independent scaling, and cost you partial failure, serialisation, versioned contracts and distributed tracing. Extract a service when a team or a scaling profile genuinely needs to move independently, and extract it along a module boundary that has already proven stable inside the monolith. [Microservices vs monolith](/learn/system-design/building-blocks/microservices-vs-monolith) works through the arithmetic.
 
-Ascend's first extraction, in commit `c0b3151` (ADR 0006), followed that rule. Grading moved out along `crates/grader`, a boundary that already knew nothing of HTTP or the database, for two reasons no module can provide: **isolation**, since the grading service holds no database URL or AI key, so learner code that escaped the sandbox would find nothing to take; and a **different scaling profile**, since grading is CPU-bound and bursty and now scales on its own replicas without adding database connections. It is the same binary started with `--serve-grader`, so the split cost a network hop, a shared token and a retry on a busy replica, not a second codebase. `GradingBackend` in core is either `Local` or `Remote`, and the submission service calls the same `run` on either; `the_api_grades_through_the_service` drives it over a real socket.
+Ascend's first extraction, in commit `c0b3151` (ADR 0006), followed that rule. Grading moved out along `crates/grader`, a boundary that already knew nothing of HTTP or the database, for two reasons no module can provide: **isolation**, since the grading service holds no database URL or AI key, so learner code that escaped the sandbox would find nothing to take; and a **different scaling profile**, since grading is CPU-bound and bursty and now scales on its own replicas without adding database connections. It is the same binary started with `--serve-grader`, so the split cost a network hop, a shared token, one retry on a busy or failed replica and a `traceparent` header to keep the trace whole (`2f1daaa`), not a second codebase. `GradingBackend` in core is either `Local` or `Remote`, and the submission service calls the same `run` on either; `the_api_grades_through_the_service` drives it over a real socket.
 
 ## Make the rule executable
 

@@ -2,7 +2,7 @@
 slug: containers-and-infrastructure-as-code
 title: "Containers and infrastructure as code: images, Kubernetes basics, Terraform and GitOps"
 description: What a container and an image really are (namespaces, cgroups, content-addressed layers, overlayfs), BuildKit's cache keys traced through four real builds of this app, multi-stage and distroless images with measured layer sizes, PID 1 and signals, a Kubernetes rolling update traced step by step including the rollout that never becomes ready, and Terraform plans, drift and state locking compared with this app's state-free Railway IaC.
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [containers, docker, kubernetes, infrastructure-as-code, terraform, gitops, deployment, senior-craft]
 ---
@@ -473,7 +473,9 @@ const app = service("ascend", {
 
 Two more details show the craft. The database URL is wired by **reference** (`db.env.DATABASE_URL`), so rotating credentials cannot leave a stale copy. And `CONTENT_LENIENT` used to be `preserve()`, leaving a build setting (Railway passes service variables to the Docker build as build arguments) to whatever someone last typed in the dashboard, where a leftover lenient value would ship broken lessons; it is now the literal `"0"`. `preserve()` is for values that must stay out of the repository; every other setting belongs in the reviewed file.
 
-A declarative file has no order of operations, so an ordering that matters becomes a reviewed value. The API must not send jobs to a grading service that is not up yet, so `railway.ts` holds `const PHASE_2 = false`: the API stays at one replica and grades in-process while the grader deploys, and flipping the flag raises it to two replicas and sets `GRADER_URL`.
+A declarative file has no order of operations, so an ordering that matters becomes a reviewed value. The API must not send jobs to a grading service that is not up yet, so `railway.ts` held `const PHASE_2 = false`: the API stayed at one replica and graded in-process while the grader deployed. Commit `eed6d46` flipped the flag, which raised the API to two replicas and set `GRADER_URL`; setting it back to `false` is the rollback.
+
+A declarative file is also only as good as the engine's reading of it. Railway's config engine ignored two lines here without an error, because their shape was not one it knew. The Postgres volume declared daily and weekly `backupSchedules`, and the Prometheus service mounted `prometheus-data` with a map keyed by volume name, where the engine expects mount path to volume (`{ "/prometheus": promData }`). The volume was created but never attached, so Prometheus wrote to the container's own filesystem and lost its data at every deploy. The volume was attached with the CLI and `RAILWAY_RUN_UID=0` set, because the mount is owned by root and the image runs as `nobody` (`f4fab0a`). The next `plan` then proposed to set the attachment to null, a detach, because the file still said nothing the engine understood. Reading the plan caught it; `railway config pull` showed the shape the engine writes, and the file now uses it. Backups are set in the dashboard (`docs/RUNBOOK.md`, "Backups"). A clean `plan` proves the file and the platform agree on what the engine reads, not on what you wrote; `config pull` shows what it reads.
 
 ## GitOps
 
@@ -490,6 +492,7 @@ GitOps applies reconciliation to delivery. A Git repository holds the desired st
 | A secret turns up in an old image | The file is in an earlier layer; deleting it later only wrote a whiteout | `.dockerignore`, BuildKit secret mounts, and rotate the secret |
 | Plan wants to destroy and recreate after a refactor | The resource address changed (renamed, moved into a module) | A `moved` block (Terraform 1.1+) or `terraform state mv` |
 | Resources exist that Terraform does not know | Two applies ran without a lock; the last state write won | Remote backend with locking; import the orphans |
+| Metrics or backups missing although the file declares them | The engine accepted fields in a shape it does not read (here, a volume mount and backup schedules); `railway volume list` shows the volume attached to nothing | Compare with `railway config pull`, which writes the shapes the engine reads; check the result on the platform after every rebuild |
 
 ## Trade-offs
 

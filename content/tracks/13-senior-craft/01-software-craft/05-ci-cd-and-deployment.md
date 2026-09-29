@@ -97,7 +97,7 @@ Configuration can also be a release switch. With no `ANTHROPIC_API_KEY`, AI rout
 const app = service("ascend", {
   // Builds the root Dockerfile. A push to main deploys once CI passes.
   source: github("thull32/ascend", { checkSuites: true }),
-  replicas: { [region]: PHASE_2 ? 2 : 1 }, // 2 once grading runs in its own service
+  replicas: { [region]: PHASE_2 ? 2 : 1 }, // PHASE_2 is true since eed6d46: 2 replicas
   // Migrations run on boot before the server binds, so a passing readiness
   // probe means the schema is current and Postgres is reachable.
   healthcheck: "/api/readyz",
@@ -128,7 +128,7 @@ sequenceDiagram
   O-->>P: exit
 ```
 
-Railway's [healthcheck documentation](https://docs.railway.com/reference/healthchecks) fixes the rest of the contract. The platform polls the path until it gets any 2xx, for 300 seconds by default (this service sets 120); if the window passes, the deploy is marked failed and the old deployment keeps serving. Railway does **not** poll the endpoint once the deployment is live: a process that later crashes is restarted by the [restart policy](https://docs.railway.com/deployments/restart-policy) (by default on failure, at most 10 times), not by a probe. A failed migration exits before binding, so traffic never moves. This is neither blue-green nor a canary: one replica is replaced by its successor, and every user moves at once.
+Railway's [healthcheck documentation](https://docs.railway.com/reference/healthchecks) fixes the rest of the contract. The platform polls the path until it gets any 2xx, for 300 seconds by default (this service sets 120); if the window passes, the deploy is marked failed and the old deployment keeps serving. Railway does **not** poll the endpoint once the deployment is live: a process that later crashes is restarted by the [restart policy](https://docs.railway.com/deployments/restart-policy) (by default on failure, at most 10 times), not by a probe. A failed migration exits before binding, so traffic never moves. This is neither blue-green nor a canary: the new deployment's replicas replace the old ones, and every user moves at once.
 
 ## Draining, and the setting that decides it
 
@@ -229,7 +229,7 @@ Weights live in the layer-7 proxy. Envoy's `weighted_clusters`, the Kubernetes G
 
 This app showed the asset problem without any canary. After a deploy that changed a lazy-loaded chunk, a tab opened before it requested `/assets/Dashboard-<old hash>.js`, and `static_handler` fell back to `index.html`, so the import failed as HTML served where JavaScript was expected. Commit `8f82820` fixed both ends: the server answers a missing `/assets/…` path with `404` and `Cache-Control: no-store`, and `web/src/main.tsx` reloads once on Vite's [`vite:preloadError`](https://vite.dev/guide/build.html) event, with a `sessionStorage` flag so a broken build cannot loop.
 
-A one-replica service cannot split by instance, but it can canary by **feature flag**: hash the user ID, enable the new path for 5% of users, and compare their error rate with everyone else's.
+A service that cannot split traffic by instance (one replica, or a platform with no weighted routing) can still canary by **feature flag**: hash the user ID, enable the new path for 5% of users, and compare their error rate with everyone else's.
 
 ## Rollback, roll-forward and irreversible changes
 

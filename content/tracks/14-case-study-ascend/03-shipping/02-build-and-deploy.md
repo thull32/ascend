@@ -2,7 +2,7 @@
 slug: build-and-deploy
 title: "Build and deploy: one binary, cargo-chef, distroless and health-gated rollouts"
 description: How Ascend turns a commit into a running container, why content and the SPA are compiled into the binary, how cargo-chef keeps builds fast, how readiness gates a rollout, and the client-IP bug hiding at the edge.
-minutes: 45
+minutes: 50
 difficulty: hard
 tags: [case-study, docker, ci-cd, infrastructure-as-code, deployment, rate-limiting, migrations]
 ---
@@ -170,14 +170,13 @@ One divergence remains. CI now runs the smoke suite against the image it built, 
 
 ```typescript
 // .railway/railway.ts (excerpt)
-const PHASE_2 = false; // true once the grader service is healthy: the API grades through it
+const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
 
 const grader = service("grader", {
   source: github(REPO, { checkSuites: true }),
   // Same image as the API, a different role: see crates/api/src/grading_service.rs.
   startCommand: "/usr/local/bin/ascend-api --serve-grader",
   replicas: { [region]: 2 },
-  networking: { privateNetworkEndpoint: "grader" },
   env: { GRADER_TOKEN: preserve(), GRADER_SLOTS: "2", /* ... */ },
 });
 
@@ -213,6 +212,22 @@ const app = service("ascend", {
     ...telemetry,
   },
 });
+
+const prometheus = service("prometheus", {
+  source: github(REPO, { rootDirectory: "ops/prometheus" }),
+  // Mount path -> volume. The first version keyed this by volume name,
+  // which the engine ignored without an error (see below).
+  volumeMounts: { "/prometheus": promData },
+  // Railway mounts volumes owned by root; the image runs as nobody.
+  env: { PORT: "9090", RAILWAY_RUN_UID: "0" },
+  /* ... */
+});
+
+const jaeger = service("jaeger", {
+  // Held at 2.20: 2.21 removed the v1 query API (/api/services,
+  // /api/traces) that Grafana's Jaeger data source calls.
+  source: image("jaegertracing/jaeger:2.20.0@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8"),
+});
 ```
 
 The whole project (Postgres, a 50 GB volume with usage alerts at 80, 95 and 100 percent, the API, the grader and the four observability services) is a TypeScript file. `railway config plan` shows the diff against the live project and `railway config apply` applies it. Secrets never appear: `preserve()` keeps whatever value is set in Railway. Everything else, including the model name, the AI budgets and the trusted client-IP header, is in version control, reviewed like code, and recoverable if the project is deleted (the configuration, that is; the data needs backups).
@@ -223,13 +238,17 @@ One entry used to deserve a raised eyebrow: `CONTENT_LENIENT: preserve()`, meani
 
 ### Before and after: one replica, and logs as the only telemetry
 
-ADR 0006 records the starting point: one replica grading in-process, a pool sized for one process, and logs as the only telemetry. Commits `3658224`, `c0b3151` and `d3e239b` changed three things, and the file now rolls them out in two phases. First the `grader` service comes up: the same image started with `--serve-grader`, two replicas of two slots each, no public domain, holding the runtimes and a token but no database URL or AI key. Then `PHASE_2` flips: the API goes to two replicas and grades through `GRADER_URL`. Grading and serving scale separately, and untrusted code runs away from every secret.
+ADR 0006 records the starting point: one replica grading in-process, a pool sized for one process, and logs as the only telemetry. Commits `3658224`, `c0b3151` and `d3e239b` changed three things, rolled out in two phases. First the `grader` service came up: the same image started with `--serve-grader`, two replicas of two slots each, no public domain, holding the runtimes and a token but no database URL or AI key. Then `eed6d46` flipped `PHASE_2`: the API runs two replicas and grades through `GRADER_URL`. Grading and serving scale separately, and untrusted code runs away from every secret.
 
 **Connections are a budget.** `DATABASE_POOL_MAX` (default 20) is 15 in production, and at boot `check_connection_budget` compares `max_connections` with the connections in use plus this pool, warning below 10 spare. Work the number: a rolling deploy briefly runs old and new replicas side by side, so two replicas become four, 4 × 15 = 60 of Postgres's default 100, which is why ADR 0006 puts PgBouncer at about the fifth replica, not the second.
 
-**Telemetry is pushed.** Each process records metrics through the OpenTelemetry API (`crates/core/src/metrics.rs`) and pushes them every 15 s over OTLP/HTTP to Prometheus, labelled with its `RAILWAY_REPLICA_ID`; ADR 0006 chose push because Railway's documentation does not say how internal DNS resolves for a multi-replica service, and push needs no discovery. The main histogram is `http.server.request.duration` by method, route template and status: an inner route layer stamps the matched template on the response and an outer layer times the request, so rate-limit and CSRF refusals are counted too (a 240 s timeout, which fires outside it, is not), and templates such as `/api/problems/{slug}` keep the label set small. Beside it sit grading, AI, rate-limit, retention and email counters and pool and grading-slot gauges, with no personal data in any label. Traces go to Jaeger, one request in five sampled (`OTEL_TRACES_SAMPLE_RATIO: "0.2"`), spans only.
+**Telemetry is pushed.** Each process records metrics through the OpenTelemetry API (`crates/core/src/metrics.rs`) and pushes them every 15 s over OTLP/HTTP to Prometheus, labelled with its `RAILWAY_REPLICA_ID`; ADR 0006 chose push because Railway's documentation does not say how internal DNS resolves for a multi-replica service, and push needs no discovery. The main histogram is `http.server.request.duration` by method, route template and status: an inner route layer stamps the matched template on the response and an outer layer times the request, so rate-limit and CSRF refusals are counted too, and, since `2f1daaa` moved it outside the 240 s timeout, so is a timed-out request, as a 503. Templates such as `/api/problems/{slug}` keep the label set small. Beside it sit grading, AI, rate-limit, retention and email counters and pool and grading-slot gauges, with no personal data in any label. Traces go to Jaeger, one request in five sampled (`OTEL_TRACES_SAMPLE_RATIO: "0.2"`), spans only.
 
 **SLOs are code.** `docs/SLO.md` sets three objectives: 99.5% of API requests do not fail on the server's side over 30 days, 95% of ordinary API requests answer within 250 ms, and 95% of graded submissions within 5 s. `ops/prometheus/rules.yml` turns the first into multi-window burn-rate alerts from Google's SRE workbook. Trace the arithmetic: 0.5% of 720 hours is an error budget of 3.6 hours. `ApiErrorBudgetFastBurn` fires when the 1-hour *and* 5-minute error ratios both exceed 14.4 × 0.5% = 7.2%; burning at 14.4 times the sustainable rate for an hour spends 14.4 / 720 = 2% of the month's budget, which pages. `ApiErrorBudgetSlowBurn` uses 6 × 0.5% over 6 hours and 30 minutes: 36 / 720 = 5% of the budget, a ticket.  Alertmanager routes to `ALERT_WEBHOOK_URL`, each alert links into `docs/RUNBOOK.md`, and Grafana is the only observability service with a public domain.
+
+### Before and after: a stack that only looked deployed
+
+Every service came up green, and three were not doing their job. Prometheus evaluated the SLO rules but had no `alerting:` block, so no alert reached Alertmanager until `2f1daaa`. Grafana could not search traces once Jaeger 2.21 removed the query API it calls. And two lines of `railway.ts` had a shape Railway's config engine did not recognise, which it ignored without an error: the Postgres backup schedules and the Prometheus volume mount (keyed by volume name; the engine wants `{ "/prometheus": promData }`). Metrics vanished at every deploy. The volume was attached by CLI (`f4fab0a`), and the next `plan` then proposed to *detach* it, since the file still said nothing the engine understood; reading the plan instead of applying it caught that, and the file now uses the right shape. Green proves a process runs, not that its output arrives: fire a test alert, open a trace, restart Prometheus and look for yesterday.
 
 ## Boot order, readiness and rollouts
 
@@ -347,7 +366,10 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 | A migration succeeds and the code is broken | Errors after traffic moves, and the rollback fails too | The previous binary queries a column the migration renamed or dropped | Expand and contract: every migration usable by the previous release |
 | A revoked model API key | Readiness says 200 with `ai: true`; every coach call fails | `ai` means "configured", not "working" | A boot-time probe of the key, logged loudly |
 | A moving base-image or action tag | The same commit builds a different image next week, or CI runs code nobody reviewed | Image digests differ between two builds of one commit | Pins by digest and SHA, kept current by Dependabot (in place since `8f82820`) |
-| Alerts never arrive | An alert fires in Prometheus and nobody is told | `ALERT_WEBHOOK_URL` is empty, so the entrypoint wrote a receiver with nothing to send to | Set the variable |
+| Alerts never arrive | An alert fires in Prometheus and nobody is told | Until `2f1daaa`, `prometheus.yml` had no `alerting:` block, so Prometheus never sent to Alertmanager; next, an empty `ALERT_WEBHOOK_URL` makes the entrypoint write a receiver with nothing to send to | An `alerting:` block naming `alertmanager.railway.internal:9093`; set the variable; fire a test alert after each change |
+| Grafana cannot search traces | Spans are exported, but the Jaeger data source errors | Jaeger 2.21 removed the v1 query API (`/api/services`, `/api/traces`) the data source calls | Hold the image at 2.20.0 by digest (`2f1daaa`) until the data source moves |
+| Metrics reset at every deploy | Dashboards and burn-rate windows start empty after Prometheus redeploys | `railway volume list` shows `prometheus-data` attached to nothing; Prometheus logs `fs_type=OVERLAYFS_SUPER_MAGIC`. Cause: a `volumeMounts` shape the engine ignored | Declare `volumeMounts: { "/prometheus": promData }` and set `RAILWAY_RUN_UID=0`, since the mount is root-owned and Prometheus runs as `nobody`; runbook, "Prometheus storage" |
+| Backups assumed, not configured | Found only when a restore is needed | The file declared daily and weekly `backupSchedules` in a shape the config engine ignored | Schedules set on the volume in the dashboard; runbook, "Backups" (`2f1daaa`) |
 | A drain window of 0 s | Replies cut off at every deploy although the code drains them | Railway's `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` unset | 60 s, with the server's own drain bounded to 55 s (in place) |
 
 ## Interviewer follow-ups
@@ -358,7 +380,7 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 
 **"Why does readiness check only the database?"** Model answer: readiness answers "can this process take traffic". The database is required for almost every route; the model is required for one feature, and a readiness check that calls a paid API on every poll costs money and would take the whole site out during a provider outage. Probe the key once at boot instead, and let AI routes degrade on their own. Common wrong answer: "check every dependency", which turns a partial outage into a total one.
 
-**"What changes to run three replicas?"** Model answer: less than it would have, because ADR 0006 did the groundwork. Migrations run under an advisory lock; sessions, budgets and the security limits live in Postgres, and only the loose general bucket multiplies; retention takes an advisory lock so one replica runs it; grading is its own service; telemetry is pushed per replica. What remains is arithmetic: three replicas become six during a deploy, 6 × 15 = 90 of 100 connections, under the boot check's 10 spare, so lower `DATABASE_POOL_MAX` or add PgBouncer first. Common wrong answer: "set `replicas: 3`".
+**"What changes to run three replicas?"** Model answer: less than it would have, because ADR 0006 did the groundwork. Migrations run under an advisory lock; sessions, budgets and the security limits live in Postgres, and only the loose general bucket multiplies; retention takes an advisory lock per batch so one replica deletes at a time; grading is its own service; telemetry is pushed per replica. What remains is arithmetic: three replicas become six during a deploy, 6 × 15 = 90 of 100 connections, under the boot check's 10 spare, so lower `DATABASE_POOL_MAX` or add PgBouncer first. Common wrong answer: "set `replicas: 3`".
 
 ## What mid-level engineers get wrong
 

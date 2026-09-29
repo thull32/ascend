@@ -9,7 +9,8 @@
 //! network; any OTLP backend works). Every replica pushes its own data,
 //! labelled with `service.instance.id` = `RAILWAY_REPLICA_ID`, so nothing
 //! has to discover or scrape replicas. Only spans are exported, never log
-//! events, so learner content in a log line cannot reach the trace store.
+//! events, so learner content in a log line cannot reach the trace store,
+//! and only Ascend's own spans (targets `ascend_*`).
 use std::time::Duration;
 
 use opentelemetry::KeyValue;
@@ -88,7 +89,11 @@ pub fn init(json: bool, service: &'static str) -> Telemetry {
     let traces = tracer.as_ref().map(|provider| {
         tracing_opentelemetry::layer()
             .with_tracer(provider.tracer("ascend"))
-            .with_filter(filter::filter_fn(|meta| meta.is_span() && *meta.level() <= tracing::Level::INFO))
+            // Ascend's own spans only: dependencies such as wasmtime-wasi
+            // open an INFO span per WASI call, thousands per grading run.
+            .with_filter(filter::filter_fn(|meta| {
+                meta.is_span() && *meta.level() <= tracing::Level::INFO && meta.target().starts_with("ascend")
+            }))
     });
 
     let meter = env("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT").and_then(|endpoint| {
