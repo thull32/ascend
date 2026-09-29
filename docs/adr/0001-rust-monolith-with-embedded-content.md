@@ -29,11 +29,14 @@ curriculum compiled in via `include_dir!`. PostgreSQL is the only stateful depen
 - A content change is a deploy (about a minute with cached dependency layers). Acceptable.
 - The binary is self-contained and the image is small; there is no "content missing in prod" failure mode.
 - The content validator runs at build time, so bad content cannot ship.
-- Horizontal scaling needs one change: the in-process rate limiter moves to a shared store.
+- Horizontal scaling needs one change: the in-process rate limiter moves to a shared store. (Done: the
+  security limits moved to Postgres, not Redis, since Postgres was already shared; see
+  `crates/core/src/services/rate_limit.rs`.)
 
 ## Revisit when
 
 - Content editors who do not use Git join the project (consider a CMS that
   commits to the repository rather than a database-backed CMS).
-- A second replica is needed (move rate limiting to Redis first).
+- A second replica is needed. (The prerequisite, shared rate limits, is met; check the connection pool
+  budget against Postgres's `max_connections` first.)
 - Build times for a content-only change exceed a few minutes.
