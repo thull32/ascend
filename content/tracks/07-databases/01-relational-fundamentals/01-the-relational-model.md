@@ -44,7 +44,7 @@ Trace the arithmetic, because every number is accounted for:
 3. **Alignment.** Tuples start on 8-byte boundaries, so each occupies 64 bytes, which is why consecutive `lp_off` values differ by 64.
 4. **The page.** `lower = 504` is the header (24) plus 120 line pointers (480). `upper = 512` is where the lowest tuple starts: 120 × 64 = 7,680 = 8,192 − 512. Eight bytes are left over, so the page holds exactly **120 rows**, and 2 million rows need 16,667 pages (130 MB).
 
-Two consequences for modelling. First, the fixed overhead per row is 28 bytes (header plus line pointer) before any data, so a narrow junction table such as `post_tags(post_id bigint, tag_id bigint)` spends 44 of every 64 bytes on overhead; splitting a table into many thin tables is not free. Second, column order changes size: `pg_column_size(ROW(1::int, 2::bigint, 3::int, 4::bigint))` is 56 bytes but `ROW(2::bigint, 4::bigint, 1::int, 3::int)` is 48, because each `bigint` after an `int` is padded to an 8-byte boundary. On a billion-row table, putting fixed-width 8-byte columns first saves gigabytes.
+Two consequences for modelling. First, the fixed overhead per row is 28 bytes (header plus line pointer) before any data, so a narrow junction table such as `post_tags(post_id bigint, tag_id bigint)` spends 28 of every 44 bytes on overhead (a 40-byte tuple plus its line pointer, for 16 bytes of data); splitting a table into many thin tables is not free. Second, column order changes size: `pg_column_size(ROW(1::int, 2::bigint, 3::int, 4::bigint))` is 56 bytes but `ROW(2::bigint, 4::bigint, 1::int, 3::int)` is 48, because each `bigint` after an `int` is padded to an 8-byte boundary. On a billion-row table, putting fixed-width 8-byte columns first saves gigabytes.
 
 ## Keys
 
@@ -193,7 +193,7 @@ LIMIT 10;
 -- Planning Time: 2.657 ms   Execution Time: 0.209 ms
 ```
 
-Seventy buffer hits and 0.2 ms of execution. The surprise is the other number: **planning took 13 times longer than execution**, because the planner considers join orders and algorithms for four tables. For a hot query, a prepared statement (which caches the plan) matters more than the join itself. The real costs of normalisation are elsewhere:
+Seventy buffer hits and 0.2 ms of execution. The surprise is the other number: **planning took 13 times longer than execution**, because the planner considers join orders and algorithms for four tables. For a hot query, a prepared statement matters more than the join itself: Postgres plans its first five executions individually, then switches to a cached generic plan if that plan's estimated cost is not much worse, and from then on skips planning. The real costs of normalisation are elsewhere:
 
 - **Query complexity** that ORMs paper over badly, producing the N+1 pattern measured in [ORMs and N+1](/learn/databases/data-modeling-and-evolution/orms-and-n-plus-one).
 - **Aggregations across large joins.** Revenue per customer over 200 million order lines is a large join and a large `GROUP BY` regardless of indexes.
@@ -220,7 +220,7 @@ The database enforces a constraint on every path that writes the row: the API, a
 - `CHECK` for domain rules: `qty > 0`, `status IN ('pending','paid','shipped','cancelled')`.
 - `UNIQUE` for every natural key, including composite ones such as `(user_id, lesson_slug)`.
 - Foreign keys with an explicit `ON DELETE`, plus the index on the referencing column.
-- `EXCLUDE` for "no overlapping intervals", which application code gets wrong under concurrency: `EXCLUDE USING gist (room_id WITH =, during WITH &&)`.
+- `EXCLUDE` for "no overlapping intervals", which application code gets wrong under concurrency: `EXCLUDE USING gist (room_id WITH =, during WITH &&)`. The `=` on a plain integer inside a GiST index needs the `btree_gist` extension, which the [range types documentation](https://www.postgresql.org/docs/17/rangetypes.html) uses for exactly this room-booking example.
 
 A constraint costs an index probe or an expression evaluation per write, microseconds, as measured above. The incident it prevents costs a data repair.
 
@@ -230,7 +230,7 @@ A constraint costs an index probe or an expression evaluation per write, microse
 |---|---|---|
 | Deleting a user takes seconds and blocks other writers; `pg_stat_user_tables.seq_scan` climbs on `orders` | Foreign-key check with no index on `orders.customer_id` scans the child table per deleted parent | `CREATE INDEX CONCURRENTLY` on every referencing column; add a lint that flags unindexed FKs |
 | Reports and screens disagree about a customer's email or name | A denormalised copy drifted because one write path skipped the sync, or an event consumer lagged | Name the sync mechanism, reconcile with a nightly anti-join, or remove the copy |
-| A nightly import that took 10 minutes now takes 7 hours after "adding integrity" | Per-row RI triggers at about 14 µs a row on tens of millions of rows | Load into a staging table, validate once with a set-based `NOT EXISTS`, insert in one statement; or add the FK `NOT VALID` and `VALIDATE` later |
+| A nightly import that took 10 minutes now takes 7 hours after "adding integrity" | Per-row RI triggers at about 14 µs a row on tens of millions of rows | Load into a staging table, validate once with a set-based `NOT EXISTS`, insert in one statement; or drop the FK for the load and re-add it, which checks the whole table with one outer-join query (`NOT VALID` then `VALIDATE CONSTRAINT` runs that check under a lock that does not block writes) |
 | Deleting a user removed other people's content | `ON DELETE CASCADE` chained through a self-reference (`parent_id`) | Choose `SET NULL` for shared content, as this app's `m0007` migration did |
 | A filter such as `WHERE id NOT IN (subquery)` suddenly returns nothing | One `NULL` in the subquery makes every comparison unknown | Use `NOT EXISTS`, and make the column `NOT NULL` if nulls are not meaningful |
 
@@ -356,7 +356,7 @@ hints:
   options: ["A row-level trigger probes the parent key and locks it per row", "The foreign key forces a full-page WAL image for every row", "Rows with foreign keys are stored wider, so fewer fit on a page", "The foreign key makes Postgres rebuild the parent index per batch"]
   answer: 0
   explanation: >-
-    Referential integrity is enforced by system triggers. Each inserted row runs a primary-key lookup on the parent with FOR KEY SHARE, about 14 microseconds per row in the lab. Row width and page layout are identical in both tables, and the parent index is only read, never rebuilt. Bulk loads therefore validate once with a set-based query or add the constraint as NOT VALID and validate later.
+    Referential integrity is enforced by system triggers. Each inserted row runs a primary-key lookup on the parent with FOR KEY SHARE, about 14 microseconds per row in the lab. Row width and page layout are identical in both tables, and the parent index is only read, never rebuilt. Bulk loads therefore validate once with a set-based query, or add the constraint after the load, which Postgres checks with a single outer-join query instead of one trigger call per row.
 - q: >-
     An orders table stores unit_price_cents on each order line although products has a price column. A reviewer calls it a 3NF violation. What is the right response?
   options: ["Move it into a materialised view that is refreshed from products daily", "Keep it and sync it with a trigger whenever the product price changes", "Remove it; the current price can always be joined from products", "Keep it; the price at purchase is a fact about the line, not a copy"]

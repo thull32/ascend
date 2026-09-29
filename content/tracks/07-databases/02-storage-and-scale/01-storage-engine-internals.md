@@ -70,7 +70,7 @@ Every page read goes through the buffer pool, `shared_buffers` in size. The engi
 
 That difference is measurable. A bitmap scan touching 12,261 pages of `orders`, run with none of them in the buffer pool (all served from the OS page cache), took **52.7 ms**; the same query immediately again, all 12,261 now hits, took **8.3 ms**. That is about 3.6 µs extra per page for the system call and copy. Had the pages come from an NVMe drive at roughly 100 µs per random read, the same query would have taken over a second; from network block storage, several. Same plan, same page count, three orders of magnitude of latency: the variance at the top of this lesson.
 
-Postgres caches twice. `shared_buffers` sits above the kernel page cache instead of replacing it, so a page can be in memory in both. The conventional 25% of RAM for `shared_buffers` exists because the other 75% is doing useful work as OS cache. InnoDB is normally run with `innodb_flush_method = O_DIRECT` (the default since MySQL 8.4), bypassing the OS cache, and is typically given 70–80% of RAM for `innodb_buffer_pool_size`.
+Postgres caches twice. `shared_buffers` sits above the kernel page cache instead of replacing it, so a page can be in memory in both. The conventional 25% of RAM for `shared_buffers` exists because the other 75% is doing useful work as OS cache. InnoDB is normally run with `innodb_flush_method = O_DIRECT` (the Linux default since MySQL 8.4, where supported), bypassing the OS cache, and the MySQL manual suggests up to 80% of a dedicated server's RAM for `innodb_buffer_pool_size`.
 
 ### Eviction, and why a big scan does not flush the pool
 
@@ -185,12 +185,12 @@ Postgres and InnoDB update pages in place; the log is a recovery aid. RocksDB, C
  "caption": "Writes land in the memtable and are flushed to sorted files; reads check newer levels first; compaction merges levels in the background. Compare the write path with the WAL animation above: both start with a sequential log, but here the log-structured files are the database, not a recovery aid."}
 ```
 
-A B-tree rewrites an 8 KiB page (and, after a checkpoint, logs a full image of it) to change 100 bytes; an LSM tree writes those 100 bytes to its log and then once per compaction level, sequentially. LSMs win on sustained writes and on SSD endurance; B-trees win on point reads and range scans that must be fast the first time. [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) traces the compaction arithmetic and [B-tree vs LSM](/learn/advanced-data-structures/log-structured-and-disk-structures/b-tree-vs-lsm) compares the amplification.
+A B-tree rewrites an 8 KiB page (and, after a checkpoint, logs a full image of it) to change 100 bytes; an LSM tree writes those 100 bytes to its log, then rewrites them sequentially each time compaction merges them into a lower level, together with the overlapping data already there. LSMs win on sustained writes and on SSD endurance; B-trees win on point reads and range scans that must be fast the first time. [LSM trees and SSTables](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) traces the compaction arithmetic and [B-tree vs LSM](/learn/advanced-data-structures/log-structured-and-disk-structures/b-tree-vs-lsm) compares the amplification.
 
 | | B-tree heap (Postgres) | Clustered B-tree (InnoDB) | LSM (RocksDB, Cassandra) |
 |---|---|---|---|
 | Write path | WAL + dirty page, page rewritten at checkpoint | Redo log + dirty page, undo for old versions | WAL + memtable, sequential files |
-| Write amplification | Page rewrites and full-page images | Page rewrites, doublewrite buffer | Compaction: roughly 10–30 in leveled mode |
+| Write amplification | Page rewrites and full-page images | Page rewrites, doublewrite buffer | Compaction: often above 10 in leveled mode, per the RocksDB wiki |
 | Point read | Index descent + heap page | Clustered descent | Memtable, then one candidate per level via bloom filters |
 | Space overhead | Dead tuples until vacuum | Undo until purge | Obsolete versions until compaction |
 
@@ -203,7 +203,7 @@ A B-tree rewrites an 8 KiB page (and, after a checkpoint, logs a full image of i
 | Occasional stalls on single-row writes | Backends evicting dirty buffers themselves (`pg_stat_io` client-backend writes) | Tune the background writer; more `shared_buffers`; faster storage |
 | `SELECT *` slow while narrow selects are fast | Detoasting large values: extra buffers on the TOAST relation | Select only needed columns; move large blobs to their own table or object storage |
 | Crash recovery takes many minutes | Huge WAL distance from the REDO point because of very long checkpoint intervals | Shorter `checkpoint_timeout`; faster storage; a hot standby to fail over to instead of waiting |
-| `pg_rewind` refuses after a failover | Neither data checksums nor `wal_log_hints` were enabled (the lab cluster has both off) | Enable `wal_log_hints` or initialise with checksums before you need them |
+| `pg_rewind` refuses after a failover | Neither data checksums nor `wal_log_hints` were enabled (the lab cluster has both off) | Enable `wal_log_hints` or initialise with checksums before you need them (Postgres 18's `initdb` enables checksums by default) |
 
 ## Interviewer follow-ups
 

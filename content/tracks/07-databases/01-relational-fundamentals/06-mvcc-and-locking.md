@@ -68,7 +68,7 @@ That reads `xmin:xmax:in-progress list`. Every transaction ID below 815 had fini
  "caption": "T1's snapshot predates T2, so T1 keeps seeing the old version even after T2 commits; T3 starts later and sees the new one. Nobody waits. When T1 tries to write the row T2 changed, repeatable read aborts it. The old version becomes garbage only when no snapshot can see it."}
 ```
 
-Consulting `pg_xact` for every tuple would be slow, so the first reader to learn that a tuple's `xmin` committed sets a **hint bit** in the tuple header (`XMIN_COMMITTED` in the step 1 dump). Setting it modifies the page, which makes it dirty. That is why a read-only query can write: in the lab, the first index scan over `orders` after a 124,541-row `UPDATE` reported `dirtied=16531 written=15468`, setting hint bits and pruning dead versions on the pages it visited. It is bookkeeping paid once, and it surprises people who see write I/O from a `SELECT` after a bulk load.
+Consulting `pg_xact` for every tuple would be slow, so the first reader to learn that a tuple's `xmin` committed sets a **hint bit** in the tuple header (`HEAP_XMIN_COMMITTED` in `t_infomask`, which the dumps above leave out). Setting it modifies the page, which makes it dirty. That is why a read-only query can write: in the lab, the first index scan over `orders` after a 124,541-row `UPDATE` reported `dirtied=16531 written=15468`, setting hint bits and pruning dead versions on the pages it visited. It is bookkeeping paid once, and it surprises people who see write I/O from a `SELECT` after a bulk load.
 
 ## HOT and page pruning
 
@@ -120,7 +120,7 @@ The third row is the part people miss: once the horizon moves, vacuum removes th
 
 Transaction IDs are 32 bits and compared modulo 2³²: each ID sees about two billion IDs in its past and two billion in its future, so a tuple created long enough ago would eventually appear to be from the future and vanish. Vacuum prevents that by **freezing** old tuples, marking them visible to every snapshot regardless of ID. Autovacuum forces an aggressive anti-wraparound vacuum on any table whose oldest unfrozen ID is older than `autovacuum_freeze_max_age` (200 million), and since Postgres 14 a failsafe drops cost throttling once a table passes `vacuum_failsafe_age` (1.6 billion).
 
-If freezing cannot finish (the same pinned horizon, or a huge table throttled too hard), Postgres logs warnings tens of millions of IDs before the limit and, a few million before it, refuses to assign new transaction IDs: every write stops until a manual vacuum completes, which on a large table takes hours. Sentry and Mailchimp both published outage write-ups about exactly this. Monitor it:
+If freezing cannot finish (the same pinned horizon, or a huge table throttled too hard), Postgres logs warnings tens of millions of IDs before the limit and, a few million before it, refuses to assign new transaction IDs: every write stops until a vacuum completes, which on a large table can take hours or days. [Sentry](https://blog.sentry.io/transaction-id-wraparound-in-postgres) (July 2015, down for most of a US working day) and [Mailchimp's Mandrill](https://mailchimp.com/what-we-learned-from-the-recent-mandrill-outage/) (February 2019, about 40 hours, with an initial vacuum estimate of weeks) both published outage write-ups about exactly this. Monitor it:
 
 ```sql
 SELECT datname, age(datfrozenxid) AS xid_age FROM pg_database ORDER BY 2 DESC;
@@ -243,7 +243,7 @@ Sixteen workers without `SKIP LOCKED` do the work of one. The lease means a cras
 |---|---|---|---|---|
 | Postgres `SKIP LOCKED` | Thousands of jobs per second per table | Approximate (by `run_at`) | Leases; transactional enqueue with your data | None extra; bloat-sensitive |
 | Advisory locks on job ids | Similar | Approximate | Session or transaction scoped | Easy to leak with poolers |
-| Dedicated broker (SQS, RabbitMQ, Kafka) | Tens of thousands per second and up | Per queue or partition | Visibility timeouts, dead-letter queues | Another system, and an outbox to enqueue transactionally |
+| Dedicated broker (SQS, RabbitMQ, Kafka) | Tens of thousands per second and up | Per partition (Kafka) or message group (SQS FIFO) | Visibility timeouts, dead-letter queues | Another system, and an outbox to enqueue transactionally |
 
 ## Advisory locks
 
@@ -276,7 +276,7 @@ Follow `blocked_by` to the root: usually a single transaction at the head of a c
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | A small, high-churn table grows without bound; vacuum reports "dead but not yet removable" | Something pins the xmin horizon: an idle transaction, a stale replication slot, an orphaned prepared transaction | End it; `idle_in_transaction_session_timeout`; monitor slot lag; then `pg_repack` or `VACUUM FULL` to return space |
-| Writes stop with "database is not accepting commands" | Transaction ID wraparound protection: freezing never completed | Single-user or manual `VACUUM` of the oldest tables; alert on `age(datfrozenxid)` long before |
+| Writes stop with "database is not accepting commands" | Transaction ID wraparound protection: freezing never completed | End whatever pins the horizon, then a manual `VACUUM` of the oldest tables (the Postgres 17 docs advise against the old single-user-mode procedure); alert on `age(datfrozenxid)` long before |
 | Throughput collapses to a few transactions per second under contention, errors mention deadlock | Lock cycles, each costing `deadlock_timeout` before detection | Lock rows in a consistent order; `log_lock_waits` to find the pair |
 | Adding workers to a job table does not raise throughput | All workers queue on the same row lock | `FOR UPDATE SKIP LOCKED` with a lease |
 | Two instances of a singleton job run at once, or its lock is stuck | Session-level advisory lock behind a transaction-mode pooler | `pg_advisory_xact_lock` inside one transaction, or a session-mode pool for the job |

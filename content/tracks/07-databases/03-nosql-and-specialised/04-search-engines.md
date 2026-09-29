@@ -62,7 +62,7 @@ A Lucene index is a set of **segments**, each an immutable mini-index with its o
 | `.pos`, `.pay` | Positions, offsets, payloads | Also delta-encoded; read only for phrase and span queries |
 | `.nvd` | Norms: one byte per document per field | Encoded field length, used by BM25 |
 | `.dvd` | Doc values | Column-oriented values for sorting and aggregations |
-| `.fdt` | Stored fields (the original `_source`) | Compressed blocks (LZ4, or DEFLATE for `best_compression`) |
+| `.fdt` | Stored fields (the original `_source`) | Compressed blocks: LZ4 by default; `best_compression` is DEFLATE in Lucene's codec and zstd in recent Elasticsearch |
 | `.liv` | Live documents | A bitset; a deleted document's bit is cleared |
 
 An **FST** is a trie that also shares suffixes and emits an output (here, the on-disk address of a term block) along each path. For a vocabulary of millions of terms it is a few megabytes, so looking up a term costs a walk through a small automaton followed by one block read and a scan of at most 48 entries.
@@ -148,7 +148,7 @@ The query is `pgbouncer pool`; a `match` query is an OR, so all three are candid
 | d2 | — | 1 / 1.6857 = 0.5932 × 0.1335 = 0.0792 | **0.0792** |
 | d3 | — | 5 / 6.7143 = 0.7447 × 0.1335 = 0.0994 | **0.0994** |
 
-The ranking is d1, d3, d2. Counting occurrences would put d3 first (five `pool`s). The one rare term in d1 is worth five times all of d3's matches; d3's five occurrences beat d2's one by only 25%, because saturation flattens tf and d3's length pushes K up while d2's shortness pulls it down. At average length the tf factor for 1, 2, 3, 5, 10 and 100 occurrences is 0.45, 0.63, 0.71, 0.81, 0.89 and 0.99: ten mentions are worth 1.96 times one, not ten times. A script reproduces every number above; this is also what the second exercise implements.
+The ranking is d1, d3, d2. Counting occurrences would put d3 first (five `pool`s). The one rare term in d1 is worth four and a half times all of d3's matches (0.4458 against 0.0994); d3's five occurrences beat d2's one by only 25%, because saturation flattens tf and d3's length pushes K up while d2's shortness pulls it down. At average length the tf factor for 1, 2, 3, 5, 10 and 100 occurrences is 0.45, 0.63, 0.71, 0.81, 0.89 and 0.99: ten mentions are worth 1.96 times one, not ten times. A script reproduces every number above; this is also what the second exercise implements.
 
 ## From scores to the top 20
 

@@ -113,7 +113,7 @@ models:
 
 | Check | Threshold | When it fires |
 |---|---|---|
-| Freshness | Warn at 6 h, error at 12 h since the newest `completed_at` | Error: downstream models are skipped; on-call paged |
+| Freshness | Warn at 6 h, error at 12 h since the newest `completed_at` | Error: the orchestrator holds the downstream build (`dbt source freshness` is its own step, not part of `dbt build`); on-call paged |
 | Uniqueness of `payment_id` | Zero duplicates | Error: the model's downstream is skipped (`dbt build` stops the branch) |
 | Referential integrity | Orphans: warn above 0, error above 1,000 | Warn: recorded, owner notified; error: branch stops |
 | Null rate of `customer_id` | At most 0.1% (`mostly: 0.999`) | Error |
@@ -132,7 +132,7 @@ With history of daily row counts in millions `[100, 102, 98, 101, 99]`, the medi
 
 ## Write-audit-publish
 
-Tests that run after data is published only tell you how long readers saw bad data. **Write-audit-publish** (WAP) reverses the order: write the new data somewhere readers cannot see it, audit it, and publish atomically only if the audit passes. Netflix engineers described this pattern publicly years ago, and Iceberg supports it with **branches**:
+Tests that run after data is published only tell you how long readers saw bad data. **Write-audit-publish** (WAP) reverses the order: write the new data somewhere readers cannot see it, audit it, and publish atomically only if the audit passes. Netflix engineers described this pattern publicly in a 2017 DataWorks Summit talk on data quality, and Iceberg supports it with **branches**:
 
 ```sql
 -- Write: the job commits to an audit branch, invisible to readers of main.
@@ -200,7 +200,7 @@ Static parsing misses Python jobs and dynamically generated SQL. **OpenLineage**
 }
 ```
 
-Runtime lineage catches what parsing misses; static lineage covers jobs that have not run yet. Mature platforms use both. Netflix has published a description of its lineage system: lineage collected at runtime from its Spark and Trino workloads and stored as a graph, federated with Metacat (its open-sourced metadata service), and used for impact analysis, for alerting consumers when an upstream dataset is late or wrong, and for finding unused datasets to retire.
+Runtime lineage catches what parsing misses; static lineage covers jobs that have not run yet. Mature platforms use both. Netflix has described its lineage system publicly (a 2019 engineering post): lineage pushed by platform tools such as its Presto clusters and derived from Spark plans and scheduler metadata, enriched with table metadata from Metacat (its open-sourced metadata service), and stored in a graph database behind a lineage API that serves reliability and efficiency work such as impact analysis.
 
 ### Tracing an incident's blast radius
 
@@ -242,7 +242,7 @@ ALTER TABLE dim_customer MODIFY COLUMN email SET MASKING POLICY mask_email;
 
 ### Deleting one user from an immutable lake
 
-A deletion request must reach every table the user's data flowed into (a column-lineage traversal from the user-keyed tables) and be physically real within a deadline of about a month under the GDPR. Trace user 42 through `fct_payment`, partitioned by day in 256 MB Parquet files, where the four rows sit in three files:
+A deletion request must reach every table the user's data flowed into (a column-lineage traversal from the user-keyed tables) and be physically real within the GDPR's deadline: [Article 12(3)](https://eur-lex.europa.eu/eli/reg/2016/679/oj/eng) requires a response within one month of the request, extendable by two months for complex cases. Trace user 42 through `fct_payment`, partitioned by day in 256 MB Parquet files, where the four rows sit in three files:
 
 | File | Rows for user 42 (positions) |
 |---|---|

@@ -20,7 +20,7 @@ Connections are usually the first database resource to run out, and the arithmet
 
 Postgres uses a process per connection. When a client connects, the postmaster forks a backend that serves that one client for its whole session. The design is robust (a crash in one backend cannot corrupt another's memory) and expensive in three measurable ways. All numbers below are from PostgreSQL 17 on a 32-core lab machine, with `pgbench` running on the same host.
 
-**Setting one up is slow relative to a query.** A new connection costs a TCP handshake, optionally TLS, the startup message, authentication, a `fork()` and backend initialisation. With SCRAM-SHA-256 authentication the server and client each run 4,096 iterations of PBKDF2 (`scram_iterations`) by design, to make password guessing expensive.
+**Setting one up is slow relative to a query.** A new connection costs a TCP handshake, optionally TLS, the startup message, authentication, a `fork()` and backend initialisation. With SCRAM-SHA-256 authentication the client runs 4,096 iterations of PBKDF2 (the count stored with the password, set by `scram_iterations`) to derive its proof, by design, to make password guessing expensive; the server, which stored the derived keys when the password was set, checks the proof with a few HMACs ([RFC 5802](https://www.rfc-editor.org/rfc/rfc5802.html)).
 
 | Path | New connection | Primary-key query on an open connection | One connection per query |
 |---|---|---|---|
@@ -42,7 +42,7 @@ A pooled connection served 6,944 queries a second from one client; connecting pe
 | 64 | 98,041 | 0.653 ms | 64.0 |
 | 90 | 81,878 | 1.099 ms | 90.0 |
 
-Throughput peaks near the core count and then **falls**: at 90 clients it is 37% below the peak while each update takes 4.5 times longer. Past the peak, extra backends only add contention for CPU, locks and buffer-pool latches. A widely quoted starting point for the number of *actively running* connections, from the PostgreSQL wiki via the HikariCP documentation, is:
+Throughput peaks near the core count and then **falls**: at 90 clients it is 37% below the peak while each update takes 4.5 times longer. Past the peak, extra backends only add contention for CPU, locks and buffer-pool latches. A widely quoted starting point for the number of *actively running* connections, which the [HikariCP documentation](https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing) credits to the PostgreSQL project, is:
 
 $$ \text{active connections} \approx 2 \times \text{cores} + \text{effective spindles} $$
 
@@ -84,12 +84,15 @@ pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
         // a round trip per request while still catching dead sockets.
         .test_before_acquire_if_idle_for(Duration::from_secs(60))
         .sqlx_logging(false);
-    let db = Database::connect(opts).await?;
-    Ok(db)
+    // A connect error can quote the URL it failed to use, password included;
+    // it goes to logs, so strip the credentials first.
+    Database::connect(opts)
+        .await
+        .map_err(|e| anyhow::anyhow!("database connect: {}", redact_credentials(&e.to_string())))
 }
 ```
 
-SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState` clones that handle into every service: comments, progress, auth, submissions, the AI budget tracker. So each API process has exactly one pool of at most 20 connections, shared by every request it serves. Here is what each setting does.
+SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState::build` clones that handle into every service: comments, progress, auth, submissions, the AI budget inside the coach, and the shared rate limiter. So each API process has exactly one pool of at most 20 connections, shared by every request it serves. Here is what each setting does.
 
 | Setting | Value here | Effect |
 |---|---|---|
@@ -100,7 +103,7 @@ SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState` clones that
 | `max_lifetime` | 30 min | Retire every connection after 30 minutes. This bounds server-side memory growth and lets a pool drift back to a new primary's address after a DNS change or failover. It equals sqlx's default; setting it explicitly records the intent and survives a change of default. |
 | `test_before_acquire_if_idle_for` | 60 s | Before handing out a connection that has been idle for at least 60 seconds, send a protocol-level ping and wait for the reply. It replaces sqlx's default (`test_before_acquire`, on), which pings on every acquire: one extra round trip per query. |
 
-One detail about how SeaORM uses the pool matters for sizing. When a service method runs `Comments::find()...all(&self.db)`, the query acquires a connection, runs, and releases it. Four sequential queries in one request are four separate acquires, and between them the connection goes back into the pool. Only a transaction (`self.db.begin()`) holds one connection across several statements. So the unit of pool usage in this app is the *query*, not the request.
+One detail about how SeaORM uses the pool matters for sizing. When a service method runs `Comments::find()...all(&self.db)`, the query acquires a connection, runs, and releases it. Four sequential queries in one request are four separate acquires, and between them the connection goes back into the pool. Only a transaction (`self.db.begin()`) holds one connection across several statements. So the unit of pool usage in this app is the *query*, not the request. Two newer paths add to it: since the security rate limits moved into Postgres, every sign-up, login, model call and graded submission first spends one acquire on the limiter's upsert, and a model call's budget reservation holds one connection for a short transaction (insert the day's row if missing, `SELECT … FOR UPDATE`, update, commit).
 
 ### A critique that was acted on
 
@@ -120,15 +123,15 @@ $$ L = \lambda \times W $$
 
 For a pool, `L` is the average number of connections in use, `λ` is the rate of acquires, and `W` is how long each is held.
 
-Work it for this app. Suppose one API instance serves 300 dashboard loads a second at peak, and each load calls `ProgressService::summary`, which runs five sequential queries (lesson progress, module preferences, solved problems, quiz attempts, and the activity days its streak is computed from). Each query holds a connection for about 1.3 ms to send the query, execute it and read the rows. No health-check ping is included: under steady load no connection sits idle for 60 seconds, so `test_before_acquire_if_idle_for` never fires. With sqlx's default of pinging on every acquire, each hold would grow by a round trip, roughly 0.3 ms on a local network.
+Work it for this app. Suppose one API instance serves 300 dashboard loads a second at peak, and each load calls `ProgressService::summary`, which runs six sequential queries (lesson progress, module preferences, solved problems, quiz attempts, the learner's local date, and the activity days its streak is computed from). Each query holds a connection for about 1.3 ms to send the query, execute it and read the rows. No health-check ping is included: under steady load no connection sits idle for 60 seconds, so `test_before_acquire_if_idle_for` never fires. With sqlx's default of pinging on every acquire, each hold would grow by a round trip, roughly 0.3 ms on a local network.
 
-- Acquire rate: 300 × 5 = 1,500 per second.
+- Acquire rate: 300 × 6 = 1,800 per second.
 - Hold time: 1.3 ms = 0.0013 s.
-- Connections in use on average: 1,500 × 0.0013 ≈ 2.
+- Connections in use on average: 1,800 × 0.0013 ≈ 2.3.
 
 A pool of 20 is enormous for that load. At 100% utilisation it could sustain 20 / 0.0013 ≈ 15,000 acquires per second; queueing theory says waits climb steeply above roughly 70–80% utilisation, so call it 10,000.
 
-That calculation also shows what really empties pools. It is rarely a traffic spike. It is `W`. If a missing index makes one of the five queries take 400 ms instead of 1 ms, that query alone needs 300 × 0.4 = 120 connections. The pool of 20 is exhausted in milliseconds and every endpoint that touches the database starts queueing, including ones that have nothing to do with the slow query. A pool is a bulkhead that turns one slow query into a site-wide latency problem unless you protect it with `statement_timeout`.
+That calculation also shows what really empties pools. It is rarely a traffic spike. It is `W`. If a missing index makes one of the six queries take 400 ms instead of 1 ms, that query alone needs 300 × 0.4 = 120 connections. The pool of 20 is exhausted in milliseconds and every endpoint that touches the database starts queueing, including ones that have nothing to do with the slow query. A pool is a bulkhead that turns one slow query into a site-wide latency problem unless you protect it with `statement_timeout`.
 
 ```viz
 {"type": "system", "scenario": "bulkhead", "title": "A pool is a bulkhead",
@@ -159,7 +162,7 @@ The deploy surge matters because a rolling deploy runs old and new pods side by 
 | 4 | 1 | 5 × 20 = 100 | No: the deploy itself can exhaust the database |
 | 8 | 2 | 200 | No |
 
-This app runs a single instance today, so its pool sits comfortably inside the budget. The table shows where that stops being true: at four instances the pool of 20 is already too large for a default Postgres, even though average usage is two connections per instance. Two fixes are available: shrink the per-instance pool (from the Little's law numbers above, 8 would be plenty), or put a server-side pooler in front of Postgres so that the number of application connections stops mattering. Raising `max_connections` to 1,000 is the tempting third option, and it moves the failure from "cannot connect" to "connected and slow", because the extra connections compete for the same cores.
+This app runs a single instance today, so its pool sits comfortably inside the budget. The table shows where that stops being true: at four instances the pool of 20 is already too large for a default Postgres, even though average usage is about two connections per instance. Two fixes are available: shrink the per-instance pool (from the Little's law numbers above, 8 would be plenty), or put a server-side pooler in front of Postgres so that the number of application connections stops mattering. Raising `max_connections` to 1,000 is the tempting third option, and it moves the failure from "cannot connect" to "connected and slow", because the extra connections compete for the same cores.
 
 ```exercise
 id: pool-budget
@@ -253,7 +256,7 @@ Transaction mode is the useful one and the one with sharp edges. Between your tr
 - `SET search_path` or `SET statement_timeout` at session level (use `SET LOCAL` inside the transaction, or set it per role with `ALTER ROLE`);
 - session-level advisory locks (use `pg_advisory_xact_lock`; see [MVCC and locking](/learn/databases/relational-fundamentals/mvcc-and-locking));
 - `LISTEN`/`NOTIFY`, temporary tables and `WITH HOLD` cursors that outlive a transaction;
-- named prepared statements. sqlx prepares every query as a named statement (`sqlx_s_1`, `sqlx_s_2`, ...) and caches up to 100 per connection. Behind an older PgBouncer in transaction mode that produces `prepared statement "sqlx_s_3" does not exist` errors. PgBouncer 1.21 and later can track protocol-level prepared statements itself when `max_prepared_statements` is set; on older versions you must disable the driver's statement cache.
+- named prepared statements. sqlx prepares every query as a named statement (`sqlx_s_1`, `sqlx_s_2`, ...) and caches up to 100 per connection. Behind an older PgBouncer in transaction mode that produces `prepared statement "sqlx_s_3" does not exist` errors. PgBouncer 1.21 and later can track protocol-level prepared statements itself when `max_prepared_statements` is non-zero (off by default until 1.24, which made 200 the default); on older versions you must disable the driver's statement cache.
 
 A typical configuration:
 
@@ -338,7 +341,7 @@ From the application side, export pool metrics: current size, idle count and, mo
 | Every endpoint slows at once while CPU on the API tier is idle | Pool exhaustion: one slow query pattern raised `W`, so acquires queue; acquire-wait histogram climbs first | `statement_timeout` per role; fix the slow query; separate pools per workload |
 | Throughput falls as more workers are added | Active connections far above the core count; latency rises with no throughput gain (37% loss at 90 clients in the lab) | Cap active connections with a pool or PgBouncer; let requests queue outside Postgres |
 | `prepared statement "sqlx_s_3" does not exist` after adding PgBouncer | Named prepared statements are per server connection; transaction mode moves clients between them | PgBouncer 1.21+ with `max_prepared_statements`, or disable the driver's statement cache |
-| Latency spikes every 30 minutes on a quiet service | All connections created together are retired together by `max_lifetime` and re-established at once | Jittered lifetimes (HikariCP shortens each connection's lifetime by a random amount of up to 2.5%); stagger instance start times with pools that do not |
+| Latency spikes every 30 minutes on a quiet service | All connections created together are retired together by `max_lifetime` and re-established at once | Jittered lifetimes (HikariCP shortens each connection's lifetime by a random amount: up to 2.5% before version 6.1, up to 25% by default since); stagger instance start times with pools that do not |
 | Queries keep running after clients gave up | Outer deadlines shorter than inner timeouts; no `statement_timeout` | Layer timeouts inside-out; `client_connection_check_interval` |
 
 ## Interviewer follow-ups

@@ -150,7 +150,7 @@ Multi-document ACID transactions exist (4.0 on replica sets, 4.2 on sharded clus
 
 In Postgres, T2 would wait on T1's row lock and then re-check the row. MongoDB gives you retries instead of a queue, and each retry reruns application code. A write *outside* any transaction that hits a document modified by an open transaction waits for that transaction to finish.
 
-The limits come from the same design. `transactionLifetimeLimitSeconds` (60 by default) aborts older transactions because each open snapshot pins old versions in the cache and history store. A transaction waits at most 5 ms (`maxTransactionLockRequestTimeoutMillis`) for locks before aborting. The documentation advises modifying no more than about 1,000 documents per transaction. A commit that fails with `UnknownTransactionCommitResult` must be retried as a commit, not rerun.
+The limits come from the same design. `transactionLifetimeLimitSeconds` (60 by default) aborts older transactions because each open snapshot pins old versions in the cache and history store. A transaction waits at most 5 ms (`maxTransactionLockRequestTimeoutMillis`) for locks before aborting. MongoDB's [performance best-practices guidance](https://www.mongodb.com/blog/post/performance-best-practices-transactions-and-read--write-concerns) advises modifying no more than 1,000 documents per transaction. A commit that fails with `UnknownTransactionCommitResult` must be retried as a commit, not rerun.
 
 The design consequence: MongoDB is fast when the document boundary is the transaction boundary. If most writes need multi-document transactions, the modelling is wrong, or the workload is relational.
 

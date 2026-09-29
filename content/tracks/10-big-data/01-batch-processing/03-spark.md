@@ -100,7 +100,7 @@ Stage 0 has four tasks, one per file. Each runs the fused scan → filter → pa
 | 2 | (1,US,20) (3,US,40) (3,US,5) | (1,US)→(1,20); (3,US)→(2,45) | 1; 0 |
 | 3 | (2,US,15) | (2,US)→(1,15) | 2 |
 
-Each partial-aggregate row is an `UnsafeRow` of about 48 bytes (an 8-byte null bitmap, four 8-byte field slots, and `US` padded to 8 bytes in the variable-length region). Each map task sorts its rows by partition id and writes **one data file and one index file**: `shuffle_0_2_0.data` for map task 2 holds partition 0's bytes then partition 1's then partition 2's, and `shuffle_0_2_0.index` holds four 8-byte offsets `[0, 48, 96, 96]`. The map-side output, as a matrix of bytes per (map task, reduce partition):
+Each partial-aggregate row is an `UnsafeRow` of about 48 bytes (an 8-byte null bitmap, four 8-byte field slots, and `US` padded to 8 bytes in the variable-length region). The shuffle serializer also writes a 4-byte length before each row and compresses the stream by default; the trace ignores both to keep the offsets readable. Each map task sorts its rows by partition id and writes **one data file and one index file**: `shuffle_0_2_0.data` for map task 2 holds partition 0's bytes then partition 1's then partition 2's, and `shuffle_0_2_0.index` holds four 8-byte offsets `[0, 48, 96, 96]`. The map-side output, as a matrix of bytes per (map task, reduce partition):
 
 | Map task | → partition 0 | → partition 1 | → partition 2 |
 |---|---|---|---|
@@ -144,7 +144,7 @@ Output partitions deserve the same care. Writing the 3,200 aggregate partitions 
 
 ### UnsafeRow and code generation
 
-A row is one contiguous byte region: a null bitmap (8 bytes per 64 fields), then an 8-byte slot per field holding fixed-width values inline and, for strings and arrays, an offset and length into a variable-length tail. Comparing, hashing and copying a row is `memcpy`-style work on bytes, there is nothing for the garbage collector to trace, and the region can live off-heap (`spark.memory.offHeap.enabled`). Sorting uses 8-byte records of a pointer plus a key prefix, so most comparisons never dereference the row; the array of records fits cache lines rather than chasing object references.
+A row is one contiguous byte region: a null bitmap (8 bytes per 64 fields), then an 8-byte slot per field holding fixed-width values inline and, for strings and arrays, an offset and length into a variable-length tail. Comparing, hashing and copying a row is `memcpy`-style work on bytes, there is nothing for the garbage collector to trace, and the region can live off-heap (`spark.memory.offHeap.enabled`). Sorting uses an array of 16-byte entries, an 8-byte record pointer plus an 8-byte prefix of the sort key, so most comparisons never dereference the row; the array of records fits cache lines rather than chasing object references.
 
 Since Spark 2.0 the physical operators inside a stage are collapsed into one generated Java class with a single loop, compiled at runtime with Janino, which removes the per-row virtual calls of the iterator model. The plan shows the fused group as `*(1)` prefixes. Generated methods larger than the JIT's 8,000-byte limit are interpreted rather than compiled, which is why a `select` with hundreds of expressions can be slower than two smaller ones.
 
@@ -154,7 +154,7 @@ Since Spark 2.0 there is one shuffle manager. A map task with map-side aggregati
 
 ### Adaptive execution
 
-At each stage boundary AQE reads the `MapStatus` for every map task (the sizes of every block, compressed to a byte per block for large stages), and applies three rules: coalesce adjacent small partitions until they reach the advisory size; for a sort-merge join, split any partition larger than both `spark.sql.adaptive.skewJoin.skewedPartitionFactor` (5) times the median and `skewedPartitionThresholdInBytes` (256 MB) into several tasks that each read one slice of the skewed side and the whole matching partition of the other; and convert the join to a broadcast when the runtime size of one side is below the threshold. That is also why `explain()` before execution shows `AdaptiveSparkPlan isFinalPlan=false`: the real plan is only known once the statistics exist.
+At each stage boundary AQE reads the `MapStatus` for every map task (each block's size encoded as one logarithmic byte, or, above 2,000 reduce partitions, an average size plus the sizes of the unusually large blocks), and applies three rules: coalesce adjacent small partitions until they reach the advisory size; for a sort-merge join, split any partition larger than both `spark.sql.adaptive.skewJoin.skewedPartitionFactor` (5) times the median and `skewedPartitionThresholdInBytes` (256 MB) into several tasks that each read one slice of the skewed side and the whole matching partition of the other; and convert the join to a broadcast when the runtime size of one side is below the threshold. That is also why `explain()` before execution shows `AdaptiveSparkPlan isFinalPlan=false`: the real plan is only known once the statistics exist.
 
 ## Joins: the most expensive decision in the plan
 
@@ -207,7 +207,7 @@ For aggregations, skew is usually harmless because partial aggregation collapses
 
 **The driver dies with `OutOfMemoryError` on a join.** Symptom: the failure happens before any task of the join stage runs; the log mentions `BroadcastExchange` or `maxResultSize`. Diagnosis: the broadcast side is collected to the driver first, and a "small" table grew past the driver's heap or past `spark.driver.maxResultSize`. Fix: lower the broadcast threshold or drop the hint, filter and prune the dimension before joining, or bucket.
 
-**A stage keeps restarting after executors are released.** Symptom: waves of `FetchFailedException`, map stages re-run, the job takes several times longer than expected under dynamic allocation. Diagnosis: executors that held shuffle files were removed when idle, and no external shuffle service was serving them. Fix: enable the external shuffle service (or the storage-decommissioning migration in 3.1+), or keep executors alive across the shuffle.
+**A stage keeps restarting when executors disappear.** Symptom: waves of `FetchFailedException`, map stages re-run, the job takes several times longer than expected on spot or preemptible capacity. Diagnosis: executors that held shuffle files went away and nothing else could serve their blocks. Reclaimed nodes are the usual cause; dynamic allocation is a rarer one, because since Spark 3.4 shuffle tracking is on by default and keeps executors that hold live shuffle data (unless `spark.dynamicAllocation.shuffleTracking.timeout` is set). Fix: an external shuffle service, graceful decommissioning that migrates shuffle blocks (`spark.decommission.enabled` with `spark.storage.decommission.shuffleBlocks.enabled`, 3.1+), or on-demand nodes for shuffle-heavy stages.
 
 **Numbers differ between two runs of the same job.** Symptom: a small fraction of rows are missing or duplicated only when tasks were retried. Diagnosis: a non-deterministic expression (`rand()` without a seed, `monotonically_increasing_id()`, a UDF reading the clock) before a shuffle, so a recomputed partition produced different rows. Fix: seed every random expression, derive ids from data, and keep side effects out of transformations.
 
@@ -357,9 +357,9 @@ hints:
   explanation: >-
     The replicated dimension side guarantees every salted fact row finds its match exactly once, so the join result is unchanged. In the distinct count the same value could land in several buckets and be counted more than once: partial distinct counts only add up when the buckets are disjoint, which requires salting by a function of the value being counted.
 - q: >-
-    Under dynamic allocation, a job's reduce stage fails repeatedly with FetchFailedException and its map stage keeps re-running, though no machine has crashed. What is the most likely cause?
-  options: ["AQE coalesced the partitions after the map stage had finished", "The shuffle blocks exceeded the 48 MB in-flight fetch limit", "Idle executors were released along with the shuffle files they held", "The map tasks wrote their output with a non-deterministic salt"]
-  answer: 2
+    A job runs on spot instances with no external shuffle service. Each time capacity is reclaimed, its reduce stage fails with FetchFailedException and the map stage re-runs, although the reducers' own executors are healthy. What is the most likely cause?
+  options: ["The shuffle blocks exceeded the 48 MB in-flight fetch limit", "The lost executors held the only copies of their shuffle files", "AQE coalesced the partitions after the map stage had finished", "The map tasks wrote their output with a non-deterministic salt"]
+  answer: 1
   explanation: >-
-    Shuffle files live on the executor that wrote them. When dynamic allocation removes idle executors and no external shuffle service is serving their files, every fetch of those blocks fails and the scheduler recomputes the map stage. The in-flight limit only throttles fetches, AQE re-plans before the reduce stage runs, and a bad salt changes results rather than causing fetch failures.
+    Shuffle files live on the executor that wrote them. When that executor disappears and neither an external shuffle service nor decommissioning migration kept a copy elsewhere, every fetch of its blocks fails and the scheduler recomputes the missing map outputs. The in-flight limit only throttles fetches, AQE re-plans before the reduce stage runs, and a bad salt changes results rather than causing fetch failures.
 ```

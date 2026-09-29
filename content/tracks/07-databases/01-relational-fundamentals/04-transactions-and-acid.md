@@ -45,7 +45,7 @@ Every row version a transaction writes is stamped with that transaction's ID in 
 
 Measured on a 2-million-row table: `UPDATE oc SET total_cents = total_cents + 1` took **16.3 s**; the `ROLLBACK` that followed took **0.2 ms**. The cost moved elsewhere: the table grew from 143 MB to 260 MB and `pg_stat_user_tables` showed 2,000,000 dead tuples for vacuum to clean up.
 
-InnoDB (MySQL) makes the opposite choice. It updates rows in place and keeps the old values in an undo log; a rollback applies the undo log backwards, which for a large transaction takes about as long as the transaction did, including during crash recovery.
+InnoDB (MySQL) makes the opposite choice. It updates rows in place and keeps the old values in an undo log; a rollback applies the undo log backwards, which the [MySQL manual](https://dev.mysql.com/doc/refman/8.4/en/optimizing-innodb-transaction-management.html) warns can take several times as long as the original changes. Killing the server does not help: after a crash, a background thread rolls the transaction back after restart, and the manual estimates that at three or four times the time the transaction had been running.
 
 | | Postgres (new versions in the heap) | InnoDB (in-place with undo log) |
 |---|---|---|
@@ -54,7 +54,7 @@ InnoDB (MySQL) makes the opposite choice. It updates rows in place and keeps the
 | Who cleans up | `VACUUM` | Purge threads |
 | Symptom of a long-running reader | Table bloat, vacuum cannot remove tuples | Undo log (history list) grows, reads walk longer version chains |
 
-Two behaviours follow that surprise people. **One error poisons the transaction**: after any error inside a block, every further statement fails with `current transaction is aborted, commands ignored until end of transaction block` until you roll back. To continue after an expected error, set a savepoint first and roll back to it, or better, use a single-statement form such as `INSERT ... ON CONFLICT DO NOTHING`. **Savepoints are not free**: each savepoint that writes gets a subtransaction ID, and each backend caches only 64 of them in shared memory. Past that, visibility checks by every session must consult `pg_subtrans` on disk, and ORMs that wrap every nested call in a savepoint have caused sharp throughput cliffs, notably on replicas.
+Two behaviours follow that surprise people. **One error poisons the transaction**: after any error inside a block, every further statement fails with `current transaction is aborted, commands ignored until end of transaction block` until you roll back. To continue after an expected error, set a savepoint first and roll back to it, or better, use a single-statement form such as `INSERT ... ON CONFLICT DO NOTHING`. **Savepoints are not free**: each savepoint that writes gets a subtransaction ID, and each backend caches only 64 of them in shared memory. Past that, visibility checks must look up parent transaction IDs in `pg_subtrans`, a small shared cache backed by disk, and contention on it produces sharp throughput cliffs. [GitLab's 2021 write-up](https://about.gitlab.com/blog/2021/09/29/why-we-spent-the-last-month-eliminating-postgresql-subtransactions/) traced stalls that hit only its replicas to this, and fixed them by removing every `SAVEPOINT` its Rails code issued, mostly in favour of `INSERT ... ON CONFLICT`.
 
 ## Under the hood: the WAL records of one transfer
 
@@ -118,7 +118,7 @@ The database cannot know your invariants ("a balance never goes negative", "ledg
 ALTER TABLE accounts ADD CONSTRAINT balance_non_negative CHECK (balance_cents >= 0);
 ```
 
-With that constraint, a race that would have overdrawn an account becomes an error (`violates check constraint "balance_non_negative"`) instead of silent corruption. Constraints are checked as each statement completes, or at commit for constraints declared `DEFERRABLE INITIALLY DEFERRED`, which is how you insert two rows that reference each other. Every invariant you cannot declare is enforced by your code, inside transactions, under whatever isolation level you chose.
+With that constraint, a race that would have overdrawn an account becomes an error (`violates check constraint "balance_non_negative"`) instead of silent corruption. `CHECK` and `NOT NULL` are checked on each row as it is written, and so are non-deferrable unique constraints; foreign keys are checked at the end of the statement. Foreign-key, unique and exclusion constraints declared `DEFERRABLE INITIALLY DEFERRED` wait until commit, which is how you insert two rows that reference each other; `CHECK` and `NOT NULL` can never be deferred. Every invariant you cannot declare is enforced by your code, inside transactions, under whatever isolation level you chose.
 
 ## Durability: what a commit costs
 
@@ -172,7 +172,9 @@ WHERE id = 17 AND balance_cents >= 4000
 RETURNING balance_cents;       -- zero rows means insufficient funds
 ```
 
-This app uses the same technique throughout. `ProgressService::set_lesson_status` is one `INSERT ... ON CONFLICT (user_id, lesson_slug) DO UPDATE ... RETURNING`, commented "Upsert returning the row: one statement, one round trip, no read-modify-write race". `BudgetService::check_and_reserve` increments the day's request count in an upsert whose `DO UPDATE ... WHERE` refuses when a limit is reached, so "check the budget, then reserve" is a single atomic step and zero returned rows means "over budget". `InterviewService::append_transcript` appends with `transcript = transcript || $2` server-side instead of reading the JSON array, extending it and writing it back, and the integration test fires 20 concurrent appends and asserts all 20 survive.
+This app uses the same technique throughout. `ProgressService::set_lesson_status` is one `INSERT ... ON CONFLICT (user_id, lesson_slug) DO UPDATE ... RETURNING`, commented "Upsert returning the row: one statement, one round trip, no read-modify-write race". `InterviewService::append_transcript` appends with `transcript = transcript || $2::jsonb` server-side instead of reading the JSON array, extending it and writing it back, and the integration test `transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries` fires 20 concurrent appends and asserts all 20 survive.
+
+The AI budget shows where one statement stops being enough. Its first version checked the day's usage before a model call and charged the tokens the call actually used after it returned. Each step was atomic, but a learner one token under the output limit could still start a call worth thousands, because nothing was reserved in between. `BudgetService::reserve` in `crates/core/src/ai/budget.rs` now works like a card authorisation hold. In one short transaction it makes sure the day's `ai_usage` row exists (`INSERT ... ON CONFLICT DO NOTHING`), locks it with `SELECT ... FOR UPDATE`, checks the request count, the billed input plus an estimate for this call, and the output still unreserved, then adds this call's holds to `reserved_input_tokens` and `reserved_output_tokens` (columns added by migration `m0008_budget_holds`) and lowers the request's `max_tokens` to the output it could hold. The decision reads several columns and computes a cap, so the service takes the row lock and decides in code, and it commits before the model is called, which is bug 2's rule below. Settling replaces the hold with the actual usage in one `UPDATE`, and a reservation dropped unsettled releases its hold. The test `ai_budget_reservation_cannot_be_overshot_by_concurrency` fires 30 reservations at a 10-request daily limit and gets exactly 10.
 
 ### 2. Slow work inside a transaction
 
@@ -260,7 +262,7 @@ INSERT INTO transfers (idempotency_key, src, dst, cents) VALUES ($1, $2, $3, $4)
 
 ## Exercise
 
-The exercise implements the core of crash recovery for an engine that updates pages in place and therefore needs an undo phase (the ARIES family, which InnoDB and SQL Server follow). At a crash, pages on disk can contain uncommitted changes (flushed early) and lack committed ones (not flushed yet). The log has everything: repeat history, then undo the losers.
+The exercise implements the core of crash recovery for an engine that updates pages in place and therefore needs an undo phase (the ARIES family: SQL Server documents its recovery as ARIES, and InnoDB likewise applies its redo log and then rolls back incomplete transactions). At a crash, pages on disk can contain uncommitted changes (flushed early) and lack committed ones (not flushed yet). The log has everything: repeat history, then undo the losers.
 
 ```exercise
 id: redo-undo-recovery

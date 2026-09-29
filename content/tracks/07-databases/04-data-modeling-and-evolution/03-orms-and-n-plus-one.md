@@ -55,7 +55,7 @@ The lab ran on one machine. Your application does not. Each extra query pays the
 | N | RTT | 1 + N queries | One join | Two queries |
 |---|---|---|---|---|
 | 10 | 0.5 ms | 6.8 ms | 0.65 ms | 1.25 ms |
-| 100 | 0.1 ms | 21.6 ms | 0.40 ms | 0.61 ms |
+| 100 | 0.1 ms | 21.6 ms | 0.40 ms | 0.62 ms |
 | 100 | 0.5 ms | 62 ms | 0.80 ms | 1.42 ms |
 | 100 | 2.0 ms | 214 ms | 2.30 ms | 4.42 ms |
 | 1,000 | 0.5 ms | 616 ms | 4.51 ms | 2.35 ms |
@@ -230,7 +230,7 @@ let Some((session, user)) = Sessions::find_by_id(&hash).find_also_related(Users)
 };
 ```
 
-Session and user in one primary-key join, one round trip on the hottest path. It updates `last_seen_at` at most once an hour rather than on every request, which avoids turning every read into a write (and, as the [MVCC lesson](/learn/databases/relational-fundamentals/mvcc-and-locking) explains, a new row version, WAL and vacuum work each time).
+Session and user in one primary-key join, one round trip on the hottest path. The same row answers both expiry rules: a session past its absolute lifetime (`SESSION_TTL_DAYS`, 30 by default) or idle for longer than `SESSION_IDLE_DAYS` (14 by default, measured from `last_seen_at`) is deleted and the request treated as signed out. It updates `last_seen_at` at most once an hour rather than on every request, which avoids turning every read into a write (and, as the [MVCC lesson](/learn/databases/relational-fundamentals/mvcc-and-locking) explains, a new row version, WAL and vacuum work each time); an hour of imprecision is nothing against a 14-day idle limit.
 
 `ProgressService::set_lesson_status` records progress with an upsert:
 
@@ -254,9 +254,9 @@ super::activity::record(&self.db, user_id).await?;
 Ok(row)
 ```
 
-which sends `INSERT ... ON CONFLICT ("user_id", "lesson_slug") DO UPDATE SET "status" = "excluded"."status", ... RETURNING` every column. The ORM-shaped alternative, "find the row; insert or update it", is two or three round trips and a race: two tabs both find nothing and both insert, and one fails on the primary key. `created_at` is deliberately absent from `update_columns`, so the first-seen time survives. The first version called `.exec(&self.db)`, which on Postgres returns only the primary key, then read the row back with `find_by_id`: double the round trips, and another tab's write could land in between. `activity::record` (an `INSERT INTO activity_days ... ON CONFLICT DO NOTHING`) used to run before the upsert, so a failed click still earned a streak day; it now runs after. The two statements are not one transaction, and the order decides which failure is possible: a failure after the upsert reports an error for saved progress, and a retry is harmless because the upsert is idempotent.
+which sends `INSERT ... ON CONFLICT ("user_id", "lesson_slug") DO UPDATE SET "status" = "excluded"."status", ... RETURNING` every column. The ORM-shaped alternative, "find the row; insert or update it", is two or three round trips and a race: two tabs both find nothing and both insert, and one fails on the primary key. `created_at` is deliberately absent from `update_columns`, so the first-seen time survives. The first version called `.exec(&self.db)`, which on Postgres returns only the primary key, then read the row back with `find_by_id`: double the round trips, and another tab's write could land in between. `activity::record` used to run before the upsert, so a failed click still earned a streak day; it now runs after. It also used to insert `Utc::now().date_naive()`, so streaks counted UTC days, and a learner in Sydney saw one morning's lessons land on two different days. It now computes the learner's own date in SQL from the time zone stored on the account: `INSERT INTO activity_days (user_id, day) SELECT u.id, (now() AT TIME ZONE COALESCE(u.timezone, 'UTC'))::date FROM users u WHERE u.id = $1 ON CONFLICT (user_id, day) DO NOTHING`, still one statement and one round trip, with `users.timezone` added by migration `m0011_user_timezones` and validated against `pg_timezone_names`. The test `a_day_of_learning_is_the_learners_own_day` records a lesson for learners in Pacific/Kiritimati and Pacific/Pago_Pago, 25 hours apart, and checks that their activity lands on different dates. The two statements are not one transaction, and the order decides which failure is possible: a failure after the upsert reports an error for saved progress, and a retry is harmless because the upsert is idempotent.
 
-`ProgressService::summary` runs five queries in sequence (lesson progress, module preferences, distinct solved problems, quiz attempts, active days in the last 400). A fixed number whatever the user's history is not N+1, where the count grows with the data. They could run concurrently with `tokio::try_join!`, cutting latency to roughly the slowest one, at the price of five pooled connections per request and five separate snapshots instead of one consistent view; at this app's scale, sequential is simpler. Name the optimisation, name its cost, decide.
+`ProgressService::summary` runs six queries in sequence (lesson progress, module preferences, distinct solved problems, quiz attempts, the learner's local date, active days in the last 400). A fixed number whatever the user's history is not N+1, where the count grows with the data. They could run concurrently with `tokio::try_join!`, cutting latency to roughly the slowest one, at the price of six pooled connections per request and six separate snapshots instead of one consistent view; at this app's scale, sequential is simpler. Name the optimisation, name its cost, decide.
 
 ## Detecting N+1
 

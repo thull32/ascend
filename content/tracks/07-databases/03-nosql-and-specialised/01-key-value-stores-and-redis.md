@@ -9,11 +9,11 @@ problems: [lru-cache, time-based-kv]
 ---
 Your Postgres primary serves a session lookup in about a millisecond, and you need it in 50 microseconds because it runs on every request. Your leaderboard query sorts ten million rows and you need the top ten in constant time. Your rate limiter needs an atomic increment with an expiry from two hundred service instances at once. The relational engine can do each of these jobs and is good at none of them, because each involves a disk-oriented storage layer, a query planner and MVCC bookkeeping doing work that a hash map in memory does not need.
 
-Redis is what you get when you keep the data structures and throw away the rest. Understanding why that makes it fast also tells you how it becomes slow, how it loses data, how it runs out of memory, and when one Redis process stops being enough. This lesson is written against Redis 7.x. In 2024 Redis moved from BSD to source-available licences with 7.4; the Linux Foundation forked 7.2.4 as Valkey, which keeps the same protocol, commands and the mechanisms described here, and Redis 8 later added AGPLv3 as an option.
+Redis is what you get when you keep the data structures and throw away the rest. Why that makes it fast also explains how it becomes slow, loses data, runs out of memory, and outgrows one process. This lesson is written against Redis 7.x. Redis 7.4 (2024) left the BSD licence for source-available ones; the Linux Foundation forked 7.2.4 as Valkey, which keeps the protocol, commands and mechanisms described here, and Redis 8 (2025) added AGPLv3 as an option.
 
 ## One thread, one queue, memory only
 
-Redis executes commands on one thread. There is no lock around the keyspace because nothing else touches it. Every command runs to completion before the next starts, which is what makes `INCR` atomic, `SET key value NX` a valid lock primitive, and a Lua script an all-or-nothing unit with no transaction machinery.
+Redis executes commands on one thread, so the keyspace needs no lock. Every command runs to completion before the next starts, which is what makes `INCR` atomic, `SET key value NX` a valid lock primitive, and a Lua script an all-or-nothing unit with no transaction machinery.
 
 Trace one `GET session:9f3` through the event loop (Redis's own `ae` library over `epoll` on Linux, `kqueue` on BSD and macOS):
 
@@ -23,7 +23,7 @@ Trace one `GET session:9f3` through the event loop (Redis's own `ae` library ove
 4. The handler hashes the key, probes the main dictionary, follows one pointer to the value object and appends `$36\r\n…` to the client's output buffer. This step is a few hundred nanoseconds.
 5. Before the next `epoll_wait`, `beforeSleep` writes pending AOF data, then flushes every client's output buffer with `write()`.
 
-Steps 1, 2 and 5 are system calls and parsing; step 4 is the only real work. That is why pipelining matters so much: 100 commands in one packet share one `read()` and one `write()`. On one modern core, simple commands run at on the order of 100,000–200,000 per second without pipelining and over a million with it; the exact figure depends on value size, TLS and the NIC, so measure with `redis-benchmark` on your hardware. Every `hz` tick (10 per second by default) `serverCron` does housekeeping: expiring keys, incremental rehashing, checking whether a snapshot is due.
+Steps 1, 2 and 5 are system calls and parsing; step 4 is the only real work, which is why pipelining matters: 100 commands in one packet share one `read()` and one `write()`. On one modern core, simple commands run at on the order of 100,000–200,000 per second without pipelining and over a million with it; the exact figure depends on value size, TLS and the NIC, so measure with `redis-benchmark` on your hardware. Every `hz` tick (10 per second by default) `serverCron` does housekeeping: expiring keys, incremental rehashing, checking whether a snapshot is due.
 
 ```viz
 {"type": "concurrency", "algorithm": "event-loop",
@@ -39,7 +39,7 @@ The consequence is the most important Redis rule. **A command that takes 10 ms b
 
 ## Under the hood: what one key costs
 
-The keyspace is a hash table (`dict`) with power-of-two bucket arrays and chaining. When it needs to grow, Redis allocates the new table and moves entries **incrementally**: each dictionary operation migrates one bucket, and `serverCron` spends up to a millisecond per tick on it, so a resize from 64 million to 128 million buckets never stops the world. While a snapshot child process exists, Redis postpones resizing unless the table is badly overloaded, because rehashing writes to every bucket and would force the kernel to copy those pages (see the copy-on-write section below).
+The keyspace is a hash table (`dict`) with power-of-two bucket arrays and chaining. When it needs to grow, Redis allocates the new table and moves entries **incrementally**: each dictionary operation migrates one bucket, and `serverCron` spends up to a millisecond per tick on it, so a resize from 64 million to 128 million buckets never stops the world. While a snapshot child exists, Redis postpones resizing unless the table is badly overloaded, because rehashing would force the kernel to copy every page it touches (see copy-on-write below).
 
 Each key costs, before its payload:
 
@@ -51,16 +51,16 @@ Each key costs, before its payload:
 | `redisObject` | 16 bytes | 4-bit type, 4-bit encoding, 24-bit LRU/LFU field, refcount, pointer |
 | TTL, if any | another `dictEntry` + slot in the `expires` table | Keys with an expiry live in a second dictionary |
 
-jemalloc rounds each allocation up to a size class, so a short string key costs on the order of 50–100 bytes of bookkeeping (`MEMORY USAGE key` reports it). A hundred million small keys therefore spend 5–10 GB on overhead alone before storing a byte of value. That is the arithmetic behind the compact encodings.
+jemalloc rounds each allocation up to a size class, so a short string key costs on the order of 50–100 bytes of bookkeeping (`MEMORY USAGE key` reports it): 5–10 GB of overhead for a hundred million small keys before a byte of value. That is the arithmetic behind the compact encodings.
 
 ## Encodings and their exact thresholds
 
-Every value type has a compact encoding for small values and a full data structure for large ones. `OBJECT ENCODING key` shows which one a key uses. The Redis 7.x defaults:
+Every type has a compact encoding for small values and a full structure for large ones; `OBJECT ENCODING key` shows which. The Redis 7.x defaults:
 
 | Type | Compact encoding | Converts when | Full encoding |
 |---|---|---|---|
 | String | `int` (fits a 64-bit signed integer; 0–9999 are shared objects) or `embstr` (≤ 44 bytes, one allocation with the object header) | Longer than 44 bytes, or modified by `APPEND`/`SETRANGE` | `raw` (separate SDS allocation, up to 512 MB) |
-| Hash | `listpack` | More than `hash-max-listpack-entries` (128) fields, or any field or value over `hash-max-listpack-value` (64 bytes) | `hashtable` |
+| Hash | `listpack` | More than `hash-max-listpack-entries` (512) fields, or any field or value over `hash-max-listpack-value` (64 bytes) | `hashtable` |
 | Sorted set | `listpack` | More than `zset-max-listpack-entries` (128), or a member over `zset-max-listpack-value` (64 bytes) | `skiplist` (skiplist plus a member→score dict) |
 | Set | `intset` (all members integers) up to `set-max-intset-entries` (512); since 7.2, `listpack` up to `set-max-listpack-entries` (128) / 64-byte members | A non-integer member (intset), or the size limits | `hashtable` |
 | List | `listpack` for small lists (7.2+) | Exceeds one node's limit | `quicklist`: doubly linked list of listpack nodes, each at most 8 KB (`list-max-listpack-size -2`) |
@@ -68,22 +68,22 @@ Every value type has a compact encoding for small values and a full data structu
 
 The 44 is not arbitrary: a 16-byte object header, a 3-byte SDS header, 44 bytes and a terminating NUL add up to exactly 64 bytes, one jemalloc size class. Redis 6.2 and earlier used `ziplist` in place of `listpack`; the old configuration names still work as aliases.
 
-A **listpack** is one contiguous allocation: a 6-byte header (total bytes, element count), entries, and an `0xFF` end byte. Each entry is an encoding byte, the data, and a 1–5 byte back-length so the list can be walked backwards. A small integer costs 2 bytes, a 5-byte string 7. Lookup is a linear scan, which is why the thresholds are small: `HGET` on a 128-field listpack scans up to 256 elements, well under a microsecond, while the hashtable version of the same hash costs roughly 70 bytes per field (entry, two SDS strings, bucket) against about 13 in the listpack.
+A **listpack** is one contiguous allocation: a 6-byte header (total bytes, element count), entries, and an `0xFF` end byte. Each entry is an encoding byte, the data, and a 1–5 byte back-length so the list can be walked backwards. A small integer costs 2 bytes, a 5-byte string 7. Lookup is a linear scan, which is why the thresholds are small: `HGET` on a 512-field listpack scans up to 1,024 elements, still only microseconds, while the hashtable version of the same hash costs roughly 70 bytes per field (entry, two SDS strings, bucket) against about 13 in the listpack.
 
 Trace a hash crossing the line:
 
 | Step | Command | `OBJECT ENCODING` | Approximate memory |
 |---|---|---|---|
-| 1 | `HSET u:1 f1 v1 … f128 v128` (short values) | `listpack` | ~2 KB |
-| 2 | `HSET u:1 f129 v129` | `hashtable` | ~10 KB: 129 entries rebuilt in one O(n) pass on the main thread |
+| 1 | `HSET u:1 f1 v1 … f512 v512` (short values) | `listpack` | ~7 KB |
+| 2 | `HSET u:1 f513 v513` | `hashtable` | ~36 KB: 513 entries rebuilt in one O(n) pass on the main thread |
 | 3 | `HDEL` fields down to 10 | `hashtable` | shrinks per field, stays a hashtable |
 | 4 | Restart, loading the RDB | `listpack` | the loader re-encodes values that fit |
 
-The conversion itself takes microseconds at 129 entries. The costs that matter are the fivefold memory step, multiplied across millions of keys, and the one-way ratchet: hashes and sets do not convert back while the server runs (7.2 lists are the exception, converting back when a list shrinks to half the limit, which avoids flapping). Raising the thresholds to 1,000 saves memory and makes each lookup a longer linear scan; Instagram's 2011 write-up did exactly that, bucketing hundreds of millions of media-to-user mappings into hashes of 1,000 fields and reporting roughly a fourfold memory saving over one string key per mapping.
+The conversion itself is one cheap pass. The costs that matter are the fivefold memory step, multiplied across millions of keys, and the one-way ratchet: hashes and sets do not convert back while the server runs (7.2 lists are the exception, converting back when a list shrinks to half the limit, which avoids flapping). Raising the thresholds to 1,000 saves memory and makes each lookup a longer linear scan; Instagram's 2011 write-up did exactly that (with the older `hash-zipmap-max-entries` setting), bucketing hundreds of millions of media-to-user mappings into hashes of 1,000 fields and reporting roughly a fourfold memory saving over one string key per mapping.
 
 ## Sorted sets: the structure behind leaderboards
 
-Past 128 members a sorted set is a **skiplist** ordered by (score, member) plus a dict from member to score. The skiplist promotes each node to the next level with probability 1/4, up to 32 levels, and each forward pointer stores a **span** (how many nodes it skips), so summing spans on the way down gives a member's rank in O(log n). The dict gives O(1) `ZSCORE`. Redis chose a skiplist over a balanced tree because a range is a walk along the bottom level and the code is a few hundred lines; the [treaps and skip lists lesson](/learn/advanced-data-structures/balanced-trees/treaps-skip-lists-and-splay) covers the probabilistic balance.
+Past 128 members a sorted set is a **skiplist** ordered by (score, member) plus a dict from member to score. The skiplist promotes each node to the next level with probability 1/4, up to 32 levels, and each forward pointer stores a **span** (how many nodes it skips), so summing spans on the way down gives a member's rank in O(log n). The dict gives O(1) `ZSCORE`. Its author [chose a skiplist](https://news.ycombinator.com/item?id=1171423) over a balanced tree because range commands walk the bottom level like a linked list and the simple structure made rank support a small patch; the [treaps and skip lists lesson](/learn/advanced-data-structures/balanced-trees/treaps-skip-lists-and-splay) covers the probabilistic balance.
 
 ```bash
 ZADD leaderboard 1500 alice 1320 bob 2100 carol
@@ -96,7 +96,7 @@ With ten million players the top ten costs a descent of about 12 levels plus ten
 
 ## A rate limiter, traced
 
-The rate limiter is the canonical Redis job because it needs atomicity across several operations from many clients. The first version most teams write is a fixed window:
+Rate limiting needs atomicity across several operations from many clients. The first version most teams write is a fixed window:
 
 ```python
 import time
@@ -111,7 +111,7 @@ def allowed_fixed(r: redis.Redis, user_id: str, limit: int = 100) -> bool:
     return count <= limit
 ```
 
-Two failures hide in it. If the process dies between `INCR` and `EXPIRE`, the key has no TTL and lives forever; drop the window from the key name and that user is locked out permanently. Fix: send both in one `MULTI`/`EXEC` with `EXPIRE key 60 NX` (the `NX` flag arrived in 7.0) or use a script. The second failure is the boundary: 100 requests at 12:00:59.9 and 100 more at 12:01:00.1 are all allowed, 200 in 0.2 seconds against a limit of 100 a minute.
+Two failures hide in it. If the process dies between `INCR` and `EXPIRE`, the key never expires, and without the window in its name that user is locked out for good. Fix: send both in one `MULTI`/`EXEC` with `EXPIRE key 60 NX` (7.0+) or use a script. The second failure is the boundary: 100 requests at 12:00:59.9 and 100 more at 12:01:00.1 are all allowed, 200 in 0.2 seconds against a limit of 100 a minute.
 
 A sliding-window log closes that gap by storing each accepted request's timestamp in a sorted set, inside one script:
 
@@ -150,7 +150,7 @@ Trace it with `limit = 3`, `window = 1000` ms:
 | 1250 | 200 | 2 | allow | {400, 1100, 1250} |
 | 1300 | — | 3 | reject | {400, 1100, 1250} |
 
-The script runs on the single thread, so no other client's remove-count-add can interleave. Its cost is O(log n) per call and memory of up to `limit` entries per user, which at 100 entries of ~40 bytes and a million active users is about 4 GB; for large limits, a sliding-window counter (two fixed windows, weighted) or a token bucket stored in a two-field hash costs constant memory. The key uses a hash tag so that in cluster mode the script's one key has a well-defined slot. Pass the time in from the caller, or call `TIME` inside the script, and never mix the two across instances. The [rate-limiting algorithms lesson](/learn/networking/network-algorithms/rate-limiting-algorithms) compares the variants, and the [Time-based key-value store](/practice/time-based-kv) problem is the same sorted-by-timestamp idea with a floor lookup.
+The script runs on the single thread, so no other client's remove-count-add can interleave. It costs O(log n) per call and up to `limit` entries per user: at 100 entries of ~40 bytes and a million active users, about 4 GB, where a sliding-window counter or a token bucket in a two-field hash costs constant memory. The hash tag gives the key a well-defined slot in cluster mode. Take the time from one clock (the caller's, or `TIME` in the script), never both. The [rate-limiting algorithms lesson](/learn/networking/network-algorithms/rate-limiting-algorithms) compares the variants; the [Time-based key-value store](/practice/time-based-kv) problem is the same sorted-by-timestamp idea.
 
 ## Persistence: RDB snapshots and copy-on-write
 
@@ -162,25 +162,25 @@ Work it for a 30 GiB instance whose snapshot takes 100 seconds:
 2. During the 100 seconds, 20,000 writes a second land on random keys: 2 million writes. The expected number of distinct 4 KiB pages touched is P(1 − e^(−w/P)) with P = 7.9 million and w = 2 million, about 1.8 million pages: **≈ 6.7 GiB** of extra memory.
 3. With transparent huge pages enabled, pages are 2 MiB and there are only 15,360 of them. Two million random writes touch every one: **all 30 GiB** is copied, and the host needs 60 GiB.
 
-That is why Redis warns at startup when THP is enabled, why `vm.overcommit_memory = 1` is required (otherwise the kernel may refuse the fork), and why you leave headroom of 20–50% of the dataset depending on write rate. `INFO persistence` shows `rdb_last_cow_size` after each snapshot, so you can measure your own number. What RDB loses on a crash: everything since the last completed snapshot, from a minute to an hour of writes.
+That is why Redis warns at startup when THP is enabled, why `vm.overcommit_memory = 1` is required (otherwise the kernel may refuse the fork), and why you leave headroom of 20–50% of the dataset depending on write rate. `INFO persistence` reports `rdb_last_cow_size`, so measure your own number. RDB loses everything since the last completed snapshot: a minute to an hour of writes.
 
 ## Persistence: the append-only file
 
-The **AOF** is the other option. Every write command is appended to a log, and `appendfsync` decides when the file reaches the disk. Redis writes the AOF buffer to the file in `beforeSleep`, before sending replies, so an acknowledged write is at least in the kernel's page cache. A process crash (OOM kill, segfault) therefore loses nothing acknowledged; `fsync` matters for power loss and kernel crashes. The one exception is a stalled disk under `everysec`, below, when Redis may hold up to two seconds of writes in its own buffer.
+The **AOF** appends every write command to a log, and `appendfsync` decides when the file reaches the disk. Redis writes the AOF buffer to the file in `beforeSleep`, before sending replies, so an acknowledged write is at least in the kernel's page cache and a process crash (OOM kill, segfault) loses nothing acknowledged; `fsync` matters for power loss and kernel crashes. The exception is a stalled disk under `everysec`, when Redis may hold up to two seconds of writes in its own buffer.
 
 | Setting | Power loss or kernel crash loses | Cost |
 |---|---|---|
-| `always` | No acknowledged writes | One `fsync` per event-loop iteration (writes from all clients in that iteration are grouped); throughput bounded by fsync latency |
-| `everysec` (default when AOF is on) | About 1 s; up to about 2 s if the disk stalls, because Redis delays the next write rather than blocking forever | A background-thread `fsync` each second |
+| `always` | No acknowledged writes | One `fsync` per event-loop iteration, grouping all clients' writes; throughput bounded by fsync latency |
+| `everysec` (default when AOF is on) | About 1 s; up to about 2 s if the disk stalls | A background-thread `fsync` each second |
 | `no` | Whatever the kernel had not flushed: up to ~30 s with Linux's default dirty-page expiry | None |
 
-The AOF grows forever, so Redis rewrites it (`auto-aof-rewrite-percentage 100`, `auto-aof-rewrite-min-size 64mb`: when it has doubled since the last rewrite) by forking a child that writes the current dataset. Before 7.0 the parent buffered every write made during the rewrite in memory and appended it at the end, a memory spike and a main-thread stall. **Multi-part AOF** (7.0) replaces that with a directory: a base file (RDB-format when `aof-use-rdb-preamble yes`, the default), incremental AOF files, and a manifest. A rewrite opens a new incremental file for fresh writes, the child writes a new base, and a manifest swap retires the old files.
+The AOF grows forever, so when it has doubled since the last rewrite (`auto-aof-rewrite-percentage 100`, minimum 64 MB) Redis forks a child to write the current dataset. Before 7.0 the parent buffered every write made meanwhile and appended it at the end, a memory spike and a stall. **Multi-part AOF** (7.0) uses a base file (RDB format by default), incremental files and a manifest: fresh writes go to a new incremental file while the child writes a new base, and a manifest swap retires the old files.
 
-With `everysec`, Redis loses about a second of acknowledged writes on a power failure, and replication is asynchronous, so a failover can lose more. If a second of lost writes is unacceptable, either the data does not belong only in Redis or you need `always` plus a replica acknowledgement (`WAIT 1 100`). Most production Redis is a cache or a derived store, and a second is fine; the [caching layers lesson](/learn/databases/data-modeling-and-evolution/caching-layers) covers keeping such a cache consistent with the database. The same arithmetic applies to locks: `SET lock:x token NX PX 30000` is a correct lease on one node, and a failover that loses the key hands the lock to a second holder, which is why [distributed locks](/learn/system-design/distributed-systems/distributed-locks-and-coordination) need fencing tokens.
+Replication is asynchronous, so a failover can lose more than the table shows. If that is unacceptable, either the data does not belong only in Redis or you need `always` plus a replica acknowledgement (`WAIT 1 100`). Most production Redis is a cache or a derived store, where a second is fine (see [caching layers](/learn/databases/data-modeling-and-evolution/caching-layers)). The same arithmetic applies to locks: `SET lock:x token NX PX 30000` is a correct lease on one node, and a failover that loses the key hands the lock to a second holder, which is why [distributed locks](/learn/system-design/distributed-systems/distributed-locks-and-coordination) need fencing tokens.
 
 ## Eviction at maxmemory
 
-Without `maxmemory` (0, unlimited, on 64-bit) Redis grows until the kernel kills it. At the limit, before executing each write command, Redis evicts keys chosen by `maxmemory-policy` until it is under the limit again:
+Without `maxmemory` (0, unlimited, on 64-bit) Redis grows until the kernel kills it. At the limit, Redis evicts keys chosen by `maxmemory-policy` before executing a command until it is back under:
 
 | Policy | Candidates | Chooses by |
 |---|---|---|
@@ -198,7 +198,7 @@ Without `maxmemory` (0, unlimited, on 64-bit) Redis grows until the kernel kills
 
 **LFU** reuses the same 24 bits: 16 bits of last-decrement time in minutes and an 8-bit **logarithmic counter**. A new key starts at 5, so it is not evicted the instant it arrives. Each access increments the counter with probability 1 / ((counter − 5) × `lfu-log-factor` + 1), with the factor at 10 by default:
 
-| Counter | Chance that an access at the previous value moves it here | Expected accesses to reach it from 5 |
+| Counter | Chance an access at the previous value moves it here | Expected accesses from 5 |
 |---|---|---|
 | 6 | 1 | 1 |
 | 7 | 1/11 | 12 |
@@ -206,17 +206,17 @@ Without `maxmemory` (0, unlimited, on 64-bit) Redis grows until the kernel kills
 | 18 | 1/121 (from 17) | ~790 |
 | 255 | — | ~311,000 |
 
-A simulation of 20 keys lands at a mean of 9.7 after 100 accesses and about 141 after 100,000, matching the table in the shipped `redis.conf`. Every `lfu-decay-time` minutes (default 1) of idleness subtracts one, applied lazily when the key is next touched or sampled. A nightly report that reads every product key once raises each cold key's counter by one (from 5 to 6 for a key untouched since it was written); the hot keys at 18 or more survive, whereas under LRU the report's keys would be the most recent and the hot keys would go.
+The shipped `redis.conf` tabulates the result at factor 10: 10 after 100 accesses, 18 after 1,000, 142 after 100,000. Every `lfu-decay-time` minute (default 1) of idleness subtracts one, applied lazily when the key is next touched or sampled. A nightly report that reads every product key once moves a cold key from 5 to 6; the hot keys at 18 or more survive, whereas under LRU the report's keys would be the most recent and the hot keys would go.
 
 ```viz
 {"type": "system", "scenario": "lfu-cache", "title": "Frequency-based eviction", "caption": "Keys with high hit counts survive a burst of one-off reads that would flush an LRU cache. The counter must decay, or a key that was hot last week is never evicted."}
 ```
 
-Expiry is lazy plus sampled: an expired key is deleted when accessed, and an active cycle samples keys from the TTL dictionary (20 per round), repeating while the fraction found expired stays high, within a CPU budget of about a quarter of the loop. Expired keys can occupy memory for a while, and a million keys given the same TTL at deploy time all expire in the same second and compete with real traffic. Add jitter. The [caches and eviction module](/learn/advanced-data-structures/caches-and-eviction/lfu-and-modern-policies) covers why modern caches prefer frequency with decay.
+Expiry is lazy plus sampled: an expired key is deleted when accessed, and an active cycle samples 20 keys at a time from the TTL dictionary, repeating while more than 10% of a sample has expired, within a quarter of the CPU. A million keys given the same TTL at deploy time all expire in the same second and compete with real traffic, so add jitter. The [caches and eviction module](/learn/advanced-data-structures/caches-and-eviction/lfu-and-modern-policies) covers why modern caches prefer frequency with decay.
 
 ## Cluster mode: 16,384 slots
 
-One process is bounded by one core and one machine's memory. Replication (a replica streams the primary's command stream) with Sentinel for failover gives read scaling and availability, but does not shard. **Redis Cluster** does: the keyspace is 16,384 hash slots, and a key's slot is `CRC16(key) mod 16384` using the XMODEM variant (polynomial 0x1021, initial value 0). The number is a message-size choice: every node's gossip heartbeat carries its slot ownership as a bitmap, 16,384 bits = 2 KB, where 65,536 slots would cost 8 KB per ping, and clusters beyond about 1,000 primaries are not a design target.
+One process is bounded by one core and one machine's memory. Replicas with Sentinel for failover give read scaling and availability, but do not shard. **Redis Cluster** does: the keyspace is 16,384 hash slots, and a key's slot is `CRC16(key) mod 16384` using the XMODEM variant (polynomial 0x1021, initial value 0). The number is a message-size choice: every node's gossip heartbeat carries its slot ownership as a bitmap, 16,384 bits = 2 KB, where 65,536 slots would cost 8 KB per ping, and clusters beyond about 1,000 primaries are not a design target.
 
 Only the part of the key inside the first `{…}` is hashed, if that part is non-empty:
 
@@ -248,70 +248,66 @@ flowchart LR
 
 1. D: `CLUSTER SETSLOT 15880 IMPORTING <C-id>`; C: `CLUSTER SETSLOT 15880 MIGRATING <D-id>`.
 2. Loop: `CLUSTER GETKEYSINSLOT 15880 100` on C, then `MIGRATE` those keys to D. Each key is serialised, restored on D and deleted from C atomically; both nodes block while a key moves, so a 1 GB key is a multi-second stall.
-3. Meanwhile, a request for a key still on C is served by C. A request for a key already moved (or a new key) gets `-ASK 15880 D`: the client sends `ASKING` then the command to D, once, without updating its slot map.
+3. Meanwhile C serves keys it still holds; a request for a key already moved (or a new key) gets `-ASK 15880 D`: the client sends `ASKING` then the command to D, once, without updating its slot map.
 4. `CLUSTER SETSLOT 15880 NODE <D-id>` on the nodes ends the migration; C now answers `-MOVED`, and clients update their maps.
 
 ```viz
 {"type": "system", "scenario": "consistent-hashing", "title": "Keys distributed across nodes", "caption": "Redis Cluster uses fixed hash slots rather than a consistent-hash ring, but the effect is the same: each key has one owner and moving a node moves only its slots."}
 ```
 
-Failover is by majority of primaries: a primary unreachable for `cluster-node-timeout` (15,000 ms by default) is marked failed and one of its replicas is promoted, preferring the one with the most replicated data. Replication is asynchronous, so writes acknowledged by the old primary and not yet replicated are lost, and a primary cut off on the minority side of a partition keeps accepting writes for up to the node timeout before they are discarded. The cluster specification says plainly that Redis Cluster is not strongly consistent.
+Failover is by majority of primaries: a primary unreachable for `cluster-node-timeout` (15,000 ms by default) is marked failed and one of its replicas is promoted, preferring the one with the most replicated data. Unreplicated writes on the old primary are lost, and a primary cut off on the minority side of a partition keeps accepting writes for up to the node timeout, which are then discarded. Redis's [cluster documentation](https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/) says plainly that Redis Cluster does not guarantee strong consistency.
 
 ## Hot keys and big keys, in numbers
 
-A flash sale sends 500,000 reads a second to `product:7`, a 2 KB value. One key lives in one slot on one primary, so adding shards changes nothing. Two limits bind: CPU (500,000 is several times one core's 100,000–200,000 without pipelining) and bandwidth (500,000 × 2 KB = 1 GB/s, 8 Gbit/s, most of a 10 Gbit NIC; at 10 KB values it would be 41 Gbit/s). The escapes, cheapest first:
+A flash sale sends 500,000 reads a second to `product:7`, a 2 KB value, which lives in one slot on one primary whatever the shard count. Two limits bind: CPU (500,000 is several times one core's 100,000–200,000 without pipelining) and bandwidth (500,000 × 2 KB = 1 GB/s, 8 Gbit/s, most of a 10 Gbit NIC; at 10 KB values it would be 41 Gbit/s). The escapes, cheapest first:
 
 - **Client-side caching.** Redis 6+ tracks which keys a client read and pushes invalidations; an in-process copy with a one-second TTL turns 500,000 reads into a few hundred.
 - **Read replicas.** Each replica adds a core and a NIC, for bounded staleness.
-- **Key splitting.** Store N copies and read a random one. At a 75,000-per-second budget per node (half of 150,000), N = ⌈500,000 / 75,000⌉ = 7. Check where the copies land: `product:7:0` to `product:7:3` hash to slots 14585, 10456, 6331 and 2202, so on three primaries two of the four copies share the middle node. Writes now cost N.
+- **Key splitting.** Store N copies and read a random one: at 75,000 reads a second per node (half of 150,000), N = ⌈500,000 / 75,000⌉ = 7. Check where copies land: `product:7:0` to `product:7:3` hash to slots 14585, 10456, 6331 and 2202, so on three primaries two of the four copies share the middle node. Writes now cost N.
 
-This is the hot-partition problem from [partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding) at its most concentrated. Big keys are the other asymmetric load: one hash of 10 million fields makes `HGETALL`, `DEL`, `MIGRATE` and replica resynchronisation into multi-second events on one node. `redis-cli --bigkeys` finds them, `--hotkeys` works when an LFU policy is set, and the fix is a key design that caps element counts.
+This is the hot-partition problem from [partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding), concentrated on one key. Big keys are the other asymmetric load: one hash of 10 million fields makes `HGETALL`, `DEL`, `MIGRATE` and replica resynchronisation into multi-second events on one node. `redis-cli --bigkeys` finds them, `--hotkeys` works when an LFU policy is set, and the fix is a key design that caps element counts.
 
 ## Choosing a deployment and a durability level
 
-**Sentinel or Cluster?** If the dataset fits in one machine's memory and one core handles the throughput, which describes most caches, a primary with replicas and Sentinel is simpler, supports every multi-key command, and has one fewer class of client bug. Cluster is for when one node's memory or CPU is not enough. The table puts the realistic options side by side.
+**Sentinel or Cluster?** If the dataset fits in one machine's memory and one core handles the throughput, as for most caches, a primary with replicas and Sentinel is simpler and supports every multi-key command. Cluster is for when one node's memory or CPU is not enough.
 
 | Option | Scales | Multi-key atomicity | Data loss on failure | Operational cost |
 |---|---|---|---|---|
 | Single node, RDB only | One core, one machine's RAM | Everything | Minutes of writes | Lowest; downtime on host failure |
-| Primary + replicas + Sentinel, AOF `everysec` | Reads across replicas | Everything | ~1 s on power loss, plus unreplicated writes on failover | Moderate: Sentinel quorum, client support |
-| Redis Cluster | Memory and writes across primaries | Within one slot only | Unreplicated writes on failover; minority-side writes | Highest: slot planning, resharding, smart clients |
-| Memcached | Multi-threaded, client-side sharding | None (strings only) | Everything on restart (no persistence) | Low; Netflix's EVCache cache tier is built on it |
+| Primary + replicas + Sentinel, AOF `everysec` | Reads across replicas | Everything | ~1 s on power loss, plus unreplicated writes | Moderate: Sentinel quorum |
+| Redis Cluster | Memory and writes across primaries | Within one slot only | Unreplicated and minority-side writes | Highest: slot planning, resharding, smart clients |
+| Memcached | Multi-threaded, client-side sharding | None (strings only) | Everything on restart | Low; Netflix's EVCache is built on it |
 | Postgres table as a cache | One primary | Full transactions | None acknowledged | Zero new systems; ~1 ms instead of ~0.1 ms |
 
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| p99 jumps from 0.3 ms to 40 ms at the same time each night; host CPU low | One O(n) command (`KEYS`, `SMEMBERS`, `HGETALL` on a big key, a long Lua script) holds the single thread; `SLOWLOG GET` names it | `SCAN` family with cursors, cap key sizes, `UNLINK` instead of `DEL` |
-| Latency spike of hundreds of ms every few minutes, memory briefly near double | `fork()` for RDB or AOF rewrite: `latest_fork_usec`, `rdb_last_cow_size` in `INFO`; THP enabled | Disable THP, snapshot on a replica, leave headroom, fewer save points |
-| Primary restarts and every replica is suddenly empty | Persistence disabled on the primary plus auto-restart: it came back empty and replicas synced the empty dataset | Never auto-restart a primary without persistence; let Sentinel fail over instead |
-| Writes start failing with `OOM command not allowed` | `maxmemory` reached with `noeviction` (the default), or `volatile-*` with no TTL'd keys | Pick an `allkeys-*` policy for caches; alert on `used_memory` against `maxmemory` |
-| Memory used grows fivefold after a feature launch, key count unchanged | Values crossed a listpack threshold (a 65-byte field, a 129th member) and converted to hashtable | Shorter fields, bucketing, or deliberately tuned thresholds; confirm with `OBJECT ENCODING` |
-| One cluster node at 100% CPU, the others idle | Hot key or hot hash tag concentrating one slot | Client-side caching, replicas, key splitting with verified slots, re-tag by entity |
-| Acknowledged writes missing after a failover | Asynchronous replication; the promoted replica lacked them | `WAIT` for critical writes, or keep the data of record elsewhere |
+| p99 jumps from 0.3 ms to 40 ms at the same time each night; host CPU low | One O(n) command (`KEYS`, `SMEMBERS`, a long Lua script) holds the thread; `SLOWLOG GET` names it | `SCAN` cursors, capped key sizes, `UNLINK` |
+| Latency spike of hundreds of ms every few minutes, memory briefly near double | `fork()` for RDB or AOF rewrite (`latest_fork_usec`, `rdb_last_cow_size`); THP enabled | Disable THP, snapshot on a replica, leave headroom |
+| Primary restarts and every replica is suddenly empty | No persistence plus auto-restart: it came back empty and replicas synced that | Never auto-restart a primary without persistence; let Sentinel fail over |
+| Writes fail with `OOM command not allowed` | `maxmemory` reached under `noeviction`, or `volatile-*` with no TTL'd keys | An `allkeys-*` policy for caches; alert on `used_memory` |
+| Memory grows fivefold after a launch, key count unchanged | Values crossed a listpack threshold (a 65-byte field, a 513th hash field, a 129th sorted-set member) | Shorter fields, bucketing or tuned thresholds; check `OBJECT ENCODING` |
+| One cluster node at 100% CPU, the others idle | Hot key or hot hash tag on one slot | Client-side caching, replicas, split keys on checked slots, re-tag by entity |
+| Acknowledged writes missing after a failover | Asynchronous replication | `WAIT` for critical writes, or keep the record elsewhere |
 
 ## Interviewer follow-ups
 
-**"Redis is single-threaded. How does it do a million operations a second, and when does it not?"** Model answer: commands touch memory only, the event loop multiplexes sockets with `epoll`, pipelining amortises the system calls, and `io-threads` offloads socket I/O; the ceiling is one core's command execution, and one O(n) command or large reply stalls everyone. Common wrong answer: "it has been multi-threaded since Redis 6", which confuses I/O threads with execution.
+**"Redis is single-threaded. How does it do a million operations a second, and when does it not?"** Model answer: commands touch memory only, `epoll` multiplexes the sockets, pipelining amortises system calls and `io-threads` offload socket I/O; the ceiling is one core's command execution, and one O(n) command stalls everyone. Common wrong answer: "it has been multi-threaded since Redis 6", which confuses I/O threads with execution.
 
-**"Make a rate limiter correct across 200 app instances."** Model answer: one key per user and window, the check-and-increment in one atomic unit (a Lua script, or `MULTI` with `INCR` and `EXPIRE … NX`), expiry set in the same unit so a crash cannot strand a key, a hash tag so the key has one slot, and a sliding log or token bucket if the boundary burst matters. Common wrong answer: `GET`, compare in the application, then `SET`, which races between instances.
+**"Make a rate limiter correct across 200 app instances."** Model answer: check, increment and expiry in one atomic unit (a Lua script, or `MULTI` with `INCR` and `EXPIRE … NX`), a hash tag so the key has one slot, and a sliding log or token bucket if the boundary burst matters. Common wrong answer: `GET`, compare in the application, then `SET`, which races between instances.
 
-**"Can Redis be the system of record?"** Model answer: state the loss in units. `everysec` loses about a second on power failure, asynchronous replication loses unreplicated writes on failover, and `WAIT` narrows but does not close that; if that is acceptable for the key, yes, otherwise keep the record in a database (or a service built for durable in-memory data, such as a multi-zone transaction-log design). Common wrong answer: "yes, turn on AOF", which ignores failover.
+**"Can Redis be the system of record?"** Model answer: state the loss in units: about a second on power failure with `everysec`, plus unreplicated writes on failover, which `WAIT` narrows but does not close; if that is acceptable for the key, yes, otherwise keep the record in a database. Common wrong answer: "yes, turn on AOF", which ignores failover.
 
-**"Memory doubled during BGSAVE and the kernel killed Redis. Explain and fix."** Model answer: copy-on-write copies each page the parent writes during the snapshot; with 4 KiB pages that is proportional to distinct pages touched, with 2 MiB huge pages nearly everything; disable THP, measure `rdb_last_cow_size`, take snapshots on a replica, and keep headroom. Common wrong answer: "RDB compression uses the memory".
-
-**"One key is saturating a shard. What are your options?"** Model answer: find it (`--hotkeys`, `OBJECT FREQ`), then client-side caching, replica reads, or N copies whose slots you have checked, with the write fan-out cost stated. Common wrong answer: "add shards", when one key lives on one shard whatever the cluster size.
+**"One key is saturating a shard."** Model answer: find it (`--hotkeys`, `OBJECT FREQ`), then client-side caching, replica reads, or N copies on checked slots, with the write fan-out cost stated. Common wrong answer: "add shards", when one key lives on one shard whatever the cluster size.
 
 ## What mid-level engineers get wrong
 
-- **Running `KEYS` or `HGETALL` in production code.** Fine on a laptop with 1,000 keys, a multi-second outage at 50 million.
-- **`INCR` then `EXPIRE` as two calls.** A crash between them leaves a key with no TTL: a permanent lockout or a slow memory leak.
-- **Leaving `maxmemory-policy` at `noeviction` on a cache.** The cache starts rejecting writes instead of evicting.
-- **Sizing the host at dataset size.** A snapshot under write load needs headroom for copy-on-write, and THP turns that into a second copy.
-- **Hash-tagging by type** (`{sessions}:…`), which puts every key of that type on one node.
-- **Assuming AOF means no data loss.** It bounds loss on one machine; failover loses unreplicated writes.
-- **Ignoring encodings.** Crossing 128 entries or 64 bytes multiplies memory per value by about five.
+- **`KEYS` or `HGETALL` in production code**: harmless at 1,000 keys, an outage at 50 million.
+- **`INCR` then `EXPIRE` as two calls**: a crash between them strands a key with no TTL.
+- **`noeviction` on a cache**, which then rejects writes instead of evicting.
+- **Sizing the host at dataset size**, with no copy-on-write headroom.
+- **Hash-tagging by type** (`{sessions}:…`), putting every such key on one node.
 
 ## Exercises
 
@@ -442,13 +438,12 @@ hints:
 
 ## Senior signals
 
-- You explain Redis's speed as "one thread, memory only, no locks" and follow at once with the cost: any O(n) command on a big key stalls every client, so you read `SLOWLOG` first and use `SCAN`, `UNLINK` and `HSCAN`.
-- You know the encodings and their thresholds (128 entries and 64 bytes for listpacks, 512 for intsets, 44 bytes for `embstr`) and you budget memory per key, including the 50–100 bytes of overhead.
-- You state durability in units of lost writes: RDB loses up to the snapshot interval, `everysec` about a second on power loss, and failover loses unreplicated writes whatever the AOF setting.
-- You do copy-on-write arithmetic before sizing a host, and you disable transparent huge pages.
+- You explain Redis's speed as one thread, memory only, no locks, and its cost: any O(n) command stalls every client, so you read `SLOWLOG` first and reach for `SCAN` and `UNLINK`.
+- You budget memory per key (50–100 bytes of overhead) and know the encoding thresholds: 512 hash fields and 128 sorted-set members for listpacks, 64-byte values, 512 for intsets, 44 bytes for `embstr`.
+- You state durability in units of lost writes (the snapshot interval for RDB, about a second for `everysec`, unreplicated writes on any failover), and you do copy-on-write arithmetic with THP disabled before sizing a host.
 - You know `allkeys-lru` is sampled and LFU is a decaying logarithmic counter, and you choose LFU when scans would flush the cache.
-- You compute a key's slot, tag keys by entity rather than type, can narrate `MOVED` versus `ASK` during resharding, and choose Sentinel when one node is enough.
-- You do hot-key arithmetic in both CPU and bandwidth, and you know adding shards does nothing for one key.
+- You compute a key's slot, tag by entity rather than type, narrate `MOVED` versus `ASK`, and choose Sentinel when one node suffices.
+- You do hot-key arithmetic in CPU and bandwidth; adding shards does nothing for one key.
 
 ## Check yourself
 
@@ -478,11 +473,11 @@ hints:
   explanation: >-
     Only the text inside the first braces is hashed, so tagging by customer puts one customer's keys in one slot while different customers still spread across the cluster. Tagging by type puts every order in the system in slot 105 on one node. A Lua script has the same single-slot rule, and no node accepts keys it does not own.
 - q: >-
-    A hash grows from 128 to 129 short fields and its MEMORY USAGE jumps about fivefold. Deleting 120 fields later does not bring it back down. Why?
-  options: ["It crossed hash-max-listpack-entries and became a one-way hashtable", "Field names became raw strings once the hash passed 128 entries", "Deleted fields become tombstones until the next RDB snapshot is taken", "Jemalloc keeps the freed pages reserved for this key until a restart"]
-  answer: 0
+    A hash grows from 512 to 513 short fields and its MEMORY USAGE jumps about fivefold. Deleting 120 fields later does not bring it back down. Why?
+  options: ["Deleted fields become tombstones until the next RDB snapshot is taken", "Field names became raw strings once the hash passed 512 entries", "Jemalloc keeps the freed pages reserved for this key until a restart", "It crossed hash-max-listpack-entries and became a one-way hashtable"]
+  answer: 3
   explanation: >-
-    At 129 fields the listpack (one contiguous block, about 13 bytes per short field) converts to a hashtable (an entry and two strings per field, roughly 70 bytes). Hashes do not convert back while the server runs; a restart re-encodes values that fit when the RDB is loaded. Redis has no tombstones for hash fields.
+    At 513 fields the listpack (one contiguous block, about 13 bytes per short field) converts to a hashtable (an entry and two strings per field, roughly 70 bytes). Hashes do not convert back while the server runs; a restart re-encodes values that fit when the RDB is loaded. Redis has no tombstones for hash fields.
 - q: >-
     A 30 GiB Redis on a host with 48 GiB is OOM-killed during BGSAVE under steady random writes. Transparent huge pages are enabled. What is happening?
   options: ["Copy-on-write copies 2 MiB pages, so nearly all 30 GiB is duplicated", "fork() copies all memory up front, so the snapshot always needs 2x RAM", "RDB compression buffers the entire snapshot in memory before writing it", "The child process loads a second full copy of the dataset before writing"]

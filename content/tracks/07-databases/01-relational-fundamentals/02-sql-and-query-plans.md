@@ -16,10 +16,10 @@ Postgres handles a query in four stages:
 
 1. **Parse** the text into a tree and resolve names against the catalogue.
 2. **Rewrite** views and rules into references to base tables.
-3. **Plan**: enumerate access paths for each table (sequential scan, each usable index, bitmap combinations), join orders and join algorithms; estimate each candidate's cost from statistics; keep the cheapest. With `geqo_threshold` (12) or more tables in one `FROM`, exhaustive search is replaced by a genetic search, and explicit `JOIN` syntax beyond `join_collapse_limit` (8) tables is planned in the order written.
+3. **Plan**: enumerate access paths for each table (sequential scan, each usable index, bitmap combinations), join orders and join algorithms; estimate each candidate's cost from statistics; keep the cheapest. With `geqo_threshold` (12) or more `FROM` items, exhaustive search is replaced by a genetic search. Explicit `JOIN`s are flattened into one reorderable list only while that list stays within `join_collapse_limit` (8) items; beyond that the written join structure constrains the order, and at a limit of 1 the written order is the executed order.
 4. **Execute** the plan tree using the iterator (Volcano) model: each node implements "give me the next row" and pulls from its children, so rows stream upwards and a `Limit` node can stop the whole tree early.
 
-Planning is not free. The four-table join in [the relational model](/learn/databases/relational-fundamentals/the-relational-model) plans in 2.66 ms and executes in 0.21 ms. For a query that runs 5,000 times a second, a prepared statement that caches the plan saves more than any index. Postgres builds a **custom plan** with the actual parameter values for the first five executions of a prepared statement, then switches to a **generic plan** if its estimated cost is not meaningfully worse than the average custom plan; `plan_cache_mode = force_custom_plan` overrides that for skewed parameters.
+Planning is not free. The four-table join in [the relational model](/learn/databases/relational-fundamentals/the-relational-model) plans in 2.66 ms and executes in 0.21 ms. For a query that runs 5,000 times a second, a prepared statement that reuses a cached plan saves more than any index. Postgres builds a **custom plan** with the actual parameter values for the first five executions of a prepared statement, then switches to a **generic plan** if its estimated cost is not meaningfully worse than the average custom plan; `plan_cache_mode = force_custom_plan` overrides that for skewed parameters.
 
 ## Reading EXPLAIN (ANALYZE, BUFFERS), node by node
 
@@ -91,7 +91,7 @@ The bitmap has a memory limit. With `work_mem` lowered to 64 kB, the 100,314-row
 
 Every join is executed by one of three algorithms. Knowing their costs lets you predict a plan before running `EXPLAIN`.
 
-**Nested loop.** For each outer row, look up matching inner rows. Cost is |outer| × cost(inner lookup): catastrophic with an unindexed inner side, excellent with a small outer side and an index probe on the inner. It is the only join that emits its first row without consuming an input, which is why it wins under `LIMIT`. A `Materialize` node above the inner side caches it when it is rescanned.
+**Nested loop.** For each outer row, look up matching inner rows. Cost is |outer| × cost(inner lookup): catastrophic with an unindexed inner side, excellent with a small outer side and an index probe on the inner. It emits its first row after one outer row and one probe, without consuming either input, which is why it wins under `LIMIT`; a hash join must first read its whole build side, and a merge join must sort unless both inputs arrive ordered from indexes. A `Materialize` node above the inner side caches it when it is rescanned.
 
 **Hash join.** Build a hash table on the smaller input keyed by the join column, then stream the larger input and probe. Cost is O(n + m) and it needs no index or order, but only works for equality, and the whole build side must be consumed before the first output row. The hash table may use `work_mem × hash_mem_multiplier` (4 MB × 2 by default since Postgres 15); beyond that it splits both inputs into `Batches` on disk.
 
@@ -100,7 +100,7 @@ Every join is executed by one of three algorithms. Knowing their costs lets you 
  "operations": [["set","u:42","Ana"],["set","u:77","Raj"],["set","u:13","Lee"],["set","u:5","Kim"],["set","u:91","Ivy"],["get","u:42"],["get","u:77"],["get","u:42"],["get","u:13"]]}
 ```
 
-**Merge join.** Sort both inputs on the key (or read them in order from indexes) and walk them in lockstep. O(n + m) when pre-sorted, little memory, supports inequality on the sort key, and handles inputs far larger than memory.
+**Merge join.** Sort both inputs on the key (or read them in order from indexes) and walk them in lockstep. O(n + m) when pre-sorted, little memory, and handles inputs far larger than memory. Like a hash join it needs an equality condition: Postgres merge-joins only on operators marked `MERGES`, and the [operator documentation](https://www.postgresql.org/docs/17/xoper-optimization.html) says such an operator must in practice represent equality. Any inequality in the `ON` clause is applied as a filter on the joined pairs.
 
 Here are all three on the same two queries, each forced by disabling the other two:
 
@@ -109,13 +109,13 @@ Here are all three on the same two queries, each forced by disabling the other t
 | 2,880 orders from one day ⋈ 100,000 users | 14.7 ms (13 ms is building the 100,000-row hash) | 5.0 ms (2,880 primary-key probes) | 10.1 ms (sort 2,880, walk the users index) | Hash, cost 3,403 against 6,209 for the loop |
 | 19,915 pending orders ⋈ 4 million order lines | 360 ms (seq scan of all 4M lines) | 154 ms (19,915 probes of `order_lines_pkey`) | 648 ms (full index walk of order lines) | Hash, cost 121,071 against 200,993 |
 
-The planner picked the slower plan twice, and the reason is instructive. Its default `random_page_cost = 4` assumes a random page read costs four times a sequential one, a ratio that dates from spinning disks and describes neither SSDs nor a working set that fits in memory. Set `random_page_cost = 1.1` and it chooses the nested loops on both queries: 8.0 ms and 166 ms. On a server whose data is mostly cached or on SSDs, lowering `random_page_cost` globally (not per query) is a legitimate correction; on a table ten times larger than memory on network storage, the default may be the honest one.
+The planner picked the slower plan twice, and the reason is instructive. Its default `random_page_cost = 4` prices a random page read at four times a sequential one. The [documentation](https://www.postgresql.org/docs/17/runtime-config-query.html) explains that uncached random access to storage is normally much more expensive than that, and that 4.0 is already lowered on the assumption that most random reads hit cache; it suggests a lower value when the data is likely to be entirely cached. Here every probe was a buffer hit, so even 4 overpriced it. Set `random_page_cost = 1.1` and the planner chooses the nested loops on both queries: 8.0 ms and 166 ms. On a server whose working set is cached or on fast SSDs, lowering `random_page_cost` globally (not per query) is a legitimate correction; on a table ten times larger than memory, the default may be the honest one.
 
 | Join | Requires | Cost | Memory | Wins when | Loses when |
 |---|---|---|---|---|---|
 | Nested loop | Index on the inner key to be viable | outer × log(inner) | Constant | Small outer side; `LIMIT`; selective index probes | Large outer side with an unindexed inner |
 | Hash | Equality condition | outer + inner | Build side, up to `work_mem × hash_mem_multiplier` | Large unsorted equality joins | Build side vastly exceeds memory; inequality; `LIMIT` |
-| Merge | Both inputs sorted on the key | outer + inner (+ sorts) | Small, unless sorting | Both sides arrive sorted from indexes; huge inputs; range joins | Unsorted inputs small enough to hash |
+| Merge | Equality condition; both inputs sorted on the key | outer + inner (+ sorts) | Small, unless sorting | Both sides arrive sorted from indexes; huge inputs; output wanted in key order | Unsorted inputs small enough to hash |
 
 ## Where the estimates come from
 
@@ -173,7 +173,7 @@ That join (1 million orders against 4 million lines) spilled 163 MB and was not 
 - **`OFFSET` pagination.** `ORDER BY placed_at DESC, id DESC OFFSET 1000000 LIMIT 20` read 1,000,020 index entries and 242,626 buffers: 110 ms for 20 rows. Keyset pagination, `WHERE (placed_at, id) < ($1, $2) ORDER BY placed_at DESC, id DESC LIMIT 20` on an index over `(placed_at, id)`, read 10 buffers: 0.06 ms.
 - **`NOT IN` with a nullable subquery.** One `NULL` makes it return nothing, and the planner cannot turn it into an anti-join the way it can `NOT EXISTS`.
 - **`OR` across columns.** Each side needs its own index and a `BitmapOr`; otherwise it is a sequential scan.
-- **CTEs before Postgres 12** were optimisation fences; since 12 they are inlined unless written `WITH x AS MATERIALIZED`.
+- **CTEs before Postgres 12** were optimisation fences; since 12 a non-recursive, side-effect-free CTE referenced once is inlined into the outer query unless written `WITH x AS MATERIALIZED`. One referenced twice is still computed once and scanned twice, unless you write `NOT MATERIALIZED`.
 - **`VOLATILE` functions** (the default for user-defined functions) are re-evaluated per row and block index use; mark pure functions `IMMUTABLE`.
 
 ## Failure modes

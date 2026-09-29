@@ -37,7 +37,7 @@ CREATE SUBSCRIPTION orders_sub
 
 ## Under the hood: four positions and how seconds are computed
 
-`pg_stat_replication` on the primary shows four LSNs per standby: `sent_lsn` (handed to the socket), `write_lsn` (written by the standby, not yet flushed), `flush_lsn` (durable on the standby) and `replay_lsn` (applied and visible to queries there). Lag in **bytes** is the primary's current LSN minus one of them. Lag in **time** (`write_lag`, `flush_lag`, `replay_lag`) is computed differently: the walsender keeps a small circular buffer of `(LSN, timestamp)` samples, recorded as it sends WAL. When the standby reports that it has replayed up to some LSN, the walsender finds the samples that bracket that LSN, interpolates linearly to estimate when the primary was at that position, and subtracts that time from now.
+`pg_stat_replication` on the primary shows four LSNs per standby: `sent_lsn` (handed to the socket), `write_lsn` (written by the standby, not yet flushed), `flush_lsn` (durable on the standby) and `replay_lsn` (applied and visible to queries there). Lag in **bytes** is the primary's current LSN minus one of them. Lag in **time** (`write_lag`, `flush_lag`, `replay_lag`) is computed differently: the walsender keeps a circular buffer of up to 8,192 `(LSN, timestamp)` samples, recorded as it sends WAL. When the standby reports that it has replayed up to some LSN, the walsender finds the samples that bracket that LSN, interpolates linearly to estimate when the primary was at that position, and subtracts that time from now.
 
 Two consequences follow. First, bytes and seconds disagree whenever the write rate is uneven: 4 MB behind after a burst that ended a second ago is a 1-second lag, while 4 MB behind during a steady 5 MB/s stream is 0.8 seconds. Second, when the primary goes idle, byte lag drops to zero as soon as the replica catches up, even though the last transaction may be minutes old. The exercise at the end implements the interpolation.
 
@@ -76,7 +76,7 @@ By default replication is **asynchronous**: `COMMIT` returns once the WAL is flu
 | `on` | Standby flushed it | Yes | Round trip plus the standby's flush |
 | `remote_apply` | Standby replayed it | Yes, and reads on that standby see it | Round trip, flush and replay |
 
-The round trip is set by geography: typically well under a millisecond within one availability zone, around a millisecond between zones in one region, and tens of milliseconds between regions. Synchronous commit still benefits from group commit: one standby acknowledgement covers every commit record flushed before it, so throughput with many clients degrades far less than single-client latency suggests.
+The round trip is set by geography: typically well under a millisecond within one availability zone, single-digit milliseconds between zones in one region (AWS's [own description](https://docs.aws.amazon.com/whitepapers/latest/aws-fault-isolation-boundaries/availability-zones.html) of zones it places up to about 100 km apart), and tens of milliseconds between regions. Synchronous commit still benefits from group commit: one standby acknowledgement covers every commit record flushed before it, so throughput with many clients degrades far less than single-client latency suggests.
 
 ```mermaid
 sequenceDiagram
@@ -176,7 +176,7 @@ flowchart LR
 | Sync, `ANY 1` of 2 standbys | Nothing acknowledged | About 30–60 s | One round trip plus a standby flush |
 | Sync with `remote_apply` | Nothing acknowledged, and readable on the standby | About 30–60 s | Plus replay time |
 
-Managed services (RDS Multi-AZ, Cloud SQL HA) run this dance for you, typically in one to two minutes during which writes fail. Your application's retries and idempotency decide whether that window is a blip or an incident; see [distributed transactions](/learn/system-design/distributed-systems/distributed-transactions).
+Managed services (RDS Multi-AZ, Cloud SQL HA) run this dance for you; AWS documents RDS Multi-AZ failovers as [typically 60–120 seconds](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.MultiAZ.Failover.html), during which writes fail. Your application's retries and idempotency decide whether that window is a blip or an incident; see [distributed transactions](/learn/system-design/distributed-systems/distributed-transactions).
 
 ## Replicas do not scale writes
 

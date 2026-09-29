@@ -10,7 +10,7 @@ Your first schema for an e-learning product had `users`, `lessons`, `lesson_prog
 
 On a lab copy of that schema in PostgreSQL 17 (100,000 users, 2.3 million progress rows, 3.7 million submissions, 1 million quiz attempts), the leaderboard query as first written took **34.5 seconds**. Rewritten carefully it took **749 ms**. Served from a summary table it took **0.4 ms**. The per-user dashboard, which everyone assumed was the slow one, took **0.26 ms** straight from the normalised tables and needed no change at all.
 
-Nothing was wrong with the normalisation. What was wrong was the order of operations: the team modelled the nouns of the domain and hoped the queries would be fine. Senior engineers model the other way round. They write down the queries first, with frequency, latency target, cardinality and freshness, then derive the keys and indexes, and denormalise only the queries the table proves need it. This lesson does that for Postgres, measures the three denormalisation tools (summary tables, counters, materialised views), and then shows that a DynamoDB single-table design is the same method with no fallback.
+Nothing was wrong with the normalisation. What was wrong was the order of operations: the team modelled the nouns of the domain and hoped the queries would be fine. Senior engineers write down the queries first, with frequency, latency target, cardinality and freshness, then derive keys and indexes, and denormalise only what the table proves needs it. This lesson does that for Postgres, measures summary tables, counters and materialised views, and shows that DynamoDB single-table design is the same method with no fallback.
 
 ## The access-pattern table
 
@@ -28,11 +28,11 @@ Before you draw a single table, write this one. It is the artefact a design revi
 Each column does a job:
 
 - **Frequency** multiplies cost. The number that matters is frequency × cost per call, in CPU-seconds per second.
-- **p99 target** bounds how many page reads a query can afford: on a warm buffer pool a page access costs microseconds, so a 50 ms budget is generous for an index scan and hopeless for a scan of millions of rows.
-- **Cardinality** is the column people omit, and it is the one that predicts the design. When rows touched is close to rows returned, an index can bound the query. When a hot query touches millions of rows to return 100, no index can help, because the query reads everything by definition, and the work has to move to the write path.
-- **Freshness** unlocks denormalisation. If the leaderboard can be three minutes stale, you can precompute it; if the progress list must show a write immediately, it must read the source of truth.
+- **p99 target** bounds the page reads a query can afford: at microseconds per warm page, 50 ms is generous for an index scan and hopeless for millions of rows.
+- **Cardinality** is the column people omit, and it predicts the design. When rows touched is close to rows returned, an index can bound the query; when a hot query touches millions of rows to return 100, no index can, and the work has to move to the write path.
+- **Freshness** unlocks denormalisation: a leaderboard that may be three minutes stale can be precomputed; a progress list that must show a write immediately reads the source of truth.
 
-This is the "requirements" step of a system design interview applied to one database. Interviewers at the senior bar ask "what are the access patterns?" before they let you draw a schema.
+It is the requirements step of a design interview applied to one database, and senior interviewers ask for it before they let you draw a schema.
 
 ## Deriving keys and indexes from the table
 
@@ -49,7 +49,7 @@ Take each row and name its access path, then check the cost. The lab numbers are
 
 Now multiply by frequency. Q1 costs 200 × 0.26 ms = 0.05 CPU-seconds per second: nothing. Q4 at its best costs 5 × 0.749 s = 3.7 CPU-seconds per second, four cores busy all day for one widget, and its cost grows with every user who signs up. The table has told you which query to denormalise, and it is not the one people guessed.
 
-This app makes the same call. `ProgressService::summary` computes the dashboard from the base tables on every request with five queries (lesson progress, module preferences, distinct solved problems, quiz attempts and recent activity days) and keeps no summary table, and Q6 is served by `idx_comments_target` on `(target_kind, target_slug, created_at)` from the `m0004_community` migration. The [indexes lesson](/learn/databases/relational-fundamentals/indexes) measures that index; the rule here is that every hot query names its index, and every index names the query that pays for its write cost.
+This app makes the same call. `ProgressService::summary` computes the dashboard from the base tables on every request with six queries (lesson progress, module preferences, distinct solved problems, quiz attempts, the learner's local date, recent activity days) and keeps no summary table, and Q6 is served by `idx_comments_target` on `(target_kind, target_slug, created_at)` from `m0004_community`. The [indexes lesson](/learn/databases/relational-fundamentals/indexes) measures that index; every hot query names its index, and every index names the query that pays for its writes.
 
 ```viz
 {"type": "system", "scenario": "b-tree-index", "title": "The index that serves Q6", "caption": "An index on (target_kind, target_slug, created_at) descends to the first comment on the lesson and walks the leaf level in created_at order, so the query needs no sort and a LIMIT can stop early."}
@@ -142,7 +142,7 @@ That measured **749 ms**: a sequential scan of `lesson_progress` (1.8 million ma
 
 ## Summary tables: the write path pays
 
-Every fix below moves work from reads to writes. Writes are usually one to two orders of magnitude rarer than reads (20/s against 200/s in the table), and the write already holds a transaction. The cost is that one fact now lives in two places and something must keep them consistent.
+Every fix below moves work from reads to writes, which are usually rarer (20/s against 200/s in the table) and already hold a transaction. The cost is that one fact now lives in two places and something must keep them consistent.
 
 For Q4, keep one `user_stats` row per user:
 
@@ -159,7 +159,7 @@ CREATE TABLE user_stats (
 CREATE INDEX idx_user_stats_xp ON user_stats (xp DESC);
 ```
 
-The generated column means `xp` can never disagree with its inputs. Q4 becomes:
+The generated column keeps `xp` consistent with its inputs. Q4 becomes:
 
 ```text
 Limit (actual time=0.027..0.377 rows=100 loops=1)
@@ -170,7 +170,7 @@ Limit (actual time=0.027..0.377 rows=100 loops=1)
 Execution Time: 0.401 ms
 ```
 
-One hundred index entries and one hundred primary-key probes for the names: 402 buffers, 0.4 ms, and the same 0.4 ms at ten times the users. The table and its two indexes take 8.6 MB for 100,000 users. The rebuild query (the pre-aggregated join above, inserted into `user_stats`) took **1.9 s**; keep it in the repository next to the migration, because it is how you repair drift.
+One hundred index entries and one hundred primary-key probes for the names: 402 buffers, 0.4 ms, and the same at ten times the users, for 8.6 MB of table and indexes. The rebuild query (the pre-aggregated join above, inserted into `user_stats`) took **1.9 s**; keep it next to the migration, because it is how you repair drift.
 
 The part that breaks under retries is idempotency. "Mark lesson complete" can be retried by a client, and `lessons_completed` must not move twice. Make the increment conditional on the progress row actually changing state:
 
@@ -219,12 +219,12 @@ That is correct and has a ceiling. The lab ran it with `pgbench`: 16 clients, 10
 
 ### Under the hood: why one row caps at about 400 per second
 
-An `UPDATE` stamps the row version with its transaction ID and holds that until the transaction ends. A second updater finds the version locked by a live transaction and sleeps on that transaction's ID: in `pg_locks` it appears as a `transactionid` lock with `granted = false`, and `pg_stat_activity` shows `wait_event = 'transactionid'`. When the first commits, the waiter re-reads the newest version (read committed re-evaluates its `WHERE` on it) and applies its increment. Updates to one row are therefore serial, and each holds the lock from its `UPDATE` until its `COMMIT` returns, which includes flushing WAL to disk: about 2.5 ms on this lab's virtual disk. One row's throughput is about 1 / 2.5 ms = 400 per second whether 1 or 16 clients try, and the extra clients only add queueing: by Little's law, 16 waiters at 400 per second each wait about 16 / 400 = 40 ms, the measured latency.
+An `UPDATE` stamps the row version with its transaction ID until the transaction ends. A second updater sleeps on that ID (a `transactionid` lock with `granted = false` in `pg_locks`, `wait_event = 'transactionid'` in `pg_stat_activity`), and when the first commits it re-reads the newest version and applies its increment. Updates to one row are therefore serial, and each holds the lock from its `UPDATE` until its `COMMIT` returns, including the WAL flush: about 2.5 ms on this lab's virtual disk. One row's throughput is about 1 / 2.5 ms = 400 per second whether 1 or 16 clients try, and the extra clients only add queueing: by Little's law, 16 waiters at 400 per second each wait about 16 / 400 = 40 ms, the measured latency.
 
 That gives three fixes:
 
 - **Hold the lock for less time.** Put the hot update last in the transaction. Updating first and then doing 2 ms of other work dropped throughput to 208 per second (1 / 4.8 ms).
-- **Shard the counter.** `lesson_stats_sharded (target_slug, shard, comment_count)` with 16 rows per lesson; each writer picks `shard = random(0, 15)`, and readers `SUM` the 16 rows. Throughput rose sixfold. Random picks still collide, so use more shards than concurrent writers.
+- **Shard the counter.** Keep 16 rows per lesson in `lesson_stats_sharded (target_slug, shard, comment_count)`; each writer picks a random shard and readers `SUM` the 16. Throughput rose sixfold; random picks still collide, so use more shards than concurrent writers.
 - **Stop updating in place.** Append a delta row per event and fold deltas into the total every few seconds; the counter is then seconds stale and the write path has no hot row at all.
 
 Watch the index. The counter updates above were 97% heap-only (HOT) updates, so bloat stayed small. Adding an index on `comment_count` so Q5 can read the top ten dropped HOT to **0%** in a rerun of the same benchmark: every increment now writes a new index entry too. Since Q5 tolerates minutes of staleness, a materialised view refreshed every minute is the cheaper design for it.
@@ -265,14 +265,14 @@ HINT:  Create a unique index with no WHERE clause on one or more columns of the 
 
 A **plain refresh** runs the query into a brand-new heap file, builds the indexes on it, and swaps it in: the view's `relfilenode` changed from 43357 to 43367 in the lab, and the old file was dropped at commit. It is a rewrite, so it leaves no dead rows and needs no vacuum, and nobody can read the view while it runs.
 
-A **concurrent refresh** cannot swap files under running readers, so it computes a difference. It runs the query into a temporary table, joins it against the current contents with a full outer join, matching rows on the unique index's columns and then comparing whole rows, and applies the result as ordinary DML: `DELETE` for rows that vanished or changed, `INSERT` for rows that are new or changed. In the lab, after 10,000 users gained an event, the refresh reported **10,000 deletes, 10,000 inserts and 10,000 dead tuples**, and `relfilenode` stayed at 43440. Four consequences:
+A **concurrent refresh** cannot swap files under running readers, so it computes a difference: it runs the query into a temporary table, full-outer-joins it against the current contents on the unique index's columns, compares whole rows, and applies ordinary `DELETE`s and `INSERT`s. After 10,000 users gained an event, the lab's refresh reported **10,000 deletes, 10,000 inserts and 10,000 dead tuples**, and `relfilenode` stayed at 43440. Four consequences:
 
 1. The unique index is how rows are matched; without it the diff cannot tell an old row from a new one, hence the error above.
 2. It always runs the full query and a join over every row, so it costs about twice a plain refresh even when nothing changed (909 ms against 456 ms). Postgres 17 core has no incremental maintenance; the third-party `pg_ivm` extension adds it for a subset of queries.
 3. Changed rows become dead tuples, so a view refreshed every minute needs autovacuum to keep up, or it bloats like any update-heavy table (see [MVCC and locking](/learn/databases/relational-fundamentals/mvcc-and-locking)).
 4. Readers see the old contents until the refresh commits, then the new ones all at once.
 
-Materialised views fit the "minutes stale is fine" rows of the table: Q4 and Q5 here. They never fit read-your-writes. A user who solves a problem and does not see their XP move for five minutes files a bug unless the product says "updated every few minutes".
+Materialised views fit the "minutes stale is fine" rows, Q4 and Q5 here, and never read-your-writes: a user whose XP does not move for five minutes files a bug unless the product says "updated every few minutes".
 
 ## Who keeps the copies in sync
 
@@ -286,7 +286,7 @@ Every denormalised copy needs a named mechanism. Three exist, and the choice is 
 
 The first is the default inside one Postgres. It costs nothing extra and it is atomic; drift is contained by routing every write through one function, the way `ProgressService::set_lesson_status` is the only application code that writes `lesson_progress` in this app.
 
-Change-data-capture is the answer once the copy lives where the transaction cannot reach: a Redis sorted set for the leaderboard (the [Redis lesson](/learn/databases/nosql-and-specialised/key-value-stores-and-redis) covers the structure), a search index, a warehouse, a cache. A connector tails the write-ahead log and emits each committed change; a consumer applies it. The delay between commit and apply is your staleness window, so monitor it as a metric.
+Change-data-capture is the answer once the copy lives where the transaction cannot reach: a Redis sorted set for the leaderboard (see the [Redis lesson](/learn/databases/nosql-and-specialised/key-value-stores-and-redis)), a search index, a warehouse, a cache. A connector tails the write-ahead log and a consumer applies each committed change; the commit-to-apply delay is your staleness window, so monitor it.
 
 ```viz
 {"type": "system", "scenario": "cdc", "title": "Change data capture from the WAL to a read model", "caption": "Each committed change appears in the WAL, the connector emits it, and a consumer applies it to the summary store. The gap between commit and apply is the staleness a reader can observe."}
@@ -294,7 +294,7 @@ Change-data-capture is the answer once the copy lives where the transaction cann
 
 The [CDC lesson](/learn/big-data/streaming/change-data-capture) covers Debezium and the outbox pattern. The rule: **one transaction for copies inside the database, CDC for copies outside it, triggers only with a written reason.**
 
-Push the idea one step further and you have read models: stores whose only job is to answer one query each, populated from a normalised write model. Senior engineers insist that every read model can be dropped and rebuilt from the write model; a copy with no rebuild procedure turns its first inconsistency into a permanent one. Full CQRS with event sourcing is a large commitment that the [event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) lesson weighs; the discipline is what transfers.
+Push the idea further and you have read models, stores that each answer one query, populated from a normalised write model. Every read model must be droppable and rebuildable from the write model, or its first inconsistency becomes permanent. Full CQRS with event sourcing is a larger commitment that the [event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) lesson weighs.
 
 ## DynamoDB single-table design: entities and keys
 
@@ -313,10 +313,10 @@ The design for this domain puts every entity in one table, with generic key attr
 
 Four techniques are packed into that table:
 
-- **Item collections.** `USER#42` holds the profile and every progress item. `PROFILE` sorts before `PROGRESS#…` (F before G), so `Query PK = USER#42` returns the dashboard's profile and all progress in one request: the join, done at write time by choosing keys.
-- **GSI overloading.** `GSI1` has no fixed meaning. For comments it means "by author, by time"; for lessons "by track, in course order"; for memberships "by user". One index serves three access patterns because each entity type writes different values into the same two attributes.
+- **Item collections.** `USER#42` holds the profile and every progress item, and `PROFILE` sorts before `PROGRESS#…` (F before G), so one `Query PK = USER#42` returns the dashboard: the join, done at write time by choosing keys.
+- **GSI overloading.** `GSI1` means "by author, by time" for comments, "by track, in course order" for lessons and "by user" for memberships: one index, three access patterns, because each entity type writes different values into the same two attributes.
 - **Adjacency list for many-to-many.** A membership is an edge item stored under the group (members of a group) and projected by `GSI1` under the user (groups of a user). The textbook variant is an inverted index whose partition key is `SK`; it puts every item whose sort key is `PROFILE` or `META` into one giant index partition, which is why this design uses a dedicated attribute that only edges carry.
-- **Sparse indexes.** A second index keyed on `mod_status` and `flagged_at` contains only comments that carry those attributes, which are set when a comment is flagged and removed when a moderator clears it. The moderation queue is a small index over a large table, and clearing an item removes it from the queue.
+- **Sparse indexes.** A second index keyed on `mod_status` and `flagged_at` holds only comments that carry those attributes, set when a comment is flagged and removed when a moderator clears it: the moderation queue is a small index over a large table.
 
 ```viz
 {"type": "system", "scenario": "sharding-hash", "title": "A partition key is hashed to a partition", "caption": "DynamoDB hashes each partition key to one partition, so an item collection lives on one partition and a hot key's traffic cannot spread beyond it. Different keys spread evenly; one popular key does not."}
@@ -340,11 +340,11 @@ Four techniques are packed into that table:
 
 The mark-complete transaction is the DynamoDB twin of the conditional upsert: if the progress item is already `completed`, the condition fails, the whole transaction is cancelled, and the counter does not move, so a retry is harmless. The leaderboard index is sharded ten ways because a single leaderboard key would put every XP update on one index partition.
 
-Two constraints change the model's shape. Global secondary indexes are updated asynchronously and support only eventually consistent reads, so any read-your-writes pattern (Q2, Q3, Q6) must use the base table's keys. And an update that changes an index key (a new `xp` value is a new `GSI3SK`) costs two index writes, a delete and a put.
+Two constraints shape the model. Global secondary indexes are updated asynchronously and allow only eventually consistent reads, so read-your-writes patterns (Q2, Q3, Q6) must use base-table keys. And an update that changes an index key (a new `xp` is a new `GSI3SK`) costs two index writes, a delete and a put.
 
 ## DynamoDB: capacity arithmetic
 
-DynamoDB's documented unit rules (the [wide-column stores lesson](/learn/databases/nosql-and-specialised/wide-column-stores) tabulates them) turn each access pattern into a capacity number. A read unit (RCU) is one strongly consistent read of up to 4 KB per second, or two eventually consistent ones; a write unit (WCU) is one write of up to 1 KB. A `Query` sums the sizes of the items it returns and then rounds up to 4 KB; `GetItem` and `BatchGetItem` round each item separately.
+DynamoDB's unit rules (tabulated in the [wide-column stores lesson](/learn/databases/nosql-and-specialised/wide-column-stores)) turn each access pattern into a capacity number: a read unit (RCU) is one strongly consistent read of up to 4 KB, or two eventually consistent ones; a write unit (WCU) is one write of up to 1 KB. A `Query` sums returned sizes before rounding up to 4 KB; `GetItem` and `BatchGetItem` round each item.
 
 Work the comments page (50 comments of about 600 bytes, eventually consistent):
 
@@ -362,51 +362,50 @@ A design that is affordable can still throttle. Check each hot pattern against t
 - **Item size.** An item, attribute names included, is at most **400 KB**. Embedding a lesson's comments in the lesson item would stop at about 680 comments of 600 bytes, and long before that each append would be ruinous: an update is charged on the larger of the item's before and after sizes, so appending to a 300 KB item costs 300 WCU, and the 1,000 WCU partition limit allows about three comments per second on that lesson.
 - **Page size.** One `Query` returns at most 1 MB before you must paginate with `LastEvaluatedKey`.
 
-Every denormalisation this lesson applied to Postgres (the summary row, the counter, the precomputed leaderboard) is the only design DynamoDB offers. The reasoning is identical; DynamoDB removes the option of skipping it.
+Every denormalisation this lesson applied to Postgres is the only design DynamoDB offers: the reasoning is identical, and DynamoDB removes the option of skipping it.
 
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
-| A report or leaderboard gets slower every month; CPU climbs while traffic is flat | `EXPLAIN` shows full scans and a hash aggregate over every row; frequency × cost grows with the table | Summary table or materialised view; keep the rebuild SQL |
-| An aggregate is correct but takes tens of seconds; rows in the plan dwarf the table sizes | Two one-to-many joins from one parent multiply (85 million rows for 6 million inputs); `count(DISTINCT)` hides it | Aggregate each child table in a subquery, then join one row per parent |
-| Inserts on one popular item take 40–50 ms while the database is idle; throughput stuck near 400/s | Hot row: waiters on a `transactionid` lock in `pg_locks`; lock held until commit, including the WAL flush | Update last in the transaction; shard the counter; append deltas and fold them |
-| Dashboard counts disagree with the base tables after an incident | Non-idempotent increments ran twice on retries, or a code path skipped the copy | Condition increments on a state change; run the rebuild SQL; add a nightly reconciliation diff |
+| A leaderboard gets slower every month; CPU climbs while traffic is flat | `EXPLAIN` shows full scans and a hash aggregate over every row | Summary table or materialised view; keep the rebuild SQL |
+| An aggregate is correct but takes tens of seconds; plan rows dwarf table sizes | Two one-to-many joins from one parent multiply; `count(DISTINCT)` hides it | Aggregate each child in a subquery, then join one row per parent |
+| Inserts on one popular item take 40–50 ms on an idle database; throughput stuck near 400/s | Hot row: waiters on a `transactionid` lock held until commit | Update last; shard the counter; append deltas |
+| Dashboard counts disagree with the base tables after an incident | Increments ran twice on retries, or a code path skipped the copy | Condition increments on a state change; rebuild; nightly reconciliation diff |
 | The leaderboard endpoint times out for half a second every five minutes | Plain `REFRESH` holds `ACCESS EXCLUSIVE`; readers queue behind it | `REFRESH ... CONCURRENTLY` with a unique index |
-| A materialised view refreshed every minute grows and slows | Concurrent refresh turns every changed row into a dead tuple | Tune autovacuum for the view; refresh less often; switch to a summary table maintained per write |
-| DynamoDB throttles one lesson or one counter while the table is under its provisioned rate | One partition key over 3,000 RCU or 1,000 WCU per second | Write-shard the key; cache hot reads; shrink items and pages |
+| A materialised view refreshed every minute grows and slows | Concurrent refresh turns every changed row into a dead tuple | Tune autovacuum for it; refresh less often; or a per-write summary table |
+| DynamoDB throttles one lesson or counter below the table's provisioned rate | One partition key over 3,000 RCU or 1,000 WCU per second | Write-shard the key; cache hot reads; shrink items and pages |
 
 ## Trade-offs
 
 | Approach | Read cost | Write cost | Staleness | Consistency mechanism | Rebuild |
 |---|---|---|---|---|---|
 | Compute on read (normalised) | Grows with rows touched | None extra | None | None needed | Nothing to rebuild |
-| Summary table in the same transaction | One index probe | One more row update per write; hot-row risk | None | Application transaction | Rebuild SQL, about 2 s here |
+| Summary table in the same transaction | One index probe | One more row update per write; hot-row risk | None | Application transaction | Rebuild SQL, ~2 s here |
 | Trigger-maintained summary | One index probe | Same, hidden in the schema | None | Trigger | Same, but easy to forget |
 | Materialised view | One index probe | None per write; full query per refresh | Up to the refresh interval | Scheduled refresh | `REFRESH` is the rebuild |
-| CDC-fed read model in another store | Whatever that store costs | None in the transaction; a consumer per change | Consumer lag | WAL-based CDC or outbox | Replay the log or re-snapshot |
+| CDC-fed read model in another store | That store's cost | A consumer per change | Consumer lag | WAL-based CDC or outbox | Replay or re-snapshot |
 | DynamoDB single-table | One `Query`, units by size | Every copy written explicitly | None for base-table keys; GSIs eventual | Transactions or streams | A backfill job |
 
 ## Interviewer follow-ups
 
-**"The dashboard is slow. Would you add a summary table?"** Model answer: first measure it against the access-pattern table. A per-user aggregate over a few dozen rows through `(user_id, …)` indexes cost 0.26 ms here, so the fix is the index, and a summary table would add a consistency mechanism for no gain; denormalise the queries whose cardinality makes them read far more than they return, like a global leaderboard. Common wrong answer: "yes, precompute everything the UI shows", which buys drift and write contention for queries that were already cheap.
+**"The dashboard is slow. Would you add a summary table?"** Model answer: measure it against the access-pattern table first. A per-user aggregate over a few dozen indexed rows cost 0.26 ms here, so a summary table would add a consistency mechanism for no gain; denormalise queries that read far more rows than they return, like a global leaderboard. Common wrong answer: "yes, precompute everything the UI shows", which buys drift and write contention for queries that were already cheap.
 
-**"Your comment counter is a hot row. Why does adding database connections not help?"** Model answer: updates to one row are serialised by the row lock, held until commit including the WAL flush, so throughput is about one over the hold time (400/s at 2.5 ms here) and more clients only add queueing latency. Shorten the hold, shard the counter or append deltas. Common wrong answer: "the database is out of CPU; scale it up", when the measured database was idle.
+**"Your comment counter is a hot row. Why do more connections not help?"** Model answer: the row lock serialises updates and is held until commit, WAL flush included, so throughput is about one over the hold time (400/s at 2.5 ms here) and more clients only queue. Shorten the hold, shard the counter or append deltas. Common wrong answer: "the database is out of CPU; scale it up", when it was idle.
 
-**"When would you choose a materialised view over a summary table maintained per write?"** Model answer: when the result tolerates minutes of staleness, the query is expensive but writes are frequent, and a per-write update would create a hot row or cost HOT updates; refresh `CONCURRENTLY` with a unique index so readers are not blocked, and budget for roughly twice the query cost per refresh plus vacuum. Choose the summary table when readers need fresh values. Common wrong answer: "materialised views update themselves when the base tables change", which Postgres core does not do.
+**"When would you choose a materialised view over a summary table maintained per write?"** Model answer: when the result tolerates minutes of staleness and per-write updates would create a hot row or cost HOT updates; refresh `CONCURRENTLY` with a unique index and budget twice the query cost per refresh plus vacuum. Choose the summary table when readers need fresh values. Common wrong answer: "materialised views update themselves", which Postgres core does not do.
 
-**"Walk me through a DynamoDB design for users, lessons, progress and comments."** Model answer: list the access patterns first, choose partition keys so each pattern reads one item collection, overload a GSI for the secondary patterns, use an adjacency list with a projected edge for many-to-many, check each pattern's unit cost and the 3,000 RCU / 1,000 WCU per-partition and 400 KB item limits, and keep read-your-writes patterns off GSIs. Common wrong answer: "one table per entity, like Postgres", which turns every page into several requests and client-side joins.
+**"Walk me through a DynamoDB design for users, lessons, progress and comments."** Model answer: list the access patterns, choose partition keys so each reads one item collection, overload a GSI for the secondary patterns, use an adjacency list for many-to-many, check unit costs against the 3,000 RCU / 1,000 WCU partition and 400 KB item limits, and keep read-your-writes patterns off GSIs. Common wrong answer: "one table per entity, like Postgres", which turns every page into client-side joins.
 
 ## What mid-level engineers get wrong
 
-- **Designing from the nouns.** The schema is normalised and nobody knows which query it is for; the slow query is discovered in production.
-- **Denormalising by guess.** Precomputing the dashboard, which was cheap, and missing the leaderboard, which was not.
-- **Joining two one-to-many relations and reaching for `DISTINCT`.** The answer is right and the row count is multiplied, 851-fold per user here.
-- **Treating a counter row as free.** One row serialises every writer at about one commit time each.
-- **Indexing the counter column.** It turns every increment from a HOT update into an index write.
-- **Scheduling a plain `REFRESH`** on a view that users read, then chasing periodic timeouts.
-- **Adding a copy without a rebuild query.** The first drift becomes permanent.
-- **Porting a relational schema to DynamoDB table by table**, and discovering joins in application code and GSIs that cannot give read-your-writes.
+- **Designing from the nouns**, and discovering the slow query in production.
+- **Denormalising by guess**: precomputing the cheap dashboard and missing the leaderboard.
+- **Joining two one-to-many relations and reaching for `DISTINCT`**: right answer, rows multiplied 851-fold per user.
+- **Treating a counter row as free**, or indexing it and losing HOT on every increment.
+- **Scheduling a plain `REFRESH`** on a view that users read.
+- **Adding a copy without a rebuild query**, so the first drift is permanent.
+- **Porting a relational schema to DynamoDB table by table**, then joining in application code.
 
 ## Exercise: DynamoDB capacity units
 
@@ -479,11 +478,11 @@ hints:
 ## Senior signals
 
 - You write the access-pattern table (query, frequency, p99 target, cardinality, freshness) before a schema, and derive a key or index for each row.
-- You compute frequency × cost per query and denormalise the queries whose rows touched dwarf rows returned, not the ones that feel slow.
+- You compute frequency × cost per query and denormalise where rows touched dwarf rows returned, not where it feels slow.
 - You name the consistency mechanism for every copy (same transaction, trigger, refresh, CDC) and keep a rebuild query for it.
-- You know a hot row's ceiling is one over the lock hold time, including the commit flush, and you shorten the hold, shard the counter or append deltas.
-- You choose plain or concurrent `REFRESH` by its lock, know the concurrent form needs a unique index, costs about twice as much and leaves dead tuples.
-- You can lay out a DynamoDB single-table design with item collections, an overloaded GSI, an adjacency list and a sparse index, map every access pattern to a key condition, and check it against the 3,000 RCU / 1,000 WCU partition and 400 KB item limits.
+- You know a hot row's ceiling is one over the lock hold time, commit flush included, and shorten the hold, shard the counter or append deltas.
+- You choose plain or concurrent `REFRESH` by its lock, knowing the concurrent form needs a unique index, costs about twice as much and leaves dead tuples.
+- You can lay out a DynamoDB single-table design (item collections, overloaded GSI, adjacency list, sparse index), map each access pattern to a key condition, and check it against partition and item limits.
 
 ## Check yourself
 

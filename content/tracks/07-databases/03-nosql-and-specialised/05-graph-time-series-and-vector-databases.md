@@ -62,7 +62,7 @@ Depth 3 already covers most of a random graph with degree 50 (the small-world ef
 
 ## Index-free adjacency, under the hood
 
-In Neo4j's classic record format, nodes and relationships are fixed-size records in separate files: 15 bytes per node, 34 per relationship. A node record holds the id of its first relationship; each relationship record holds its two endpoints, its type, and next/previous pointers in each endpoint's relationship chain. Following an edge is `offset = id × record size`, one read (usually from the page cache), independent of graph size. A join follows the same edge by descending a B-tree of 3–4 levels, each a page lookup in the buffer pool, plus comparisons within each page.
+In Neo4j's classic `standard` record format (deprecated since 5.23 in favour of a `block` format that co-locates a node's data in 128-byte blocks), nodes and relationships are fixed-size records in separate files: 15 bytes per node, 34 per relationship. A node record holds the id of its first relationship; each relationship record holds its two endpoints, its type, and next/previous pointers in each endpoint's relationship chain. Following an edge is `offset = id × record size`, one read (usually from the page cache), independent of graph size. A join follows the same edge by descending a B-tree of 3–4 levels, each a page lookup in the buffer pool, plus comparisons within each page.
 
 Be honest about the size of that win. For a two-hop query on cached data it is a constant factor, a few times at most. It grows with depth and with graph size, and it becomes decisive for deep, branching traversals and path search. Equally important is the query language: variable-length paths and shortest-path search are first-class in Cypher, where SQL needs a carefully written recursive CTE.
 
@@ -92,7 +92,7 @@ Metrics, IoT readings, prices, application events: data arrives roughly in time 
 
 Facebook's Gorilla paper (VLDB 2015) is the design most TSDBs borrow; Prometheus uses a variant. It encodes timestamps and values separately, per series, in blocks aligned to two-hour windows.
 
-**Timestamps: delta-of-delta.** Store the first timestamp, then the first delta, then for each later point the *change in the delta*, with variable-length codes: `0` for a zero (1 bit), `10` plus 7 bits for −63 to 64 (9 bits), `110` plus 9 bits (12), `1110` plus 12 bits (16), and `1111` plus 32 bits (36). Timestamps `1000, 1010, 1020, 1030, 1041` become `1000, 10, 0, 0, 1`, costing 64 + 32 + 1 + 1 + 9 = 107 bits. Scrapers sample on a schedule, so the paper found 96% of timestamps compressed to a single bit.
+**Timestamps: delta-of-delta.** Store the first timestamp, then the first delta, then for each later point the *change in the delta*, with variable-length codes: `0` for a zero (1 bit), `10` plus 7 bits for −63 to 64 (9 bits), `110` plus 9 bits (12), `1110` plus 12 bits (16), and `1111` plus 32 bits (36). Timestamps `1000, 1010, 1020, 1030, 1041` become `1000, 10, 0, 0, 1`, costing 64 + 32 + 1 + 1 + 9 = 107 bits in the simplified scheme this lesson and its exercise use; the paper stores the block's two-hour-aligned start in the header and the first delta in 14 bits. Scrapers sample on a schedule, so the paper found 96% of timestamps compressed to a single bit.
 
 **Values: XOR with the previous value.** Consecutive readings are often equal or close, and close doubles share their sign, exponent and leading mantissa bits. Trace a temperature gauge:
 
@@ -104,7 +104,7 @@ Facebook's Gorilla paper (VLDB 2015) is the design most TSDBs borrow; Prometheus
 | 24.25 | two bits (`0x0000C00000000000`) | 16 / 46 | new window: `11` + 5 + 6 + 2 | 15 |
 | 24.0 | one bit (`0x0000400000000000`) | 17 / 46 | fits the previous window: `10` + the window's 2 bits | 4 |
 
-Five points cost 107 + 98 = 205 bits, 5.1 bytes a point, dominated by the 96 header bits of the first point. Over a full two-hour block those are amortised: a flat series costs 2 bits a point (1 for the timestamp, 1 for the value). On Facebook's production data the paper reported 51% of values compressed to one bit and an average of **1.37 bytes per point**, against 16 bytes for a raw timestamp and double, about 12 times smaller.
+Five points cost 107 + 98 = 205 bits, 5.1 bytes a point, dominated by the 160 bits of raw first timestamp, raw first value and first delta. Over a full two-hour block those are amortised: a flat series costs 2 bits a point (1 for the timestamp, 1 for the value). On Facebook's production data the paper reported 51% of values compressed to one bit and an average of **1.37 bytes per point**, against 16 bytes for a raw timestamp and double, about 12 times smaller.
 
 The trick depends on order: a series' points must be stored together and in time order, and delta and XOR both lose their zeros when readings are noisy (a random float's XOR with its neighbour has few zero bits). That is why TSDBs buffer each series in memory (Prometheus keeps a two-hour in-memory head block, protected by a WAL, and cuts compressed chunks of about 120 samples) rather than appending points to a shared log.
 
@@ -231,7 +231,7 @@ The knobs and their costs:
 
 - **`M`**: more links per node raise recall and cost memory and build time. The bottom layer alone holds 5,000,000 × 32 links, 0.6–1.3 GB at 4–8 bytes per link.
 - **`ef_construction`**: how widely inserts search for neighbours. Build quality is fixed afterwards; each insert is itself a search, so builds take minutes to hours and much memory.
-- **`ef_search`**: the query-time beam width, the recall-versus-latency dial. On public million-vector benchmarks, HNSW reaches recall@10 around 0.9 in well under a millisecond, and each further step towards 0.99 multiplies the query time. Measure **recall@10** (the fraction of the true top 10 returned) against exact search on a sample of real queries, and tune until it meets your target.
+- **`ef_search`**: the query-time beam width, the recall-versus-latency dial. Recall climbs quickly with `ef_search` and then flattens, so the last few points towards 0.99 cost the most latency; public benchmarks such as [ann-benchmarks](https://ann-benchmarks.com/) plot exactly this recall-against-throughput curve per dataset. Measure **recall@10** (the fraction of the true top 10 returned) against exact search on a sample of real queries, and tune until it meets your target.
 - **Deletes** leave tombstoned nodes that still route searches; heavy churn degrades recall until a rebuild.
 
 ## Memory, quantisation and filtering

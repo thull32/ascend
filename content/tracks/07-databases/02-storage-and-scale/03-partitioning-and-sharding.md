@@ -154,13 +154,13 @@ No hash function fixes that: the tenant still lands on exactly one shard. The re
 | Sequential keys | Spread evenly | All writes hit the last shard | Spread by policy |
 | Adding a shard | `mod N`: most keys move; consistent hashing: about 1/N | Split one range | Move chosen tenants only |
 | Hot tenant | Stuck on its shard | Stuck on its shard | Can be moved or isolated |
-| Used by | Citus (hash, 32 shards by default), DynamoDB, Cassandra | HBase, CockroachDB, Spanner | Vitess vindexes, most in-house SaaS routers |
+| Used by | Citus (hash, 32 shards by default), DynamoDB, Cassandra | HBase, CockroachDB, Spanner | Vitess lookup vindexes, most in-house SaaS routers |
 
 Why `mod N` is dangerous: a key stays put when going from N to N + 1 shards only if `h mod N = h mod (N + 1)`, which holds for 1 / (N + 1) of hashes. From 4 to 5 shards, **80% of keys move**; from 16 to 17, 94%. Consistent hashing moves about 1 / (N + 1), 20% and 6% respectively, and [hashing at scale](/learn/data-structures/hashing/hashing-at-scale) builds it. The pragmatic alternative many teams choose is a **directory**, a small replicated table mapping each tenant to a shard, cached in the router: placement becomes explicit, a hot tenant can be moved by hand, and a reshard moves exactly the tenants you choose.
 
 ## Cross-shard queries and the tail
 
-Any query without the shard key is a **scatter-gather**: send it to every shard, merge the results. Latency is the *slowest* shard's latency. If each shard answers within 10 ms 99% of the time, a query that waits for all 16 shards sees at least one slow answer with probability 1 − 0.99¹⁶ = **14.9%**; with 64 shards, 47%. The fan-out's median is close to a single shard's p99. `ORDER BY created_at DESC LIMIT 20` across 16 hash shards must fetch 20 rows from each (320) and discard 300, which is the exercise below.
+Any query without the shard key is a **scatter-gather**: send it to every shard, merge the results. Latency is the *slowest* shard's latency. If each shard answers within 10 ms 99% of the time, a query that waits for all 16 shards sees at least one slow answer with probability 1 − 0.99¹⁶ = **14.9%**; with 64 shards, 47%. The fan-out's median is the single-shard latency that all N answers beat half the time, the 0.5^(1/N) quantile: a single shard's p96 at 16 shards and its p99 at 64. `ORDER BY created_at DESC LIMIT 20` across 16 hash shards must fetch 20 rows from each (320) and discard 300, which is the exercise below.
 
 Three things are expensive across shards:
 

@@ -12,7 +12,7 @@ These are the two problems every streaming architecture must answer: **where doe
 
 ## The lambda architecture
 
-Lambda, popularised around 2011, runs two pipelines over the same input:
+Lambda, popularised by Nathan Marz from a [2011 post](http://nathanmarz.com/blog/how-to-beat-the-cap-theorem.html) onwards, runs two pipelines over the same input:
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ The 5 versus 4 decomposes exactly: +1 from the threshold drift (e2), +1 from the
 
 ## The kappa architecture
 
-In 2014 Jay Kreps, one of Kafka's creators, questioned the premise: if the stream processor is correct (event time, durable state, exactly-once) and the log can be replayed, the batch layer is redundant. **Kappa** keeps only the streaming path. The log is the source of truth, and reprocessing means running the new version of the job over the log from the beginning.
+In 2014 Jay Kreps, one of Kafka's creators, [questioned the premise](https://www.oreilly.com/radar/questioning-the-lambda-architecture/): if the stream processor is correct (event time, durable state, exactly-once) and the log can be replayed, the batch layer is redundant. **Kappa** keeps only the streaming path. The log is the source of truth, and reprocessing means running the new version of the job over the log from the beginning.
 
 ```mermaid
 flowchart LR
@@ -73,6 +73,12 @@ One codebase, one set of semantics, history corrected by construction. Kappa dep
 - **The job is deterministic in event time.** Processing-time logic, lookups against a service whose answers have since changed, and wall-clock timeouts produce different results on replay. Enrichment data must be versioned (a compacted topic joined as a table) rather than fetched live.
 - **The log holds enough history**, at a cost you can pay (next section).
 - **Replay is fast enough.** 30 days at a steady 100,000 events/s is 30 × 86,400 × 100,000 ≈ 259 billion events. Reprocessing in 6 hours needs 259 × 10⁹ / 21,600 s ≈ 12 million events/s, 120× the live rate. The topic's partition count caps the replay's parallelism, brokers must serve 30 days of cold reads without hurting live traffic, and the job rebuilds all its state on the way. A job that runs on 20 instances live needs the equivalent of about 2,400 for six hours, or it takes 30 days to replay 30 days.
+
+### Replay capacity on a real topic
+
+Put the same stream on a topic with 64 partitions. A replay job gets at most one consumer per partition, so its parallelism is 64 however many machines you give it. Suppose one consumer, rebuilding state as it goes, sustains 25,000 events/s from a partition (the live job's work plus cold reads). The replay then tops out at 64 × 25,000 = 1.6 million events/s, and the 259 billion events of 30 days take 259 × 10⁹ / 1.6 × 10⁶ ≈ 162,000 s: about 45 hours, not six. The brokers see the same arithmetic from their side: 1.6 million 1 KB events/s is 1.6 GB/s of reads that miss the page cache, spread over the brokers that lead those 64 partitions.
+
+Adding partitions does not widen the replay. Kafka never moves existing records when partitions are added ([its operations guide](https://kafka.apache.org/41/operations/basic-kafka-operations/) says it "will not attempt to automatically redistribute data in any way"), so the 30 days of history stay in the original 64 and the new partitions start empty. The only ways to go wider are to replay from a store that splits more finely, such as a lake table scanned by thousands of tasks, or to copy the history into a wider topic first, which is itself a full read of the old one. Kreps's proposal illustrated the procedure with 30 days of retention; the arithmetic above is why that works at modest rates and why platforms at larger rates backfill from the lake.
 
 ## Retention arithmetic and tiered storage
 
@@ -136,7 +142,7 @@ The distinction blurred once the same engines could run both ways. Flink runs th
 
 ## Under the hood: Iceberg as the serving layer
 
-The lakehouse table is what makes "overwrite day T atomically" possible. A Flink Iceberg sink writes Parquet data files continuously and commits a new table **snapshot** once per checkpoint: a manifest listing the new files and a new `metadata.json` whose pointer is swapped in the catalog with an atomic compare-and-swap. Readers always see a whole snapshot, never a half-written batch. The T+1 batch job then runs `INSERT OVERWRITE ... WHERE day = 'T'` (or `MERGE INTO`), which produces one snapshot in which the day's streaming files are replaced by the batch files; a dashboard query sees the estimate one moment and the final numbers the next, never a mixture. Validation of a reprocessed v2 against v1 uses time travel (`FOR VERSION AS OF`). The costs are small files from frequent commits (a checkpoint every minute is 1,440 commits a day per partition) and the compaction jobs that fix them; the [columnar formats and lakehouses](/learn/big-data/batch-processing/columnar-formats-and-lakehouses) lesson covers the metadata layers, and [ETL and orchestration](/learn/big-data/data-platforms/etl-elt-and-orchestration) covers scheduling the overwrite. Delta's `_delta_log` of JSON commits plays the same role.
+The lakehouse table is what makes "overwrite day T atomically" possible. A Flink Iceberg sink writes Parquet data files continuously and commits a new table **snapshot** once per checkpoint: a manifest listing the new files and a new `metadata.json` whose pointer is swapped in the catalog with an atomic compare-and-swap. Readers always see a whole snapshot, never a half-written batch. The T+1 batch job then runs `INSERT OVERWRITE ... WHERE day = 'T'` (or `MERGE INTO`), which produces one snapshot in which the day's streaming files are replaced by the batch files; a dashboard query sees the estimate one moment and the final numbers the next, never a mixture. Validation of a reprocessed v2 against v1 uses time travel (`FOR VERSION AS OF`). The costs are small files from frequent commits (a checkpoint every minute is 1,440 commits a day, each adding at least one file to every partition it wrote) and the compaction jobs that fix them; the [columnar formats and lakehouses](/learn/big-data/batch-processing/columnar-formats-and-lakehouses) lesson covers the metadata layers, and [ETL and orchestration](/learn/big-data/data-platforms/etl-elt-and-orchestration) covers scheduling the overwrite. Delta's `_delta_log` of JSON commits plays the same role.
 
 | Axis | Classic lambda | Pure kappa | Stream + lakehouse batch, one codebase |
 |---|---|---|---|

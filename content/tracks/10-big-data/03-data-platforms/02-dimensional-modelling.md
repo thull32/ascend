@@ -123,7 +123,7 @@ Dimensions shared across fact tables with the same keys and meaning are **confor
 - **Factless fact tables.** A process with no measure: a title available in a country on a date. The table is keys only, and "available titles never played" is an anti-join between it and the playback fact.
 - **Bridge tables.** A title with several genres needs a bridge; summing a fact across it counts the title once per genre, so allocate with weights or declare the total non-additive.
 
-## Slowly changing dimensions: the six types
+## Slowly changing dimensions: the types you will meet
 
 | Type | Behaviour | History kept | Cost |
 |---|---|---|---|
@@ -131,10 +131,10 @@ Dimensions shared across fact tables with the same keys and meaning are **confor
 | 1 | Overwrite in place | None: last year's revenue moves to the new country | None; history silently rewritten |
 | 2 | Close the current row, insert a new version with effective dates | Full, per change | One row per change; facts must be keyed to the right version |
 | 3 | Add a `previous_value` column | One step back | Fixed width; useless for a third change |
-| 4 | Current table plus a separate history table, or a **mini-dimension** for volatile attributes keyed from the fact | Full, without bloating the main dimension | Two tables to join |
+| 4 | Kimball: split volatile attributes into a **mini-dimension** keyed from the fact (other texts use Type 4 for a current table plus a separate history table) | Full, without bloating the main dimension | Two tables to join |
 | 6 | Type 2 rows that also carry Type 1 "current" columns (`country` and `current_country` on every version) | Full, and "as it is now" from the same join | Every version updated on each change |
 
-Type 1 is what the analysts in the opening story were accidentally doing by joining to the production table. **Type 2** is the one to know in depth.
+The [Kimball Group's list](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/) runs from Type 0 to Type 7; the two missing here are hybrids of the rows above. Type 5 adds a Type 1 reference from the base dimension to the current mini-dimension row, and Type 7 puts both the surrogate key and the durable natural key on the fact, so one join gives history and the other the current view. Type 1 is what the analysts in the opening story were accidentally doing by joining to the production table. **Type 2** is the one to know in depth.
 
 ### Type 2 traced through three changes
 

@@ -65,7 +65,7 @@ Ascending keys (a sequence, a timestamp, UUIDv7) always insert into the rightmos
 | UUIDv7 (time-ordered) | 30 MB | 90% | 75 ms, 15 MB of WAL |
 | UUIDv4 (random) | 38 MB | 71% | 202 ms, 43 MB of WAL |
 
-`pg_walinspect` shows where the extra WAL comes from. For UUIDv4, the 99,368 `Btree/INSERT_LEAF` records carried **32 MB of full-page images**: the first change to each page after a checkpoint logs the whole page (so crash recovery never sees a torn page), and random inserts touch nearly every leaf. There were also 642 page splits, half of them mid-page (`SPLIT_L`). For UUIDv7 the same records carried 5 KB of page images and 384 splits, all at the right edge (`SPLIT_R`). Three times the WAL means three times the replication traffic and backup volume for the same rows. This app generates UUID keys with `Uuid::now_v7()` for that reason.
+`pg_walinspect` shows where the extra WAL comes from. For UUIDv4, the 99,368 `Btree/INSERT_LEAF` records carried **32 MB of full-page images**: the first change to each page after a checkpoint logs the whole page (so crash recovery never sees a torn page), and random inserts touch nearly every leaf. There were also 642 page splits, about half logged as `SPLIT_L`, meaning the new key went into the left half of the split, which only happens when a page splits somewhere in the middle. For UUIDv7 the same records carried 5 KB of page images and 384 splits, all `SPLIT_R` (new key in the right half), as a split at the right edge must be. Three times the WAL means three times the replication traffic and backup volume for the same rows. This app generates UUID keys with `Uuid::now_v7()` for that reason.
 
 **Duplicates are compressed.** Since Postgres 13, leaves deduplicate equal keys into one key with a posting list of TIDs. An index on a four-value `status` column over 2 million rows measured 33 MB with deduplication and 44 MB with `deduplicate_items = off`. Smaller does not mean more useful, as the next section shows.
 
@@ -172,7 +172,7 @@ A unique partial index is a constraint tool. This app's `m0007_integrity` migrat
 
 | Type | Structure | Supports | Use it for | Watch out for |
 |---|---|---|---|---|
-| B-tree | Balanced tree of sorted keys | `=`, `<`, `>`, `BETWEEN`, `ORDER BY`, `LIKE 'abc%'` | The default, most indexes | Useless for `LIKE '%abc%'`, arrays, JSON containment |
+| B-tree | Balanced tree of sorted keys | `=`, `<`, `>`, `BETWEEN`, `ORDER BY`, `LIKE 'abc%'` (C collation or `text_pattern_ops`) | The default, most indexes | Useless for `LIKE '%abc%'`, arrays, JSON containment |
 | Hash | Hash buckets | `=` only | Very long keys where only equality is needed | No ordering, no uniqueness constraints |
 | GIN | Inverted index: element → posting list of TIDs | `@>`, `?`, `&&`, full text `@@`, trigram `LIKE '%abc%'` | `jsonb`, arrays, full-text search, `pg_trgm` | One row inserts many entries; a pending list (`fastupdate`) that searches must also scan |
 | GiST | Balanced tree of bounding predicates | Overlap, containment, nearest neighbour | Geometry, ranges, exclusion constraints | Lossy; rechecks against the heap |
@@ -253,7 +253,7 @@ An index with `idx_scan = 0` after a month of traffic costs write throughput, WA
 
 ## Interviewer follow-ups
 
-**"How many disk reads does a primary-key lookup cost on a billion-row table?"** Model answer: the tree is about five levels at a fan-out near 370; the upper levels are a few megabytes and stay cached, so typically one leaf read and one heap read. Common wrong answer: "log₂ of a billion, about 30", which is a binary tree, not a B-tree.
+**"How many disk reads does a primary-key lookup cost on a billion-row table?"** Model answer: the tree is four levels (about 2.7 million leaves at 366 entries each, then internal pages holding a few hundred downlinks); the upper levels are a few megabytes and stay cached, so typically one leaf read and one heap read. Common wrong answer: "log₂ of a billion, about 30", which is a binary tree, not a B-tree.
 
 **"Both columns appear under Index Cond. Why is the query still slow?"** Model answer: in a composite index only the leading equality columns and the first range column bound the scan; later conditions are filters inside the index, and the `Buffers` line shows how much was walked. Common wrong answer: "the planner chose the wrong index".
 
