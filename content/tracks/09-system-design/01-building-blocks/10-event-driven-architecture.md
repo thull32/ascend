@@ -55,7 +55,7 @@ Loading `acc-42` reads the snapshot and then only events after version 4: two ap
 
 The projector is at-least-once, like any consumer. Storing the stream version on each row makes redelivery harmless without a transaction spanning the row and the checkpoint. A brand-new read model is the same loop started at position 0 while the old one keeps serving; you switch reads when its lag reaches zero.
 
-**The numbers.** On Python 3.14, a fold over one million in-memory events measured 100 ns per event, and 830 ns once each 73-byte JSON event was decoded with `json.loads`: decoding, not applying, dominates, and fetching from the store adds more. A 50,000-event stream replays in tens of milliseconds; a 5-million-event stream costs seconds of CPU per load, which is what snapshots every few hundred events prevent. Storage: 1,000 events per second at 300 bytes is 26 GB per day and 9.5 TB per year before compression, append-only. Netflix has written publicly about an event-sourced service behind download licensing, where the history of every licence action is the product requirement.
+**The numbers.** On Python 3.14, a fold over one million in-memory events measured 100 ns per event, and 830 ns once each 73-byte JSON event was decoded with `json.loads`: decoding, not applying, dominates, and fetching from the store adds more. A 50,000-event stream replays in tens of milliseconds; a 5-million-event stream costs seconds of CPU per load, which is what snapshots every few hundred events prevent. Storage: 1,000 events per second at 300 bytes is 26 GB per day and 9.5 TB per year before compression, append-only. Netflix's 2017 post "Scaling Event Sourcing for Netflix Downloads" describes an event-sourced licensing service, chosen because whether a member may download a title depends on their download history.
 
 ### Optimistic concurrency on append
 
@@ -168,7 +168,7 @@ Step 3 works only because the key is derived from the saga and the step, not gen
 
 ## The dual write and the outbox
 
-The database commit and the broker publish are two systems with no transaction spanning both. Two-phase commit across the two would make every order wait on a coordinator and block behind it when it fails, and Kafka does not take part in XA transactions. The **transactional outbox** takes the broker out of the transaction: the service writes the business row and an outbox row in one local transaction, and a relay publishes the outbox. Traced through a relay crash:
+The database commit and the broker publish are two systems with no transaction spanning both. Two-phase commit across the two would make every order wait on a coordinator and block behind it when it fails, and released Kafka versions cannot join an external two-phase commit (KIP-939, which adds it, was accepted but unreleased at the time of writing). The **transactional outbox** takes the broker out of the transaction: the service writes the business row and an outbox row in one local transaction, and a relay publishes the outbox. Traced through a relay crash:
 
 | Step | What happens | Orders | Outbox `e1` | Kafka | Consumer |
 |---|---|---|---|---|---|

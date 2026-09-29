@@ -181,7 +181,7 @@ Order the steps so every crash leaves something a sweeper can finish. A crash af
 
 ## IDs that know their shard
 
-An order ID arrives in a webhook, a support ticket or a URL, with no user ID beside it. If the ID carries its partition, the router needs no directory lookup. Instagram described its scheme in 2012: 41 bits of milliseconds since a custom epoch (69.7 years of range), 13 bits of logical shard (8,192), and 10 bits of per-shard sequence (1,024 IDs per millisecond per shard). Put the owning user's logical partition in every ID that user creates:
+An order ID arrives in a webhook, a support ticket or a URL, with no user ID beside it. If the ID carries its partition, the router needs no directory lookup. Instagram's engineering blog described its scheme ("Sharding & IDs at Instagram"): 41 bits of milliseconds since a custom epoch (69.7 years of range), 13 bits of logical shard (8,192), and 10 bits of per-shard sequence (1,024 IDs per millisecond per shard). Put the owning user's logical partition in every ID that user creates:
 
 ```python
 EPOCH_MS = 1_704_067_200_000            # custom epoch: 2024-01-01T00:00:00Z
@@ -249,7 +249,7 @@ An order service: 60 million orders a day (700/s average, 2,000/s peak); each or
 ## Under the hood: how real systems shard and replicate
 
 - **Postgres** streams WAL physically, byte for byte, so replicas are whole-cluster copies. Queries on a standby can conflict with replay (a vacuum on the primary removes rows a standby query still needs); the standby delays replay up to `max_standby_streaming_delay` (30 s by default) and then cancels the query. `hot_standby_feedback = on` avoids the cancellation by telling the primary not to vacuum those rows, trading it for bloat on the primary.
-- **DynamoDB** hashes the partition key onto partitions, each serving up to 3,000 read units and 1,000 write units a second and about 10 GB. Partitions split automatically on size and heat, and adaptive capacity shifts throughput to hot partitions, but a single partition-key value can still be throttled. Global secondary indexes update asynchronously; under provisioned capacity a GSI short of write capacity throttles writes to the base table.
+- **DynamoDB** hashes the partition key onto partitions, each designed for at most 3,000 read units and 1,000 write units a second. Partitions split automatically on size and heat, and adaptive capacity shifts throughput to hot partitions, but a single partition-key value can still be throttled. Global secondary indexes update asynchronously; under provisioned capacity a GSI short of write capacity throttles writes to the base table.
 - **Vitess** shards MySQL behind a proxy (`vtgate`) that maps a column to a keyspace ID through a *vindex*; shards own keyspace-ID ranges, and resharding is a VReplication workflow (copy, stream, verify, switch traffic) exactly like the steps above.
 - **Citus** distributes Postgres tables by a column and co-locates tables sharing it, so joins on that column stay shard-local.
 

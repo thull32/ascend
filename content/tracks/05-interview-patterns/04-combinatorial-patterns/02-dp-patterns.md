@@ -324,7 +324,7 @@ A 2,001 × 2,001 list of lists of small ints is 32 MB of pointers in CPython; wh
 
 **Symptom: Coin Change II returns 3 for amount 3 with coins `[1, 2]`.** Diagnosis: the amount loop is outside, so orderings are counted. Fix: coins outside, amount inside.
 
-**Symptom: a correct top-down solution raises `RecursionError` or a JavaScript `RangeError` on the largest hidden test.** Diagnosis: depth equals the chain of first-choice calls (amount, `m + n`). Fix: bottom-up; raising the limit moves the crash to the C stack.
+**Symptom: a correct top-down solution raises `RecursionError` or a JavaScript `RangeError` on the largest hidden test.** Diagnosis: depth equals the chain of first-choice calls (amount, `m + n`). Fix: bottom-up. Raising the limit does not rescue a `@cache` recursion, because every call also passes through the cache's C wrapper and so uses C stack: on CPython 3.14 with the limit set to 10⁶, a depth of 20,000 stopped with `RecursionError: Stack overflow` (the `sys` docs warn that on other builds a too-high limit can crash the interpreter).
 
 **Symptom: the cooldown answer is too high.** Diagnosis: `hold`, `sold` and `rest` updated one after another, so a sale on day `t` feeds a purchase on day `t`. Fix: compute all three from the previous day's values (tuple assignment in Python, temporaries in JavaScript).
 
@@ -349,7 +349,7 @@ A 2,001 × 2,001 list of lists of small ints is 32 MB of pointers in CPython; wh
 
 **"Return every segmentation, not whether one exists."** Model answer: the output is exponential, so backtrack over split points, using the DP (or a memo of "suffix `i` is breakable") to refuse split points that lead nowhere: [Backtracking](/learn/interview-patterns/combinatorial-patterns/backtracking-pattern). Common wrong answer: storing lists of sentences in each DP cell, which is the exponential output held `n` times.
 
-**"Parallelise the LCS table" or "can several threads share the memo?"** Model answer: cells on one anti-diagonal (`i + j` constant) depend only on the two previous anti-diagonals, so each anti-diagonal can be computed in parallel; some sequence-alignment implementations vectorise along anti-diagonals for this reason. A shared memo of a pure function tolerates races: `functools.lru_cache` stays coherent across threads but may compute a value twice. Common wrong answer: splitting the rows across threads, which serialises on the row dependency.
+**"Parallelise the LCS table" or "can several threads share the memo?"** Model answer: cells on one anti-diagonal (`i + j` constant) depend only on the two previous anti-diagonals, so each anti-diagonal can be computed in parallel, a wavefront. SIMD implementations of Smith–Waterman sequence alignment, a grid DP of the same shape, are the production example of parallelising such a fill at the instruction level. A shared memo of a pure function tolerates races: `functools.lru_cache` stays coherent across threads but may compute a value twice. Common wrong answer: splitting the rows across threads, which serialises on the row dependency.
 
 **"Memory is limited to `O(n)`."** Model answer: two rows, or one row with a saved diagonal; reconstruction then needs Hirschberg's divide and conquer ([DP craft](/learn/algorithms/dynamic-programming/dp-craft)). Common wrong answer: dropping to one row and still claiming the path can be recovered.
 

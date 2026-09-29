@@ -165,7 +165,7 @@ Take `piles = [3, 6, 7, 11]`, `h = 8`: `hours(3) = 10` and `hours(4) = 8`, so th
 | 4 | 5 | 4 | 8 | true | `hi = 4` |
 | 4 | 4 | | | | return 4 |
 
-Four predicate evaluations instead of eleven; `O(n log m)` for `n` piles and largest pile `m`. `hi = max(piles) + 1` because the range is half-open: `hi = max(piles)` excludes the answer exactly when `h == len(piles)`. `(p + k − 1) // k` is the integer ceiling; `math.ceil(p / k)` goes through a float and is wrong once `p` passes 2⁵³.
+Four predicate evaluations instead of up to eleven; `O(n log m)` for `n` piles and largest pile `m`. `hi = max(piles) + 1` because the range is half-open and `max(piles)` must be a candidate: it is the answer whenever `h == len(piles)`. `(p + k − 1) // k` is the integer ceiling; `math.ceil(p / k)` goes through a float and is wrong once `p` passes 2⁵³.
 
 ### Search in Rotated Sorted Array
 
@@ -319,7 +319,7 @@ Per-search time on sorted integers with random queries, AMD Ryzen 9 9950X3D, bes
 | 10⁷ | 24 | 894 ns | 2,194 ns | 200 ns |
 | 10⁸ | 27 | — | — | 343 ns |
 
-The probe count grows by a factor of 2.7 from 10³ to 10⁸, while the time per search in Node grows by 6.7. The extra is memory: at 10³ the array sits in L1 and each probe costs about 5 ns, and since each comparison is a coin flip by design the branch predictor cannot help; at 10⁸ the 400 MB array is far beyond the 96 MB L3 cache this machine reports, and the early probes each wait on DRAM. In CPython the effect is larger at 10⁷ because each probe dereferences a pointer to a separate `int` object: 894 ns when the objects were allocated in order, 1,217 ns when the same number of large integers were allocated in random order and then sorted, because the pointer-chase lands on unrelated cache lines. Eytzinger layout and B-trees exist to fix exactly this; the technique lesson covers them.
+The probe count grows by a factor of 2.7 from 10³ to 10⁸, while the time per search in Node grows by 6.7. The extra is memory: at 10³ the array sits in L1 and each probe costs about 5 ns, and since each comparison is a coin flip by design the branch predictor cannot help; at 10⁸ the 400 MB array is far beyond the 96 MB L3 cache this machine reports. The first few probes of every search hit the same handful of elements, so those stay cached, and the last few share a 64-byte line; the probes in between land on elements no recent search touched, and each waits on DRAM. In CPython the effect is larger at 10⁷ because each probe dereferences a pointer to a separate `int` object: 894 ns when the objects were allocated in order, 1,217 ns when the same number of large integers were allocated in random order and then sorted, because the pointer-chase lands on unrelated cache lines. Eytzinger layout and B-trees exist to fix exactly this; the technique lesson covers them.
 
 ### JavaScript has no `lower_bound`
 
@@ -343,7 +343,7 @@ The standard library has `indexOf`, `includes` and `findIndex`, all linear. You 
 
 **"Now values can be negative."** Model answer: the predicate is unchanged, but check the midpoint arithmetic: floor division matters, and C-family `/` truncates toward zero. For search on the answer, also recheck that the range covers negative answers (`lo` may need to be below 0). Common wrong answer: "binary search does not care about signs", then a hang on `[−3, −2)`.
 
-**"Now `k` (or the range) is 10¹⁸."** Model answer: 60 probes, so the loop is fine; the risks are in the predicate. `mid * mid` and `mid * count` overflow 64-bit arithmetic, and a linear predicate over 10⁵ items is 6 × 10⁶ steps. In Python integers do not overflow but get slower past 2⁶³. Common wrong answer: "log of 10¹⁸ is big, so switch algorithms".
+**"Now `k` (or the range) is 10¹⁸."** Model answer: 60 probes, so the loop is fine; the risks are in the predicate. `mid * mid` and `mid * count` overflow 64-bit arithmetic, and a linear predicate over 10⁵ items is 6 × 10⁶ steps. In Python integers do not overflow, but past 2³⁰ they leave CPython's single-digit ("compact") fast paths and every operation costs more. Common wrong answer: "log of 10¹⁸ is big, so switch algorithms".
 
 **"The sorted data is 100 GB on SSD."** Model answer: 100 GB of 8-byte keys is about 1.25 × 10¹⁰ keys, so 34 probes; the last nine share one 4 KB page, leaving about 25 random page reads of order 100 µs each, a few milliseconds per lookup; a B-tree with a few hundred keys per page answers in 3–4 page reads, and its top levels stay in memory ([B-trees](/learn/advanced-data-structures/balanced-trees/b-trees-and-b-plus-trees)). Common wrong answer: "still log n, so still fast".
 
@@ -520,5 +520,5 @@ hints:
   options: ["The JIT deoptimises the loop for large arrays, which runs it in the interpreter", "Later probes miss the caches once the array outgrows them, and wait on DRAM", "Math.floor becomes slow past 2^31, which penalises every midpoint calculation", "Typed arrays above 10^7 elements are paged to disk by the engine on demand"]
   answer: 1
   explanation: >-
-    Small arrays sit in L1 and each probe costs a few nanoseconds, mostly a mispredicted branch. A 400 MB array exceeds the 96 MB L3, so the early probes, which jump far apart, each wait on main memory. Layouts such as Eytzinger order or B-tree nodes reduce those misses. Nothing about the JIT, Math.floor or paging explains it.
+    Small arrays sit in L1 and each probe costs a few nanoseconds, mostly a mispredicted branch. A 400 MB array exceeds the 96 MB L3, so the middle probes, which land on elements no recent search touched, each wait on main memory. Layouts such as Eytzinger order or B-tree nodes reduce those misses. Nothing about the JIT, Math.floor or paging explains it.
 ```

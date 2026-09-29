@@ -33,7 +33,7 @@ The choice is per audience: gRPC inside, REST at the public edge, GraphQL at the
 | 3, the client's retry | `k1` | Cart A | Done | Replays 201 `ord_1`, byte for byte |
 | 4, a client bug | `k1` | Cart B | Done, body hash differs | 422: key reused with a different body |
 
-The server stores the key, a hash of the body and the response, and keeps them for a documented window (Stripe documents that keys may be pruned after 24 hours), which bounds how long a client may retry. Put it in the contract on day one; adding it later leaves every existing client unsafe to retry.
+The server stores the key, a hash of the body and the response, and keeps them for a documented window, which bounds how long a client may retry. Stripe's [API reference](https://docs.stripe.com/api/idempotent_requests) says keys can be pruned once they are at least 24 hours old, and that a key reused after pruning starts a new request. Put it in the contract on day one; adding it later leaves every existing client unsafe to retry.
 
 ```viz
 {"type": "system", "scenario": "idempotency-key", "requests": 3,
@@ -105,7 +105,7 @@ The tiebreaker is mandatory. With `WHERE created_at < 100` alone, order 1 is ski
 
 ### Under the hood: what the database does with OFFSET
 
-In Postgres the plan is a `Limit` node over an `Index Scan`. `Limit` pulls rows from its child one at a time and throws away the first `OFFSET` of them, so the index scan still walks, and usually fetches from the heap, every skipped row. SQLite's plan reads `SCAN orders USING INDEX`. The keyset query gets an index condition instead (`SEARCH orders USING INDEX orders_created_id (created_at<?)` in SQLite, a row comparison in the `Index Cond` in Postgres), so the B-tree descends straight to the cursor: $O(\log n + \text{page})$ at any depth ([Indexes](/learn/databases/relational-fundamentals/indexes)). Some databases, older MySQL among them, do not use the index for the row-value form; `created_at < ? OR (created_at = ? AND id < ?)` is the portable spelling.
+In Postgres the plan is a `Limit` node over an `Index Scan`, and the [manual](https://www.postgresql.org/docs/current/queries-limit.html) is blunt: "the rows skipped by an OFFSET clause still have to be computed inside the server". `Limit` pulls rows from its child one at a time and throws away the first `OFFSET` of them, so the index scan still walks, and usually fetches from the heap, every skipped row. SQLite's plan reads `SCAN orders USING INDEX`. The keyset query gets an index condition instead (`SEARCH orders USING INDEX orders_created_id (created_at<?)` in SQLite, a row comparison in the `Index Cond` in Postgres), so the B-tree descends straight to the cursor: $O(\log n + \text{page})$ at any depth ([Indexes](/learn/databases/relational-fundamentals/indexes)). Not every optimizer treats the row-value form as well: MySQL's manual warns that its optimizer is less likely to use an index for a row-constructor comparison that does not cover an index prefix, and recommends the expanded form. `created_at < ? OR (created_at = ? AND id < ?)` is the portable spelling.
 
 | | Offset | Cursor |
 |---|---|---|
@@ -114,7 +114,7 @@ In Postgres the plan is a `Limit` node over an `Index Scan`. `Limit` pulls rows 
 | Stable under inserts and deletes | No | Yes |
 | Sort orders | Any column | Each needs an index on `(sort_col, id)` |
 
-Public APIs use cursors. Admin UIs that need "page 7 of 43" can use offset with a hard cap (say 10,000) and an error beyond it, which is what search engines do. A total count is a separate `COUNT(*)`, as expensive as the deepest offset; make it optional.
+Public APIs use cursors. Admin UIs that need "page 7 of 43" can use offset with a hard cap and an error beyond it, which is what Elasticsearch does: a search whose `from + size` exceeds `index.max_result_window`, 10,000 by default, is rejected, and its docs point deep pagination at `search_after`, a keyset cursor. A total count is a separate `COUNT(*)`, as expensive as the deepest offset; make it optional.
 
 ### When the sort key changes under the cursor
 
@@ -134,7 +134,7 @@ Offer a fixed set of documented filters, each backed by an index, rather than a 
 
 ## Rate limits as part of the contract
 
-A limit clients discover through errors is a support ticket; one in the contract is a feature. Document it per API key and endpoint class, return `429 Too Many Requests` with `Retry-After`, and send the remaining quota on every response so good clients pace themselves. The de facto headers are `X-RateLimit-Limit`, `-Remaining` and `-Reset` (GitHub's API sends these); an IETF HTTPAPI working-group draft standardises `RateLimit-Policy` and `RateLimit` fields.
+A limit clients discover through errors is a support ticket; one in the contract is a feature. Document it per API key and endpoint class, return `429 Too Many Requests` with `Retry-After`, and send the remaining quota on every response so good clients pace themselves. The de facto headers are `X-RateLimit-Limit`, `-Remaining` and `-Reset`: [GitHub's REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) sends these, plus `x-ratelimit-used`, with the reset time in UTC epoch seconds. An IETF HTTPAPI working-group draft ([draft-ietf-httpapi-ratelimit-headers](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/), revision 11 of May 2026 at the time of writing) standardises `RateLimit-Policy` and `RateLimit` fields.
 
 `-Reset` is where clients break: some APIs send epoch seconds, others seconds remaining. A client that reads an epoch timestamp as a delay waits for decades; one that reads a delay as a timestamp retries at once. `Retry-After` is unambiguous (seconds, or an HTTP date); document which one `-Reset` is.
 
@@ -194,7 +194,7 @@ Versioning is for the breaking change you cannot avoid. In rough order of prefer
 
 **Additive evolution, no version.** New fields and endpoints, deprecations. Covers most changes if the catalogue is respected.
 
-**Date-pinned versions with edge transforms.** Stripe has written publicly about its approach: each account is pinned to the API version current at its first request; the code serves one canonical shape; each breaking change ships with a small transform that converts a response back to the previous version, and the edge applies transforms newest-first until it reaches the client's pinned date.
+**Date-pinned versions with edge transforms.** Stripe described its approach in a [2017 post](https://stripe.com/blog/api-versioning): an account is pinned to the most recent API version the first time it makes a request; the code describes resources in the current shape; each breaking change ships as a "version change module" holding a transform back to the previous version, and before a response is returned the API layer walks back through time, applying each module it finds, until it reaches the version the client is pinned to (or sends in a `Stripe-Version` header).
 
 ```python
 # Newest first: (date the change shipped, transform that undoes it for older clients)
@@ -275,7 +275,7 @@ What the telemetry cannot see decides the design. You observe what clients *send
 
 **"What is in your error response?"** Model answer: an RFC 9457 envelope with the status for the class, a stable `code`, a human `detail` documented as unstable, `retryable`, `request_id`, and structured extension members such as the failing field. Common wrong answer: "a message and the status code", which forces clients to parse prose.
 
-**"How do you know it is safe to turn v1 off?"** Model answer: telemetry per API key, not a date. Every request is logged with its resolved version; v1 responses carry `Deprecation` and `Sunset`; the remaining keys are contacted largest first; brown-outs of 10 minutes, then an hour, then a day, flush out the integrations nobody reads email for, because they fail every request those clients make while costing a thousandth of a per cent of total traffic. Off when v1 traffic is near zero and every remaining key is known. And I remember that response-field reads are invisible, so removals of response fields ride on versions or pins. Common wrong answer: "announce it six months ahead and switch it off on the day".
+**"How do you know it is safe to turn v1 off?"** Model answer: telemetry per API key, not a date. Every request is logged with its resolved version; v1 responses carry `Deprecation` and `Sunset`; the remaining keys are contacted largest first; brown-outs of 10 minutes, then an hour, then a day, flush out the integrations nobody reads email for, because they fail every request those clients make while costing about 0.006% of the day's traffic. Off when v1 traffic is near zero and every remaining key is known. And I remember that response-field reads are invisible, so removals of response fields ride on versions or pins. Common wrong answer: "announce it six months ahead and switch it off on the day".
 
 **"Two clients edit the same resource. What does the API guarantee?"** Model answer: nothing, unless the contract has preconditions. Every representation carries a strong ETag from the row version, writes send `If-Match`, the server does a conditional update and answers 412 on a mismatch, and endpoints where a lost update is unacceptable answer 428 to writes without a precondition. Common wrong answer: "last write wins, the database is transactional", which is exactly the lost update.
 

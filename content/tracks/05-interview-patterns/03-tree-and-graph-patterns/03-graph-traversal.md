@@ -34,7 +34,7 @@ Choosing between BFS and DFS: if the answer involves a *distance* or *the first 
 | Axis | Recursive DFS | Iterative DFS (stack) | BFS (queue) | Multi-source BFS |
 |---|---|---|---|---|
 | Gives distances | no | no | yes, in edge count | yes, from the nearest source |
-| Memory | `O(depth)` frames, crashes past ~10³ in Python | `O(V)` stack worst case | `O(V)` queue worst case, `O(width)` typical | as BFS |
+| Memory | `O(depth)` frames, `RecursionError` past ~10³ in Python by default | `O(V)` stack worst case | `O(V)` queue worst case, `O(width)` typical | as BFS |
 | Code length | shortest | medium | medium | medium plus seeding |
 | Safe on a 10⁶-cell grid | no | yes | yes | yes |
 | Natural for | regions, components, "can reach" | same, at scale | fewest steps, levels, "spreads" | "nearest X for every cell" |
@@ -190,7 +190,7 @@ Trace on
 
 Answer 4. The scan visits every cell once (`O(R·C)`) and each traversal touches each land cell once, so the sinking does not add another factor; total `O(R·C)`.
 
-Recursion depth is the practical concern: the recursive `sink` on a 1000×1000 grid that is all land recurses a million frames deep and crashes. The iterative version pushes `(r, c)` pairs on an explicit stack, marks on push, and pops in a loop. [Max Area of Island](/practice/max-area-island) is the same code returning the number of cells sunk per traversal and taking the maximum.
+Recursion depth is the practical concern: the recursive `sink` on a 1000×1000 grid that is all land can need a million frames and raises `RecursionError` long before that (a 32 × 32 all-land grid already passes CPython's default 1,000). The iterative version pushes `(r, c)` pairs on an explicit stack, marks on push, and pops in a loop. [Max Area of Island](/practice/max-area-island) is the same code returning the number of cells sunk per traversal and taking the maximum.
 
 ### Rotting Oranges
 
@@ -277,7 +277,7 @@ Trace on the 3×3 grid
 2 4 5
 ```
 
-Pacific climb, seeded with the top row and left column `{(0,0), (0,1), (0,2), (1,0), (2,0)}`: from (0,1)=2 climb to (1,1)=2 (equal, allowed); from (1,1)=2 climb to (2,1)=4 and (1,2)=3; from (2,1)=4 climb to (2,2)=5; from (1,0)=3 nothing new. Pacific set: all nine cells except none, in fact every cell: `{(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)}`.
+Pacific climb, seeded with the top row and left column `{(0,0), (0,1), (0,2), (1,0), (2,0)}`: from (0,1)=2 climb to (1,1)=2 (equal, allowed); from (1,1)=2 climb to (2,1)=4 and (1,2)=3; from (2,1)=4 climb to (2,2)=5; from (1,0)=3 nothing new. Pacific set: every cell: `{(0,0),(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)}`.
 
 Atlantic climb, seeded with the bottom row and right column `{(2,0), (2,1), (2,2), (0,2), (1,2)}`: from (0,2)=2 climb to (0,1)=2 (equal); from (0,1)=2 climb to (1,1)=2 and (0,0)? (0,0)=1 < 2, no. From (1,1)=2 climb to (1,0)=3. From (1,2)=3 climb to... (0,2)=2 no, (1,1) already. Atlantic set: `{(0,1),(0,2),(1,0),(1,1),(1,2),(2,0),(2,1),(2,2)}`, everything except (0,0).
 

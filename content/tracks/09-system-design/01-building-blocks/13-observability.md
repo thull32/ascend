@@ -62,7 +62,7 @@ A Prometheus histogram with the 11 default buckets produces 14 series per label 
 
 $$200 \times 40 \times 8 \times 14 = 896{,}000 \text{ series}$$
 
-Scraped every 15 s that is about 60,000 samples per second. The Prometheus documentation puts compressed storage at 1–2 bytes per sample, so roughly 5–10 GB a day on disk, and each active series costs on the order of kilobytes of memory in the head block, so several gigabytes of RAM. Managed vendors bill per active series; at list prices a million series is a five-figure monthly line item. That is one histogram.
+Scraped every 15 s that is about 60,000 samples per second. The [Prometheus storage documentation](https://prometheus.io/docs/prometheus/latest/storage/) puts compressed storage at an average of 1–2 bytes per sample, so roughly 5–10 GB a day on disk, and each active series costs on the order of kilobytes of memory in the head block, so several gigabytes of RAM. Managed vendors bill per series. At list prices at the time of writing (September 2026), Grafana Cloud's Pro tier charges from $6.50 per 1,000 active series a month, about $6,500 for a million, and Datadog charges $5 per 100 custom metrics (its name for a unique metric-name and tag-value combination, which is a series), about $50,000 for a million: a four- or five-figure monthly line item. That is one histogram.
 
 Now someone adds `customer_id`. Series exist only for combinations that occur, but a load balancer spreads each customer over every instance: 50,000 active customers × 5 routes each × 2 statuses × 200 instances × 14 ≈ 1.4 billion series. The TSDB runs out of memory within hours. The fixes: status as a class (`2xx`, `4xx`, `5xx`: 3 values, not 8), instance dropped by a recording rule that sums by route for long-term storage, and per-customer detail in trace attributes and exemplars, where cardinality costs nothing. A label is for dimensions with tens or hundreds of values.
 
@@ -70,7 +70,7 @@ Now someone adds `customer_id`. Series exist only for combinations that occur, b
 
 A log line records one event. Make it structured (JSON or key-value), with `timestamp`, `service`, `level`, `request_id`, `trace_id` and the event's own fields, so you can filter rather than grep for wording.
 
-The cost is volume: 10,000 requests per second at one 1 KB line each is 10 MB/s, 864 GB a day, 26 TB a month before indexing, which multiplies it. At managed ingestion and indexing prices that is a five- or six-figure monthly bill for one service's access logs. Keep 100% of errors with context, sample routine successes at around 1%, and move anything you count into metrics, which cost almost nothing per event.
+The cost is volume: 10,000 requests per second at one 1 KB line each is 10 MB/s, 864 GB a day, 26 TB a month before indexing, which multiplies it. Priced at Datadog's list rates at the time of writing (September 2026), ingestion is $0.10 per GB, about $2,600 a month, and indexing with the shortest (3-day) retention is $1.06 to $1.59 per million events: 25.9 billion lines a month makes that $27,000 to $41,000 more, and longer retention costs more per event. That is a five-figure monthly bill for one service's access logs, and six figures once retention or a second service is added. Keep 100% of errors with context, sample routine successes at around 1%, and move anything you count into metrics, which cost almost nothing per event.
 
 ### Traces
 
@@ -124,7 +124,7 @@ Prometheus's `histogram_quantile` finds the bucket containing the requested rank
 | p90 | 127.4 ms | 162.0 ms (+27%) | 128.1 ms |
 | p99 | 324.1 ms | 399.4 ms (+23%) | 334.4 ms (+3%) |
 
-The default p99 falls in the 250–500 ms bucket and is interpolated a quarter too high. An SLI of "requests under 300 ms" needs a bucket boundary *at* 300 ms, so that the SLI is an exact bucket count rather than an interpolation. Native histograms (introduced experimentally in Prometheus 2.40) use exponential buckets whose width bounds the relative error to a few percent without hand-placed boundaries.
+The default p99 falls in the 250–500 ms bucket and is interpolated a quarter too high. An SLI of "requests under 300 ms" needs a bucket boundary *at* 300 ms, so that the SLI is an exact bucket count rather than an interpolation. Native histograms (experimental from Prometheus 2.40 in November 2022, a stable but optional feature since 3.8 in November 2025) use exponential buckets instead of hand-placed boundaries. The Go client's recommended starting factor of 1.1 gives eight buckets per power of two, each at most about 9% wider than the one before, so an interpolated quantile's relative error is bounded by a bucket's width wherever the latency falls.
 
 On disk, Prometheus appends samples to per-series chunks with Gorilla-style compression (delta-of-delta timestamps, XOR-encoded values), which is how regular scrapes get to 1–2 bytes per sample. Recent samples live in an in-memory head block, cut into two-hour blocks on disk and compacted later; memory tracks active series, not stored history, which is why cardinality, not retention, is what takes a Prometheus server down.
 
@@ -158,7 +158,7 @@ The budget is a decision tool: while it remains, ship and take risks; when it is
 
 $$\text{burn} = f \times \frac{720}{w}: \quad 0.02 \times \frac{720}{1} = 14.4, \quad 0.05 \times \frac{720}{6} = 6, \quad 0.10 \times \frac{720}{24} = 3$$
 
-This is the multi-window, multi-burn-rate configuration from the Google SRE Workbook's chapter on alerting on SLOs:
+This is the multi-window, multi-burn-rate configuration from the Google SRE Workbook's chapter on [alerting on SLOs](https://sre.google/workbook/alerting-on-slos/): its recommended table for a 99.9% SLO has the two pages and the 3-day ticket, and its example alerting rules add the 1-day ticket:
 
 | Severity | Burn rate | Long window | Short window | Budget spent when it fires |
 |---|---|---|---|---|
@@ -181,7 +181,7 @@ Detection time for the fast page is $0.864 / e$ minutes at error rate $e$: 9 min
 
 ## Release verification
 
-Deploys cause most incidents. Compare the new version's SLIs with the old one's during a canary: 1% of traffic to the new version, error and latency histograms against the baseline for 15 minutes, promote or roll back automatically ([Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) covers the rollout side). Netflix's open-source Kayenta does this with statistical comparison; a threshold check catches most regressions. The comparison needs traffic: at 1% of 1,000 requests per second, 15 minutes is 9,000 requests, enough to see a 1% error rate and not a 0.01% one.
+Changes cause most incidents: the Google SRE book's [introduction](https://sre.google/sre-book/introduction/) reports that "roughly 70% of outages are due to changes in a live system". Compare the new version's SLIs with the old one's during a canary: 1% of traffic to the new version, error and latency histograms against the baseline for 15 minutes, promote or roll back automatically ([Migrations and evolution](/learn/system-design/senior-design-skills/migrations-and-evolution) covers the rollout side). Kayenta, open-sourced by Google and Netflix in 2018 and now part of Spinnaker, does this with a Mann-Whitney U test per metric; a threshold check catches most regressions. The comparison needs traffic: at 1% of 1,000 requests per second, 15 minutes is 9,000 requests, enough to see a 1% error rate and not a 0.01% one.
 
 ```viz
 {"type": "system", "scenario": "canary", "requests": 10,

@@ -9,17 +9,17 @@ problems: [lru-cache, merge-intervals, time-based-kv]
 ---
 Two candidates get the same LRU cache problem in the same week. Both produce correct O(1) code with a hash map and a doubly linked list. Both pass every test. One comes out with "hire, senior-consistent". The other gets "hire, at the level below". Nobody tells either of them why, and the second spends the next month grinding more problems, which will not help, because the difference was never the algorithm.
 
-The difference is in *how* the 45 minutes were spent: who drove the session, whether trade-offs were stated or left implicit, whether the code read like something you would approve in review, whether testing happened unprompted, and what happened when the interviewer asked "now what if it's shared across threads?" This lesson makes that concrete. It shows the signals interviewers commonly record, runs the same LRU round twice with timestamps and the interviewer's notes beside each line, puts the two write-ups side by side, and then explains how a level is argued from them.
+The difference is in *how* the 45 minutes were spent: who drove the session, whether trade-offs were stated or left implicit, whether the code read like something you would approve in review, whether testing happened unprompted, and what happened when the interviewer asked "now what if it's shared across threads?"
 
 ## How coding rounds feed the level decision
 
-At many large companies the coding bar for mid-level and senior engineers is similar and the problems overlap heavily. Level is decided mostly by system design and behavioural rounds, where scope and judgement show more directly; [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop) covers how the pieces combine.
+At many large companies, as commonly reported, the coding bar for mid-level and senior engineers is similar and the problems overlap heavily. Level is decided mostly by system design and behavioural rounds, where scope and judgement show more directly; [The FAANG loop](/learn/senior-craft/getting-the-job/the-faang-loop) covers how the pieces combine.
 
 That does not make coding rounds level-neutral. They can pull a level decision *down*: a senior candidate who needs heavy hints, writes messy code, or has to be led through every phase looks mid-level in that round, and a hiring committee reading "strong design, but the coding felt junior" hesitates. Some companies, especially those using practical multi-part problems, deliberately look for senior signals in the coding round itself: structure, extensibility, production awareness. So the goal is a round whose notes read "senior-consistent", not merely a pass.
 
 ## The five dimensions, mid-level versus senior
 
-Most coding rubrics reduce to five dimensions, and they are the five Ascend's mock interviewer scores (1 to 5 each, with quoted evidence).
+Many coding rubrics reduce to five dimensions, and they are the five Ascend's mock interviewer scores (1 to 5 each, with quoted evidence).
 
 | Dimension | Mid-level pass | Senior pass |
 |---|---|---|
@@ -272,20 +272,11 @@ The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-mi
 
 **Prompted and unprompted lines are weighed differently.** The debrief reads timestamps. "Found the update bug" and "update bug found by interviewer at 19:00, fixed correctly" describe the same code and different engineers. When interviewers disagree about level, the discussion typically goes to these lines, and the unprompted ones carry.
 
-**The coding round is read for consistency with the others.** A senior recommendation from design and behavioural rounds next to Round A's write-up produces a question: is the coding a concern, or was it an off day? Round B's write-up answers it before it is asked. A "hire at the level below" from coding does not sink a senior case alone, but it is the most common reason a split decision resolves downward.
+**The coding round is read for consistency with the others.** A senior recommendation from design and behavioural rounds next to Round A's write-up produces a question: is the coding a concern, or was it an off day? Round B's write-up answers it before it is asked. A "hire at the level below" from coding does not sink a senior case alone, but it is a common reason a split decision resolves downward.
 
 **Follow-up depth is the most level-specific evidence in the round.** Base-problem code overlaps between levels; the thread-safety and byte-capacity answers do not. That is why reaching the follow-ups with time left matters: in Round A they arrived at minutes 24 and 28 after two prompted fixes, and there was no time for a third.
 
-**A split is settled by the specific lines, not the adjectives.** Suppose one interviewer reads Round A as "solid, probably senior" because the final code was clean and correct. The counter-argument in the room is a list of timestamps: semantics at 12:40 when asked, testing at 17:10 when asked, the update bug found at 19:00 by the interviewer, a lock "with some overhead". Adjectives ("solid", "strong") are hard to argue with and easy to discount; timestamped lines are the opposite. That is why a candidate should aim to produce lines that can be quoted, and why the notes in Round B are almost all of that kind.
-
-## Anti-signals that read as mid-level
-
-- **Silent coding**, then a finished function. The interviewer cannot credit reasoning they did not hear.
-- **A recited solution with no derivation.** Interviewers notice answers that arrive fully formed and respond by changing a constraint. If you know the problem, say so ("I've seen a version of this") and show the reasoning anyway.
-- **Waiting to be told what to do next.** "Should I code it now?" once is fine; at every transition it signals you need direction.
-- **Defensiveness about bugs**, or arguing with a hint.
-- **Over-engineering**, or naming technologies without the mechanism.
-- **Running out of time with no testing**, which suggests you do not manage your own delivery.
+**A split is settled by the specific lines, not the adjectives.** Suppose one interviewer reads Round A as "solid, probably senior" because the final code was clean and correct. The counter-argument in the room is a list of timestamps: semantics at 12:40 when asked, testing at 17:10 when asked, the update bug found at 19:00 by the interviewer, a lock "with some overhead". Adjectives ("solid", "strong") are hard to argue with and easy to discount; timestamped lines are the opposite, which is why Round B's notes, almost all quotable, carry the room.
 
 ## When the round allows an AI assistant
 
@@ -301,7 +292,7 @@ On `/interviews`, **Solo** is the classic round with the coach locked. **AI-assi
 
 **Symptom: "answered follow-ups with technology names".** Diagnosis: "use Redis", "add a lock", "shard it" without what it serialises, costs or gives up. Fix: for every follow-up, say the mechanism, the cost and what you would measure, in that order.
 
-**Symptom: "strong start, collapsed when a constraint changed".** Diagnosis: a recited solution; the candidate knew the code but not why each part was there, so a change (byte capacity, TTL) had nothing to attach to. Fix: derive aloud even when you know the answer, naming what each structure is for.
+**Symptom: "strong start, collapsed when a constraint changed".** Diagnosis: a recited solution; the candidate knew the code but not why each part was there, so a change (byte capacity, TTL) had nothing to attach to. Interviewers notice answers that arrive fully formed and often respond by changing a constraint. Fix: if you know the problem, say so ("I've seen a version of this"), then derive aloud anyway, naming what each structure is for.
 
 **Symptom: "confidently wrong" in the notes.** Diagnosis: a bluffed claim, such as "a dict is thread-safe, so no lock is needed", which ignores that the list pointers are updated in several steps. Fix: separate what you are sure of from what you are not, out loud.
 
@@ -323,12 +314,11 @@ On `/interviews`, **Solo** is the classic round with the coach locked. **AI-assi
 - **Treating clarification as optional on a known problem.** LRU "has no ambiguity", so `get` semantics and capacity 0 are settled by the interviewer at minute 12.
 - **Testing only the example.** The update-then-evict case is the one interviewers ask about, and "found by interviewer" lands in the testing row.
 - **Answering follow-ups with a noun.** "A lock" is correct and says nothing about what it costs; the write-up says "shallow".
-- **Mentioning production tools to impress.** "Redis does this" without the sampling mechanism reads as name-dropping.
 - **Finishing at minute 40.** No follow-up is reached, so there is no level evidence at all, and the round can only confirm the bar.
 
 ## Practising for the senior column
 
-Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache), [Merge Intervals](/practice/merge-intervals) or [Time-Based Key-Value Store](/practice/time-based-kv), and run it as a solo mock on `/interviews`. Solving it is not the point. When the report comes back, write your own two-column timestamp table like the ones above and mark every line "prompted" or "unprompted". Then run the same problem a week later and move three lines from the right column to the left. Problems you already know are the best practice for senior signals, because all your attention is free for everything except the algorithm.
+Pick a problem you can already solve, such as [LRU Cache](/practice/lru-cache), [Merge Intervals](/practice/merge-intervals) or [Time-Based Key-Value Store](/practice/time-based-kv), and run it as a solo mock on `/interviews`. When the report comes back, write your own two-column timestamp table like the ones above and mark every line "prompted" or "unprompted". Then run the same problem a week later and move three lines from the right column to the left. A known problem leaves all your attention for everything except the algorithm.
 
 ## Senior signals
 

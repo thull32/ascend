@@ -221,7 +221,7 @@ The edge the hidden tests use: `[2, 1, −1]` has pivot 0 (left 0, right 1 − 1
 | 6 | 4 | 18 | 11 | 0 | 3 | {…, 18:1} |
 | 7 | 2 | 20 | 13 | 1 | 4 | {…, 20:1} |
 
-Answer 4: `[3, 4]` (prefix 0 → 7), `[7]` (7 → 14), `[7, 2, −3, 1]` (7 → 14 again) and `[1, 4, 2]` (13 → 20). Row 5 is the one a window cannot find: the subarray contains a negative and its prefix 14 *repeats* an earlier prefix. That repetition is why the map stores counts, not a set. At row 1 the hit comes from the seed: without `{0: 1}`, `[3, 4]` is never counted.
+Answer 4: `[3, 4]` (prefix 0 → 7), `[7]` (7 → 14), `[7, 2, −3, 1]` (7 → 14 again) and `[1, 4, 2]` (13 → 20). Row 5 is the one a window cannot find: the subarray contains a negative and its prefix 14 *repeats* an earlier prefix, so `seen[14]` is now 2. A later prefix of 21 would complete two subarrays at once, which is why the map stores counts, not a set. At row 1 the hit comes from the seed: without `{0: 1}`, `[3, 4]` is never counted.
 
 ```viz
 {"type": "array", "algorithm": "prefix-sum", "values": [3, 4, 7, 2, -3, 1, 4, 2], "title": "Prefixes of the Subarray Sum Equals K input", "caption": "Two prefixes that differ by k bracket a subarray summing to k; the value 14 appears twice, so two different subarrays end at a prefix of 14."}
@@ -259,7 +259,7 @@ Trace on `nums = [2, 3, 0, 4]`:
 | right | 1 | 0 | [1, 0, 24, 0] |
 | right | 0 | 0 | [0, 0, 24, 0] |
 
-Result `[0, 0, 24, 0]`: only the zero's own slot is non-zero. The division approach (`total // nums[i]`) crashes on index 2 and is wrong everywhere else, because `total` is 0. The output array doubles as the prefix store, so the extra space is `O(1)` beyond the output.
+Result `[0, 0, 24, 0]`: only the zero's own slot is non-zero. The division approach (`total // nums[i]`) crashes on index 2, and even with that index skipped it cannot recover the 24 there from a `total` of 0. The output array doubles as the prefix store, so the extra space is `O(1)` beyond the output.
 
 ## Variants
 
@@ -309,7 +309,7 @@ Trace on `nums = [3, -2, 1, 4, -5, 2]`, `k = 2`:
 | 5 | 1 | −1 | [0, 3, 3, 3, 6] | 0 | 5 |
 | 6 | 3 | 1 | [0, 3, 3, 3, 6, 6] | 1 | 5 |
 
-Answer 5 (`[3, −2, 1, 4, −5]` sums to 1). A sliding window on the same input reports 2, because it evicts the 3 and the −2 at position 4 and never gets them back. Time `O(n log n)`, space `O(n)`.
+Answer 5 (`[3, −2, 1, 4, −5]` sums to 1). A sliding window on the same input reports 2, because it evicts the 3 at position 1 and the −2 at position 4 and never gets them back. Time `O(n log n)`, space `O(n)`.
 
 ## Complexity, derived
 
@@ -345,7 +345,7 @@ On one million random integers, best of five, CPython 3.14.7 and Node 24 on an A
 | `list(accumulate(nums, initial=0))` | 15.6 ns/elem | — |
 | `Float64Array(n + 1)` | — | 4.2 ns/elem |
 
-`itertools.accumulate` wins in CPython because the loop runs in C: one `PyNumber_Add` per element and no bytecode dispatch. The index loop loses because every iteration does two subscripts and a store through the interpreter. In V8 the preallocated array and the typed array are within 10% of each other; `push` pays for capacity checks and growth.
+`itertools.accumulate` wins in CPython because the loop runs in C: one `PyNumber_Add` per element and no bytecode dispatch. The index loop loses because every iteration does two subscripts and a store through the interpreter. In V8 the preallocated array and the typed array are within about 10% of each other; `push` pays for capacity checks and growth.
 
 ### Hash map or array for the counts
 
@@ -353,7 +353,7 @@ When prefix values are bounded, an array indexed by `prefix + offset` can replac
 
 ### Float prefixes lose precision in the difference
 
-A float prefix array has two separate precision problems. First, the running total accumulates rounding error: adding 0.1 one million times gives `100000.00000133288` with a plain loop, with `itertools.accumulate`, and in JavaScript. CPython's built-in `sum()` returns exactly `100000.0`, because since Python 3.12 it uses compensated (Neumaier) summation for floats, so `sum(nums)` and `P[-1]` now disagree. NumPy draws the same line: `np.sum` uses pairwise summation, while `np.cumsum` accumulates sequentially, so its last element carries the full sequential error (not measured here; NumPy was not installed on the measurement machine).
+A float prefix array has two separate precision problems. First, the running total accumulates rounding error: adding 0.1 one million times gives `100000.00000133288` with a plain loop, with `itertools.accumulate`, and in JavaScript. CPython's built-in `sum()` returns exactly `100000.0`, because since Python 3.12 it uses compensated ([Neumaier](https://docs.python.org/3/whatsnew/3.12.html)) summation for floats, so `sum(nums)` and `P[-1]` now disagree. NumPy draws the same line: `np.sum` uses pairwise summation, while `np.cumsum` accumulates sequentially, so its last element carries the full sequential error (not measured here; NumPy was not installed on the measurement machine).
 
 Second, and worse, a range sum computed as `P[j + 1] − P[i]` inherits the rounding of both prefixes, whose magnitude is that of the whole array so far, not of the range. The three-element range `nums[999996..999998]` of the 0.1 array came out as `0.3000000000174623` from the prefix difference against `0.30000000000000004` summed directly. Over 2,000 random short ranges of uniform `[0, 1)` values, the largest error was 1.1 × 10⁻¹⁴ near the start of a 10⁶-element array and 1.7 × 10⁻¹⁰ near its end: four orders of magnitude worse for the same range length, purely because of where it sits. Integers do not have this problem; money and counts should be integers.
 

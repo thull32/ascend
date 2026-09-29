@@ -146,7 +146,7 @@ Eventual consistency promises only that replicas converge if writes stop. The ho
 |---|---|---|
 | Postgres streaming replica, same AZ | 1–10 ms | Seconds to minutes during bulk loads, long transactions or replay conflicts |
 | Cross-region asynchronous replica | 50–200 ms | Minutes if the link saturates |
-| DynamoDB eventually consistent read | Usually under a second | Not bounded by the documentation |
+| DynamoDB eventually consistent read | "A short time" in the documentation, which gives no figure | Not bounded by the documentation |
 | Cassandra read at `ONE` | Milliseconds | Until repair, possibly hours, for a write a replica missed |
 
 It is right for view counts, recommendations, search indexes and dashboards, and a bug for anything a user just changed and is about to look at.
@@ -337,7 +337,7 @@ The dividing line is the partition column. Mahajan, Alvisi and Dahlin showed (20
 | etcd | Linearizable reads | ReadIndex: the leader notes its commit index, confirms leadership with a heartbeat round to a majority, waits until that index is applied, then answers | Serializable reads (`--consistency=s`) skip the round and may be stale |
 | ZooKeeper | Sequential, with each client's operations in FIFO order | Writes ordered by the leader (ZAB); reads from the connected server | `sync()` before a read: the server catches up with the leader first |
 | DynamoDB | Eventually consistent reads | Three replicas per partition across AZs, one leader | `ConsistentRead=true`: served by the leader, twice the read units, not available on global secondary indexes |
-| Cassandra | Per query: `ONE`, `QUORUM`, `ALL` | Leaderless replicas, timestamps per cell | `QUORUM` reads and writes overlap but are not linearizable; lightweight transactions run Paxos per partition at about four round trips |
+| Cassandra | Per query: `ONE`, `QUORUM`, `ALL` | Leaderless replicas, timestamps per cell | `QUORUM` reads and writes overlap but are not linearizable; lightweight transactions run Paxos per partition: four round trips for a write in the original implementation, two for an uncontended write with 4.1's `paxos_variant: v2` plus Paxos repair |
 | Spanner | External consistency (linearizable, transactional) | TrueTime: a commit waits until the clock's uncertainty interval (a few ms) has passed its timestamp | Already the strongest; latency depends on replica placement |
 | MongoDB | Reads from the primary | Replica-set oplog | Causally consistent sessions (`afterClusterTime`), with majority read and write concerns for the full guarantee |
 

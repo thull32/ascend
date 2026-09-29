@@ -331,7 +331,7 @@ Result `[[1, 2, 3], [8, 9, 4], [7, 6, 5]]`. Row 8 is the one boundary-shrinking 
 
 A double carries 53 significant bits, so `0.1 + 0.2` is `0.30000000000000004` and every integer above 2⁵³ = 9,007,199,254,740,992 has a neighbour it cannot be told apart from. [Numbers, strings and Unicode](/learn/foundations/how-code-runs/numbers-strings-unicode) has the bit layout; three consequences decide interview answers.
 
-Repeated squaring is fast but not accurate on floats. A rounding error of relative size ε in an early square is itself raised to every remaining power, so the final relative error can grow in proportion to `n · ε`. Measured in CPython 3.14 on `1.0000001` to the power 2³¹: the template was off by 1.2 × 10⁻⁸ relative, `x ** n` and `math.pow` by 1.1 × 10⁻¹⁷, and Node 24's `Math.pow` matched the library value. Judges for Pow(x, n) typically allow an error around 10⁻⁵, so the template passes; production code calls the library, which evaluates `exp(n · log x)` with extra internal precision.
+Repeated squaring is fast but not accurate on floats. A rounding error of relative size ε in an early square is itself raised to every remaining power, so the final relative error can grow in proportion to `n · ε`. Measured in CPython 3.14 on `1.0000001` to the power 2³¹: the template was off by 1.2 × 10⁻⁸ relative, `x ** n` and `math.pow` by 1.1 × 10⁻¹⁷, and Node 24's `Math.pow` matched the library value. Judges for Pow(x, n) compare at far coarser precision (this platform's version rounds answers to five decimal places), so the template passes; production code calls the library, which evaluates `exp(n · log x)` with extra internal precision.
 
 Floats merge slopes that are not equal. The points `(0, 0)`, `(10⁸, 10⁸ + 1)` and `(10⁸ + 1, 10⁸ + 2)` give identical float slopes, 1.00000001, but the cross product is −1: not collinear.
 
@@ -350,7 +350,7 @@ Additions of two residues stay below 2³¹ and are safe; multiplication is where
 
 Python integers are arbitrary precision, stored as arrays of 30-bit digits, so nothing overflows and the problem becomes cost. Multiplying two 1,000-digit integers took 5.2 µs in CPython 3.14; the digit-by-digit Multiply Strings loop took 83 ms on the same inputs, and `str(int(a) * int(b))` including both conversions took 63 µs. The built-in three-argument `pow(b, e, m)` ran 100,000 modular powers in 140 ms against 310 ms for the hand loop.
 
-Converting between `int` and decimal `str` is limited to 4,300 digits by default since Python 3.11 and the September 2022 security releases of 3.7 to 3.10, because the conversion is quadratic and was a denial-of-service vector. `int("9" * 5000)` and `str(10 ** 5000)` both raised `ValueError: Exceeds the limit (4300 digits) for integer string conversion`. `sys.set_int_max_str_digits(0)` lifts it; a solution that stays in digit arrays never meets it.
+Converting between `int` and decimal `str` is limited to 4,300 digits by default since Python 3.11 and the September 2022 security releases 3.7.14, 3.8.14, 3.9.14 and 3.10.7, because the conversion is quadratic and was a denial-of-service vector (CVE-2020-10735). `int("9" * 5000)` and `str(10 ** 5000)` both raised `ValueError: Exceeds the limit (4300 digits) for integer string conversion`. `sys.set_int_max_str_digits(0)` lifts it; a solution that stays in digit arrays never meets it.
 
 ## Failure modes
 

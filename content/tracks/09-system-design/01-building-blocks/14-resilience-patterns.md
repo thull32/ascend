@@ -54,13 +54,14 @@ Traced at 50 requests per second, with a count window of the last 6 calls, a min
 | 2 | 0.02 | 200 in 45 ms | ok ok | 2 calls, not judged | Closed |
 | 3 | 0.04 | 503 | ok ok ✗ | 3 calls, not judged | Closed |
 | 4 | 0.06 | 200 in 900 ms: slow | ok ok ✗ ✗ | 50% | **Open** until 5.06; window cleared |
-| 5 to 254 | 0.08 to 5.04 | Not sent | — | — | Open: 250 calls fail in microseconds, fallback served |
-| 255 | 5.06 | Trial: 503 | trial ✗ | — | Half-open |
-| 256 | 5.08 | Trial: 200 in 50 ms | trial ✗ ok | 50% | **Open** until 10.08 |
-| 257 | 10.08 | Trial: 200 | trial ok | — | Half-open |
-| 258 | 10.10 | Trial: 200 | trial ok ok | 0% | **Closed**; window cleared |
+| 5 to 253 | 0.08 to 5.04 | Not sent | — | — | Open: 249 calls fail in microseconds, fallback served |
+| 254 | 5.06 | Trial: 503 | trial ✗ | — | Half-open |
+| 255 | 5.08 | Trial: 200 in 50 ms | trial ✗ ok | 50% | **Open** until 10.08 |
+| 256 to 504 | 5.10 to 10.06 | Not sent | — | — | Open: 249 more fail fast |
+| 505 | 10.08 | Trial: 200 | trial ok | — | Half-open |
+| 506 | 10.10 | Trial: 200 | trial ok ok | 0% | **Closed**; window cleared |
 
-The minimum-calls rule is why calls 1 to 3 cannot trip it: without it, one failure out of one call is a 100% failure rate. Call 4 shows why slow calls must count: it succeeded, eventually, while holding a thread for 900 ms. While open, 250 calls cost nothing downstream and the dependency gets quiet time to recover.
+The minimum-calls rule is why calls 1 to 3 cannot trip it: without it, one failure out of one call is a 100% failure rate. Call 4 shows why slow calls must count: it succeeded, eventually, while holding a thread for 900 ms. During each open period, 249 calls cost nothing downstream and the dependency gets quiet time to recover.
 
 ```viz
 {"type": "system", "scenario": "circuit-breaker", "requests": 15,
@@ -69,7 +70,7 @@ The minimum-calls rule is why calls 1 to 3 cannot trip it: without it, one failu
 
 ### Under the hood: what the libraries actually do
 
-resilience4j keeps a ring buffer of outcomes (count-based, 100 calls by default) or per-second buckets (time-based), so the failure rate is an O(1) update per call. Its defaults are a 50% failure threshold evaluated only after 100 calls, slow calls defined at 60 seconds, 60 seconds in open, and 10 permitted calls in half-open, evaluated together. Hystrix, which Netflix open-sourced and has kept in maintenance mode since 2018, used a 10-second rolling window, a 20-request volume threshold, a 50% error threshold and a 5-second sleep window. Both sets of defaults are starting points: a 60-second slow-call threshold is useless for a 150 ms dependency, and 100 minimum calls never trips on an endpoint that gets 20 calls a minute.
+resilience4j keeps a ring buffer of outcomes (count-based, 100 calls by default) or per-second buckets (time-based), so the failure rate is an O(1) update per call. Its defaults (in `CircuitBreakerConfig`) are a 50% failure threshold evaluated only after 100 calls, a call counted as slow at 60 seconds with a slow-call rate threshold of 100% (so slow calls alone open the breaker only when every call in the window is slow), 60 seconds in open, and 10 permitted calls in half-open, evaluated together. Hystrix, which Netflix open-sourced and put into maintenance mode in November 2018 (its README says Netflix's focus had shifted to adaptive concurrency limits), used a 10-second rolling window, a 20-request volume threshold, a 50% error threshold, a 5-second sleep window and a 1-second execution timeout. Both sets of defaults are starting points: a 60-second slow-call threshold is useless for a 150 ms dependency, and 100 minimum calls never trips on an endpoint that gets 20 calls a minute.
 
 Three configuration decisions carry most of the weight. Key breakers per dependency and often per operation, because a breaker around "all outbound calls" opens for everything when one dependency fails. Decide the fallback in advance: a cached value, a default (popular items instead of personalised), an empty section, or an error only for essential features, and make sure the fallback does not depend on the thing that failed. And alert on breakers open longer than a few minutes, because a breaker that never closes is an outage the dashboard shows as green.
 
@@ -145,7 +146,7 @@ for _ in range(5_000):
 print(f"limit oscillates between {min(history[-500:]):.0f} and {max(history[-500:]):.0f}")
 ```
 
-The gradient row is the warning: a gradient limiter computes $\text{limit} \times \min(1, \text{tolerance} \times \text{baseline RTT} / \text{current RTT})$ plus a small probe, and with a baseline taken from the fastest sample and a tolerance of 2 it held latency low by admitting half of capacity, varying from 400 to 570 per second across seeds. Netflix's open-source `concurrency-limits` library ships AIMD, Vegas and gradient variants; its second-generation gradient limiter uses a smoothed long-term RTT as the baseline instead of the minimum, because a minimum-RTT baseline misbehaves in exactly this way, and allows a small queue on top. The choice of baseline is the whole game. Adaptive limits remove the stale-number problem and replace it with a tuning problem you test under load before trusting.
+The gradient row is the warning: a gradient limiter computes $\text{limit} \times \min(1, \text{tolerance} \times \text{baseline RTT} / \text{current RTT})$ plus a small probe, and with a baseline taken from the fastest sample and a tolerance of 2 it held latency low by admitting half of capacity, varying from 400 to 570 per second across seeds. Netflix's open-source `concurrency-limits` library ships AIMD, Vegas and gradient variants. Its second-generation limiter, `Gradient2Limit`, uses an exponentially smoothed long-term RTT as the baseline instead of the minimum, because, as its documentation notes, the minimum biases the baseline "towards an impractically low base RTT resulting in excessive load shedding", which is exactly what the naive row shows. It also clamps the gradient to between 0.5 and 1, applies a tolerance of 1.5 by default, and adds a small queue allowance (4 by default) on top. The choice of baseline is the whole game. Adaptive limits remove the stale-number problem and replace it with a tuning problem you test under load before trusting.
 
 ## Graceful degradation
 
@@ -159,7 +160,7 @@ Every pattern above ends in a rejection, and the rejection is graceful only if t
 | Playback | Auth token refresh | Honour existing tokens for a grace period |
 | Analytics beacons | Analytics ingest | Drop; never block the user |
 
-Netflix has described this publicly: when personalisation fails, members see popular titles, and stream starts barely move. A fallback that has never run has a bug, so degraded modes are exercised.
+Netflix described the same idea for its API in a December 2011 tech-blog post, "Making the Netflix API More Resilient": the goal was that members could keep watching "even if the experience is slightly degraded and less personalized", and every dependency behind a circuit breaker had one of three fallbacks: a custom response built from local data (a cookie or an in-JVM cache), "fail silent" (return nothing for optional data), or "fail fast" (an error, for data the response cannot do without). A fallback that has never run has a bug, so degraded modes are exercised.
 
 ## Health checks that do not make things worse
 
@@ -209,7 +210,7 @@ A breaker does not catch a dependency that is slow but under its failure thresho
 
 ## What mid-level engineers get wrong
 
-- **Defaulting timeouts.** Library defaults are 30 seconds or infinite; a slow dependency then holds every thread.
+- **Defaulting timeouts.** Many client defaults are no timeout at all (Python's `requests` and Go's `http.Client` wait forever unless told otherwise); a slow dependency then holds every thread.
 - **Retrying at every layer.** Three layers of three attempts send 27× traffic to the dependency that is already failing.
 - **Breakers without a minimum call count.** One failure trips them; a low-traffic endpoint flaps all day.
 - **Not counting slow calls as failures.** A dependency at 5 s latency and 0% errors never trips the breaker.

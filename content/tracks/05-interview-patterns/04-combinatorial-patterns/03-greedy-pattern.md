@@ -315,7 +315,7 @@ The scan is `O(n)` with `O(1)` state in every shape above; the cost is whatever 
 
 ## Under the hood
 
-**Sort order is the algorithm.** Python's `sorted` is Timsort, stable, and calls the `key` function once per element, then compares the cached keys; `functools.cmp_to_key` calls a Python comparator `O(n log n)` times instead. V8's `Array.prototype.sort` has also been Timsort since 2018 and is stable, which ES2019 requires. Stability matters when the greedy breaks ties by a second key: sort by the secondary key first, then the primary, or use a tuple key.
+**Sort order is the algorithm.** Python's `sorted` is Timsort (with Munro and Wild's powersort merge order since 3.11), stable, and calls the `key` function once per element, then compares the cached keys; `functools.cmp_to_key` calls a Python comparator `O(n log n)` times instead. V8's `Array.prototype.sort` has also been Timsort since V8 7.0 (Chrome 70, 2018) and is stable, which ES2019 made a requirement. Stability matters when the greedy breaks ties by a second key: sort by the secondary key first, then the primary, or use a tuple key.
 
 **JavaScript's two sort traps.** With no comparator, elements are compared as strings: `[10, 9, 1, 2].sort()` is `[1, 10, 2, 9]`. A comparator must return a number; `(a, b) => a > b` returns a boolean, `false` becomes 0, "equal", and the sort is left arbitrary: in Node 24 `[3, 1, 2].sort((a, b) => a > b)` returned `[3, 1, 2]` unchanged. Both pass small hand tests that happen to be sorted.
 

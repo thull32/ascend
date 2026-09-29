@@ -6,7 +6,7 @@ minutes: 35
 difficulty: hard
 tags: [system-design, senior-skills, reliability, availability, fmea, disaster-recovery, multi-region, blast-radius]
 ---
-A configuration change goes out to every region at once. It is valid YAML, it passed review, and it sets a client timeout to zero. Within ninety seconds every region is failing. The architecture had three regions, redundant instances, replicated databases and a 99.99% availability target, and none of it helped, because the failure was not a machine dying. It was a change that every copy shared. Large outages mostly look like this: a deploy, a config push, an overload or a common dependency, hitting all the redundancy at once.
+A configuration change goes out to every region at once. It is valid YAML, it passed review, and it sets a client timeout to zero. Within ninety seconds every region is failing. The architecture had three regions, redundant instances, replicated databases and a 99.99% availability target, and none of it helped, because the failure was not a machine dying. It was a change that every copy shared. Large outages mostly look like this: a deploy, a config push, an overload or a common dependency, hitting all the redundancy at once. Google's SRE book puts it as a number: [roughly 70% of outages](https://sre.google/sre-book/introduction/) are due to changes in a live system.
 
 Designing for failure means treating failure as an input to the design, alongside requirements and load. You enumerate how each part fails, compute what the combination delivers, decide how far each failure may spread and what users see meanwhile, and decide how you recover when a whole region is gone. [Resilience patterns](/learn/system-design/building-blocks/resilience-patterns) covered the mechanisms; this lesson is the judgement and the arithmetic that decide where they go.
 
@@ -137,7 +137,7 @@ Blast radius is the fraction of users, requests or tenants a single failure affe
  "title": "A breaker turns slow failure into fast failure", "caption": "After consecutive failures the breaker opens and fails calls instantly, so callers can serve a fallback instead of waiting on timeouts; a half-open trial decides when to close again."}
 ```
 
-**Cells** split the whole stack (services, caches, databases) into independent copies, each serving a fixed subset of users. With 20 cells, a poison request, bad deploy or corrupted cache in one cell affects 5% of users. The router that maps users to cells is the one thing all cells share, so it must be the simplest component in the system. Cloud providers have written publicly about building their own control planes this way.
+**Cells** split the whole stack (services, caches, databases) into independent copies, each serving a fixed subset of users. With 20 cells, a poison request, bad deploy or corrupted cache in one cell affects 5% of users. The router that maps users to cells is the one thing all cells share, so it must be the simplest component in the system. AWS writes that its service teams have used this [cell-based architecture](https://docs.aws.amazon.com/wellarchitected/latest/reducing-scope-of-impact-with-cell-based-architecture/reducing-scope-of-impact-with-cell-based-architecture.html) for more than a decade.
 
 **Shuffle sharding** limits what one bad tenant can do. Give each customer a random subset of k workers out of n. With n = 100 and k = 5 there are C(100, 5) = 75,287,520 subsets. For a random other customer, the chance of sharing all five workers is 1 in 75 million, of sharing two or more 1.9%, and of sharing at least one 23.0%. A customer whose requests crash workers takes down its own five; a neighbour sharing one worker retries on its other four and never notices.
 
@@ -154,13 +154,13 @@ Blast radius limits *who* is affected; degradation decides *what they see*. Clas
 3. **Cache miss and personalisation down:** popular-in-your-region rows, precomputed and static.
 4. **Everything but playback impaired:** a minimal page from the client's local state, and playback still works.
 
-Protect the core action (starting a stream, checking out, sending a message) at the expense of everything else. Load shedding follows the same priority: under overload, drop prefetches, telemetry and background refreshes before any request that starts a stream; Netflix has described prioritising requests at its edge this way. Two rules make ladders real: the fallback must be **cheaper** than the primary, or it collapses under the same load; and it must be **exercised**, through chaos experiments or forced use, because a fallback that has never run in production has a bug in it.
+Protect the core action (starting a stream, checking out, sending a message) at the expense of everything else. Load shedding follows the same priority: under overload, drop prefetches, telemetry and background refreshes before any request that starts a stream. Netflix described doing exactly this at its API gateway, Zuul, in 2020: each request is classed as non-critical (logs and background requests), degraded-experience (viewing history, the player's language selection) or critical (anything whose failure stops playback), given a priority score from 1 to 100, and shed lowest score first as load rises. Two rules make ladders real: the fallback must be **cheaper** than the primary, or it collapses under the same load; and it must be **exercised**, through chaos experiments or forced use, because a fallback that has never run in production has a bug in it.
 
 Retries decide whether a partial failure stays partial: three layers each making three attempts send 27 requests to a failing database for every user request. Retry at one layer, cap retries with a budget, and add jittered backoff; [timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff) measures each of these on a simulated herd.
 
 ## Disaster recovery: RPO and RTO per tier
 
-Two numbers define recovery, set per dataset from the business cost of loss and downtime. **RPO** (recovery point objective) is how much data, measured in time, you can afford to lose. **RTO** (recovery time objective) is how long until service is back. The tiers below give orders of magnitude; what each depends on is the column to design against.
+Two numbers define recovery, set per dataset from the business cost of loss and downtime. **RPO** (recovery point objective) is how much data, measured in time, you can afford to lose. **RTO** (recovery time objective) is how long until service is back. The tiers below are the four strategies AWS's [disaster-recovery whitepaper](https://docs.aws.amazon.com/whitepapers/latest/disaster-recovery-workloads-on-aws/disaster-recovery-options-in-the-cloud.html) names; the numbers are orders of magnitude, and what each depends on is the column to design against.
 
 | Strategy | Running in the recovery region | RPO | RTO | What the numbers depend on | Cost over one region |
 |---|---|---|---|---|---|
@@ -178,7 +178,7 @@ Replication protects against losing a region, not against a bug that writes bad 
 Stateless compute runs anywhere. The data layer decides the design, and there are four patterns:
 
 1. **One write region, replicas elsewhere (active-passive for writes).** Remote writes pay a cross-region round trip; failover promotes a replica and loses whatever was inside the replication lag.
-2. **Home region per user.** Each user's writes go to a home region; others hold replicas. Local writes for most users, no conflicts; failover moves homes. Most large consumer products converge here.
+2. **Home region per user.** Each user's writes go to a home region; others hold replicas. Local writes for most users, no conflicts; failover moves homes. Many large consumer products converge here.
 3. **Multi-leader, active-active writes.** Every region accepts writes; conflicts resolve by last-writer-wins, merges or [CRDTs](/learn/system-design/distributed-systems/crdts-and-collaboration). Only for data where a merge is safe.
 4. **Consensus across regions.** Every write commits to a cross-region majority: zero loss on region failure, tens of milliseconds or more per write.
 
@@ -220,7 +220,7 @@ Converged, but one user's intent was silently dropped. For a setting that is tol
 
 ## Under the hood: a regional evacuation, minute by minute
 
-Netflix has written publicly about running active-active across several AWS regions and evacuating a whole region's traffic to the others in minutes, as a regular exercise rather than an emergency procedure. What happens during one, with times as orders of magnitude that depend on the configuration named:
+Netflix has published how long this took. In 2018 it described a traffic failover that used to take about 50 minutes: 5 to decide whether to push the button, 3–5 to provision capacity in the receiving regions, 25 for services to start, 10 or more to proxy traffic between regions while it moved, and 5 for devices to follow the DNS change. Its Project Nimble brought that under 10 minutes, mainly by keeping capacity ready rather than booting it on demand. What happens during an evacuation, with times as orders of magnitude that depend on the configuration named:
 
 | Time | What happens | Depends on |
 |---|---|---|
@@ -232,7 +232,7 @@ Netflix has written publicly about running active-active across several AWS regi
 | 2–10 min | Receiving regions' caches fill; database load spikes on cold keys | Cross-region cache replication or pre-warming |
 | Minutes | Data: home-region users re-homed; if a primary is promoted, it takes a new epoch number and storage rejects writes carrying the old one | Replication lag at failure; fencing support ([failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases)) |
 
-An evacuation you have never run is a hypothesis. Netflix has written publicly about its chaos tooling, from killing single instances in production to evacuating whole regions on a schedule; the principle transfers at any scale: drill the failover during business hours, with the team watching, often enough that the tooling and the headroom cannot silently rot. Measure each drill against the RTO and RPO you promised.
+An evacuation you have never run is a hypothesis. Netflix's chaos tooling runs from Chaos Monkey, which kills single instances in production, to Chaos Kong, which it described in 2015 as simulating a regional outage "on a regular basis"; the principle transfers at any scale: drill the failover during business hours, with the team watching, often enough that the tooling and the headroom cannot silently rot. Measure each drill against the RTO and RPO you promised.
 
 Automate the traffic shift, which is stateless and reversible. Be more deliberate about promoting a write primary: two primaries during a partition means divergent data, and fencing by epoch is what makes the old primary's late writes fail instead of land. [Netflix microservices and resilience](/learn/system-design/case-studies/netflix-microservices-and-resilience) covers the tooling lineage.
 

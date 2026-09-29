@@ -282,7 +282,7 @@ Trace on `[1, 3, 4, 2, 2]`. The path from index 0 is `0 → 1 → 3 → 2 → 4 
 {"type": "linked-list", "algorithm": "cycle-detect", "values": [0, 1, 3, 2, 4], "cycleAt": 3, "title": "Find the Duplicate as a linked list", "caption": "Nodes are indices of [1, 3, 4, 2, 2] visited from index 0; the tail (index 4) points back to index 2. The cycle entry, 2, is the duplicated value."}
 ```
 
-If mutation were allowed, cyclic sort answers it too: after placing, the value at the first misplaced index is the duplicate. On `[1, 3, 4, 2, 2]` the placed array is `[1, 2, 3, 4, 2]` and index 4 holds 2. The problem's own follow-up asks for an `O(n log n)`, `O(1)`-space method without the linked-list view: [binary search on the answer](/learn/algorithms/sorting-searching/binary-search-on-the-answer) over values, where `count(v ≤ mid) > mid` means the duplicate is at most `mid`.
+If mutation were allowed, cyclic sort answers it too: after placing, the value at the first misplaced index is the duplicate. On `[1, 3, 4, 2, 2]` the placed array is `[1, 2, 3, 4, 2]` and index 4 holds 2. Without the linked-list view there is an `O(n log n)`, `O(1)`-space method: [binary search on the answer](/learn/algorithms/sorting-searching/binary-search-on-the-answer) over values, where `count(v ≤ mid) > mid` means the duplicate is at most `mid`. The problem's own follow-up asks for linear time, which is what Floyd delivers.
 
 ## Variants
 

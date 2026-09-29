@@ -28,7 +28,7 @@ Candidates underrate the last row. "Drove the discussion" or "needed prompting" 
 
 ## Under the hood: how feedback becomes a decision
 
-Processes differ between companies and change over time, but the published descriptions and common practice share a shape, and the shape tells you what to do in the room.
+Processes differ between companies and change over time, but common practice shares a shape, and the shape tells you what to do in the room.
 
 1. **Interviewers write feedback independently**, usually before seeing anyone else's, so an early strong or weak opinion does not anchor the rest.
 2. **Feedback is evidence mapped to dimensions**: what you said and did, often close to verbatim, then a recommendation on a hire/no-hire scale and a level signal.
@@ -182,7 +182,7 @@ flowchart LR
     CW --> MD["Title metadata cache"]
 ```
 
-**Candidate:** Heartbeats go to Kafka keyed by profile; one consumer group writes the latest position, another feeds the warehouse. Pause and stop are written synchronously, because those are the moments someone switches devices. Reads have a 100 ms budget and hit one partition. Regions replicate asynchronously and conflicts resolve last-writer-wins by the timestamp the edge assigns, never the device clock, because device clocks are routinely minutes wrong.
+**Candidate:** Heartbeats go to Kafka keyed by profile; one consumer group writes the latest position, another feeds the warehouse. Pause and stop are written synchronously, because those are the moments someone switches devices. Reads have a 100 ms budget and hit one partition. Regions replicate asynchronously and conflicts resolve last-writer-wins by the timestamp the edge assigns, never the device clock, because a device clock can be minutes wrong.
 
 *Recorded: every arrow labelled, two non-obvious decisions (synchronous only for pause and stop; server timestamps) stated with reasons as they appeared.*
 

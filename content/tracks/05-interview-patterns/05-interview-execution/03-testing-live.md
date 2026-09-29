@@ -222,7 +222,7 @@ def check(cache):
     assert count == len(cache.map) <= cache.cap, (count, len(cache.map))
 ```
 
-Run on the buggy class, it fails at operation 3 with `stale node for key 1`, three operations before the first wrong return value. Writing it takes about two minutes, and saying "I'm checking the structure after each operation, not only the answers" is a strong line on its own.
+Run on the buggy class, it fails at operation 3 with `stale node for key 1`, two operations before the first wrong return value. Writing it takes about two minutes, and saying "I'm checking the structure after each operation, not only the answers" is a strong line on its own.
 
 ## How long hand-tracing takes
 
@@ -349,7 +349,7 @@ With two or three minutes left, compress: trace the example at the level of "whi
 
 ## Under the hood: how testing is graded
 
-Most rubrics have a testing item (Ascend's mock interviewer scores "testing and edge cases" 1 to 5 and quotes moments as evidence), and it is fed by facts that are easy to write down with a timestamp. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) has the general phrase vocabulary; what matters here is how the testing lines are produced. Two plausible sets of notes on the Merge Intervals draft:
+Many rubrics have a testing item (Ascend's mock interviewer scores "testing and edge cases" 1 to 5 and quotes moments as evidence), and it is fed by facts that are easy to write down with a timestamp. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) has the general phrase vocabulary; what matters here is how the testing lines are produced. Two plausible sets of notes on the Merge Intervals draft:
 
 ```text
 Candidate A
@@ -424,7 +424,7 @@ D may end with correct code and still collect "trial-and-error debugging" and "c
 
 ## Practising
 
-Testing is the easiest dimension to improve quickly, because it is mostly habit. In your next few mock interviews on `/interviews`, set one rule: never say "I think it works"; say "let me test it" and run the three passes. Afterwards, read the transcript and mark who found each bug and at which minute; that pair of facts predicts the testing score better than anything else. Between mocks, take solutions you have already written on the practice list, such as [Valid Parentheses](/practice/valid-parentheses) and [LRU Cache](/practice/lru-cache), and before running any tests, predict which risk-table shapes each solution contains and write the smallest input that would break each one. Then time yourself tracing one of them aloud: the number of seconds per row you measure is the number to plan your testing phase with.
+Testing is the easiest dimension to improve quickly, because it is mostly habit. In your next few mock interviews on `/interviews`, set one rule: never say "I think it works"; say "let me test it" and run the three passes. Afterwards, read the transcript and mark who found each bug and at which minute; that pair of facts is what the testing rating is argued from. Between mocks, take solutions you have already written on the practice list, such as [Valid Parentheses](/practice/valid-parentheses) and [LRU Cache](/practice/lru-cache), and before running any tests, predict which risk-table shapes each solution contains and write the smallest input that would break each one. Then time yourself tracing one of them aloud: the number of seconds per row you measure is the number to plan your testing phase with.
 
 ## Exercise
 

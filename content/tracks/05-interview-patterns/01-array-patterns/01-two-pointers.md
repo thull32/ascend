@@ -7,7 +7,7 @@ difficulty: medium
 tags: [two-pointers, arrays, sorted-input, in-place, pattern:two-pointers]
 problems: [valid-palindrome, two-sum-sorted, three-sum, container-with-most-water, trapping-rain-water, remove-duplicates-sorted, move-zeroes, sort-colors]
 ---
-You need a pair of elements with some property (they sum to a target, they bound the most water, they mirror each other), and the obvious code is a nested loop that checks every pair. That is `O(n²)`, and for `n = 10⁵` it is 5 billion checks: at the roughly 10⁷ simple loop iterations per second that CPython manages, that is about eight minutes for one test case. The interviewer knows you can write the nested loop. The question is whether you can see the structure that lets you skip almost all of it.
+You need a pair of elements with some property (they sum to a target, they bound the most water, they mirror each other), and the obvious code is a nested loop that checks every pair. That is `O(n²)`, and for `n = 10⁵` it is 5 billion checks: at the roughly 10⁷ simple loop iterations per second that CPython manages (the figure depends on the machine and the interpreter version), that is about eight minutes for one test case. The interviewer knows you can write the nested loop. The question is whether you can see the structure that lets you skip almost all of it.
 
 Two pointers is that structure. When the input has an order, either because it is sorted or because some quantity changes monotonically as you walk in from the ends, one comparison tells you that an entire row of the pair table cannot contain the answer. You discard the row by moving one pointer, and after at most `n` moves you are done. The pattern is not "use two variables"; it is "each step eliminates many candidates, and I can say which ones and why".
 
@@ -279,7 +279,7 @@ Return 4. With `k = 2` the same input keeps `[1, 1, 2, 2, 3, 4, 4]` and returns 
 
 The opposite-ends loop has a potential function: `hi − lo` starts at `n − 1`, decreases by exactly 1 per iteration, and the loop stops at 0. That gives at most `n − 1` iterations, each doing a constant amount of work, so `O(n)`. The same-direction form is `O(n)` because `read` visits each index once and `write` never exceeds it.
 
-For Three Sum, anchor `i` runs a sweep over `n − i − 1` elements, so the total is $\sum_{i=0}^{n-3}(n-i-1) = \frac{(n-1)(n-2)}{2} \approx n^2/2$ inner steps. The sort adds `n log₂ n`, which is smaller than `n²/2` once `n > 4`. Put numbers on it: the problem's usual constraint is `n ≤ 3,000`, so about 4.5 × 10⁶ inner steps, which CPython finishes in well under a second. For `n = 10⁵` the nested-loop version needs 5 × 10⁹ steps (minutes in CPython, seconds in Rust or Go); the two-pointer version needs 10⁵ steps plus one sort, which is milliseconds in any language.
+For Three Sum, anchor `i` runs a sweep over the `n − i − 1` elements after it, which takes at most `n − i − 2` pointer moves, so the total is $\sum_{i=0}^{n-3}(n-i-2) = \frac{(n-1)(n-2)}{2} \approx n^2/2$ inner steps. The sort adds `n log₂ n`, which is smaller than `n²/2` once `n > 4`. Put numbers on it: the problem's usual constraint is `n ≤ 3,000`, so about 4.5 × 10⁶ inner steps, which CPython finishes in well under a second. For `n = 10⁵` the nested-loop version needs 5 × 10⁹ steps (minutes in CPython, seconds in Rust or Go); the two-pointer version needs 10⁵ steps plus one sort, which is milliseconds in any language.
 
 Compare the alternatives for "find a pair with a given sum":
 
@@ -296,9 +296,9 @@ The hash map wins on time when indices matter; two pointers wins on space and wh
 
 ### The sort underneath
 
-**CPython.** `list.sort()` is Timsort, stable since it shipped in 2.3. With `key=`, the key is computed once per element and stored in a parallel array, so `key=lambda p: p[0]` on `(value, index)` pairs costs `n` calls, not `n log n`; stability then guarantees that equal values keep their index order, which is how the "sort `(value, index)` pairs" trick returns the smaller index first. Since CPython 3.7, `list.sort` first checks whether every element has the same type and, if so, selects a specialised comparison (`unsafe_long_compare` for `int`, a Latin-1 fast path for ASCII strings, a float path, and a tuple path that specialises on the first element). The change that introduced it (bpo-28685) reported sorts 40–75% faster on homogeneous lists; a list mixing `int` and `float` falls back to the generic rich comparison.
+**CPython.** `list.sort()` is Timsort, stable since it shipped in 2.3. With `key=`, the key is computed once per element and stored in a parallel array, so `key=lambda p: p[0]` on `(value, index)` pairs costs `n` calls, not `n log n`; stability then guarantees that equal values keep their index order, which is how the "sort `(value, index)` pairs" trick returns the smaller index first. Since CPython 3.7, `list.sort` first checks whether every element has the same type and, if so, selects a specialised comparison (`unsafe_long_compare` for `int`s that each fit in one machine word, a Latin-1 fast path for ASCII strings, a float path, and a tuple path that specialises on the first element). The change that introduced it ([bpo-28685](https://github.com/python/cpython/issues/72871)) reported common cases 40–75% faster; a list mixing `int` and `float` falls back to the generic rich comparison.
 
-**V8.** `Array.prototype.sort` in V8 has been TimSort, and therefore stable, since V8 7.0 (2018); before that, arrays longer than 10 elements were sorted with an unstable quicksort. The default comparator converts elements to strings, so `[10, 9, 1].sort()` returns `[1, 10, 9]`. Always pass `(a, b) => a - b` for numbers.
+**V8.** `Array.prototype.sort` in V8 has been TimSort, and therefore stable, since [V8 7.0 (Chrome 70, 2018)](https://v8.dev/blog/array-sort); before that it was an unstable quicksort that fell back to insertion sort for arrays shorter than 10 elements. The default comparator converts elements to strings, so `[10, 9, 1].sort()` returns `[1, 10, 9]`. Always pass `(a, b) => a - b` for numbers.
 
 ### What a pointer read costs
 
@@ -310,9 +310,9 @@ A CPython list stores 8-byte pointers; each `int` is a separate object (28 bytes
 
 ## Failure modes
 
-**An element is paired with itself.** *Symptom:* `pair_with_sum([1, 3, 5], 6)` returns `[1, 1]`; the test with an odd target that is twice a single element fails. *Diagnosis:* the loop condition is `lo <= hi`; on the final iteration `lo == hi` and the sum is `2 × nums[lo]`. *Fix:* `while lo < hi`. In the counting variant the same bug adds `hi − lo == 0`, so it is silent there and loud here.
+**An element is paired with itself.** *Symptom:* `pair_with_sum([1, 3, 6], 6)` returns `[1, 1]` instead of `[]`; any test whose target is twice a single element and has no genuine pair fails. *Diagnosis:* the loop condition is `lo <= hi`; on the final iteration `lo == hi` and the sum is `2 × nums[lo]`. *Fix:* `while lo < hi`. In the counting variant the same bug adds `hi − lo == 0`, so it is silent there and loud here.
 
-**Three Sum returns duplicate triples, or the "3,000 zeros" test times out.** *Symptom:* `[-1, 0, 1]` appears twice for `[-1, 0, 1, 2, -1, -4]`; on an all-zero input the result list grows to about `n²/2` identical triples before a `set` at the end collapses them, and memory follows. *Diagnosis:* no duplicate skip after recording a match, or a skip placed before the check (which throws away valid triples), or dedup by `set(tuple(t))` instead of by construction. *Fix:* after recording, advance both pointers and then skip while `nums[lo] == nums[lo − 1]` and `nums[hi] == nums[hi + 1]`, with `lo < hi` in both conditions; skip anchors by comparing to the previous anchor.
+**Three Sum returns duplicate triples, or the "3,000 zeros" test times out.** *Symptom:* `[-1, 0, 1]` appears twice for `[-1, 0, 1, 2, -1, -4]`; on an all-zero input the result list grows to about `n²/4` identical triples (2.25 million for `n = 3,000`) before a `set` at the end collapses them, and memory follows. *Diagnosis:* no duplicate skip after recording a match, or a skip placed before the check (which throws away valid triples), or dedup by `set(tuple(t))` instead of by construction. *Fix:* after recording, advance both pointers and then skip while `nums[lo] == nums[lo − 1]` and `nums[hi] == nums[hi + 1]`, with `lo < hi` in both conditions; skip anchors by comparing to the previous anchor.
 
 **Index error inside the skip loop.** *Symptom:* Python raises `IndexError` on `[0, 0, 0]`; JavaScript silently stops because `nums[lo + 1]` is `undefined` and never equals anything, so the bug hides until a Python port. *Diagnosis:* `while nums[lo] == nums[lo + 1]` has no bound. *Fix:* every skip loop is `while lo < hi and …`.
 
@@ -320,7 +320,7 @@ A CPython list stores 8-byte pointers; each `int` is a separate object (28 bytes
 
 **A reconciliation job pegs a core at 100% and never finishes.** *Symptom:* a nightly job that merges two sorted exports (say, a billing feed against a ledger) hangs; a thread dump shows the merge loop with both indices unchanged. *Diagnosis:* the equal-keys branch advanced neither pointer, or an intersection advanced only one and matched the same record repeatedly. *Fix:* every branch advances at least one pointer, and the equality branch does what the operation needs: merge advances either, intersection and difference advance both.
 
-**Moved the taller line.** *Symptom:* Container With Most Water returns 40 instead of 49 on the sample. *Diagnosis:* the branch moves the pointer at the taller line, which can only shrink the width without lifting the cap. *Fix:* move the shorter line; on a tie either move is safe.
+**Moved the taller line.** *Symptom:* Container With Most Water returns 8 instead of 49 on the sample: the height-1 line at index 0 is never retired, so every area is capped at 1. *Diagnosis:* the branch moves the pointer at the taller line, which can only shrink the width without lifting the cap. *Fix:* move the shorter line; on a tie either move is safe.
 
 ## Interviewer follow-ups
 
@@ -332,13 +332,13 @@ A CPython list stores 8-byte pointers; each `int` is a separate object (28 bytes
 
 **"Trapping rain water on a 2D grid."** Model answer: the pattern changes. Water at a cell is bounded by the lowest wall on any path to the border, so start a min-heap with the border cells, pop the lowest, and for each unvisited neighbour add `max(level − h, 0)` and push it with height `max(level, h)`; `O(mn log(mn))`. Common wrong answer: run the 1D two-pointer solution per row and per column and add them, which double counts and ignores diagonal escape paths.
 
-**"n is 10⁶ for Three Sum. Now what?"** Model answer: `n²/2 = 5 × 10¹¹` steps is out of reach in any language, and no algorithm substantially faster than quadratic is known; the 3SUM conjecture in complexity theory says none exists. So ask what else is constrained: if values are bounded by `V`, a count array and a convolution give `O(V log V)`; if only existence matters and you can accept randomness, hashing helps the constant but not the exponent. Common wrong answer: "use a hash set to get O(n)", which is still `O(n²)` because every anchor pair needs a lookup.
+**"n is 10⁶ for Three Sum. Now what?"** Model answer: `n²/2 = 5 × 10¹¹` steps is out of reach in any language, and the best known algorithms only shave logarithmic factors off `n²` ([Grønlund and Pettie, 2014](https://arxiv.org/abs/1404.0799), who refuted the older conjecture that 3SUM needs `Ω(n²)`); the modern 3SUM conjecture says no `O(n^(2−ε))` algorithm exists. So ask what else is constrained: if values are bounded by `V`, a count array and a convolution give `O(V log V)`; if only existence matters and you can accept randomness, hashing helps the constant but not the exponent. Common wrong answer: "use a hash set to get O(n)", which is still `O(n²)` because every anchor pair needs a lookup.
 
 ## What mid-level engineers get wrong
 
 - **Treating "two pointers" as one trick.** They apply the opposite-ends loop to a compaction problem or vice versa. Consequence: an invariant that does not match the code, and a bug they cannot reason about.
 - **Skipping duplicates before checking the sum**, or comparing the anchor to the *next* element. Consequence: valid triples such as `[-1, -1, 2]` disappear, on exactly the inputs the hidden tests use.
-- **Deduplicating with a set at the end.** Consequence: `O(n)` extra memory and, on degenerate inputs, `n²/2` intermediate results; the interviewer reads it as not understanding the pointer moves.
+- **Deduplicating with a set at the end.** Consequence: `O(n)` extra memory and, on degenerate inputs, about `n²/4` intermediate results; the interviewer reads it as not understanding the pointer moves.
 - **`hi = len(nums) − 1` on an empty array with no guard.** Consequence: the `while lo < hi` check happens to save them, but they cannot say so, which is what the interviewer is probing.
 - **Advancing `mid` after the swap with `hi` in the Dutch flag.** Consequence: an unread element is skipped and a 2 can land before a 1.
 - **Reaching for two pointers when the statement asks for original indices.** Consequence: a correct-looking solution that fails every unsorted test.

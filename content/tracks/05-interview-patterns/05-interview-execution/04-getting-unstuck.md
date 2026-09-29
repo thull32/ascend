@@ -9,9 +9,7 @@ problems: [daily-temperatures, subarray-sum-equals-k, koko-eating-bananas, coin-
 ---
 Minute 14. You have a brute force, you know it is O(n²), you know n is 10⁵, and nothing is coming. You re-read the problem. You stare at the example. You try the same idea again, a little differently. Three minutes pass without a word. The interviewer shifts in their chair.
 
-Every strong candidate gets stuck. Interviewers pick problems at the edge of what a candidate can do precisely so that they can watch what happens next. The moment of being stuck is not the failure; the next three minutes are the assessment. A candidate who says "I'm stuck on how to avoid rescanning; let me try it by hand on a small example" and gets there with one nudge often scores better than one who recalled the answer instantly, because the interviewer saw how they think. A candidate who goes silent for eight minutes and then guesses scores badly even if the guess is right.
-
-This lesson is the recovery playbook: how to notice you are stuck early, which of seven kinds of stuck you are in, the move that unblocks each kind (each demonstrated on a real problem), a full annotated transcript of a candidate working through [Koko Eating Bananas](/practice/koko-eating-bananas), and how interviewers record and weigh the hints you take.
+Every strong candidate gets stuck. Interviewers pick problems at the edge of what a candidate can do precisely so that they can watch what happens next. The moment of being stuck is not the failure; the next three minutes are the assessment. A candidate who says "I'm stuck on how to avoid rescanning; let me try it by hand on a small example" and gets there with one nudge can score as well as one who recalled the answer instantly, because the interviewer saw how they think. A candidate who goes silent for eight minutes and then guesses scores badly even if the guess is right.
 
 ## Notice it within a minute
 
@@ -23,7 +21,7 @@ The costliest part of being stuck is the time before you admit it. These signals
 - You are trying to *remember* rather than *derive*: "I've seen this… what was the trick?"
 - The interviewer has asked "are you sure?" or repeated a question. They are telling you something.
 
-When you notice one, say so within seconds: "I'm going in circles. Let me step back." Visible, structured thinking is what is being evaluated; silence is time passing with nothing to write down. The widely quoted window of visible effort before a hint is three to five minutes. It varies by interviewer, but none report rewarding eight minutes of silence, and on a 38-minute working budget, eight minutes is a fifth of the round.
+When you notice one, say so within seconds: "I'm going in circles. Let me step back." Visible, structured thinking is what is being evaluated; silence is time passing with nothing to write down. Interview-prep advice commonly puts the window of visible effort before a hint at three to five minutes; it varies by interviewer, and eight silent minutes are a fifth of a 38-minute working budget with nothing in the notes.
 
 ## Seven kinds of stuck, and the move for each
 
@@ -39,7 +37,7 @@ When you notice one, say so within seconds: "I'm going in circles. Let me step b
 | 6. You cannot justify it | It seems to work, but you cannot say why | "Is there a small input where this is wrong?" | Hunt a counterexample on tiny inputs against a brute force | Greedy coin change |
 | 7. The mechanics | You know what to do, not how to write it (an API, an index formula) | "Is this the interesting part of the problem?" | Stub it behind a named helper with a stated contract; move on | Integer ceiling in Koko |
 
-Kinds 1 and 2 are rarer than they feel. Most interview stuckness is kind 3, most of the rest is kind 4, and kind 7 is the cheapest to escape and the one candidates most often spend five minutes on.
+Kinds 1 and 2 are rarer than they feel; kinds 3 and 4 are the usual ones, and kind 7 is the cheapest to escape and the easiest to lose five minutes on.
 
 ## The moves, demonstrated
 
@@ -99,7 +97,7 @@ In Koko, a candidate who cannot remember how to write an integer ceiling should 
 
 ## A transcript: Koko, from stuck to binary search on the answer
 
-Koko has `n` piles of bananas and `h` hours. Each hour she picks one pile and eats up to `k` bananas from it; if the pile has fewer, she finishes it and waits for the hour to end. Return the minimum integer `k` that finishes every pile within `h` hours. Constraints: n up to 10⁴, piles and h up to 10⁹.
+[Koko Eating Bananas](/practice/koko-eating-bananas): Koko has `n` piles of bananas and `h` hours. Each hour she picks one pile and eats up to `k` bananas from it; if the pile has fewer, she finishes it and waits for the hour to end. Return the minimum integer `k` that finishes every pile within `h` hours. Constraints: n up to 10⁴, piles and h up to 10⁹.
 
 | Time | What is said | Move | Interviewer's note |
 |---|---|---|---|
@@ -156,7 +154,7 @@ Hints are not all equal, and interviewers do not record them as a count. What is
 | 3. The core idea | "Binary search on the speed, with an O(n) check." | "needed the core idea" | Commonly caps the algorithm dimension near a mid-level pass |
 | 4. Led through | "Set lo to 1 and hi to the max; now what's the condition?" | "led through the solution" | Below the bar for that dimension |
 
-Three things change the weight of the same hint. **What happened after it**: a level-1 nudge turned into the full approach in ten seconds reads as "nearly unassisted"; the same nudge needing to be repeated reads as level 2. **When it came**: a nudge at minute 13 leaves time to show everything else; a core-idea hint at minute 28 leaves the testing and follow-up phases empty, which costs more than the hint. **Who initiated it**: a candidate's specific question ("is there a relationship between speeds?") is itself evidence of diagnosis, while a rescue after silence is not. The [45-minute protocol](/learn/interview-patterns/interview-execution/the-45-minute-protocol) has the wider phrase vocabulary of write-ups; this ladder is the part of it that concerns hints.
+Three things change the weight of the same hint. **What happened after it**: a level-1 nudge turned into the full approach in ten seconds reads as "nearly unassisted"; the same nudge needing to be repeated reads as level 2. **When it came**: a nudge at minute 13 leaves time to show everything else; a core-idea hint at minute 28 leaves the testing and follow-up phases empty, which costs more than the hint. **Who initiated it**: a candidate's specific question ("is there a relationship between speeds?") is itself evidence of diagnosis, while a rescue after silence is not.
 
 ## Asking for a hint
 
@@ -266,7 +264,7 @@ You cannot practise recovery on problems you already know. Use unfamiliar ones d
 
 - Start a solo coding interview on `/interviews` at hard difficulty, where you are more likely to get stuck. Afterwards, read the transcript for the minutes before you asked for help and check whether you named what you were stuck on, and which hint level you received.
 - On the practice list, pick problems you have not seen, set a 20-minute timer, and when it rings open the first hint whether or not you feel close. That trains "use the hint and keep moving" instead of "suffer silently".
-- After each session, label every stuck moment with its kind from the table. Within a few weeks you will know which kind you fall into most, and which move fixes it.
+- After each session, label every stuck moment with its kind from the table. After a few sessions the labels show which kind you fall into most.
 
 ## Senior signals
 

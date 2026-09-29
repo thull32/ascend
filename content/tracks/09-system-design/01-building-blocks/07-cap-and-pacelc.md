@@ -163,11 +163,11 @@ Read it as a menu of guarantees. C is the everyday answer when region loss may c
 | etcd, ZooKeeper, Consul | PC | EC | ZooKeeper reads are local and may be stale unless preceded by `sync()`; etcd serializable reads likewise |
 | Spanner, CockroachDB | PC | EC | Write latency is set by quorum placement; follower or stale reads trade freshness for latency |
 | Postgres or MySQL with a synchronous standby | PC | EC | Only if failover is fenced; reads from asynchronous replicas are EL |
-| MongoDB, majority write concern | PC | EC | The default since 5.0; with `w: 1`, a primary that loses its seat rolls back unreplicated writes |
+| MongoDB, majority write concern | PC | EC | The implicit default in current versions; with `w: 1`, a primary that loses its seat rolls back unreplicated writes |
 | Cassandra at `ONE` or `LOCAL_QUORUM` | PA | EL | `QUORUM` both ways gives overlap, not linearizability; lightweight transactions are PC per partition |
 | DynamoDB | PC within a region | EL by default | Strongly consistent reads make a read EC; global tables replicate between regions with last-writer-wins, and a newer multi-Region strong consistency mode makes writes wait for a second Region |
 | Riak, Dynamo-style stores | PA | EL | Merge by siblings, vector clocks or CRDTs |
-| Cosmos DB | Tunable | Tunable | Five named levels from strong to eventual, chosen per request |
+| Cosmos DB | Tunable | Tunable | Five named levels from strong to eventual: an account default that a request can override for its reads |
 
 The real lesson is the "tunable" rows: modern stores expose the choice per request, so "which database" is the wrong level to decide at.
 

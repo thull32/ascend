@@ -9,7 +9,7 @@ problems: [single-number, number-of-1-bits, counting-bits, reverse-bits, missing
 ---
 "Every element appears twice except one; find it in O(1) space." "Add two integers without using `+`." "Count the set bits of every number from 0 to `n` in linear time." These read as puzzles, and candidates who have not seen them either freeze or reach for a hash map that violates the space constraint. They are not puzzles. They are a small, closed set of identities about how integers are stored, and the constraint in the statement ("O(1) space", "without arithmetic operators", "linear", "32-bit") is the interviewer telling you which identity to use.
 
-There are six. XOR cancels pairs. `n & (n − 1)` clears the lowest set bit. `n & −n` isolates it. A mask reads, sets, clears or toggles one bit. Shifts multiply and divide by powers of two. And two's complement makes a negative number a large unsigned one with the same low bits, which is what makes "add without `+`" work, and what breaks it in Python, whose integers have no width, and in JavaScript, whose bitwise operators silently force 32 bits. The identities and their proofs live in [Bit manipulation](/learn/foundations/math-for-engineers/bit-manipulation); masks as sets, submask DP and bitsets live in [Bit tricks in algorithms](/learn/algorithms/technique-mastery/bit-tricks-in-algorithms). This lesson is about the interview: reading which identity a statement asks for, writing it with the width pinned down, and answering the follow-ups that change the pattern.
+There are six, tabulated below, and the one that bites is two's complement: it makes a negative number a large unsigned one with the same low bits, which is what makes "add without `+`" work, and what breaks it in Python, whose integers have no width, and in JavaScript, whose bitwise operators silently force 32 bits. The identities and their proofs live in [Bit manipulation](/learn/foundations/math-for-engineers/bit-manipulation); masks as sets, submask DP and bitsets live in [Bit tricks in algorithms](/learn/algorithms/technique-mastery/bit-tricks-in-algorithms). This lesson is about the interview: reading which identity a statement asks for, writing it with the width pinned down, and answering the follow-ups that change the pattern.
 
 ## The signal
 
@@ -140,7 +140,7 @@ function* submasks(mask) {
 
 `submasks(0b1011)` yields `1011, 1010, 1001, 1000, 0011, 0010, 0001, 0000`: the decrement borrows through the low bits, and the AND discards any bit the mask does not own.
 
-The same expression means different things in the two languages, and interviewers ask:
+The same expression differs between the two languages:
 
 | | Python | JavaScript |
 |---|---|---|
@@ -152,7 +152,7 @@ The same expression means different things in the two languages, and interviewer
 | Add without `+` | Mask every iteration, reinterpret at the end | Works as written; overflow wraps |
 | Popcount builtin | `int.bit_count()` (3.10+) | None; `Math.clz32` is the only bit builtin |
 
-Addition splits into the two operators the loop repeats. Watch 5 and 3 column by column: XOR gives 6, the sum without carries; AND gives 1, the column that carries:
+Watch 5 and 3 split into the two operators the add loop repeats:
 
 ```viz
 {"type": "bits", "algorithm": "and-or-xor", "a": 5, "b": 3, "title": "5 and 3: XOR is the carry-less sum, AND marks the carries", "caption": "5 ^ 3 = 6 and 5 & 3 = 1. Shifting the AND left by one gives the carry, 2, and 6 + 2 = 8 is the sum; the add loop repeats this split until the carry is 0."}
@@ -160,7 +160,7 @@ Addition splits into the two operators the loop repeats. Watch 5 and 3 column by
 
 ## Why the identities hold
 
-Four arguments, each short enough to say out loud when the interviewer asks "why does that work?".
+Four arguments, each short enough to say out loud.
 
 **`n & (n − 1)` removes exactly one set bit.** Write `n` as a prefix `P`, its lowest 1, then `k` zeros: `P 1 0…0`. Subtracting 1 borrows through the zeros, so `n − 1 = P 0 1…1`. The AND keeps `P` and zeroes every position from the lowest 1 down. `12 = 1100`, `11 = 1011`, `12 & 11 = 1000`. A loop of these runs once per set bit, not once per bit of the word.
 
@@ -200,7 +200,7 @@ The second 1 undid the first, the second 2 undid the first, and 4 remained. Beca
 {"type": "bits", "algorithm": "single-number", "values": [4, 1, 2, 1, 2], "title": "Single Number by XOR", "caption": "Each pair of equal values XORs to zero; only the unpaired value survives."}
 ```
 
-[Missing Number](/practice/missing-number) is the same fold with the indices as the partners. On `[3, 0, 1]` with `n = 3`: `(0 ^ 1 ^ 2 ^ 3) ^ (3 ^ 0 ^ 1) = 0 ^ 2 = 2`. The sum formula `n(n + 1)/2 − sum(nums)` is equally correct in Python; in a fixed-width language it overflows, which the near-miss table quantifies.
+[Missing Number](/practice/missing-number) is the same fold with the indices as the partners. On `[3, 0, 1]` with `n = 3`: `(0 ^ 1 ^ 2 ^ 3) ^ (3 ^ 0 ^ 1) = 0 ^ 2 = 2`. The sum formula `n(n + 1)/2 − sum(nums)` is equally correct in Python and overflows in a fixed-width language: in a Java `int`, the product wraps from `n = 46,341` (see the near-miss table), so a 50,000-element hidden test fails.
 
 ### Counting Bits
 
@@ -235,7 +235,7 @@ Result `[0, 1, 1, 2, 1, 2, 2, 3, 1]`. Every `dp[i >> 1]` read is already filled 
 {"type": "bits", "algorithm": "count-bits", "values": [12, 7, 8], "title": "Kernighan's step: n & (n − 1) clears one set bit", "caption": "12 = 1100 empties in two steps, 7 = 0111 in three, 8 = 1000 in one. One step per set bit is why bits[i & (i − 1)] + 1 is a valid recurrence and why the popcount loop costs O(set bits)."}
 ```
 
-The interviewer wants the recurrence; the runtime is less tidy. In CPython 3.14 on this machine, `n = 10⁶` took 26 ms with the DP and 11 ms with `[i.bit_count() for i in range(n + 1)]`: the `O(n log n)` comprehension does one C call per number, the DP several bytecodes. Say both: the DP answers the question; the builtin is what you would ship in Python.
+The interviewer wants the recurrence; the runtime is less tidy. In CPython 3.14 on this machine, `n = 10⁶` took 26 ms with the DP and 11 ms with `[i.bit_count() for i in range(n + 1)]`: the `O(n log n)` comprehension does one C call per number, the DP several bytecodes. The DP answers the question; the builtin is what you would ship.
 
 ### Sum of Two Integers
 
@@ -305,7 +305,7 @@ Trace on `[1, 2, 1, 3, 2, 5]`: the fold is `6 = 110`, the split bit is `010`.
 | 2 | 010 | 1 | set | 3 | 0 |
 | 5 | 101 | 0 | clear | 3 | 5 |
 
-Answer `{3, 5}`. In JavaScript the split test must be `(v & bit) !== 0`. If the singletons differ only in bit 31, `bit` is −2³¹ and `(v & bit) > 0` is never true: on `[-2147483645, 3, 9, 9]` the `> 0` version puts everything on one side and returns `[-2147483648, 0]` instead of `[-2147483645, 3]`.
+Answer `{3, 5}`. In JavaScript the split test must be `(v & bit) !== 0`. If the singletons differ only in bit 31, `bit` is −2³¹ and `(v & bit) > 0` is never true: on `[-2147483645, 3, 9, 9]` the `> 0` version puts everything on one side and returns −2147483648 and 0 instead of −2147483645 and 3.
 
 ## Variations
 
@@ -373,13 +373,13 @@ In every row a CPython bytecode costs tens of nanoseconds, so the fewest Python-
 
 ### V8 in Node 24
 
-Numbers are IEEE doubles (small integers unboxed as "Smis"). Every bitwise operator applies ToInt32 to each operand (truncate toward zero, reduce mod 2³², read as signed), `>>>` applies ToUint32, and shift counts are taken mod 32. Hence `1 << 31 === −2147483648`, `2 ** 32 | 0 === 0`, `(2 ** 32 + 5) | 0 === 5`, and `2 ** 40 ^ 1 === 1`. Doubles hold integers exactly only up to 2⁵³: `Number("9007199254740993")` is `9007199254740992`, so a 64-bit identifier must arrive as a string and become `BigInt(str)`.
+Numbers are IEEE doubles (small integers unboxed as "Smis"). Every bitwise operator applies ToInt32 to each operand (truncate toward zero, reduce mod 2³², read as signed), `>>>` applies ToUint32, and shift counts are taken mod 32. Hence `1 << 31 === −2147483648`, `2 ** 32 | 0 === 0` and `(2 ** 32 + 5) | 0 === 5`. Doubles hold integers exactly only up to 2⁵³: `Number("9007199254740993")` is `9007199254740992`, so a 64-bit identifier must arrive as a string and become `BigInt(str)`.
 
-JavaScript has no popcount; `Math.clz32` is the only bit builtin. Measured on Node 24.21 on this machine, per 10⁶ values: Kernighan popcount 12.2 ms, the SWAR sequence (the classic five-step mask-and-add popcount) 0.9 ms, a 65,536-entry table 0.7 ms; Counting Bits DP 4.0 ms into a plain `Array` and 0.9 ms into a `Uint8Array`; Reverse Bits 9.1 ms looping, 1.2 ms with a 256-entry table. `BigInt` is arbitrary precision and heap-allocated: a 64-bit XOR-and-rotate loop over 10⁶ values with `& mask` took 34 ms against 0.4 ms for the 32-bit Number version, and an XOR-and-shift loop wrapped in `BigInt.asUintN(64, …)` took 2.5 ms.
+Measured on Node 24.21 on this machine, per 10⁶ values: Kernighan popcount 12.2 ms, the SWAR sequence (the classic five-step mask-and-add popcount) 0.9 ms, a 65,536-entry table 0.7 ms; Counting Bits DP 4.0 ms into a plain `Array` and 0.9 ms into a `Uint8Array`; Reverse Bits 9.1 ms looping, 1.2 ms with a 256-entry table. `BigInt` is arbitrary precision and heap-allocated: a 64-bit XOR-and-rotate loop over 10⁶ values with `& mask` took 34 ms against 0.4 ms for the 32-bit Number version, and an XOR-and-shift loop wrapped in `BigInt.asUintN(64, …)` took 2.5 ms.
 
 ### The hardware
 
-x86-64 has `POPCNT`, `LZCNT` and `TZCNT`; AArch64 counts bits with `CNT` on a vector register and reverses them with `RBIT`. x86 has no single bit-reverse instruction (`BSWAP` reverses bytes). Rust's `count_ones` and `reverse_bits` compile to these when the target supports them, so in a compiled language the interview loop explains the builtin rather than replacing it.
+x86-64 CPUs offer `POPCNT`, `LZCNT` and `TZCNT` as extensions beyond the baseline instruction set; AArch64 counts bits with `CNT` on a vector register and reverses them with `RBIT`, which is what LLVM emits for both. x86 has no single bit-reverse instruction (`BSWAP` reverses bytes). Rust's `count_ones` and `reverse_bits` compile to these when the target supports them, so in a compiled language the interview loop explains the builtin rather than replacing it.
 
 ## Failure modes
 
@@ -387,11 +387,9 @@ x86-64 has `POPCNT`, `LZCNT` and `TZCNT`; AArch64 counts bits with `CNT` on a ve
 
 **Symptom: Reverse Bits or Number of 1 Bits in JavaScript returns a negative number, or a popcount of 0, when the input has bit 31 set.** Diagnosis: `>>` is an arithmetic shift that copies the sign bit in, results of `|` are signed, and a loop guarded by `n > 0` stops at the first negative intermediate. Fix: `>>>` inside the loop, `>>> 0` on the result, `!== 0` in loop guards and split tests.
 
-**Symptom: an "is even" branch never runs, with no error.** Diagnosis: precedence. `n & 1 == 0` parses as `n & (1 == 0)`, which is `n & False`, always 0 in Python; `n & 1 === 0` is `n & false` in JavaScript. `x ^ y == 0` fails the same way. Fix: parenthesise every bitwise sub-expression, `(n & 1) == 0`.
+**Symptom: an "is even" branch never runs, with no error.** Diagnosis: precedence, which differs by language. In JavaScript (as in C and Java) `n & 1 === 0` parses as `n & (1 === 0)`, which is `n & false`, always 0, and `x ^ y === 0` fails the same way. Python binds `&`, `^` and `|` tighter than comparisons, so there `n & 1 == 0` means `(n & 1) == 0`; code ported between the languages changes meaning silently. Fix: parenthesise every bitwise sub-expression, `(n & 1) === 0`.
 
-**Symptom: a JavaScript service treats two different 64-bit IDs as equal, or a bit test on an ID beyond 2³² always says 0.** Diagnosis: the IDs were parsed into Numbers (exact only to 2⁵³) and then passed through a bitwise operator, which kept the low 32 bits. Fix: parse with `BigInt(str)`, operate with `n`-suffixed literals and `BigInt.asUintN(64, …)`, and serialise back as strings.
-
-**Symptom: Missing Number in Java passes unit tests and fails the 50,000-element hidden test.** Diagnosis: `n * (n + 1) / 2` in `int` overflows in the multiplication from `n = 46,341`. Fix: the XOR fold, which cannot overflow, or `long`.
+**Symptom: a JavaScript service treats two different 64-bit IDs as equal, or a bit test on a large ID always says 0.** Diagnosis: the IDs became Numbers (exact only to 2⁵³) and then met a bitwise operator, which kept the low 32 bits. Fix: `BigInt(str)` and `BigInt.asUintN(64, …)`, serialised back as strings.
 
 ## Trade-offs
 
@@ -407,7 +405,7 @@ x86-64 has `POPCNT`, `LZCNT` and `TZCNT`; AArch64 counts bits with `CNT` on a ve
 
 **"Now every element appears three times except one."** Model answer: each tripled value survives the fold, so count the 32 columns and keep those whose count is not a multiple of 3, `O(32n)` time and `O(1)` space, or run the `ones`/`twos` automaton; in Python, convert a bit-31 result back to a negative. Common wrong answer: XOR anyway.
 
-**"The input is a 64-bit integer, and you are writing JavaScript."** Model answer: a Number is exact only to 2⁵³ and bitwise operators truncate to 32 bits: `2 ** 40 ^ 1` is 1. Receive it as a string, convert with `BigInt(str)` and keep the width with `BigInt.asUintN(64, x)`, or carry two 32-bit halves by hand; measured, the masked BigInt loop ran about 85 times slower than 32-bit Numbers. Common wrong answer: "Numbers are 64-bit doubles, so 64-bit integers fit."
+**"The input is a 64-bit integer, and you are writing JavaScript."** Model answer: a Number is exact only to 2⁵³ and bitwise operators truncate to 32 bits. Receive it as a string, convert with `BigInt(str)` and keep the width with `BigInt.asUintN(64, x)`, or carry two 32-bit halves by hand; measured, the masked BigInt loop ran about 85 times slower than 32-bit Numbers. Common wrong answer: "Numbers are 64-bit doubles, so 64-bit integers fit."
 
 **"`reverse_bits` is now called 10⁹ times."** Model answer: a 256-entry table of reversed bytes and four lookups, measured 8 times faster than the loop in CPython and 7 times in Node (10⁹ calls: about 9 s down to 1 s); or five mask-and-shift swaps of halves, quarters and so on down to bits. Common wrong answer: memoising results in a dictionary, which is slower than the arithmetic and could grow toward 2³² entries.
 
@@ -421,9 +419,7 @@ x86-64 has `POPCNT`, `LZCNT` and `TZCNT`; AArch64 counts bits with `CNT` on a ve
 - **Porting a C solution to Python without a mask.** Consequence: an infinite loop on the first negative input, and `~x` that means `−x − 1` rather than "flip 32 bits".
 - **Using `>>`, `> 0` or `|` results unconverted in JavaScript.** Consequence: negative outputs for any input with bit 31 set, which the problem's tests always include.
 - **Writing `while n` for a fixed-width reversal.** Consequence: leading zeros are lost; `reverse_bits(1)` returns 1.
-- **Unparenthesised bitwise tests.** Consequence: silent wrong branches, because `&`, `^` and `|` bind looser than `==`.
-- **Presenting the trick as memorised magic.** Consequence: no answer to "why does `n & (n − 1)` work?" or "why does the carry loop stop?".
-- **Choosing the asymptotically better loop and never measuring.** Consequence: a Python DP that is slower than the `O(n log n)` builtin, presented as the optimisation.
+- **Unparenthesised bitwise tests.** Consequence: silent wrong branches in JavaScript, C and Java, where `&`, `^` and `|` bind looser than `==`, and code whose meaning changes when ported to or from Python, where they bind tighter.
 
 ## Exercises
 
@@ -536,7 +532,6 @@ hints:
 - You state the **recognition test for XOR**: exactly one value with odd multiplicity. Anything else means counting per bit, a basis over GF(2), or a different pattern altogether.
 - You know the **width story in both languages** cold: mask and reinterpret in Python; ToInt32, `>>>` and `>>> 0` in JavaScript; `BigInt` past 32 bits and strings past 2⁵³.
 - You see Counting Bits as a **DP whose state is `i >> 1`**, and you also know that in CPython the `bit_count` comprehension beats it, because interpreter steps, not asymptotics, dominate.
-- You **parenthesise bitwise expressions** and say why, because precedence bugs in this family are silent.
 - You treat **masks as sets** for `n ≤ 20` and connect them to backtracking and bitmask DP, and you name `3ⁿ` as the cost of enumerating submasks of every mask.
 - You carry the pattern into production: **atomic OR or CAS for shared bitsets**, lookup tables or hardware instructions for hot bit loops, and `BigInt` or string transport for 64-bit identifiers in JavaScript.
 

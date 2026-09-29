@@ -255,7 +255,7 @@ hints:
 
 ## The "exactly once" illusion
 
-No protocol delivers a message exactly once: any acknowledgement can itself be lost, and the sender must then choose between resending (a possible duplicate) and not (a possible loss). Systems offer **at-least-once delivery plus idempotent processing**, whose observable effect is exactly once. Kafka's exactly-once semantics are this: the idempotent producer (on by default since Kafka 3.0) tags batches with a producer ID and a per-partition sequence number so the broker drops resent duplicates, and transactions commit consumer offsets together with the output, which holds only while the sink is Kafka ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)).
+No protocol delivers a message exactly once: any acknowledgement can itself be lost, and the sender must then choose between resending (a possible duplicate) and not (a possible loss). Systems offer **at-least-once delivery plus idempotent processing**, whose observable effect is exactly once. Kafka's exactly-once semantics are this: the idempotent producer (on by default when no conflicting setting such as `acks=1` is made; KIP-679 set that default for 3.0, and a bug kept it off until 3.0.1, 3.1.1 and 3.2.0) tags batches with a producer ID and a per-partition sequence number so the broker drops resent duplicates, and transactions commit consumer offsets together with the output, which holds only while the sink is Kafka ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)).
 
 ## Deduplication in consumers
 
@@ -366,11 +366,11 @@ Retries are nearly free exactly when they help, for rare independent failures su
 | System | Mechanism |
 |---|---|
 | Stripe API | `Idempotency-Key` header up to 255 characters; saves the status code and body of the first request that started executing, including 500s, and returns them on retries; compares the parameters of retries and errors on a mismatch; keys may be pruned after 24 hours; a request that fails validation or collides with a concurrent one saves nothing |
-| IETF `Idempotency-Key` draft | Standardises the header: 400 when a required key is missing, 422 when a key is reused with a different payload, 409 while the original is still processing |
+| IETF `Idempotency-Key` draft | Proposed the header for standardisation (the httpapi working-group draft expired at revision 07, not an RFC at the time of writing): 400 when a required key is missing, 422 when a key is reused with a different payload, 409 while the original is still processing |
 | Postgres | A unique-index insert waits on a concurrent uncommitted insert of the same key, then fails or proceeds depending on that transaction's outcome (measured above) |
-| AWS SDKs, standard retry mode | 3 attempts, exponential backoff with jitter, and a client-side retry quota (a 500-token bucket; each retry costs 5, a timeout retry 10), so a failing service drains the bucket and retries stop |
+| AWS SDKs, standard retry mode | 3 attempts, exponential backoff with jitter, and a client-side retry quota: a 500-token bucket that, per the SDK reference guide in September 2026, charges 14 tokens per transient-error retry and 5 per throttling retry, so a failing service drains the bucket and retries stop |
 | gRPC | Retry policy per method in the service config, plus retry throttling: a token count that failures decrement and successes refill by `tokenRatio`; retries are allowed only while it is above half of `maxTokens` |
-| Envoy | Retry budgets: retries limited to `budget_percent` of active requests (20% by default) with a floor of 3 concurrent retries |
+| Envoy | Retry budgets: concurrent retries limited to `budget_percent` of active and pending requests (20% by default) with a floor of 3 |
 | Kafka | Idempotent producer with per-partition sequence numbers, up to 5 in-flight batches per connection while keeping order |
 | SQS FIFO | Deduplication on `MessageDeduplicationId` within a 5-minute interval |
 

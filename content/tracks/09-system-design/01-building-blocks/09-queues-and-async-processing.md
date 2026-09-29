@@ -92,7 +92,7 @@ A Kafka consumer group assigns each partition to exactly one consumer, so four c
 | 4 partitions, keys spread evenly | 80% | 49 ms | 227 ms |
 | 4 partitions, key shares 30/25/25/20% | 96/80/80/64% | 106 ms | 809 ms |
 
-Pooling cuts the p99 by more than 3× at identical cost, because no message waits behind a busy consumer while another sits idle. The skewed row is the realistic one: five points of key skew put one partition at 96% and multiplied its mean fivefold. Per-key ordering is what that loss buys; a workload that does not need ordering should not pay for it. Kafka's share groups (KIP-932, early access in Kafka 4.0) exist to give Kafka topics this queue-style consumption.
+Pooling cuts the p99 by more than 3× at identical cost, because no message waits behind a busy consumer while another sits idle. The skewed row is the realistic one: five points of key skew put one partition at 96% and multiplied its mean fivefold. Per-key ordering is what that loss buys; a workload that does not need ordering should not pay for it. Kafka's share groups (KIP-932: early access in Kafka 4.0, with the protocol stabilised in 4.1) exist to give Kafka topics this queue-style consumption.
 
 ## Three models, not one
 
@@ -103,7 +103,7 @@ Pooling cuts the p99 by more than 3× at identical cost, because no message wait
 | Storage model | Append-only partitioned log, retained by time or size (days) | Queue; messages deleted on ack | Queue; deleted on ack; 4-day default, 14-day max retention |
 | Consumer position | Consumer group commits an offset per partition; replay by rewinding | Broker pushes; per-message ack; no replay after ack | Consumer polls; visibility timeout; no replay after delete |
 | Ordering | Per partition, strict | Per queue with one consumer; lost with competing consumers | Standard: best-effort; FIFO: per message group |
-| Throughput | A partition sustains tens of MB/s; clusters do GB/s | Tens of thousands of messages/s per node | Standard: effectively unlimited; FIFO: 300 operations/s per queue (3,000 messages/s in batches of 10), more in high-throughput mode |
+| Throughput | A partition sustains tens of MB/s; clusters do GB/s | Tens of thousands of messages/s per node | Standard: effectively unlimited; FIFO: 300 API calls/s per action (3,000 messages/s in batches of 10), more in high-throughput mode |
 | Fan-out | Free: each consumer group reads the same log | Exchanges route copies to several queues | SNS in front, or one queue per consumer |
 | Routing | By partition key only | Rich: topic exchanges, headers, dead-letter exchanges | Minimal |
 | Best fit | Event streams, audit logs, CDC, many consumers, replay | Task queues with routing, priorities, RPC-style work | Simple task queues with no ops budget |
@@ -133,7 +133,7 @@ The guarantee is decided by *when the consumer acknowledges*, not by the broker.
 
 At-least-once is the default you want, and it means every consumer must be idempotent: dedupe on a producer-assigned ID, or make the effect an upsert ([Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)). Kafka's transactional "exactly-once" covers consume-transform-produce loops whose output is also Kafka; once a consumer writes to Postgres or calls an HTTP API, you are back to idempotent consumers ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)).
 
-The producer has its own duplicate source: a send that times out waiting for the broker's ack and is resent. Kafka's idempotent producer (on by default since 3.0) attaches a producer ID and sequence number so the broker drops the resend; SQS FIFO deduplicates on a `MessageDeduplicationId` within a 5-minute window; RabbitMQ publisher confirms tell you a message arrived but do not dedupe, so the consumer must.
+The producer has its own duplicate source: a send that times out waiting for the broker's ack and is resent. Kafka's idempotent producer (on by default in current releases unless a conflicting setting such as `acks=1` disables it) attaches a producer ID and sequence number so the broker drops the resend; SQS FIFO deduplicates on a `MessageDeduplicationId` within a 5-minute window; RabbitMQ publisher confirms tell you a message arrived but do not dedupe, so the consumer must.
 
 ### At-least-once, traced through a crash
 
@@ -196,7 +196,7 @@ A message that fails deterministically (malformed payload, a foreign key that wi
 | 60 | Received by C; throws | 3 |
 | 90 | The next receive would make it 4, above 3: SQS moves it to the DLQ | 3 |
 
-The poison message cost three attempts and 90 seconds, and blocked nothing, because a standard queue has no order to block. On a Kafka partition the same retries stall every message behind it, and Kafka has no broker-side DLQ, so the consumer builds one: catch the failure, publish the record with error headers to `orders.retry-1m`, commit, move on. A retry consumer processes each retry topic after its delay and forwards to `orders.dlq` after the last; Uber's engineering blog has described this tiered design publicly. It unblocks the partition at a price: a later event for the same key can overtake the one being retried. When per-key order matters, park the key: mark it blocked and route its later events down the same retry path until the head is resolved.
+The poison message cost three attempts and 90 seconds, and blocked nothing, because a standard queue has no order to block. On a Kafka partition the same retries stall every message behind it, and Kafka has no broker-side DLQ, so the consumer builds one: catch the failure, publish the record with error headers to `orders.retry-1m`, commit, move on. A retry consumer processes each retry topic after its delay and forwards to `orders.dlq` after the last; Uber's engineering blog described this tiered design in 2018 ("Building Reliable Reprocessing and Dead Letter Queues with Apache Kafka"). It unblocks the partition at a price: a later event for the same key can overtake the one being retried. When per-key order matters, park the key: mark it blocked and route its later events down the same retry path until the head is resolved.
 
 Four rules make a DLQ useful rather than a graveyard:
 

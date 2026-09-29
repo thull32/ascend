@@ -11,7 +11,7 @@ The statement says "longest substring such that…", "smallest subarray with…"
 
 The window works because extending a segment by one element leaves almost everything you knew about it still true. You keep one window, move each edge forward only, and update a summary of its contents as one element enters and another leaves. Every element enters once and leaves at most once, so the pass is linear however the edges move. The pattern is not "two indices"; it is "a summary of the segment between them that updates in `O(1)` per element, plus a reason the left edge never has to move back".
 
-Recognising "substring" is the easy part. Candidates lose this round in the four decisions that follow it: which of three window shapes the question is, what state to keep, how to test validity in `O(1)`, and on which line to record the answer. This lesson makes those decisions explicit and runs four problems through them with full traces. The theory underneath (why `left` never moves back, counting windows, the at-most-`k` reduction, aggregates you cannot subtract) is in [Sliding-window mastery](/learn/algorithms/technique-mastery/sliding-window-mastery); this lesson assumes it and concentrates on execution.
+Recognising "substring" is the easy part. Candidates lose this round in the four decisions that follow it: which of three window shapes the question is, what state to keep, how to test validity in `O(1)`, and on which line to record the answer. The theory underneath (why `left` never moves back, counting windows, the at-most-`k` reduction, aggregates you cannot subtract) is in [Sliding-window mastery](/learn/algorithms/technique-mastery/sliding-window-mastery); this lesson assumes it and concentrates on execution.
 
 ## The signal
 
@@ -54,7 +54,7 @@ Each of these reads like a window and is not one, or is one only with extra mach
 
 ## Four decisions before you type
 
-Say these four out loud before writing a line. It takes fifteen seconds, and it is the plan the interviewer is listening for.
+Say these four out loud before writing a line; they are the plan the interviewer is listening for.
 
 | Problem | Shape | State | `O(1)` validity test | Record the answer |
 |---|---|---|---|---|
@@ -72,7 +72,7 @@ The record column has one rule per shape. Longest and count record after the shr
 
 ## The template
 
-Three runnable shapes. Learn the skeleton once (admit on the right, repair on the left, record) and the only thing that changes is the three lines of state.
+Three runnable shapes. Learn the skeleton once (admit on the right, repair on the left, record); only the three lines of state change.
 
 ```python
 def longest_at_most_k_distinct(s, k):
@@ -154,7 +154,7 @@ function maxSumFixed(nums, k) {
 }
 ```
 
-The non-obvious lines. `del counts[out]` is what makes `len(counts) > k` an `O(1)` test; without it the map keeps zero entries and its size stops meaning anything. The `left <= right` guard in the shortest shape makes the empty window a legal stopping point: with `target ≤ 0` every window is valid, and without the guard the loop evicts past `right`. The sentinel `len(nums) + 1` avoids `float("inf")`, which would turn an integer function into one that can return a float.
+The non-obvious lines. `del counts[out]` makes `len(counts) > k` an `O(1)` test; without it the map keeps zero entries and its size means nothing. The `left <= right` guard in the shortest shape makes the empty window a legal stopping point: with `target ≤ 0` every window is valid, and without the guard the loop evicts past `right`. The sentinel `len(nums) + 1` avoids `float("inf")`, which would turn an integer function into one that can return a float.
 
 The invariants to say out loud. **Longest:** after step 2, `s[left..right]` is the longest valid window ending at `right`, because the shrink stops at the first valid start and every earlier start was invalid. **Shortest:** after the loop, the window is invalid or empty, and every valid window ending at `right` that starts at or after the old `left` was recorded before its first element left. **Fixed:** after each slide, `window` equals the sum of exactly the `k` elements ending at `right`.
 
@@ -343,7 +343,7 @@ Characters not in `t`, and surplus copies of those that are, go negative in `nee
 | 4 | B | 0 | `AXCB` not shorter; drop A → `missing=1`, `left=2` | `XCB` | `BAXC` |
 | 5 | A | 0 | `XCBA` not shorter; drop X → still 0, `left=3`; record `CBA`; drop C → `missing=1`, `left=4` | `BA` | `CBA` |
 
-Answer `"CBA"`. In the last row the shrink ran twice because dropping `X` kept the window valid, and the second iteration found the minimum; an `if` there returns `"XCBA"`. Recording after the eviction instead of before would miss `CBA` entirely. Time `O(|s| + |t|)`.
+Answer `"CBA"`. In the last row the shrink ran twice because dropping `X` kept the window valid, and the second iteration found the minimum; an `if` there returns `"BAXC"`, and recording after the eviction returns the invalid `"BA"`. Time `O(|s| + |t|)`.
 
 [Sliding Window Maximum](/practice/sliding-window-maximum) completes the problem list. The window is fixed and trivial; the state is a deque of indices with decreasing values, and the mechanics belong to the [monotonic stack pattern](/learn/interview-patterns/sequence-patterns/monotonic-stack-pattern):
 
@@ -420,17 +420,17 @@ The error scales with the spike's unit in the last place (about 2 at 10¹⁶), n
 
 ### At scale
 
-The same mechanism runs in production far from interviews. A sliding-window rate limiter keeps a window of timestamps per key and evicts by time ([rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms)). TCP's send window is a window over the byte stream: its left edge advances when bytes are acknowledged and its width is capped by the receiver's advertised window ([TCP deep dive](/learn/networking/fundamentals/tcp-deep-dive)). Stream processors such as Flink implement overlapping "sliding" windows by assigning each event to `size / slide` separate windows, each with its own accumulator, so a 10-minute window sliding every 10 seconds keeps 60 live accumulators per key where a tumbling window keeps one; the interview window's single incremental accumulator is the alternative when the aggregate has an inverse ([stream processing model](/learn/big-data/streaming/stream-processing-model)).
+The same mechanism runs in production far from interviews. A sliding-window rate limiter keeps a window of timestamps per key and evicts by time ([rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms)). TCP's send window is a window over the byte stream: its left edge advances when bytes are acknowledged and its width is capped by the receiver's advertised window ([TCP deep dive](/learn/networking/fundamentals/tcp-deep-dive)). Stream processors such as Flink implement overlapping "sliding" windows by assigning each event to `size / slide` separate windows, each with its own state ([Flink's window docs](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/)), so a 10-minute window sliding every 10 seconds keeps 60 live accumulators per key where a tumbling window keeps one; the interview window's single incremental accumulator is the alternative when the aggregate has an inverse ([stream processing model](/learn/big-data/streaming/stream-processing-model)).
 
 ## Failure modes
 
-**A rolling average on a dashboard goes wrong and stays wrong after an outlier.** *Symptom:* a 1-minute rolling mean of request latency reads 2 ms too high for the rest of the day after one corrupt sample of 10¹⁶. *Diagnosis:* a float window maintained by add-and-subtract; the rounding error from the spike's time in the window never leaves (table above). *Fix:* integer units, or recompute from the buffer every `k` slides.
+**A rolling total on a dashboard stays wrong after an outlier.** *Symptom:* a 60-sample rolling sum of request latency reads about 2 ms too high for the rest of the day after one corrupt sample of 10¹⁶. *Diagnosis:* a float window maintained by add-and-subtract; the rounding error from the spike's time in the window never leaves (table above). *Fix:* integer units, or recompute from the buffer every `k` slides.
 
 **The last-index version returns a window that contains a repeat.** *Symptom:* `"abba"` returns 3; random tests pass. *Diagnosis:* `left = last[ch] + 1` without checking that `last[ch]` is inside the window, so `left` moves backwards. *Fix:* `left = max(left, last[ch] + 1)`, and assert `left` never decreases while debugging.
 
 **Correct on the sample, wrong on hidden tests, no exception.** *Symptom:* a sum-based window fails only on some inputs. *Diagnosis:* the array has negative numbers, so neither of the two monotonicity questions has a yes. *Fix:* prefix sums with a hash map for exact sums, a deque over prefix sums for "shortest with sum ≥ `k`".
 
-**The shortest window is one element too long, or 0 when a window exists.** *Symptom:* Minimum Window Substring returns `"XCBA"`. *Diagnosis:* the shrink is an `if`, or the record happens after the eviction. *Fix:* `while` valid, record first, then evict.
+**The shortest window is too long, or invalid.** *Symptom:* Minimum Window Substring returns `"BAXC"` or `"BA"` on `"BAXCBA"`. *Diagnosis:* the shrink is an `if` (too long), or the record happens after the eviction (invalid). *Fix:* `while` valid, record first, then evict.
 
 **Wrong answers only on user-generated text.** *Symptom:* a JavaScript "distinct characters" window passes every ASCII test and fails on names and messages with emoji. *Diagnosis:* indexing by UTF-16 code unit splits surrogate pairs. *Fix:* iterate code points, or decide explicitly that the service counts code units and document it.
 

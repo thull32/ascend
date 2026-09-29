@@ -139,7 +139,7 @@ The deepest node, 7, sits at depth 3 (7 → 6 → 4 → 0), which is `log₂ 8`:
 | `find(5)` | `p[5] = 1`, `p[1] = 0` | `0 0 1 1 3 1` | 2 |
 | `find(4)` | `p[4] = 1`, `p[1] = 0` | `0 0 1 1 1 1` | 2 |
 
-Each find roughly halves the path it walks. Full recursive compression on the first `find(5)` would give `[0, 0, 0, 0, 0, 0]` in one call, at the cost of recursion. With both rank and compression the amortised cost per operation is `O(α(n))` (Tarjan's 1975 analysis; path halving has the same bound). Rank alone gives `O(log n)`; compression alone gives amortised `O(log n)`; neither gives `O(n)` per `find` on a chain.
+Each find roughly halves the path it walks. Full recursive compression on the first `find(5)` would give `[0, 0, 0, 0, 0, 0]` in one call, at the cost of recursion. With both rank and compression the amortised cost per operation is `O(α(n))`: Tarjan's 1975 JACM paper proved that bound for linking by size with full compression and showed it is tight, and Tarjan and van Leeuwen's 1984 analysis showed that one-pass variants such as path halving are equally fast asymptotically. Rank alone gives `O(log n)` per find because trees stay short; compression alone lets a chain form but flattens it on the first walk, for amortised `O(log n)`; neither leaves you paying `O(n)` on every `find`.
 
 ## Worked problems
 
@@ -286,7 +286,7 @@ def calc_equation(equations, values, queries):
 - **Kruskal**: after sorting, each edge costs two finds, so `O(E log E)` total, dominated by the sort.
 - **Rollback union-find** drops path compression (it rewrites many pointers) and keeps union by rank, so each union changes one parent and one rank, which a stack can undo. Finds cost `O(log n)`. This is how offline dynamic connectivity handles deletions.
 
-- **At scale**, identity resolution (merging customer or device records that share an email, phone number or payment instrument) is Accounts Merge over billions of records. It no longer fits one machine's `parent` array, so distributed graph engines compute the same components by iterative label propagation, each node repeatedly adopting the smallest label among its neighbours, which trades union-find's near-constant work for one pass per diameter step. See [Graphs in the real world](/learn/data-structures/graphs/graphs-in-the-real-world).
+- **At scale**, identity resolution (merging customer or device records that share an email, phone number or payment instrument) is Accounts Merge over billions of records. It no longer fits one machine's `parent` array, so distributed graph engines compute the same components by iterative label propagation: Spark GraphX's `connectedComponents`, for example, runs Pregel supersteps in which every vertex keeps the minimum vertex ID it has heard from a neighbour, so each component ends up labelled with its lowest ID. That trades union-find's near-constant work for one superstep per step of the component's diameter. See [Graphs in the real world](/learn/data-structures/graphs/graphs-in-the-real-world).
 
 **Kruskal, traced.** Nodes A..E, edges A–B (4), A–C (1), B–C (2), B–D (5), C–D (8), D–E (3), taken in weight order; `parent` is written as a string for A..E.
 
@@ -330,7 +330,7 @@ Watch Kruskal keep only the edges that join two different sets:
 
 ## Interviewer follow-ups
 
-**"Edges can also be removed."** Model answer: union-find cannot split a set. If all operations are known in advance, process time backwards so deletions become unions, or use a rollback union-find over a segment tree of time; if they arrive online, recompute per query or reach for dynamic-connectivity structures and say they are well beyond interview code. Common wrong answer: "set `parent[x] = x` to remove it", which orphans every node below `x`.
+**"Edges can also be removed."** Model answer: union-find cannot split a set. If all operations are known in advance and edges are only removed, process time backwards so deletions become unions; with additions interleaved, use a rollback union-find over a segment tree of time; if they arrive online, recompute per query or reach for dynamic-connectivity structures and say they are well beyond interview code. Common wrong answer: "set `parent[x] = x` to remove it", which orphans every node below `x`.
 
 **"Report the size of the largest group after each union."** Model answer: union by size, keep `size[root]`, update a running maximum on each merge; `O(α(n))` per operation. Common wrong answer: recompute group sizes by scanning `parent`, `O(n)` per query.
 
@@ -483,7 +483,7 @@ hints:
   options: ["O(1), because each node points close to its root", "O(α(n)), since rank alone gives inverse Ackermann", "O(n), because the trees can still become chains", "O(log n), because rank bounds the tree height"]
   answer: 3
   explanation: >-
-    A root of rank r has at least 2^r nodes, because rank grows only when two equal-rank trees merge, so height is at most log n. Compression alone also gives amortised O(log n). Only the combination gives inverse Ackermann, and neither alone lets chains form.
+    A root of rank r has at least 2^r nodes, because rank grows only when two equal-rank trees merge, so height is at most log n and no chain can form. Compression alone lets a chain form but flattens it on the first walk, for amortised O(log n). Only the combination gives inverse Ackermann.
 - q: >-
     A component counter decrements count on every call to union. On n = 3 with edges [[0, 1], [0, 1]] it returns:
   options: ["1, since the no-op union still decrements", "3, since the duplicate edge is ignored", "0, since each call decrements twice", "2, the correct number of components"]
@@ -497,9 +497,9 @@ hints:
   explanation: >-
     Names are not identities here; shared emails are. Two accounts named John with no shared email must stay separate, and name-keyed nodes merge them. The nodes must be account indices (or emails), with the name attached to the output afterwards.
 - q: >-
-    Edges are added and deleted over time, with connectivity queries in between, and the whole sequence is known in advance. What is the standard approach?
-  options: ["Process time backwards so deletions become unions", "Add a delete operation that splits a set in two", "Rebuild the whole structure after every deletion", "Switch to Dijkstra, which supports removing edges"]
-  answer: 0
+    Starting from a known graph, edges are only deleted over time, with connectivity queries in between, and the whole sequence is known in advance. What is the standard approach?
+  options: ["Rebuild the whole structure after every deletion", "Switch to Dijkstra, which supports removing edges", "Process time backwards so deletions become unions", "Add a delete operation that splits a set in two"]
+  answer: 2
   explanation: >-
-    Union-find cannot split sets. Knowing the sequence up front lets you start from the final graph and walk time in reverse, turning deletions into unions (or use a rollback union-find without path compression). Rebuilding after each deletion works but discards the near-constant cost; online deletions need different structures.
+    Union-find cannot split sets. Knowing the sequence up front lets you start from the final graph and walk time in reverse, turning deletions into unions. If additions were interleaved too, reversing would turn them into deletions, and the standard tool becomes a rollback union-find (no path compression) over a segment tree of time. Rebuilding after each deletion works but discards the near-constant cost; online deletions need different structures.
 ```

@@ -22,9 +22,9 @@ A complete trade-off statement has five parts:
 
 As a template: *"I choose X over Y because of R. X costs us C, which is acceptable because A. If T happens, I would switch to Y."* The Kafka answer, rebuilt:
 
-> "For the upload-to-transcode hop I would use SQS rather than Kafka. The requirement is that every upload gets transcoded, at about 200 uploads a second, and nobody needs to replay the stream or have several independent consumers read it. Standard SQS costs us ordering and replay, and it charges per call: a send, a receive and a delete per message is about 1.5 billion calls a month, a few hundred dollars at list prices of tens of cents per million calls, less with batching. That is acceptable because transcode jobs are independent and idempotent by upload id. If analytics and moderation later want the same upload events, I would move to Kafka, because a replayable log read by several consumer groups is exactly what SQS does not give us."
+> "For the upload-to-transcode hop I would use SQS rather than Kafka. The requirement is that every upload gets transcoded, at about 200 uploads a second, and nobody needs to replay the stream or have several independent consumers read it. Standard SQS costs us ordering and replay, and it charges per call: a send, a receive and a delete per message is about 1.5 billion calls a month, around $600 at the list price of $0.40 per million standard-queue requests, less with batching. That is acceptable because transcode jobs are independent and idempotent by upload id. If analytics and moderation later want the same upload events, I would move to Kafka, because a replayable log read by several consumer groups is exactly what SQS does not give us."
 
-Every sentence carries something the interviewer can score ([queues and async processing](/learn/system-design/building-blocks/queues-and-async-processing) has the delivery semantics behind it): the requirement, a number, a cost with an order-of-magnitude price, the property that makes the cost safe (idempotency), and a concrete future condition. The 1.5 billion is arithmetic you can do aloud: 200 per second × 2.6 million seconds a month ≈ 520 million messages, times three calls each.
+Every sentence carries something the interviewer can score ([queues and async processing](/learn/system-design/building-blocks/queues-and-async-processing) has the delivery semantics behind it): the requirement, a number, a cost with an order-of-magnitude price, the property that makes the cost safe (idempotency), and a concrete future condition. The 1.5 billion is arithmetic you can do aloud: 200 per second × 2.6 million seconds a month ≈ 520 million messages, times three calls each. The price is the us-east-1 list price at the time of writing (September 2026), where each 64 KB of payload counts as one request; quoting the unit price and the arithmetic, rather than a total from memory, is what makes the number checkable.
 
 What is missing is adjectives. "Scalable", "robust", "flexible", "industry standard" and "battle-tested" carry no information, because every option on the board is all of those at some scale. Replace each adjective with the number or property it was standing in for.
 
@@ -34,12 +34,12 @@ Every design decision moves cost from one column to another. Naming both columns
 
 | Currency | Unit you should quote | Typical exchange |
 |---|---|---|
-| Latency | ms at p50 and p99 | Synchronous cross-region replication adds a round trip, 60–150 ms depending on the region pair, to every write |
+| Latency | ms at p50 and p99 | Synchronous cross-region replication adds a round trip to every write: light in fibre alone costs about 1 ms of round trip per 100 km of path, so tens of ms between neighbouring regions and 100–200 ms or more between continents |
 | Availability | Nines, or minutes of downtime a month | Five serial dependencies at 99.9% give 0.999⁵ ≈ 99.5%, about 3.6 hours a month ([designing for failure](/learn/system-design/senior-design-skills/designing-for-failure)) |
 | Consistency | Which anomaly a client can observe | Replica reads can be stale by the replication lag |
 | Durability | RPO: how much data a failure can lose | Asynchronous replication loses up to the lag on failover |
 | Throughput | Requests or MB per second per node | One Postgres primary tops out around tens of thousands of simple writes a second, depending on hardware and row size |
-| Money | $ per month, $ per million requests | Managed memory costs two to three orders of magnitude more per GB-month than object storage |
+| Money | $ per month, $ per million requests | Managed memory costs two to three orders of magnitude more per GB-month than object storage: about $12 per GiB-month for an ElastiCache `cache.r7g.large` against $0.023 per GB-month for S3 Standard (us-east-1 list prices, September 2026), roughly 500× |
 | Operational load | Systems to run, page, patch, back up | A new stateful datastore needs expertise, runbooks and on-call coverage |
 | Delivery time | Engineer-weeks | A custom component is weeks; a managed service is days |
 | Reversibility | Cost to undo | A partition key or public API is expensive to change; a cache library is not |
@@ -69,7 +69,7 @@ The decision: where to store viewing history for a streaming service. The number
 | Criterion (weight) | Sharded Postgres | Cassandra | DynamoDB global tables |
 |---|---|---|---|
 | Throughput (3) | 2: 10–20 primaries at 10–20k writes/s each, plus resharding tooling | 5: LSM writes, linear scale-out | 5: partitions split automatically |
-| Multi-region (3) | 1: no native multi-leader; home-region routing only | 4: multi-datacentre replication, last-write-wins per cell | 4: multi-active replication, last-writer-wins |
+| Multi-region (3) | 1: no native multi-leader; home-region routing only | 4: multi-datacentre replication, last-write-wins per cell | 4: multi-active replication, last-writer-wins per item in the default mode |
 | Ops burden (2) | 3: known engine, new sharding layer | 2: repairs, compaction and JVM tuning the team has never done | 5: managed |
 | Cost (2) | 4 | 4: on the order of 100 self-run nodes across three regions | 2: per-write pricing on 200k writes/s in three regions runs several times higher at list prices |
 | Query flexibility (1) | 5 | 2 | 2 |
@@ -111,7 +111,7 @@ for delta in itertools.product((-1, 0, 1), repeat=len(W)):
 print(counts)   # {'DynamoDB': 162, 'Cassandra': 54, 'Cassandra/DynamoDB': 27}
 ```
 
-Read the result the way a reviewer would. The elimination of Postgres is robust: no plausible reweighting revives it. The choice between the top two is not: one point on the ops weight flips it, and the only criteria that separate them are ops and cost. The matrix has reduced a five-criterion argument to one question: **do we run Cassandra ourselves, or pay a provider a premium to run it for us?** That is a question about the team, not the technology. Netflix has written publicly about operating Cassandra at very large scale with dedicated tooling; an organisation like that scores ops burden 4 or 5, not 2, and Cassandra wins 45 to 43 or 47 to 43. Say the pivot out loud, then decide it on the fact that settles it: can this team hire or borrow Cassandra operators within the quarter?
+Read the result the way a reviewer would. The elimination of Postgres is robust: no plausible reweighting revives it. The choice between the top two is not: one point on the ops weight flips it, and the only criteria that separate them are ops and cost. The matrix has reduced a five-criterion argument to one question: **do we run Cassandra ourselves, or pay a provider a premium to run it for us?** That is a question about the team, not the technology. Netflix runs Cassandra with its own open-source tooling (Priam, which runs beside each node to automate backups, token management and multi-region configuration); an organisation like that scores ops burden 4 or 5, not 2, and Cassandra wins 45 to 43 or 47 to 43. Say the pivot out loud, then decide it on the fact that settles it: can this team hire or borrow Cassandra operators within the quarter?
 
 ### Running the matrix aloud
 
@@ -142,7 +142,7 @@ Adding C, which nobody would choose, stretched the cost range from $10k–20k to
 
 ## One-way and two-way doors, priced
 
-Amazon popularised the distinction. A **two-way door** is cheap to walk back: a cache client, an instance type, SQS versus Kafka for one consumer, a TTL. A **one-way door** is expensive or impossible to undo: a partition key, a public API contract, an event schema other teams consume, the primary datastore. The test is "what would it cost to change this in a year?", and the answer can be turned into an expected cost.
+Amazon popularised the distinction: Jeff Bezos's 2016 shareholder letter calls reversible decisions "two-way doors" that can use a light-weight process, pointing back to the 2015 letter for the fuller argument. A **two-way door** is cheap to walk back: a cache client, an instance type, SQS versus Kafka for one consumer, a TTL. A **one-way door** is expensive or impossible to undo: a partition key, a public API contract, an event schema other teams consume, the primary datastore. The test is "what would it cost to change this in a year?", and the answer can be turned into an expected cost.
 
 **Deliberation is worth its price when it reduces expected regret by more than it costs.** Suppose a one-week spike would cut your chance of choosing wrong from 30% to 10%:
 
@@ -253,7 +253,7 @@ flowchart TD
 
 ## Interviewer follow-ups
 
-**"Why not use DynamoDB for everything?"** Model answer: for a lot of this design I would, and I would say where: viewing history and session state are key-value access at high write rates. Not for billing, where finance needs multi-row transactions and ad hoc SQL; DynamoDB's transactions exist but are limited in size and cost double the write capacity. And I would call the data model a one-way door: tables are designed around access patterns, so a new pattern can mean a new index and a backfill. Common wrong answer: "because of vendor lock-in", a real cost stated with no requirement it violates.
+**"Why not use DynamoDB for everything?"** Model answer: for a lot of this design I would, and I would say where: viewing history and session state are key-value access at high write rates. Not for billing, where finance needs multi-row transactions and ad hoc SQL; DynamoDB's transactions exist but are limited to 100 items and 4 MB, and each item is written twice, once to prepare and once to commit, so they cost double the write capacity. And I would call the data model a one-way door: tables are designed around access patterns, so a new pattern can mean a new index and a backfill. Common wrong answer: "because of vendor lock-in", a real cost stated with no requirement it violates.
 
 **"You chose eventual consistency. Convince me it is safe."** Model answer: it is safe where a stale read cannot cause a wrong write: home-page rows, view counts, search results. The resume position after a device switch is read at local quorum in the region where the pause was written, which is the same region for almost every household; the rare cross-region case is stale by the lag, which I measure as an SLI. Anything that decrements a balance or quota goes through a conditional write on the leader. Consistency is chosen per operation. Common wrong answer: "replication lag is only milliseconds", which ignores the tail during failover and partitions.
 

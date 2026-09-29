@@ -57,7 +57,7 @@ Look at the fan-in. Thirty replicas each holding HikariCP's default pool of 10 c
 A balancer presents one address for many replicas, picks a replica per request or connection, and stops sending to unhealthy ones. [Load balancing](/learn/networking/application-protocols/load-balancing) covers L4 versus L7, the algorithms with numbers and health-check arithmetic; four decisions matter for scaling:
 
 - **Balance requests, not connections**, for HTTP/2 and gRPC, or long-lived connections pin load to whichever replicas existed when clients connected.
-- **Least outstanding requests with two random choices** is the default for good reason: a slow replica accumulates in-flight work and receives less, so it is a health signal in disguise.
+- **Least outstanding requests with two random choices** is the better default, though balancers ship with round robin (AWS's ALB does; Envoy's least-request policy samples two hosts when you choose it): a slow replica accumulates in-flight work and receives less, so it is a health signal in disguise.
 - **Shallow liveness, local readiness.** A readiness check that queries a shared database ejects the whole fleet when the database blips.
 - **Drain on removal.** Fail readiness first, wait for balancers to notice, finish in-flight requests, then exit.
 
@@ -173,13 +173,13 @@ A cloud balancer adds its own drain: an AWS target group keeps in-flight request
 
 ## Long-lived connections do not rebalance themselves
 
-Request-level balancing spreads load the moment a replica joins. Connection-level load does not: WebSockets, gRPC streams and database connections stay where they were opened. Add 5 replicas to 10 that hold 50,000 WebSocket connections each and the new ones start at zero; only reconnections land on them. If 2% of connections close and reconnect every minute (mobile churn), the old replicas decay towards the new average of 33,333 and take $\ln(50{,}000 / 36{,}667) / 0.02 \approx 15.5$ minutes to come within 10% of it; at 0.2% a minute (desktop clients on stable networks) it takes 155 minutes.
+Request-level balancing spreads load the moment a replica joins. Connection-level load does not: WebSockets, gRPC streams and database connections stay where they were opened. Add 5 replicas to 10 that hold 50,000 WebSocket connections each and the new ones start at zero; only reconnections land on them. If 2% of connections close and reconnect every minute (mobile churn) and a least-connections balancer sends every reconnection to the new replicas, the old replicas decay towards the new average of 33,333 and take $\ln(50{,}000 / 36{,}667) / 0.02 \approx 15.5$ minutes to come within 10% of it; at 0.2% a minute (desktop clients on stable networks) it takes 155 minutes.
 
 Two consequences. An autoscaler that scales on CPU adds replicas that receive almost nothing, sees the old replicas still hot, and adds more: an overshoot that ends at the maximum replica count. And the fix is active: old replicas ask a controlled fraction of their clients to reconnect (a close frame with a "reconnect elsewhere" code, or a gRPC `GOAWAY` after a maximum connection age), paced so the new replicas' TLS handshakes stay within their capacity. The [chat system case study](/learn/system-design/case-studies/chat-system) runs this at 200,000 connections per gateway.
 
 ## Under the hood: the Kubernetes Horizontal Pod Autoscaler
 
-The HPA controller runs every 15 s (`--horizontal-pod-autoscaler-sync-period`) and computes
+The [HPA controller](https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/) runs every 15 s (`--horizontal-pod-autoscaler-sync-period`) and computes
 
 $$\text{desired} = \left\lceil \text{current} \times \frac{\text{current metric}}{\text{target}} \right\rceil$$
 

@@ -439,7 +439,7 @@ CPython's default limit is 1,000 frames (`sys.getrecursionlimit()`); Node 24 ove
 
 ### Where it runs at scale
 
-Dependency resolution is this pattern in production. pip's resolver (resolvelib, the default since pip 20.3) chooses a candidate version for one requirement, recurses into its dependencies, and backtracks to the most recent choice when a later requirement conflicts; its `ResolutionTooDeep` error is a node budget running out on an exponential tree. The same levers apply: prune on the first conflict, and choose the most constrained requirement first.
+Dependency resolution is this pattern in production. pip's resolver (resolvelib, the default since pip 20.3) chooses a candidate version for one requirement, recurses into its dependencies, and backtracks to the most recent choice when a later requirement conflicts; its `ResolutionTooDeep` error is a search budget running out on an exponential tree (pip passes resolvelib `max_rounds=200000`). The same levers apply: prune on the first conflict, and choose the most constrained requirement first.
 
 ## Failure modes
 

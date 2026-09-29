@@ -209,7 +209,7 @@ Trace with `n = 4`, `k = 1`, `times = [[1,2,1], [2,3,2], [1,3,4], [3,4,1], [2,4,
 | (4, 4) | no | none | | (6,4) |
 | (6, 4) | **yes**, 6 > 4 | skipped | | |
 
-Answer 4. The two stale pops are the entries a decrease-key would have updated in place. BFS on this graph gives `dist[3] = 4` (one direct hop) and answers 5.
+Answer 4. The two stale pops are the entries a decrease-key would have updated in place. BFS on this graph fixes `dist[3] = 4` (one direct hop) and `dist[4] = 6` (first reached from node 2), and answers 6.
 
 ### 0-1 BFS on a small graph
 
@@ -381,7 +381,7 @@ Common wrong answer: Dijkstra with one `dist` per node plus a stops counter, whi
 
 **"Some edges are negative."** Model answer: Dijkstra's proof needs non-negative extensions; use Bellman-Ford (`O(V · E)`), or topological relaxation if the graph is a DAG, and a `V`-th round to detect a negative cycle. Common wrong answer: "add a constant to every weight", which penalises paths with more edges and changes the answer.
 
-**"It's a road network with 10⁷ nodes and you answer millions of queries."** Model answer: plain Dijkstra explores a large part of the graph per query, on the order of seconds each even in compiled code; bidirectional search roughly halves the explored radius, A\* with a distance lower bound focuses it, and production routers precompute shortcuts (contraction hierarchies) so a query settles on the order of hundreds to thousands of nodes. See [A\* and heuristic search](/learn/algorithms/graph-algorithms/a-star-and-heuristic-search). Common wrong answer: "Floyd-Warshall once and look up", which is 10¹⁴ table entries.
+**"It's a road network with 10⁷ nodes and you answer millions of queries."** Model answer: plain Dijkstra explores a large part of the graph per query, on the order of seconds each even in compiled code; bidirectional search roughly halves the explored radius, A\* with a distance lower bound focuses it, and production routers precompute shortcuts (contraction hierarchies) so a query settles on the order of hundreds to thousands of nodes: on an 18-million-node Western European road graph, the [original contraction-hierarchies paper](https://turing.iem.thm.de/routeplanning/hwy/contract.pdf) (Geisberger, Sanders, Schultes and Delling, WEA 2008) reports about 400 to 1,800 settled nodes and 0.18 to 0.67 ms per query, depending on the variant. See [A\* and heuristic search](/learn/algorithms/graph-algorithms/a-star-and-heuristic-search). Common wrong answer: "Floyd-Warshall once and look up", which is 10¹⁴ table entries.
 
 **"All pairs, 400 nodes."** Model answer: Floyd-Warshall is `400³ = 6.4 × 10⁷` relaxations, measured at 2.6 s in CPython 3.14 and 40 ms in Node 24 with typed rows; or `V` Dijkstra runs if the graph is sparse. Common wrong answer: `V` Bellman-Ford runs, `O(V² · E)`.
 

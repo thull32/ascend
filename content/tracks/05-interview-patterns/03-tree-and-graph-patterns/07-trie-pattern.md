@@ -150,7 +150,7 @@ Watch words share paths and diverge:
 | `insert("bat")` | b\* a\* t\* | 3 | 11 | |
 | `search("appl")` | a p p l | | 11 | `False`: a prefix of two words, not a word |
 
-Five words, 17 characters, 11 nodes (10 plus the root). At the measured 202 bytes per node, that is about 2.2 KB where the five strings themselves take about 270 bytes: tries trade memory for prefix operations.
+Five words, 19 characters, 11 nodes (10 plus the root). At the measured 202 bytes per node, that is about 2.2 KB where the five strings themselves take about 220 bytes (`sys.getsizeof` on 3.14): tries trade memory for prefix operations.
 
 ### Design Add and Search Words
 
@@ -317,7 +317,7 @@ Output `"the cat was rat by the bat"`. The `while ... not node.end` condition is
 {"type": "trie", "algorithm": "prefix-autocomplete", "operations": [["insert", "car"], ["insert", "card"], ["insert", "care"], ["insert", "cat"], ["insert", "dog"], ["prefix", "car"]], "title": "Autocomplete from a prefix node", "caption": "Walk to the prefix node, then collect every word in its subtree."}
 ```
 
-Real systems use the compressed forms: the Linux kernel routes IPv4 with an LC-trie (longest-prefix match on address bits), Redis keeps stream IDs and some key indexes in a radix tree (`rax`), and Lucene stores its term dictionary as a finite-state transducer, a trie that also shares suffixes.
+Real systems use the compressed forms. The Linux kernel's IPv4 routing table (`net/ipv4/fib_trie.c`) is an LPC-trie, level- and path-compressed, doing longest-prefix match on address bits. Redis keeps each stream's entries, keyed by stream ID, and the key table behind client-side caching in its radix tree (`rax`). Lucene's block-tree term dictionary is indexed by a per-field structure that maps each term prefix to the on-disk block of terms starting with it: a finite-state transducer (a trie that also shares suffixes) in the Lucene 9 codecs, and a plain trie in the codec Lucene 10.3 introduced.
 
 ## Under the hood
 

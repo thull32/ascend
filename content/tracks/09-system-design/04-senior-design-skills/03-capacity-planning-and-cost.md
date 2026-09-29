@@ -8,7 +8,7 @@ tags: [system-design, senior-skills, capacity-planning, cost, estimation, cloud,
 ---
 Product announces a launch in a new market in eight weeks, expected to add 40% to peak traffic. Your director asks two questions: will we stay up, and what will it cost? "We autoscale" answers neither. Autoscaling reacts in minutes to load that arrives in seconds, it cannot create capacity your quotas or your database do not have, and it says nothing about the bill. The senior answer is a number of instances with headroom, the date the capacity must exist, the resource that runs out first, the line item that dominates the bill, and the cost per request before and after.
 
-That answer is arithmetic, and this lesson is the arithmetic. [Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) gave you the reference numbers; here you turn them into a plan that finance and on-call can both hold you to. Every price below is a round number of the right order of magnitude at the time of writing (2026). Real prices depend on provider, region, instance family, volume tier and commitment, so treat them as assumptions to replace, not quotes.
+That answer is arithmetic, and this lesson is the arithmetic. [Back-of-envelope estimation](/learn/system-design/building-blocks/back-of-envelope-estimation) gave you the reference numbers; here you turn them into a plan that finance and on-call can both hold you to. Every price below is a round number of the right order of magnitude at the time of writing (September 2026); where a line names an AWS price, it was checked against AWS's us-east-1 price list that month. Real prices depend on provider, region, instance family, volume tier and commitment, so treat them as assumptions to replace, not quotes.
 
 ## The capacity model
 
@@ -104,13 +104,13 @@ Organic growth compounds. At 5% a month traffic doubles in ln 2 / ln 1.05 ≈ 14
 
 The launch plan: two months of 5% organic growth takes peak from 50,000 to 55,125 rps, and the launch adds 40%: 77,175 rps. With the zone-loss rule (two zones must carry peak at the knee), that is 77,175 / 1,250 = 62 instances across two zones, 31 per zone, **93 in total**, up from 60. Now the questions are concrete: can the database take 55% more connections and queries, is the account quota above 93 instances of this type in this region, and when must it all be in place?
 
-That last question is **lead time**. On-demand capacity arrives in minutes if quota and regional supply exist; quota increases take days; commitments are planned quarterly; hardware shipped to partners, as Netflix does with its Open Connect appliances in ISP networks, has lead times of months. The planning horizon is lead time plus review interval plus margin. Known events are pre-scaled: autoscaling reacts over minutes and new instances take minutes to boot and warm caches, so an 8 p.m. premiere is scaled at 7 p.m. from a schedule, not discovered by a CPU alarm at 8:02.
+That last question is **lead time**. On-demand capacity arrives in minutes if quota and regional supply exist; quota increases take days; commitments are planned quarterly; hardware shipped to partners, as Netflix does with the Open Connect appliances it embeds in ISP networks, moves at the pace of manufacturing, shipping and each partner's installation schedule, which is months rather than days. The planning horizon is lead time plus review interval plus margin. Known events are pre-scaled: autoscaling reacts over minutes and new instances take minutes to boot and warm caches, so an 8 p.m. premiere is scaled at 7 p.m. from a schedule, not discovered by a CPU alarm at 8:02.
 
 ## Storage grows differently
 
 Request capacity follows traffic; storage follows its integral. Say the same product also ingests 2 billion playback events a day at 100 bytes each: 200 GB of raw data a day; replicated three times, 600 GB; with about 30% index and compaction overhead, roughly 780 GB of disk a day. That is 285 TB after a year with flat traffic, and 377 TB if ingest grows 5% a month, because each month adds more than the last.
 
-The lever is retention. Keeping 90 days hot needs about 70 TB of fast storage; older data moves to object storage, typically an order of magnitude cheaper per GB-month, or is aggregated and the raw data deleted. Budget free space for the storage engine too: log-structured stores need room to compact, up to half the disk under some strategies, so a disk at 80% full may already be unable to compact.
+The lever is retention. Keeping 90 days hot needs about 70 TB of fast storage; older data moves to object storage or is aggregated and the raw data deleted. At AWS list prices S3 Standard's $0.023 per GB-month is under a third of gp3 block storage's $0.08, and object storage needs no three-way replication on top, so per byte of data it is roughly ten times cheaper. Budget free space for the storage engine too: log-structured stores need room to compact, up to half the disk under some strategies, so a disk at 80% full may already be unable to compact.
 
 ## Cost per request
 
@@ -122,9 +122,9 @@ Unit economics make cost discussable: a service's monthly cost divided by the re
 | Database | Primary and two replicas at ~$2/hour, plus 6 TB of block storage | $4,980 | 4% |
 | Cache | Six nodes at ~$0.50/hour | $2,190 | 2% |
 | Load balancing | Fixed plus per-request charges | $2,000 | 2% |
-| Internet egress | 5 KB × 97 billion = 486 TB at a few cents per GB | $24,300 | 21% |
+| Internet egress | 5 KB × 97 billion = 486 TB at $0.05/GB, AWS's rate above 150 TB a month (its tiers start at $0.09, so the true blend is about 16% higher) | $24,300 | 21% |
 | Cross-zone traffic | 10 KB per request crossing zones, ~$0.01/GB each direction | $19,440 | 17% |
-| Log ingestion | 1 KB per request = 97 TB at tens of cents per GB | $48,600 | 42% |
+| Log ingestion | 1 KB per request = 97 TB at $0.50/GB, CloudWatch Logs' standard ingestion price | $48,600 | 42% |
 | **Total** | | **$114,650** | **$1.18 per million requests** |
 
 The instances everyone argues about are 11% of the bill. The dominant costs are data moving: logs, egress and traffic between zones. None shows up in a load test, and all scale linearly with requests. Four changes, none touching the architecture:
@@ -148,9 +148,9 @@ Know where bytes are metered, because that is where the surprises come from. Tra
 | Pricing model | Discount on on-demand (order of magnitude) | Commitment | Flexibility | Interruption | Fits |
 |---|---|---|---|---|---|
 | On-demand | None: the reference price | None | Full | None | Peaks, experiments, anything under a year |
-| Reserved instances | 30–60%+, deeper for 3 years and upfront payment | 1 or 3 years | Locked to family and region | None | The steady trough of a stable service |
-| Savings plans / committed spend | Similar, slightly less for the most flexible kinds | $ per hour for 1 or 3 years | Follows usage across families and often regions | None | A baseline you expect to migrate between instance types |
-| Spot / preemptible | 60–90% | None | Full | Reclaimed at short notice (two minutes on AWS) | Batch, encoding, CI, checkpointed training, queue workers |
+| Reserved instances | 30–60% typically; AWS quotes up to 72% for 3 years paid upfront | 1 or 3 years | Locked to family and region | None | The steady trough of a stable service |
+| Savings plans / committed spend | Similar, slightly less for the most flexible kinds (AWS: up to 66% for Compute Savings Plans) | $ per hour for 1 or 3 years | Follows usage across families and often regions | None | A baseline you expect to migrate between instance types |
+| Spot / preemptible | 60–90% (AWS: "up to 90% off") | None | Full | Reclaimed at short notice (two minutes on AWS) | Batch, encoding, CI, checkpointed training, queue workers |
 
 ### The break-even rule
 
@@ -173,11 +173,11 @@ The optimum is flat: five instances either side costs about 1%. Reserving the pe
 
 Commitments are priced for the whole term, so the risk is using them for less. Take 40 instances on a 3-year term at 60% off (~$0.16/hour) against renewing 1-year terms at 40% off (~$0.24/hour). The 3-year term costs $168,192 over its life whatever happens. If the service migrates to a new instance family after 12 months, you paid the equivalent of $0.48 an hour for what you used, more than on-demand, and $112,128 of commitment is stranded. The break-even against 1-year terms is 36 × 0.16 / 0.24 = 24 months of use. The rule: commit for three years only to capacity you are confident will exist in the same shape for more than two, and prefer flexible commitments for anything on a migration roadmap.
 
-The idle reserved capacity in the trough is free compute. Netflix has written about running encoding work on its own idle reserved instances during the daily trough, spot pricing without the reclamation risk. Spot belongs where interruption is cheap, and checkpointing is what makes it cheap. Assume, as an order of magnitude that varies by instance type and region, that 5% of spot instances are reclaimed in any hour. An encoding job that checkpoints every 10 minutes loses about 5 minutes per reclaim, so 0.05 × 5/60 ≈ 0.4% of its compute is wasted, against a discount of 60–90%. A 12-hour job with no checkpoints is interrupted with probability 1 − 0.95¹² ≈ 46% and restarts from zero. Spot does not belong under a latency SLO unless the fleet can lose a slice of instances with two minutes' notice and not notice.
+The idle reserved capacity in the trough is free compute. Netflix described this in 2015 as an "internal spot market": autoscaling on top of reservations left a daily peak of over 12,000 unused reserved instances, which its encoding team borrowed during the trough, spot pricing without the reclamation risk. Spot belongs where interruption is cheap, and checkpointing is what makes it cheap. Assume, as an order of magnitude that varies by instance type and region, that 5% of spot instances are reclaimed in any hour. An encoding job that checkpoints every 10 minutes loses about 5 minutes per reclaim, so 0.05 × 5/60 ≈ 0.4% of its compute is wasted, against a discount of 60–90%. A 12-hour job with no checkpoints is interrupted with probability 1 − 0.95¹² ≈ 46% and restarts from zero. Spot does not belong under a latency SLO unless the fleet can lose a slice of instances with two minutes' notice and not notice.
 
 ## Serverless versus instances
 
-The same arithmetic settles "function or service?". At list prices of the order of $0.20 per million invocations plus about $0.0000167 per GB-second, a 100 ms request at 512 MB costs about $1.03 per million. The running example's instances serve about 3 million requests per instance-hour at ~$0.40, about $0.13 per million, eight times cheaper at sustained load. The break-even is around 110 requests per second per instance you would otherwise run: a service averaging 20 rps with occasional bursts is cheaper as functions, because instances would idle; one at 37,500 rps is far cheaper on instances. Add cold starts on the latency path and connection limits to databases, and the answer is usually functions for spiky glue and instances for steady hot paths.
+The same arithmetic settles "function or service?". At AWS Lambda's list prices ($0.20 per million requests plus $0.0000166667 per GB-second for x86 in us-east-1), a 100 ms request at 512 MB costs about $1.03 per million. The running example's instances serve about 3 million requests per instance-hour at ~$0.40, about $0.13 per million, eight times cheaper at sustained load. The break-even is around 110 requests per second per instance you would otherwise run: a service averaging 20 rps with occasional bursts is cheaper as functions, because instances would idle; one at 37,500 rps is far cheaper on instances. Add cold starts on the latency path and connection limits to databases, and the answer is usually functions for spiky glue and instances for steady hot paths.
 
 ## The plan on one page
 

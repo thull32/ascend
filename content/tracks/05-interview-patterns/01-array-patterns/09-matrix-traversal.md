@@ -9,7 +9,7 @@ problems: [rotate-image, spiral-matrix, set-matrix-zeroes, spiral-matrix-ii, sea
 ---
 Matrix problems are rarely hard in the algorithmic sense. Spiral order is a walk; rotation is a permutation; zeroing rows and columns is bookkeeping. Yet they have one of the highest failure rates in coding rounds, because the difficulty is entirely in the indices: which of `i` and `j` is the row, whether a boundary is inclusive, whether the last pass of a spiral revisits a row already emitted, and whether an in-place update reads a cell it has already overwritten.
 
-Every technique in this lesson is a way of making those index decisions once, up front, so the loop body cannot get them wrong: fixed conventions, shrinking inclusive boundaries, factoring a rotation into two loops you cannot get wrong, and borrowing storage inside the matrix for flags. The traversal order also has a cost that interviewers probe: on a 4,096 × 4,096 grid, walking columns instead of rows was 9× slower in Node 24 and 1.7× slower in CPython 3.14 on the machine this lesson was written on, with identical arithmetic. The measurements and the reason for the difference between runtimes are below.
+Every technique in this lesson is a way of making those index decisions once, up front, so the loop body cannot get them wrong: fixed conventions, shrinking inclusive boundaries, factoring a rotation into two loops you cannot get wrong, and borrowing storage inside the matrix for flags. The traversal order also has a cost that interviewers probe: on a 4,096 × 4,096 grid, walking columns instead of rows was 9× slower in Node 24 and 1.6× slower in CPython 3.14 on the machine this lesson was written on, with identical arithmetic. The measurements and the reason for the difference between runtimes are below.
 
 ## The signal
 
@@ -145,7 +145,7 @@ The direction-vector form is the alternative: keep `(i, j)` and a direction inde
 | 2d | (2, 1, 1, 1) | guard `left <= right` holds; rows 1..2 descending: empty range | nothing | left → 2 |
 | end | (2, 1, 2, 1) | `top > bottom`, loop exits | | |
 
-Output `[1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]`. Pass 2c is the one that matters: without its guard, row 1 would be emitted again as `7, 6`. [Spiral Matrix II](/practice/spiral-matrix-ii) is the same walk writing a counter into each cell instead of reading it.
+Output `[1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]`. Pass 2c is the one that matters: without its guard, the bottom-row pass would walk row 1 again from `right = 1` down to `left = 1` and emit 6 a second time. [Spiral Matrix II](/practice/spiral-matrix-ii) is the same walk writing a counter into each cell instead of reading it.
 
 ### Rotate Image
 
@@ -381,7 +381,7 @@ The column walk adds a few nanoseconds per cell in every runtime: each access la
 
 The nested JavaScript version is close to the flat one row-wise because each row is its own contiguous backing store of unboxed doubles; column-wise it is the slowest, because every step also loads a different row object's pointer before it can load the value. A flat buffer indexed by `i * cols + j` needs one multiply-add per access and no second load.
 
-Two CPython details show up in the table. Hoisting `r = grid[i]` out of the inner loop saves one dependent load per cell (14%). And the values here are small integers, which CPython pre-allocates; with floats or large integers every cell is a pointer to a separate 24- or 28-byte object, so even the row walk chases pointers across the heap. For numeric grids at scale, a flat typed buffer (a NumPy array, a JavaScript typed array) stores the values themselves contiguously.
+Two CPython details show up in the table. Hoisting `r = grid[i]` out of the inner loop saves one dependent load per cell (about 13%). And the values here are small integers, which CPython pre-allocates; with floats or large integers every cell is a pointer to a separate 24- or 28-byte object, so even the row walk chases pointers across the heap. For numeric grids at scale, a flat typed buffer (a NumPy array, a JavaScript typed array) stores the values themselves contiguously.
 
 ### What this means in the interview
 
@@ -541,7 +541,7 @@ hints:
   options: ["The bottom row is skipped on matrices wider than they are tall", "The right column is emitted twice when only one column remains", "The loop never terminates on matrices with an odd number of rows", "A lone remaining row is emitted a second time, in reverse order"]
   answer: 3
   explanation: >-
-    After the top-row pass, top has moved past bottom when only one row remained. Without the guard the bottom-row pass runs on that same row from right to left, duplicating it. A leftover single column is protected by the other guard, left <= right.
+    After the top-row pass, top has moved past bottom when only one row remained. Without the guard the bottom-row pass runs on that same row from right to left, duplicating every cell except the last one, which the right-column pass had already claimed. A leftover single column is protected by the other guard, left <= right.
 - q: >-
     Which two in-place operations compose to a 90-degree clockwise rotation of an n × n matrix?
   options: ["Reverse the row order, then reverse each row", "Reverse each row, then reverse each column", "Transpose, then reverse the entries of each row", "Transpose, then reverse the entries of each column"]

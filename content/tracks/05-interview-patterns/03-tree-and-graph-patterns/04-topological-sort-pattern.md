@@ -81,7 +81,7 @@ function topoOrder(n, edges) {
   for (const [u, v] of edges) { adj[u].push(v); indeg[v]++; }
   const queue = [];
   for (let i = 0; i < n; i++) if (indeg[i] === 0) queue.push(i);
-  let head = 0;                              // head index: shift() is O(n)
+  let head = 0;                              // head index: shift() can be O(n)
   while (head < queue.length) {
     const u = queue[head++];
     for (const v of adj[u]) if (--indeg[v] === 0) queue.push(v);
@@ -335,11 +335,11 @@ When B is processed, both edges into it have been relaxed, so −2 is final even
 - **Unique order**: an order is unique exactly when the queue never holds two nodes at once, because two ready nodes can be emitted in either order. Equivalently, consecutive nodes in the order are joined by edges (a Hamiltonian path).
 - **DAG shortest or longest path**: when a node's turn comes, every edge into it has been relaxed, so its value is final. Negative weights are fine; this is DP over the order.
 - **Cycles are allowed but you need an order of the groups**: collapse each [strongly connected component](/learn/algorithms/graph-algorithms/strongly-connected-components) to one node; the condensation is always a DAG, and Kahn's orders it.
-- **Build systems**, package managers and workflow schedulers (Apache Airflow, Netflix's open-source Maestro) run a step once all its upstream steps have finished, which is Kahn's algorithm with the in-degree counter replaced by an outstanding-dependencies count, and they report the cycle, which needs the DFS version.
+- **Build systems**, package managers and workflow schedulers run a step once all its upstream steps have finished, which is Kahn's algorithm with the in-degree counter replaced by a record of outstanding dependencies. Netflix's open-source Maestro, for instance, walks a run's DAG by removing each finished step from its children's parent sets and enqueuing a child whose set empties (`DagHelper.isDone`). Rejecting a cyclic definition is the DFS half: Apache Airflow 2.x's `check_cycle` is a three-state DFS (new, in progress, done) that raises on an edge to an in-progress task and names that task.
 
 ## Under the hood
 
-**`deque` against `list.pop(0)`.** CPython's `deque` is a doubly linked list of 64-slot blocks, so `popleft` is `O(1)`. `list.pop(0)` shifts every remaining pointer one slot left. Measured on CPython 3.14: running Kahn's over 200,000 isolated nodes (all ready at once) takes 12 ms with a `deque` and 950 ms with `list.pop(0)`; at 10⁶ nodes the `deque` takes 72 ms and the list version grows quadratically, into tens of seconds. In JavaScript `shift()` has the same shape; keep a head index instead.
+**`deque` against `list.pop(0)`.** CPython's `deque` is a doubly linked list of 64-slot blocks, so `popleft` is `O(1)`. `list.pop(0)` shifts every remaining pointer one slot left. Measured on CPython 3.14: running Kahn's over 200,000 isolated nodes (all ready at once) takes 12 ms with a `deque` and 950 ms with `list.pop(0)`; at 10⁶ nodes the `deque` takes 72 ms and the list version grows quadratically, into tens of seconds. In JavaScript `shift()` can have the same shape (V8 copies the remaining elements for large arrays); keep a head index instead.
 
 **Recursion depth in the DFS version.** CPython's default recursion limit is 1,000, and on 3.14 the recursive `visit` fails on a dependency chain of 999 nodes (the calling frames use the rest). Since CPython 3.11, Python-to-Python calls do not consume the C stack, so `sys.setrecursionlimit(2_000_000)` works: a 10⁶-node chain then completes in 437 ms and grows the process by about 223 MB, roughly 220 bytes per frame. On older versions a raised limit could crash the interpreter instead of raising `RecursionError`. Node 24's default stack overflowed the DFS-shaped recursion between 5,000 and 5,500 frames in the same test, which is why the JavaScript template is iterative.
 

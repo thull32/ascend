@@ -16,17 +16,17 @@ Carry these as orders of magnitude. The provenance column is what lets you defen
 
 | Operation | Rough cost | Where the number comes from |
 |---|---|---|
-| L1 cache hit | ~1 ns | About 4 cycles at 3–4 GHz; the "latency numbers every programmer should know" table (Norvig, 2001; popularised by Jeff Dean) |
+| L1 cache hit | ~1 ns | About 4 cycles at 3–4 GHz; the "latency numbers every programmer should know" table (Norvig, 2001; popularised by Jeff Dean) lists 0.5 ns |
 | Main memory reference | ~100 ns | DRAM latency of 60–100 ns on current servers; a pointer chase costs about 100 L1 hits |
-| Compress 1 KB (LZ4, Snappy) | ~1–2 µs | These codecs run at 0.5–1 GB/s per core |
+| Compress 1 KB (LZ4, Snappy) | ~1–2 µs | LZ4's README reports 780 MB/s per core and Snappy 565 MB/s |
 | Read 1 MB sequentially from memory | ~50 µs | 10–20 GB/s for one thread |
-| NVMe random 4 KB read | ~20–100 µs | Local flash; cloud network block storage is 0.5–1 ms |
-| Durable write (write + fsync) | 0.05–5 ms | Measured 4.2 ms median on this lesson's workstation (WSL2 virtual disk, snippet below); NVMe with power-loss protection acknowledges in tens of µs; cloud block volumes ~1 ms |
+| NVMe random 4 KB read | ~20–100 µs | Local flash; network block storage is slower: AWS rates io2 Block Express at under 0.5 ms average and gp3 at "single-digit millisecond" |
+| Durable write (write + fsync) | 0.05–5 ms | Measured 4.2 ms median on this lesson's workstation (WSL2 virtual disk, snippet below); NVMe with power-loss protection acknowledges in tens of µs; cloud block volumes 0.5 ms to a few ms |
 | Read 1 MB sequentially from NVMe | ~0.3–1 ms | 1–3 GB/s sequential |
 | HDD seek | ~5–10 ms | Half a rotation at 7,200 rpm is 4.2 ms, plus arm movement |
 | Round trip, same availability zone | ~0.1–0.5 ms | Switch hops plus both kernels' network stacks |
 | Round trip, across AZs in a region | ~0.5–2 ms | AWS places AZs within about 100 km of each other |
-| Round trip, US East to US West | ~60–70 ms | ~4,000 km; light in fibre covers ~200 km per ms, so 40 ms is the floor and real routes are longer |
+| Round trip, US East to US West | ~60–70 ms | ~4,000 km each way: a 40 ms floor, and real routes are longer |
 | Round trip, US East to Western Europe | ~70–90 ms | New York to London is 5,570 km: a 56 ms floor |
 | Round trip, US to Australia | ~150–200 ms | Pacific cable paths of 12,000+ km |
 | Send 1 MB over 1 Gbps | ~8 ms | Serialisation alone, before RTTs and TCP slow start |
@@ -34,7 +34,7 @@ Carry these as orders of magnitude. The provenance column is what lets you defen
 | Postgres primary-key lookup | 0.13 ms | Measured: one connection over a Unix socket, warm buffer pool, Postgres 17 |
 | Postgres single-row commit | 2.9 ms | Measured: one connection, `synchronous_commit = on`; 0.1 ms with it off |
 
-Two facts fall out and are worth saying when relevant. The round trip dominates almost every request: five sequential same-AZ calls cost 1–2 ms before any work. And a cross-region call costs as much as a hundred same-AZ calls, which is why multi-region designs replicate data rather than call across an ocean on the hot path. [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) derives the network numbers.
+Two facts fall out. The round trip dominates almost every request: five sequential same-AZ calls cost 1–2 ms before any work. And a cross-region call costs as much as a hundred same-AZ calls, which is why multi-region designs replicate data rather than call across an ocean on the hot path. [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) derives the network numbers.
 
 ```viz
 {"type": "system", "scenario": "request-flow", "title": "Where a request spends its time",
@@ -57,7 +57,7 @@ Two facts fall out and are worth saying when relevant. The round trip dominates 
 | Postgres single-row commits | 343/s on 1 connection, 3,800/s on 16, 16,000/s on 64 | Measured; concurrent commits share one fsync (group commit); batching many rows per transaction goes far higher |
 | Redis / Memcached | ~100,000–200,000 simple ops/s per instance | One read and one write system call per unpipelined request; pipelining reaches over a million |
 | Kafka partition | tens of MB/s | A partition is a sequential log on one broker; a broker carries hundreds of MB/s across partitions |
-| S3 | 3,500 writes/s and 5,500 reads/s per key prefix | AWS's documented per-prefix rates; aggregate throughput scales with prefixes |
+| S3 | 3,500 writes/s and 5,500 reads/s per key prefix | AWS documents "at least" these rates per partitioned prefix; aggregate throughput scales with prefixes |
 
 Rule of thumb: within 3× of a ceiling, design for it; 10× under, do not.
 
@@ -91,7 +91,7 @@ print(f"median {med:.2f} ms, p99 {p99:.2f} ms -> at most {1000 / med:,.0f} seria
 
 On this lesson's workstation it printed a 4.2 ms median: at most about 240 serial durable writes a second. Postgres's measured 2.9 ms commit matches that order.
 
-**Group commit is why concurrency raises write throughput.** When a backend flushes the WAL up to its commit record, every other commit record already in the WAL buffer becomes durable in the same flush. The measurement shows it: 1 connection, 343 commits/s at 2.9 ms each; 16 connections, 3,800/s at 4.2 ms; 64 connections, 16,000/s at 4.0 ms. Latency stayed flat while throughput grew 47×, because each flush carried more commits. `commit_delay` makes a backend wait briefly to gather more, which helps only on slow devices.
+**Group commit is why concurrency raises write throughput.** When a backend flushes the WAL up to its commit record, every other commit record already in the WAL buffer becomes durable in the same flush. The measurement shows it: 1 connection, 343 commits/s at 2.9 ms each; 16 connections, 3,800/s at 4.2 ms; 64 connections, 16,000/s at 4.0 ms. Latency stayed flat while throughput grew 47×, because each flush carried more commits. `commit_delay` makes the flushing backend wait a few microseconds so more commit records join its flush; the Postgres docs call it most useful on high-latency disks and say to test it on fast ones.
 
 **Reads saturate CPU, then queue.** One connection did 7,700 primary-key lookups a second, 0.13 ms each; 32 connections did 53,000/s at 0.6 ms; 90 connections did 69,000/s at 1.3 ms. Past about one connection per hardware thread, throughput grew 30% while latency doubled. That is Little's law (in flight = rate × latency) meeting a CPU limit, and it is the numeric argument for small connection pools in [Database scaling](/learn/system-design/building-blocks/database-scaling).
 
@@ -157,7 +157,7 @@ Round at every step: 1.7 becomes 2, $2.6 \times 10^6$ becomes $3 \times 10^6$. P
  "caption": "At 17,000 image reads per second and 200 KB each, the edge serves about 3.5 GB/s while the origin sees only the 5% that miss. The origin's capacity is set by the miss rate, not the user count."}
 ```
 
-**Bill of materials:** ~10 API servers (signing URLs and writing metadata), 40 resize workers, one Postgres primary and two replicas, 28 Gbit/s of CDN edge at peak and 1.4 Gbit/s of origin, and an object store growing 65 TB a day. The dominant cost is storage: moving originals to an infrequent-access or archive tier after 30 days (a quarter to a tenth of the price) is a requirement, not an optimisation.
+**Bill of materials:** ~10 API servers (signing URLs and writing metadata), 40 resize workers, one Postgres primary and two replicas, 28 Gbit/s of CDN edge at peak and 1.4 Gbit/s of origin, and an object store growing 65 TB a day. The dominant cost is storage: moving originals to a colder tier after 30 days (S3 Standard-IA lists at about half the Standard price, Glacier Instant Retrieval at about a sixth) is a requirement, not an optimisation.
 
 ## Estimate 3: a metrics pipeline
 
@@ -218,7 +218,7 @@ A ride-hailing app shows riders the cars near them and matches trips against whe
 
 The "does it fit in memory" check passes by three orders of magnitude and decides nothing. The design is set by the write rate and by how much durability each write deserves. A position is worthless four seconds later, so it gets no fsync: live state sits in memory, sharded by city or cell over about 8–15 Redis-class nodes (750,000 updates plus index maintenance, at 100,000–200,000 simple operations per node), and needs no replica for durability, because a lost shard refills from the next round of updates within 4 s. Only the history, which someone will ask for in a dispute, is durable, and it is written as batched appends to a log (30 MB/s before replication is a few Kafka partitions), never as a row per fix.
 
-**Bill of materials:** ~20 ingest gateways holding 150,000 persistent connections each (37,500 updates/s per node), ~12 in-memory location shards, a Kafka cluster sized for 90 MB/s of disk writes, and 0.5 TB a day of trip history into object storage. The feed in Estimate 1 was sized by memory; this system, with a four-thousandth of the feed's memory, is sized by writes. The sentence: "750,000 ephemeral writes a second: memory, sharded by geography, no per-write durability; the durable part is a batched log."
+**Bill of materials:** ~20 ingest gateways holding 150,000 persistent connections each (37,500 updates/s per node), ~12 in-memory location shards, a Kafka cluster sized for 90 MB/s of disk writes, and 0.5 TB a day of trip history into object storage. The feed in Estimate 1 was sized by memory; this system, with a four-thousandth of the feed's memory, is sized by writes.
 
 ```exercise
 id: capacity-estimate
@@ -290,7 +290,7 @@ Every factor in an estimate is a guess. If each of four factors is within 2× of
 Errors multiply, so they add in log space, and the spread grows with the square root of the number of factors rather than linearly: a four-factor estimate lands within about 4× nine times in ten. Three consequences:
 
 - **Fewer, better factors beat many.** Each guessed multiplier widens the band. One number from a comparable system's telemetry can replace three guessed ones.
-- **Challenge the widest factor first.** Daily users are usually known to within 20%; per-post fan-out is not. The [news feed case study](/learn/system-design/case-studies/news-feed) simulates fan-out per post at 1.7× to 31× the average follower count, depending on a tail you must measure. When an interviewer asks "what if you're wrong?", name the factor with the widest band and the component it resizes.
+- **Challenge the widest factor first.** Daily users are usually known to within 20%; per-post fan-out is not. The [news feed case study](/learn/system-design/case-studies/news-feed) simulates fan-out per post at 1.7× to 31× the average follower count, depending on a tail you must measure. When an interviewer asks "what if you're wrong?", name the factor with the widest band and the component it resizes: 10× more posts is a worker count, while 10× more fan-out per post resizes the feed cache, the most expensive line.
 - **Correlated errors do not cancel.** The model assumes independence. A launch plan whose every behavioural guess is optimistic in the same direction sits at the worst-case column, so run the estimate once with every factor at its pessimistic end and check which component breaks first.
 
 ## Peaks and tails that averages hide
@@ -313,19 +313,18 @@ That is randomness alone, before the daily curve. A small service needs proporti
 
 ## Presenting estimates in the room
 
-- **State assumptions as you make them and invite correction:** "500 bytes per row; if URLs are longer, storage scales linearly and nothing else changes."
-- **Round loudly:** "call it $10^5$ seconds a day" shows you know what precision is worth.
+- **Say what an assumption moves:** "500 bytes per row; if URLs are longer, storage scales linearly and nothing else changes."
 - **Sanity-check against something known:** a billion 8-byte IDs is 8 GB, fine on one Redis node; a billion 500-byte values is 500 GB, not on one node.
 - **End with the consequence:** "so one Postgres, no sharding" or "so feeds cannot be joins at read time".
-- **Keep it to five minutes:** two or three numbers that choose the architecture, not ten.
+- **Keep it to five minutes:** estimate the two or three numbers that choose the architecture, not ten.
 
 ## Cost per request
 
 You do not need price sheets memorised; you need a way to reason.
 
 - An 8 vCPU, 32 GB cloud VM costs on the order of $300 a month. At 2,000 rps that is 5 billion requests a month, about $0.06 per million requests of compute.
-- Object storage is on the order of $0.02 per GB-month; RAM in a managed cache is roughly 100× that per byte. A terabyte in Redis costs thousands a month; in S3, about $20. That ratio is why caches hold the hot few per cent, not everything.
-- Internet egress is charged per GB, often $0.05–0.09 at list price. The photo service's edge traffic averages 1.2 GB/s (a third of its peak), about 3 PB a month: a CDN contract, not a line item.
+- Object storage is on the order of $0.02 per GB-month: S3 Standard lists $0.023 in us-east-1 (September 2026). RAM in a managed cache costs about 400× that: a `cache.r7g.xlarge` ElastiCache node running Valkey lists at $0.35 an hour for 26 GiB, about $10 per GiB-month. A terabyte in memory costs about $10,000 a month before replicas; in S3, about $23. That ratio is why caches hold the hot few per cent, not everything.
+- Internet egress is charged per GB: AWS lists $0.09 for the first 10 TB a month, falling in tiers with volume. The photo service's edge traffic averages 1.2 GB/s (a third of its peak), about 3 PB a month: a CDN contract, not a line item.
 
 The sentence to say: "The dominant cost is X; the design minimises X even at the expense of Y." For the photo service X is storage, for the feed the Redis fleet, for metrics the rollup tier.
 
@@ -354,27 +353,21 @@ The sentence to say: "The dominant cost is X; the design minimises X even at the
 
 ## Interviewer follow-ups
 
-**"Your feed needs 434,000 fan-out inserts a second. How do you serve that, and what does it cost?"** Model answer: per-user lists in a Redis cluster partitioned by user ID; each fan-out is `LPUSH` plus `LTRIM`, microseconds of Redis work, pipelined from fan-out workers. Spread over 24 primaries that is about 20,000 ops/s each with the feed reads, so memory (1.2 TB), not throughput, sets the node count, and it is the largest cost; skipping dormant users cuts both. Common wrong answer: "Postgres with a good index", at 434,000 inserts a second.
+**"Your feed needs 434,000 fan-out inserts a second. How do you serve that, and what does it cost?"** Model answer: per-user lists in a Redis cluster partitioned by user ID; each fan-out is `LPUSH` plus `LTRIM`, microseconds of Redis work, pipelined from fan-out workers. Spread over 24 primaries that is about 20,000 ops/s each with the feed reads, so memory (1.2 TB), not throughput, sets the node count. Common wrong answer: "Postgres with a good index", at 434,000 inserts a second.
 
 **"You assumed a 95% CDN hit ratio. What if it's 70%?"** Model answer: origin requests go from 870/s to 5,200/s and origin egress from 174 MB/s to 1 GB/s; the origin fleet grows about 6× and viewers' p99 rises by the origin round trip. The ratio depends on how long-tailed viewing is: a feed of recent photos stays above 95%, archive browsing does not. Measure it in week one. Common wrong answer: "about the same, 70% is still most of it", ignoring that origin load scales with the miss rate, which went from 5% to 30%.
 
-**"Where does your Postgres write ceiling come from, and when is it wrong?"** Model answer: from the WAL flush: one connection is bounded by fsync latency (measured 2.9 ms, 343 commits/s), and group commit lets concurrent commits share a flush (16,000/s at 64 connections on the same machine). It is wrong upwards for batched inserts (thousands of rows per commit) and downwards for contended rows or many secondary indexes. Common wrong answer: a single number with no mechanism, such as "Postgres does 10,000 writes a second".
+**"Where does your Postgres write ceiling come from, and when is it wrong?"** Model answer: from the WAL flush: one connection is bounded by fsync latency, and group commit lets concurrent commits share a flush (343/s on one connection, 16,000/s on 64). It is wrong upwards for batched inserts (thousands of rows per commit) and downwards for contended rows or many secondary indexes. Common wrong answer: a single number with no mechanism, such as "Postgres does 10,000 writes a second".
 
 **"Give me the cost per user per month."** Model answer: take the dominant cost and divide: photo storage at year end is ~$470,000/month for 10 million daily users, about 5 cents each, before egress, which decides whether the product can be ad-funded. Common wrong answer: summing every component to the dollar, which takes ten minutes and hides the one line that matters.
 
-**"Your estimate turns out 10× low after launch. What do you check first?"** Model answer: the factors with the widest error band and the most leverage: per-post fan-out, the peak factor, and bytes per item including indexes and replicas; daily users are rarely the culprit. Then which component the error resizes: 10× more posts is a worker count and a queue, a scaling knob; 10× more fan-out per post resizes the feed cache, the most expensive line. A good estimate names in advance the assumption that, if wrong, forces a redesign. Common wrong answer: "we would scale out", without saying what, or whether the design survives it.
-
-**"750,000 location updates a second: Postgres, Cassandra or Redis?"** Model answer: none of them as a durable write per update. A position is superseded in 4 s, so per-update durability buys nothing and would take about 47 Postgres primaries at the measured group-commit rate. Live positions go in memory, sharded by geography, and refill themselves from the next updates after a node loss; history goes to a log in batches. Cassandra would absorb the rate but spends commit-log writes and compaction on data nobody reads again. Common wrong answer: picking the store with the best write benchmark and writing every fix to it.
+**"750,000 location updates a second: Postgres, Cassandra or Redis?"** Model answer: none of them as a durable write per update. A position is superseded in 4 s, so per-update durability buys nothing and would take about 47 Postgres primaries at the measured group-commit rate. Live positions go in memory, sharded by geography; history goes to a log in batches. Cassandra would absorb the rate but spends commit-log writes and compaction on data nobody reads again. Common wrong answer: picking the store with the best write benchmark and writing every fix to it.
 
 ## What mid-level engineers get wrong
 
 - Quoting numbers without a unit of time ("a million requests") or without the peak.
-- Carrying a 2009 latency table uncritically: cloud block storage is closer to 1 ms than to the table's SSD figure.
-- Treating a benchmark on a Unix socket with a warm cache as production capacity.
-- Forgetting replication and indexes, then running out of disk.
+- Carrying the popular latency table uncritically: its 150 µs SSD read, added to Dean's 2009 numbers, is local flash, while cloud block storage takes 0.5 ms to a few ms.
 - Spending twelve minutes on precise arithmetic that changes no decision.
-- Estimating everything instead of the two or three numbers that choose the architecture.
-- Checking only whether the data fits in memory, when the write rate and the durability each write needs set the node count.
 - Presenting the product of every factor's worst case as the estimate, or a six-factor estimate as accurate to 10%; the honest band for four factors each within 2× is about 4×.
 
 ## Senior signals
