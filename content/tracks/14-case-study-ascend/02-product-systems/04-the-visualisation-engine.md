@@ -162,11 +162,11 @@ export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unkno
   const family = getFamily(spec.type) as Family<Record<string, unknown>, unknown> | undefined;
   const algo = algorithmOf(spec);
   if (!family) return { error: `Unknown visualisation type "${spec.type}".` };
-  const gen = family.algorithms[algo];
+  const gen = Object.hasOwn(family.algorithms, algo) ? family.algorithms[algo] : undefined;
   if (!gen) return { error: `Unknown ${spec.type} algorithm "${algo}". Known: ${Object.keys(family.algorithms).join(", ")}.` };
   const { type: _t, algorithm: _a, scenario: _s, title: _ti, caption: _c, ...rest } = spec;
   void _t; void _a; void _s; void _ti; void _c;
-  const base = family.examples[algo] ?? {};
+  const base = (Object.hasOwn(family.examples, algo) ? family.examples[algo] : undefined) ?? {};
   const raw = { ...base, ...rest };
   // Normalising runs inside the try too: it reads author-supplied fields, and
   // an unexpected shape must become a warning box, not an exception that
@@ -190,12 +190,12 @@ export function VizFromSpec({ spec, compact }: { spec: VizSpec; compact?: boolea
 
 The lines that are not what they look like:
 
-1. `getFamily(spec.type)` indexes a plain object, so `"type": "constructor"` finds `Object.prototype.constructor`, and `family.algorithms[algo]` then throws before the `try` (measured: "Cannot read properties of undefined"). `"algorithm": "constructor"` returns the input object as "frames"; its `length` is undefined and the zero-frames check passes it. Both fail the content scan, and both are still open: `Object.hasOwn` or a `Map` would close them.
+1. The registry, the algorithm table and the examples are plain objects. Until commit `083d69c` they were indexed directly, so `"type": "constructor"` found `Object.prototype.constructor` and `family.algorithms[algo]` then threw before the `try` (measured then: "Cannot read properties of undefined"), while `"algorithm": "constructor"` called `Object` on the input and returned it as "frames", whose undefined `length` slipped past the zero-frames check. `getFamily` and both lookups above now check `Object.hasOwn` first, so both become ordinary "Unknown ..." warnings.
 2. `algorithmOf` reads `algorithm`, then `scenario` (common in `system` and `network` blocks), then `""`. The error lists valid names, so the warning box carries the fix.
 3. The destructuring strips the five keys the engine owns; the `void` line only satisfies `noUnusedLocals`.
 4. `{ ...base, ...rest }` is a shallow merge where the author's keys win: the `target: 15` surprise. The tree family's `normalise` compares `raw.values` by reference with its own examples to tell them apart.
 5. `normalise` used to run *before* the `try`, so `{"type": "graph", "algorithm": "bfs", "edges": [null]}` threw "Cannot read properties of null (reading 'from')" straight out of `runSpec`; with no React error boundary anywhere, and React unmounting the whole tree on an uncaught render error since version 16, the gallery's editable JSON box could blank the page. Since `7066802` the normaliser runs inside the `try` and that input becomes a warning; `parseSpec` rejects JSON that is not an object; a missing `type` is reported; and a `VizErrorBoundary` wraps each `VizPlayer`, so a renderer that throws shows a warning in place. `VizBlock.test.ts` feeds hostile specs and asserts `runSpec` never throws.
-6. Zero frames is an error because the player needs one frame to draw. Note what the boundary does *not* cover: `runSpec` runs in `VizFromSpec`'s `useMemo`, outside it, so the `"type": "constructor"` throw in item 1 still escapes.
+6. Zero frames is an error because the player needs one frame to draw. Note what the boundary does *not* cover: `runSpec` runs in `VizFromSpec`'s `useMemo`, outside it, so anything that throws before the `try` escapes; with own-key lookups, nothing there throws for a parsed JSON object.
 
 So the defences are each narrower than they look: example defaults fill missing fields (sometimes wrongly), `normalise` coerces and clamps (the array family drops non-finite `values` and keeps 40, but only parses `target`), a throwing normaliser or generator becomes a warning box, and a throwing renderer is caught by the boundary.
 
@@ -357,7 +357,7 @@ The remaining fixes are cheap: a purity check and a `NaN` check in the content s
 | A snapshot aliases a nested array | Colours scrub, but the variables panel shows final values on early frames | A frame's JSON at push time differs from its JSON at the end | Copy at the assignment or `clone` in the snapshot; `frames-immutable.test.ts` now fails on it (both known cases fixed in `7066802`) |
 | A loop never terminates for one input | The tab freezes when the lesson opens | A profile shows the time in a generator under `useMemo`; the block through `runSpec` in Node never returns | `f.full` checks in loops, inputs bounded in `normalise`; a worker with a timeout for untrusted generators |
 | A legitimate input exceeds the cap | The animation ends at 601/601 on "Stopped: frame limit reached" | 601 frames and the limit note, not the tag alone | A smaller input, or coarser steps such as one frame per pass |
-| A lookup throws before the `try` | A blank gallery page for `"type": "constructor"` (before `7066802`, for any input that broke a normaliser) | The stack trace points into `runSpec`, which runs outside the error boundary | Own-key lookups (`Object.hasOwn` or a `Map`); the normaliser is already inside the `try` |
+| A lookup throws before the `try` | A blank gallery page for `"type": "constructor"` (until `083d69c`) or any input that broke a normaliser (until `7066802`) | The stack trace points into `runSpec`, which runs outside the error boundary | Own-key lookups and the normaliser inside the `try` (both in place) |
 | A missing field is filled from the example | A plausible animation about a value nobody wrote | Compare `runSpec`'s returned `input` with the block | Required fields per algorithm in `normalise` |
 
 ## At 100x
@@ -380,7 +380,7 @@ The engine's cost does not grow with users: generators run on learners' devices,
 
 - **Trusting a shallow copy because a reference test passes.** `first.state !== last.state` held while `vars: { ...s.vars }` shared one array across every frame of two generators.
 - **Treating the frame cap as a timeout.** It bounds memory; a loop without an `f.full` check still freezes the tab.
-- **Assuming a `try` or an error boundary covers everything.** The registry lookup still runs before `runSpec`'s `try`, and `runSpec` runs outside the boundary, so a prototype key such as `constructor` still escapes both.
+- **Assuming a `try` or an error boundary covers everything.** The registry lookups run before `runSpec`'s `try`, and `runSpec` runs outside the boundary, so until the lookups used own keys, `"type": "constructor"` escaped both.
 - **Leaning on example defaults.** They merge under the author's fields, so a forgotten `target` silently becomes 15.
 - **Reading a test's name as its behaviour.** The content scan's tests are called "renders" and never render.
 - **Detecting the cap by tag.** A scenario already uses `limit` as an ordinary tag; count 601 frames or match the note.

@@ -8,7 +8,7 @@ tags: [case-study, docker, ci-cd, infrastructure-as-code, deployment, rate-limit
 ---
 Every deployment answers three questions whether or not anyone asks them. What exactly is running in production? How did it get there? And how do you know it is healthy before users find out it is not? Most outages that are not caused by traffic are caused by a wrong answer to one of those: an artifact that differs from the one that was tested, a pipeline step that was skipped, a health check that checks the wrong thing.
 
-Ascend's answers are compact: one Rust binary with the curriculum and the built SPA compiled into it, in a distroless image built by a multi-stage Dockerfile, deployed by Railway from `main`, switched to only after its readiness endpoint reports healthy. This lesson reads the `Dockerfile`, `.github/workflows/ci.yml`, `.railway/railway.ts`, the `Makefile`, `crates/api/src/main.rs` and the rate limiter's client-IP logic, and finds where each answer is weaker than it looks.
+Ascend's answers are compact: one Rust binary with the curriculum and the built SPA compiled into it, beside the grader's pinned WebAssembly runtimes, in a distroless image built by a multi-stage Dockerfile, deployed by Railway from `main`, switched to only after its readiness endpoint reports healthy. This lesson reads the `Dockerfile`, `.github/workflows/ci.yml`, `.railway/railway.ts`, the `Makefile`, `crates/api/src/main.rs` and the rate limiter's client-IP logic, and finds where each answer is weaker than it looks.
 
 ## One artifact
 
@@ -42,6 +42,11 @@ Embedding has one trap worth knowing. `include_dir!` reads files at compile time
 FROM lukemathwalker/cargo-chef:latest-rust-1.98-slim-trixie@sha256:38dfdbf4fda95c516f873f33032e490baa988b75f7d83c7d12f788f770785b36 AS chef
 WORKDIR /app
 
+FROM chef AS runtimes
+# ... curl, unzip and CA certificates from apt, then:
+COPY scripts/grader-runtimes.sh /tmp/grader-runtimes.sh
+RUN bash /tmp/grader-runtimes.sh /opt/ascend/grader
+
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY crates crates
@@ -67,9 +72,13 @@ RUN cargo build --release -p ascend-api \
  && cp target/release/ascend-api /ascend-api \
  # Strict content validation: a broken lesson fails the build, not the deploy.
  && CONTENT_LENIENT=${CONTENT_LENIENT} /ascend-api --check-content
+# Precompile the grader's Python standard library with the same interpreter
+# (about 0.2 s saved on every graded run).
+COPY --from=runtimes /opt/ascend/grader /opt/ascend/grader
+RUN /ascend-api --prepare-grader /opt/ascend/grader
 ```
 
-Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles only the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute".
+Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles only the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute". The **runtimes** stage, added with server grading, downloads CPython and QuickJS for WASI and checks their SHA-256 digests; its only input is `grader-runtimes.sh`, so it stays cached until a pin changes. Its output joins the builder *after* the build, where the fresh binary precompiles the Python standard library (`--prepare-grader`), so that step reruns on every commit: a few seconds bought back as about 0.2 s on every graded run.
 
 Trace four commits through the stages to see which layers Docker reuses:
 
@@ -88,7 +97,9 @@ Two more details matter. The **web** stage (Node 24, `pnpm install --frozen-lock
 # Dockerfile (runtime stage)
 FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
 COPY --from=builder /ascend-api /usr/local/bin/ascend-api
+COPY --from=builder /opt/ascend/grader /opt/ascend/grader
 ENV APP_ENV=production \
+    GRADER_DIR=/opt/ascend/grader \
     HOST=0.0.0.0 \
     PORT=8080 \
     RUST_LOG=info,ascend_api=info,ascend_core=info,tower_http=info,sea_orm=warn,sea_orm_migration=info,sqlx=warn
@@ -97,13 +108,13 @@ USER nonroot
 ENTRYPOINT ["/usr/local/bin/ascend-api"]
 ```
 
-The runtime image is distroless: glibc, CA certificates and not much else, no shell, no package manager, running as a non-root user. Its only moving part is the binary, which carries about 14 MB of Markdown and 8 MB of built SPA inside it (measured from `content/` and `web/dist` at the time of writing); the Dockerfile's header calls the result a ~85 MB image, against over a gigabyte for the builder. Every `FROM` is pinned by digest as well as tag, so a rebuild of the same commit pulls the same bases. `RUST_LOG` names `sea_orm_migration=info` explicitly because targets match by prefix, and `sea_orm=warn` alone silenced the lines that say which migrations ran at boot.
+The runtime image is distroless: glibc, CA certificates and not much else, no shell, no package manager, running as a non-root user. It holds two things: the binary, which carries about 15 MB of Markdown and 8 MB of built SPA inside it (measured from `content/` and `web/dist` at the time of writing), and the grader's runtimes, about 55 MB of WebAssembly and Python standard library by the Dockerfile header's count. The builder image is over a gigabyte. Every `FROM` is pinned by digest as well as tag, so a rebuild of the same commit pulls the same bases. `RUST_LOG` names `sea_orm_migration=info` explicitly because targets match by prefix, and `sea_orm=warn` alone silenced the lines that say which migrations ran at boot.
 
 | Runtime base | Why not |
 |---|---|
 | The builder image itself | Over a gigabyte, ships a compiler and a shell to production |
 | `scratch` | No CA certificates (the Anthropic calls are HTTPS) and no glibc for a dynamically linked binary |
-| Alpine with a musl build | Workable, but musl's default allocator is known to be slow under multi-threaded allocation, and it adds a second libc to test against |
+| Alpine with a musl build | Workable, but musl's default allocator is widely reported to be slower under multi-threaded allocation (measure it for your workload), and it adds a second libc to test against |
 | Debian slim | Fine, but ships a shell and apt, which are attack surface nobody uses |
 
 The cost of distroless is operational: you cannot `exec` into the container and poke around. Debugging happens through structured logs, the health endpoints, and a local reproduction with the same image (`make image`).
@@ -125,6 +136,8 @@ rust:
       ports: ["5432:5432"]
   env:
     TEST_DATABASE_URL: postgres://ascend:ascend@localhost:5432/ascend_test
+    # Grading tests must run here, not skip for want of the runtimes.
+    GRADER_REQUIRED: "1"
   steps:
     - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
     - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
@@ -135,13 +148,15 @@ rust:
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
     # The server embeds web/dist at compile time; a placeholder is enough for Rust CI.
     - run: mkdir -p web/dist && echo '<!doctype html><title>ci</title>' > web/dist/index.html
+    # ... grader runtimes: restored from a cache keyed by the hash of
+    # scripts/grader-runtimes.sh, or fetched and prepared with --prepare-grader
     - run: cargo fmt --all -- --check
     - run: cargo clippy --workspace --all-targets
     - run: cargo test --workspace
     # then: strict validate_content, and cargo audit against the RustSec database
 ```
 
-Five jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service, strict content validation), **problems** (every reference solution executed on Python 3.14), **web** (typecheck, Vitest, production build), **image** (the Dockerfile builds, with GitHub Actions layer caching, but the image is not pushed), and **e2e** (a debug build of the server started against a Postgres service, with the Playwright smoke suite run on desktop and phone profiles). A `concurrency` group cancels superseded runs on the same branch. Since `8f82820` the workflow runs with a read-only token (`permissions: contents: read`), pins every action to a commit SHA rather than a movable tag such as `v4`, audits Rust dependencies with `cargo audit` and web production dependencies with `pnpm audit --prod`, and `.github/dependabot.yml` proposes weekly, grouped updates to the pins, the base images, and the Cargo and npm dependencies. A tag is a pointer its owner can move; a SHA is the code you reviewed. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
+Four jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service including the grader's sandbox tests, strict content validation), **problems** (every reference solution executed on Python 3.14), **web** (typecheck, Vitest, production build), and **image**, which builds the Dockerfile with GitHub Actions layer caching, then (since `8861312`, replacing a separate job that tested a debug build) runs the image against Postgres, checks that `/api/readyz` reports the commit, runs the Playwright smoke suite on desktop and phone profiles, and requires `docker stop` to exit 0 within 25 s; the image is not pushed. A `concurrency` group cancels superseded runs on the same branch. Since `8f82820` the workflow runs with a read-only token (`permissions: contents: read`), pins every action to a commit SHA rather than a movable tag such as `v4`, audits Rust dependencies with `cargo audit` and web production dependencies with `pnpm audit --prod`, and `.github/dependabot.yml` proposes weekly, grouped updates to the pins, the base images, and the Cargo and npm dependencies. A tag is a pointer its owner can move; a SHA is the code you reviewed. Pins only help if they move, so since `040cf0a` `dependabot-automerge.yml` enables auto-merge for patch, minor and digest-only updates once every required check passes, image smoke test included; majors wait for a person, and Node's base image ignores majors until they are adopted at LTS together with CI's `node-version`. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
 
 ### Before and after: a deploy path that did not wait for CI
 
@@ -149,7 +164,7 @@ Now compare this pipeline with what actually deploys. Until commit `6ab2be2`, th
 
 The fix is one word, `checkSuites: true`, and the comment above it now says what it means: "A push to main deploys once CI passes." That is the cheapest possible change with the largest effect, which is why it belongs at the top of any deploy review: find the gates that exist and check that they are actually *on the path*.
 
-One divergence remains. Railway builds its own image from the repository, so the image CI built is not the image that runs. The inputs now match closely (the same Dockerfile, lockfiles, and base images pinned by digest), but the e2e job tests a debug binary built with `cargo build`, not either image. The 100x version is to build once in CI, run the smoke suite against that image, push it to a registry, and deploy that image by digest, so the artifact you tested is byte-for-byte the artifact you run.
+One divergence remains. CI now runs the smoke suite against the image it built, but Railway builds its own image from the repository, so the image that runs is a second build of the same inputs (the same Dockerfile, lockfiles, and base images pinned by digest), not the one that was tested. The 100x version is to push CI's image to a registry and deploy that image by digest, so the artifact you tested is byte-for-byte the artifact you run.
 
 ## Infrastructure as code
 
@@ -195,34 +210,19 @@ One entry used to deserve a raised eyebrow: `CONTENT_LENIENT: preserve()`, meani
 // crates/api/src/main.rs — main
 let db = state::connect_db(&config).await?;
 match ascend_api::migrate::run(&db).await? { /* advisory lock; Apply, UpToDate or SchemaAhead */ }
-// ... load the curriculum, build state and router, start the hourly session sweep
+// ... load the curriculum, load the grader, build state and router, start the hourly sweep
 let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
-// Graceful shutdown stops accepting, then waits for open connections. A
-// client that never finishes reading (a stalled stream) would hold it
-// forever, so the drain is bounded.
-let (draining_tx, mut draining) = tokio::sync::watch::channel(false);
-let server = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-    .with_graceful_shutdown(async move {
-        shutdown_signal().await;
-        let _ = draining_tx.send(true);
-    });
-let drain_deadline = async move {
-    if draining.wait_for(|started| *started).await.is_ok() {
-        tokio::time::sleep(DRAIN_TIMEOUT).await; // 25 s
-    } else {
-        std::future::pending::<()>().await;
-    }
-};
-tokio::select! {
-    result = server.into_future() => result?,
-    () = drain_deadline => tracing::warn!("connections still open after the drain timeout; shutting down anyway"),
+// serve.rs: stop accepting on SIGTERM, let open connections finish, but give
+// up after DRAIN_TIMEOUT (25 s), because a stalled stream would hold it forever.
+if serve::serve(listener, app, shutdown_signal(), DRAIN_TIMEOUT).await? == serve::Drain::TimedOut {
+    tracing::warn!("connections still open after the drain timeout; shutting down anyway");
 }
 // Connections are drained; now let in-flight AI replies finish persisting
 // (bounded, so a hung upstream cannot block the deploy).
-state.tasks.close();
-if tokio::time::timeout(Duration::from_secs(30), state.tasks.wait()).await.is_err() {
+if !serve::finish_tasks(&state.tasks, TASK_TIMEOUT).await { // 30 s
     tracing::warn!(remaining = state.tasks.len(), "background tasks still running at shutdown");
 }
+tracing::info!("shutdown complete");
 ```
 
 The order is the design. Configuration is validated first (production refuses to start with insecure cookies). Migrations run before the port is bound, under a Postgres advisory lock so replicas booting together cannot race, so if the process is listening, the schema is at least as new as the build needs ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations) traces `migrate::plan`). `/api/readyz` runs `SELECT 1` and returns 503 if the database is unreachable, plus the content version, the build id and whether AI is configured. Railway polls it for up to 120 seconds and only moves traffic to the new container once it returns 200.
@@ -261,11 +261,11 @@ Two smaller weaknesses sit in the same code, and a third has been fixed:
 
 - **Readiness checks one dependency.** A deploy with a revoked `ANTHROPIC_API_KEY` reports `ai: true` (which means "configured", not "working") and goes live. A readiness check should not call a paid API on every poll, but a boot-time probe of the key, logged loudly, would catch it.
 - **Migrate-on-boot assumed one replica** (fixed in `8f82820`). Several replicas starting at once each ran the migrator, and one failed on "relation already exists". `migrate::run` now holds `pg_advisory_xact_lock` for the whole run; `boot_migrations_are_locked_and_tolerate_a_newer_schema` boots twice at once and expects two `UpToDate`s.
-- **Graceful shutdown that never ran** (fixed twice). First, background work lived in a bare `tokio::spawn`, so an AI reply whose browser had gone was dropped when `main` returned; a `TaskTracker` drained for up to 30 s fixed that. Then the platform: Railway's draining window defaulted to 0 seconds, so SIGKILL followed SIGTERM at once and none of that code ran in production. `RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60"` now gives it room, and `main` bounds its own drain to fit: 25 s for open connections (a stalled SSE reader cannot hold the process), then 30 s for tasks. A shutdown guarantee is only as long as the window the platform grants, so read that setting rather than assuming it.
+- **Graceful shutdown that never ran** (fixed, then tested). First, background work lived in a bare `tokio::spawn`, so an AI reply whose browser had gone was dropped when `main` returned; a `TaskTracker` drained for up to 30 s fixed that. Then the platform: Railway's draining window defaulted to 0 seconds, so SIGKILL followed SIGTERM at once and none of that code ran in production. `RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60"` now gives it room, and the drain is bounded to fit: 25 s for open connections (a stalled SSE reader cannot hold the process), then 30 s for tasks. Finally it gained evidence: `95b6623` moved the drain into `serve.rs`, where `crates/api/tests/shutdown.rs` checks over real sockets that an in-flight request finishes while new connections are refused, idle keep-alive connections do not delay shutdown, a stalled stream is abandoned at the deadline, and background tasks finish but cannot hold the process; and CI's image job stops the real container. A shutdown guarantee is only as long as the window the platform grants, so read that setting rather than assuming it.
 
 ## The edge, and the client IP incident
 
-Some rate limits are keyed by client IP (today 30 per minute for login and registration and 1,200 for everything else; the AI limit is per session and password attempts are per account). Behind Railway's edge, the TCP peer the server sees is the proxy, not the user, so the real address has to come from a header. The first version read it from the first entry of `X-Forwarded-For`.
+Some rate limits are keyed by client IP (today 30 per minute for login and registration and 1,200 for everything else; model calls and graded submissions are limited per session, password attempts per account or per known device). Behind Railway's edge, the TCP peer the server sees is the proxy, not the user, so the real address has to come from a header. The first version read it from the first entry of `X-Forwarded-For`.
 
 `X-Forwarded-For` is a list that each proxy *appends* to. If a client sends `X-Forwarded-For: 6.6.6.6` and the edge sees the connection from 203.0.113.7, the server receives:
 
@@ -297,7 +297,7 @@ Why is the header name configuration instead of a hard-coded `x-real-ip`? Becaus
 
 There is a second valid design worth knowing: take the *rightmost* entry of `X-Forwarded-For` (or the Nth from the right, for N trusted proxies), since those were appended by infrastructure you control. It works; it is also easy to get wrong when a CDN or a second proxy is added in front and N silently changes. A single header that one trusted hop overwrites is harder to misconfigure. Note one consequence of the parse: if you configured `x-forwarded-for` as the trusted header, a multi-entry value does not parse as a single IP, so the code falls back to the socket address rather than trusting any entry.
 
-**At 100x**, this function survives unchanged; what changes is where the counters live. With more than one replica, each process has its own buckets, and the next lesson moves them to Redis. The algorithms themselves are covered in [Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms).
+**At 100x**, this function survives unchanged, and so do the counters: since `427ed78` the security-relevant buckets live in Postgres and every replica charges the same allowance, and only the loose 1,200-a-minute general bucket stays per process, on purpose ([Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security) has the design). The algorithms themselves are covered in [Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms).
 
 ## At 100x
 
@@ -305,7 +305,7 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 {"type": "system", "algorithm": "canary", "requests": 20, "title": "The rollout you would want with real traffic", "caption": "Readiness gates only whether a container can start. A canary gates whether the new version behaves, by comparing its error rate and latency with the stable version on live traffic."}
 ```
 
-- **Build once, deploy by digest.** CI builds the image, runs the Playwright smoke suite against that image rather than a debug build, pushes it, and the platform deploys that exact digest. Deploys already wait for CI; this closes the gap between what CI tested and what runs.
+- **Build once, deploy by digest.** CI already builds the image and runs the smoke suite and a graceful stop against it; pushing it and having the platform deploy that exact digest closes the last gap between what CI tested and what runs.
 - **Canary instead of all-at-once.** One replica on the new version, automated comparison of error rate and p99 against the stable version, then promotion. It needs the metrics the next lesson adds.
 - **Migrations as their own step**, run once, with expand/contract enforced in review.
 - **A job queue for AI replies**, so no deploy cuts off a stream, however long it runs; the task tracker covers 30 seconds.
@@ -323,13 +323,13 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 
 ## Interviewer follow-ups
 
-**"Is the artifact in production the one you tested?"** Model answer: not exactly, and a senior says where. Railway builds its own image from the repository, the `image` job's image is thrown away, and the smoke suite tests a debug build. Base images and actions are pinned by digest and SHA, which makes two builds of one commit close but not identical in process. Build once in CI, run the smoke suite against that image, push it and deploy it by digest. Common wrong answer: "same Dockerfile, same image", which ignores tags, build profiles and the embedded SPA.
+**"Is the artifact in production the one you tested?"** Model answer: not exactly, and a senior says where. CI builds an image and runs the smoke suite and a graceful stop against it, then throws it away; Railway builds its own from the repository. Base images and actions are pinned by digest and SHA, which makes two builds of one commit close but not identical in process. Push the tested image and deploy it by digest. Common wrong answer: "same Dockerfile, same image", which ignores tags, build profiles and the embedded SPA.
 
 **"A migration succeeded and the new code is broken. Walk me through the rollback."** Model answer: readiness passed, because `SELECT 1` cannot see a logic bug; traffic moved; rolling back redeploys old code, not old schema, so the previous binary now runs against the new schema. If the migration renamed or dropped anything the old code reads, the rollback fails too. Prevent it with expand and contract. Common wrong answer: "roll back the deployment", as though that restored the database.
 
 **"Why does readiness check only the database?"** Model answer: readiness answers "can this process take traffic". The database is required for almost every route; the model is required for one feature, and a readiness check that calls a paid API on every poll costs money and would take the whole site out during a provider outage. Probe the key once at boot instead, and let AI routes degrade on their own. Common wrong answer: "check every dependency", which turns a partial outage into a total one.
 
-**"What changes to run three replicas?"** Model answer: migrations already run under an advisory lock, so concurrent boots are safe, though replicas queue behind a long one; rate limits need a shared store; three pools of 20 must fit under Postgres's `max_connections` with headroom for a rolling deploy; the 30-second task drain holds per replica. Sessions are already in Postgres and content is identical in every build, so neither changes. Common wrong answer: "set `replicas: 3`".
+**"What changes to run three replicas?"** Model answer: migrations already run under an advisory lock, so concurrent boots are safe, though replicas queue behind a long one; the security rate limits and the AI budgets already live in Postgres, and only the loose general bucket multiplies; three pools of 20 must fit under Postgres's `max_connections` with headroom for a rolling deploy; the 30-second task drain holds per replica. Sessions are already in Postgres and content is identical in every build, so neither changes. Common wrong answer: "set `replicas: 3`".
 
 ## What mid-level engineers get wrong
 

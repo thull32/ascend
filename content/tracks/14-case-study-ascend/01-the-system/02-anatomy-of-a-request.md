@@ -66,7 +66,7 @@ let api = Router::new()
     .merge(routes::health::router())
     .nest("/auth", routes::auth::router(state.clone()))
     .merge(routes::curriculum::router())
-    .merge(routes::problems::router())
+    .merge(routes::problems::router(state.clone()))
     .merge(routes::progress::router())
     .merge(routes::comments::router())
     .merge(routes::coach::router(state.clone()))
@@ -96,7 +96,7 @@ flowchart TD
   BL --> RL["Rate limit: general, per IP"]
   RL --> CS["CSRF check"]
   CS --> RT{"route match"}
-  RT --> RLR["Route layer: auth or AI limiter, if any"]
+  RT --> RLR["Route layer: auth, AI or grading limiter, if any"]
   RLR --> EX["Extractors: State, CurrentUser, Path, AppJson"]
   EX --> H["Handler, then one service call"]
 ```
@@ -113,7 +113,7 @@ flowchart TD
 | `Compression` | Brotli or gzip by `Accept-Encoding` | Outside the handlers; its default predicate skips `text/event-stream` | SSE tokens would be buffered by the compressor and arrive in lumps |
 | `Security headers` | CSP, HSTS, `X-Frame-Options`, `nosniff` on every response it wraps | Innermost of the outer group so it sees routes, SPA, 404s and rejections | Outside `Timeout` it would also decorate the timeout's 503; today it does not |
 | `DefaultBodyLimit` | Sets the 512 KiB limit that body extractors enforce | `/api` only; the SPA takes no bodies | Nothing reads bodies outside `/api` |
-| Rate limit, general | 1,200 requests per minute per IP | Before CSRF, so rejected cross-site attempts still spend tokens | After it, a flood of CSRF-rejected requests would be free |
+| Rate limit, general | 1,200 requests per minute per IP, kept in memory per replica | Before CSRF, so rejected cross-site attempts still spend tokens | After it, a flood of CSRF-rejected requests would be free |
 | CSRF | Origin and custom-header checks on POST, PUT, PATCH, DELETE | Closest to the routes, after the cheap per-IP check | Before the limiter, it would do work for traffic the limiter was about to drop |
 
 Two subtleties are worth knowing precisely.
@@ -122,7 +122,7 @@ Two subtleties are worth knowing precisely.
 
 **The body limit is not middleware in the usual sense.** `DefaultBodyLimit` reads nothing; it stores a limit in the request that body-consuming extractors such as `Json` enforce when they buffer the body. A handler with no body extractor is unaffected, and so is every route outside `/api`.
 
-Route-level layers sit inside all of this. `routes/auth.rs` wraps only `/register` and `/login` in a tighter `Bucket::Auth` limiter (30 per minute per IP), and the routes that call the model (coach messages, quiz generation, roadmap suggestions, interview turns, the interview assistant and grading) are wrapped in `Bucket::Ai`, 20 per minute per session. The general bucket is deliberately loose, because a whole class can share one NAT address and every expensive route has its own bucket. A login therefore spends one token from the general bucket *and* one from the auth bucket, and the handler then charges one password attempt to the account it names, a limiter the next lesson covers.
+Route-level layers sit inside all of this. `routes/auth.rs` wraps only `/register` and `/login` in a tighter `Bucket::Auth` limiter (30 per minute per IP), the routes that call the model (coach messages, quiz generation, roadmap suggestions, interview turns, the interview assistant and grading) are wrapped in `Bucket::Ai`, 20 per minute per session, and `POST /api/submissions`, which runs code on the server, in `Bucket::Grade`, also 20 per minute per session. Those three buckets live in Postgres, so every replica charges the same allowance; the general bucket stays in process memory, deliberately loose, because a whole class can share one NAT address and every expensive route has its own bucket. A login therefore spends one token from the general bucket *and* one from the auth bucket, and the handler then charges one password attempt to the account it names, or to the browser's own bucket if it is a known device for that account, a limiter the next lesson covers.
 
 A rejection short-circuits. When the rate limiter returns 429, nothing inside it runs (no CSRF check, no handler), but everything outside it still runs on the way out: the 429 carries a request ID, security headers and a log line. The exercise makes that onion explicit.
 
@@ -205,7 +205,7 @@ async fn resolve(parts: &mut Parts, state: &AppState) -> Result<Option<User>, Ap
 
 **The rejected alternative** is an authentication middleware that resolves the session for every `/api` request and attaches the user. It is common and it is simpler to reason about, but most of Ascend's traffic is public (curriculum, lessons, problems, search), and that middleware would add a database query to every one of them. The extractor is *lazy*: only handlers that name a user pay for one. **The failure mode it prevents** is putting Postgres on the hot read path that was designed to avoid it.
 
-**What it costs.** Authentication is opt-in per handler. A new mutating endpoint that forgets `CurrentUser` is public, and nothing but review and tests catches it; a `route_layer` that requires a session for a whole group of routes would make the safe choice the default. And because middleware runs before extractors, the rate limiter cannot ask who the user is. For a long time that meant every limiter was keyed by IP. The AI limiter now sidesteps the problem without authenticating anyone: it keys on a 16-byte SHA-256 digest of the session cookie, falling back to the IP when there is no cookie. That is safe precisely because of the order. A forged cookie earns a fresh bucket, but only for a request the `CurrentUser` extractor then rejects with 401 before any model is called, and it still pays the per-IP general bucket on the way in.
+**What it costs.** Authentication is opt-in per handler. A new mutating endpoint that forgets `CurrentUser` is public, and nothing but review and tests catches it; a `route_layer` that requires a session for a whole group of routes would make the safe choice the default. And because middleware runs before extractors, the rate limiter cannot ask who the user is. For a long time that meant every limiter was keyed by IP. The AI limiter now sidesteps the problem without authenticating anyone: it keys on a 16-byte SHA-256 digest of the session cookie, falling back to the IP when there is no cookie. The grading limiter uses the same key. That is safe precisely because of the order. A forged cookie earns a fresh bucket, but only for a request the `CurrentUser` extractor then rejects with 401 before any model or sandbox runs, and it still pays the per-IP general bucket on the way in.
 
 ### Where authentication can run
 
@@ -236,7 +236,7 @@ Each handler behind it parses input, calls one service method, and maps the resu
 
 Honest exceptions exist. The coach's `send` handler spawns a task, pumps a model stream into a channel and returns an SSE response: that orchestration is a transport concern, so it lives in `routes/sse.rs` rather than the domain, and it is covered in [Building the AI coach](/learn/case-study-ascend/product-systems/building-the-ai-coach). The roadmap handler calls two services (progress summary, then roadmap build). A useful review heuristic: when a handler calls two services, ask whether a service method is missing.
 
-Here is the full round trip for our request, including both database round trips:
+Here is the full round trip for our request, including all three database round trips:
 
 ```mermaid
 sequenceDiagram
@@ -251,14 +251,14 @@ sequenceDiagram
   DB-->>X: session, user
   X->>S: set_lesson_status(user, slug, completed)
   S->>S: slug exists in in-memory curriculum?
-  S->>DB: INSERT activity_days ... ON CONFLICT DO NOTHING
   S->>DB: INSERT ... ON CONFLICT DO UPDATE ... RETURNING
   DB-->>S: row
+  S->>DB: INSERT activity_days, learner's local date, ON CONFLICT DO NOTHING
   S-->>M: Ok(row) as JSON
   M-->>B: 200, headers, x-request-id
 ```
 
-In the same region each round trip is roughly a millisecond, which is where most of the thirty milliseconds goes; the ten layers of middleware cost microseconds. The count has moved twice, and both moves were deliberate. An earlier version of the service ran the upsert and then re-read the row with a separate `SELECT`; returning the row from the upsert itself removed a round trip from the most frequent write in the product. Then the streak fix added one back: the activity-log insert that makes streaks correct ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations)). One millisecond for correct streaks is a good trade; if it ever was not, a data-modifying CTE could send both writes as one statement.
+In the same region each database round trip is roughly a millisecond, so the three cost a few milliseconds; most of the thirty goes on the network between the browser and the edge, and the ten layers of middleware cost microseconds. The count has moved twice, and both moves were deliberate. An earlier version of the service ran the upsert and then re-read the row with a separate `SELECT`; returning the row from the upsert itself removed a round trip from the most frequent write in the product. Then the streak fix added one back: the activity-log insert that makes streaks correct ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations)). One millisecond for correct streaks is a good trade; if it ever was not, a data-modifying CTE could send both writes as one statement.
 
 ## From AppError to HTTP
 
@@ -285,6 +285,14 @@ pub enum AppError {
     },
     #[error("AI features are not configured on this deployment")]
     AiDisabled,
+    /// A capacity or configuration problem on our side; the request itself
+    /// was fine.
+    #[error("{message}")]
+    Unavailable {
+        message: String,
+        /// When a retry can succeed, if known; sent as `Retry-After`.
+        retry_after_secs: Option<u64>,
+    },
     #[error("upstream AI provider error: {0}")]
     AiUpstream(String),
     #[error("database error")]
@@ -304,7 +312,7 @@ let status = match &e {
     AppError::NotFound(_) => StatusCode::NOT_FOUND,
     AppError::Conflict(_) => StatusCode::CONFLICT,
     AppError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
-    AppError::AiDisabled => StatusCode::SERVICE_UNAVAILABLE,
+    AppError::AiDisabled | AppError::Unavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
     AppError::AiUpstream(_) => StatusCode::BAD_GATEWAY,
     AppError::Database(_) | AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
 };
@@ -321,7 +329,9 @@ let message = match &e {
     other => other.to_string(),
 };
 let mut res = (status, Json(ErrorBody { code: e.code(), message })).into_response();
-if let AppError::RateLimited { retry_after_secs: Some(secs), .. } = e {
+if let AppError::RateLimited { retry_after_secs: Some(secs), .. }
+| AppError::Unavailable { retry_after_secs: Some(secs), .. } = e
+{
     res.headers_mut().insert(axum::http::header::RETRY_AFTER, secs.max(1).into());
 }
 ```
@@ -347,7 +357,7 @@ The same rule reaches upstream errors through one constructor. `AiUpstream(Strin
    ```
 
    and its `IntoResponse` picks a code from the status: 400 `bad_request` for malformed JSON, 413 `payload_too_large`, 415 `unsupported_media_type`, and 422 `validation_error` only for well-formed JSON of the wrong shape. The difference matters to clients: a 400 means "your bytes are broken", a 422 means "your fields are wrong", and a client that treats them alike cannot tell a serialisation bug from a form error. `malformed_json_uses_the_api_error_shape` now asserts 400. `Path` and `Query` rejections still answer in plain text, and two coach handlers still take an optional body through Axum's own `Json`.
-3. *Retry hints.* The middleware's 429 always said `Retry-After: 60`, though the general bucket refilled far faster. `governor` knows exactly when the next request would be allowed, and the middleware now says so, rounded up to whole seconds (`throttled_responses_say_when_to_retry` checks the header). The client uses it: `web/src/main.tsx` retries failed *queries* on 429, 5xx and network errors, waiting as long as `Retry-After` asks (at most ten seconds), and never retries a mutation. The 429s that come from the domain rather than the middleware used to carry no hint at all, because `RateLimited(String)` had nowhere to put one, even though the AI budget knows exactly when it resets. The variant now carries `retry_after_secs`, the mapping above turns it into the header, the budget fills it with the seconds until the next UTC midnight, and a provider's own 429 asks for 30 seconds. The fix was a type change, not a header tweak: once the domain error could express "when", every producer could say it and one place could send it (`rate_limited_errors_carry_retry_after_when_known` pins the mapping).
+3. *Retry hints.* The middleware's 429 always said `Retry-After: 60`, though the general bucket refilled far faster. GCRA, the algorithm behind every bucket, knows exactly when the next request would be allowed, and the middleware now says so, rounded up to whole seconds (`throttled_responses_say_when_to_retry` checks the header). The client uses it: `web/src/main.tsx` retries failed *queries* on 429, 5xx and network errors, waiting as long as `Retry-After` asks (at most ten seconds), and never retries a mutation. The 429s that come from the domain rather than the middleware used to carry no hint at all, because `RateLimited(String)` had nowhere to put one, even though the AI budget knows exactly when it resets. The variant now carries `retry_after_secs`, the mapping above turns it into the header, the budget fills it with the seconds until the next UTC midnight, and a provider's own 429 asks for 30 seconds. The fix was a type change, not a header tweak: once the domain error could express "when", every producer could say it and one place could send it (`rate_limited_errors_carry_retry_after_when_known` pins the mapping). The newest variant reused the idea: `Unavailable` arrived with server-side grading, and when every sandbox slot stays busy for 20 seconds it answers 503 with `Retry-After: 5`. It says the server cannot do the work right now, which is different from `RateLimited` (the client is sending too much), and a client that can tell them apart knows whether slowing down will help.
 4. *The timeout is outside everything.* Still open. The timeout's 503 has an empty body and, because it is produced outside the security-headers layer, no CSP or HSTS header. The status is honest; the shape is not.
 
 ## The way back out, and the 100x view

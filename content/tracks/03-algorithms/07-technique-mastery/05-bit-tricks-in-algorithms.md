@@ -267,7 +267,7 @@ def total_n_queens(n):
 
 ## Under the hood
 
-**Popcount.** `int.bit_count()` (Python 3.10+) compiles to the `POPCNT` instruction on x86-64 and `CNT` on ARM for machine-word-sized values, one cycle of throughput per word; before 3.10 the idiom was `bin(x).count("1")`, which builds a string of `O(bits)` characters first. C and C++ expose `__builtin_popcountll`, Java `Long.bitCount`, Rust `count_ones`. For arrays of words, SIMD popcount routines (the Harley–Seal and lookup-table methods) run several times faster than one `POPCNT` per word; the exact factor depends on the CPU generation. JavaScript has no popcount at all, so use the `x &= x - 1` loop, which costs one iteration per set bit.
+**Popcount.** `int.bit_count()` (Python 3.10+) runs a C popcount over the int's 30-bit digits. With GCC or Clang that is `__builtin_popcount`, which becomes a single `POPCNT` only when the build targets a CPU that has it (CPython's [source](https://raw.githubusercontent.com/python/cpython/3.14/Include/internal/pycore_bitutils.h) notes it does no runtime CPUID check; a baseline x86-64 build gets a short bit-twiddling sequence) and `CNT` on 64-bit ARM. Either way it is a few instructions per digit. Before 3.10 the idiom was `bin(x).count("1")`, which builds a string of `O(bits)` characters first. C and C++ expose `__builtin_popcountll`, Java `Long.bitCount`, Rust `count_ones`. For arrays of words, SIMD popcount routines (the Harley–Seal and lookup-table methods) beat one `POPCNT` per word: [Muła, Kurz and Lemire](https://arxiv.org/abs/1611.07612) measured AVX2 versions at about twice the speed on recent Intel processors, and the factor depends on the CPU generation. JavaScript has no popcount at all, so use the `x &= x - 1` loop, which costs one iteration per set bit.
 
 **Python integers are arrays of 30-bit digits.** A 10,001-bit `reach` occupies 334 digits, and `reach << x` allocates a new object and copies every digit with a shift and carry: one `O(digits)` C loop per item, which is why 200 shift-or steps on a 10,000-bit integer take on the order of a millisecond, against a second for the `200 × 10,000` Python-level boolean DP. There is no in-place mutation; `reach |= reach << x` allocates twice per step. `~mask` on a Python int is `-mask - 1`, an infinitely sign-extended negative number, so complement within `n` bits with `full ^ mask` or `full & ~mask`.
 
@@ -428,7 +428,7 @@ hints:
 - You can derive **`x & -x`** from two's complement and connect it to the Fenwick tree's `O(log n)` walks.
 - You prove the **Gray code** one-bit property, and use it to enumerate subsets with an `O(1)` update per step.
 - You describe **bitsets** honestly, as a factor-of-`w` speed-up that often turns infeasible into fast, and you know JavaScript's 32-bit operator trap.
-- You know what the machine does: `bit_count` is one `POPCNT` instruction, a Python int is 30-bit digits so a big shift is `O(digits)` in C, and `~x` on an unbounded int is negative.
+- You know what the machine does: `bit_count` is a C popcount per 30-bit digit (hardware `POPCNT` when the build targets it), a Python int is 30-bit digits so a big shift is `O(digits)` in C, and `~x` on an unbounded int is negative.
 - You put memory on the table before time: `2^n × n` states as a flat array versus a dict, and the point at which the DP table, not the transitions, is what stops you.
 
 ## Check yourself

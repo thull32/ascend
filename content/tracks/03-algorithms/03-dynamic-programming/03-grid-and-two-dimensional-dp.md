@@ -203,9 +203,9 @@ Path counts grow as `C(r + c, r)`, which is exponential in the grid's perimeter.
 
 | Cell type | First square grid where the corner no longer fits | What you observe |
 |---|---|---|
-| 32-bit signed (`int` in Java/Go/C) | 18 × 18: `C(34, 17) = 2,333,606,220` | wraps to `−1,961,361,076` |
+| 32-bit signed (`int` in Java and C, `int32` in Go) | 18 × 18: `C(34, 17) = 2,333,606,220` | wraps to `−1,961,361,076` |
 | IEEE double (JavaScript `number`) | 32 × 32: corner is `465,428,353,255,261,088`, the double sum gives `…056` | off by 32, no error, no `NaN` |
-| 64-bit signed (`long`, `i64`) | 35 × 35: `C(68, 34) ≈ 2.8 × 10¹⁹` | wraps negative |
+| 64-bit signed (`long`, `i64`, Go's `int` on 64-bit platforms) | 35 × 35: `C(68, 34) ≈ 2.8 × 10¹⁹` | wraps negative |
 
 The double case is the nastiest: additions of exactly representable integers stay exact until the running values pass 2⁵³ ≈ 9 × 10¹⁵, and then each addition may round by a few units; `unique_paths(30, 30)` happens to come out exact, `unique_paths(32, 32)` does not. That is why problem statements say "return the answer modulo 10⁹ + 7": addition and multiplication commute with taking the remainder, so you reduce every cell as you fill it and the table stays inside 32 bits. In JavaScript use `BigInt` or the modulus; in Rust use `checked_add` or `u128` and let overflow be an error rather than a wrong answer. In Python the cost of not overflowing is the 150 MB table above.
 
@@ -217,7 +217,7 @@ The dependency graph has `mn` nodes and at most `4mn` edges, and it is acyclic b
 
 ## Top-down or bottom-up, and when a table is the wrong tool
 
-Bottom-up fills every cell. Top-down memoisation fills only the cells the answer depends on, at a cost per cell of a function call and a dictionary lookup, which in CPython is roughly 10–20× a loop iteration (the exact ratio depends on the version; measure it). So top-down wins when the reachable states are a small fraction of the table: a maze in which 95% of cells are walls, a grid where the start and end are close together, or the longest-increasing-path DAG above, where the order is awkward to compute. Bottom-up wins when most cells are needed, which for right/down grid problems is always: every cell is reachable, so the loop's lower constant factor and the option of a rolling row make it the right default.
+Bottom-up fills every cell. Top-down memoisation fills only the cells the answer depends on, at a cost per cell of a function call and a dictionary lookup, which in CPython is several times a loop iteration (the ratio depends on the version; measure it). So top-down wins when the reachable states are a small fraction of the table: a maze in which 95% of cells are walls, a grid where the start and end are close together, or the longest-increasing-path DAG above, where the order is awkward to compute. Bottom-up wins when most cells are needed, which for right/down grid problems is always: every cell is reachable, so the loop's lower constant factor and the option of a rolling row make it the right default.
 
 Sometimes neither is right. Three signals that a grid table is the wrong tool:
 
@@ -246,31 +246,29 @@ Sometimes neither is right. Three signals that a grid table is the wrong tool:
 | Full `m × n` table | `O(mn)`: 8 B/cell in NumPy, 40–150 B/cell as Python ints | yes, walk back | yes | default when `mn ≤ ~10⁷` |
 | Rolling row | `O(n)` | no (needs parents or checkpoints) | yes | forced sweep direction |
 | In-place on the input | `O(1)` extra | yes (table survives in the grid) | yes | mutates the caller's data |
-| Top-down memo | `O(reachable states)` + stack | yes, via the memo | yes; also awkward orders | 10–20× per-cell overhead in CPython |
+| Top-down memo | `O(reachable states)` + stack | yes, via the memo | yes; also awkward orders | several times the per-cell cost in CPython |
 | Closed form `C(m+n−2, m−1)` | `O(1)` | not applicable | no | big integers or modular binomials |
 | Inclusion–exclusion over obstacles | `O(k)` | no | obstacles only | `O(k²)`; for huge sparse grids |
 
 ## Interviewer follow-ups
 
-**"How many paths through a 100 × 100 grid, and does your Java solution return the right number?"** Model answer: `C(198, 99)` has 59 digits, so no primitive type holds it; the problem will ask for the count modulo 10⁹ + 7, and because addition commutes with the modulus you reduce each cell as you go and the table stays in 32 bits. In Python the exact answer is fine but costs about 300 bytes per cell near the corner. Common wrong answer: "use `double`", which is off by rounding past 2⁵³ and reports nothing.
+**"How many paths through a 100 × 100 grid, and does your Java solution return the right number?"** Model answer: `C(198, 99)` has 59 digits, so no primitive type holds it; the problem will ask for the count modulo 10⁹ + 7, and because addition commutes with the modulus you reduce each cell as you go and the table stays in 32 bits. In Python the exact answer is fine but costs about 52 bytes per cell near the corner (292 at 1000 × 1000). Common wrong answer: "use `double`", which is off by rounding past 2⁵³ and reports nothing.
 
-**"Now the robot may move in any of the four directions. Same DP?"** Model answer: no. With four-way movement the dependency graph has cycles, so there is no fill order; min path sum becomes single-source shortest path on a grid graph with non-negative weights, which is Dijkstra in `O(mn log(mn))`, and unique paths becomes ill-defined unless paths are simple, which is a hard counting problem. Common wrong answer: DFS with a visited set, which is exponential for counting and wrong for costs.
+**"Now the robot may move in any of the four directions. Same DP?"** Model answer: no. The dependency graph now has cycles, so there is no fill order; min path sum becomes Dijkstra on the grid graph, and unique paths is ill-defined unless paths are simple, which makes it a hard counting problem. Common wrong answer: DFS with a visited set, which is exponential for counting and wrong for costs.
 
-**"The grid is 10⁶ × 10⁶ with 2,000 blocked cells."** Model answer: the table is 10¹² cells, so DP over cells is out. Sort the obstacles, compute paths to each that avoid earlier obstacles by inclusion–exclusion with binomial coefficients modulo a prime, `O(k²)` for `k` obstacles, using precomputed factorials for `O(1)` binomials. Common wrong answer: "a rolling row", which still has to sweep 10¹² cells.
+**"The grid is 10⁶ × 10⁶ with 2,000 blocked cells."** Model answer: 10¹² cells rules out any table; inclusion–exclusion over the sorted obstacles, as above, is `O(k²)` binomials modulo a prime, about 4 × 10⁶ for 2,000 obstacles. Common wrong answer: "a rolling row", which still has to sweep 10¹² cells.
 
 **"Give me the actual route with O(n) memory."** Model answer: two bits per cell of parent direction is `mn / 4` bytes (250 KB for 10⁶ cells), usually acceptable; if not, checkpoint every `k`-th row and recompute the rows between checkpoints while walking back. Common wrong answer: "it is impossible once the rows are rolled".
 
-**"The cost of a path is its largest cell rather than its sum. Same recurrence with `max`?"** Model answer: no; the optimal route may go up or left to avoid a tall cell, so right/down is the wrong move set. It is minimise-the-maximum: binary search on the threshold with a BFS predicate in `O(mn log(max))`, Dijkstra with `max` as the combine, or union-find adding cells in height order. Common wrong answer: the right/down table with `max`, which fails the first grid where the path must go up.
+**"The cost of a path is its largest cell rather than its sum. Same recurrence with `max`?"** Model answer: no; the optimal route may go up or left to avoid a tall cell. It is minimise-the-maximum: binary search on the threshold with a BFS predicate in `O(mn log(max))`, or Dijkstra with `max` as the combine. Common wrong answer: the right/down table with `max`, which fails the first grid where the path must go up.
 
 ## What mid-level engineers get wrong
 
 - **Building the table with `[[0] * n] * m`.** Consequence: every row aliases the same list and the table is garbage from the first write.
-- **Special-casing the first row and column by hand** and getting the obstacle break wrong. Consequence: a first row of `[0, 1, 0, 0]` counts paths through the wall; padding with an identity border avoids the bug entirely.
+- **Special-casing the first row and column by hand** and getting the obstacle break wrong. Consequence: a first row of `[0, 1, 0, 0]` counts paths through the wall.
 - **Rolling the row without deriving the sweep direction.** Consequence: a smaller, plausible number; the bug hides until a test compares against the 2-D version.
-- **Reading `dp[r-1]` at `r = 0` in Python.** Consequence: silent wrap-around to the last row rather than an exception.
-- **Assuming path counts fit in 64 bits.** Consequence: a Java or Go solution that fails on a 35 × 35 grid with a negative answer, or a JavaScript one that is off by a few units at 32 × 32.
+- **Assuming path counts fit in 64 bits.** Consequence: a Java or Go solution that fails on a 35 × 35 grid with a negative answer.
 - **Applying the right/down recurrence to a four-direction problem.** Consequence: the DP has no valid fill order; the answer is wrong whenever the best route turns back, which the small tests rarely exercise.
-- **Mutating the input grid in place** in code that is not a throwaway. Consequence: the second caller sees running sums instead of costs.
 
 ## Exercises
 

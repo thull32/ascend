@@ -92,7 +92,7 @@ Three practical notes that catch people in interviews and in production:
 
 `lru_cache` is implemented in C (`Modules/_functoolsmodule.c`), and its behaviour follows from three design decisions.
 
-**The key.** Every call builds a key from the arguments with `lru_cache_make_key`. Fast path: exactly one positional argument, no keyword arguments, `typed=False`, and the argument is an exact `int` or `str`: the argument object *itself* is the key, with no allocation. Otherwise the key is a fresh tuple of the positional arguments, followed by a sentinel and the keyword items if any, and with `typed=True` the types are appended so `f(1)` and `f(1.0)` cache separately. So `f(i)` keyed on an index costs one dict probe; `f(i, j)` allocates a 2-tuple and hashes it on every call, a hit or a miss.
+**The key.** Every call builds a key from the arguments with `lru_cache_make_key`. Fast path: exactly one positional argument, no keyword arguments, `typed=False`, and the argument is an exact `int` or `str`: the argument object *itself* is stored as the key, so the cache holds no tuple. With other positional-only calls the key is the call's argument tuple, which the wrapper (a `tp_call` object) receives freshly built on every call; with keyword arguments or `typed=True` it builds a new tuple of the positional arguments, a sentinel and the keyword items, with the types appended under `typed=True` so `f(1)` and `f(1.0)` cache separately. So `f(i)` keyed on an index costs one dict probe; `f(i, j)` builds a 2-tuple and hashes it on every call, a hit or a miss.
 
 **Unbounded versus bounded.** With `maxsize=None` (and `functools.cache`, which is the same thing) the wrapper is a plain dict lookup: miss → call → store. With a bound, the wrapper additionally keeps a circular doubly linked list of `lru_list_elem` nodes, each holding the key, the result and the hash; a hit unlinks the node and relinks it at the tail, and a miss at capacity evicts the head. That is the same hash-map-plus-list design as an [LRU cache](/learn/advanced-data-structures/caches-and-eviction/lru-cache), and it is why a bounded cache costs more per entry.
 
@@ -139,7 +139,7 @@ def num_decodings(s):
 
 Trace `"226"`: `from_pos(0)` takes `2` then `from_pos(1)`; `from_pos(1)` takes `2` then `from_pos(2)` (which takes `6` and reaches the end: 1) and takes `26` reaching the end: 1, so `from_pos(1) = 2`. Back in `from_pos(0)`, taking `22` gives `from_pos(2) = 1`, already cached. Total 3: `BBF`, `BZ`, `VF`. The memo saved one call here; on a string of thirty `1`s it saves about 2.7 million (the unmemoised count is the Fibonacci call tree above).
 
-**Word Break.** Can `s` be segmented into dictionary words? Backtracking tries every dictionary word as a prefix and recurses on the rest. The rest is `s[i:]`, so the state is `i` again. Without the memo, `"aaaaaaaaaaaaaaaaaaaaaaaab"` with dictionary `["a", "aa", "aaa", "aaaa"]` explores every composition of 24 into parts of size 1–4 before discovering the `b` is unreachable: around $10^7$ paths. With the memo, 25 states, each tried against 4 words: 100 steps.
+**Word Break.** Can `s` be segmented into dictionary words? Backtracking tries every dictionary word as a prefix and recurses on the rest. The rest is `s[i:]`, so the state is `i` again. Without the memo, `"aaaaaaaaaaaaaaaaaaaaaaaab"` with dictionary `["a", "aa", "aaa", "aaaa"]` explores every composition of 24 into parts of size 1–4 before discovering the `b` is unreachable: 3,919,944 compositions and 8,146,016 calls. With the memo, 25 states, each tried against 4 words: 100 steps.
 
 ```python
 def word_break(s, words):
@@ -230,7 +230,7 @@ def ways_tab(n):
 | Effort to write | Add a cache to the recursion you already have | Must work out the dependency order |
 | Subproblems computed | Only the ones actually reached | All of them, reached or not |
 | Stack | Depth = recursion depth; `RecursionError` past ~1,000 in CPython | None |
-| Constant factor | Dict probe plus a function call per state, ~100 ns and up in CPython | Array indexing in a loop; typically 5–20× faster in CPython |
+| Constant factor | Dict probe plus a function call per state, ~100 ns and up in CPython | Array indexing in a loop; several times faster in CPython (measure your case) |
 | Memory per state | 100–200 bytes (dict entry, key, value) | 8 bytes per list slot, or 4–8 in a typed array |
 | Space optimisation | Hard (the cache holds everything) | Often easy (keep the last row, or two values) |
 | Cache locality | Hash table, scattered | Sequential sweep, prefetch-friendly |
@@ -240,7 +240,7 @@ def ways_tab(n):
 ## Quantified costs
 
 - **States × bytes.** A memo over `(i, j)` with `i, j <= 3,000` is 9 × 10⁶ entries × ~116 bytes ≈ 1 GB in CPython; the same table as a NumPy `int32` array is 36 MB, and as two rolling rows is 24 KB.
-- **Calls.** Unmemoised Fibonacci-shaped recursion at `n = 40` is 3.3 × 10⁸ calls, tens of seconds in CPython; memoised it is 79 calls.
+- **Calls.** Unmemoised Fibonacci-shaped recursion at `n = 40` is 3.3 × 10⁸ calls, about ten seconds in CPython by the extrapolation in the table above; memoised it is 79 calls.
 - **Key cost.** A dict probe with an `int` key measured about 19 ns and with a 2-tuple key about 25 ns on this machine (CPython 3.14), before the tuple allocation the wrapper does per call; the function-call overhead around it is several times larger than either.
 - **Depth.** 1,000 frames by default; each Python frame is a few hundred bytes of interpreter memory, so the limit is a policy, not a memory constraint, and the C stack behind a memoised recursion is the real ceiling.
 

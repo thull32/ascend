@@ -42,11 +42,11 @@ On top come up to 30 previous messages of history. A typical turn on a lesson is
 | System prompt read from cache | 8,000 × $0.50/M + 3,000 × $5/M = $0.019 | $0.0175 | $0.037 |
 | System prompt written to cache | 8,000 × $6.25/M + 3,000 × $5/M = $0.065 | $0.0175 | $0.083 |
 
-At 2,000 daily coach users averaging 8 turns, 16,000 turns a day cost between $592 (every turn a cache hit) and $1,328 (every turn a cache write), so the cache hit rate is the largest single lever. The other products, per call and illustrative: a quiz reads up to 30,000 characters of lesson (about 7,700 input tokens with instructions) and writes around 2,000 tokens, about $0.09; a final interview grade reads up to 60,000 characters of transcript plus 12,000 of code (about 18,000 tokens) and may write up to its 4,000-token limit at high effort, up to $0.19.
+At 2,000 daily coach users averaging 8 turns, 16,000 turns a day cost between $592 (every turn a cache hit) and $1,328 (every turn a cache write), so the cache hit rate is the largest single lever. The other products, per call and illustrative: a quiz reads up to 30,000 characters of lesson (about 7,700 input tokens with instructions) and writes around 2,000 tokens, about $0.09; a final interview grade reads up to 60,000 characters of transcript plus 12,000 of code (about 18,000 tokens) and may write up to its 16,000-token limit at high effort, up to $0.49.
 
 ### The ceiling
 
-Then the number a reviewer asks for: the **ceiling**. Production caps each user at 120,000 output tokens and 2,000,000 billed input tokens a day, which is $3.00 + $10.00 = $13 per user per day at these rates. If all 2,000 users hit the cap, the day costs $26,000, twenty to forty times the expected bill. The budget bounds the worst case; it does not make it affordable, which is why the design also rate-limits scripts and alerts on spend.
+Then the number a reviewer asks for: the **ceiling**. Production caps each user at 120,000 output tokens and 2,000,000 billed input tokens a day, held before each call so nothing in flight overshoots: $3.00 + $10.00 = $13 per user per day at these rates. If all 2,000 users hit the cap, the day costs $26,000, twenty to forty times the expected bill. The budget bounds the worst case; it does not make it affordable, which is why the design also rate-limits scripts and alerts on spend.
 
 ## The architecture
 
@@ -58,7 +58,7 @@ sequenceDiagram
   participant M as Model API
   B->>A: POST /api/coach/conversations/{id}/messages
   A->>A: per-session AI rate limit (20 per minute)
-  A->>D: check_and_reserve (daily budget), insert user message, load the history window
+  A->>D: load the history window, hold budget for the built request, insert user message
   A->>M: POST /v1/messages (stream: true)
   A-->>B: SSE response backed by a channel
   Note over A: spawned task pumps model events into the channel
@@ -169,7 +169,7 @@ Two independent layers protect the shared key.
 
 ### Per-session rate limit
 
-**It stops bursts and scripts.** Only the routes that call the model (a coach message, quiz generation, roadmap suggestions, interview turns, the interview assistant and the final grade) pass through an in-memory keyed limiter (the `governor` crate, which implements GCRA and behaves like a token bucket) allowing 20 requests per minute per session: a burst of 20, then one every three seconds. The key is a digest of the session cookie, falling back to the client IP when there is none, so learners sharing one office or campus address do not throttle each other; reading history does not touch this bucket. It lives in process memory, which is right for a single instance and resets on deploy ([Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms)).
+**It stops bursts and scripts.** Only the routes that call the model (a coach message, quiz generation, roadmap suggestions, interview turns, the interview assistant and the final grade) pass through a keyed GCRA limiter (GCRA behaves like a token bucket) allowing 20 requests per minute per session: a burst of 20, then one every three seconds. The key is a digest of the session cookie, falling back to the client IP when there is none, so learners sharing one office or campus address do not throttle each other; reading history does not touch this bucket. Its state is one row per key in an `UNLOGGED` Postgres table, updated by one conditional upsert, so every replica shares the allowance ([Rate limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms)).
 
 ```viz
 {"type": "system", "algorithm": "token-bucket", "requests": 10,
@@ -179,34 +179,32 @@ Two independent layers protect the shared key.
 
 ### Per-user daily budget
 
-**It caps cost.** The `ai_usage` table has one row per user per UTC day with request, input, output, cache-read and cache-write counters. The defaults (environment variables) are 120 requests, 2,000,000 billed input tokens and 60,000 output tokens a day; production raises the request and output caps to 150 and 120,000 in `.railway/railway.ts`. Every model call first runs `check_and_reserve` in `budget.rs`, one conditional upsert that counts the request only while the user is under every limit:
+**It caps cost.** The `ai_usage` table has one row per user per UTC day with request, input, output, cache-read and cache-write counters. The defaults (environment variables) are 120 requests, 2,000,000 billed input tokens and 60,000 output tokens a day; production raises the request and output caps to 150 and 120,000 in `.railway/railway.ts`. Every model call first runs `reserve` in `budget.rs`, like a card authorisation hold: in one transaction it locks the day's row (`SELECT ... FOR UPDATE`), checks requests, billed input (used, held, plus an estimate for this request) and the output left, then holds the call's `max_tokens`, capped at what is left, and lowers the request's own `max_tokens` to match. After the reply, settling releases the hold and adds the actual counts in one statement:
 
 ```sql
-INSERT INTO ai_usage (user_id, day, input_tokens, output_tokens, requests)
-VALUES ($1, $2, 0, 0, 1)
-ON CONFLICT (user_id, day) DO UPDATE
-   SET requests = ai_usage.requests + 1
- WHERE ai_usage.requests < $3
-   AND (ai_usage.input_tokens + ai_usage.cache_write_tokens * 5 / 4 + ai_usage.cache_read_tokens / 10) < $4
-   AND ai_usage.output_tokens < $5
-RETURNING requests
+UPDATE ai_usage
+   SET reserved_input_tokens  = GREATEST(reserved_input_tokens - $3, 0),
+       reserved_output_tokens = GREATEST(reserved_output_tokens - $4, 0),
+       input_tokens = input_tokens + $5, output_tokens = output_tokens + $6,
+       cache_read_tokens = cache_read_tokens + $7, cache_write_tokens = cache_write_tokens + $8
+ WHERE user_id = $1 AND day = $2
 ```
 
-No returned row means over budget: the call fails with a rate-limit error whose message says the budget resets at midnight UTC and whose `Retry-After` header counts the seconds to the next UTC midnight. After the reply, `record` adds the actual counts with a plain increment upsert. Each is one statement, so concurrent requests cannot lose each other's updates, and Postgres rather than Redis fits because the limit is per day, the counts must survive restarts, and one file owns the policy.
+A refusal is a rate-limit error whose `Retry-After` header counts the seconds to the next UTC midnight. The lock serialises one user's reservations, and an unsettled hold releases itself or expires with the day's row, and Postgres rather than Redis fits because the limit is per day, the counts must survive restarts, and one file owns the policy.
 
 ### What review changed
 
 Three review findings shaped the budget:
 
-1. **Check and increment were separate statements.** Concurrent requests from a user at 119 could all read "under the limit" before any increment landed. The conditional upsert makes them queue on the row lock and re-evaluate the `WHERE` clause; `ai_budget_reservation_cannot_be_overshot_by_concurrency` in `crates/api/tests/api.rs` fires 30 reservations at a limit of 10 and asserts exactly 10 succeed. An atomic increment is not an atomic check-and-increment.
-2. **The token checks are pre-flight**, deliberately. A request that starts at 59,000 output tokens can end at 63,000, overshooting by up to its `max_tokens`. Fine for a soft cap; a hard cap would reserve `max_tokens` up front and refund the rest.
-3. **The input limit first counted only `input_tokens`**, which is *uncached* input, in the same change that turned on conversation caching and moved nearly all input into cache reads and writes. It now counts **billed** input (writes weighted 1.25, reads 0.1, integer arithmetic), and `cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry` records 90,000 cache-write tokens with no uncached input (112,500 billed) and checks the next request is refused with a retry time. The weights are the common 5-minute multipliers; some newer models price reads lower still, so the budget over-counts for them, a conservative error. A budget in money, from all four counters and each model's prices, would be exact and survive a change of model.
+1. **Check and increment were separate statements.** Concurrent requests from a user at 119 could all read "under the limit" before any increment landed. A conditional upsert, and now the hold's `SELECT ... FOR UPDATE`, makes them queue on the row lock; `ai_budget_reservation_cannot_be_overshot_by_concurrency` in `crates/api/tests/api.rs` fires 30 reservations at a limit of 10 and asserts exactly 10 succeed. An atomic increment is not an atomic check-and-increment.
+2. **The token checks were pre-flight.** A request that started at 59,000 output tokens could end at 63,000, overshooting by up to its `max_tokens`. Holds (`bd0dcf0`) made it a hard cap: reserve `max_tokens` up front, refund the rest.
+3. **The input limit first counted only `input_tokens`**, which is *uncached* input, in the same change that turned on conversation caching and moved nearly all input into cache reads and writes. It now counts **billed** input (writes weighted 1.25, reads at the model's price, integer arithmetic), and `cache_writes_count_against_the_input_budget_and_the_refusal_says_when_to_retry` records 90,000 cache-write tokens with no uncached input (112,500 billed) and checks the next request is refused with a retry time. Reads were weighted 0.1 until `ac7532b`; they now use the configured model's multiplier (0.05 on Opus 5.5). A budget in money, from all four counters and each model's prices, would be exact and survive a change of model.
 
 ## Structured outputs and frozen transcripts
 
 Quizzes, roadmap suggestions and interview grades are consumed by code, so they use one-shot calls with a JSON schema in `output_config.format`, validated again after parsing ([Structured outputs and tool use](/learn/ai-and-llms/building-with-llms/structured-outputs-and-tool-use)). The grader receives the transcript as JSON lines with platform-assigned roles, so a candidate cannot forge an interviewer turn by typing one.
 
-The transcript is **frozen once the interview ends**. Every append is one conditional `UPDATE ... SET transcript = transcript || $2 WHERE status = 'active'` that also caps the transcript at 400 entries, so concurrent appends (a reply persisting while the learner types) each apply exactly once; `finish` is conditional on the same status, so of two racing finish requests exactly one stores a grade; and a reply still streaming when the interview ends matches no row when it tries to append, which the task logs at info level rather than as an error. An integration test, `transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries`, checks all three. One window remained after that, and the review of this lesson named it: the status changed when the grade was *stored*, not when the learner clicked finish, so a reply that landed during the seconds of high-effort grading was still appended, and the stored transcript could hold a turn the grader never saw. It is now closed. `begin_grading` moves the interview to a `grading` status in the same statement that stores the final code, before the grader is called; `append_transcript` refuses writes in that state ("the interview is being graded"); a failed grade (the model unavailable, the budget spent) calls `resume_after_failed_grading` so the learner can finish again; and a `grading` row older than five minutes, left by a request that died mid-grade, may be graded again rather than sticking forever. The integration test `grading_freezes_the_transcript_and_a_failed_grade_reopens_the_interview` walks all of it. A mock interview that ends with fewer than two candidate turns is marked abandoned without calling the grader at all.
+The transcript is **frozen once the interview ends**. Every append is one conditional `UPDATE ... SET transcript = transcript || $2 WHERE status = 'active'` that also caps the transcript at 400 entries, so concurrent appends each apply exactly once; `finish` is conditional on the same status, so of two racing finishes exactly one stores a grade; and a reply still streaming when the interview ends matches no row, which the task logs at info level. An integration test, `transcripts_freeze_when_an_interview_ends_and_appends_never_lose_entries`, checks all three. One window remained, and the review of this lesson named it: the status changed when the grade was *stored*, not when the learner clicked finish, so a reply landing during grading was still appended, and the stored transcript could hold a turn the grader never saw. `begin_grading` moves the interview to a `grading` status in the same statement that stores the final code, before the grader is called; `append_transcript` refuses writes in that state ("the interview is being graded"); a failed grade (the model unavailable, the budget spent) calls `resume_after_failed_grading` so the learner can finish again; and a `grading` row older than five minutes, left by a request that died mid-grade, may be graded again rather than sticking forever. The integration test `grading_freezes_the_transcript_and_a_failed_grade_reopens_the_interview` walks all of it. A mock interview that ends with fewer than two candidate turns is marked abandoned without calling the grader at all.
 
 ## Policy: hints, not solutions
 
@@ -273,7 +271,9 @@ id: daily-ai-budget
 title: Replay a day against the AI budget
 prompt: |
   Implement `run_budget(limits, events)`, a model of this app's daily AI
-  budget for one user.
+  budget for one user as it worked before budget holds: every limit
+  checked before a call, actual usage recorded after it, cache reads
+  weighted at a tenth.
 
   `limits` is `{"requests", "input", "output"}`. The state starts with every
   counter at 0: `requests`, `input` (uncached input tokens), `output`,
@@ -343,13 +343,13 @@ hints:
 
 **"The provider returns 529 for ten minutes. What does the user see, and what should happen?"** Model answer: today, a classified "overloaded, try again" message and no automatic retry; the next step is one jittered retry before the first byte, then a fallback model that starts cold and stays for the conversation, then degrading to static hints, all with the retry budget and spend visible on a dashboard. Common wrong answer: "retry until it works".
 
-**"Why a conditional upsert rather than read, check, then increment?"** Model answer: separate statements let concurrent requests all pass the check before any increment lands; the conditional upsert evaluates the limit and increments under the row lock in one statement, proved by a 30-way concurrency test against a limit of 10. Common wrong answer: "the increment is atomic, so it is safe".
+**"Why check the budget under the row lock rather than read, check, then increment?"** Model answer: separate statements let concurrent requests all pass the check before any increment lands; checking and holding under the lock (once a conditional upsert, now `SELECT ... FOR UPDATE`) serialises them, proved by a 30-way test against a limit of 10. Common wrong answer: "the increment is atomic, so it is safe".
 
 ## What mid-level engineers get wrong
 
 - **Pricing a feature per token instead of per turn and per day.** Without the token composition of a turn and the cache hit rate, the estimate is off by a factor of two in either direction.
 - **Limiting uncached input only.** With caching on, most input is cache reads and writes, so the limit barely moves while spend does.
-- **Check-then-increment in application code.** Concurrency overshoots the limit by the number of requests in flight.
+- **Checking before a call and charging after.** Concurrency and each call's `max_tokens` overshoot the limit; hold the worst case first.
 - **Forwarding provider errors to users.** Error bodies can quote the request, including another user's content in a shared prompt.
 
 ## Senior signals
@@ -357,7 +357,7 @@ hints:
 - You start an LLM design from **token arithmetic**: what is in the context, what each turn costs, how much the cache hit rate swings the bill, and what the **worst-case ceiling** is.
 - You lay prompts out **stable first, volatile last**, place breakpoints at stability boundaries, **step history truncation** so prefixes survive, and verify hits with the usage counters.
 - You decide **who owns a streamed reply** and what happens on disconnect, deploy and late arrival (the frozen transcript).
-- You layer **per-session rate limits for bursts and per-user billed-token budgets for cost**, use atomic conditional upserts, and give refusals a `Retry-After`.
+- You layer **per-session rate limits for bursts and per-user billed-token budgets for cost**, hold each call's worst case under a row lock, and give refusals a `Retry-After`.
 - You **route by effort before routing by model** and design **fallbacks as a ladder** (retry before the first byte, a fallback model that starts cold because caches are per model, then degrade the feature), keeping provider error text out of responses.
 - You separate **policies enforced by construction** from **policies enforced by instruction**, and **observe** cost, cache hit rate and refusals per turn and per user.
 
@@ -387,13 +387,13 @@ hints:
   options: ["The counter could go negative when a refund raced with a new reservation", "Nothing, because the atomic upsert made the check and the increment atomic", "Lost updates: two concurrent increments could overwrite each other's counts", "Concurrent requests could all pass the check before any increment landed"]
   answer: 3
   explanation: >-
-    The upsert made each increment atomic, so no update was lost, but the check was a separate read, so requests in flight together could all pass it and overshoot the limit by their number. The current check_and_reserve is a conditional upsert that increments only while under every limit and returns a row only if it did, and a 30-way concurrency test against a limit of 10 proves it.
+    The upsert made each increment atomic, so no update was lost, but the check was a separate read, so requests in flight together could all pass it and overshoot the limit by their number. The fix checks under the row lock, first in one conditional upsert and now in reserve's SELECT ... FOR UPDATE with a budget hold, and a 30-way concurrency test against a limit of 10 proves it.
 - q: >-
     The daily input limit first compared against the API's input_tokens, and conversation caching was switched on in the same change. Which cost did that leave without a direct cap?
   options: ["Uncached input, because input_tokens counts only the prompt tokens read from cache", "Prompt-cache writes, which input_tokens leaves out and which bill at 1.25x input", "Output spend, because output tokens were recorded but never compared with a limit", "Thinking tokens, because they bill as input and are reported in no counter at all"]
   answer: 1
   explanation: >-
-    input_tokens counts only uncached input; the API reports cache writes and reads separately, and with caching on nearly all of a chat's input moves into those two counters. The fix counts billed input in the reservation: cache writes weighted 1.25 and reads 0.1. Output was always a condition in the WHERE clause, and thinking tokens bill as output, not input.
+    input_tokens counts only uncached input; the API reports cache writes and reads separately, and with caching on nearly all of a chat's input moves into those two counters. The fix counts billed input in the reservation: cache writes weighted 1.25 and reads at the model's price. Output was always checked, and thinking tokens bill as output, not input.
 - q: >-
     The provider is overloaded, and you add a fallback to a second model for coach turns. What cost should you expect on the first fallback turn of a long conversation?
   options: ["Nothing extra, because failed turns on the primary model already paid for the prefix", "The same as a warm turn, because the prompt cache is shared across a provider's models", "Lower than a warm turn, because the fallback model is smaller and so reads cache faster", "A full cache write of the whole prompt, because caches are per model and start cold"]

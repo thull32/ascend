@@ -9,7 +9,7 @@ problems: [sort-colors, kth-largest-array]
 ---
 You have a list of 10 million events and need them in timestamp order, then within each timestamp in the order they arrived. You call `sort`. What runs? Whether that call finishes in a second or a minute, whether it needs another 80 MB of memory, and whether the "arrived in" order survives all depend on which algorithm sits behind the name.
 
-Every comparison sort answers the same three questions differently: how it picks the next two elements to compare, how it moves data once it knows the answer, and what it costs in memory to do so. This lesson takes the four sorts that matter (insertion, merge, quick, heap), shows each one moving real numbers, and then explains why the one with the worst worst case is the one everybody uses.
+Every comparison sort answers the same three questions differently: how it picks the next two elements to compare, how it moves data once it knows the answer, and what it costs in memory to do so. For the four that matter (insertion, merge, quick, heap), the one with the worst worst case is the one everybody uses.
 
 ## Insertion sort: the sort you already do by hand
 
@@ -45,7 +45,7 @@ Nine moves in all. The number of moves equals the number of **inversions**, pair
 
 **Why the invariant makes it correct.** Before iteration `i`, `a[0..i)` is sorted. The inner loop shifts every element greater than `x` one slot right and stops at the first element `<= x` (or at the left end), so `x` lands after everything `<= x` and before everything `> x`: `a[0..i]` is sorted. After the last iteration the whole array is. Because the loop uses strict `>`, an element equal to `x` is never moved past it, which is what makes the sort stable.
 
-That second property is why insertion sort is not a toy. Every production sort switches to it for small subarrays (the cutoff sits between about 8 and 32 elements depending on the library and element size) because its inner loop is a tight sequence of compares and moves over memory already in cache, with no recursion and no allocation. At `n = 16` the `n²/4 = 64` moves cost less than the bookkeeping of a partition or a merge.
+That second property is why insertion sort is not a toy. Production sorts switch to it for small subarrays (up to 12 elements in Go's pdqsort, 16 in libstdc++'s `std::sort`, 44 in Java's primitive sort since JDK 14, and CPython insertion-sorts runs of up to 32–64) because its inner loop is a tight sequence of compares and moves over memory already in cache, with no recursion and no allocation. At `n = 16` the `n²/4 = 64` moves cost less than the bookkeeping of a partition or a merge.
 
 ## Merge sort: split, sort halves, merge
 
@@ -89,7 +89,7 @@ Six comparisons to merge seven elements; a merge of `m + n` elements never needs
 
 The recurrence is `T(n) = 2T(n/2) + Θ(n)`, which the [master theorem](/learn/foundations/complexity/recurrences-and-master-theorem) solves as $\Theta(n \log n)$. The important word is *theta*: merge sort does the same work on every input. Sorted, reversed, random, all-equal; it does not care, because the split never looks at the values. The exact worst-case comparison count is $n\lceil\log_2 n\rceil - 2^{\lceil\log_2 n\rceil} + 1$, which for `n = 8` is `24 − 8 + 1 = 17`.
 
-The cost is memory. The merge step needs somewhere to write its output that is not the input, so a straightforward merge sort allocates $O(n)$ extra space. In-place merging exists but is slow enough that nobody uses it; the practical trick is a single auxiliary buffer of size `n/2` reused at every level: copy the shorter half out, then merge back into the original array from the left. That is what Timsort does.
+The cost is memory. The merge step needs somewhere to write its output that is not the input, so a straightforward merge sort allocates $O(n)$ extra space. In-place merging exists (Go's `sort.Stable` uses one, at `O(n log² n)` swaps); the usual trick is a single auxiliary buffer of size `n/2` reused at every level: copy the shorter run out, then merge back into the original array, starting from the end that run came from. That is what Timsort does.
 
 Merge sort's second selling point is that it is naturally **stable**: when `left[i] == right[j]`, taking from `left` first keeps equal elements in their original order. Change `<=` to `<` and stability is gone.
 
@@ -176,7 +176,7 @@ The fixes, in increasing order of paranoia:
 - **Middle element.** Defeats sorted and reversed input, but there are still fixed permutations that trigger the worst case.
 - **Median of three** (first, middle, last). Cheap and good on real data; still beatable by a crafted input.
 - **Random pivot.** Now no fixed input is bad; only an unlucky sequence of random choices is, and the probability of the depth exceeding `c log n` shrinks exponentially in `c`.
-- **Introsort.** Track the recursion depth; if it exceeds `2 log₂ n`, switch to heap sort for that subarray. This guarantees $O(n \log n)$ worst case while keeping quicksort's speed on the common path. C++ `std::sort` has done this since the late 1990s.
+- **Introsort.** Track the recursion depth; if it exceeds `2 log₂ n`, switch to heap sort for that subarray. This guarantees $O(n \log n)$ worst case while keeping quicksort's speed on the common path. Musser published it in 1997, and SGI's STL, from which libstdc++ descends, adopted it for `std::sort`.
 
 The adversary is real. In 1999 McIlroy published "A Killer Adversary for Quicksort", a procedure that, given any quicksort with a deterministic pivot rule, produces an input that makes it quadratic by answering comparisons lazily. Sorting attacker-controlled data with a deterministic pivot hands them a CPU-exhaustion attack, for the same reason unsalted hash tables hand them a [HashDoS attack](/learn/data-structures/hashing/hash-tables).
 
@@ -198,33 +198,33 @@ Trace the first phase on `[4, 10, 3, 5, 1, 8]` (`n = 6`, children of `i` at `2i+
 | extract | swap root with `a[5]`, heap size 5, sift 3 down: children 5, 8 → swap with 8 | `[8, 5, 3, 4, 1 · 10]` |
 | extract | swap root with `a[4]`, heap size 4, sift 1 down: children 5, 3 → swap with 5; then children 4 → swap | `[5, 4, 3, 1 · 8, 10]` |
 
-The heapify phase did three sifts for six elements, which is the $O(n)$ build: a node at height `h` sifts at most `h` levels and there are about `n / 2^{h+1}` nodes at that height, so the sum is `n · Σ h / 2^{h+1} < 2n` swaps. Each extraction then sifts through up to `log₂ n` levels, and each level costs **two** comparisons (pick the larger child, then compare it with the parent), so the sort phase does about `2 n log₂ n` comparisons. Floyd's variant sifts the hole all the way to a leaf first and then bubbles the element back up, cutting that to about `n log₂ n + O(n)`, and library heap sorts use it.
+The heapify phase did three sifts for six elements, which is the $O(n)$ build: a node at height `h` sifts at most `h` levels and there are about `n / 2^{h+1}` nodes at that height, so the sum is `n · Σ h / 2^{h+1} < 2n` swaps. Each extraction then sifts through up to `log₂ n` levels, and each level costs **two** comparisons (pick the larger child, then compare it with the parent), so the sort phase does about `2 n log₂ n` comparisons. Floyd's variant (Wegener's "bottom-up heapsort") sifts the hole all the way to a leaf first and then bubbles the element back up, cutting that to about `n log₂ n` on average and `1.5 n log₂ n` in the worst case; libstdc++'s heap functions work this way.
 
-On paper heap sort is the best of both worlds: merge sort's worst-case guarantee and quicksort's memory. On real hardware it is the slowest of the three on large inputs, typically by a factor of two or more. Sift-down touches `a[i]`, then `a[2i+1]`, then `a[4i+3]`: the addresses double each step, so after the first few levels every comparison is a cache miss, while partition and merge stream through memory sequentially and the hardware prefetcher keeps them fed. Heap sort survives as the fallback inside introsort and wherever a hard $O(n \log n)$ bound with no allocation is worth more than speed. See [binary heap mechanics](/learn/data-structures/heaps/binary-heap-mechanics) for the heap itself.
+On paper heap sort is the best of both worlds: merge sort's worst-case guarantee and quicksort's memory. On real hardware it is the slowest of the three on large inputs, often by a factor of two or more, because sift-down's addresses (`i`, `2i+1`, `4i+3`, ...) double each step and miss the cache; the next section counts the cost. See [binary heap mechanics](/learn/data-structures/heaps/binary-heap-mechanics) for the heap itself.
 
 ## Counting the work: comparisons, moves and cache misses
 
-Big-O hides the constants that decide which sort wins. These are the standard analyses (Knuth volume 3 and Sedgewick's quicksort papers) for `n` distinct random keys:
+Big-O hides the constants that decide which sort wins. These are the standard analyses (Knuth volume 3 and [Sedgewick's](https://algs4.cs.princeton.edu/23quicksort/) quicksort analysis) for `n` distinct random keys:
 
 | Sort | Comparisons | Data moves | Access pattern |
 |---|---|---|---|
 | Insertion | `n²/4` | `n²/4` | sequential, cache-resident for small `n` |
 | Merge | `n log₂ n − n + 1` (worst) | `n log₂ n` copies, plus the buffer | two sequential input streams, one output |
-| Quick (random pivot) | `≈ 1.39 n log₂ n` (`2n ln n`) | `≈ 0.33 n log₂ n` swaps with Hoare | two sequential scans per partition |
+| Quick (random pivot) | `≈ 1.39 n log₂ n` (`2n ln n`) | `≈ 0.23 n log₂ n` (`n ln n / 3`) swaps with Hoare | two sequential scans per partition |
 | Heap | `≈ 2 n log₂ n` (`≈ n log₂ n` with Floyd's trick) | `≈ n log₂ n` swaps | addresses double each level: random after the first few levels |
 
-For `n = 10⁷`, `log₂ n ≈ 23`: merge sort makes roughly 2.2 × 10⁸ comparisons, quicksort 3.2 × 10⁸, heap sort 4.6 × 10⁸. Quicksort does *more* comparisons than merge sort and still wins because comparing two integers in registers costs a cycle or less, while a DRAM miss costs about 100 ns.
+For `n = 10⁷`, `log₂ n ≈ 23`: merge sort makes roughly 2.2 × 10⁸ comparisons, quicksort 3.2 × 10⁸, heap sort 4.6 × 10⁸. Quicksort does *more* comparisons than merge sort and still wins because comparing two integers in registers costs a cycle or less, while a DRAM miss costs of the order of 100 ns.
 
-Where the misses come from: an L1 data cache is 32–48 KB on current x86 and Arm cores, which is 4,000–6,000 8-byte keys. A heap of `10⁷` keys is 80 MB. The top 12 levels (`2¹² = 4,096` keys) stay hot; the remaining 11 levels of every sift-down are misses, so an extraction costs of the order of ten DRAM round trips, around a microsecond, and there are 10⁷ of them. Quicksort's partition touches elements in address order, so the prefetcher has the next line ready before the loop reaches it; the same 80 MB streams at bandwidth (of the order of 10 GB/s, about 10 ms per pass) rather than latency. That gap in access pattern, not the comparison count, is the factor of two to three you measure. The exact ratio depends on cache sizes, key width and whether the branch predictor can guess the comparisons; on random data it cannot, which is why the branchless partition in the next lesson matters.
+Where the misses come from: an L1 data cache holds tens of kilobytes (48 KB per core, about 6,000 8-byte keys, on the AMD Zen 5 machine this lesson was checked on). A heap of `10⁷` keys is 80 MB. The top 12 levels (`2¹² = 4,096` keys) stay hot; the remaining 11 levels of every sift-down are misses, so an extraction costs of the order of ten DRAM round trips, around a microsecond, and there are 10⁷ of them. Quicksort's partition touches elements in address order, so the prefetcher has the next line ready before the loop reaches it; the same 80 MB streams at bandwidth (of the order of 10 GB/s, about 10 ms per pass) rather than latency. That gap in access pattern, not the comparison count, decides the race. The exact ratio depends on cache sizes, key width and whether the branch predictor can guess the comparisons; on random data it cannot, which is why the branchless partition in the next lesson matters.
 
-The crossover with insertion sort follows from the same table. At `n = 16`, insertion sort's 64 moves and 64 comparisons sit within two cache lines with no calls; a quicksort call on 16 elements spends more than that on partition overhead and two recursive calls. Between roughly 8 and 32 elements the quadratic sort is faster, and that is where every library sets its cutoff.
+The same arithmetic sets the insertion-sort cutoff: at `n = 16`, 64 comparisons and 64 moves within two cache lines cost less than a partition plus two recursive calls, and the break-even point, somewhere between about 10 and 64 elements, depends on key size and comparison cost.
 
 ## Memory: buffers and stack depth
 
 Three different memory costs hide behind "extra space":
 
-- **Merge sort** needs a buffer. The textbook version allocates `n` per level or `n` once; Timsort's merge copies the *shorter* run out (at most `n/2` elements) and merges back into place, so the buffer is bounded by `n/2` and usually much smaller.
-- **Quicksort** needs a stack. Naive recursion on both sides has depth equal to the recursion tree's height: about `3 log₂ n` for random pivots (the tree is a random binary search tree, expected height about `4.3 ln n`), but `n` in the worst case, which for `n = 10⁶` overflows every default thread stack. The fix is to **recurse on the smaller side and loop on the larger**: the smaller side is at most `n/2`, so the depth is at most `log₂ n` regardless of pivot quality. The worst case is still $O(n^2)$ time, but it no longer crashes.
+- **Merge sort** needs a buffer: `n` elements in the textbook version, at most `n/2` (the *shorter* run) in Timsort, and usually much less.
+- **Quicksort** needs a stack. Naive recursion on both sides has depth equal to the recursion tree's height: about `3 log₂ n` for random pivots (the tree is a random binary search tree, whose height Devroye showed in 1986 grows as about `4.31 ln n`), but `n` in the worst case, which for `n = 10⁶` overflows every default thread stack. The fix is to **recurse on the smaller side and loop on the larger**: the smaller side is at most `n/2`, so the depth is at most `log₂ n` regardless of pivot quality. The worst case is still $O(n^2)$ time, but it no longer crashes.
 - **Heap sort** needs neither: the heap is the array and the sift-down is a loop.
 
 ```python
@@ -258,9 +258,9 @@ If you ever need a stable sort out of an unstable one, append the original index
 
 Nobody ships the twelve-line quicksort. libstdc++'s `std::sort` is introsort: median-of-three pivot, a Hoare-style partition, a depth limit of `2·⌊log₂ n⌋` after which the range is heap-sorted, and a cutoff of 16 elements below which the range is *left unsorted*; one final insertion-sort pass over the whole array finishes the job, linear because every element is within 16 slots of its place. libc++ and the Rust and Go unstable sorts are variants of the same design with the pattern-defeating additions covered in the [next lesson](/learn/algorithms/sorting-searching/non-comparison-sorts-and-lower-bounds).
 
-CPython's `list.sort` is a merge sort (Timsort), but what decides your call's cost is the comparison. Every `a < b` on arbitrary objects goes through `PyObject_RichCompare`, which dispatches on both types, and that dispatch dominates. Since Python 3.7 the sort starts with a pre-pass that checks whether every element has the same exact type; if all are `int`, `str` or `float` it swaps in a specialised comparison that skips the dispatch, measured by its author as tens of percent up to roughly 2× faster depending on the type (treat it as an order of magnitude; it depends on version and key type). A list mixing `int` and `float` loses the fast path for the whole sort. The `key=` argument computes each key once, so `key=str.lower` costs `n` calls where a comparator via `cmp_to_key` costs `n log₂ n` calls, roughly 20× more at `n = 10⁶`.
+CPython's `list.sort` is a merge sort (Timsort), but what decides your call's cost is the comparison. Every `a < b` on arbitrary objects goes through `PyObject_RichCompare`, which dispatches on both types, and that dispatch dominates. Since Python 3.7 the sort starts with a pre-pass that checks whether every key has the same exact type and, if so, swaps in a specialised comparison that skips the dispatch (the tightest ones cover floats, ints below 2³⁰ and one-byte-per-character strings); the 3.7 release notes put the gain at up to 40–75% for common cases. A list mixing `int` and `float` loses the fast path for the whole sort. The `key=` argument computes each key once, so `key=str.lower` costs `n` calls where a comparator via `cmp_to_key` costs `n log₂ n` calls, roughly 20× more at `n = 10⁶`.
 
-V8's `Array.prototype.sort` used an unstable quicksort for arrays longer than 10 elements until V8 7.0 in 2018, when it switched to Timsort to meet ES2019's stability requirement. Code that relied on secondary order surviving a sort worked by accident in Firefox (stable for years) and broke in Chrome; that is the canonical example of why stability must be a stated contract.
+V8's `Array.prototype.sort` used an unstable quicksort (insertion sort for 10 elements or fewer) until [V8 7.0 switched to Timsort](https://v8.dev/blog/array-sort) in 2018; V8's team then proposed the spec change that made stability mandatory in ES2019. Code that relied on secondary order surviving a sort worked by accident in Firefox (stable since Firefox 3 moved to merge sort) and broke in Chrome; that is the canonical example of why stability must be a stated contract.
 
 ## Putting the four side by side
 
@@ -271,9 +271,9 @@ V8's `Array.prototype.sort` used an unstable quicksort for arrays longer than 10
 | Quick | $O(n \log n)$ | $O(n \log n)$ | $O(n^2)$ | $O(\log n)$ stack | no | Fastest on arrays in memory; in-place |
 | Heap | $O(n \log n)$ | $O(n \log n)$ | $O(n \log n)$ | $O(1)$ | no | Guaranteed bound with no allocation; introsort fallback |
 
-Quicksort wins on arrays because its inner loop is a sequential scan doing one compare and occasionally one swap, and its working set streams through the cache. The $O(n^2)$ worst case is handled by pivot randomisation or introsort, not by avoiding quicksort.
+The $O(n^2)$ worst case is handled by pivot randomisation or introsort, not by avoiding quicksort.
 
-The honest caveat: this is about arrays. On a linked list, merge sort wins outright because it needs no random access and no auxiliary array, and a linked list has no cache locality to lose. When the data does not fit in memory, merge sort is the only one of the four that works at all: sort runs that fit in RAM, write them out, then k-way merge them with a [heap](/learn/data-structures/heaps/binary-heap-mechanics) of run heads. Spark's shuffle and every database's `ORDER BY` on a large table do exactly that, spilling sorted runs to disk and merging.
+The honest caveat: this is about arrays. On a linked list, merge sort wins outright because it needs no random access and no auxiliary array, and a linked list has no cache locality to lose. When the data does not fit in memory, merge sort is the only one of the four that works at all: sort runs that fit in RAM, write them out, then k-way merge them with a [heap](/learn/data-structures/heaps/binary-heap-mechanics) of run heads. Spark's shuffle and PostgreSQL's `ORDER BY` beyond `work_mem` do exactly that, spilling sorted runs to disk and merging.
 
 ## Failure modes
 
@@ -281,13 +281,13 @@ The honest caveat: this is about arrays. On a linked list, merge sort wins outri
 
 **Stack overflow or `RecursionError` inside a sort.** Symptom: a crash on a large or degenerate input, fine on small ones. Diagnosis: quicksort recursing on both partitions, so the depth equals the recursion tree height, which is `n` under a bad pivot sequence; CPython's default limit is 1,000 frames. Fix: recurse on the smaller side and loop on the larger (depth `<= log₂ n`), plus the introsort depth check so time is capped too.
 
-**`Comparison method violates its general contract!`** Symptom: an intermittent `IllegalArgumentException` from Java's `Collections.sort`, only on some inputs. Diagnosis: the comparator is not a strict weak ordering, most often `return a.value - b.value` on ints that overflow, a `compare` that is not antisymmetric, or a field that changes during the sort. Timsort's merge invariants detect the inconsistency and throw; C++ `std::sort` with the same comparator reads outside the array (undefined behaviour); other libraries return a silently misordered list. Fix: `Integer.compare`, a comparator that reads no mutable state, and an explicit rule for NaN.
+**`Comparison method violates its general contract!`** Symptom: an intermittent `IllegalArgumentException` from Java's `Collections.sort`, only on some inputs. Diagnosis: the comparator is not a strict weak ordering, most often `return a.value - b.value` on ints that overflow, a `compare` that is not antisymmetric, or a field that changes during the sort. Timsort's merge invariants detect the inconsistency and throw; C++ `std::sort` with the same comparator is undefined behaviour and can read outside the array; Rust's sorts may panic (since 1.81); others return a silently misordered list. Fix: `Integer.compare`, a comparator that reads no mutable state, and an explicit rule for NaN.
 
 **Rows reorder after a runtime upgrade.** Symptom: a table sorted by one column shows rows within each group in a different order than last week, and no code changed. Diagnosis: the sort was unstable and the platform's algorithm changed, or the input order changed and the unstable sort exposed it. Fix: a composite key, or the stable sort with the secondary order documented as a contract.
 
 ## Interviewer follow-ups
 
-**"You have 1 TB of records on a machine with 16 GB of RAM. How do you sort them?"** Model answer: external merge sort. Read chunks of about 10 GB, sort each in memory with the library sort, write ~100 sorted runs, then merge them in one pass with a min-heap of 100 run heads. Two full passes over the data; at 1 GB/s of disk bandwidth about 35 minutes, so the cost is I/O, not comparisons. Common wrong answer: "quicksort, it is the fastest", which needs random access to the whole array.
+**"You have 1 TB of records on a machine with 16 GB of RAM. How do you sort them?"** Model answer: external merge sort. Read chunks of about 10 GB, sort each in memory with the library sort, write ~100 sorted runs, then merge them in one pass with a min-heap of 100 run heads. Two passes, each reading and writing 1 TB, is 4 TB of I/O: a little over an hour at 1 GB/s, so the cost is I/O, not comparisons. Common wrong answer: "quicksort, it is the fastest", which needs random access to the whole array.
 
 **"Your comparator calls a locale-aware collation that costs 2 µs. What changes?"** Model answer: comparisons now dominate, so use the sort with the fewest (merge sort or Timsort, `n log₂ n` rather than quicksort's `1.39 n log₂ n`), and better still precompute one sort key per element (`key=` in Python, ICU collation keys) so the expensive function runs `n` times instead of `n log n`. Common wrong answer: switching to a "faster" algorithm while keeping the comparator.
 
@@ -299,10 +299,10 @@ The honest caveat: this is about arrays. On a linked list, merge sort wins outri
 
 ## What mid-level engineers get wrong
 
-- **Believing quicksort's O(n²) is theoretical.** A first-element pivot on sorted input hits it, and sorted input is the most common input there is: a 1000× slowdown that appears only on production data.
+- **Believing quicksort's O(n²) is theoretical.** A first-element pivot on sorted input hits it: a 1000× slowdown that appears only on production data.
 - **Reasoning about speed from the comparison count alone.** Heap sort has the better worst case and loses by 2–3× because of cache misses; the consequence is picking algorithms that benchmark badly.
 - **Treating stability as a detail.** Two-key sorts silently break on an unstable sort; the bug appears after a runtime upgrade or a data change.
-- **Writing a comparator that is not a strict weak order** (`a - b` on ints, a `<` that is not antisymmetric). Timsort throws, `std::sort` corrupts memory, other sorts return wrong output.
+- **Writing a comparator that is not a strict weak order** (`a - b` on ints). Timsort throws, `std::sort` can corrupt memory, other sorts return wrong output.
 - **Recursing on both sides of the partition.** Works until the input is adversarial and the stack overflows.
 
 ## Exercises
@@ -444,7 +444,7 @@ hints:
   options: ["It needs O(n log n) space, one buffer per level", "It sorts in place with O(1) extra space", "It needs only O(log n) space for the stack", "It needs O(n) auxiliary space for merging"]
   answer: 3
   explanation: >-
-    A straightforward merge needs an output area; a single reusable buffer of size n (or n/2 with care) suffices, so O(n), not one buffer per level. In-place merging exists but is impractically slow. The recursion stack is O(log n) on top of that buffer, not instead of it.
+    A straightforward merge needs an output area; a single reusable buffer of size n (or n/2 with care) suffices, so O(n), not one buffer per level. In-place merging exists but pays an extra log factor in moves. The recursion stack is O(log n) on top of that buffer, not instead of it.
 - q: >-
     A quicksort recurses on the smaller partition and loops on the larger one instead of recursing on both. What does this change?
   options: ["Worst-case time drops from O(n²) to O(n log n)", "Stack depth is capped at about log₂ n on any input", "Equal keys stop causing lopsided partitions", "The partition step no longer needs a pivot choice"]

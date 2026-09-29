@@ -150,12 +150,13 @@ The recursive version, `parent[x] = find(parent[x])`, reads more cleanly and is 
 
 | `n` | `α(n)` |
 |---|---|
-| up to 3 | 1 |
+| 0 to 2 | 0 |
+| 3 | 1 |
 | 4 to 7 | 2 |
 | 8 to 2,047 | 3 |
 | 2,048 to `A₄(1)` | 4 |
 
-The observable universe has around `10⁸⁰` atoms, which is nowhere near `A₄(1)`, so `α(n) ≤ 4` for every input that will ever exist. The bound is amortised: a single `find` can still cost `O(log n)` hops, and `m` operations on `n` elements cost `O(m α(n))` in total. Tarjan proved it in 1975 (Hopcroft and Ullman had `O(m log* n)` earlier, where `log* n`, the number of times you can take a logarithm before reaching 1, is 5 for `n = 2^65536`), and Fredman and Saks proved in 1989 that no structure in the pointer-machine model does better, so the story is closed. When an interviewer asks "what is the complexity", "amortised inverse Ackermann, at most 4 for any physical input, given both union by rank and path compression" is the full answer; "and with only one of the two?" is answered by the table above.
+The observable universe has around `10⁸⁰` atoms, which is nowhere near `A₄(1)`, so `α(n) ≤ 4` for every input that will ever exist. The bound is amortised: a single `find` can still cost `O(log n)` hops, and `m` operations on `n` elements cost `O(m α(n))` in total. Tarjan proved it in 1975 (Hopcroft and Ullman had `O(m log* n)` earlier, where `log* n`, the number of times you can take a logarithm before reaching 1, is 5 for `n = 2^65536`), Tarjan showed in 1979 that no pointer-machine structure of a broad class does better, and Fredman and Saks extended the lower bound to the cell-probe model in 1989, so the story is closed. When an interviewer asks "what is the complexity", "amortised inverse Ackermann, at most 4 for any physical input, given both union by rank and path compression" is the full answer; "and with only one of the two?" is answered by the table above.
 
 Do not try to reproduce the `α` proof on a whiteboard; it is a potential-function argument over rank levels, in the style of the [amortised analysis lesson](/learn/foundations/complexity/amortized-analysis), that runs to several pages. What you should be able to reproduce is the `2^r` counting argument for `log n`, and the observation that compression only ever shortens paths, so it cannot make anything worse.
 
@@ -199,7 +200,7 @@ For "earliest moment everyone is connected": sort the edge log by timestamp, uni
 
 The trick generalises to *deletions*: if you know the full sequence of deletions in advance, process time backwards. Start from the final graph with all deleted edges removed, then walk the deletions in reverse, each one becoming an insertion. "Number of components after removing each edge in order" becomes "number of components as edges are re-added in reverse", and union-find handles it. This reversal is a standard senior move: turn a structure's weakness into a non-issue by changing the order of the questions rather than the structure.
 
-When the questions genuinely must be answered online with deletions, union-find is the wrong tool and the answer is a dynamic connectivity structure (Holm–de Lichtenberg–Thorup, link-cut trees), which are `O(log² n)` per operation and a few hundred lines. Between the two sits **union-find with rollback**: union by rank *without* path compression, plus a stack recording each union's `(child root, old rank of parent)`, so the last union can be undone in `O(1)`. Every `find` is then `O(log n)`, but unions can be popped in LIFO order, which is what "divide and conquer over time" needs to answer offline connectivity with arbitrary deletions in `O(q log q log n)`. Knowing that boundary is worth more than knowing those structures.
+When the questions genuinely must be answered online with deletions, union-find is the wrong tool and the answer is a dynamic connectivity structure (Holm, de Lichtenberg and Thorup, JACM 2001), `O(log² n)` amortised per update and a few hundred lines. Between the two sits **union-find with rollback**: union by rank *without* path compression, plus a stack recording each union's `(child root, old rank of parent)`, so the last union can be undone in `O(1)`. Every `find` is then `O(log n)`, but unions can be popped in LIFO order, which is what "divide and conquer over time" needs to answer offline connectivity with arbitrary deletions in `O(q log q log n)`. Knowing that boundary is worth more than knowing those structures.
 
 ## Extensions worth knowing by name
 
@@ -213,13 +214,13 @@ When the questions genuinely must be answered online with deletions, union-find 
 
 **Memory layout and why compression matters more at scale.** The whole structure is one or two flat arrays. In Python, `parent = list(range(n))` costs 8 bytes per slot plus a 28-byte `int` object for every value above 256, about 36 bytes per element, so `10⁸` elements need 3.6 GB; `array('i')` or a NumPy `int32` array is 4 bytes per element, 400 MB. Rank fits in one byte (it never exceeds `log₂ n ≤ 63`), and a size counter needs a 32-bit or 64-bit integer. In Rust or C the pair is 5–8 bytes per element. Finds are pointer chasing with no locality: on a parent array larger than the last-level cache, every hop is a cache miss of roughly 100 ns, which is why the difference between a 3-hop path and a 1-hop path shows up in wall-clock time long before `α` does. Path compression pays for itself by shortening the *next* find's chain of misses.
 
-**Libraries.** `networkx.utils.UnionFind` is a dictionary-keyed version (any hashable element) with union by weight and full path compression, and it is what `networkx`'s Kruskal uses; `networkx.connected_components` on a static graph uses BFS instead, because a single traversal is cheaper than `E` unions when nothing is incremental. `scipy.sparse.csgraph.connected_components` likewise labels components by traversal over CSR arrays. Rust's `petgraph::unionfind::UnionFind` (rank plus compression) backs its Kruskal, and the `ena` crate, used inside the Rust compiler's type inference, is a union-find with snapshots and rollback, exactly the "undo stack" variant above.
+**Libraries.** `networkx.utils.UnionFind` is a dictionary-keyed version (any hashable element) with union by weight and full path compression, and it is what `networkx`'s Kruskal uses; `networkx.connected_components` on a static graph uses BFS instead, because a single traversal is cheaper than `E` unions when nothing is incremental. `scipy.sparse.csgraph.connected_components` likewise labels components by traversal over CSR arrays. Rust's `petgraph::unionfind::UnionFind` (rank plus compression) backs its Kruskal, and the [`ena`](https://github.com/rust-lang/ena) crate, extracted from and used by the Rust compiler, is a union-find with snapshots and rollback: it keeps path compression but logs every parent write, compression included, so a snapshot can be undone, the "undo stack" idea above paid for with a longer log.
 
-**Type inference.** Hindley–Milner unification, the algorithm behind type inference in OCaml, Haskell and Rust, is a union-find over type variables: unifying `α` with `β` is a union, and "what is `α` now?" is a find whose root carries the resolved type. Every compile of a Rust crate runs millions of these operations.
+**Type inference.** Hindley–Milner unification, the basis of type inference in OCaml and Haskell and of the unification tables in `rustc`, is a union-find over type variables: unifying `α` with `β` is a union, and "what is `α` now?" is a find whose root carries the resolved type.
 
 **Connected-component labelling in images.** The classic two-pass algorithm scans pixels, gives each new run a provisional label, records "label 12 touches label 7" as a union, and relabels in a second pass with finds. OpenCV's `connectedComponents` and scikit-image's `label` are descendants of this scheme.
 
-**At scale.** Identity resolution ("these two records are the same customer") over hundreds of millions of rows is a union-find over match edges. Distributed frameworks such as Spark GraphX compute components by iterative minimum-label propagation rather than pointer chasing, because a cross-machine pointer hop costs milliseconds; the usual pipeline runs union-find inside each partition and propagates labels only across partition boundaries. The [MST lesson](/learn/algorithms/graph-algorithms/minimum-spanning-trees) shows the other big consumer: Kruskal makes `2E` finds and at most `V − 1` unions.
+**At scale.** Identity resolution ("these two records are the same customer") over hundreds of millions of rows is a union-find over match edges. Distributed frameworks such as Spark GraphX compute components by iterative minimum-label propagation rather than pointer chasing, because a cross-machine pointer hop costs milliseconds (GraphX's `ConnectedComponents` is a Pregel loop that keeps the minimum vertex id); a hybrid design runs union-find inside each partition and propagates labels only across partition boundaries. The [MST lesson](/learn/algorithms/graph-algorithms/minimum-spanning-trees) shows the other big consumer: Kruskal makes `2E` finds and at most `V − 1` unions.
 
 ## Quantified costs
 
@@ -238,7 +239,7 @@ When the questions genuinely must be answered online with deletions, union-find 
 | Union-find (rank + compression) | amortised `O(α)` | amortised `O(α)` | not supported | `O(V)` | no |
 | Union-find, offline reversal | `O(α)` | `O(α)` | `O(α)` by replaying backwards | `O(V + E)` | yes |
 | Union-find with rollback | `O(log V)` | `O(log V)` | LIFO undo only, `O(1)` | `O(V + stack)` | yes, for divide and conquer over time |
-| Dynamic connectivity (HDT) | `O(log² V)` amortised | `O(log V / log log V)` | `O(log² V)` amortised | `O(E log V)` | no |
+| Dynamic connectivity (HDT) | `O(log² V)` amortised | `O(log V)` | `O(log² V)` amortised | `O(E log V)` | no |
 | Label propagation (distributed) | batch | after convergence | recompute | per partition | batch |
 
 ## Failure modes

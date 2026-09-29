@@ -9,7 +9,7 @@ problems: [meeting-rooms-ii, merge-intervals, meeting-rooms]
 ---
 A calendar service holds 200,000 bookings and needs the peak number of simultaneous meetings, a city planner has 50,000 building footprints and needs the skyline, a fleet system has 10⁵ vehicle positions and needs the two that are closest. Each of these has an obvious $O(n^2)$ answer (compare every pair) and each has an $O(n \log n)$ answer built from the same move: sort the interesting coordinates, walk them once, and keep a small **status structure** that describes everything the walk has already passed. That move is the sweep line, and it is the reason "sort first" is the reflex of every engineer who has done computational geometry.
 
-The second half of the lesson is about the arithmetic underneath. Geometry problems are where correct algorithms return wrong answers, because `0.1 + 0.2 != 0.3` and because a cross product of two large coordinates overflows a 32-bit integer or loses bits in a JavaScript double. A senior engineer writes orientation tests in exact integer arithmetic, knows the coordinate bound at which that stops being possible, and can explain what the geometry libraries do about it.
+The second half is the arithmetic underneath, where correct geometric algorithms return wrong answers: floats round, and a cross product of large coordinates overflows 32 bits or loses bits in a JavaScript double.
 
 ## The sweep-line idea
 
@@ -19,7 +19,7 @@ A sweep reduces a problem over a continuous axis to a problem over a finite list
 2. Walk the sorted events. Maintain a status structure whose invariant is "this describes the world at the current sweep position".
 3. Update the answer from the status structure at each event.
 
-The cost is the sort, $O(n \log n)$, plus the status updates, which are $O(1)$ for a counter, $O(\log n)$ for a heap or ordered set. With $n = 200{,}000$ bookings that is 400,000 events and roughly $4 \times 10^5 \times 19 \approx 7.6 \times 10^6$ comparisons in the sort; CPython sorts 400,000 small tuples in a few hundred milliseconds, and the walk is faster than the sort.
+The cost is the sort, $O(n \log n)$, plus the status updates: $O(1)$ for a counter, $O(\log n)$ for a heap or ordered set. For 200,000 bookings that is 400,000 events and about $4 \times 10^5 \times 19 \approx 7.6 \times 10^6$ comparisons, on the order of a hundred milliseconds in CPython; the walk is cheaper still.
 
 ### Interval union and meeting rooms as one sweep
 
@@ -42,13 +42,13 @@ The same walk answers three questions at once: the **maximum of `active`** is th
 
 ### The tie rule, and the bug it prevents
 
-Two events at the same coordinate must be ordered on purpose. With half-open intervals `[start, end)`, a meeting ending at 10 and another starting at 10 do not overlap, so the `−1` must be processed **before** the `+1`. Sort by `(time, delta)` with `delta = −1` for ends and `+1` for starts and the tuple order does that for you. Trace `[0,10], [10,20], [5,15]`: with ends first, the count goes `1, 2, 1, 2, 1, 0` and the peak is 2; with starts first it goes `1, 2, 3, 2, 1, 0` and the answer is 3, one room too many. For closed intervals (a point that touches both counts as overlap) the rule flips: starts first. Say which convention the problem uses before you write the sort key.
+Ties must be ordered on purpose. With half-open intervals `[start, end)`, a meeting ending at 10 and one starting at 10 do not overlap, so the `−1` goes **before** the `+1`; sorting `(time, delta)` with `delta = −1` for ends does that. On `[0,10], [10,20], [5,15]`, ends first gives counts `1, 2, 1, 2, 1, 0` (peak 2) and starts first `1, 2, 3, 2, 1, 0` (peak 3, one room too many). Closed intervals flip the rule; state the convention before you write the sort key.
 
 ## Skyline, traced event by event
 
-Buildings are `[left, right, height]` triples and the skyline is the list of `[x, h]` points where the maximum height changes. The status structure is a **max-heap of `(height, right)`**: at a left edge push the building, and at any event pop every heap top whose `right ≤ x`, because that building has ended. The current height is the top of the heap after the pops. Popping only when the top has expired is the same **lazy deletion** as the stale-entry check in [Dijkstra](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra): a building that ended while buried under a taller one stays in the heap until it surfaces, and is discarded the moment it does.
+Buildings are `[left, right, height]` triples and the skyline is the list of `[x, h]` points where the maximum height changes. The status structure is a **max-heap of `(height, right)`**: at a left edge push the building, and at any event pop every heap top whose `right ≤ x`, because that building has ended. The current height is the top of the heap after the pops. Popping only when the top has expired is the same **lazy deletion** as the stale-entry check in [Dijkstra](/learn/algorithms/graph-algorithms/shortest-paths-dijkstra).
 
-Event ordering matters twice. At the same `x`, starts come before ends (so a building that begins where another ends does not produce a spurious drop to zero), and among starts the taller building comes first (so a shorter building starting at the same `x` never emits a point that the taller one immediately overrides). Encoding starts as `(x, −h, right)` and ends as `(x, 0, 0)` and sorting the tuples gives exactly that order: negative heights sort before 0, and a taller building has a more negative key.
+Event ordering matters twice. At equal `x`, starts come before ends (no spurious drop to zero where one building begins as another ends), and taller starts come first (a shorter building starting at the same `x` never emits a point the taller one overrides). Encoding starts as `(x, −h, right)` and ends as `(x, 0, 0)` gives exactly that order under a plain tuple sort.
 
 Buildings `[2,9,10], [3,7,15], [5,12,12], [15,20,10], [19,24,8]`; the heap is shown as `(h, right)` pairs, tallest first, with a sentinel `(0, ∞)` that is never popped:
 
@@ -65,7 +65,7 @@ Buildings `[2,9,10], [3,7,15], [5,12,12], [15,20,10], [19,24,8]`; the heap is sh
 | 20 | end | (10,20) popped; (8,24) (0,∞) | 8 | … [20,8] |
 | 24 | end | (8,24) popped; (0,∞) | 0 | … [24,0] |
 
-Result: `[2,10], [3,15], [7,12], [12,0], [15,10], [20,8], [24,0]`. Notice the event at `x = 9`: building `[2,9,10]` ended, but it was under `[5,12,12]`, so nothing happened, and it was thrown away at `x = 12` when it surfaced already expired. Notice also that a point is emitted only when the height **changes**; the check `out[-1][1] != h` is what merges two adjacent buildings of equal height into one segment.
+Result: `[2,10], [3,15], [7,12], [12,0], [15,10], [20,8], [24,0]`. At `x = 9` building `[2,9,10]` ended under `[5,12,12]`, so nothing happened; it was discarded at `x = 12`, when it surfaced already expired. A point is emitted only when the height **changes** (`out[-1][1] != h`), which merges adjacent buildings of equal height.
 
 ```viz
 {"type": "heap", "algorithm": "push-pop", "kind": "max",
@@ -96,7 +96,7 @@ def skyline(buildings):
     return out
 ```
 
-Every building is pushed once and popped at most once, so the heap work is $O(n \log n)$ on top of the sort; the heap never holds more than `n + 1` entries, 2 tuples of 3 machine words each, about 72 bytes per entry in CPython (a 2-tuple is 56 bytes plus the two int objects it references). Correctness rests on one invariant: after the pop loop at event `x`, every entry in the heap has `right > x`, so the top is the tallest building covering `x`. The push happens before the pops so that a building starting at `x` is eligible at `x`, and expired entries below the top cannot affect the answer until they surface, at which point they are removed before being read.
+Every building is pushed once and popped at most once, so the heap work is $O(n \log n)$ on top of the sort, with at most `n + 1` entries. The invariant: after the pop loop at event `x`, the top has `right > x`, so it is the tallest building covering `x`; expired entries below it are removed before they can be read.
 
 ## Orientation: the cross product sign
 
@@ -114,7 +114,7 @@ From this one predicate you build the rest:
 - **Point in convex polygon.** With vertices in counter-clockwise order, the point is inside when `cross(vᵢ, vᵢ₊₁, p) ≥ 0` for every edge; one negative value means outside.
 - **Polar-angle sort** for Graham scan compares two points by `cross(pivot, a, b)` rather than by `atan2`, which keeps the comparator exact.
 
-The bit width doubles. Coordinates up to $10^9$ produce differences up to $2 \times 10^9$, products up to $4 \times 10^{18}$, and the difference of two products up to $8 \times 10^{18}$, which fits a signed 64-bit integer ($9.22 \times 10^{18}$) with little room to spare. In JavaScript, numbers are doubles and integers are exact only up to $2^{53} \approx 9 \times 10^{15}$, so the same bound gives $8M^2 < 2^{53}$, $M < 3.3 \times 10^7$: coordinates above about thirty million need `BigInt`. Python integers are arbitrary precision and never overflow, at the cost of about 28 bytes per small integer and a slower multiply once values exceed 2⁶⁰.
+The bit width doubles. Coordinates up to $10^9$ give differences up to $2 \times 10^9$, products up to $4 \times 10^{18}$ and a cross product up to $8 \times 10^{18}$, which fits a signed 64-bit integer ($9.22 \times 10^{18}$) with little room to spare. JavaScript doubles are exact integers only up to $2^{53} \approx 9 \times 10^{15}$, so $8M^2 < 2^{53}$ gives $M < 3.3 \times 10^7$: above about thirty million, use `BigInt`. Python integers never overflow, at the cost of about 28 bytes per small integer and a slower multiply once an operand exceeds one 30-bit digit (CPython's fast path is single-digit).
 
 ## Convex hull by monotone chain, point by point
 
@@ -182,9 +182,9 @@ def convex_hull(points):
     return [list(p) for p in lower[:-1] + upper[:-1]]
 ```
 
-Why it is correct: every point is pushed once and popped at most once, so the two passes are $O(n)$ after the $O(n \log n)$ sort. A point is popped only when the point after it (in `x` order) lies on or to the right of the line through the two stack points below, which means the popped point is inside or on the boundary of the triangle formed by its neighbours and cannot be a corner. A point that survives both passes has a strict left turn on both sides in its chain, which is the definition of a convex vertex.
+Why it is correct: each point is pushed once and popped at most once, so both passes are $O(n)$ after the sort. A point is popped only when the next point lies on or to the right of the line through the two stack points below it, so the popped point is inside or on the triangle of its neighbours and cannot be a corner; a survivor turns strictly left on both sides, the definition of a convex vertex.
 
-How big is the hull? For $n$ points drawn uniformly from a square the expected hull size is about $\tfrac{8}{3} \ln n$, so a million points yield roughly 37 hull vertices; for points uniform in a disk it grows like $n^{1/3}$, on the order of a hundred for a million points. Either way the output is tiny and the sort dominates the running time, which is the reason Chan's $O(n \log h)$ output-sensitive algorithm rarely beats monotone chain outside benchmarks.
+How big is the hull? For $n$ points drawn uniformly from a square the expected hull size grows like $\tfrac{8}{3} \ln n$, so a million points yield roughly 40 hull vertices (42 in one simulation while checking this lesson); for points uniform in a disk it grows like $n^{1/3}$, a few hundred for a million points (337 in the same check). Either way the output is tiny and the sort dominates the running time, which is the reason Chan's $O(n \log h)$ output-sensitive algorithm rarely beats monotone chain outside benchmarks.
 
 ## Closest pair by sweep, with the strip argument
 
@@ -212,33 +212,33 @@ Points `(1,5), (2,1), (3,4), (5,2), (6,5), (7,1), (8,4)`, comparing squared dist
 
 The answer is $\sqrt{5}$, attained by `(1,5)–(3,4)`, and a brute-force check over all 21 pairs agrees. Seven points did seven range queries with at most two candidates each; the $O(n^2)$ version does 21 comparisons and the gap widens as $n^2 / (8n)$.
 
-The catch for Python and JavaScript: neither has a built-in ordered set. In an interview, use `bisect.insort` on a list ordered by `(y, x)`; insertion is $O(n)$ in the worst case but the memmove runs at memory bandwidth, so a $10^5$-point input finishes in well under a second. In production use `sortedcontainers.SortedList` or a balanced tree, or take the divide-and-conquer route, which needs only sorting and merging. Keep `d` as a float from `math.sqrt(best)` for the window bounds while comparing squared integer distances for the actual test; the window can be slightly generous without affecting correctness, the distance comparison cannot.
+The catch for Python and JavaScript: neither has a built-in ordered set. In an interview, use `bisect.insort` on a list ordered by `(y, x)`; insertion is $O(n)$ in the worst case but the memmove runs at memory bandwidth. In production use `sortedcontainers.SortedList` or a balanced tree, or the divide-and-conquer route, which needs only sorting and merging. Keep `d` as a float from `math.sqrt(best)` for the window bounds while comparing squared integer distances for the actual test; the window can be slightly generous without affecting correctness, the distance comparison cannot.
 
 ## Floating-point precision
 
 The predicates above are exact on integers. The moment coordinates are floats, three things go wrong.
 
-**Rounding in the cross product.** Take `b = (12, 12)` and `c = (24, 24)` and an `a` within 40 ulps of `(0.5, 0.5)`, where one ulp at 0.5 is $1.1 \times 10^{-16}$. Of the 6,561 such points, 3,510 are reported collinear by the double-precision formula when exact rational arithmetic says they are strictly to the left. A hull built on that predicate drops corners or keeps interior points, and an incremental hull can loop forever because each insertion "fixes" what the last one broke. This is the classroom example from Kettner, Mehlhorn, Pion, Schirra and Yap's paper on robustness in geometric computation, and it is why the geometry libraries described below do not trust the naive formula.
+**Rounding in the cross product.** Take `b = (12, 12)` and `c = (24, 24)` and an `a` within 40 ulps of `(0.5, 0.5)`, where one ulp at 0.5 is $1.1 \times 10^{-16}$. Of the 6,561 such points only the 81 on the diagonal are exactly collinear, yet the double-precision `cross(a, b, c)` returns 0 for 3,510 more of them, 1,755 on each side of the line (counted against exact rationals while checking this lesson). A hull built on that predicate drops corners or keeps interior points, and an incremental hull can loop forever because each insertion "fixes" what the last one broke. This is the setting of Kettner, Mehlhorn, Pion, Schirra and Yap's "Classroom examples of robustness problems in geometric computations" (2008), and it is why the geometry libraries described below do not trust the naive formula.
 
-**Epsilon comparisons are not an equivalence relation.** `abs(a − b) < 1e-9` says `0 ≈ 0.6e-9` and `0.6e-9 ≈ 1.2e-9` but `0 ≉ 1.2e-9`. A sort comparator built on such a test is inconsistent; Java's TimSort detects some of these cases and throws `IllegalArgumentException: Comparison method violates its general contract!`, while CPython's sort silently returns an order that is not sorted. An absolute epsilon is also wrong at both ends of the scale: at magnitude $10^9$ the spacing between adjacent doubles is $1.2 \times 10^{-7}$, so `1e-9` is below the resolution of the numbers, and at magnitude $10^{-12}$ everything is "equal". Use a relative tolerance (`abs(a − b) <= rel * max(abs(a), abs(b))`, which is what `math.isclose` does) when you must compare floats, and prefer not to.
+**Epsilon comparisons are not an equivalence relation.** `abs(a − b) < 1e-9` says `0 ≈ 0.6e-9` and `0.6e-9 ≈ 1.2e-9` but `0 ≉ 1.2e-9`, so a comparator built on it is inconsistent: Java's TimSort detects some cases and throws `IllegalArgumentException: Comparison method violates its general contract!`, while CPython's sort silently returns an unsorted order. An absolute epsilon is also wrong at both ends of the scale: at $10^9$ adjacent doubles are $1.2 \times 10^{-7}$ apart, so `1e-9` is below their resolution, and at $10^{-12}$ everything is "equal". If you must compare floats, use a relative tolerance (`math.isclose`), and prefer not to.
 
 **Accumulation.** Summing 10⁶ areas each with relative error $2^{-53}$ can drift by $10^6 \times 1.1 \times 10^{-16} \approx 10^{-10}$ relative in the worst case, harmless for a report and fatal for a predicate that asks whether a total is exactly zero.
 
 The senior escape hatches, in order of preference:
 
 1. **Integer coordinates.** If the input is decimal with a fixed number of places, scale by $10^k$ and work in integers; Python's big ints and 64-bit types with the $8M^2$ bound cover almost all interview and most production inputs.
-2. **Exact rationals** (`fractions.Fraction`) for the rare predicate that must be exact on float input: roughly 50–100× slower than float arithmetic, so use them only in the predicate, not in the bulk computation.
-3. **Filtered predicates.** Compute in doubles, bound the rounding error, and fall back to exact arithmetic only when the result is within that bound. Shewchuk's adaptive-precision `orient2d` does this and is exact for all inputs while running at float speed for almost all of them.
+2. **Exact rationals** (`fractions.Fraction`) for the rare predicate that must be exact on float input: tens of times slower than float arithmetic (about 25× for one cross product on CPython 3.14), so use them only in the predicate, not in the bulk computation.
+3. **Filtered predicates.** Compute in doubles, bound the rounding error, and fall back to exact arithmetic only when the result is within that bound. Shewchuk's adaptive-precision `orient2d` (1997) does this and is exact for all inputs while running at float speed for almost all of them.
 
 ## Under the hood
 
-**Robust predicates in real libraries.** JTS and its C++ port GEOS (the engine under Shapely, PostGIS and QGIS) compute orientation in double-double arithmetic, two doubles carrying about 106 bits of significand, because plain doubles produced inconsistent hulls and overlays on real data. CGAL offers kernels parameterised by number type, and its filtered exact kernels run the fast float version first and the exact version only when the error filter cannot certify the sign. In JavaScript, the `robust-predicates` package ports Shewchuk's routines and is what Delaunator and the Mapbox stack use to triangulate without the failures above.
+**Robust predicates in real libraries.** JTS and its C++ port [GEOS](https://libgeos.org/) (the engine under Shapely, PostGIS and QGIS) run a fast floating-point filter and fall back to double-double arithmetic, two doubles carrying about 106 bits of significand, for orientation, because plain doubles produced inconsistent hulls and overlays on real data. CGAL offers kernels parameterised by number type, and its filtered exact kernels run the fast float version first and the exact version only when the error filter cannot certify the sign. In JavaScript, the `robust-predicates` package ports Shewchuk's routines and is what Mapbox's Delaunator depends on to triangulate without the failures above.
 
-**Hull implementations.** `scipy.spatial.ConvexHull` wraps Qhull, which uses Quickhull, an expected $O(n \log n)$ divide-and-conquer with a different partition rule; its `QJ` option "joggles" the input by a tiny random perturbation to escape degenerate (collinear, cocircular) configurations, which tells you how much trouble exact degeneracy handling is in floating point. Monotone chain is what you write yourself because it is twenty lines, its degeneracy handling is one comparison, and it is exact on integers.
+**Hull implementations.** `scipy.spatial.ConvexHull` wraps Qhull, which uses Quickhull, an expected $O(n \log n)$ divide-and-conquer; its `QJ` option "joggles" the input by a tiny random perturbation to escape degenerate (collinear, cocircular) configurations, a measure of how hard exact degeneracy handling is in floating point. Monotone chain is what you write yourself because it is twenty lines, its degeneracy handling is one comparison, and it is exact on integers.
 
-**Sweeps you have already used.** Bentley–Ottmann finds all $k$ intersections among $n$ segments in $O((n + k) \log n)$ with an event queue and a status structure ordered along the sweep line, and it is the algorithm behind polygon overlay in GIS. Fortune's algorithm builds a Voronoi diagram with a sweep in $O(n \log n)$. Database engines use an interval sweep to detect overlapping ranges in temporal tables and to build range-partition schedules; capacity planners compute concurrent-session curves the way the meeting-rooms sweep does, on tens of millions of events per day.
+**Other sweeps.** Bentley–Ottmann finds all $k$ intersections among $n$ segments in $O((n + k) \log n)$ with an event queue and a status structure ordered along the sweep line, the classic basis for the segment-intersection step of polygon overlay. Fortune's algorithm builds a Voronoi diagram with a sweep in $O(n \log n)$. A concurrent-sessions curve is the meeting-rooms sweep run over a day of login and logout events.
 
-**The sort underneath.** CPython's `sorted` on a list of tuples calls tuple comparison, which compares element by element and short-circuits on the first difference; sorting one million `(x, y)` tuples takes on the order of a second, and sorting by a single integer key extracted with `key=` about a quarter of that. When the sweep's sort is the bottleneck, pack `(x, y)` into one integer (`x * 2**32 + y` for non-negative 32-bit coordinates) and sort integers.
+**The sort underneath.** CPython's `sorted` on a list of tuples compares element by element and short-circuits on the first difference; sorting one million `(x, y)` tuples took about 0.6 s on CPython 3.14 while this lesson was checked, and the same points packed into one integer each (`x * 2**32 + y` for non-negative 32-bit coordinates) about 0.25 s. When the sweep's sort is the bottleneck, sort packed integers.
 
 ## Quantified costs
 
@@ -249,7 +249,7 @@ The senior escape hatches, in order of preference:
 | Convex hull | $O(n^3)$ edge test | $O(n \log n)$ sort + $O(n)$ stack | 10¹⁵ vs 2 × 10⁶ |
 | Closest pair | $O(n^2)$ pairs | $O(n \log n)$ sweep or D&C | 5 × 10⁹ vs 2 × 10⁶ |
 
-Memory for the sweep is one list of events (2n tuples, about 72 bytes each in CPython, so 14 MB for 10⁵ intervals) plus the status structure, which for the skyline holds at most n + 1 heap entries and for closest pair at most the points within a `d`-wide vertical band.
+Memory for the sweep is one list of events (2n small tuples, about 72 bytes each with their ints, so 14 MB for 10⁵ intervals) plus the status structure.
 
 ## Failure modes
 
@@ -280,24 +280,22 @@ Memory for the sweep is one list of events (2n tuples, about 72 bytes each in CP
 
 ## Interviewer follow-ups
 
-**"Your skyline has a building that ended while a taller one covered it. When is it removed from the heap?"** Model answer: never at its own end event; it stays until it becomes the heap top, which happens after every taller building covering it has expired, and the `while heap[0].right <= x` loop pops it then. Each building is pushed once and popped once, so the laziness costs nothing asymptotically. Common wrong answer: "I remove it at its end event", which requires a heap with deletion by key, a structure Python and JavaScript do not ship.
 
 **"How would you test collinearity of three points with float coordinates?"** Model answer: avoid the question if possible by scaling to integers; if the input is truly real-valued, compute the cross product with an error bound (or a library robust predicate) and treat only a result whose magnitude is below the bound as ambiguous, then resolve it exactly. Common wrong answer: `abs(cross) < 1e-9`, which is not scale-aware and turns every near-collinear triple in a large-coordinate dataset into a "collinear" one.
 
-**"Why does the closest-pair sweep query only a constant number of points?"** Model answer: every point in the active set is at least `d` from every other, and the query rectangle is `d` by `2d`; eight squares of side `d/2` cover it and each square, having diagonal below `d`, holds at most one point. Common wrong answer: "because the set is sorted by y", which explains why the query is fast to *find*, not why it is small.
 
-**"Merge Intervals is usually solved with a sort and a running interval. Why would you ever reach for +1/−1 events instead?"** Model answer: the event form answers "how many at time t" for every t in the same pass, generalises to weighted intervals (add the weight instead of 1) and to "union length", and composes with other event types in one sweep; the running-interval form is shorter when you only need the merged list. Common wrong answer: treating them as different algorithms with different complexities; both are $O(n \log n)$ sorts followed by a linear walk.
+**"Merge Intervals is usually solved with a sort and a running interval. Why would you ever reach for +1/−1 events instead?"** Model answer: the event form answers "how many at time t" for every t in the same pass and generalises to weighted intervals (add the weight instead of 1) and union length; the running-interval form is shorter when you only need the merged list. Common wrong answer: assigning them different complexities; both are an $O(n \log n)$ sort plus a linear walk.
 
 **"The hull must include collinear boundary points. What changes?"** Model answer: the pop test becomes `cross < 0`, and duplicates must be removed first because a repeated point gives a zero cross and would be kept twice; also the first and last points of each chain then need the same treatment when the whole edge is collinear. Common wrong answer: changing only the comparison and forgetting duplicates.
 
 ## What mid-level engineers get wrong
 
-- **Sorting events without a tie rule** and discovering it in a hidden test with touching intervals. The consequence is an answer off by one in the direction the convention dictates.
-- **Using `atan2` or floating slopes to compare angles** in a polar sort. The comparator is then inexact, ties between collinear points are resolved by rounding noise, and Graham scan produces a hull with a wrong vertex order.
-- **Computing distances with `sqrt` and comparing floats** when squared integer distances would do; the test then depends on rounding, and `sqrt(dist2) == side` for a square check fails on perfectly valid input.
-- **Treating the skyline heap as needing deletion**, and writing an $O(n)$ scan-and-remove that turns the algorithm quadratic on inputs with thousands of overlapping buildings.
-- **Assuming JavaScript integers are exact** and porting a correct Python cross product into one that fails past $3 \times 10^7$ coordinates.
-- **Building a closest-pair "sweep" that filters by `x` only** and calling it $O(n \log n)$; on clustered data it is quadratic.
+- **Sorting events without a tie rule**: off by one on touching intervals, found by a hidden test.
+- **Using `atan2` or floating slopes to compare angles** in a polar sort: ties between collinear points are resolved by rounding noise, and Graham scan gets a wrong vertex order.
+- **Comparing `sqrt` distances** when squared integer distances would do; `sqrt(dist2) == side` fails on valid input.
+- **Deleting from the skyline heap** with an $O(n)$ scan-and-remove, which is quadratic on thousands of overlapping buildings.
+- **Assuming JavaScript integers are exact**: the Python cross product ported as-is fails past $3 \times 10^7$.
+- **A closest-pair "sweep" that filters by `x` only**, quadratic on clustered data.
 
 ## Exercises
 
@@ -433,9 +431,9 @@ hints:
 
 ## Senior signals
 
-- You describe any interval, skyline or nearest-neighbour problem as "events, a sort with a stated tie rule, and a status structure", and you name the invariant the status structure keeps.
-- You solve meeting rooms with a counter and know when the heap version is needed instead (room identity), and you can say why both are $O(n \log n)$.
-- You recognise the skyline heap's lazy deletion as the same technique as Dijkstra's stale entries, and you can say when each buried entry is removed.
+- You describe any interval, skyline or nearest-neighbour problem as "events, a sort with a stated tie rule, and a status structure", and you name the status structure's invariant.
+- You solve meeting rooms with a counter and know when the heap version is needed instead (room identity).
+- You recognise the skyline heap's lazy deletion as Dijkstra's stale-entry technique and can say when each buried entry is removed.
 - You write orientation as an integer cross product, state the $8M^2$ overflow bound for 64-bit integers and the $2^{53}$ bound for JavaScript, and you never compare a float cross product with zero.
 - You can trace monotone chain on eight points and explain the single comparison that decides whether collinear boundary points survive.
 - You reproduce the eight-square packing argument for closest pair, and you know that Python needs `bisect` or `sortedcontainers` because it has no ordered set.

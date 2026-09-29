@@ -119,13 +119,13 @@ Numbers to carry around, with what they depend on:
 |---|---|---|---|
 | CPython | `sys.getrecursionlimit()` returns 1,000 | 1,000 Python frames; `sys.setrecursionlimit` raises it (what that means depends on the version, see below) | `RecursionError`, catchable |
 | Node / V8 | about 1 MB (`--stack-size`, given in KB) | measured on Node 24: 12,546 frames for a zero-argument function, 5,702 with four arguments and four locals | `RangeError: Maximum call stack size exceeded`, catchable |
-| JVM | `-Xss`, order of 512 KB to 1 MB depending on platform and JVM | order of $10^4$ frames | `StackOverflowError`, catchable |
-| Go | goroutine stacks start at a few KB and grow by copying, up to 1 GB on 64-bit | bounded by memory | fatal "stack overflow" at the cap |
+| JVM | `-Xss`: 1 MB on Linux and macOS x64, 2 MB on their Aarch64 builds (JDK 21) | order of $10^4$ frames | `StackOverflowError`, catchable |
+| Go | goroutine stacks start at a few KB and grow by copying, up to 1 GB (10⁹ bytes) on 64-bit | bounded by memory | `fatal error: stack overflow` at the cap |
 | Rust / C on Linux | main thread 8 MB (`ulimit -s`); Rust spawned threads 2 MB unless set | order of $10^4$ to $10^5$ frames depending on frame size | guard-page fault: `SIGSEGV`; Rust prints "thread has overflowed its stack" |
 
 The consequence for design: a recursive function whose depth is proportional to the *input size* (a linked-list walk, a DFS on a path graph, a `sum` that recurses on the tail) is a latent crash. A function whose depth is proportional to $\log n$ (binary search, balanced-tree traversal, `power`) is safe for any input you can store. Depth proportional to the *height of a tree* is safe when the tree is balanced and a crash when it degenerates; that is why production tree code either balances the tree or uses an explicit stack.
 
-Recursion also costs time per call. In CPython a call is on the order of 10 to 100 ns depending on the version and the argument count (a one-argument call measured about 10 ns on 3.14 here; 3.10 and earlier are several times slower); in V8 after JIT it is a few nanoseconds. For $10^6$ calls that is tens of milliseconds versus a few. It rarely matters in interviews and occasionally matters in a hot loop.
+Recursion also costs time per call. In CPython a call is on the order of 10 to 100 ns depending on the version and the argument count (a one-argument call measured about 10 ns on 3.14 here; 3.11's release notes report a 1.7× speedup on simple recursive functions such as factorial, so 3.10 and earlier are slower); in V8 after JIT it is a few nanoseconds. For $10^6$ calls that is tens of milliseconds versus a few. It rarely matters in interviews and occasionally matters in a hot loop.
 
 ## Under the hood: where the frames live
 
@@ -139,13 +139,13 @@ The 1,000 default is a sanity check, not a memory limit: a thousand frames is a 
 
 ### V8, JVM, Go, Rust
 
-V8 reserves about 1 MB of stack per isolate and its frames are native-sized, so the depth you get depends on how many arguments and locals each frame holds (the 12,546 versus 5,702 measurement above). Overflow throws a catchable `RangeError`; the handler runs on a full stack, so it must not recurse further.
+V8's default stack limit is slightly under 1 MB (984 KB on 64-bit builds, chosen to fit Windows' 1 MB main-thread stack) and its frames are native-sized, so the depth you get depends on how many arguments and locals each frame holds (the 12,546 versus 5,702 measurement above). Overflow throws a catchable `RangeError`; the handler runs on a full stack, so it must not recurse further.
 
 A JVM thread reserves its stack at creation (`-Xss`), and `StackOverflowError` is thrown when a guard page at the end is touched. Go goroutines start with a stack of a few KB; when a function prologue finds the next frame will not fit, the runtime allocates a stack twice the size, copies the old one across and fixes up pointers, up to a 1 GB cap on 64-bit. That copying is what lets Go afford a million goroutines with tiny initial stacks. Rust and C get whatever the OS gives the thread: 8 MB for the main thread on a typical Linux (`ulimit -s`), 2 MB for Rust's spawned threads unless you ask for more, and overflow is a segmentation fault from the guard page rather than an exception. [Stack, heap and the call stack](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
 
 ### Tail calls
 
-Guido van Rossum rejected tail-call elimination for CPython in 2009 on four stated grounds: it destroys tracebacks (the eliminated frames are gone when an exception fires), it would make programs depend on a feature other Python implementations need not provide, loops are the idiom the language chose, and the structure of the eval loop makes it awkward to implement. ES2015 specified proper tail calls in strict mode; only JavaScriptCore (Safari) ships them, V8 implemented them behind a flag and then removed the implementation, and the feature is effectively dead outside Safari. Python 3.14's "tail-calling interpreter" build option is unrelated: it is a way of dispatching bytecode inside the C interpreter, not tail-call elimination for your functions.
+Guido van Rossum [rejected tail-call elimination for CPython in 2009](http://neopythonic.blogspot.com/2009/04/tail-recursion-elimination.html) on four stated grounds: it destroys tracebacks (the eliminated frames are gone when an exception fires), code would come to depend on it and then fail on Python implementations without it, sequences and loops rather than recursion are the foundation he wants the language built on, and dynamic name binding means the compiler cannot know that `return f(x)` calls the function it is in. ES2015 specified proper tail calls in strict mode; JavaScriptCore (Safari) [implemented them in 2016](https://webkit.org/blog/6240/ecmascript-6-proper-tail-calls-in-webkit/) and ships them, V8 implemented them behind flags and then removed the flags, and SpiderMonkey's tracking bug is still open, so outside Safari the feature is effectively dead. Python 3.14's "tail-calling interpreter" build option is unrelated: it is a way of dispatching bytecode inside the C interpreter, not tail-call elimination for your functions.
 
 ## Converting recursion to iteration
 
@@ -224,7 +224,7 @@ The explicit stack lives on the heap, so its size is bounded by memory rather th
 
 ## Tail calls and accumulators
 
-A call is a **tail call** when the function returns the call's result unchanged. Nothing remains to be done in the caller's frame, so a compiler could reuse that frame for the callee: constant stack space for any depth. Scheme requires this. Rust, C and Go compilers do it opportunistically at higher optimisation levels. CPython never does and V8 does not, for the reasons above. Assume your recursion depth is real.
+A call is a **tail call** when the function returns the call's result unchanged. Nothing remains to be done in the caller's frame, so a compiler could reuse that frame for the callee: constant stack space for any depth. Scheme requires this. Rust and C compilers do it opportunistically at higher optimisation levels (LLVM's and GCC's sibling-call optimisation), with no guarantee. CPython never does and V8 does not, for the reasons above. Assume your recursion depth is real.
 
 What you *can* do is write the function in tail form with an accumulator, because that form converts mechanically to a loop.
 
@@ -259,7 +259,7 @@ The first two versions also copy the list on every call (`xs[1:]`), making them 
  "caption": "Depth 3, but 7 moves: the call tree is a full binary tree"}
 ```
 
-**Mutual recursion.** A recursive-descent parser has `parse_expr` calling `parse_term` calling `parse_factor` calling `parse_expr` for a parenthesised sub-expression. No single function calls itself, but the cycle of calls is still recursion, the measure that decreases is "characters remaining", and the depth is the nesting depth of the input. This is why JSON parsers in every language have a nesting limit (CPython's `json` module stops at the C recursion guard; many C parsers hard-code a few hundred): an attacker can send `[[[[[[...` and crash a naive parser with a stack overflow. Real parsers that must accept arbitrary nesting use an explicit stack.
+**Mutual recursion.** A recursive-descent parser has `parse_expr` calling `parse_term` calling `parse_factor` calling `parse_expr` for a parenthesised sub-expression. No single function calls itself, but the cycle of calls is still recursion, the measure that decreases is "characters remaining", and the depth is the nesting depth of the input. This is why JSON parsers in every language have a nesting limit (CPython's `json` module stops at the C recursion guard; C libraries hard-code limits in the low thousands, 1,000 levels in cJSON and 2,048 in Jansson): an attacker can send `[[[[[[...` and crash a naive parser with a stack overflow. Real parsers that must accept arbitrary nesting use an explicit stack.
 
 ## Failure modes
 

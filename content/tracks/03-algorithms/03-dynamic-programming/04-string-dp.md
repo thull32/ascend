@@ -266,11 +266,11 @@ Three further reductions are worth knowing by name.
 
 **Banding (Ukkonen, 1985).** If you only care whether the distance is at most `k`, cells with `|i − j| > k` cannot lie on a path of cost `≤ k` (each step away from the diagonal is at least one edit), so you fill a band of width `2k + 1`: `5,000` cells instead of `10⁶` for two 1,000-character strings and `k = 2`. Spell checkers and fuzzy search with a small distance cutoff live here. If the band's final cell exceeds `k`, the true distance does too.
 
-**Bit-parallel rows (Myers, 1999).** For edit distance, the differences between adjacent cells are always in `{−1, 0, +1}`, so a whole row can be encoded as a few bit-vectors and updated with about 15 word operations per text character, processing 64 cells at once: `O(n ⌈m / 64⌉)` instead of `O(nm)`. Libraries such as RapidFuzz and Edlib use this and are tens of times faster than a scalar table on short-to-medium strings.
+**Bit-parallel rows (Myers, 1999).** For edit distance, the differences between adjacent cells are always in `{−1, 0, +1}`, so a whole column of up to 64 cells can be encoded as a few bit-vectors and updated with a small constant number of word operations per text character: `O(n ⌈m / 64⌉)` instead of `O(nm)`, with the bound independent of `k`. Edlib is built on this algorithm (plus Ukkonen's band) and RapidFuzz uses bit-parallel variants (blocked for strings longer than 64 characters), which is why both beat a scalar table by a wide margin.
 
 **Automata for many queries.** A Levenshtein automaton for a word `w` and bound `k` accepts exactly the strings within distance `k` of `w`; intersecting it with a dictionary trie enumerates all fuzzy matches without a DP per word. Lucene's fuzzy queries do this for `k ≤ 2`. [Aho–Corasick](/learn/advanced-data-structures/advanced-strings/aho-corasick) is the analogous move for exact multi-pattern matching.
 
-And on `diff`: the LCS table is `O(mn)` regardless of how similar the files are, so `git diff` does not use it. It runs Myers' 1986 algorithm, whose time is `O((m + n) · D)` for edit distance `D`, near-linear on files that differ in a few lines; `--minimal`, `--patience` and `--histogram` select variants that trade time for nicer alignments. Python's `difflib.SequenceMatcher` is a different algorithm again (longest matching blocks with an "autojunk" heuristic that ignores elements appearing more than 1% of the time in sequences over 200 items), which is why its output sometimes disagrees with an LCS.
+And on `diff`: the LCS table is `O(mn)` regardless of how similar the files are, so `git diff` does not use it. It runs Myers' 1986 algorithm, whose time is `O((m + n) · D)` for edit distance `D`, near-linear on files that differ in a few lines; `--minimal`, `--patience` and `--histogram` select variants that trade time for nicer alignments. Python's `difflib.SequenceMatcher` is a different algorithm again (longest matching blocks with an "autojunk" heuristic: when the second sequence has at least 200 items, items that make up more than 1% of it are treated as junk), which is why its output sometimes disagrees with an LCS.
 
 ## Costs, and when the table is the wrong tool
 
@@ -283,7 +283,7 @@ And on `diff`: the LCS table is `O(mn)` regardless of how similar the files are,
 | One query against 10⁶ dictionary words, distance ≤ 2 | 10⁶ small tables | Levenshtein automaton or BK-tree index |
 | Regex on untrusted input in a service | | automata engine (RE2-class), never a backtracker |
 
-Top-down memoisation beats the bottom-up table in this family when most cells are unreachable: the regex DP with a pattern of many literals reaches only a thin diagonal, and a memoised `match(i, j)` visits those cells alone. Bottom-up wins for LCS and edit distance, where every cell is needed and the loop's constant factor is 10–20× smaller than a memoised call in CPython.
+Top-down memoisation beats the bottom-up table in this family when most cells are unreachable: the regex DP with a pattern of many literals reaches only a thin diagonal, and a memoised `match(i, j)` visits those cells alone. Bottom-up wins for LCS and edit distance, where every cell is needed and the loop's constant factor is several times smaller than a memoised call in CPython.
 
 ## Failure modes
 
@@ -314,7 +314,7 @@ Top-down memoisation beats the bottom-up table in this family when most cells ar
 
 **"LCS of three strings?"** Model answer: the state becomes three prefixes, `dp[i][j][k]`, with the same last-character case analysis: all three equal gives `1 + dp[i-1][j-1][k-1]`, otherwise the max over dropping one character from any string. `O(n³)` time and space, so `n ≈ 300` is the comfortable limit in Python. Common wrong answer: `LCS(LCS(a, b), c)`, which is wrong because the intermediate LCS is not unique and the wrong choice loses matches.
 
-**"Allow swapping two adjacent characters as one edit."** Model answer: Damerau–Levenshtein adds a fourth candidate when `a[i-1] = b[j-2]` and `a[i-2] = b[j-1]`: `1 + dp[i-2][j-2]`; the state is unchanged, only the transition reads one more cell. Common wrong answer: treating a transposition as two substitutions, which overcounts by one for every swap.
+**"Allow swapping two adjacent characters as one edit."** Model answer: the restricted Damerau–Levenshtein distance ("optimal string alignment", what Lucene's fuzzy query computes) adds a fourth candidate when `a[i-1] = b[j-2]` and `a[i-2] = b[j-1]`: `1 + dp[i-2][j-2]`; the state is unchanged, only the transition reads one more cell. Common wrong answer: treating a transposition as two substitutions, which overcounts by one for every swap.
 
 **"The strings are 10⁵ characters each."** Model answer: 10¹⁰ cells is out for any table. If the expected distance is small, banded DP in `O(nk)` or Myers' bit-parallel rows; if the strings are similar in the `diff` sense, Myers' `O((m+n)D)`; if neither, approximate (sketching, or align in chunks). Common wrong answer: "roll the rows", which fixes memory but still runs 10¹⁰ steps.
 

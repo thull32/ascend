@@ -260,7 +260,7 @@ The value-indexed DP is the one candidates forget: when `W = 10⁹` but every va
 
 **Coin-change counts are too large.** Symptom: `ways(3, [1, 2])` returns 3 instead of 2. Diagnosis: the loops are nested amount-outer, coins-inner, so `1+2` and `2+1` are counted separately. Fix: coins outer, amount inner, which counts each multiset once.
 
-**Counts go negative in Java or C++.** Symptom: correct for small amounts, negative past a few thousand. Diagnosis: 32-bit overflow; UK-coin ways for £100 is 1.1 × 10¹⁵. Fix: reduce modulo the requested prime at each addition, or use 64-bit with the constraints checked.
+**Counts go negative in Java or C++.** Symptom: correct for small amounts, wrong (first negative) from 1,367 pence, where the UK-coin count first passes 2³¹. Diagnosis: 32-bit overflow; UK-coin ways for £100 is 1.1 × 10¹⁵. Fix: reduce modulo the requested prime at each addition, or use 64-bit with the constraints checked.
 
 **Target sum crashes with a negative index or returns 0 for a feasible input.** Symptom: `IndexError`, or 0 when `T` is negative. Diagnosis: `(S + T)` is odd or `|T| > S` and the code did not guard, or `T < 0` was mishandled; the transformation needs `S + T` even and non-negative. Fix: the two guards up front; note that negative `T` is fine after the guard because `(S + T) / 2` is then still a valid non-negative target.
 

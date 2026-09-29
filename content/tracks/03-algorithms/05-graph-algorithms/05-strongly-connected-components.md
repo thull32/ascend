@@ -119,7 +119,7 @@ def tarjan(n, adj):
     return comps                                       # emitted in REVERSE topological order
 ```
 
-The `on_stack[v]` check is the line to understand. A DFS can reach an already-visited node in two ways: a **back edge** to an ancestor (still on the stack, definitely in the same SCC) or a **cross edge** to a node in a different subtree. If that node has already been popped, its SCC is finished and closed; following it would wrongly merge components. If it is still on the stack, it is part of an open component that `u` can now reach, and since it was discovered earlier and can reach `u` via the DFS path, they are in the same SCC. Note also that the cross-edge update uses `disc[v]`, not `low[v]`; using `low[v]` would still be correct for SCCs but breaks the bridge-finding variant of the same code, so it is worth building the right habit now.
+The `on_stack[v]` check is the line to understand. A DFS can reach an already-visited node in two ways: a **back edge** to an ancestor (still on the stack, definitely in the same SCC) or a **cross edge** to a node in a different subtree. If that node has already been popped, its SCC is finished and closed; following it would wrongly merge components. If it is still on the stack, it is part of an open component that `u` can now reach, and since it was discovered earlier and can reach `u` via the DFS path, they are in the same SCC. Note also that the cross-edge update uses `disc[v]`, not `low[v]`; using `low[v]` would still be correct for SCCs but breaks the articulation-point variant of the same code, so it is worth building the right habit now.
 
 ```viz
 {"type": "graph", "algorithm": "tarjan-scc", "directed": true,
@@ -202,8 +202,8 @@ Once you have `comp[u]` for every node, the condensation is built in one pass ov
 - **Reachability and "can every node reach X"**: reduce to the DAG, then `X`'s component must be the unique sink reachable from every source.
 - **Longest or most expensive path through a cyclic graph**: DP over the condensation, where each component's weight is the sum of its members (you can visit all of them once you enter).
 - **Minimum edges to make the graph strongly connected**: with `s` source components and `t` sink components in the condensation (and more than one component), the answer is `max(s, t)`; each added edge can fix at most one source and one sink.
-- **Which cycles matter**: in a control-flow graph, the non-trivial SCCs are the loops. Compilers run SCC detection before loop-invariant code motion for exactly this reason.
-- **Cyclic imports and build graphs**: `cargo`, `go build` and every module bundler run some form of SCC detection to report cycles as a unit rather than as a confusing chain of errors. [Alien Dictionary](/practice/alien-dictionary) and [Course Schedule II](/practice/course-schedule-ii) are the interview-sized version: a cycle means "no valid order", and reporting *which* nodes form it is what SCCs add over plain cycle detection.
+- **Which cycles matter**: in a control-flow graph, every loop lies inside a non-trivial SCC, so the SCCs are the first cut at "where are the loops"; compilers then refine them with dominators.
+- **Cyclic imports and build graphs**: `cargo` and `go build` reject dependency cycles, and a tool that wants to report a cycle as a unit, rather than as a confusing chain of errors, needs the SCC. [Alien Dictionary](/practice/alien-dictionary) and [Course Schedule II](/practice/course-schedule-ii) are the interview-sized version: a cycle means "no valid order", and reporting *which* nodes form it is what SCCs add over plain cycle detection.
 
 ## 2-SAT: satisfiability as an SCC question
 
@@ -232,15 +232,15 @@ def two_sat(n, clauses):                       # literal k>0 means x_k, k<0 mean
 
 ## Under the hood
 
-**networkx.** `strongly_connected_components(G)` is a generator implementing Tarjan's algorithm with Nuutila's modifications in a *non-recursive* form (its docstring says so), with an explicit stack of node iterators much like the frames above, so it survives million-node chains. `kosaraju_strongly_connected_components` is there too, and `condensation(G)` builds the DAG and stores the node-to-component map in `C.graph["mapping"]`, which is the input every "DP on the condensation" starts from. Everything is pure Python: on the order of a microsecond per edge, so a few seconds per million edges.
+**networkx.** `strongly_connected_components(G)` is a generator implementing Tarjan's algorithm in a *non-recursive* form, with an explicit stack much like the frames above, so it survives million-node chains (its docstring cites Nuutila's modifications up to networkx 3.6, and 3.7, released in 2026, adopted the refinements from Tarjan and Zwick's 2024 survey). `kosaraju_strongly_connected_components` is there too, and `condensation(G)` builds the DAG and stores the node-to-component map in `C.graph["mapping"]`, which is the input every "DP on the condensation" starts from. Everything is pure Python: on the order of a microsecond per edge, so a few seconds per million edges.
 
-**scipy.** `scipy.sparse.csgraph.connected_components(G, directed=True, connection="strong")` labels components over CSR arrays in Cython using Pearce's variant of Tarjan, which drops the separate `low` array by storing a single index per node and reusing the label array as the stack: three `int32` arrays of length `V`, about 12 bytes per node, and tens of milliseconds per million edges. The labels come back as one array, which is the shape you want before a NumPy-based DP.
+**scipy.** `scipy.sparse.csgraph.connected_components(G, directed=True, connection="strong")` labels components over CSR arrays in Cython with an iterative Tarjan that reuses the label array as the low-link array. Up to SciPy 1.17 it was Pearce's memory-saving variant; [SciPy 1.18](https://docs.scipy.org/doc/scipy/release/1.18.0-notes.html) (2026) switched to Tarjan and Zwick's refinements and reports it "2x faster with better cache locality". Either way it needs a few integer arrays of length `V` and tens of milliseconds per million edges. The labels come back as one array, which is the shape you want before a NumPy-based DP.
 
-**Compilers.** LLVM's `scc_iterator` walks the call graph in post-order of its SCCs, and the inliner and interprocedural analyses are written as *call-graph SCC passes*: a group of mutually recursive functions is optimised as one unit, bottom-up, so that callee information is available before callers are processed. In control-flow graphs, natural loops are found with dominators, but Tarjan's interval analysis and irreducible-loop detection are SCC computations on the CFG. The Rust compiler keeps an SCC implementation in `rustc_data_structures::graph::scc` for region constraints in borrow checking, where a set of lifetimes that must all outlive each other collapses to one.
+**Compilers.** LLVM's `scc_iterator` walks the call graph in post-order of its SCCs, and the inliner and interprocedural analyses are written as *call-graph SCC passes*: a group of mutually recursive functions is optimised as one unit, bottom-up, so that callee information is available before callers are processed. In control-flow graphs, natural loops are found with dominators, but irreducible regions (cycles with more than one entry) are found as SCCs: LLVM's block-frequency analysis treats each irreducible SCC as one unit. The Rust compiler keeps an SCC implementation in `rustc_data_structures::graph::scc` for region constraints in borrow checking, where a set of lifetimes that must all outlive each other collapses to one.
 
-**Build and dependency tools.** Go's compiler refuses `import cycle not allowed` and Cargo rejects cyclic package dependencies; both are DFS cycle detections that report *a* cycle. Reporting *the whole knot* (every module involved, not one chain through it) is the SCC computation, which is what bundlers do when they list all members of a circular import group at once. Netflix-scale service graphs, thousands of services with call edges from tracing, get the same treatment: the non-trivial SCCs are the mutual-dependency clusters that make independent deployment and failure isolation hard, and the condensation is what a dependency dashboard draws.
+**Build and dependency tools.** The `go` command refuses with `import cycle not allowed` and Cargo's resolver with `cyclic package dependency`; both report *a* cycle, one path through it. Reporting *the whole knot* (every module involved, not one chain through it) is the SCC computation, which is what bundlers do when they list all members of a circular import group at once. Large service graphs, thousands of services with call edges from tracing, get the same treatment: the non-trivial SCCs are the mutual-dependency clusters that make independent deployment and failure isolation hard, and the condensation is what a dependency dashboard draws.
 
-**Recursion limits.** CPython's default limit is 1,000 frames and each Python frame costs on the order of 100 bytes of C stack plus a heap-allocated frame object; raising the limit to 10⁶ without also raising the thread stack size (`threading.stack_size`) segfaults instead of raising `RecursionError`. V8's limit is around 10⁴ frames and not configurable from JavaScript. The iterative version is the only portable answer for graphs deeper than a few thousand.
+**Recursion limits.** CPython's default limit is 1,000 frames. Since [CPython 3.11](https://docs.python.org/3/whatsnew/3.11.html) a Python-to-Python call consumes no C stack, so `sys.setrecursionlimit` does let a pure-Python DFS go deeper (300,000 levels ran on 3.14 while this lesson was checked), paying for heap-allocated frames; on older versions, or when the recursion passes through C code, a raised limit can overflow the C stack and crash instead of raising `RecursionError`. V8's limit is around 10⁴ frames (about 12,500 for a trivial function on Node 24) and not configurable from JavaScript. The iterative version is the only portable answer for graphs deeper than a few thousand.
 
 ## Quantified costs
 
@@ -263,7 +263,7 @@ def two_sat(n, clauses):                       # literal k>0 means x_k, k<0 mean
 
 ## Failure modes
 
-**Symptom: `RecursionError` (Python) or `RangeError: Maximum call stack size exceeded` (Node) on a large input that a smaller test never triggered.** Diagnosis: the DFS depth equals the longest path, and a chain-shaped dependency graph of a few thousand nodes exceeds the default limits. Fix: the iterative version with `(node, edge index)` frames; raising the recursion limit is a stopgap that trades an exception for a segfault.
+**Symptom: `RecursionError` (Python) or `RangeError: Maximum call stack size exceeded` (Node) on a large input that a smaller test never triggered.** Diagnosis: the DFS depth equals the longest path, and a chain-shaped dependency graph of a few thousand nodes exceeds the default limits. Fix: the iterative version with `(node, edge index)` frames; raising the recursion limit is a stopgap that costs heap per frame and, on pre-3.11 interpreters, can trade an exception for a segfault.
 
 **Symptom: two nodes that cannot reach each other are reported in the same component.** Diagnosis: the `on_stack` check is missing, so an edge into an already-popped component lowers `low` and glues the current subtree to a closed one. On `0→1, 1→2, 2→1, 0→3, 3→2`, `{1, 2}` is popped first, then `3→2` sets `low[3] = 2`, `3` is not recognised as a root, and `{3, 0}` is emitted as one component although `3` never reaches `0`. Fix: update `low` only from nodes still on the stack, and add exactly this graph to the tests.
 
@@ -277,7 +277,7 @@ def two_sat(n, clauses):                       # literal k>0 means x_k, k<0 mean
 
 ## Interviewer follow-ups
 
-**"Your recursive Tarjan will overflow on a million-node graph. Fix it."** Model answer: replace recursion with an explicit stack of `(node, next edge index)` frames; a back edge updates `low` in place, popping a frame performs the parent's `min(low[p], low[u])`, and the root check happens at pop time. Emission order is unchanged, so 2-SAT and condensation code need no edits. Common wrong answer: `sys.setrecursionlimit(10**6)`, which moves the failure from an exception to a crash.
+**"Your recursive Tarjan will overflow on a million-node graph. Fix it."** Model answer: replace recursion with an explicit stack of `(node, next edge index)` frames; a back edge updates `low` in place, popping a frame performs the parent's `min(low[p], low[u])`, and the root check happens at pop time. Emission order is unchanged, so 2-SAT and condensation code need no edits. Common wrong answer: `sys.setrecursionlimit(10**6)`, which on pre-3.11 CPython moves the failure from an exception to a crash and never helps in JavaScript.
 
 **"Why does Tarjan emit components in reverse topological order, and what is that good for?"** Model answer: a root pops its component only after every node reachable from it has finished, and everything reachable in other components was popped earlier; so sinks come first. That order lets a DAG DP ("largest total weight reachable from each node") run in one pass over the emitted list without a separate topological sort. Common wrong answer: "the order is arbitrary."
 
@@ -291,7 +291,7 @@ def two_sat(n, clauses):                       # literal k>0 means x_k, k<0 mean
 
 - **Recursive DFS in production.** Passes every test, then dies on the first long chain. Write the iterative version or use a library that does.
 - **Omitting `on_stack`.** Merges nodes across a closed component; the answer is wrong, not slow, and small tests rarely catch it.
-- **Using `low[v]` on a back edge.** Correct for SCCs, wrong for bridges; the habit bites in the next lesson.
+- **Using `low[v]` on a back edge.** Correct for SCCs (and for bridges), wrong for articulation points; the habit bites in the next lesson.
 - **Running Kosaraju's second pass in the wrong order.** One source component swallows its successors.
 - **Rescanning adjacency on resume.** An iterative port that resets the edge index becomes quadratic on high-degree nodes.
 - **Reading the 2-SAT assignment with the wrong inequality.** Every variable flips; only a verification pass catches it.
@@ -418,7 +418,7 @@ hints:
 - You know where SCC detection runs in real tooling: cyclic-import diagnostics, compiler loop analysis, and dependency resolution.
 - You can write the iterative Tarjan with `(node, edge index)` frames, and you know the one line (advance the index before descending) that keeps it linear.
 - You can show, on a five-node graph, what goes wrong without the `on_stack` check (two non-mutually-reachable nodes merged) and with Kosaraju's second pass in the wrong order (a source component swallowing its successors).
-- You know what the libraries do: networkx's non-recursive Tarjan with Nuutila's modifications, scipy's Pearce variant over CSR, and LLVM's bottom-up call-graph SCC passes.
+- You know what the libraries do: networkx's and scipy's iterative Tarjan (both moved to Tarjan and Zwick's refinements in 2026), and LLVM's bottom-up call-graph SCC passes.
 
 ## Check yourself
 

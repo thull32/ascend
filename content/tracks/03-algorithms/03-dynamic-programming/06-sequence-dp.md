@@ -134,7 +134,7 @@ The all-negative case matters: `[-3, -1, -2]` has answer `-1` (the subarray must
 
 ### Maximum product: track the minimum too
 
-**Maximum product subarray** looks the same but a negative times a negative is positive, so the best product ending at `i` might come from the *smallest* product ending at `i-1`. Track both: `hi[i] = max(x, x·hi[i-1], x·lo[i-1])`, `lo[i] = min(x, x·hi[i-1], x·lo[i-1])`. Trace `[2, 3, -2, 4]`: `(hi, lo)` runs `(2, 2)`, `(6, 3)`, `(−2, −12)`, `(4, −48)`, answer 6. Trace `[−2, 3, −4]`: `(−2, −2)`, `(3, −6)`, `(24, −12)`: the −4 times the stored minimum −6 is the answer, 24, which a single-track Kadane cannot find. A zero resets both tracks to 0, which is right (`[−2, 0, −1]` → 0). In a fixed-width language the products overflow long before the array is long: sixty-three 2s exceed 2⁶³. That is a state with two values per index, which is the bridge to the next section.
+**Maximum product subarray** looks the same but a negative times a negative is positive, so the best product ending at `i` might come from the *smallest* product ending at `i-1`. Track both: `hi[i] = max(x, x·hi[i-1], x·lo[i-1])`, `lo[i] = min(x, x·hi[i-1], x·lo[i-1])`. Trace `[2, 3, -2, 4]`: `(hi, lo)` runs `(2, 2)`, `(6, 3)`, `(−2, −12)`, `(4, −48)`, answer 6. Trace `[−2, 3, −4]`: `(−2, −2)`, `(3, −6)`, `(24, −12)`: the −4 times the stored minimum −6 is the answer, 24, which a single-track Kadane cannot find. A zero resets both tracks to 0, which is right (`[−2, 0, −1]` → 0). In a fixed-width language the products overflow long before the array is long: sixty-three 2s multiply to 2⁶³, one past the largest signed 64-bit value. That is a state with two values per index, which is the bridge to the next section.
 
 ## State machines: buy and sell
 

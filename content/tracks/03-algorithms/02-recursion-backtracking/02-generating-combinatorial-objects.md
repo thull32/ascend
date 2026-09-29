@@ -207,7 +207,7 @@ def combinations(n, k):
     return out
 ```
 
-Without the pruned upper bound the code is still correct but slower: it walks into branches that can never reach length $k$. With $n = 20, k = 10$ the pruning removes about half the internal nodes. The count is $\binom{n}{k}$ leaves and $\Theta(k \binom{n}{k})$ output; [Counting and combinatorics](/learn/foundations/math-for-engineers/counting-and-combinatorics) has the numbers.
+Without the pruned upper bound the code is still correct but slower: it walks into branches that can never reach length $k$. With $n = 20, k = 10$ the pruning cuts the internal nodes from 431,910 to 167,960, about 60% fewer. The count is $\binom{n}{k}$ leaves and $\Theta(k \binom{n}{k})$ output; [Counting and combinatorics](/learn/foundations/math-for-engineers/counting-and-combinatorics) has the numbers.
 
 **Combination Sum** is combinations with a twist: elements are reusable and the stopping condition is a target rather than a length. The `start` trick still applies, but you recurse with `i` instead of `i + 1` to allow reuse, and you stop when the remaining target is below the smallest candidate.
 

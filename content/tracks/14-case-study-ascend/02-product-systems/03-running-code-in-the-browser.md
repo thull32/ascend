@@ -1,14 +1,14 @@
 ---
 slug: running-code-in-the-browser
 title: "Running code in the browser: workers, Pyodide and trust"
-description: How Ascend runs learner JavaScript, TypeScript and Python in Web Workers with time limits enforced by termination, one comparison rule shared by three harnesses, and an explicit trust model instead of a server-side judge.
+description: How Ascend runs learner JavaScript, TypeScript and Python in Web Workers with time limits enforced by termination, keeps one comparison rule in four implementations, and moved from self-reported results to a WebAssembly grader on the server.
 minutes: 35
 difficulty: hard
 tags: [case-study, web-workers, webassembly, pyodide, sandboxing, trust-model, testing]
 ---
 Every lesson exercise and every practice problem has a Run button, and learners will press it on code with infinite loops, exponential recursion and accidental `while True`. The textbook answer is a server-side judge: submit code, run it in a sandbox, return results. That answer comes with a sandbox to secure (containers plus gVisor or Firecracker), a queue, an image per language, capacity planning for bursts, and a cost per run, on a product that is free.
 
-Ascend runs the code in the learner's own browser instead. That moves the cost to zero and the latency to milliseconds, and it moves the hard problems somewhere else: stopping code that will not stop, making Python run in a browser at all, keeping three copies of the comparison logic in agreement, and being honest about what a result reported by the client proves. This lesson reads `web/src/runner/*`, `web/src/components/Exercise.tsx`, `crates/core/src/services/submissions.rs` and ADR 0003.
+Ascend runs the code in the learner's own browser instead. That moves the cost to zero and the latency to milliseconds, and it moves the hard problems somewhere else: stopping code that will not stop, making Python run in a browser at all, and keeping several copies of the comparison logic in agreement. It also raises a question the first design answered with "nobody": what does a result reported by the client prove? Since ADR 0005 the answer is a second run, on the server, in a WebAssembly sandbox. This lesson reads `web/src/runner/*`, `web/src/components/Exercise.tsx`, `crates/core/src/services/submissions.rs`, `crates/grader` and ADRs 0003 and 0005.
 
 ## The decision and its consequences
 
@@ -20,7 +20,7 @@ ADR 0003 records the choice in three lines: run JavaScript/TypeScript and Python
 | JavaScript only | Simplest runner | Excludes Python, the most common interview language | Hurts the core user |
 | **Browser workers (chosen)** | Zero marginal cost, instant feedback, works offline after first load | Self-reported results, a ~10 MB Python download, limits enforced by the client | Accepted |
 
-The consequence the ADR states plainly: "Submissions are self-reported. Leaderboards or competitive features would need server-side verification." Keep that sentence in mind; the last section returns to it.
+The consequence the ADR states plainly: "Submissions are self-reported. Leaderboards or competitive features would need server-side verification." Keep that sentence in mind: ADR 0003 is now marked "amended by 0005", and the trust-model section tells why the trigger arrived before any leaderboard did.
 
 ## One protocol, two workers
 
@@ -140,7 +140,7 @@ const src = `"use strict";\n${HARNESS_PRELUDE}\n${js}\n;return (name) => { try {
 
 Sucrase strips TypeScript types without type-checking, which is exactly right for a runner: the learner wants to know whether the code works, and a type error is not a failing test. Each run compiles a fresh function scope, so state from a previous run cannot leak into this one. `console` is replaced with a collector so `console.log` output appears next to each test.
 
-Be honest about what the deleted globals are. They are hygiene, not a security boundary ([Security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) weighs these runners' `unsafe-eval` against its compensating controls): `import()` is syntax and cannot be deleted, and other APIs remain. The real boundaries are elsewhere. The worker has no DOM and cannot read the session cookie, which is `HttpOnly`. The server sends the same Content Security Policy on every response, the worker scripts included, and its `connect-src` allows only the app's own origin plus the CDNs that Pyodide and its packages load from (jsDelivr and PyPI). And the threat model says the code comes from the learner's own editor. The residual risk is social (someone persuades a learner to paste hostile code), and the CSP is what bounds the damage.
+Be honest about what the deleted globals are. They are hygiene, not a security boundary ([Security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) weighs these runners' `unsafe-eval` against its compensating controls): `import()` is syntax and cannot be deleted, and other APIs remain. The real boundaries are elsewhere. The worker has no DOM and cannot read the session cookie, which is `HttpOnly`. The Content Security Policy on every response, worker scripts included, has a `connect-src` of only the app's own origin plus the CDNs Pyodide and its packages load from (jsDelivr and PyPI). And the threat model says the code comes from the learner's own editor. The residual risk is social (someone persuades a learner to paste hostile code), and the CSP is what bounds the damage.
 
 ## Pyodide: CPython in WebAssembly, and a module-worker incident
 
@@ -174,7 +174,7 @@ Two lessons generalise. The worker *type* is part of the runtime contract, and t
 
 ### Before and after: stale Python globals
 
-There used to be one behavioural difference between the workers that the code did not advertise. The JS worker compiles each run into a fresh function scope. The Python worker ran every submission with `runPythonAsync(req.code)` in the *same* Pyodide globals, and the harness found the entry point with `globals().get(entry_name)`. Define `two_sum`, run it, rename the function to `twosum`, run again: the stale `two_sum` from the previous run was still defined, and the tests passed against code that was no longer in the editor. The same leak let a helper deleted from the editor keep working, and a module-level counter keep its value between runs. A test that passes against code the learner cannot see is worse than a failing one, because it teaches the wrong thing.
+There used to be one behavioural difference between the workers that the code did not advertise. The JS worker compiles each run into a fresh function scope. The Python worker ran every submission with `runPythonAsync(req.code)` in the *same* Pyodide globals, and the harness found the entry point with `globals().get(entry_name)`. Define `two_sum`, run it, rename the function to `twosum`, run again: the stale `two_sum` was still defined, and the tests passed against code no longer in the editor. The same leak kept deleted helpers working and module-level counters counting. A test that passes against code the learner cannot see is worse than a failing one, because it teaches the wrong thing.
 
 The fix, in `7154e9f`, moved execution into the Python harness itself:
 
@@ -196,9 +196,9 @@ def _exec_solution(code):
 
 Each run gets a new dictionary pre-loaded with the injected node classes (`ListNode`, `TreeNode`, `Node`, `GraphNode`) and the same prelude of imports, and `_run_tests` looks the entry point up in that dictionary, never in the interpreter's globals. Compiling under the file name `<solution>` pays a second dividend: `_format_error` keeps only the traceback frames from that file, so an exception now points at the line of the learner's code instead of at harness internals.
 
-Why a fresh dictionary rather than a fresh interpreter? Terminating and re-creating the worker would give perfect isolation and cost the several seconds of Pyodide start-up on every run. A new namespace costs microseconds. Be precise about what it does not isolate: the interpreter is still shared, so `sys.modules`, `sys.setrecursionlimit` and any mutation of an imported module (monkey-patching `math`, a cache inside an imported package) survive from one run to the next. For a practice runner that is the right trade; for a judge it would not be.
+Why a fresh dictionary rather than a fresh interpreter? Terminating and re-creating the worker would give perfect isolation and cost the several seconds of Pyodide start-up on every run. A new namespace costs microseconds. Be precise about what it does not isolate: the interpreter is still shared, so `sys.modules`, `sys.setrecursionlimit` and any mutation of an imported module (monkey-patching `math`, a cache inside an imported package) survive from one run to the next. For a practice runner that is the right trade; the server's grader, whose verdict counts, pays for a fresh WebAssembly instance per run instead.
 
-## The harness: one rule, three implementations
+## The harness: one rule, four implementations
 
 A test passes when the returned value equals the expected value, and "equals" needs a definition that survives two languages and floating point. The runner's rule lives in `web/src/runner/harness.ts`:
 
@@ -229,26 +229,36 @@ Integers stay integers, other numbers round to six decimal places so `0.1 + 0.2`
 
 The rule exists a *third* time, in `scripts/validate_problems.py`, which runs every reference solution in CI. Three copies of one rule drift, and these did, in both directions. Until the code-review commit `008eee6`, the validator collapsed whole floats into integers but never rounded the others, so a reference solution returning `0.30000000000000004` against an expected `0.3` failed validation while the same answer passed in the browser. And the Pyodide harness collapsed *before* it rounded, so `0.9999999999999998` was not a whole float, rounded to the float `1.0`, serialised as `"1.0"`, and failed against an expected `1` that JavaScript accepted. Both Python copies now round to six places first and then collapse integral values (the comment says it directly: "0.9999999999999998 -> 1").
 
-Run the three implementations on the same five floats (measured with the TypeScript rule in Node and the two Python rules in CPython):
+Run the implementations on the same five floats, before and after the rounding fix described next (measured with the TypeScript rule in Node and the Python rules in CPython):
 
-| Value returned | `harness.ts` | Pyodide harness | `validate_problems.py` |
+| Value returned | `harness.ts` and the server's `compare.rs` | Python copies, before | Every copy, after |
 |---|---|---|---|
 | `0.30000000000000004` | `0.3` | `0.3` | `0.3` |
 | `2.0` | `2` | `2` | `2` |
 | `0.9999999999999998` | `1` | `1` | `1` |
-| `0.1234565` | `0.123457` | `0.123456` | `0.123456` |
-| `5e-7` | `0.000001` | `0` | `0` |
+| `0.1234565` | `0.123457` | `0.123456` | `0.123457` |
+| `5e-7` | `0.000001` | `0` | `0.000001` |
 
-The first three rows are the fixes working. The last two are the disagreement that remains.
+The first three rows are the earlier fixes working. The last two are a disagreement that survived them: at exact half-way points the two languages round differently. JavaScript's `Math.round(v * 1e6)` rounds the scaled product half up; Python's `round(v, 6)` rounds the exact binary value of `v`, half to even. So `0.1234565` normalised to `0.123457` in the JavaScript harness and to `0.123456` in the Python harness and the validator, and the same computed answer could pass in one language and fail in the other.
 
-They still disagree at exact half-way points, because the two languages round differently. JavaScript's `Math.round(v * 1e6)` rounds the scaled product half up; Python's `round(v, 6)` rounds the exact binary value of `v`, half to even. So `0.1234565` normalises to `0.123457` in the JavaScript harness and to `0.123456` in the Python harness and the validator, and the same computed answer can pass in one language and fail in the other. Nobody has hit it yet, and no test would notice if they did: the runner has no unit tests. The durable fix is a shared conformance corpus, one JSON file of `(expected, actual, any_order, result)` cases, including half-way values, that the TypeScript harness, the Pyodide harness and the validator all run in their test suites. Three implementations of one rule are acceptable only when a test proves they agree. You will implement the rule itself in the exercise.
+Server grading added a fourth copy, `crates/grader/src/compare.rs`, a Rust port of `harness.ts`, and made the split matter. The sandboxed `grade.py` rounded Python results with `round()` first, as the Pyodide harness did, but the host normalised *expected* values with the JavaScript rule, so a Python function returning exactly the expected `0.1234565` passed in Pyodide (both sides `0.123456`) and failed on the server (`0.123456` against `0.123457`): a correct answer recorded as wrong. A review of this lesson found it. No test could have, because nothing ran one set of cases through all four rules and `web/src/runner` had no unit tests.
 
-## The trust model, stated precisely
+The fix has three parts:
 
-When a signed-in learner runs code, `CodeRunner` posts the outcome to `/api/submissions`. The server checks what it can check cheaply:
+1. **One rule.** JavaScript's, because the browser's JavaScript harness and the server already used it. The Python copies now implement `Math.round` bit for bit: take `f = floor(x)` and add one when `x - f >= 0.5`. That subtraction is exact, whereas the tempting `floor(x + 0.5)` rounds `0.49999999999999994 + 0.5` up to `1.0` and returns 1 where `Math.round` returns 0; the Rust port switched to the same form.
+2. **One place to round on the server.** `grade.py` now sends each float exactly as computed (Python's `repr` round-trips), and only the host rounds, once, for expected and actual alike.
+3. **One corpus.** `crates/grader/conformance.json` holds 34 `(expected, actual, any_order, match)` cases, half-way values included, and every implementation's tests run it: `cargo test` for the Rust copy, a Vitest file for `harness.ts`, and `scripts/check_conformance.py` for both Python copies (it extracts the Pyodide harness from `py.worker.ts` and executes it). The old Python rule fails the corpus, which is the point.
+
+Several implementations of one rule are acceptable only when a test proves they agree. You will implement the rule itself in the exercise.
+
+## The trust model, before and after
+
+### Before: results the server could not check
+
+Until commit `25fd477`, a signed-in run ended with `CodeRunner` posting the browser's outcome (`passed_count`, `total_count`, per-test results) to `/api/submissions`, and the server checked what it could check cheaply:
 
 ```rust
-// crates/core/src/services/submissions.rs — SubmissionService::record
+// crates/core/src/services/submissions.rs — SubmissionService::record, before 25fd477
 let expected_total = match input.target_kind.as_str() {
     "problem" => self.curriculum.problem(&input.target_slug).map(|p| p.tests.len()),
     "exercise" => {
@@ -266,46 +276,80 @@ if input.total_count as usize != expected_total || input.passed_count > input.to
 }
 ```
 
-The target must exist, the counts must be consistent with it, and payloads are capped (64 KiB of code, 128 KiB of results). What the server cannot know is whether the tests really passed. It also cannot keep hidden tests secret: they are part of the lesson and problem payloads, expected values included, because the browser has to run them. "Hidden" is a teaching device that stops a learner from coding to the visible examples; it is not access control.
+The target had to exist, the counts had to be consistent with it, and payloads were capped (64 KiB of code, 128 KiB of results). What the server could not know is whether the tests really passed: one `POST` with `passed_count` equal to `total_count` marked any problem solved, and XP and progress were built on that.
 
-That validation also produced a small surprise. The interview room reuses `CodeRunner` with a target slug of the form `interview:<id>:<problem>`. No problem has that slug, so until commit `7154e9f` the server returned 404 and the editor showed "Could not save this attempt." after every run in an interview. The outcome (interview runs do not count as solved problems) was arguably right, reached by accident with a misleading message. The fix made the intent explicit: `CodeRunner` gained a `persist` prop, the interview room passes `persist={false}`, and the code is kept with the interview instead. Accidental correctness is a bug with good luck.
+That validation also produced a small surprise. The interview room reuses `CodeRunner` with a target slug of the form `interview:<id>:<problem>`, which matches no problem, so until commit `7154e9f` every run in an interview ended with "Could not save this attempt." The outcome (interview runs do not count as solved problems) was arguably right, reached by accident with a misleading message. The fix made the intent explicit: `CodeRunner` gained a `persist` prop, and the interview room passes `persist={false}`. Accidental correctness is a bug with good luck.
 
-**What changes if results start to mean something.** The moment there is a leaderboard, a certificate or a streak that others can see, self-reported results become forgeable status. The design then needs a second path, not a replacement: keep client-side runs for instant feedback, and add a "submit for credit" path that re-runs the code server-side in a sandbox against tests that never leave the server, rate-limited per user. Only credited submissions pay the sandbox cost, which keeps the economics of ADR 0003 for everything else. The final module prices that path.
+### Why it changed before any leaderboard
+
+The first version of this lesson named ADR 0003's trigger, a leaderboard, and proposed a "submit for credit" path for it. The trigger that arrived first was internal. "Solved" feeds XP, the dashboard, the roadmap and the coach's context, and ADR 0005 puts it plainly: "a number the server cannot vouch for is a liability, and the fix only gets harder as the numbers are used more widely." And the sandbox the review had priced, containers under gVisor or Firecracker, needs privileges or nested virtualisation the platform does not offer; WebAssembly needs neither.
+
+### After: the server grades, in WebAssembly
+
+The browser still runs the code for instant feedback. When a signed-in learner's browser run ends without a compile error or a timeout, `CodeRunner` also posts the code (for TypeScript, plus the Sucrase-stripped JavaScript as `compiled`) and the server grades it in `crates/grader` and stores only its own verdict. The response carries a verdict per test and any compile error, and the editor says when the two disagree: "Saved, but the server's check passed 7 / 8. Test 8 failed there: ...". Trusting `compiled` costs nothing: a learner who sends JavaScript unrelated to their TypeScript could have submitted it as JavaScript anyway.
+
+This sandbox is built the opposite way from the worker's. CPython 3.14.7 and QuickJS-ng 0.17.0, both compiled to WASI, run under Wasmtime 49 with Cranelift, pinned by SHA-256 in `scripts/grader-runtimes.sh`. A WASI guest can reach only what the host grants, and the grader grants stdin (the job as JSON), capped stdout and stderr pipes (8 MiB and 64 KiB) and, for Python, a read-only standard library preopened at `/lib`; each run gets a fresh instance. `the_sandbox_has_no_files_network_environment_or_processes` probes `/etc/passwd`, a write to `/lib`, `os.environ`, a socket and `subprocess` from Python, and `fetch`, `std`, `os` and `require` from JavaScript, and expects each to be absent or blocked.
+
+| Resource | Bound | Mechanism |
+|---|---|---|
+| CPU | Per-test limit × tests, plus 3 s (Python) or 1 s (JavaScript) of start-up | Epoch interruption: a thread advances the engine's epoch every 10 ms, and a store past its deadline traps at its next check |
+| Memory | 256 MiB of linear memory | `StoreLimits` on the store |
+| Stack | 8 MiB of wasm stack | `max_wasm_stack`, on a dedicated 16 MiB thread per run |
+| Concurrency | Half the cores, 1 to 4 runs at once | A semaphore; no slot within 20 s answers 503 with `Retry-After: 5` |
+| Volume | 20 graded submissions a minute per session | The shared rate limiter |
+
+The stack row has a story. Guest code runs on the calling thread's native stack, and Wasmtime's documentation warns that `max_wasm_stack` "does not ensure that this much stack space is available on the calling thread stack". Tokio's worker threads default to 2 MiB; in the first test run a deep recursion overflowed one and aborted the whole process, every other request with it. Each run now gets its own 16 MiB thread, cheap next to a run, and `recursion_as_deep_as_the_tests_need_works` recurses 900 deep, then a million deep, and asserts the grader survives both.
+
+**Comparison happens on the host.** The harness inside the sandbox (`crates/grader/harness/grade.py`, `grade.js`) calls the learner's function on each case and prints one line per case, prefixed with the ASCII record separator, saying what it returned; `crates/grader/src/compare.rs` compares that with the expected value outside. Expected values never enter the sandbox, so code that tampers with the harness can only claim return values it could have returned anyway. The host keeps the last report per case and the harness reports after each call returns, so a line forged during the call is overwritten (`forged_harness_lines_do_not_override_real_results`). And because results stream one line per case, a timeout keeps the cases that finished, which the browser, killing its worker, cannot.
+
+Trace `an_infinite_loop_stops_at_the_budget_and_keeps_earlier_results` for Python: `def f(x): while x: pass; return 1`, cases `[0]`, `[1]`, `[0]`, a 200 ms per-test limit.
+
+1. The budget is 200 ms × 3 + 3 s of start-up = 3.6 s, or 360 epoch ticks; `set_epoch_deadline(360)` and `epoch_deadline_trap()` arm the store.
+2. Case 0 returns 1 at once, and the harness prints its line.
+3. Case 1 spins. After the 360th tick, the guest's next epoch check traps with `Trap::Interrupt`, and the run stops as `Stop::TimeLimit`.
+4. Case 2 never runs. Case 0 is compared with its expected value; cases 1 and 2 fail with "Time limit exceeded (3.6 s for all tests). Check for an infinite loop or a slower-than-expected algorithm."
+
+`submissions_are_graded_on_the_server` posts `a - b` for the `add-two` problem with a claimed `passed_count` of 2 and gets back 0 of 2 with nothing solved, then the right code and 2 of 2; the end-to-end test "a solve is graded on the server, and a claimed result is not trusted" does the same in a real browser.
+
+**What it costs**, measured on the development machine: Python start-up about 0.09 s with the standard library precompiled at image build (`ascend-api --prepare-grader`), 0.24 s without; QuickJS about 0.02 s; compiling both runtimes at boot about 0.4 s on 32 cores; all 180 reference solutions graded in about 9 s by `grading_parity`, which CI runs. The image grows by about 55 MB. ADR 0005 names the rest: QuickJS is an interpreter, so tight loops run several times slower than in V8; server Python has only the standard library; and hidden tests still ship in the page and the public repository, so they are still not secret.
 
 ## At 100x
 
-- **CDN dependency.** Python depends on jsDelivr being up and reachable from the learner's network. Self-hosting the Pyodide build under `/assets` with immutable caching removes a third party from the critical path (and from the CSP), at the cost of a larger image and bandwidth.
-- **Low-end phones.** A Pyodide instance costs tens of megabytes of memory, and a terminated worker must re-instantiate. Keeping one warm spare worker would hide the restart after a timeout.
-- **Conformance.** The shared harness corpus described above, run by all three implementations.
-- **One rounding rule.** Pick a single half-way rule (for example, decimal half-even in both languages) and pin it in the conformance corpus, so a correct answer cannot pass in JavaScript and fail in Python.
+- **CDN dependency.** Python depends on jsDelivr being reachable from the learner's network. Self-hosting the Pyodide build under `/assets` with immutable caching removes a third party from the critical path and the CSP, at the cost of image size and bandwidth.
+- **Low-end phones.** A Pyodide instance costs tens of megabytes, and a terminated worker must re-instantiate; one warm spare worker would hide the restart.
+- **Grading capacity.** Each replica grades at most four runs at once, and each slot holds a core for up to its budget. ADR 0005's trigger for revisiting is load beyond a few cores: move grading to its own service behind the same `Grader` interface.
+- **Four copies of one rule.** The corpus proves the copies agree but does not remove them; every change to the rule is four edits. Generating the Python and Rust copies from one definition, or grading in the browser with the same WebAssembly harnesses the server runs, would leave one.
 
 ## Failure modes
 
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
-| An infinite loop in test 1 | "Time limit exceeded (34s)" after half a minute, and no results for the tests that passed | One budget for the batch; the timeout discards the worker and every result in it | Per-test timing with a warm spare worker, if the wait starts to matter |
+| An infinite loop in test 1 | "Time limit exceeded (34s)" after half a minute, and no browser results for the tests that passed | One budget for the batch; the timeout discards the worker and every result in it | Per-test timing with a warm spare worker, if the wait starts to matter |
 | jsDelivr unreachable from a school network | Python never leaves "Loading Python runtime"; JavaScript works | The `pyodide.mjs` request fails in DevTools; `pyodidePromise` resets so a retry can succeed | Self-host the Pyodide build under `/assets` |
-| A worker created as a classic worker, or Pyodide loaded with `importScripts` in a module worker | Python fails to start in every browser | The error appears only in a real browser; the smoke test fails | Match the loader to the worker type (in place: the ES module build) |
-| The three comparison rules drift | An answer passes in JavaScript and fails in Python, or the reference solution fails CI but passes in the browser | Run the value through each rule, as in the table above | One conformance corpus that all three test suites run |
+| Pyodide loaded with `importScripts` in a module worker | Python fails to start in every browser | Only a real browser shows it; the smoke test fails | Match the loader to the worker type (in place: the ES module build) |
+| The comparison rules drift | An answer passes in one language, or in the browser, and fails elsewhere | Run the value through each rule, as in the table above | One conformance corpus that every implementation runs |
 | Stale interpreter state | Tests pass against a function no longer in the editor | Every run shared one set of globals | A fresh namespace per run (in place); a fresh worker if module state must reset too |
+| The server times out where the browser passed | "Saved, but the server's check passed ..." with a time limit | QuickJS interprets where V8 compiles | Small test inputs (CI grades every reference solution); a higher `time_limit_ms` |
+| Every grading slot busy | "The server's check is busy ..." | 503 with `Retry-After: 5` after 20 s without a slot | More replicas, or a grading service |
 
 ## Interviewer follow-ups
 
-**"Why not run submissions on the server like a real judge?"** Model answer: for practice, the result only matters to the learner, so a server judge buys authority nobody needs and costs a sandbox to secure, a queue, an image per language and money per run on a free product. The browser gives zero marginal cost and millisecond feedback. ADR 0003 writes down the price, self-reported results and readable hidden tests, and the trigger to revisit it, any feature that confers status. Common wrong answer: "browsers are fast enough now", which is true and beside the point; the decision is about trust and cost.
+**"Why run the code twice, in the browser and on the server?"** Model answer: the runs answer different questions. The browser gives instant feedback at zero marginal cost; the server gives a result the product can build on, because "solved" feeds XP, progress, the roadmap and the coach. Server execution is affordable because a WebAssembly instance starts in about a tenth of a second, needs no privileges and reaches only what the host grants, and the expected values stay outside it. Common wrong answer: "sign the browser's result", but anything the browser can sign, a learner can sign.
 
-**"How do you stop a learner's infinite loop?"** Model answer: you cannot ask synchronous code to stop, because it never yields to check a flag or read a message; you run it on a thread you can kill. The main thread keeps a timer per request and terminates the worker when it fires; Pyodide's interrupt buffer would avoid the restart but needs `SharedArrayBuffer`, which needs cross-origin isolation that the CDN loading rules out. Common wrong answer: "wrap it in a try/catch with a timeout", which never runs while the loop holds the thread.
+**"How do you stop a learner's infinite loop?"** Model answer: you cannot ask synchronous code to stop, because it never yields to check a flag or read a message; you run it on a thread you can kill. The main thread keeps a timer per request and terminates the worker when it fires; Pyodide's interrupt buffer would avoid the restart but needs `SharedArrayBuffer`, which needs cross-origin isolation that the CDN loading rules out. On the server the engine does the stopping: compiled code checks an epoch counter and traps past its deadline. Common wrong answer: "wrap it in a try/catch with a timeout", which never runs while the loop holds the thread.
 
-**"Is deleting `fetch` from the worker a sandbox?"** Model answer: no, it is hygiene. `import()` is syntax and cannot be deleted, and other APIs remain. The boundaries are that the worker has no DOM, the session cookie is `HttpOnly`, and the CSP's `connect-src` limits where any request can go; the threat model is the learner's own code. Common wrong answer: "yes, it has no network access", which a single dynamic import disproves.
+**"Is deleting `fetch` from the worker a sandbox?"** Model answer: no, it is hygiene. `import()` is syntax and cannot be deleted, and other APIs remain. The boundaries are that the worker has no DOM, the session cookie is `HttpOnly`, and the CSP's `connect-src` limits where any request can go; the threat model is the learner's own code. The server's sandbox is built the other way round: a WASI guest starts with nothing and is granted stdin, two capped pipes and a read-only library. Common wrong answer: "yes, it has no network access", which a single dynamic import disproves.
 
-**"What changes if you add a public leaderboard?"** Model answer: self-reported results become forgeable status, so add a second path rather than replace the first: keep browser runs for feedback, and re-run only "submit for credit" submissions in a server sandbox against tests that never leave the server, rate-limited per user. Common wrong answer: "encrypt the hidden tests", which the browser must decrypt to run.
+**"What changes if you add a public leaderboard?"** Model answer: the verdicts are already the server's, so a leaderboard can count them. What it adds is secrecy: hidden tests ship in the page and live in the public repository, so contest problems need tests that never leave the server, graded by the same `Grader`. Common wrong answer: "encrypt the hidden tests", which the browser must decrypt to run.
 
 ## What mid-level engineers get wrong
 
 - **Running untrusted code on the page's own thread.** An infinite loop freezes the tab, and the timer meant to stop it never fires.
-- **Trying to interrupt synchronous code cooperatively.** Only terminating its thread stops it.
+- **Trying to interrupt synchronous code cooperatively.** Only terminating its thread, or an engine that checks a deadline, stops it.
 - **Calling deleted globals a sandbox.** The real boundaries are the missing DOM, `HttpOnly` cookies and the CSP.
-- **Reusing one interpreter's globals across runs.** Deleted and renamed functions keep passing.
-- **Keeping several copies of one comparison rule without a shared test.** They drift at the edges: half-way rounding and tiny values here.
+- **Recording a result the client reports.** Until the server graded the code, one `POST` with the right counts marked any problem solved.
+- **Running guest code on a thread with a small stack.** A deep recursion overflows it and aborts the whole process.
+- **Keeping several copies of one comparison rule without a shared test.** They drift at the edges: half-way rounding and tiny values here, until a server copy turned the drift into correct answers recorded as wrong.
 - **Treating "hidden" tests as secret.** They ship to the browser that runs them.
 
 ## Exercise
@@ -377,12 +421,12 @@ hints:
 
 ## Senior signals
 
-- You choose where code runs by **who bears the cost and who needs to trust the result**, and you write the trust model down (ADR 0003 does).
+- You choose where code runs by **who bears the cost and who needs to trust the result**, write the trust model down (ADR 0003 did), and record when the answer changes (ADR 0005).
 - You know that the only reliable way to stop synchronous code you do not control is to kill the thread or process it runs in, and you design the budget and restart cost around that.
-- You treat multiple implementations of one rule as a drift risk, look for the exact inputs where they differ (half-way rounding), and demand a shared conformance test.
+- You treat multiple implementations of one rule as a drift risk, look for the exact inputs where they differ (half-way rounding), and pin them with a shared conformance corpus that every copy's tests run.
 - You can say what "hidden tests" protect against (overfitting to examples) and what they do not (a curious learner reading the payload).
 - You separate hygiene (deleting globals) from boundaries (no DOM, `HttpOnly` cookies, CSP `connect-src`) when describing a sandbox.
-- You name the upgrade path for competitive features (server re-run for credit only) instead of either rebuilding everything or pretending it is not needed.
+- You build a server sandbox by granting capabilities, not deleting them, keep the expected values outside it, and bound CPU, memory, stack, concurrency and volume separately.
 
 ## Check yourself
 
@@ -412,15 +456,15 @@ hints:
   explanation: >-
     Module workers have ES module semantics and no importScripts, so the classic loader threw. The fix was a dynamic import of Pyodide's ES module build. The CSP does allow wasm-unsafe-eval and jsDelivr, and the comment in py.worker.ts records the actual fix.
 - q: >-
-    A product manager proposes a public weekly leaderboard of problems solved. What is the minimum honest change to the execution design?
-  options: ["None, since the server already validates each submission's test counts", "Move all code execution to the server so every run is judged centrally", "Encrypt the hidden tests in the lesson payload so learners cannot read them", "Re-run only credited submissions server-side, against tests that stay secret there"]
-  answer: 3
+    A script posts to /api/submissions with passed_count equal to total_count and code that returns wrong answers. What does the server record today?
+  options: ["A 422, because the claimed counts disagree with the browser's signature", "A solved problem at first, until a nightly job re-grades the code", "A failed attempt, because it grades the code itself and ignores the counts", "A solved problem, because the claimed counts match the target's tests"]
+  answer: 2
   explanation: >-
-    Count validation only checks consistency; any client can post passed_count equal to total_count. Moving everything server-side throws away the economics that justified ADR 0003, and encrypting tests the browser must decrypt to run protects nothing. Keeping browser runs for feedback and verifying only what confers status is the proportionate fix.
+    Since ADR 0005 the server runs the code in ascend-grader and stores only its own verdict; the claimed counts are ignored, which submissions_are_graded_on_the_server checks by posting a - b for add-two with passed_count 2 and expecting 0 of 2. Matching counts were all the old design checked, which is why any client could mark a problem solved. A browser signature proves nothing, because anything the browser can sign, a learner can sign.
 - q: >-
-    A learner's function returns 0.1234565 for a test that expects 0.123457. In which runner does the test pass?
-  options: ["In Python only, because round() keeps more precision than JavaScript does", "In both runners, because each rounds to six decimal places before comparing", "In neither runner, because a float is always compared bit for bit", "In JavaScript only, because Math.round rounds the scaled product half up"]
-  answer: 3
+    A learner's Python function returns 0.1234565 for a test that expects 0.123457. What did the server record before the rounding fix, and what does it record now?
+  options: ["A pass before and a fail now, because the host now rounds halves to even as Python does", "A fail before and a fail now, because the server compares the two floats bit for bit", "A fail before and a pass now, because the sandbox's round() gave 0.123456 and only the host rounds now, as Math.round does", "A pass before and a pass now, because every copy of the rule already rounded to six decimal places"]
+  answer: 2
   explanation: >-
-    Both rules round to six places, but differently at a half-way point. JavaScript's Math.round(v * 1e6) rounds the scaled product half up, giving 0.123457; Python's round(v, 6) rounds the exact binary value half to even, giving 0.123456, and so does the validator. Nothing compares floats bit for bit; the fix is one rounding rule pinned by a shared conformance corpus.
+    Python's round(v, 6) rounds the exact binary value of 0.1234565 half to even and gives 0.123456, while JavaScript's Math.round(v * 1e6) rounds the scaled product 123456.5 half up and gives 0.123457. Before the fix, grade.py rounded with round() in the sandbox, so the server compared 0.123456 with 0.123457 and recorded a fail, although the JavaScript runner passed the same answer. Now every copy uses Math.round's rule, grade.py sends the float unrounded, and the host rounds once, so it passes everywhere; conformance.json pins the case. Nothing compares floats bit for bit.
 ```
