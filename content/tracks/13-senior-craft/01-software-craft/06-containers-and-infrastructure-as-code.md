@@ -190,7 +190,7 @@ flowchart LR
 
 | Stage | Base | Contains | Reaches the runtime image |
 |---|---|---|---|
-| web | `node:24-trixie-slim` | pnpm, `node_modules`, the SPA source, `web/dist` | `web/dist`, inside the binary |
+| web | `node:24-trixie-slim` | pnpm, `node_modules`, the SPA source and the shared grading harness, `web/dist` | `web/dist`, inside the binary |
 | planner | `cargo-chef` on Rust 1.98, slim trixie | manifests, sources, `recipe.json` | nothing |
 | runtimes | the same | CPython and QuickJS for WASI, fetched and checked by SHA-256 | via the builder |
 | builder | the same | toolchain, compiled dependencies, sources, `content/`, `web/dist`, the release binary | `/ascend-api`, and the runtimes with Python's standard library precompiled |
@@ -442,7 +442,7 @@ State holds every attribute, including database passwords, in plain text (`sensi
 
 ## Railway's IaC: the same idea without a state file
 
-This repository declares its platform in `.railway/railway.ts`: a Postgres database, a 50 GB volume with usage alerts at 80, 95 and 100 percent, and the `ascend` service with its replica count, health check and environment. The header comment gives the workflow: `railway config plan` shows the diff against the live project and `railway config apply` applies it.
+This repository declares its platform in `.railway/railway.ts`: a Postgres database, a 50 GB volume with usage alerts at 80, 95 and 100 percent, the `ascend` service with its replica count, health check and environment, and since commit `d3e239b` a `grader` service (the same image with `--serve-grader`) plus Prometheus, Alertmanager, Jaeger and Grafana. The header comment gives the workflow: `railway config plan` shows the diff against the live project and `railway config apply` applies it.
 
 ```typescript
 // excerpt from .railway/railway.ts
@@ -472,6 +472,8 @@ const app = service("ascend", {
 | Drift check in CI | `plan -detailed-exitcode` | `railway config plan --detailed-exit-code`, exit 2 when changes are pending |
 
 Two more details show the craft. The database URL is wired by **reference** (`db.env.DATABASE_URL`), so rotating credentials cannot leave a stale copy. And `CONTENT_LENIENT` used to be `preserve()`, leaving a build setting (Railway passes service variables to the Docker build as build arguments) to whatever someone last typed in the dashboard, where a leftover lenient value would ship broken lessons; it is now the literal `"0"`. `preserve()` is for values that must stay out of the repository; every other setting belongs in the reviewed file.
+
+A declarative file has no order of operations, so an ordering that matters becomes a reviewed value. The API must not send jobs to a grading service that is not up yet, so `railway.ts` holds `const PHASE_2 = false`: the API stays at one replica and grades in-process while the grader deploys, and flipping the flag raises it to two replicas and sets `GRADER_URL`.
 
 ## GitOps
 
@@ -512,14 +514,11 @@ GitOps applies reconciliation to delivery. A Git repository holds the desired st
 
 **"The plan shows `-/+` on the production database."** Model answer: find the `# forces replacement` attribute, do not apply, and choose a real path (revert, or a snapshot-restore migration); `deletion_protection` and `prevent_destroy` turn a mistake into an error. Common wrong answer: "apply it in the maintenance window", which replaces the data with an empty instance whenever it runs.
 
-**"Why does the container take 30 seconds to stop and log nothing?"** Model answer: PID 1 has no SIGTERM handler (or a shell entrypoint swallows it), so it runs until SIGKILL; use the exec form, handle SIGTERM and drain, and add an init if it forks. Common wrong answer: raise the grace period, which only lengthens the wait.
-
 ## What mid-level engineers get wrong
 
 - **`COPY . .` before installing dependencies.** Every commit reinstalls or recompiles every dependency.
-- **Deleting a secret in a later layer.** The bytes stay in the earlier layer.
 - **Tags instead of digests.** The same Dockerfile builds different images on different days.
-- **A liveness probe that checks the database.** A database blip restarts every pod at once.
+
 - **Applying a plan without reading it**, or running Terraform from laptops with local state and no lock.
 - **A shell-form entrypoint.** SIGTERM never reaches the app, or a distroless container never starts.
 

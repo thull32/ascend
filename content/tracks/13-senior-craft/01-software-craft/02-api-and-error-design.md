@@ -102,8 +102,8 @@ The key line swallows detail. A `DbErr` can contain a hostname, a constraint nam
 
 | Produced by | Example trigger | Status | `code` | `Retry-After` | Client's next move |
 |---|---|---|---|---|---|
-| `AppJson`, unparseable body | `{"email": ` cut off, or not JSON at all | 400 | `bad_request` | | Fix the client's serialiser |
-| `AppJson`, body over 512 KiB | a huge editor buffer | 413 | `payload_too_large` | | Send less |
+| `AppJson`, unparseable body | `{"email": ` cut off, or not JSON at all | 400 | `bad_request` | | Fix the serialiser |
+| `AppJson`, body over 512 KiB | a huge buffer | 413 | `payload_too_large` | | Send less |
 | `AppJson`, wrong content type | no `Content-Type: application/json` | 415 | `unsupported_media_type` | | Fix the client |
 | `AppJson`, well-formed but wrong shape | `{"email": 5}`, a missing field | 422 | `validation_error` | | Fix the input |
 | `AppError::Validation` | an invalid email; a wrong password | 422 | `validation_error` | | Fix the input |
@@ -117,7 +117,7 @@ The key line swallows detail. A `DbErr` can contain a hostname, a constraint nam
 | `AppError::RateLimited` | the daily AI budget; the provider throttling Ascend | 429 | `rate_limited` | seconds to the next UTC midnight; 30 | Wait, then resend |
 | `AppError::AiUpstream` | the provider is overloaded or rejected the request | 502 | `ai_upstream` | | Retry with backoff |
 | `AppError::AiDisabled` | no API key configured | 503 | `ai_disabled` | | Degrade: hide AI features |
-| `AppError::Unavailable` | every code-grading slot stayed busy for 20 s | 503 | `unavailable` | 5 | Retry after the delay |
+| `AppError::Unavailable` | every grading slot stayed busy; email not set up | 503 | `unavailable` | 5, or none | Retry after the delay |
 | `TimeoutLayer` | a handler still running after 240 s | 503 | none: empty body | | Retry with backoff if idempotent |
 | `AppError::Database`, `Internal` | a failed query, a bug | 500 | `database_error`, `internal_error` | | Report it; retry sparingly |
 

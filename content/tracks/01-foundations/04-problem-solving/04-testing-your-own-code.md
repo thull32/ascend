@@ -184,15 +184,15 @@ Keep `n` small: the point is coverage of *shapes*, and small inputs hit empty, s
 
 ### How the comparison works
 
-When you press Run on an exercise here, your return value is not compared with `==`. Both harnesses canonicalise the expected and actual values and compare the resulting strings, so the canonical form decides what counts as equal (from `web/src/runner/harness.ts` and its Python mirror in `py.worker.ts`):
+When you press Run on an exercise here, your return value is not compared with `==`. Each language's harness (`harness.py`, `runner.js`) encodes it as JSON, and one rule, `crates/grader/harness/compare.js`, canonicalises the expected and actual values and compares the resulting strings, so the canonical form decides what counts as equal. The browser imports that file and the server's grader runs the same file, so both apply one rule:
 
 - **`undefined` becomes `null`.** A JavaScript function that forgets to `return` produces `undefined`, which canonicalises to `null` and matches an `expected: null`, and nothing else.
 - **Tuples become lists; sets become lists.** Python's `(0, 1)` is encoded as `[0, 1]` and matches `[0, 1]`. A returned `set` is encoded in its iteration order, which the language does not specify, so a set-valued answer compared without `any_order: true` can pass on one run and fail on the next.
 - **Floats are rounded to six decimal places, and integral floats collapse to integers.** `0.1 + 0.2` (which is `0.30000000000000004` in both languages) matches `0.3`; Python's `2.0` matches `2`; `0.9999999999999998` becomes `1`. JavaScript has no separate integer type, so `JSON.stringify(1.0)` is already `1`.
-- **`NaN` never equals itself in either language** (`NaN === NaN` is `false`; `float("nan") == float("nan")` is `False`; JavaScript's `[NaN].includes(NaN)` is `true` while `[NaN].indexOf(NaN)` is `-1`, two equality algorithms in one runtime). Through the harness the two languages diverge: `JSON.stringify(NaN)` is `null`, so a JavaScript `NaN` matches an expected `null`; Python's `json.dumps` writes the text `NaN`, which no expected value can contain, so a Python `NaN` matches nothing.
+- **`NaN` never equals itself in either language** (`NaN === NaN` is `false`; `float("nan") == float("nan")` is `False`; JavaScript's `[NaN].includes(NaN)` is `true` while `[NaN].indexOf(NaN)` is `-1`, two equality algorithms in one runtime). Through the harness the two languages agree: `JSON.stringify(NaN)` is `null`, and the Python harness encodes `NaN` and the infinities as `None` for the same reason, so a `NaN` result matches an expected `null` and nothing else.
 - **Object keys are sorted, `Map` becomes a plain object, `Set` becomes an array**; without that step `JSON.stringify(new Map([[1, 2]]))` is `{}`. An empty tagged list or tree (`{"$list": []}`) becomes `null`. Anything Python cannot encode falls through to `str(v)`, so a custom class returns its repr and never matches.
 - **`any_order: true`** sorts the canonical strings of the elements on both sides, a multiset comparison.
-- **Arguments are deep-copied per test** in the JavaScript worker (`JSON.parse(JSON.stringify(args))`), so a solution that sorts its input in place cannot corrupt the next test.
+- **Arguments are deep-copied per test** in both harnesses (a JSON round trip), so a solution that sorts its input in place cannot corrupt the next test.
 
 Most of this is invisible when your code is right. It matters the moment a result is "wrong" for a reason that is not the algorithm: a forgotten `return`, a set where a list was expected, a float printed with sixteen digits.
 
@@ -244,7 +244,7 @@ Interviewers notice how you react to an error. Reading it aloud, naming the line
 
 **The test that passes against code you deleted.** *Symptom:* you rename `two_sum` to `twosum` and the tests still pass; a helper you removed keeps working. *Diagnosis:* the runner executed every submission in one shared namespace, so the stale definition survived from the previous run; this platform's Python worker had exactly that bug, described in [Running code in the browser](/learn/case-study-ascend/product-systems/running-code-in-the-browser). *Fix:* a fresh namespace per run, and in your own test suites, no module-level state shared between tests.
 
-**The input mutated by the test before.** *Symptom:* test 2 fails only when run after test 1, and passes alone. *Diagnosis:* the solution sorts its argument in place and the fixture list is shared. *Fix:* copy inputs per test, which the JavaScript worker does with a JSON round trip; in your own suites, build fixtures inside the test or use a copying fixture factory.
+**The input mutated by the test before.** *Symptom:* test 2 fails only when run after test 1, and passes alone. *Diagnosis:* the solution sorts its argument in place and the fixture list is shared. *Fix:* copy inputs per test, which both harnesses do with a JSON round trip; in your own suites, build fixtures inside the test or use a copying fixture factory.
 
 ## The two-minute test protocol for interviews
 

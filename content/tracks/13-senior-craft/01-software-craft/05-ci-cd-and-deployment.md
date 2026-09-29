@@ -64,6 +64,8 @@ A cold Rust cache turns a 16-second build into almost six minutes. [Containers a
 
 **Local parity.** `make check` mirrors the format, lint, test and validation steps, not the SPA build, image, browser suite or audits.
 
+**Since the timed run, two tiers.** Since commit `e47282a` the problems job checks structure only; the rust job's `grading_parity` test grades every reference solution with the server's own grader (1,430 target and language pairs when it landed), and `REQUIRE_ALL_SOLUTIONS=1` fails the build on a missing one. What is too slow for every push runs nightly: `nightly.yml` opens every page in Chromium against the production image, about 20 minutes.
+
 ## The pipeline is also an attack surface
 
 On the timed run every action was referenced by a movable tag such as `actions/checkout@v4`, and the token had default permissions. Commit `8f82820` pinned each action to a SHA, made the token read-only (`permissions: contents: read`), added `cargo audit` and `pnpm audit --prod`, and let Dependabot propose weekly pull requests to move the pins; patch, minor and digest-only ones now merge themselves once CI passes. [Security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) traces the 2025 incident behind it.
@@ -78,7 +80,7 @@ The same artifact runs everywhere; only configuration and data differ.
 | CI | debug and release builds | an empty Postgres per job | regressions, integration, browser journeys | the rust and image jobs |
 | Preview | one deployment per pull request | seeded | what reviewers need to click | not configured |
 | Staging | the production artifact | realistic volume | config, migrations on real-sized data, third-party integrations | none |
-| Production | the artifact | real | everything else | Railway, one replica |
+| Production | the artifact | real | everything else | Railway: the API, a grading service, monitoring |
 
 Staging earns its cost when it differs from CI in the dimension that breaks you: data volume (a migration that takes 40 ms on 10,000 rows can take minutes on 400 million, as [schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) measures) or real integrations. Staging with CI's data adds only a queue.
 
@@ -95,7 +97,7 @@ Configuration can also be a release switch. With no `ANTHROPIC_API_KEY`, AI rout
 const app = service("ascend", {
   // Builds the root Dockerfile. A push to main deploys once CI passes.
   source: github("thull32/ascend", { checkSuites: true }),
-  replicas: { [region]: 1 },
+  replicas: { [region]: PHASE_2 ? 2 : 1 }, // 2 once grading runs in its own service
   // Migrations run on boot before the server binds, so a passing readiness
   // probe means the schema is current and Postgres is reachable.
   healthcheck: "/api/readyz",
@@ -106,7 +108,7 @@ const app = service("ascend", {
 
 `checkSuites: true` makes Railway wait for the commit's GitHub check suites before it deploys. It used to read `false`, leaving branch protection as the only thing between a red build and production.
 
-The boot sequence in `crates/api/src/main.rs` makes the health check meaningful: validate config, connect to Postgres, **plan and run pending migrations under an advisory lock** (below), load the curriculum and the grader's runtimes (production refuses to boot without them), and only then bind the port. `/api/readyz` runs `SELECT 1` and reports the database status, AI configuration, content version and build (the commit, from `RAILWAY_GIT_COMMIT_SHA`), so a 200 means "config valid, schema current, database reachable, content loaded". [Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) walks the same path from the codebase's side.
+The boot sequence in `crates/api/src/main.rs` makes the health check meaningful: validate config, connect to Postgres, **plan and run pending migrations under an advisory lock** (below), load the curriculum and either the grader's runtimes (production refuses to boot without them) or, with `GRADER_URL` set, a client for the grading service, and only then bind the port. `/api/readyz` runs `SELECT 1` and reports the database status, AI configuration, content version and build (the commit, from `RAILWAY_GIT_COMMIT_SHA`), so a 200 means "config valid, schema current, database reachable, content loaded". [Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) walks the same path from the codebase's side.
 
 ```mermaid
 sequenceDiagram
@@ -152,7 +154,7 @@ Blue-green keeps two complete environments and switches all traffic:
 {"type": "system", "algorithm": "blue-green", "title": "Blue-green: verify idle, switch atomically", "caption": "The new version is tested at full size before it sees users. Rollback is a router change, not a redeploy. Both colours share the database, so the schema must suit both."}
 ```
 
-The costs are double capacity during the switch and all-at-once exposure: a bug that only real traffic triggers reaches every user until someone switches back. Step 4 compares green with *blue's past*, so a traffic spike during the watch looks like a regression. And the switch is atomic for new requests only: an L7 proxy routes per request, but an L4 load balancer routes per connection, so keep-alive connections, WebSockets and server-sent event streams stay on blue until they close. Both colours usually share one database, so **the schema must work for both versions at once**.
+The costs are double capacity during the switch and all-at-once exposure: a bug that only real traffic triggers reaches every user until someone switches back. Step 4 compares green with *blue's past*, so a traffic spike during the watch looks like a regression. And the switch is atomic for new requests only: an L7 proxy routes per request, but an L4 load balancer routes per connection, so keep-alive connections, WebSockets and server-sent event streams stay on blue until they close.
 
 ## Canary, step by step
 
@@ -170,7 +172,7 @@ A canary sends a small share of traffic to the new version, compares it with the
 {"type": "system", "algorithm": "canary", "title": "Canary: widen only while the comparison stays clean", "caption": "Compare the canary with the baseline over the same window, so a traffic spike that slows both does not fail the release. Every promotion repeats the same gate."}
 ```
 
-Compare against the concurrent baseline, because traffic mix and load change hour to hour: is v2 worse than v1 right now, on the same traffic? Compare error rate, p99 latency, saturation and at least one business metric, because some bugs return 200 with the wrong content. Netflix has described going further: it starts a fresh *baseline* cluster of the old version beside the canary, the same size and at the same time, so effects of long-running production instances do not bias the comparison. Its open-source Kayenta, released with Google, classifies each metric with a Mann-Whitney U test and scores the canary by the percentage that pass.
+Compare against the concurrent baseline, because traffic mix and load change hour to hour: is v2 worse than v1 right now, on the same traffic? Compare error rate, p99 latency, saturation and at least one business metric, because some bugs return 200 with the wrong content. Netflix has described going further: it starts a fresh *baseline* cluster of the old version beside the canary, so long-running instances do not bias the comparison, and its open-source Kayenta, released with Google, classifies each metric with a Mann-Whitney U test.
 
 ## Sample size decides the stage length
 
@@ -225,7 +227,7 @@ The counts are typical, not lucky: the power arithmetic above gives this bug an 
 
 Weights live in the layer-7 proxy. Envoy's `weighted_clusters`, the Kubernetes Gateway API's weighted `backendRefs` and cloud load balancers' weighted target groups pick a destination per request, and controllers such as Argo Rollouts and Flagger step the weights and query metrics between steps. A per-request random split sends one user's consecutive requests to different versions, which breaks anything version-coupled, such as a single-page app whose content-hashed assets exist only in the version that built them. Hash the user or session ID into the split so each user sees one version.
 
-This app showed the asset problem without any canary. After a deploy that changed a lazy-loaded chunk, a tab opened before it requested `/assets/Dashboard-<old hash>.js`, and `static_handler` fell back to `index.html`, so the import failed as HTML served where JavaScript was expected. Commit `8f82820` fixed both ends: the server answers a missing `/assets/…` path with `404` and `Cache-Control: no-store`, and `web/src/main.tsx` reloads once on Vite's [`vite:preloadError`](https://vite.dev/guide/build.html) event, with a `sessionStorage` flag so a broken build cannot loop. Keeping previous builds' assets would avoid even that reload, but the binary embeds one build, so that needs an external asset store.
+This app showed the asset problem without any canary. After a deploy that changed a lazy-loaded chunk, a tab opened before it requested `/assets/Dashboard-<old hash>.js`, and `static_handler` fell back to `index.html`, so the import failed as HTML served where JavaScript was expected. Commit `8f82820` fixed both ends: the server answers a missing `/assets/…` path with `404` and `Cache-Control: no-store`, and `web/src/main.tsx` reloads once on Vite's [`vite:preloadError`](https://vite.dev/guide/build.html) event, with a `sessionStorage` flag so a broken build cannot loop.
 
 A one-replica service cannot split by instance, but it can canary by **feature flag**: hash the user ID, enable the new path for 5% of users, and compare their error rate with everyone else's.
 
@@ -266,7 +268,7 @@ Migrating at boot fits one replica, and a review raised two limits. sea-orm-migr
 
 ## Let the error budget decide when to ship
 
-A service level objective turns "is it reliable enough?" into arithmetic. With an SLO of 99.9% successful requests over 30 days, the **error budget** is the other 0.1%: at 10 million requests a month, 10,000 may fail, and the failed canary above spent 29. The budget is meant to be spent on deploys, experiments and migrations; when it is gone, a written **error budget policy** halts releases other than urgent and security fixes until the service is back within its SLO, as in the [SRE workbook's example policy](https://sre.google/workbook/error-budget-policy/). [Observability](/learn/system-design/building-blocks/observability) covers burn-rate alerts.
+A service level objective turns "is it reliable enough?" into arithmetic. With an SLO of 99.9% successful requests over 30 days, the **error budget** is the other 0.1%: at 10 million requests a month, 10,000 may fail, and the failed canary above spent 29. The budget is meant to be spent on deploys, experiments and migrations; when it is gone, a written **error budget policy** halts releases other than urgent and security fixes until the service is back within its SLO, as in the [SRE workbook's example policy](https://sre.google/workbook/error-budget-policy/). This app's `docs/SLO.md` sets 99.5% over 30 days, 3.6 hours of failure a month, watched by [burn-rate alerts](/learn/system-design/building-blocks/observability).
 
 ```exercise
 id: error-budget-gate
@@ -427,8 +429,6 @@ hints:
 **"How long should each canary stage run?"** Model answer: long enough to detect the regression you care about: expected errors at the baseline rate, a limit a few standard deviations above, then the power against the smallest regression you must catch; for a fivefold one at 1,000 rps, about 4.4 minutes at 1% and 30 seconds at 10%. Common wrong answer: "five minutes per stage", regardless of traffic.
 
 **"The release passed the canary and an hour later errors climb. Roll back or roll forward?"** Model answer: roll back if the release is reversible (no contract migration, new data format or external side effect); roll forward if the fix is smaller and better understood, or a migration makes rollback impossible. Common wrong answer: "always roll back", without checking what the release changed in the database.
-
-**"Rename a column with zero downtime."** Model answer: expand, dual-write, backfill, switch reads, stop writing, contract, one release each, checking at every step that the two versions that can be live both work on the schema. Common wrong answer: one migration during a quiet hour, which breaks the version still serving the moment it runs.
 
 **"Engineers bypass a 25-minute pipeline. What do you do?"** Model answer: measure the critical path per job and step; cache dependencies and browsers, parallelise independent suites, question `needs` edges that only save compute, and move slow suites post-merge only when a gate still covers the risk. Common wrong answer: bigger runners, which fix neither a cache miss nor a serial chain.
 

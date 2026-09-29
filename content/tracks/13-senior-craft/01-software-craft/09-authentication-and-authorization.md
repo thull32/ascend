@@ -9,7 +9,7 @@ problems: []
 ---
 A product that started with email and password grows three new doors in a year: a mobile app, a partner's nightly export job, and an enterprise customer whose employees must log in through its own identity provider. The team ships all three with 24-hour JSON Web Tokens in `localStorage`, signed with one HMAC secret every service knows. Six months later an XSS bug exfiltrates tokens that work for a day after their owners log out, the billing API accepts a token minted for reporting because nobody checked the audience, and rotating the shared secret, the only fix, logs out everyone.
 
-Each is a missing mechanism, not a missing library. This lesson traces the mechanisms on concrete requests, with Ascend, one first-party web app, as the baseline.
+Each is a missing mechanism, not a missing library, traced below on concrete requests with Ascend, one first-party web app, as the baseline.
 
 ## Three questions, five artifacts
 
@@ -29,7 +29,7 @@ Incidents come from using one artifact as another: an ID token accepted by an AP
 
 Ascend authenticates with email and password only. `AuthService::login` verifies an Argon2id hash (against a dummy hash for unknown emails, so timing reveals nothing) and creates a session: 32 random bytes as 43 URL-safe base64 characters, stored only as their SHA-256 and expiring `SESSION_TTL_DAYS` (default 30) after login. The raw token travels in an `HttpOnly`, `SameSite=Lax`, `Secure` cookie, and the CSRF middleware's exact `Origin` check and required custom header stop another site spending it. A second cookie, `ascend_device`, marks browsers that signed in before, so guesses cannot lock owners out; [security fundamentals](/learn/senior-craft/software-craft/security-fundamentals) walks that code.
 
-What Ascend does not have: OAuth, OIDC, SAML, MFA, password reset, JWTs, refresh tokens or signing keys. Authorization is a `role` column plus ownership checks. A review found the 30-day lifetime was absolute, so a session unused for four weeks still worked; since commit `427ed78` a session idle for `SESSION_IDLE_DAYS` (14 by default) is signed out too, pinned by `an_idle_session_is_signed_out`. `docs/adr/0002-server-side-sessions.md` names the trigger for a redesign, "A second service must authenticate users without calling this one", answered by short-lived signed tokens minted from the session. That hybrid is what the rest of this lesson builds.
+What Ascend does not have: OAuth, OIDC, SAML, MFA, JWTs, refresh tokens or signing keys. Until commit `39052ce` it had no password reset. Recovery is a login path, so it copies the session token's design: a 256-bit single-use token in the link's URL fragment (never sent to a server), stored as its SHA-256 in `email_tokens`, valid for an hour and consumed by `DELETE … RETURNING` so two clicks cannot both succeed, and resetting signs out every session (`a_forgotten_password_is_reset_by_email_and_signs_out_everywhere`). Authorization is a `role` column plus ownership checks. A review found the 30-day lifetime was absolute, so a session unused for four weeks still worked; since commit `427ed78` a session idle for `SESSION_IDLE_DAYS` (14 by default) is signed out too, pinned by `an_idle_session_is_signed_out`. `docs/adr/0002-server-side-sessions.md` names the trigger for a redesign, "A second service must authenticate users without calling this one", answered by short-lived signed tokens minted from the session. That hybrid is what the rest of this lesson builds.
 
 ## The authorization-code flow with PKCE, request by request
 
@@ -179,7 +179,7 @@ A long-lived JWT as the only login state fails in five ways:
 1. **Logout does nothing on the server**: a stolen copy works until `exp`.
 2. **Authorization goes stale**: a demoted admin stays one until expiry.
 3. **Size creeps** with every claim until requests pass header limits.
-4. **XSS becomes account takeover**: a token in `localStorage` is replayed from the attacker's machine, while an `HttpOnly` cookie can be abused only while the victim's page is open.
+4. **XSS becomes account takeover**: a token in `localStorage` is replayed from the attacker's machine.
 5. **One key forges everyone**, and replacing it logs everyone out unless rotation was designed in.
 
 ## Refresh-token rotation with reuse detection, traced
@@ -466,9 +466,9 @@ Every signing key, secret and certificate needs a rehearsed, unnoticed rotation,
 
 Sign with K2 the moment it exists instead, and every verifier whose cache predates it rejects new tokens for up to an hour unless it refetches on an unknown `kid`. Emergency rotation skips the waits: remove K1 at once and accept that its tokens fail; clients recover through refresh tokens, which the IdP checks without K1.
 
-The same overlap applies elsewhere: webhook and cookie-signing secrets are checked against current and previous values, OAuth client secrets come two at a time, and SAML IdPs publish the next certificate in metadata first, so an SP that pinned one certificate by hand breaks on rotation day.
+The same overlap applies elsewhere: webhook and cookie-signing secrets are checked against current and previous values, and SAML IdPs publish the next certificate in metadata first, so an SP that pinned one certificate by hand breaks on rotation day.
 
-Ascend has none of these keys: its emergency equivalent is deleting rows from `sessions` (one user's, or everyone's with one `DELETE`), and its AI provider key, `preserve()` in `.railway/railway.ts`, rotates with a variable change and a redeploy.
+Ascend has none of these keys; its emergency equivalent is deleting rows from `sessions`. Its `GRADER_TOKEN` shows the cost of skipping overlap: the grading service accepts one value, so `docs/RUNBOOK.md` warns that grading answers 503 between redeploying the grader and the API.
 
 ## Failure modes
 
@@ -506,12 +506,9 @@ Ascend has none of these keys: its emergency equivalent is deleting rows from `s
 ## What mid-level engineers get wrong
 
 - **Accepting an ID token as an API credential.** Its audience is the client, and it carries identity, not permission.
-- **Implicit flow or `plain` PKCE in new code.** Tokens in URLs and verifiers in the front channel leak.
-- **Trusting the JWT header's `alg`** instead of the verifier's per-key configuration.
 - **Long-lived JWTs as sessions.** Logout, demotion and theft all wait for `exp`.
 - **Rotation without reuse detection, or detection without a grace period.** The first misses theft; the second logs out two-tab users.
 - **Checking scope and forgetting the resource.** `orders:read` does not mean this user may read this order.
-- **Identifying IdP users by email** instead of (`iss`, `sub`).
 - **Trusting a SAML response because a signature verified.** Only the verified element is trusted.
 
 ## Senior signals

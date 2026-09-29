@@ -173,6 +173,7 @@ Free learning platform taking mid-level engineers to senior at top-tier companie
 - **Commands** are exact, including the environment variable the integration tests need and the `CONTENT_LENIENT=1` flag for authoring. Each one saves an exploratory failure: an agent that runs `cargo test` without the database URL gets a connection error and a wasted iteration.
 - **Rules** are the conventions that differ from defaults, each with a location or a reason: the core/HTTP boundary, the single place errors map to HTTP, append-only migrations, the CSRF wrapper. A model's default would put SQL in a handler and build error JSON inline; these lines override the default.
 - **The hazard is named.** "A runaway script once took the machine down" is eleven words of history that make the `safe_py.sh` rule stick and let the agent generalise it to Node or a shell loop.
+- **One line has already gone false.** Since commit `e47282a`, `validate_problems.py` checks structure only, and the server's grader runs the reference solutions (`make solutions`); the "(executes reference solutions)" note was not in that commit's diff. The path checker below cannot catch that: the path still exists; only the claim beside it changed.
 - **Nothing secret, nothing general.** No "write good code", no credentials, no restated documentation.
 
 What it deliberately leaves out is as instructive: no description of every crate (the agent can list them), no style guide (rustfmt and the linter enforce it), no task-specific instructions.

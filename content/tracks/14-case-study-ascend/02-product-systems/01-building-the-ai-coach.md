@@ -170,9 +170,9 @@ sequenceDiagram
 
 Four details make this correct.
 
-**Backpressure.** `sse::channel()` is `mpsc::channel(64)`. If the browser is connected but slow, `tx.send(...).await` waits once 64 deltas are buffered, so the task stops reading from Anthropic and TCP flow control pushes back upstream: memory per stream is bounded. Only a *closed* receiver makes `send` return immediately, and then the task drains the rest of the reply at full speed.
+**Backpressure.** `sse::channel()` is `mpsc::channel(64)`. If the browser is slow, `tx.send(...).await` waits once 64 deltas are buffered, so the task stops reading and TCP flow control pushes back upstream. Only a *closed* receiver makes `send` return immediately, and then the task drains the rest of the reply at full speed.
 
-**No database connection is held while streaming.** `prepare_turn` uses the pool before the call; `finish_turn` uses it after. A thousand concurrent streams need a thousand small tasks and no connections from the 20-connection pool.
+**No database connection is held while streaming.** `prepare_turn` uses the pool before the call; `finish_turn` uses it after. A thousand concurrent streams need a thousand small tasks and no connections from the pool (15 per replica in production). `a_reply_is_saved_and_billed_when_the_learner_hangs_up_mid_stream` (stub model, `70f15c7`) reads one frame, drops the body and finds the whole reply saved and billed.
 
 **Bounded lifetime.** The HTTP client is built with `timeout(AI_TIMEOUT_SECS)` (180 s by default), and a reqwest total timeout covers reading the body, so a stuck upstream ends the task with an `Error` and the invariant above still produces a terminal event.
 
@@ -186,7 +186,7 @@ pub async fn finish_tasks(tasks: &TaskTracker, timeout: Duration) -> bool {
 }
 ```
 
-The wait is bounded because a hung upstream must not block a deploy. Before it, `serve` bounds the connection drain to 25 s, so a browser still reading a stream cannot hold the process (its task keeps generating after the connection closes). Both bounds sit inside Railway's 60-second draining window, which until `8f82820` was the default of 0 seconds, so SIGKILL followed SIGTERM at once and none of this ran in production. The guarantee: replies that finish within about a minute of SIGTERM are persisted, and longer ones are counted in a log line. Since `95b6623` it is tested rather than argued: the drain moved from `main` into `crates/api/src/serve.rs`, where `crates/api/tests/shutdown.rs` drives it over real sockets (`a_stalled_stream_cannot_hold_shutdown_past_the_drain_timeout`, `background_tasks_get_to_finish_but_not_forever`), and CI's `image` job sends the production container SIGTERM and requires a clean exit within 25 s.
+The wait is bounded because a hung upstream must not block a deploy. Before it, `serve` bounds the connection drain to 25 s, so a browser still reading a stream cannot hold the process. Both bounds sit inside Railway's 60-second draining window, which until `8f82820` was the default of 0 seconds, so SIGKILL followed SIGTERM at once and none of this ran in production. Replies finishing within about a minute of SIGTERM are persisted. Since `95b6623` it is tested rather than argued: the drain moved from `main` into `crates/api/src/serve.rs`, where `crates/api/tests/shutdown.rs` drives it over real sockets (`a_stalled_stream_cannot_hold_shutdown_past_the_drain_timeout`, `background_tasks_get_to_finish_but_not_forever`), and CI's `image` job sends the production container SIGTERM and requires a clean exit within 25 s.
 
 There is a cost to this design worth saying out loud. The Stop button in `useStreamingChat` aborts the `fetch`, which closes the connection, which the server treats exactly like a closed tab: it keeps generating and bills the full reply. Stop saves the learner's attention, not tokens. Distinguishing "stop" from "disconnect" needs a cancellation token the stop endpoint can trigger; the code does not have one.
 
@@ -545,7 +545,7 @@ hints:
 
 **"Why not return the model stream from the handler?"** Model answer: in Axum, a disconnect drops the response body and every future it owns, so the upstream call is cancelled, the reply is never persisted and its tokens never recorded. Moving the stream into a tracked task that owns persistence, with the response as a reader of a 64-slot channel, keeps backpressure for slow readers and completeness for departed ones. Common wrong answer: "save the reply in a `finally` block", which never runs when the future is dropped.
 
-**"How do you know prompt caching is working in production?"** Model answer: from the counters, not the configuration. Every turn logs input, output, cache-read and cache-write tokens, `ai_usage` keeps all four per user per day, and the hit rate is reads over all input; a prefix under the model's minimum or a changed byte fails silently, with no error. Common wrong answer: "we set `cache_control`, so it is cached".
+**"How do you know prompt caching is working in production?"** Model answer: from the counters, not the configuration. Every turn logs input, output, cache-read and cache-write tokens, `ai_usage` keeps all four per user per day, `ascend.ai.tokens` exports them by kind, and the hit rate is reads over all input; a prefix under the model's minimum or a changed byte fails silently, with no error. Common wrong answer: "we set `cache_control`, so it is cached".
 
 **"What stops one user or script spending the shared key?"** Model answer: two layers keyed differently. Twenty model calls a minute per session, shared by every replica, stops bursts; the daily budget in billed tokens caps cost. Each call holds its worst case under the row lock before it runs, with `max_tokens` lowered to what is left, and settles after, so no call can overshoot; a refusal carries `Retry-After` to UTC midnight. Then name the gaps: the per-user cap does not cap the total, and it is in weighted tokens, not money. Common wrong answer: "check the usage before the call", which lets every call in flight run past the limit.
 
@@ -553,7 +553,7 @@ hints:
 
 - **Letting the HTTP response own work that must finish.** A closed tab cancels it, and with it the persistence and the bill.
 - **An unbounded channel between a fast producer and a slow reader.** Memory grows with every slow phone; 64 slots and an awaited send push back on the provider instead.
-- **Holding a pooled database connection for the length of a stream.** A thousand streams would need a thousand connections from a pool of 20.
+- **Holding a pooled database connection for the length of a stream.** A thousand streams would need a thousand connections from a pool of 15.
 - **Checking a budget before a call and charging after it.** Every call in flight can run past the limit; hold the worst case first.
 - **A bare `tokio::spawn` for work that must survive shutdown.** Nothing waits for it, and its log lines lose the request id.
 - **Splitting SSE on `\n` alone.** A lone CR is a line end, and the server's encoder emits one for any CR in the payload.

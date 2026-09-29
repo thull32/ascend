@@ -24,7 +24,7 @@ On the cost side sit runtime, maintenance (how often the test breaks when behavi
 
 The classic test pyramid says: many unit tests, fewer integration tests, very few end-to-end tests. Its logic is cost: lower tests are faster and more precise. Its failure mode is the opening story: thousands of mocks encoding the author's assumptions about the database, and nothing that checks them.
 
-Two later shapes correct for that. Kent C. Dodds's "testing trophy" puts the bulk of effort into integration tests that exercise real modules together, on the grounds that they give the best balance of confidence against cost. The "honeycomb", proposed by Spotify engineers in 2018 for microservices, argues the same: in a service whose main job is talking to a database and other services, the interesting bugs live in the integration, so test there.
+Two later shapes correct for that. Kent C. Dodds's "testing trophy" puts the bulk of effort into integration tests of real modules together; the "honeycomb", proposed by Spotify engineers in 2018 for microservices, argues that where a service mostly talks to a database and other services, the interesting bugs live in the integration.
 
 The shapes disagree less than they seem. All of them say: push each check to the cheapest level that can *actually* catch the bug. For pure logic that is a unit test. For SQL, configuration and wiring it is an integration test against the real dependency, because a mock of your database can only confirm what you already believed.
 
@@ -73,11 +73,15 @@ Two design choices are worth copying, and a third was worth questioning until it
 
 Some behaviour lives below the router, where `oneshot` cannot reach. Graceful shutdown drains *connections*, which an in-process call lacks, so `crates/api/tests/shutdown.rs` drives the real `serve` over sockets with short timeouts: an in-flight request finishes while new connections are refused, an idle keep-alive connection does not delay shutdown, a stalled stream is abandoned at the drain deadline (`Drain::TimedOut`), and background tasks finish but cannot hold the process forever. The grading sandbox gets the same care in `crates/grader/tests/sandbox.rs`: code that tries to reach files, the network, environment variables or processes, loops forever, allocates without bound, exits early or prints forged result lines must fail exactly as the sandbox promises, while recursion as deep as the tests need must still work.
 
+**Two graders, one rule.** Code is graded in the browser and again on the server, so both must agree on equality. After commit `e6f5cbc` the rule existed four times (TypeScript, the Pyodide harness, the problem validator, Rust), kept in step by a 34-case corpus, `crates/grader/conformance.json`, that every copy's tests ran. Commit `e47282a` deleted three: `compare.js` is the only rule, imported by the browser and run by the server in its own QuickJS instance, so the corpus now checks one file in two engines (Vitest in V8, `the_conformance_corpus_holds_in_quickjs`). A corpus catches drift; deleting copies removes it. `grading_parity` then grades every reference solution on the server, and found exercise starters that define `class Node` failing with a redefinition error in both.
+
+The full-site crawl (`web/e2e/crawl.spec.ts`) takes about 20 minutes, too slow for every push, so since commit `6e8d69a` it runs nightly against the production image.
+
 ## Under the hood: how the runners schedule tests
 
 Parallelism is where most order-dependence flakes come from, so know what each runner does by default.
 
-- **`cargo test`** builds one binary per crate's unit tests and one per file in `tests/`, and runs the binaries one after another. Inside a binary, libtest runs tests on a pool of threads sized by `std::thread::available_parallelism()`, unless `--test-threads` (or the deprecated `RUST_TEST_THREADS` variable) says otherwise. The 32 tests in `crates/api/tests/api.rs` (22 on the run timed above) therefore run concurrently against one Postgres, which is safe only because each registers its own user; a test that counted all rows in `users` would pass alone and fail in the suite.
+- **`cargo test`** builds one binary per crate's unit tests and one per file in `tests/`, and runs the binaries one after another. Inside a binary, libtest runs tests on a pool of threads sized by `std::thread::available_parallelism()`, unless `--test-threads` (or the deprecated `RUST_TEST_THREADS` variable) says otherwise. The 36 tests in `crates/api/tests/api.rs` (22 on the run timed above) therefore run concurrently against one Postgres, which is safe only because each registers its own user; a test that counted all rows in `users` would pass alone and fail in the suite.
 - **Tokio tests** (`#[tokio::test]`) each get their own runtime, current-thread by default, so a test that spawns 30 reservations races them on one thread; the race in `ai_budget_reservation_cannot_be_overshot_by_concurrency` is real because the contention is in Postgres, not in Rust.
 - **Playwright** starts worker processes, half the logical CPUs by default, which is the "2 workers" in the CI log on a 4-vCPU runner. `web/playwright.config.ts` sets `fullyParallel: false`, so tests inside one file run in order in one worker.
 - **Vitest** runs each test file in its own isolated environment by default; the 64% of the run spent on environments is the price of that isolation.
@@ -215,9 +219,7 @@ minimal: '₂'
 
 The second generated string failed; twelve property evaluations shrank 20 characters to one, a subscript two, which `isalnum` accepts (Unicode category No) and the reference drops. Hypothesis does the same with more strategies (it shrinks the random choices that built the value rather than the value itself, so it can shrink any generated structure) and stores the minimal example in a local database so the next run tries it first. A shrunk counterexample is also the regression test to keep: `slugs_match_github_slugger_on_unicode_edge_cases` is that list, written down.
 
-Notice what the old example-based mindset would have asserted instead: "no double dashes, no leading or trailing dash, only alphanumerics and dashes". Every one of those is false for github-slugger, so a property suite written from the old implementation's habits would have locked the bug in. Choose properties from the *requirement* (anchors must match the browser), not from the current code.
-
-Unicode is where the surprises hide. Lowercasing can turn one character into two (`İ`, the Turkish capital dotted I, lowercases to `i` plus a combining dot above), and whether that mark survives depends on how your predicate classifies it. The reimplementation kept whatever Rust's `is_alphanumeric` accepted plus one block of combining marks, and passed every example. Then the full-site crawl found three table-of-contents links that still went nowhere, in headings like "O(n²)" and "log₂ n": `is_alphanumeric` accepts category No, while github-slugger keeps only the Alphabetic property, marks, *decimal* digits and connector punctuation. The fix wrote the rule in the reference's own terms, `[^\p{Alphabetic}\p{M}\p{Nd}\p{Pc} -]`, and `slugs_match_github_slugger_on_unicode_edge_cases` pins fifteen inputs whose expected ids came from running github-slugger itself, because a human deriving expectations from their own reading of the rule repeats their own mistake.
+Unicode is where the surprises hide. The reimplementation kept whatever Rust's `is_alphanumeric` accepted plus one block of combining marks, and passed every example. Then the full-site crawl found three table-of-contents links that still went nowhere, in headings like "O(n²)" and "log₂ n": `is_alphanumeric` accepts category No, while github-slugger keeps only the Alphabetic property, marks, *decimal* digits and connector punctuation. The fix wrote the rule in the reference's own terms, `[^\p{Alphabetic}\p{M}\p{Nd}\p{Pc} -]`, and pinned fifteen inputs whose expected ids came from running github-slugger itself, because a human deriving expectations from their own reading of the rule repeats their own mistake.
 
 Rust has the same tooling (`proptest`, `quickcheck`); JavaScript has `fast-check`.
 
@@ -249,6 +251,8 @@ A flaky test produces different results on the same code. Luo, Hariri, Eloussi a
 Diagnosis starts with a number. If a test fails with probability $p$ per run, $n$ reruns on one commit show at least one failure with probability $1 - (1 - p)^n$. To catch a 2% flake with 95% confidence you need $n \geq \ln 0.05 / \ln 0.98 \approx 148$ runs; a 0.1% flake needs about 2,995. So "I reran it ten times and it passed" rules out almost nothing: ten runs catch a 2% flake only 18% of the time. Playwright's `--repeat-each=200` and a shell loop over `cargo test <name>` produce those runs; running once with `--test-threads=1` and once without separates order dependence from everything else.
 
 The last row is the one that matters. Ascend's coach once dropped the first streamed reply of a new conversation: creating the conversation navigated between two routes, which remounted the page mid-stream. Commit `6cf9c45` fixed it with one route and a guard that never hydrates server history over a live stream, and added an opt-in Playwright spec for the AI journeys (`E2E_AI=1`, since it calls the real model). A test that flickered on that bug was reporting a real one.
+
+Opt-in suites that spend money rarely run: until commit `70f15c7` CI never streamed a reply. `crates/api/tests/ai.rs` fakes the vendor at the boundary instead: the production client talks to a stub of the Messages API that streams a fixed reply in four deltas and records each request. Its three tests check that a reply is saved with its token counts and settles the budget hold, that one abandoned after the first frame is still saved and billed, and that a generated quiz parses.
 
 Playwright's web-first assertions are the first fix built in: `await expect(page.getByTestId("results")).toContainText(...)` polls until the condition holds or a timeout expires, instead of sleeping a guessed duration. Ascend's config also sets `retries: 0`. That is a policy choice: retries make a suite green while hiding the flake. A test that is genuinely slow says so: the Pyodide test raises its own timeout to 180 seconds because its first run downloads the Python runtime.
 
@@ -311,8 +315,6 @@ When you review a pull request, ask what each new behaviour needs, not "are ther
 - A new user journey that makes money or protects users: one end-to-end test of the happy path.
 - A bug fix: a regression test that **fails before the fix**. If you never saw it fail, you do not know that it tests anything.
 
-The foundations track covers the single-function version of this discipline in [testing your own code](/learn/foundations/problem-solving/testing-your-own-code), and [verifying AI code](/learn/ai-assisted-engineering/tools-and-workflows/verifying-ai-code) applies it to code you did not write.
-
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
@@ -342,13 +344,9 @@ The foundations track covers the single-function version of this discipline in [
 
 **"When is a mock the wrong tool?"** Model answer: when the thing mocked is the thing most likely to be wrong (your SQL, schema or serialisation), since a mock only confirms the author's belief; fake slow, costly or non-deterministic vendors at the boundary instead. Common wrong answer: "mock everything so tests are fast."
 
-**"What makes a good property?"** Model answer: a round trip, an invariant, idempotence or an oracle derived from the requirement, run against a generator that includes hostile inputs; and when it fails, the shrunk case becomes an example test. Common wrong answer: "the output equals the expected value", which is an example test in disguise.
-
 ## What mid-level engineers get wrong
 
 - **Counting tests or coverage instead of asking what each test proves.** 100% coverage of mocked code proves the mocks.
-- **Mocking the database** and discovering schema drift in production.
-- **Sleeping in tests**, then raising the sleep when it fails.
 - **Retrying flaky tests automatically** and treating pass-on-retry as a pass.
 
 ## Senior signals

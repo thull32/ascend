@@ -73,7 +73,7 @@ Levels should mean something actionable:
 | `tower_http::trace::on_response` | INFO `finished processing request` | `tower_http=info`: emitted | the same: emitted |
 | `tower_http::trace::on_eos` | DEBUG `end of stream` | `tower_http=info`: dropped | the same: dropped |
 
-The second row's "before" was observed: a local run with the old production filter applied all seven migrations and printed nothing between `running migrations` and `curriculum loaded`, so in production a slow migration looked like silence. Commit `8f82820` added `sea_orm_migration=info` to the default filter and the Dockerfile's `RUST_LOG`; the matching directive with the longest target wins, so the migrator's INFO lines return while the rest of `sea_orm` stays at WARN. The same commit made boot say what it decided: `migrations applied` with the list, `schema up to date`, or the WARN about a schema ahead of the build.
+The second row's "before" was observed: a local run with the old production filter applied all seven migrations and printed nothing between `running migrations` and `curriculum loaded`, so in production a slow migration looked like silence. Commit `8f82820` added `sea_orm_migration=info` to the default filter and the Dockerfile's `RUST_LOG`; the matching directive with the longest target wins, so the migrator's INFO lines return while the rest of `sea_orm` stays at WARN.
 
 Spans obey the same filter, with a sharper edge. The `request` span that carries the request ID is created with `info_span!` in `ascend_api::app`, so with `RUST_LOG=warn` it is never created and every remaining WARN and ERROR line loses its `span` object, request ID included, with no error anywhere. Quieten noisy *events*; keep the span's target at INFO.
 
@@ -93,7 +93,7 @@ Observed on a local build with `LOG_JSON=true` and the production filter, for an
 | `target` | the macro callsite's module path | the string `EnvFilter` matched |
 | `span` | `with_current_span(true)` | the span's fields, sorted, then `name` |
 
-The key order is the formatter's code order in tracing-subscriber 0.3.23's `json.rs`. The span object comes out sorted because a span's fields are formatted to a JSON string once, at creation, and parsed back with `serde_json` for every event (a TODO in the source wants to rework this); without its `preserve_order` feature, `serde_json` keeps keys in a sorted map. Rust's stdout is a line-buffered writer even when not a terminal, so each line is one `write` system call on the thread handling the request.
+The key order is the formatter's code order in tracing-subscriber 0.3.23's `json.rs`. The span object comes out sorted because a span's fields are formatted to a JSON string once, at creation, and parsed back with `serde_json` for every event; without its `preserve_order` feature, `serde_json` keeps keys in a sorted map. Rust's stdout is a line-buffered writer even when not a terminal, so each line is one `write` system call on the thread handling the request.
 
 A coach turn adds this event, derived from `coach.rs` (token values illustrative):
 
@@ -126,7 +126,7 @@ Measured on CPython 3.14.7 and Node 24.21 (x86-64, best of five runs of 200,000 
 
 The arithmetic that matters: a Python service at 1,000 requests per second writing ten lines each spends 1,000 × 10 × 5.6 µs = 56 ms of CPU per second, about 6% of a core. A disabled call is nearly free unless its argument is built eagerly: the f-string costs seven times the lazy form because it is formatted before the level check. Rust's `tracing` macros check the level first and build field values only for enabled events.
 
-The larger cost is downstream: the observed `finished` lines were 283 to 290 bytes, about 0.3 GB per million requests before indexing, and log platforms typically bill by volume ingested and retained. DEBUG for `tower_http` adds two lines per request, tripling that component. Decide volume per target, not per process.
+The larger cost is downstream: the observed `finished` lines were 283 to 290 bytes, about 0.3 GB per million requests before indexing, and log platforms typically bill by volume ingested and retained. Decide volume per target, not per process.
 
 ## Request IDs: one key that joins everything
 
@@ -152,7 +152,7 @@ sequenceDiagram
   Note over B,L: support searches the logs for abc
 ```
 
-The ID lives on the `request` span, not in each `warn!` call, so every event inside the request inherits it. Build the layer with `with_current_span(false)` and the ID silently disappears from production logs while development's compact output still shows span context: test telemetry by reading what it emits. [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request) walks the rest of this middleware stack.
+The ID lives on the `request` span, not in each `warn!` call, so every event inside the request inherits it (and it becomes an attribute of the exported span). Build the layer with `with_current_span(false)` and the ID silently disappears from production logs: test telemetry by reading what it emits. [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request) walks the rest of this middleware stack.
 
 **A client could choose its own ID.** `SetRequestIdLayer` keeps a header that is already present, and the first version accepted anything: a 10 KB string, a duplicate of someone else's ID, characters that confuse log tooling. With the `sanitise` layer, a request sent with `x-request-id: <script>alert(1)</script>` comes back with a fresh UUID and a valid UUID comes back unchanged, as the integration test `request_ids_are_server_controlled` asserts. `uuid::Uuid::parse_str` accepts four spellings (plain, hyphenated, braced and `urn:uuid:`), so the longest value that can reach a log is 45 characters.
 
@@ -180,7 +180,7 @@ state.tasks.spawn(
 | Histogram | One cumulative counter per bucket (`le`), plus `_sum` and `_count` | `histogram_quantile` over bucket rates | yes: sum the buckets |
 | Summary | In-process quantiles over a sliding window, plus `_sum` and `_count` | read the quantile series | **no** |
 
-Two checklists pick metrics: **RED** for anything that serves requests (rate, errors, duration) and **USE** for anything with capacity (utilisation, saturation, errors). Here two capacities can run out: the database pool (20 connections, a 5-second acquire timeout, in `crates/api/src/state.rs`) and the grading slots (half the cores, 1 to 4, with a 20-second queue).
+Two checklists pick metrics: **RED** for anything that serves requests (rate, errors, duration) and **USE** for anything with capacity (utilisation, saturation, errors). Here two capacities can run out: each replica's database pool (`DATABASE_POOL_MAX`, 20 by default and 15 in production, with a 5-second acquire timeout, in `crates/api/src/state.rs`) and the grading slots (half the cores, 1 to 4, by default; 2 per grading-service replica in production; a 20-second queue).
 
 ## Percentiles from buckets, worked
 
@@ -201,7 +201,7 @@ Latency must be a distribution, never an average: an average of 80 ms can hide a
 
 Two limits follow. The p99 is only known to lie between 0.5 and 1 s, so put a bucket boundary exactly at any latency threshold an SLO names. And the p99.9 reads 2.5 s whether the two slowest requests took 3 s or 3 minutes: the largest finite bucket caps what the histogram can report.
 
-Merging, traced: suppose these 1,000 requests came from instance A (970 requests, bucket counts 600, 850, 940, 960, 968, 970, 970) and instance B (30 requests: 20, 20, 20, 25, 26, 28, 30). A's own p99 is 0.519 s and B's is capped at 2.5 s. Their mean, 1.51 s, and their request-weighted mean, 0.58 s, are both wrong; summing the buckets reproduces the table above and the true 0.778 s. In PromQL the merge is the `sum by (le)` in `histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))`. Netflix's open-source Spectator library records percentile timers the same way, as counters over a fixed set of buckets, so percentiles are estimated server-side across any slice of the fleet.
+Merging, traced: suppose these 1,000 requests came from instance A (970 requests, bucket counts 600, 850, 940, 960, 968, 970, 970) and instance B (30 requests: 20, 20, 20, 25, 26, 28, 30). A's own p99 is 0.519 s and B's is capped at 2.5 s. Their mean, 1.51 s, and their request-weighted mean, 0.58 s, are both wrong; summing the buckets reproduces the table above and the true 0.778 s. In PromQL the merge is the `sum by (le)` in `histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket[5m])))`.
 
 ## Summaries do not aggregate
 
@@ -212,44 +212,55 @@ A summary exports ready-made quantiles (a series labelled `quantile="0.99"`), ea
 | 1 | 100 ms | 1,000 ms | 900, 1,000, 1,000 ms | **900 ms** |
 | 2 | 100 ms | 1,000 ms | 200, 1,000, 1,000 ms | **200 ms** |
 
-Identical summaries, different answers: the merged p99 depends on B's 98th request, which the summary threw away. Summaries are accurate for one instance and cheap at query time, but their quantiles are fixed in code and cannot be combined; for anything served by more than one process, use histograms.
+Identical summaries, different answers: the merged p99 depends on B's 98th request, which the summary threw away. Summaries are accurate for one instance, but their quantiles cannot be combined; for anything served by more than one process, use histograms.
 
 ## Cardinality, counted on this API
 
-Every unique combination of label values is a separate series, and a histogram multiplies it: the snippet below declares 12 buckets, so each label set is 13 bucket series (with `+Inf`) plus `_sum` and `_count`, 15 in all (the Python client also adds `_created` unless disabled). Ascend's routers declare 35 route templates carrying 43 route-and-method pairs.
+Every unique combination of label values is a separate series, and a histogram multiplies it: Ascend's latency histogram declares 14 bucket boundaries, so each label set is 15 bucket series (with `+Inf`) plus `_sum` and `_count`, 17 in all. Its routers declare 42 route templates carrying 48 route-and-method pairs.
 
 | Labels on the latency histogram | Label sets | Series |
 |---|---|---|
-| route template × method × status class (4 seen) | 43 × 4 = 172 | 2,580 |
-| route template × method × status code (about a dozen) | at most 43 × 13 | at most 8,385 |
-| raw path, as the span's `uri` records it | about 350 lesson paths, plus one per conversation | unbounded: 1,000 conversations add 15,000 series |
-| … × `user_id`, 200,000 users | 34.4 million | 516 million |
+| route template × method × status class (4 seen) | 48 × 4 = 192 | 3,264 |
+| route template × method × status code (Ascend's choice) | at most 48 × 13 | at most 10,608 |
+| raw path, as the span's `uri` records it | about 350 lesson paths, plus one per conversation | unbounded: 1,000 conversations add 17,000 series |
+| … × `user_id`, 200,000 users | 38.4 million | 653 million |
 
-The third row is the trap nearest to hand. The span records `req.uri().path()`, right for logs and wrong for a metric label: every conversation UUID mints a new series set that the backend keeps storing. Label with the matched route template (axum's `MatchedPath`), keep IDs in logs and traces, and estimate the series count in review.
+The third row is the trap nearest to hand. The span records `req.uri().path()`, right for logs and wrong for a metric label: every conversation UUID would mint a new series set that the backend keeps storing. So the histogram is labelled with the matched route template (axum's `MatchedPath`), IDs stay in logs and traces, and the series count is estimated in review. Replicas multiply every row again, since each pushes its own series.
 
-## RED, USE and what Ascend measures today
+## RED, USE and what Ascend measures
 
-Ascend exports no application metrics: no metrics endpoint, and no Prometheus, metrics or OpenTelemetry crate in its `Cargo.lock`. It relies on the platform's CPU, memory and network graphs plus logs. Where each signal comes from today, and would from a metrics layer:
+Until commit `3658224` Ascend exported no application metrics: counting failed requests meant counting log lines. Now `crates/core/src/metrics.rs` records through the OpenTelemetry metrics API (a no-op until an exporter is installed, so tests need nothing), and `crates/api/src/telemetry.rs` pushes every 15 seconds over OTLP/HTTP to Prometheus. Each replica labels its data with its `RAILWAY_REPLICA_ID`, so nothing has to discover and scrape replicas.
 
-| Signal | Checklist | From the logs today | From a metrics layer |
+| Signal | Checklist | Before: from the logs | Now: instrument |
 |---|---|---|---|
-| Request rate | RED | count `finished processing request` lines | counter by route template and status class |
-| Errors | RED | `status` ≥ 500 on those lines | the same counter |
-| Duration | RED | `latency`: whole ms, time to headers | histogram, plus one for stream duration |
-| Pool utilisation | USE | nothing | gauge of connections in use, of 20 |
-| Pool saturation | USE | ERROR `database error`: `Failed to acquire connection from pool: Connection pool timed out` after 5 s | histogram of acquire wait |
-| AI cost | business | `coach turn complete` token fields | counter of output tokens by model |
+| Rate, errors | RED | count `finished` lines; `status` ≥ 500 | `http.server.request.duration` count by method, route template, status |
+| Duration | RED | `latency`, time to headers | the same histogram |
+| Pool use, saturation | USE | ERROR `Connection pool timed out` after 5 s | gauge of connections in use, idle and max |
+| Grading | USE | nothing | slots busy, queue wait, runs by outcome |
+| AI cost | business | `coach turn complete` token fields | tokens by kind, budget decisions, time to first token |
 
-```python
-from prometheus_client import Counter, Histogram
-
-REQUESTS = Counter("http_requests_total", "HTTP requests", ["route", "status_class"])
-LATENCY = Histogram("http_request_duration_seconds", "Request latency", ["route"],
-                    buckets=[.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10, 30])
-AI_TOKENS = Counter("ai_output_tokens_total", "Model output tokens", ["model"])
+```rust
+// crates/api/src/middleware/metrics.rs, abridged. `stamp_route` is a route
+// layer: it runs after routing and copies axum's MatchedPath to the response.
+pub async fn record(req: Request<Body>, next: Next) -> Response {
+    let started = Instant::now();
+    let method = req.method().as_str().to_owned();
+    let api = req.uri().path().starts_with("/api");
+    let res = next.run(req).await;
+    let route = res.extensions().get::<RouteLabel>().map(|r| r.0.clone())
+        .unwrap_or_else(|| if api { "/api (unrouted)" } else { "static" }.to_string());
+    get().http_duration.record(started.elapsed().as_secs_f64(), &[
+        kv("http.request.method", method),
+        kv("http.route", route),
+        kv("http.response.status_code", i64::from(res.status().as_u16())),
+    ]);
+    res
+}
 ```
 
-If you added metrics here, start with the request counter and latency histogram per route template (one middleware layer covers every route), then AI output tokens by model, the main variable cost of a free product. [Evals and observability](/learn/ai-and-llms/building-with-llms/evals-and-observability) covers what else to record per model call.
+Why two layers: the template exists only after routing, but a request refused before routing (the general rate limit, a CSRF failure) must still be counted, so the outer layer times everything and reads back what the inner one stamped. No label carries personal data.
+
+`docs/SLO.md` builds on this histogram: 99.5% of API requests without a 5xx over 30 days; 95% of ordinary API requests within 250 ms; 95% of graded submissions within 5 s. Both thresholds are bucket boundaries, as the percentile section requires; the multi-window burn-rate alerts are derived in [Observability](/learn/system-design/building-blocks/observability).
 
 ## Traces: where did the nine seconds go?
 
@@ -259,7 +270,7 @@ A trace is a tree of **spans**, each with a start, a duration, attributes and a 
 {"type": "system", "algorithm": "request-flow", "title": "Each hop is a span", "caption": "A trace links the spans for every hop of one request under a single trace ID, so the slow hop is visible instead of inferred."}
 ```
 
-Because Ascend logs through the `tracing` crate, the `request` span already exists and functions can gain spans with `#[tracing::instrument]`. Exporting them would be one more layer on the registry in `telemetry.rs` (the `tracing-opentelemetry` bridge feeding an OTLP exporter); Ascend has none today. **OpenTelemetry** is the vendor-neutral standard for the APIs, SDKs and collector, so instrumentation survives a change of backend.
+Because Ascend logs through the `tracing` crate, the `request` span already existed, and exporting it took one more layer in `telemetry.rs`: the `tracing-opentelemetry` bridge feeding an OTLP exporter to Jaeger. It passes spans, never log events, so learner text in a log line cannot reach the trace store. Today that is mostly the one span: no function carries `#[tracing::instrument]` yet, so a slow trace shows the total, not the step. **OpenTelemetry** is the vendor-neutral standard for the APIs, SDKs and collector, so instrumentation survives a change of backend.
 
 ## traceparent, decoded
 
@@ -276,7 +287,7 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 | parent-id | 16 | 8 | `00f067aa0ba902b7` | the caller's span | all zeros |
 | trace-flags | 2 | 1 | `01` = `0b00000001` | bit 0: the caller sampled this trace | |
 
-Version `00` is exactly 55 characters, lowercase hex only. A receiver that sees a higher version reads the first four fields and ignores the rest, so the format can grow. A header that fails these checks is not an error to return: the receiver starts a new trace and ignores `tracestate`. The Level 2 draft gives bit 1 of the flags a meaning ("random": at least the trace-id's right-most 7 bytes are random); Level 1 defines only bit 0.
+Version `00` is exactly 55 characters, lowercase hex only. A receiver that sees a higher version reads the first four fields and ignores the rest, so the format can grow. A header that fails these checks is not an error to return: the receiver starts a new trace and ignores `tracestate`.
 
 `tracestate` carries vendor-specific data beside it, as up to 32 comma-separated `key=value` entries such as `rojo=00f067aa0ba902b7,congo=t61rcWkgMzE`. A vendor that updates its entry moves it to the front, and every other entry passes through unchanged.
 
@@ -284,7 +295,7 @@ Ascend's request ID is a 128-bit UUID (122 of the bits random), the same width a
 
 ## Propagation across three hops
 
-Follow one request through an edge proxy, the API and a grading service (Ascend grades in-process; IDs illustrative). The trace-id is `4bf92f3577b34da6a3ce929d0e0e4736` throughout.
+Follow one request through an edge proxy, the API and a grading service (IDs illustrative). Ascend has that last hop since commit `c0b3151` but propagates nothing yet: the API neither reads nor sends `traceparent`, and the grading service creates no spans, so the table is what propagation would add. The trace-id is `4bf92f3577b34da6a3ce929d0e0e4736` throughout.
 
 | Step | Where | Arrives with parent-id | Creates span | Span's parent | Sends `traceparent` |
 |---|---|---|---|---|---|
@@ -305,7 +316,7 @@ Take 1,000,000 requests a day, 0.3% errors (3,000), 0.5% slower than 2 seconds (
 | Head, 10% | 100,000 | about 300 | $1 - 0.9^5 = 41\%$ | ten times the storage |
 | Tail: every error, every trace over 2 s, 1% of the rest | 17,920 | 3,000 | 100% | a collector that buffers every span until the decision |
 
-**Head sampling** decides at the root, before the outcome is known, and writes the decision into bit 0 of the flags: cheap and complete, but only 1% of the interesting traces survive. **Tail sampling** sends every span to a collector that groups spans by trace ID, waits for the trace to finish (the OpenTelemetry tail-sampling processor's `decision_wait` defaults to 30 seconds), then applies the policy. The buffer is rate times wait: 11.6 requests per second for 30 s is about 350 traces in flight here, and gigabytes at 10,000 requests per second, as the [system design lesson](/learn/system-design/building-blocks/observability) works out. Google's Dapper paper (2010) reports that its first production version sampled one trace in every 1,024 uniformly, which suits high-volume services where a pattern recurs often and misses a five-request incident.
+**Head sampling** decides at the root, before the outcome is known, and writes the decision into bit 0 of the flags: cheap and complete, but only 1% of the interesting traces survive. Ascend's sampler is `ParentBased(TraceIdRatioBased(0.2))` in production, so the same incident leaves a trace with probability $1 - 0.8^5 = 67\%$. **Tail sampling** sends every span to a collector that groups spans by trace ID, waits for the trace to finish (the OpenTelemetry tail-sampling processor's `decision_wait` defaults to 30 seconds), then applies the policy. The buffer is rate times wait: 11.6 requests per second for 30 s is about 350 traces in flight here, and gigabytes at 10,000 requests per second, as the [system design lesson](/learn/system-design/building-blocks/observability) works out. Google's Dapper paper (2010) reports that its first production version sampled one trace in 1,024, which suits high-volume services and misses a five-request incident.
 
 ## What never to log
 
@@ -313,8 +324,7 @@ Logs are copied further, kept longer and read by more people than your database:
 
 - **Never log credentials**: passwords, session tokens, cookies, API keys, `Authorization` headers. `SecretString` redacts the database URL and API key from `Debug` output, but dependencies can still echo a secret: sea-orm 2.0.3's connect error quotes an unparseable URL whole, password included, and `main` used to print it at boot. Since commit `8f82820`, `connect_db` passes the error through `redact_credentials`, which replaces the password in any `scheme://user:password@host` with `***`, pinned by a unit test with four cases. Redacting where the error is created covers every place the message goes; a filter in one log pipeline covers one.
 - **Bound what you copy from outside.** The AI client logs at most 500 characters of an upstream error body; user agents are truncated to 255 characters.
-- **Logs and responses get different text.** The provider's message goes to the log; the learner sees a classified sentence such as "The reply was interrupted. Try again."
-- **Log an error once, where it is handled.** Internal and database errors are logged once, in the error mapping; know which library layers (tower-http's `response failed`) add their own line.
+- **Log an error once, where it is handled** (here, in the error mapping), and know which library layers (tower-http's `response failed`) add their own line. The learner sees a classified sentence, never the provider's message.
 - **Personal data** needs a reason, a retention period and a way to delete it: an email address in a log line survives an account deletion that cascaded through every table.
 
 ## Exercise: find failed requests in raw log lines
@@ -468,8 +478,8 @@ hints:
 |---|---|---|---|---|
 | Structured logs | microseconds of CPU, hundreds of bytes | yes: any field | slow scans | yes |
 | Log-based metrics | none in the app; paid at ingestion | no | adequate at low volume | possible |
-| Prometheus-style metrics | nanoseconds per increment | no: bounded labels | fast, mergeable histograms | no |
-| Traces, head-sampled | spans for the sampled share | yes, in attributes | few rare events kept | no |
+| Prometheus-style metrics | nanoseconds per increment | no: bounded labels | fast, mergeable histograms | yes, pushed over OTLP |
+| Traces, head-sampled | spans for the sampled share | yes, in attributes | few rare events kept | yes, 20% |
 | Traces, tail-sampled | every span to a collector | yes | every error and slow trace kept | no |
 
 ## Interviewer follow-ups
@@ -486,10 +496,8 @@ hints:
 
 - **Interpolating values into the message.** Nothing can be counted, and a reworded message breaks every saved query.
 - **Raising the log level to save money** and losing the request span, and the request ID with it.
-- **Spawning work without its context**: the lines an incident needs lack an ID.
 - **Averaging percentiles, or exporting summaries from a fleet.** The dashboard stays green while one instance fails.
 - **Labelling metrics with paths or IDs**, so monitoring becomes the outage.
-- **Trusting a latency field unread.** For streams, time to headers is not time to answer.
 - **Failing on a malformed `traceparent`**, or forwarding it unchanged.
 
 ## Senior signals
@@ -521,7 +529,7 @@ hints:
   options: ["The span records the method as well, which duplicates a label", "Every lesson and every conversation id adds a new set of series", "Histograms cannot carry labels that are longer than the name", "Paths contain slashes, which are not allowed in label values"]
   answer: 1
   explanation: >-
-    uri is the raw path, so each of hundreds of lesson paths and every coach conversation UUID mints its own label set, and a 12-bucket histogram stores 15 series per set; the count grows without bound. Label by the matched route template and keep IDs in logs and traces. Slashes are legal in label values.
+    uri is the raw path, so each of hundreds of lesson paths and every coach conversation UUID mints its own label set, and a histogram with 14 bucket boundaries stores 17 series per set; the count grows without bound. Label by the matched route template and keep IDs in logs and traces. Slashes are legal in label values.
 - q: >-
     To cut log volume, production's RUST_LOG is changed to warn. WARN and ERROR events still appear. What else changes on those lines?
   options: ["Nothing changes; spans are not affected by the level filter at all", "They gain a spans list, because the span list is only hidden at info", "Their level field becomes lower case, as warn and error are written", "They lose the span object, so request_id disappears from them"]

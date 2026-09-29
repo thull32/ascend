@@ -45,7 +45,7 @@ The interface, the brand, both `as` casts and the `satisfies` vanished; nothing 
 | `enum`, value `namespace`, parameter properties | Real JavaScript | Only what that code does |
 | `typeof x === "string"`, `"k" in x`, `x instanceof C` | Unchanged | Yes: these are JavaScript |
 
-The check's cost is all at build time: type-checking this app's frontend (71 source files, 21,284 lines, tests excluded as `tsconfig.app.json` does) took 2.6 s and 508 MB of memory, and added zero bytes to the bundle.
+The check's cost is all at build time: type-checking this app's frontend (71 source files and 21,284 lines when measured, 76 and 21,560 now, tests excluded as `tsconfig.app.json` does) took 2.6 s and 508 MB of memory, and added zero bytes to the bundle.
 
 ## Structural typing: shapes, not names
 

@@ -8,7 +8,7 @@ tags: [documentation, adr, runbooks, readme, technical-writing, docs-as-code, di
 ---
 Two years from now someone opens `crates/core/src/auth/token.rs`, sees session tokens hashed with plain SHA-256, remembers that every security article says "use a slow hash", and switches to Argon2id. Every authenticated request gets about 100 ms slower for zero security gain, because 256-bit random tokens cannot be brute-forced at any speed. Or they notice that login verifies a password even when the user does not exist, call it wasted work, and delete it, reintroducing the timing oracle it closed.
 
-Code records *what* the system does. It rarely records *why*, what else was considered, or what would have to change for the decision to be wrong. That knowledge leaves with the people who made the decision, so senior engineers write it down, in the right place, for a specific future reader. This lesson covers which documents to write, where to keep them, and how to keep them read and true.
+Code records *what* the system does. It rarely records *why*, what else was considered, or what would have to change for the decision to be wrong. That knowledge leaves with the people who made the decision, so senior engineers write it down, in the right place, for a specific future reader.
 
 ## Every document has one reader and one moment
 
@@ -16,10 +16,10 @@ The most useful framing is Diátaxis, which sorts documentation by what the read
 
 | Reader's need | Kind | In this repository | Size |
 |---|---|---|---|
-| "I am new and want to learn by doing" | Tutorial | `README.md`, "Run it locally": four commands to a running app | 73 lines, 745 words |
-| "I have a specific task" | How-to guide | `content/CONTENT_GUIDE.md`: add a lesson that passes validation | 2,491 words |
-| "I need the exact facts" | Reference | `.env.example` with `crates/core/src/config.rs`; `make help` | 39 lines |
-| "I want to understand why" | Explanation | `docs/ARCHITECTURE.md` and the five records in `docs/adr/` | 1,391 words; 228 to 756 words per ADR |
+| "I am new and want to learn by doing" | Tutorial | `README.md`, "Run it locally": four commands to a running app | 75 lines, 799 words |
+| "I have a specific task" | How-to guide | `content/CONTENT_GUIDE.md`: add a lesson that passes validation | 2,509 words |
+| "I need the exact facts" | Reference | `.env.example` with `crates/core/src/config.rs`; `make help` | 54 lines |
+| "I want to understand why" | Explanation | `docs/ARCHITECTURE.md` and the six records in `docs/adr/` | 1,850 words; 228 to 756 words per ADR |
 
 Mixing them is how documents fail: a README that is half tutorial and half design essay serves neither the newcomer who wants the first command nor the reviewer who wants the rationale. This README keeps its rationale to one pointer ("Start with `docs/ARCHITECTURE.md`, then the decision records in `docs/adr/`"). And the ADR sizes make a point of their own: a decision record is a page or two, not a design document.
 
@@ -27,13 +27,13 @@ Mixing them is how documents fail: a README that is half tutorial and half desig
 
 Rationale lives at three altitudes here.
 
-**Local decisions live in module-level doc comments**, next to the code they explain. 63 of the 90 Rust files under `crates/` and `migration/` carry a `//!` module comment. Examples:
+**Local decisions live in module-level doc comments**, next to the code they explain. 73 of the 100 Rust files under `crates/` and `migration/` carry a `//!` module comment. Examples:
 
 - `crates/core/src/lib.rs` says the core is transport-agnostic *and why*: testable without a web server, reusable from other binaries.
 - `crates/api/src/main.rs` explains the boot order: migrations run before the server binds, so a healthy `/readyz` means a current schema.
-- `crates/api/src/middleware/rate_limit.rs` says in-memory limiting "is the right call for a single-instance deployment; the state is per process. If we scale horizontally the same interface can be backed by Redis."
+- `crates/api/src/middleware/rate_limit.rs` used to say in-memory limiting "is the right call for a single-instance deployment; the state is per process. If we scale horizontally the same interface can be backed by Redis."
 
-That last one is a complete decision record in two sentences: the decision, the context that makes it right, and the **trigger** that would make it wrong, which tells a future engineer when changing it is expected. Good comments state a constraint or a reason, never a restatement of the code: "Touches `last_seen_at` at most once per hour to avoid a write on every request", on `AuthService::authenticate`, explains a behaviour that would otherwise look like a bug.
+That was a complete decision record in two sentences: the decision, the context that made it right, and the **trigger** that would make it wrong. When the trigger approached, commit `427ed78` moved the security limits into Postgres and rewrote the comment: memory only for the general bucket, where "a per-replica approximation is fine". Good comments state a constraint or a reason, never a restatement of the code: "Touches `last_seen_at` at most once per hour to avoid a write on every request", on `AuthService::authenticate`, explains a behaviour that would otherwise look like a bug.
 
 **The map lives in `docs/ARCHITECTURE.md`**: one diagram, the layout, the life of a request, a section per subsystem, and scaling notes that say what would change first.
 
@@ -52,7 +52,7 @@ stateDiagram-v2
   Accepted --> Deprecated: no longer relevant
 ```
 
-This repository has five: `0001` one Rust binary with embedded content and SPA, `0002` server-side sessions, `0003` running learner code in the browser, `0004` bounded LLM costs, and `0005` grading submissions on the server, which amends 0003. Here is `docs/adr/0002-server-side-sessions.md` in full:
+This repository has six: `0001` one Rust binary with embedded content and SPA, `0002` server-side sessions, `0003` running learner code in the browser, `0004` bounded LLM costs, `0005` grading submissions on the server, which amends 0003, and `0006` scaling out (a separate grading service, pushed telemetry, a connection budget). Here is `docs/adr/0002-server-side-sessions.md` in full:
 
 ```text
 # 0002. Server-side sessions with hashed opaque tokens, not JWTs
@@ -97,7 +97,7 @@ The context names the constraint that makes the decision right ("There is a sing
 
 ## How these four ADRs changed on their first evening
 
-`git log -- docs/adr` shows three commits on the evening of 26 September 2026 and four on the 28th; the table adds one code-only commit (times in UTC−7):
+`git log -- docs/adr` shows three commits on the evening of 26 September 2026 and seven on the 28th; the table shows the first two days' changes plus one code-only commit (times in UTC−7):
 
 | Commit | Time | What changed |
 |---|---|---|
@@ -112,9 +112,9 @@ The context names the constraint that makes the decision right ("There is a sing
 
 Two lessons are in that table. First, the "Revisit when" sections and both amendments edited accepted records. Many teams allow appending clarifications that leave the decision unchanged (a trigger, a link, a typo) and require a superseding ADR for anything that changes what was decided; the per-IP to per-session change is arguably the second kind. Whichever line your team draws, write it down. ADR 0005 shows a third option: it *amends* 0003 (the browser still runs code; only where results are recorded changed), and 0003's status points at it.
 
-Second, ADR 0004 disagreed with the code it governs. Its decision listed "request and output-token budgets"; the input budget added 28 minutes later (default 2,000,000 billed input tokens a day) appeared nowhere in it, because nothing checks ADRs against code. A review of this lesson found the gap two days later, and commit `8f82820` amended the decision, recording *why* the budget counts billed input: cache writes at 1.25x and reads at 0.1x the base price, because counting only uncached input left the most expensive input unbudgeted. Even the correction drifted twice. Its consequences still named only the two original variables until commit `bd0dcf0`; and 0.1x is Anthropic's standard read price, while its [prompt-caching page](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) lists 0.05x for `claude-opus-5-5`, the app's default model, so the budget over-counted reads until commit `ac7532b` weighted them by model (`cache_read_divisor`) and amended the ADR in the same commit. That is the cheapest guard: change the ADR in the pull request that changes its subject, prompted by a template question, "does this change an ADR's decision or consequences?"
+Second, ADR 0004 disagreed with the code it governs. Its decision listed "request and output-token budgets"; the input budget added 28 minutes later (default 2,000,000 billed input tokens a day) appeared nowhere in it, because nothing checks ADRs against code. A review of this lesson found the gap two days later, and commit `8f82820` amended the decision, recording *why* the budget counts billed input (cache writes at 1.25x and reads at 0.1x the base price). Even the correction drifted twice: its consequences named only the two original variables until commit `bd0dcf0`, and 0.1x is Anthropic's standard read price, while its [prompt-caching page](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) lists 0.05x for `claude-opus-5-5`, the app's default model, so the budget over-counted reads until commit `ac7532b` weighted them by model (`cache_read_divisor`) and amended the ADR in the same commit. That is the cheapest guard: change the ADR in the pull request that changes its subject, prompted by a template question, "does this change an ADR's decision or consequences?"
 
-The real ADRs' triggers are good examples. ADR 0001 lists "A second replica is needed (move rate limiting to Redis first)" (the limits have since moved into Postgres instead, and the trigger still says Redis: triggers go stale too); ADR 0004 names a metric, "Cache hit rates in the `ai_usage` cache columns fall". A trigger tied to a number someone can watch is the strongest kind.
+The real ADRs' triggers are good examples. ADR 0001 listed "A second replica is needed (move rate limiting to Redis first)"; the limits moved into Postgres instead, the trigger said Redis until commit `81b4436` (triggers go stale too), and ADR 0006 records what was decided when it fired. Its own trigger is a number: "Past about four API replicas: add PgBouncer". A trigger tied to a number someone can watch is the strongest kind.
 
 ## When to write one, and which are in force
 
@@ -286,7 +286,7 @@ A README has one job: get a competent stranger from `git clone` to a running sys
 
 `.env.example` is documentation too. It used to hold only the seven variables needed to run locally; it now lists every variable the loader reads, optional ones commented out at their defaults with notes on sharp edges (`CLIENT_IP_HEADER` is safe "only behind a proxy that sets and overwrites it"), so the file you copy to get started is the reference.
 
-The README's claim about `make check` needs care. The Makefile calls it "Everything CI runs, locally", but CI's jobs call the underlying commands directly and also run the SPA build, the quiz-order check, the image build and the Playwright suite. The stronger version has CI invoke the same `make` targets.
+The Makefile calls `make check` "Everything CI runs, locally", but CI calls the underlying commands directly and also runs the SPA build, the quiz-order check, the image build and the Playwright suite; the stronger version has CI invoke the same `make` targets.
 
 The rule that keeps a README honest: **the first command must work**, on a clean machine, today. Documentation that changes in the same pull request as the code ("docs as code") stays current; documentation generated from the code stays current only while the generator's assumptions hold.
 
@@ -316,13 +316,13 @@ Writing for an agent is writing for the most literal new hire you will ever have
 
 A runbook's reader is on call, stressed, possibly new to the service, and on a phone. Every entry has six parts: **symptom** (what the alert or report looks like), **impact** (who is affected), **checks** (copy-pasteable commands with what healthy and unhealthy output look like), **mitigation** (steps that stop the bleeding before the cause is understood), **escalation** (who to call, and when), and **verification** (how you know it is fixed).
 
-A service can be designed to make runbooks short. This one names the variable in every configuration error (`missing required environment variable X`, `invalid value for X: reason`, from `ConfigError`), logs each boot stage, and reports `database`, `ai`, `content_version` and `build` from `/api/readyz`. The payoff is measurable: Google's [SRE book](https://sre.google/sre-book/introduction/) reports that recording best practices in a playbook ahead of time gives "roughly a 3x improvement in MTTR" over "winging it". Runbooks also rot fastest, because nobody performs their operations until something breaks: link every alert to its entry, rehearse the important ones, and update them after every incident ([incidents and postmortems](/learn/senior-craft/technical-leadership/incidents-and-postmortems)).
+A service can be designed to make runbooks short. This one names the variable in every configuration error (`missing required environment variable X`, `invalid value for X: reason`, from `ConfigError`), logs each boot stage, and reports `database`, `ai`, `content_version` and `build` from `/api/readyz`. Each alert in `ops/prometheus/rules.yml` links to its section of `docs/RUNBOOK.md`. The payoff is measurable: Google's [SRE book](https://sre.google/sre-book/introduction/) reports that recording best practices in a playbook ahead of time gives "roughly a 3x improvement in MTTR" over "winging it". Runbooks also rot fastest, because nobody performs their operations until something breaks: rehearse the important entries and update them after every incident ([incidents and postmortems](/learn/senior-craft/technical-leadership/incidents-and-postmortems)).
 
 ## A runbook entry, written out: the checks
 
 **Symptom.** Railway marks a new deployment failed after the 120-second health window. **Impact.** None yet: readiness gates traffic, so the previous deployment keeps serving. Check 3 decides whether the serving version is still healthy on the schema the failed release left behind.
 
-**Check 1: what is serving?** `curl -s -i https://$DOMAIN/api/readyz`. Healthy is `200` with a body like the one observed locally, `{"ai":true,"build":"<commit>","content_version":"986c3fa09b7c2880","database":true,"status":"ok"}`, where `build` should be the previous commit. Unhealthy is `503` with `"database":false`: Postgres is unreachable, or all 20 pool connections stayed busy for the 5-second acquire timeout, an outage with its own runbook.
+**Check 1: what is serving?** `curl -s -i https://$DOMAIN/api/readyz`. Healthy is `200` with a body like the one observed locally, `{"ai":true,"build":"<commit>","content_version":"986c3fa09b7c2880","database":true,"status":"ok"}`, where `build` should be the previous commit. Unhealthy is `503` with `"database":false`: Postgres is unreachable, or every connection in the replica's pool (`DATABASE_POOL_MAX`, 15 in production) stayed busy for the 5-second acquire timeout, an outage with its own runbook entry.
 
 **Check 2: why did the new one fail?** Read *its* log:
 
@@ -331,7 +331,7 @@ railway deployment list --service ascend --limit 5          # note the FAILED de
 railway logs --deployment <FAILED_ID> --lines 200
 ```
 
-Without the id, `railway logs` shows the most recent successful deployment (per the CLI's help text in version 5.63.1), which is the healthy old one. A healthy boot is a handful of JSON lines: `booting ascend-api`; the migrator's `Applying migration '…'` lines and `migrations applied`, or `schema up to date`; then `curriculum loaded`, `grader ready` and `listening`. After a rollback, a WARN `database schema is ahead of this build (a rollback?); starting without migrating` is expected too. Compare the last lines:
+Without the id, `railway logs` shows the most recent successful deployment (per the CLI's help text in version 5.63.1), which is the healthy old one. A healthy boot is a handful of JSON lines: `booting ascend-api`; `connection budget`; the migrator's `Applying migration '…'` lines and `migrations applied`, or `schema up to date`; then `curriculum loaded`, `grader ready` (or `grading delegated to the grading service`) and `listening`. After a rollback, a WARN `database schema is ahead of this build (a rollback?); starting without migrating` is expected too. Compare the last lines:
 
 | Last lines of the failed deployment | Cause | Mitigation |
 |---|---|---|
@@ -343,7 +343,7 @@ Without the id, `railway logs` shows the most recent successful deployment (per 
 | `curriculum loaded`, then `Error: grader: …` | production requires the grading runtimes, and the image lacks them | rebuild the image |
 | `listening` is present | boot succeeded; readiness failed | check `PORT` and `/api/readyz` on the new instance |
 
-The configuration errors were observed locally: they are plain text on stderr, printed before JSON logging starts, so search for `Error: configuration` rather than filtering on a JSON field.
+The configuration errors are plain text on stderr, printed before JSON logging starts (observed locally), so search for `Error: configuration`, not a JSON field.
 
 Until commit `8f82820` the table had a row for an image older than the schema, which could not boot at all; boot now starts such an image as `SchemaAhead`, the best way for a runbook entry to get shorter.
 
@@ -464,7 +464,7 @@ hints:
 
 **"An accepted ADR turns out to be wrong. What do you do?"** Model answer: write a superseding ADR and mark the old one superseded, so both reasonings survive; append clarifications only where the team's written policy allows. Common wrong answer: edit the decision in place, which erases why it was once right.
 
-**"How do you keep documentation from rotting?"** Model answer: keep it in the repository and change it in the same pull request; generate what you can and test the generators; execute examples; delete what nobody owns. Common wrong answer: a quarterly documentation review, which finds rot months late.
+**"How do you keep documentation from rotting?"** Model answer: keep it in the repository, change it in the same pull request, test the generators, and delete what nobody owns. Common wrong answer: a quarterly review, which finds rot months late.
 
 **"What makes a runbook usable at 3 a.m.?"** Model answer: symptom, impact, checks as exact commands with healthy and unhealthy output, a table from observed output to mitigation, time-bound escalation and verification. Common wrong answer: a thorough description of the architecture.
 
@@ -474,7 +474,6 @@ hints:
 - **Scoring options before weighting criteria.** The weights get tuned until the preferred option wins.
 - **Revisit triggers nobody can observe** ("if it becomes a problem"), so nothing ever prompts a revisit.
 - **Runbook steps without expected output**, so the reader cannot tell healthy from unhealthy.
-- **Trusting generated docs without testing the generator**, as the missing `e2e` shows.
 
 ## Senior signals
 
@@ -501,11 +500,11 @@ hints:
   explanation: >-
     ADRs are a history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history, and a code comment leaves the ADR log asserting something false.
 - q: >-
-    A release applies migration m0012, which only adds a nullable column, and then fails its health check, so Railway keeps the previous deployment serving. An hour later that old process restarts. Since commit 8f82820, what happens?
-  options: ["It waits on the migration lock until the failed release is removed", "It plans SchemaAhead, logs a warning and serves as before", "It runs m0012's down step so the schema matches its own again", "It refuses to boot, because its migrator does not know m0012"]
+    A release applies migration m0014, which only adds a nullable column, and then fails its health check, so Railway keeps the previous deployment serving. An hour later that old process restarts. Since commit 8f82820, what happens?
+  options: ["It refuses to boot, because its migrator does not know m0014", "It plans SchemaAhead, logs a warning and serves as before", "It runs m0014's down step so the schema matches its own again", "It waits on the migration lock until the failed release is removed"]
   answer: 1
   explanation: >-
-    migrate.rs finds a migration it does not know and none of its own pending, so it starts without migrating, and an expand-only change leaves the old code able to read and write. Before the commit, sea-orm-migration's own check refused the unknown m0012, so the restart took the service down with no deploy in progress; that hazard is what the worked ADR's facts exposed. Nothing runs down steps automatically, and the advisory lock is held only while a boot is migrating.
+    migrate.rs finds a migration it does not know and none of its own pending, so it starts without migrating, and an expand-only change leaves the old code able to read and write. Before the commit, sea-orm-migration's own check refused the unknown m0014, so the restart took the service down with no deploy in progress; that hazard is what the worked ADR's facts exposed. Nothing runs down steps automatically, and the advisory lock is held only while a boot is migrating.
 - q: >-
     A runbook step says: check whether the database is healthy. What is the main problem?
   options: ["Runbooks should leave databases to the DBA team and cover only the application", "It is not actionable: give the exact command and what healthy output looks like", "It is too short; runbook steps should explain the database architecture first", "It belongs in an ADR, because database health is an architectural decision"]

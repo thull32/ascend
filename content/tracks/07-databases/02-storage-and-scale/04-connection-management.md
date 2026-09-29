@@ -2,7 +2,7 @@
 slug: connection-management
 title: "Connection management: pools, PgBouncer and the max_connections arithmetic"
 description: What a Postgres connection costs, how an application pool queues work (with this app's SeaORM pool as the worked example), how to size pools with Little's law and the max_connections budget, what PgBouncer's pool modes break, and how to layer timeouts.
-minutes: 35
+minutes: 40
 difficulty: medium
 tags: [connection-pooling, pgbouncer, postgres, timeouts, capacity-planning, sqlx, seaorm]
 ---
@@ -68,10 +68,11 @@ This app creates its pool once at startup in `crates/api/src/state.rs`:
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
     let mut opts = ConnectOptions::new(config.database_url.expose_secret().to_string());
     opts
-        // Sized for one replica on a small Postgres (max_connections ~100):
-        // leaves headroom for migrations, psql, and a second replica during
-        // a rolling deploy.
-        .max_connections(20)
+        // DATABASE_POOL_MAX per replica (default 20). Every replica, plus
+        // the old ones still draining during a rolling deploy, shares
+        // Postgres's max_connections (100 by default), so the budget is
+        // checked at boot: see `check_connection_budget`.
+        .max_connections(config.database_pool_max)
         .min_connections(2)
         // SeaORM passes this to sqlx as the acquire timeout: how long a
         // request waits for a free connection before failing fast.
@@ -92,11 +93,11 @@ pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
 }
 ```
 
-SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState::build` clones that handle into every service: comments, progress, auth, submissions, the AI budget inside the coach, and the shared rate limiter. So each API process has exactly one pool of at most 20 connections, shared by every request it serves. Here is what each setting does.
+SeaORM's `DatabaseConnection` wraps an sqlx `PgPool`, and `AppState::build` clones that handle into every service: comments, progress, auth, submissions, the AI budget inside the coach, and the shared rate limiter. So each API process has exactly one pool, shared by every request it serves. Until commit `3658224` its maximum was the literal `20`; now it is `DATABASE_POOL_MAX`, 20 by default and 15 in production. Here is what each setting does.
 
 | Setting | Value here | Effect |
 |---|---|---|
-| `max_connections` | 20 | At most 20 open connections from this process. The 21st concurrent acquire waits. |
+| `max_connections` | `DATABASE_POOL_MAX` (20 by default) | At most that many open connections from this process. One more concurrent acquire waits. |
 | `min_connections` | 2 | Keep two connections open while idle, so the first requests after a quiet period skip connection setup. |
 | `acquire_timeout` | 5 s | How long an acquire may wait, including opening a new connection, before it fails (this app surfaces that as a 500). There is deliberately no `connect_timeout`: in SeaORM 2 both setters map onto sqlx's single acquire timeout (`acquire_timeout` is applied last, so it always wins), so setting both would be one knob set twice. |
 | `idle_timeout` | 300 s | Close connections idle for five minutes, down to the minimum. |
@@ -153,7 +154,7 @@ The constraint to write down is:
 
 $$ \text{pool max per instance} \le \left\lfloor \frac{\text{max connections} - \text{reserved} - \text{other clients}}{\text{max instances} + \text{deploy surge}} \right\rfloor $$
 
-The deploy surge matters because a rolling deploy runs old and new pods side by side. With this app's pool of 20 and a default Postgres (97 usable slots, nothing else connected):
+The deploy surge matters because a rolling deploy runs old and new pods side by side. With this app's default pool of 20 and a default Postgres (97 usable slots, nothing else connected):
 
 | Instances | Surge | Worst-case connections | Fits in 97? |
 |---|---|---|---|
@@ -162,7 +163,7 @@ The deploy surge matters because a rolling deploy runs old and new pods side by 
 | 4 | 1 | 5 × 20 = 100 | No: the deploy itself can exhaust the database |
 | 8 | 2 | 200 | No |
 
-This app runs a single instance today, so its pool sits comfortably inside the budget. The table shows where that stops being true: at four instances the pool of 20 is already too large for a default Postgres, even though average usage is about two connections per instance. Two fixes are available: shrink the per-instance pool (from the Little's law numbers above, 8 would be plenty), or put a server-side pooler in front of Postgres so that the number of application connections stops mattering. Raising `max_connections` to 1,000 is the tempting third option, and it moves the failure from "cannot connect" to "connected and slow", because the extra connections compete for the same cores.
+The table shows where the budget breaks: at four instances a pool of 20 is already too large for a default Postgres, even though average usage is about two connections per instance. This app hit that question when it planned a second API replica (ADR 0006). The pool size became configuration, and `.railway/railway.ts` sets it to 15, so two replicas plus two more during a rolling deploy hold at most 4 × 15 = 60 connections. At boot, `check_connection_budget` in `state.rs` reads `max_connections` and the count in `pg_stat_activity`, and warns when adding this replica's pool would leave fewer than 10 connections of headroom. The ADR's own trigger is the next row of the table: past about four API replicas, add a pooler. Two fixes are available: shrink the per-instance pool (from the Little's law numbers above, 8 would be plenty), or put a server-side pooler in front of Postgres so that the number of application connections stops mattering. Raising `max_connections` to 1,000 is the tempting third option, and it moves the failure from "cannot connect" to "connected and slow", because the extra connections compete for the same cores.
 
 ```exercise
 id: pool-budget
@@ -331,7 +332,7 @@ ORDER BY 3 DESC;
 
 Sixty-one idle connections are pool slack spread across instances: normal, but that is budget being held for nothing. Nine active with no wait event are doing work. Four `idle in transaction` are application bugs (a transaction held open across something slow). Three active and waiting on `Lock` are contention; find the blocker with `pg_blocking_pids`.
 
-From the application side, export pool metrics: current size, idle count and, most importantly, a histogram of acquire wait time. In this app, `db.get_postgres_connection_pool()` returns the underlying sqlx `PgPool`, whose `size()` and `num_idle()` can be sampled into a gauge. Acquire latency climbing from microseconds to milliseconds is the earliest warning you will get that `W` has grown somewhere, usually minutes before anything times out. The [network track](/learn/networking/networking-in-practice/connection-pooling-and-keep-alive) covers the same ideas for HTTP connection pools.
+From the application side, export pool metrics: current size, idle count and, most importantly, a histogram of acquire wait time. In this app, `db.get_postgres_connection_pool()` returns the underlying sqlx `PgPool`, and since commit `3658224` `telemetry.rs` samples its `size()` and `num_idle()` into a gauge, `ascend.db.pool.connections` (in use, idle and max), with an alert when a replica holds over 90% of its pool for five minutes. The acquire-wait histogram, the earlier warning, is not exported yet. Acquire latency climbing from microseconds to milliseconds is the earliest warning you will get that `W` has grown somewhere, usually minutes before anything times out. The [network track](/learn/networking/networking-in-practice/connection-pooling-and-keep-alive) covers the same ideas for HTTP connection pools.
 
 ## Failure modes
 

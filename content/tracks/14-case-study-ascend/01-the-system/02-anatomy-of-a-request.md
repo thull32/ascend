@@ -41,6 +41,7 @@ Router::new()
     .nest("/api", api)
     .fallback(get(static_handler))
     .layer(middleware::from_fn(security_headers::apply))
+    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(CompressionLayer::new().br(true).gzip(true))
     .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
     .layer(
@@ -59,7 +60,7 @@ Router::new()
     .with_state(state)
 ```
 
-The rule that makes this readable: **each `.layer()` wraps everything built before it**, so the *last* call is the *outermost* layer. Read the chain bottom-up to get the order a request sees; the response unwinds top-down. The API sub-router, built earlier in the same function, gets its own three layers:
+The rule that makes this readable: **each `.layer()` wraps everything built before it**, so the *last* call is the *outermost* layer. Read the chain bottom-up to get the order a request sees; the response unwinds top-down. The API sub-router, built earlier in the same function, gets a route layer and its own three layers:
 
 ```rust
 let api = Router::new()
@@ -71,6 +72,7 @@ let api = Router::new()
     .merge(routes::comments::router())
     .merge(routes::coach::router(state.clone()))
     .merge(routes::interviews::router(state.clone()))
+    .route_layer(middleware::from_fn(crate::middleware::metrics::stamp_route))
     .fallback(api_not_found)
     .layer(middleware::from_fn_with_state(state.clone(), csrf::enforce))
     .layer(middleware::from_fn_with_state(state.clone(), |s, r, n| {
@@ -89,14 +91,15 @@ flowchart TD
   PR --> TR["Trace span"]
   TR --> TO["Timeout 240 s"]
   TO --> CO["Compression"]
-  CO --> SH["Security headers"]
+  CO --> MR["Metrics: time the request"]
+  MR --> SH["Security headers"]
   SH --> P{"path under /api?"}
   P -->|no| SPA["Static SPA handler, from memory"]
   P -->|yes| BL["Body limit 512 KiB"]
   BL --> RL["Rate limit: general, per IP"]
   RL --> CS["CSRF check"]
   CS --> RT{"route match"}
-  RT --> RLR["Route layer: auth, AI or grading limiter, if any"]
+  RT --> RLR["Route layers: stamp the route template; auth, AI or grading limiter, if any"]
   RLR --> EX["Extractors: State, CurrentUser, Path, AppJson"]
   EX --> H["Handler, then one service call"]
 ```
@@ -111,6 +114,8 @@ flowchart TD
 | `Trace` | One span per request, one INFO line per response with status and latency | Outside the timeout, inside the id | Inside the timeout, a timed-out request's span is dropped and it never logs a response |
 | `Timeout` | Returns 503 if the handler has not produced a response within 240 s | Outside compression and headers so it bounds all inner work | Inner layers could hold a connection indefinitely |
 | `Compression` | Brotli or gzip by `Accept-Encoding` | Outside the handlers; its default predicate skips `text/event-stream` | SSE tokens would be buffered by the compressor and arrive in lumps |
+| `metrics::record` | Records `http.server.request.duration` by method, route template and status | Outside security headers and every `/api` layer, so rate-limit and CSRF refusals and SPA assets are timed too | Inside the `/api` layers, refusals would vanish from the availability SLO; it already sits inside the timeout, so a request the 240 s timeout ends is never recorded |
+| `metrics::stamp_route` | Copies the matched template (`/api/problems/{slug}`) onto the response for `record` to read | A `route_layer`, the only place the template is known | Raw paths as labels would make one series per problem slug |
 | `Security headers` | CSP, HSTS, `X-Frame-Options`, `nosniff` on every response it wraps | Innermost of the outer group so it sees routes, SPA, 404s and rejections | Outside `Timeout` it would also decorate the timeout's 503; today it does not |
 | `DefaultBodyLimit` | Sets the 512 KiB limit that body extractors enforce | `/api` only; the SPA takes no bodies | Nothing reads bodies outside `/api` |
 | Rate limit, general | 1,200 requests per minute per IP, kept in memory per replica | Before CSRF, so rejected cross-site attempts still spend tokens | After it, a flood of CSRF-rejected requests would be free |
@@ -122,7 +127,7 @@ Two subtleties are worth knowing precisely.
 
 **The body limit is not middleware in the usual sense.** `DefaultBodyLimit` reads nothing; it stores a limit in the request that body-consuming extractors such as `Json` enforce when they buffer the body. A handler with no body extractor is unaffected, and so is every route outside `/api`.
 
-Route-level layers sit inside all of this. `routes/auth.rs` wraps only `/register` and `/login` in a tighter `Bucket::Auth` limiter (30 per minute per IP), the routes that call the model (coach messages, quiz generation, roadmap suggestions, interview turns, the interview assistant and grading) are wrapped in `Bucket::Ai`, 20 per minute per session, and `POST /api/submissions`, which runs code on the server, in `Bucket::Grade`, also 20 per minute per session. Those three buckets live in Postgres, so every replica charges the same allowance; the general bucket stays in process memory, deliberately loose, because a whole class can share one NAT address and every expensive route has its own bucket. A login therefore spends one token from the general bucket *and* one from the auth bucket, and the handler then charges one password attempt to the account it names, or to the browser's own bucket if it is a known device for that account, a limiter the next lesson covers.
+Route-level layers sit inside all of this. `routes/auth.rs` wraps only `/register`, `/login` and the password-reset and email-verification endpoints in a tighter `Bucket::Auth` limiter (30 per minute per IP), the routes that call the model (coach messages, quiz generation, roadmap suggestions, interview turns, the interview assistant and grading) are wrapped in `Bucket::Ai`, 20 per minute per session, and `POST /api/submissions`, which runs code on the server, in `Bucket::Grade`, also 20 per minute per session. Those three buckets live in Postgres, so every replica charges the same allowance; the general bucket stays in process memory, deliberately loose, because a whole class can share one NAT address and every expensive route has its own bucket. A login therefore spends one token from the general bucket *and* one from the auth bucket, and the handler then charges one password attempt to the account it names, or to the browser's own bucket if it is a known device for that account, a limiter the next lesson covers.
 
 A rejection short-circuits. When the rate limiter returns 429, nothing inside it runs (no CSRF check, no handler), but everything outside it still runs on the way out: the 429 carries a request ID, security headers and a log line. The exercise makes that onion explicit.
 
@@ -362,13 +367,13 @@ The same rule reaches upstream errors through one constructor. `AiUpstream(Strin
 
 ## The way back out, and the 100x view
 
-The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID, which is the whole observability story today.
+The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID; since `3658224` the same response also lands in the request-duration histogram, and one request in five exports its span to Jaeger.
 
 At 100x the order stays and the parameters change:
 
-- **Per-route deadlines.** A single 240 s timeout is sized for the slowest AI endpoint and applied to everything. A stuck query on an ordinary route can hold one of the pool's 20 connections for four minutes; twenty of those and every route waits the pool's 5 s acquire timeout and fails. Give CRUD routes deadlines of a few seconds, set a Postgres `statement_timeout`, and keep long deadlines for the AI routes only.
+- **Per-route deadlines.** A single 240 s timeout is sized for the slowest AI endpoint and applied to everything. A stuck query on an ordinary route can hold one of the pool's connections (15 in production) for four minutes; fifteen of those and every route waits the pool's 5 s acquire timeout and fails. Give CRUD routes deadlines of a few seconds, set a Postgres `statement_timeout`, and keep long deadlines for the AI routes only.
 - **Load shedding.** A concurrency limit in front of the database-backed routes fails fast under overload instead of queueing until the timeout.
-- **Traces as well as IDs.** Replace the request ID with W3C trace context and export spans (OpenTelemetry), so a slow request shows which of its queries was slow ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). The sanitiser already has the right shape for this: accept a propagated identifier only when it is well formed, generate one otherwise.
+- **Traces below the request.** The `request` span is exported now, but it has no children, so a slow request shows its total and not which query was slow, and no `traceparent` crosses the hop to the grading service ([Observability in code](/learn/senior-craft/software-craft/observability-in-code) covers the instrumentation). Child spans and W3C trace context are the next step; the sanitiser already has the right shape: accept a propagated identifier only when it is well formed.
 
 ## Failure modes
 
@@ -376,8 +381,8 @@ At 100x the order stays and the parameters change:
 |---|---|---|---|
 | `SetRequestId` moved inside `Trace` | Every log line reads `request_id=-`; users quote ids that match nothing | `make_span_with` reads the header before the layer that sets it has run | Id layers outermost; `request_ids_are_server_controlled` pins the sanitiser, not the order, so add an assertion on a log line |
 | A new mutating endpoint without `CurrentUser` | Anonymous writes succeed; rows with no owner, or a 500 when the service expects one | An integration test that calls every non-GET route without a cookie and expects 401 | A `route_layer` that requires a session for the private router group |
-| One slow query with no `statement_timeout` (none is set today) | Every route, including health checks, fails after exactly 5 s | Pool acquire timeouts in the logs; `pg_stat_activity` shows 20 busy connections running the same statement | `statement_timeout` for the app role, per-route deadlines of a few seconds, 240 s only on AI routes |
-| The global timeout fires | A 503 with an empty body and no CSP or HSTS; the frontend shows its generic `http_error` | The `Trace` line shows status 503 and a latency of 240,000 ms | Produce the timeout inside the security-headers layer, with the API's `{code, message}` body |
+| One slow query with no `statement_timeout` (none is set today) | Every route, including health checks, fails after exactly 5 s | Pool acquire timeouts in the logs and `DbPoolNearlyExhausted`; `pg_stat_activity` shows the pool's connections all running the same statement | `statement_timeout` for the app role, per-route deadlines of a few seconds, 240 s only on AI routes |
+| The global timeout fires | A 503 with an empty body and no CSP or HSTS; the frontend shows its generic `http_error` | The `Trace` line shows status 503 and a latency of 240,000 ms; the request-duration histogram, inside the timeout, never sees it | Produce the timeout inside the security-headers layer, with the API's `{code, message}` body |
 | A database error returned verbatim | Constraint and column names in a response body | `internal_details_are_not_returned` fails, or a scanner finds SQL text in a 500 | One mapping function; `Database` and `Internal` log the detail and say "internal error" |
 
 ## Interviewer follow-ups
@@ -394,7 +399,7 @@ At 100x the order stays and the parameters change:
 
 - **Reading a `.layer()` chain top-down.** The last call is the outermost layer; reading it the other way puts the timeout in the wrong place in every argument that follows.
 - **Authenticating in middleware for every request.** It adds a database query to reads that were designed to come from memory.
-- **One global deadline.** A 240 s limit sized for AI calls lets a stuck CRUD query hold one of 20 pooled connections for four minutes.
+- **One global deadline.** A 240 s limit sized for AI calls lets a stuck CRUD query hold a pooled connection for four minutes.
 - **Using 408 for a server-side deadline.** It invites the client to repeat a POST.
 - **Formatting a database error into the response.** It leaks schema detail to anyone who can trigger it.
 - **Trusting the first `X-Forwarded-For` entry.** The client wrote it; only a header the proxy sets and overwrites, such as Railway's `X-Real-IP`, identifies the connection.

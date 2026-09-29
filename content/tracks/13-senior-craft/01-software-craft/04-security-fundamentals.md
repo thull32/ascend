@@ -24,10 +24,10 @@ The OWASP Top 10 is a map of where applications fail. The table uses the 2021 nu
 | A06 Vulnerable components | A transitive dependency with a published advisory ships unnoticed | Lockfiles, advisory scanning, scheduled upgrades | Lockfiles; `cargo audit` and `pnpm audit --prod` in CI |
 | A07 Identification and authentication | Credential stuffing replays leaked pairs from thousands of addresses; timing reveals which emails exist | Per-account limits, uniform timing and messages, MFA | 10 attempts a minute per account or known device; a dummy hash; one message; breached passwords refused |
 | A08 Software and data integrity | CI runs an action by a mutable tag, and the tag is repointed at code that prints secrets | Pin actions and base images by digest | Actions pinned to commit SHAs, base images to digests; a read-only CI token |
-| A09 Logging and monitoring | 50,000 password guesses over a week go unnoticed | Security events with alerts | JSON logs with request IDs; no authentication-failure alert defined |
+| A09 Logging and monitoring | 50,000 password guesses over a week go unnoticed | Security events with alerts | Logs, request IDs, rate-limit refusal counts; no failed-login alert |
 | A10 Server-side request forgery | A link preview fetches `http://2130706433/`, 127.0.0.1 as one number (run below) | Resolve, check every address, isolate the fetcher | The server never fetches a user-supplied URL |
 
-The A08 row describes a real incident: in March 2025 the version tags of `tj-actions/changed-files` were repointed to a commit that printed secrets from the runner's memory into build logs ([CVE-2025-30066](https://github.com/advisories/ghsa-mrrh-fwg8-r2c3)). Ascend's CI referenced every action by tag (`actions/checkout@v4`) until commit `8f82820` pinned each to a full commit SHA with the version as a comment, gave base images their digests and the workflow a read-only token. Dependabot proposes weekly pull requests to move the pins, because a pin nobody updates becomes the vulnerable component; since commit `040cf0a`, patch, minor and digest-only updates merge themselves once the full CI suite passes, while majors wait for a person. The first audit run flagged a `lodash-es` advisory reached through `mermaid`, now overridden in `web/pnpm-workspace.yaml`.
+The A08 row describes a real incident: in March 2025 the version tags of `tj-actions/changed-files` were repointed to a commit that printed secrets from the runner's memory into build logs ([CVE-2025-30066](https://github.com/advisories/ghsa-mrrh-fwg8-r2c3)). Ascend's CI referenced every action by tag (`actions/checkout@v4`) until commit `8f82820` pinned each to a full commit SHA with the version as a comment, gave base images their digests and the workflow a read-only token. Dependabot proposes weekly pull requests to move the pins, because a pin nobody updates becomes the vulnerable component; since commit `040cf0a`, patch, minor and digest-only updates merge themselves once the full CI suite passes, while majors wait for a person.
 
 ## Three exploits, run against the toy
 
@@ -146,7 +146,9 @@ let Some(user) = user.filter(|_| ok) else {
 
 For an unknown email, `password::verify` checks against a precomputed `DUMMY_HASH` and returns `ok && exists`, always false, so both branches pay one Argon2id verification and send the same message; otherwise a stopwatch enumerates accounts. "Precomputed" took a fix: the lazily initialised hash was computed by the first unknown-email login after each boot, making that response twice as slow, so `main` now calls `password::warm_up()` before serving. A timing defence has to cover the first call too.
 
-Registration is the other door. It used to look the email up before hashing, so "already registered" came back about 100 ms faster, and two simultaneous sign-ups could both pass the check, the loser hitting the unique index as a `500`. It now hashes first and lets the unique index decide, mapping the violation to `409` (`concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four at once). The message still reveals a registered email, a conscious trade: the full fix is an email-verification flow, and the mitigation here is the per-IP authentication limit.
+Registration is the other door. It used to look the email up before hashing, so "already registered" came back about 100 ms faster, and two simultaneous sign-ups could both pass the check, the loser hitting the unique index as a `500`. It now hashes first and lets the unique index decide, mapping the violation to `409` (`concurrent_registrations_for_one_email_yield_one_account_and_conflicts` fires four at once). The message still reveals a registered email, a conscious trade. Email verification arrived in commit `39052ce` but does not gate sign-up, so it cannot hide the answer yet; the mitigation is the per-IP authentication limit.
+
+The reset form shows the complete pattern: it answers the same whether or not the account exists, and looks the account up and sends the email in a background task, so neither the body nor the timing tells (`reset_requests_reveal_nothing_and_links_expire`).
 
 ## Sessions: opaque tokens, stored hashed
 
@@ -167,7 +169,7 @@ Why SHA-256 here when passwords need Argon2id? Entropy. A password is a few doze
 
 The toy's `get_note_vulnerable` is broken access control in its purest form, and it passes every happy-path test. In Ascend, `InterviewService::get` in `crates/core/src/services/interviews.rs` returns `NotFound` when the interview's `user_id` is not the caller's, so another user's interview looks exactly like a missing one, and `CommentService::delete` allows the author or an admin and returns `Forbidden` otherwise. Both checks live in the core services, not in route handlers, so a future CLI or worker inherits them.
 
-Two review notes. The comment route now calls `CurrentUser::is_admin` instead of computing `user.role == "admin"` itself, though the service still receives a bare boolean. And "fetch, then compare" depends on every author remembering the comparison; filtering in the query (`WHERE id = $1 AND user_id = $2`), as the toy's fix does, makes the safe path the only path.
+A review note: "fetch, then compare" depends on every author remembering the comparison; filtering in the query (`WHERE id = $1 AND user_id = $2`), as the toy's fix does, makes the safe path the only path.
 
 ## CSRF: the problem with ambient credentials
 
@@ -266,7 +268,9 @@ The remaining headers close one door each: `frame-ancestors 'none'` and `X-Frame
 
 ## Untrusted results, then untrusted code on the server
 
-Because learner code runs in the browser, test results used to arrive as claims. ADR 0003 accepted that ("a learner who fakes a result only cheats themselves") until progress fed the roadmap, coach and dashboard, where one `POST /api/submissions` claiming every test passed marked any problem solved. ADR 0005 (commit `25fd477`) keeps the browser run for instant feedback, but the server grades the same code and stores only its own verdict. Untrusted code on the server is the risk 0003 avoided, so it runs in a sandbox with a budget: CPython and QuickJS compiled to WASI under Wasmtime, given stdin, capped output pipes and, for Python, a read-only standard library, with no network, environment variables, other files or processes, and a fresh instance per run. Epoch interruption every 10 ms enforces the time limit, a 256 MiB store limit caps memory, a semaphore of half the cores (1 to 4) with a 20-second queue caps concurrency, and 20 submissions a minute per session cap volume. Expected values never enter the sandbox: the harness reports what the function returned and the host compares, so tampering with the harness gains nothing that returning chosen values would not. An end-to-end test posts a claimed 99 of 99 for a wrong answer and expects failure, and `crates/grader/tests/sandbox.rs` tries the escapes.
+Because learner code runs in the browser, test results used to arrive as claims. ADR 0003 accepted that ("a learner who fakes a result only cheats themselves") until progress fed the roadmap, coach and dashboard, where one `POST /api/submissions` claiming every test passed marked any problem solved. ADR 0005 (commit `25fd477`) keeps the browser run for instant feedback, but the server grades the same code and stores only its own verdict. Untrusted code on the server is the risk 0003 avoided, so it runs in a sandbox with a budget: CPython and QuickJS compiled to WASI under Wasmtime, given stdin, capped output pipes and, for Python, a read-only standard library, with no network, environment variables, other files or processes, and a fresh instance per run. Epoch interruption every 10 ms enforces the time limit, a 256 MiB store limit caps memory, a semaphore of half the cores (1 to 4) with a 20-second queue caps concurrency, and 20 submissions a minute per session cap volume. Expected values never enter the sandbox: the harness reports what the function returned and the host compares (running the browser's own `compare.js` in a separate QuickJS instance), so tampering with the harness gains nothing that returning chosen values would not. An end-to-end test posts a claimed 99 of 99 for a wrong answer and expects failure, and `crates/grader/tests/sandbox.rs` tries the escapes.
+
+Since commit `c0b3151` the sandbox can also live in its own service, `ascend-api --serve-grader`: the same image, holding the runtimes and one shared token, never reading `DATABASE_URL` or the AI key, and with no public domain, so code that escaped the sandbox would find nothing worth taking. The API uses it once `GRADER_URL` is set, and the service checks the token in constant time.
 
 ## Transport: TLS everywhere
 
@@ -278,11 +282,13 @@ The platform terminates TLS at its edge, and the app enforces the consequences: 
 
 ## Rate limits and the client IP you can trust
 
-`crates/api/src/middleware/rate_limit.rs` sets five limits, and the interesting decision in each is the key:
+`crates/api/src/middleware/rate_limit.rs` sets seven limits, and the interesting decision in each is the key:
 
 | Limit | Quota | Keyed by | Stops |
 |---|---|---|---|
-| Sign-up and login | 30 per minute | client IP | one address hammering the Argon2 endpoints |
+| Sign-up, login and email-link routes | 30 per minute | client IP | one address hammering the Argon2 endpoints |
+| Password-reset emails | 3 per hour | the email address | flooding a stranger's inbox |
+| Verification emails | 3 per hour | the account | the same, from a signed-in account |
 | Password attempts (login, account deletion) | 10 per minute | the known device, else the account's email | guessing one learner's password from many addresses |
 | Model calls | 20 per minute | session (IP if there is none) | one learner burning model calls |
 | Graded submissions | 20 per minute | session (IP if there is none) | one learner filling the grading slots |
@@ -294,9 +300,9 @@ Most of those keys are one review finding: a class or an office shares one NAT a
 {"type": "system", "algorithm": "token-bucket", "title": "Keyed token buckets", "caption": "Each key (an IP, an account, a device, a session) refills at a fixed rate up to a burst size. Password attempts get a small bucket; general browsing a large one."}
 ```
 
-**Where the counts live, before and after.** Every limit used to be an in-memory `governor` limiter (GCRA, which its README calls equivalent to a leaky bucket): right for one replica, quietly wrong for two, because N processes allowed N times every limit. Commit `427ed78` moved the security limits into Postgres (`crates/core/src/services/rate_limit.rs`). GCRA keeps one number per key, the theoretical arrival time (TAT) of the next request at the allowed rate: a request passes when TAT minus now is at most the tolerance, and moves TAT to max(TAT, now) plus the interval. At 10 a minute the interval is 6 s and the tolerance 54 s, so ten guesses pass at once and the eleventh waits 6 s. Check and update are one statement on an `UNLOGGED` table `rate_limits(key, tat)`: an `INSERT … ON CONFLICT (key) DO UPDATE … WHERE` the TAT is within tolerance, `RETURNING tat`. No row back means refused, and the row lock stops two replicas both taking the last slot. [Unlogged](https://www.postgresql.org/docs/current/sql-createtable.html) tables skip the write-ahead log and are truncated after a crash, which only forgives a burst; an unreachable database fails these limits closed with a 503. `replicas_share_the_security_limits` runs two apps over one database and asserts that the second refuses a login after ten guesses at the first. The general bucket stays in memory per replica on purpose: it only stops floods, and a database round trip per request would cost more than it saves.
+**Where the counts live, before and after.** Every limit used to be an in-memory `governor` limiter (GCRA, which its README calls equivalent to a leaky bucket): right for one replica, quietly wrong for two, because N processes allowed N times every limit. Commit `427ed78` moved the security limits into Postgres (`crates/core/src/services/rate_limit.rs`). GCRA keeps one number per key, the theoretical arrival time (TAT) of the next request, so check and update are one statement on an `UNLOGGED` table `rate_limits(key, tat)`: an `INSERT … ON CONFLICT (key) DO UPDATE … WHERE` the TAT is within tolerance, `RETURNING tat`. No row back means refused, and the row lock stops two replicas both taking the last slot. [Unlogged](https://www.postgresql.org/docs/current/sql-createtable.html) tables skip the write-ahead log and are truncated after a crash, which only forgives a burst; an unreachable database fails these limits closed with a 503. `replicas_share_the_security_limits` runs two apps over one database and asserts that the second refuses a login after ten guesses at the first. The general bucket stays in memory per replica on purpose: it only stops floods, and a database round trip per request would cost more than it saves.
 
-**Lockout, before and after.** A per-account limit has a price: anyone who knows your email can spend your ten attempts a minute. Ascend now uses OWASP's [device-cookie](https://owasp.org/www-community/Slow_Down_Online_Guessing_Attacks_with_Device_Cookies) pattern. A successful sign-up or login sets `ascend_device`, a random token stored only as a hash in `login_devices`, scoped to `/api/auth`, `HttpOnly`, `SameSite=Strict`, for 365 days (the 20 most recent devices per user are kept). A login from a device known for that account is charged to that device's bucket; unknown devices, forged cookies included, share the account's. `an_attacker_cannot_lock_the_owner_out_of_a_known_device` exhausts the account bucket with wrong guesses and asserts the owner's browser still signs in.
+**Lockout, before and after.** A per-account limit has a price: anyone who knows your email can spend your ten attempts a minute. Ascend now uses OWASP's [device-cookie](https://owasp.org/www-community/Slow_Down_Online_Guessing_Attacks_with_Device_Cookies) pattern. A successful sign-up or login sets `ascend_device`, a random token stored only as a hash in `login_devices`, scoped to `/api/auth`, `HttpOnly`, `SameSite=Strict`, for 365 days. A login from a device known for that account is charged to that device's bucket; unknown devices, forged cookies included, share the account's. `an_attacker_cannot_lock_the_owner_out_of_a_known_device` exhausts the account bucket with wrong guesses and asserts the owner's browser still signs in.
 
 A limiter is only as good as its key. Behind a proxy the socket address is the proxy's, and the first `X-Forwarded-For` entry is whatever the client sent: a fresh bucket per request. Ascend reads the IP only from the header named in `CLIENT_IP_HEADER`, one the trusted edge sets itself (`x-real-ip` on Railway), and otherwise uses the socket address; the check you still owe is that the edge overwrites a client-supplied copy. The request ID gets the same suspicion: `crates/api/src/middleware/request_id.rs` keeps a client-supplied `x-request-id` only if it parses as a UUID.
 
@@ -332,8 +338,6 @@ A limiter is only as good as its key. Behind a proxy the socket address is the p
 
 **"Our preview feature blocks 127.0.0.1 and 169.254.169.254. Is SSRF handled?"** Model answer: no: numeric and IPv6-mapped encodings, DNS names that resolve to internal addresses, rebinding between check and connect, and redirects all pass a string list. Resolve, check and connect to the checked address, re-check each redirect, and isolate the fetcher. Common wrong answer: "add more entries to the blocklist."
 
-**"Where do you put authorisation checks?"** Model answer: in the domain service that loads the resource, ideally in the query itself, returning 404 for private resources that are not the caller's; route handlers only authenticate. Common wrong answer: "in middleware by role", which cannot know which record a request touches.
-
 ## What mid-level engineers get wrong
 
 - **Checking authentication and calling it authorisation.** Every logged-in user can read any record whose ID they guess.
@@ -341,7 +345,6 @@ A limiter is only as good as its key. Behind a proxy the socket address is the p
 - **Fast hashes for passwords, or slow hashes for random tokens.** The first cracks in hours; the second adds latency for no gain.
 - **Keying rate limits on `X-Forwarded-For`** or on IP alone for login.
 - **Comparing origins, hosts or URLs by prefix** instead of parsing and comparing for equality.
-- **Blocklisting fetch URLs by string.**
 - **Referencing CI actions and base images by mutable tag** in a pipeline that holds deploy secrets.
 
 ## Senior signals

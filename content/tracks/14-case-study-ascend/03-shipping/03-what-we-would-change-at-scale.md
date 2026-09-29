@@ -1,7 +1,7 @@
 ---
 slug: what-we-would-change-at-scale
 title: "What we would change at scale: a design review of Ascend"
-description: A candid design review of this codebase at 10k and 100k daily users, covering multi-replica rate limiting, the real AI cost model, table growth and retention, observability and SLOs, server-verified submissions, content hot-reload, what the review's fixes closed, and a ranked list of what is still open.
+description: A candid design review of this codebase at 10k and 100k daily users, covering multi-replica rate limiting, the real AI cost model, table growth and retention, observability and SLOs, server-verified submissions and a grading service, content hot-reload, what the review's fixes closed, and a ranked list of what is still open.
 minutes: 40
 difficulty: expert
 tags: [case-study, design-review, scalability, cost-modelling, observability, slo, rate-limiting, data-retention]
@@ -14,45 +14,35 @@ This lesson is the design review of the codebase you have been reading. It assum
 
 | Property | Today | Source |
 |---|---|---|
-| App servers | 1 replica, stateless except a loose per-IP request bucket kept in memory on purpose | `.railway/railway.ts`, `middleware/rate_limit.rs` |
-| Database | One Postgres, 50 GB volume, 20-connection pool per replica | `railway.ts`, `state.rs` |
+| App servers | 1 API replica, 2 once the `PHASE_2` flag moves grading to its service; stateless except a loose per-IP bucket kept in memory on purpose | `.railway/railway.ts`, `middleware/rate_limit.rs` |
+| Database | One Postgres, 50 GB volume, `DATABASE_POOL_MAX` 15 per replica with a boot-time budget check; hourly retention | `railway.ts`, `state.rs`, `services/retention.rs` |
 | Hot reads (curriculum, lessons, problems) | From memory, never touch Postgres | `content/` loader, ETags |
 | AI | `claude-opus-5-5`; per user per UTC day, 150 requests, 120,000 output tokens and 2,000,000 billed input tokens (a default; cache writes count 1.25x, reads at the model's price, 0.05x here), each call's worst case held before it runs; 20 model calls per minute per session | `railway.ts`, `config.rs`, `ai/budget.rs` |
-| Code execution | In the browser for feedback; graded again on the server in WebAssembly, whose verdict is the one stored | ADRs 0003 and 0005 |
-| Observability | JSON logs with request IDs, one line per request; volume alerts | `telemetry.rs`, `railway.ts` |
+| Code execution | In the browser for feedback; graded again on the server in WebAssembly, whose verdict is the one stored, by a separate `grader` service (2 replicas of 2 slots) | ADRs 0003, 0005 and 0006 |
+| Observability | JSON logs; metrics and 20%-sampled traces pushed over OTLP to Prometheus and Jaeger; three SLOs with burn-rate alerts; Grafana | `telemetry.rs`, `docs/SLO.md`, `ops/` |
 | Deploys | Push to `main`, build on Railway once CI passes, readiness-gated | `railway.ts` |
 
-The architecture document's own scaling note is right about the shape: "Postgres is the bottleneck long before the app servers; the hot read paths (curriculum, lessons, problems) never touch it." The curriculum is served from memory with ETags, so 100x more readers is mostly a bandwidth problem. The interesting pressure points are elsewhere: the AI bill, the write-heavy tables, grading CPU, and the fact that nobody can currently see any of it.
+The architecture document's own scaling note is right about the shape: "Postgres is the bottleneck long before the app servers; the hot read paths (curriculum, lessons, problems) never touch it." The curriculum is served from memory with ETags, so 100x more readers is mostly a bandwidth problem. The interesting pressure points are elsewhere: the AI bill, the write-heavy tables, grading CPU and, until the latest round of changes, the fact that nobody could see any of it.
 
 ## Rate limiting with more than one replica
 
 ### Before: every bucket in process memory
 
-The first review found the limiter in `governor`, in process memory, with four buckets: 30 requests per minute per IP for login and registration, 10 password attempts per minute per account, 20 model calls per minute per session, and 1,200 requests per minute per IP for everything else. Right for one replica: no network hop, no dependency. Add a second and each replica keeps its own buckets, so the effective limit is N times the configured one, and depends on which replica a request lands on. An attacker guessing one learner's password at 10 per minute per replica gets 30 per minute against three.
+The first review found every bucket in `governor`, in process memory. Right for one replica; add a second and each keeps its own buckets, so the effective limit is N times the configured one: an attacker guessing one learner's password at 10 per minute per replica gets 30 per minute against three.
 
 The review proposed Redis, a Lua script per check, and degrading to local shares (limit ÷ N) when Redis is down, because failing closed would turn a cache outage into a site outage.
 
 ### After: GCRA in the database every replica already shares
 
-What shipped in `427ed78` kept the seam and changed the store. The security-relevant buckets (sign-up and login per IP, password attempts per account or per known device, model calls and graded submissions per session) are GCRA state in Postgres: one row per key in `rate_limits(key, tat)`, created `UNLOGGED` by `m0009_shared_rate_limits`, checked and advanced by one conditional upsert in `services/rate_limit.rs`:
+What shipped in `427ed78` kept the seam and changed the store. The security-relevant buckets are GCRA state in Postgres, one theoretical arrival time per key in an `UNLOGGED` `rate_limits` table, checked and advanced by one conditional upsert ([Authentication and security](/learn/case-study-ascend/the-system/authentication-and-security) traces it), and `replicas_share_the_security_limits` spends one allowance across two routers over one database.
 
-```sql
-INSERT INTO rate_limits (key, tat) VALUES ($1, now() + make_interval(secs => $2))
-ON CONFLICT (key) DO UPDATE
-   SET tat = GREATEST(rate_limits.tat, now()) + make_interval(secs => $2)
- WHERE GREATEST(rate_limits.tat, now()) - now() <= make_interval(secs => $3)
-RETURNING tat
-```
-
-GCRA keeps one number per key, the theoretical arrival time (TAT) of the next request at the allowed rate. A request passes while TAT − now is within the tolerance, (limit − 1) × interval, and pushes the TAT one interval on. Trace 10 password attempts a minute against one account (interval 6 s, tolerance 54 s), ten arriving at t = 0: the tenth leaves TAT at 60 s; the eleventh finds 60 − 0 > 54, gets no row back, and is told to wait 6 s; at t = 6 exactly one more passes. The pure `gcra()` function is unit-tested on that sequence, and `replicas_share_the_security_limits` builds two routers over one database and spends one allowance across both.
-
-The store changed the failure decision. Postgres was already shared by every replica, `UNLOGGED` skips the write-ahead log (the PostgreSQL documentation calls such tables "considerably faster"; they are truncated after a crash and not replicated to standbys, which only forgets recent attempts), and the requests these buckets guard need the database anyway. So the shared limiter fails closed with a 503: refusing costs nothing a Postgres outage had not already cost. The 1,200-a-minute general bucket stays in memory per replica on purpose, since it only stops one client flooding cheap reads and a round trip per request would cost more than the approximation. An hourly sweep deletes keys whose TAT has passed, which are indistinguishable from keys never seen.
+The store changed the failure decision. Postgres was already shared, and the requests these buckets guard need it anyway, so the shared limiter fails closed with a 503: refusing costs nothing a Postgres outage had not already cost. The 1,200-a-minute general bucket stays in memory per replica on purpose, since it only stops one client flooding cheap reads.
 
 ```viz
 {"type": "system", "algorithm": "token-bucket", "requests": 12, "title": "What each key needs, wherever it lives", "caption": "A bucket per key with a capacity and a refill rate. GCRA is the same meter kept as one timestamp, which is what lets a single conditional upsert check and update it."}
 ```
 
-The per-user AI budgets never needed to move: they live in Postgres, held under the day row's lock, correct for any number of replicas. One multi-replica prerequisite remains. The pool allows 20 connections per replica, and a default Postgres allows 100 in total ("typically 100", per the documentation), so around the fifth replica you need a pooler such as PgBouncer in transaction mode. (Migrations are done: boot takes a Postgres advisory lock, so replicas starting together queue rather than race.)
+The per-user AI budgets never needed to move: they live in Postgres, under the day row's lock. Connections were the last prerequisite, and `3658224` made them explicit: `DATABASE_POOL_MAX` (default 20, 15 in production), and a boot check that warns when a replica's pool would leave under 10 of `max_connections` spare. A default Postgres allows 100 ("typically 100", per the documentation), and a rolling deploy briefly doubles the replicas, so two replicas peak at 4 × 15 = 60; past about four, PgBouncer in transaction mode is still to do.
 
 ## The AI cost model
 
@@ -66,7 +56,7 @@ $$\min(150 \times M,\; 120{,}000 - 1 + M)$$
 
 where $M$ is the call's `max_tokens`: 123,999 tokens for the coach ($M = 4{,}000$), **$2.48 per user per day**, and concurrent calls each added their own $M$. The exercise at the end computes that bound. Since `bd0dcf0` every call holds its worst case first, under the day row's lock, with `max_tokens` lowered to what is left, so the overshoot term is gone: at most 120,000 output tokens, **$2.40 per user per day**, $24,000 a day if all 10,000 DAU maxed out and $240,000 at 100,000.
 
-Input had a longer history. When the review was first written, input was not budgeted at all, and in a chat product input is where the tokens are: a system prompt of up to roughly 10,000 tokens (persona, curriculum map, up to 24,000 characters of lesson and 12,000 of code) and up to 30 history messages (user messages up to 8,000 characters, replies up to 4,000 tokens). A long conversation can put roughly 100,000 input tokens in every request; at 150 requests, 15 million a day, uncounted.
+Input had a longer history. When the review was first written, input was not budgeted at all, and in a chat product input is where the tokens are: a system prompt of up to roughly 10,000 tokens and up to 30 history messages can put roughly 100,000 input tokens in every request; at 150 requests, 15 million a day, uncounted.
 
 The AI hardening commit (`1d3da0c`) then added a daily input limit and conversation caching together, and they interacted: the limit compared against `input_tokens`, the *uncached* remainder, while caching moved nearly every input token into cache reads and writes. A client that sent different editor contents with every message could make each request a near-complete cache write: 15 million tokens at $5 per million, **$75 per user per day**, checked against nothing. The fuse had moved from "not metered" to "metered in the wrong column".
 
@@ -90,13 +80,13 @@ For comparison, with the old single-breakpoint caching the same profile would co
 | 10,000 | 2,000 | ≈ $920 | ≈ $27,600 |
 | 100,000 | 20,000 | ≈ $9,200 | ≈ $276,000 |
 
-For a free product that is the whole problem in one table (the general method is in [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost)). Notice what changed shape: with the history cached, output is now two thirds of the bill. The levers, in the order a cost review would take them (free wins before quality trade-offs):
+For a free product that is the whole problem in one table (the general method is in [Capacity planning and cost](/learn/system-design/senior-design-skills/capacity-planning-and-cost)). With the history cached, output is now two thirds of the bill. The levers, in the order a cost review would take them (free wins before quality trade-offs):
 
 1. **Budget in money, not tokens.** Pricing every token class per call from a table keyed by model, and capping each user at, say, a dollar a day (above the typical day, far below the worst), would survive a change of model or price. The data is there: since `m0006`, `ai_usage` stores cache reads and writes beside input and output.
 2. **Tune effort and `max_tokens` per product.** Output dominates now, and thinking bills as output. A coach turn at lower effort is cheaper, and most answers need far less than 4,000 tokens.
 3. **Keep the history cached when context changes.** The context block sits before the history, so when the progress line changes the whole history is written again at 1.25x; sending changed context as a message after the history keeps the cached prefix intact.
-4. **Route by stakes, measured.** The config once had an `AI_FAST_MODEL` (`claude-haiku-4-5`, $1 and $5 per million) that no code used; commit `7154e9f` deleted it rather than keep a setting that did nothing. Routing is still a lever for short factual questions and titles, with two caveats cost reviews miss: caches are per model, so routing splits cache reuse, and the minimum cacheable prefix differs (512 tokens on Opus 5 and 5.5, 4,096 on Haiku 4.5).
-5. **A global spend breaker.** Sum today's priced usage across all users; above a threshold, flip AI features into the existing `AiDisabled` path and page someone. A provider-side spend limit stays the last line, knowing it fails everyone at once.
+4. **Route by stakes, measured.** Routing short factual questions and titles to a smaller model is a lever, with two caveats cost reviews miss: caches are per model, so routing splits cache reuse, and the minimum cacheable prefix differs (512 tokens on Opus 5 and 5.5, 4,096 on Haiku 4.5).
+5. **A global spend breaker.** Sum today's priced usage across all users; above a threshold, flip AI features into the existing `AiDisabled` path and page someone.
 
 ```viz
 {"type": "system", "algorithm": "circuit-breaker", "requests": 16, "title": "A breaker for spend as well as for errors", "caption": "The same state machine protects the bill: closed while spend is under the daily threshold, open (AI disabled, graceful message) when it is crossed, half-open the next day."}
@@ -116,38 +106,35 @@ The tables that grow are the ones written per action. Estimates at 10,000 DAU, w
 
 Multiply by ten for 100,000 DAU. Two conclusions stand out. At about 440 MB a day, the 50 GB volume fills in roughly four months at 10,000 DAU (the usage alerts in `railway.ts` will fire first, which is what they are for), and the biggest table is not the AI one: it is `submissions`, because every press of Run is stored, solutions and failed attempts alike, and most snippets are too small for Postgres to compress automatically. And the interviews table's cost is churn, not size: every append writes a new row version of the whole transcript, which becomes vacuum work.
 
-The retention design:
+The review's retention design was: decide what each row is for (a submission serves "solved" status, the editor's latest code and a little history), keep the best and latest per target, prune the rest, skip a run whose code hash matches the previous one, and partition `submissions` and `messages` by month so retention is a `DROP` of an old partition: instant, no dead tuples, no vacuum debt, little WAL ([Partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding)).
 
-- **Decide what each row is for.** A submission serves "solved" status (one row per target), the editor (the latest) and history (a few weeks). Keep the best and latest per target, prune the rest after 30 days, and skip a run whose code hash matches the previous one.
-- **Partition by time.** Monthly partitions on `submissions` and `messages` make retention a `DROP` of an old partition: instant, no dead tuples, no vacuum debt, little WAL. A `DELETE` of millions of rows does the opposite of all four ([Partitioning and sharding](/learn/databases/storage-and-scale/partitioning-and-sharding)).
-- **Finish the transcript fix.** The SQL append removed the lost update; entries as rows would remove the churn.
-- **Treat conversations as personal data.** Self-service deletion exists (`DELETE /api/auth/me`); a retention period for untouched conversations and an export do not.
+What shipped in `531f48d` took the first half. `services/retention.rs` keeps submissions 180 days, except each learner's latest attempt and latest pass per target, coach conversations 365 days after their last message and interviews 365 days after they start, the periods the new privacy page promises. It deletes in batches of 5,000, at most 20 per kind per hourly round, inside a transaction holding an advisory lock so one replica runs it. That is the bulk `DELETE` the review warned about, made gentle; partitions remain for scale. Redo the arithmetic, because retention bounds growth without making it fit: 180 days × 300 MB is about 54 GB of submissions at 10,000 DAU, and 365 × 120 MB about 44 GB of messages, twice the 50 GB volume at steady state. The period, a hash dedupe or object storage must change before that traffic arrives. Two items stay open: transcripts as rows (the SQL append removed the lost update, not the churn) and a data export beside self-service deletion.
 
 ## Observability, metrics and SLOs
 
-Today's telemetry is one structured log line per request with a request ID, plus warnings from the AI path. That answers "what happened to this request" if you already know which one. It cannot answer "is the coach slower than yesterday", "what is our cache hit rate", "how many replies were lost in the last deploy", or "are we within budget this month".
+### Before: logs only
 
-The plan, in order:
+Until `3658224` the telemetry was one structured log line per request with a request ID, plus warnings from the AI path. That answers "what happened to this request" if you already know which one; it cannot answer "is the coach slower than yesterday", "what is our cache hit rate" or "are we within budget this month". The review's plan was traces with child spans for the database, grading and the model call; metrics for routes, AI tokens and cost per product, stream outcomes and grading queues, plus a browser beacon; and SLOs with burn-rate alerts, for example 99.9 percent availability over 30 days (an error budget of 43.2 minutes).
 
-1. **Traces.** The `TraceLayer` already opens a span per request. Export spans with OpenTelemetry (`tracing-opentelemetry`), with child spans for database calls, grading runs and the Anthropic call (model, token counts by class, `stop_reason`, time to first token), so a slow reply shows where its time went.
-2. **Metrics.** Rate, errors and duration per route. For AI: tokens and priced cost per product (coach, quiz, interview) and model, cache hit ratio, time to first token, and stream outcomes (completed, client disconnected, upstream error, persistence failed). Budget rejections by reason; grading queue wait and 503s. From the browser, via a beacon: runner timeouts, Pyodide load failures, visualisation errors.
-3. **SLOs with error budgets.** For example: lesson and problem API availability 99.9 percent over 30 days (an error budget of 43.2 minutes); coach time to first token under a stated p95; streamed replies persisted 99.99 percent. Alert on the burn rate of the budget, not on raw thresholds, so a brief blip does not page anyone and a slow bleed does.
+### After: pushed metrics, sampled traces, three SLOs
 
-See [Observability](/learn/system-design/building-blocks/observability) for the general method. The specific point for this codebase is that its cost weaknesses were invisible *because* there are no metrics. Cache tokens are now stored and logged on every coach turn, but a log line nobody aggregates cannot show a cache hit rate, and nothing counts stream outcomes at all. Metrics are how you would have found the unbudgeted cache writes without reading the code.
+`3658224` and `d3e239b` shipped most of it. Every replica pushes metrics over OTLP to Prometheus, labelled with its replica id and build: `http.server.request.duration` by route template and status, grading runs, duration and queue wait, AI tokens by class, budget decisions and time to first token, rate-limit refusals, retention deletes, emails, and pool and grading-slot gauges. Traces go to Jaeger, a fifth of requests sampled at the root. `docs/SLO.md` sets 99.5 percent availability over 30 days, 95 percent of ordinary API requests under 250 ms and 95 percent of grading under 5 s, with fast (14.4×) and slow (6×) burn-rate alerts ([Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) works the numbers). Note the target it chose: 99.5 percent, 3.6 hours a month, not the review's 99.9, because the SLO document calls that "honest for one region, one Postgres primary and a small team". An unmeetable SLO trains people to ignore the page.
+
+What is still missing is where this review's cost story lives: tokens are counted by class but not priced per product, nothing counts stream outcomes (completed, disconnected, upstream error, persistence failed), spans stop at the request with no child for the model call or the database, the browser reports nothing, and Jaeger keeps traces in memory, so a restart loses them. See [Observability](/learn/system-design/building-blocks/observability) for the general method; the point for this codebase is that its cost weaknesses were invisible *because* there were no metrics, and a token counter by class is what would have shown the unbudgeted cache writes without reading the code.
 
 ## Server-verified submissions: priced, then built
 
 The first review took ADR 0003's closing line as the trigger ("Leaderboards or competitive features would need server-side verification") and priced two options. Verifying every run at 100,000 DAU with 15 runs each means 1.5 million sandboxed executions a day, about 17 per second on average and perhaps five times that at peak; at roughly one vCPU-second per run in a container sandbox, that is on the order of 90 busy vCPUs at peak. Verifying only "submit for credit" was a fifteenth of that, so the review recommended it.
 
-ADR 0005 verifies every signed-in run instead, because the unit price changed, not the method: on the development machine a WebAssembly CPython starts in about 0.09 s with a precompiled standard library, QuickJS in about 0.02 s. Redo the arithmetic assuming 0.1 to 0.2 CPU-seconds per run (start-up plus small tests): 87 runs a second at peak needs roughly 9 to 17 busy cores, a few replicas rather than a fleet. Each replica grades at most four runs at once and answers 503 after 20 s in the queue, so capacity arrives as replicas or, as ADR 0005 plans, a grading service behind the same `Grader` interface. Retention helps here too: skipping a run whose code matches the previous one saves a grading run as well as a row. Price both options, and re-price when the technology under one of them changes.
+ADR 0005 verifies every signed-in run instead, because the unit price changed, not the method: on the development machine a WebAssembly CPython starts in about 0.09 s with a precompiled standard library, QuickJS in about 0.02 s. Redo the arithmetic assuming 0.1 to 0.2 CPU-seconds per run (start-up plus small tests): 87 runs a second at peak needs roughly 9 to 17 busy cores, a few replicas rather than a fleet. ADR 0005 named the next step, a grading service behind the same interface, and `c0b3151` built it: `ascend-api --serve-grader`, no secrets, reached over the private network with a new connection per request and one retry on a busy replica. At `GRADER_SLOTS` of 2 per replica, those 9 to 17 cores are 5 to 9 grader replicas, added in `railway.ts` when `GraderSaturated` fires, without touching the API or its database connections. Skipping a run whose code matches the previous one would save a grading run as well as a row. Price both options, and re-price when the technology under one of them changes.
 
 ## Content hot-reload
 
-A lesson typo costs a deploy of about a minute, which keeps every guarantee in module 1 (validated at build time, versioned with its renderer, identical in every replica). When non-engineers edit daily, the design that keeps them: CI validates a content bundle with the same strict loader, publishes it to object storage with its fingerprint, and each replica polls for a new version and swaps an `Arc<Curriculum>` atomically (an `ArcSwap`), recomputing the content ETag with it (today `AppState::build` computes it once, at boot). The new problems are real: during a rollout two replicas may serve different content versions, so ETags flap and a lesson can change between page loads; and a bundle may need code the running binary lacks, so bundles must declare a minimum binary version. Do not build this until someone needs it.
+A lesson typo costs a deploy of about a minute, which keeps every guarantee in module 1. When non-engineers edit daily, the design that keeps them: CI validates a content bundle with the same strict loader, publishes it to object storage with its fingerprint, and each replica polls for a new version and swaps an `Arc<Curriculum>` atomically (an `ArcSwap`), recomputing the content ETag with it (today `AppState::build` computes it once, at boot). The new problems are real: during a rollout two replicas may serve different content versions, so ETags flap and a lesson can change between page loads; and a bundle may need code the running binary lacks, so bundles must declare a minimum binary version. Build it only when someone needs it.
 
 ## Known weaknesses, ranked
 
-Most items below were found by reading the code for this track. Keep both lists: the fixed one is evidence the review was worth doing, and most of its rows are a before and after told in an earlier lesson.
+Keep both lists: the fixed one is evidence the review was worth doing, and most of its rows are a before and after told in an earlier lesson.
 
 | Fixed since the first review | Where | The fix |
 |---|---|---|
@@ -156,14 +143,14 @@ Most items below were found by reading the code for this track. Keep both lists:
 | Limiter maps never pruned; a class behind one NAT throttled; buckets per process; an owner's password allowance spendable by anyone | `rate_limit.rs` | Hourly pruning; per-session and per-account keys; GCRA in Postgres; known devices (`427ed78`) |
 | No idle sign-out; ten-character passwords with no breach check | `auth/` | `SESSION_IDLE_DAYS` (`427ed78`); 15 characters and Pwned Passwords screening (`acab135`, `0897111`) |
 | Streaks from a mutable column, in UTC days; deletion cascaded into others' comments | `m0007`, `m0011` | `activity_days` in the learner's time zone (`0203d76`); `ON DELETE SET NULL` |
-| Results self-reported | `crates/grader` | Graded on the server in WebAssembly (`25fd477`) |
+| Results self-reported; then four copies of the comparison rule, and exercises no server had graded | `crates/grader` | Graded on the server in WebAssembly (`25fd477`); one `compare.js` and 1,430 reference solutions in CI (`e47282a`, `f29c337`) |
+| One replica grading in-process; no metrics, traces or SLOs; rows kept forever; no password reset | `railway.ts`, `telemetry.rs`, `retention.rs`, `auth/` | A grading service (`c0b3151`); OTLP metrics, traces, SLOs (`3658224`, `d3e239b`); retention (`531f48d`); reset links (`39052ce`) |
 | Transcripts: read-modify-write, replies landing after or during a grade, racing finishes, an orphaned grade stuck on a spinner | `interviews.rs` | One SQL append; status guards; `grading` before the grader runs (`c4c5de7`); "Grade again" (`7066802`) |
-| Coach lock UI-only; deploys not waiting for CI | `coach.rs`, `railway.ts` | 409 during a solo interview; `checkSuites: true` |
+| Coach lock UI-only; deploys not waiting for CI | `coach.rs`, `railway.ts` | A 409; `checkSuites: true` |
 | No drain, a 0 s drain window, then no test of either | `serve.rs`, `railway.ts` | A `TaskTracker`, 60 s window, 25 s and 30 s bounds (`8f82820`); `shutdown.rs` and a graceful stop in CI (`95b6623`) |
-| Migrations raced; a rollback could not boot | `migrate.rs` | Advisory lock; booting behind the schema (`8f82820`) |
-| Movable tags; stale chunks got `index.html`; upkeep by hand; smoke tests absent, then run on a debug build | `ci.yml`, `app.rs` | Pins by SHA and digest; a 404 and one reload; auto-merge after CI (`040cf0a`); smoke on the production image (`8861312`) |
-| Provider error text shown; unused `AI_FAST_MODEL`; stale Python globals; SSE split on `\n` only; a slow first unknown-email login | several | Classified messages; removed; a fresh namespace; spec line endings (`527d3d1`); the dummy hash at boot |
-| Generators rewrote their frames; a bad block or a prototype key could blank the page; recovery paths untested | `web/src/viz`, `api.rs` | Copies and `frames-immutable.test.ts`, an error boundary, backdating tests (`7066802`); own-key lookups (`083d69c`) |
+| Migrations raced; rollbacks could not boot | `migrate.rs` | An advisory lock; booting behind the schema |
+| Movable tags; upkeep by hand; smoke tests absent, then on a debug build; AI routes and the crawl untested in CI | `ci.yml`, `tests/ai.rs` | Pins by SHA and digest; auto-merge after CI (`040cf0a`); smoke on the production image (`8861312`); a stub model (`70f15c7`); a nightly crawl (`6e8d69a`) |
+| Provider error text shown; stale Python globals; SSE split on `\n` only; generators rewrote their frames | several | Classified messages; a fresh namespace; spec line endings (`527d3d1`); `frames-immutable.test.ts` (`7066802`) |
 
 What is still open, ranked, with the symptom each would show and how you would find it:
 
@@ -172,17 +159,17 @@ What is still open, ranked, with the symptom each would show and how you would f
 | 1 | No global spend cap | The monthly bill arrives far above the typical-day model | Nothing aggregates priced usage across users | A spend breaker into the existing `AiDisabled` path |
 | 2 | Budgets in weighted tokens, not money | A model or price change silently moves every bound | Compare `ai_usage` with the invoice | Price each token class per call from a table keyed by model |
 | 3 | Railway builds its own image (`railway.ts`) | Production fails in a way CI never saw | The running image's digest matches nothing CI tested | Push CI's image and deploy that digest |
-| 4 | No metrics or traces | A slower coach or a full grading queue goes unnoticed | Nothing aggregates the logs | Spans, metrics and SLOs |
-| 5 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
-| 6 | Unknown devices share one password bucket per account | An owner on a new device refused while someone guesses | 429s for one email from several addresses | Charge failures only |
-| 7 | Four comparison rules round half-way values two ways | An answer passes in one runner and fails in another | Run the value through each rule | One conformance corpus |
+| 4 | Retention's bound exceeds the volume at 10,000 DAU | The volume alerts at 80 percent | Size `submissions` and `messages` against their periods | Shorter periods, dedupe, partitions or object storage |
+| 5 | AI cost invisible per product; no stream outcomes; traces lost on restart | A dearer coach or lost replies go unnoticed | Tokens are counted by class only; Jaeger is in memory | Priced counters, an outcome counter, persistent traces |
+| 6 | No pooler | A deploy past about four replicas exhausts connections | The boot check warns below 10 spare | PgBouncer in transaction mode |
+| 7 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
 
 ## The plan, in order
 
 1. **Cost safety now**, whatever the traffic: a global spend breaker, and the per-user limit moved from weighted tokens to money before a second model arrives.
-2. **Before 10,000 DAU**: effort and `max_tokens` tuning per product, metrics, traces and SLOs, retention and partitioning for `submissions` and `messages`, and deploying the tested image by digest.
-3. **At the second replica**: a connection pooler and canary releases (migrations are locked, and the security limits and budgets already live in Postgres); grading capacity grows with replicas.
-4. **When the product changes**: server-only tests if contests arrive, a grading service when load outgrows a few cores, content hot-reload for non-engineer authors.
+2. **Before 10,000 DAU**: effort and `max_tokens` tuning per product, priced AI metrics and stream outcomes, retention periods that fit the volume (or partitions), and deploying the tested image by digest.
+3. **Past a few replicas**: switch `PHASE_2` on, add grader replicas as `GraderSaturated` asks, PgBouncer past about four API replicas, and canary releases on the per-replica metrics that now exist.
+4. **When the product changes**: server-only tests if contests arrive, content hot-reload for non-engineer authors.
 
 Notice what is *not* on the list: splitting the monolith, sharding Postgres, moving the SPA to a CDN. At 100,000 DAU the constraints are money, data growth and visibility, and each has a specific fix that does not require a rewrite.
 
@@ -191,17 +178,17 @@ Notice what is *not* on the list: splitting the monolith, sharding Postgres, mov
 - **Load-test the streaming path**: a thousand concurrent streams on one instance, measuring memory per stream, time to first token, and what the platform's proxy does to long-lived responses.
 - **Chaos on persistence**: kill the database connection mid-stream and verify the reply is retried or at least counted as lost in a metric; today `finish_turn` failing is a log line.
 - **Rollback compatibility**: run the *previous* release's API integration tests against the *new* schema before deploying. It is a direct, automatic check of expand/contract discipline.
-- **Crash in the middle of a grade, end to end.** The integration test backdates the row and the room offers "Grade again"; killing a real process mid-grade in a browser test would check the two together.
+- **A grader replica killed mid-run.** The API retries once on a refused connection or a 503, but a connection reset mid-request is not retried, so today the learner would see an error; the test decides whether that is acceptable.
 
 ## Interviewer follow-ups
 
-**"What breaks first at 100 times the users?"** Model answer: sort by incorrect before slow. Most of what was incorrect across replicas is fixed (locked migrations, shared limits and budgets), so 20 connections per replica meeting `max_connections` comes first, then grading capacity. But the binding constraints at 100,000 DAU are money (about $9,200 a day of typical AI use), data growth (`submissions` alone about 110 GB a year at 10,000 DAU against a 50 GB volume) and visibility. Serving lessons stays cheap, because they come from memory. Common wrong answer: "Postgres", or "Rust will handle it", with no number attached.
+**"What breaks first at 100 times the users?"** Model answer: sort by incorrect before slow. What was incorrect across replicas is fixed (locked migrations, shared limits and budgets, a budgeted pool, a separate grader), so connections meeting `max_connections` past four replicas come first. But the binding constraints at 100,000 DAU are money (about $9,200 a day of typical AI use) and data growth (retention still leaves about 54 GB of `submissions` at 10,000 DAU against a 50 GB volume). Serving lessons stays cheap, because they come from memory. Common wrong answer: "Postgres", or "Rust will handle it", with no number attached.
 
 **"Is the AI spend bounded?"** Model answer: per user, yes: $2.40 of output and $8.00 of billed input, $10.40 a day at worst, and since holds are taken before each call nothing in flight can overshoot it (bar an input estimate that runs low). In total, no: the per-user fuse times 100,000 users is over a million dollars a day, which is why a global breaker and a money-denominated budget come first on the plan. Common wrong answer: "the budget caps the cost", which confuses a per-user fuse with a bill.
 
-**"Would you split this into services?"** Model answer: not for scale; none of the constraints (money, data growth, visibility) is solved by a network boundary, and each hop adds a failure mode. The one candidate is grading, already behind a `Grader` interface: it scales on CPU rather than requests, and ADR 0005 names the trigger, load beyond a few cores. Common wrong answer: "microservices scale better", answering a question the numbers do not ask.
+**"Would you split this into services?"** Model answer: only where a boundary buys something, and Ascend split exactly one. Grading scales on CPU rather than requests, and it runs untrusted code, so a service with no secrets gains isolation too; ADR 0006 accepts a network hop and a retry for that. None of the other constraints (money, data growth) is solved by a network boundary. Common wrong answer: "microservices scale better", answering a question the numbers do not ask.
 
-**"How would you know the coach got slower after a deploy?"** Model answer: today you would not. The per-request log line measures the time until an SSE response opened, not time to first token or total generation. Add a span around the model call with time to first token and token counts, a stream-outcome counter, and an SLO on p95 time to first token with burn-rate alerts. Common wrong answer: "check the logs", which hold no such number.
+**"How would you know the coach got slower after a deploy?"** Model answer: `ascend_ai_first_token_seconds` is a histogram, and every replica labels its metrics with its build, so compare p95 before and after the deploy in Grafana. It is deliberately not an SLO, because most of that time is the provider's. What you still could not see is replies lost or cut short, since nothing counts stream outcomes. Common wrong answer: "check the logs", which hold no such number.
 
 ## What mid-level engineers get wrong
 
@@ -290,8 +277,8 @@ hints:
 - You separate **fuses** (per-user budgets that bound abuse) from **bills** (typical usage times adoption), compute both, and notice when the fuse is on the wrong wire, or trips only after the current has passed.
 - You price options before choosing them, as with "verify every run" against "verify credited submissions", and re-price when the technology under one of them changes.
 - You decide what a limiter does when its store is down before choosing the store, and notice when the answer changes: failing closed costs nothing when the store is the database the request needs anyway.
-- You plan retention per table from what each row is for, and implement it with partitions rather than bulk deletes.
-- You define SLOs and alert on error-budget burn, and you use metrics to find the weaknesses you cannot see by reading code.
+- You plan retention per table from what each row is for, check that the bound fits the storage, and know when batched deletes stop being enough and partitions are needed.
+- You set SLOs the architecture can meet, alert on error-budget burn, and use metrics to find the weaknesses you cannot see by reading code.
 - You rank changes (correctness and cost safety, then visibility, then scale-out, then product redesigns), say what you would *not* change, and keep the list of what was fixed as evidence.
 
 ## Check yourself
@@ -320,7 +307,7 @@ hints:
   options: ["Dropping a partition avoids the dead tuples, vacuum and WAL of a DELETE", "Postgres does not allow a DELETE on tables past a few million rows", "Partitioning makes new inserts faster, and the nightly DELETE job slows them down", "Partitioned tables compress old rows better than one large table can"]
   answer: 0
   explanation: >-
-    Postgres implements DELETE by marking row versions dead, which vacuum must later clean and which writes WAL for every row. Dropping a partition is a metadata operation. Compression and insert speed are not the reason, and DELETE works on tables of any size, only expensively.
+    Postgres implements DELETE by marking row versions dead, which vacuum must later clean and which writes WAL for every row. Dropping a partition is a metadata operation. Ascend's retention deletes in batches of 5,000 today, which bounds each statement but not the dead tuples. Compression and insert speed are not the reason, and DELETE works on tables of any size, only expensively.
 - q: >-
     Ascend's shared limiter keeps its state in Postgres and answers 503 when Postgres is unreachable. Why is failing closed acceptable here, when it would not be for a Redis-backed limiter?
   options: ["The requests it guards need Postgres anyway, so refusing them costs no extra availability", "Postgres never becomes unreachable, since the platform restarts it within seconds", "Failing open would leak the rate_limits table, because it is an UNLOGGED table", "A 503 tells browsers to retry at once, so learners never notice the refusal"]

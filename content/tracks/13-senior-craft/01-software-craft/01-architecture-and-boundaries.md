@@ -153,7 +153,7 @@ That is a defensible trade-off, not an accident. The one boundary that changes o
 
 Cargo compiles each crate with one `rustc` invocation, and that invocation can name only the crates passed to it as `--extern name=path` flags, which Cargo passes for the crate's *direct* dependencies. Everything else in the graph is compiled and linked but cannot be named. `cargo tree`, which reads the lockfile without compiling anything, shows the difference on this repository:
 
-- `cargo tree -p ascend-core --depth 1 -e normal` lists 25 direct dependencies (`sea-orm`, `reqwest`, `tokio`, `argon2`, `serde`, the `ascend-grader` sandbox and the rest), with no `axum`, `tower` or `http`.
+- `cargo tree -p ascend-core --depth 1 -e normal` lists 26 direct dependencies (`sea-orm`, `reqwest`, `tokio`, `argon2`, `serde`, `opentelemetry`, the `ascend-grader` sandbox and the rest), with no `axum`, `tower` or `http`.
 - `cargo tree -p ascend-core -i http -e normal` shows that `http` 1.5.0 *is* in core's graph, pulled in by `reqwest` through `hyper` and `http-body`. It is compiled into every build, and core still cannot write `use http::HeaderMap`.
 - `cargo tree -p ascend-core -i axum` fails: Axum is not in core's graph at all.
 
@@ -167,7 +167,7 @@ error[E0433]: cannot find module or crate `axum` in this scope
   |     ^^^^ use of unresolved module or unlinked crate `axum`
 ```
 
-The architectural change is therefore a one-line diff to `crates/core/Cargo.toml`, which no reviewer misses. Counting the source makes the two boundaries concrete: of core's 42 Rust files, none mentions `axum::`, `tower::` or `http::`, and 23 mention `sea_orm`. One boundary is hard and one is deliberately soft. In the other direction, the only api file that queries the database itself is the readiness probe in `routes/health.rs`, whose `SELECT 1` exists to test the connection.
+The architectural change is therefore a one-line diff to `crates/core/Cargo.toml`, which no reviewer misses. Counting the source makes the two boundaries concrete: of core's 47 Rust files, none mentions `axum::`, `tower::` or `http::`, and 24 mention `sea_orm`. One boundary is hard and one is deliberately soft. In the other direction, the api files that query the database do operational work, not domain work: the readiness probe's `SELECT 1`, the boot migrator in `migrate.rs`, and the connection-budget check in `state.rs`.
 
 Other ecosystems need a tool for the same guarantee. In Python every installed package is importable from everywhere, so import-linter parses `import` statements into a graph and fails CI on a forbidden edge. Go's toolchain refuses imports of a package under an `internal/` directory from outside its parent tree; Java's module system exports packages explicitly in `module-info.java`; ArchUnit checks rules against compiled bytecode inside a unit test. The cheaper the check, the earlier it runs, and Cargo's runs before a line of the crate compiles.
 
@@ -227,6 +227,8 @@ Cross-cutting concerns (request IDs, logging, timeouts, compression, security he
 ```rust
 let api = Router::new()
     /* ...routes... */
+    .route_layer(middleware::from_fn(crate::middleware::metrics::stamp_route))
+    .fallback(api_not_found)
     .layer(middleware::from_fn_with_state(state.clone(), csrf::enforce))
     .layer(/* general rate-limit bucket */)
     .layer(DefaultBodyLimit::max(512 * 1024));
@@ -235,6 +237,7 @@ Router::new()
     .nest("/api", api)
     .fallback(get(static_handler))
     .layer(middleware::from_fn(security_headers::apply))
+    .layer(middleware::from_fn(crate::middleware::metrics::record))
     .layer(CompressionLayer::new().br(true).gzip(true))
     .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
     .layer(TraceLayer::new_for_http() /* span records request_id */)
@@ -245,7 +248,7 @@ Router::new()
     .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
 ```
 
-Read outermost first: drop a client-supplied request ID unless it is a UUID, set one if none survived, propagate it to the response, open a tracing span, start the timeout, compress, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
+Read outermost first: drop a client-supplied request ID unless it is a UUID, set one if none survived, propagate it to the response, open a tracing span, start the timeout, compress, start the metrics timer, add security headers, then route. API requests additionally pass the body limit, the per-IP rate limiter and the CSRF check. Each position has a reason:
 
 - **Sanitising outside everything.** The first version trusted any `x-request-id` a client sent, so a caller could put arbitrary text into every log line of its request, or reuse one ID across many requests to muddy correlation. The check has to run before `SetRequestIdLayer`, which only fills the header when it is absent.
 - **Request ID before tracing.** The span reads `x-request-id` from the headers. Swap the two and every span records `-`.
@@ -253,6 +256,7 @@ Read outermost first: drop a client-supplied request ID unless it is a UUID, set
 - **240 seconds.** Deliberately above the AI client's own default timeout of 180 seconds (`AI_TIMEOUT_SECS` in `crates/core/src/config.rs`). Nested timeouts should shrink as you go inward, so the innermost call fails first with a specific error instead of the outer layer killing it with a generic one.
 - **503, not 408.** The first version answered a handler timeout with `408 Request Timeout`, which tells the client that *it* was too slow sending the request. Here the server failed to produce a response in time, so it now returns `503 Service Unavailable`, the status that retry logic and dashboards read as a server-side failure.
 - **Security headers outside the router.** They apply to everything, including the SPA fallback and error responses, which are exactly the pages attackers frame or sniff.
+- **Metrics split across the router.** The latency histogram is labelled by route template, which exists only after routing, yet refusals before routing must be counted too. So `metrics::record`, outside the router, times the request, and `stamp_route`, a `route_layer` that runs only on matched routes, copies the template onto the response for it to read ([observability in code](/learn/senior-craft/software-craft/observability-in-code) has the code).
 - **Rate limiting before CSRF.** A flood of forged requests still spends the attacker's rate budget, and the cheap check runs first.
 - **Body limit only on `/api`.** Static assets never read a body; the JSON API caps it at 512 KiB before a handler allocates anything.
 
@@ -279,6 +283,8 @@ The outbox moves the boundary instead of pretending it is not there: the guarant
 Ascend is a single binary. Its boundaries are crates and modules, checked by the compiler, not network hops. That is a **modular monolith**, and for a small team it is usually the right default: a function call cannot time out, a refactor across a boundary is one commit, and there is one thing to deploy and observe. The repository's first decision record, `docs/adr/0001-rust-monolith-with-embedded-content.md`, considered splitting auth, content and AI into services and rejected it in one line: "No team or scale reason to pay the operational cost."
 
 Network boundaries buy independent deployment and independent scaling, and cost you partial failure, serialisation, versioned contracts and distributed tracing. Extract a service when a team or a scaling profile genuinely needs to move independently, and extract it along a module boundary that has already proven stable inside the monolith. [Microservices vs monolith](/learn/system-design/building-blocks/microservices-vs-monolith) works through the arithmetic.
+
+Ascend's first extraction, in commit `c0b3151` (ADR 0006), followed that rule. Grading moved out along `crates/grader`, a boundary that already knew nothing of HTTP or the database, for two reasons no module can provide: **isolation**, since the grading service holds no database URL or AI key, so learner code that escaped the sandbox would find nothing to take; and a **different scaling profile**, since grading is CPU-bound and bursty and now scales on its own replicas without adding database connections. It is the same binary started with `--serve-grader`, so the split cost a network hop, a shared token and a retry on a busy replica, not a second codebase. `GradingBackend` in core is either `Local` or `Remote`, and the submission service calls the same `run` on either; `the_api_grades_through_the_service` drives it over a real socket.
 
 ## Make the rule executable
 
@@ -372,7 +378,7 @@ Hexagonal architecture is not only a textbook shape: in March 2020 Netflix's eng
 
 **"After a refactor, every log line says `request_id=-`. What happened?"** Model answer: the layer order changed, so the tracing span is created before the request-ID layer sets the header; in Axum each `.layer` wraps what came before, so the last call runs first. Restore the order and add a test that inspects an emitted line. Common wrong answer: "the UUID generator is broken."
 
-**"When would you split Ascend into services?"** Model answer: when a team or a scaling profile needs to move independently (the AI coach's cost and latency profile is the likeliest candidate), along a crate boundary that has proven stable. Replicas alone no longer force it: the security rate limits already moved into Postgres, the precondition ADR 0001's revisit trigger named (as "Redis"). Common wrong answer: "when the codebase is big", which is not a reason by itself.
+**"When would you split Ascend into services?"** Model answer: when a team, a scaling profile or an isolation need must move independently, along a crate boundary that has proven stable. Grading went first, for isolation from secrets and CPU-bound scaling; the AI coach's cost and latency profile is the likeliest next. Replicas alone never forced it: the security rate limits moved into Postgres, the precondition ADR 0001's revisit trigger named. Common wrong answer: "when the codebase is big", which is not a reason by itself.
 
 ## What mid-level engineers get wrong
 

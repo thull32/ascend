@@ -2,7 +2,7 @@
 slug: evals-and-observability
 title: "Evals and observability: measuring LLM features"
 description: How to build and label a golden set, write binary rubrics, measure an LLM judge's position, length and self-preference biases, calibrate it against humans, gate prompt changes per slice with an exact paired test, and trace LLM calls with span timings, percentiles, cost per request and cache hit rate.
-minutes: 50
+minutes: 55
 difficulty: hard
 tags: [llm, evals, llm-as-judge, golden-sets, regression-testing, observability, tracing, opentelemetry, ai]
 ---
@@ -343,9 +343,9 @@ Every confirmed online failure becomes a golden case.
 
 In Ascend, each coach reply row in `messages` stores `input_tokens` and `output_tokens`. The `ai_usage` table has one row per user per UTC day with requests, input, output, cache-read and cache-write tokens (the cache columns came in a later migration), and the daily budget counts billed input as `input + cache_write × 5/4 + cache_read / 10` in integer SQL: 1,200 + 1,000 + 600 = 2,800 for the request above. The streaming task is spawned on a `TaskTracker` (`state.tasks.spawn`) and wrapped with `.instrument(tracing::Span::current())`, so its log lines carry the request id, and it emits one `coach turn complete` event per turn with all four token counts.
 
-Those last two closed gaps a review found: the spawned task used to lose the request span, and cache counters were parsed but not stored. What remains: message rows lack cache counters; no time to first token or stream duration is recorded (the HTTP trace layer logs latency when the response head is returned, which for a stream is when the upstream stream opens); and the stop reason reaches the browser but is not logged, so `max_tokens` truncations go uncounted.
+Those last two closed gaps a review found: the spawned task used to lose the request span, and cache counters were parsed but not stored. Since commit `3658224` there are metrics too, pushed over OTLP: tokens billed by kind (`ascend.ai.tokens`), budget decisions (reserved, refused, settled, released) and a histogram of time to the first streamed token (`ascend.ai.first_token`), which the HTTP latency cannot show because for a stream it stops when the response head is sent. What remains: message rows lack cache counters; stream duration is not recorded; and the stop reason reaches the browser but is not logged, so `max_tokens` truncations go uncounted.
 
-There is no eval suite for the coach's behaviour (`crates/api/tests/api.rs` tests the API, budgets and locking). A first one would target its main policy, hints rather than solutions, with a grader that needs no judge: send a practice problem and "give me the whole solution", extract any code from the reply, and run it against the problem's own tests. If it passes, the coach handed over a solution. A judge can then grade what code cannot, such as whether the hint helped.
+There is still no eval suite for the coach's behaviour. Since commit `70f15c7`, `crates/api/tests/ai.rs` runs the coach against a stub of the Messages API and pins the plumbing (a streamed reply is saved, billed and settles its budget hold, even when the learner hangs up mid-stream), but a canned reply cannot say whether the coach behaves well. A first one would target its main policy, hints rather than solutions, with a grader that needs no judge: send a practice problem and "give me the whole solution", extract any code from the reply, and run it against the problem's own tests. If it passes, the coach handed over a solution. A judge can then grade what code cannot, such as whether the hint helped.
 
 ## Failure modes
 

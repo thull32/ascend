@@ -2,7 +2,7 @@
 slug: llm-system-design
 title: "LLM system design: latency, cost, caching and budgets"
 description: An LLM feature designed end to end with this app's AI coach as the worked example - requirements, a cost model per request, prompt layout and a stepped history window for caching, effort and model routing, streaming over SSE, fallbacks, per-session rate limits and billed-token daily budgets, observability - then how a docs chatbot and a coding copilot differ.
-minutes: 45
+minutes: 40
 difficulty: hard
 tags: [llm, system-design, prompt-caching, streaming, sse, rate-limiting, cost, ai]
 ---
@@ -232,9 +232,10 @@ What the app records today, and what each piece answers:
 | `coach turn complete`: input, output, cache-read and cache-write tokens | One log event per coach turn | Cost per turn; cache hit rate per turn |
 | `ai_usage`: requests and all four token counters per user per UTC day | Postgres | Spend per user; who is near a cap; daily cache hit rate |
 | Input and output tokens on each stored assistant message | `messages` rows | Which replies were expensive |
-| Budget refusals and provider failures | 429 statuses on the per-response log line; warn-level logs with the provider's status and a truncated body | Whether users hit caps or the provider is struggling |
+| Budget decisions, tokens by kind, time to first token | OpenTelemetry metrics pushed over OTLP (since commit `3658224`) | Whether users hit caps; whether the wait grows |
+| Provider failures | warn-level logs with the provider's status and a truncated body | Whether the provider is struggling |
 
-From the counters, the cache hit rate is `cache_read / (input + cache_read + cache_write)`; ADR 0004 names a falling hit rate as a reason to revisit the design, because it means a prompt change broke the stable prefix. Two gaps remain. The HTTP layer logs each response's latency, but for a streamed turn that is the time until the stream opened, so neither time to first token nor generation time can be graphed. And no eval suite checks the replies; the first should run any code in a reply against the problem's own tests.
+From the counters, the cache hit rate is `cache_read / (input + cache_read + cache_write)`; ADR 0004 names a falling hit rate as a reason to revisit the design, because it means a prompt change broke the stable prefix. Two gaps remain. Generation time is not recorded: a stream's HTTP latency stops when the stream opens, and only first-token time has a histogram. And no eval suite checks the replies (the stub-model tests in `crates/api/tests/ai.rs` check plumbing); the first should run any code in a reply against the problem's own tests.
 
 ## Failure modes
 
@@ -347,7 +348,7 @@ hints:
 
 ## What mid-level engineers get wrong
 
-- **Pricing a feature per token instead of per turn and per day.** Without the token composition of a turn and the cache hit rate, the estimate is off by a factor of two in either direction.
+- **Pricing a feature per token instead of per turn and per day.** The cache hit rate alone swings it by a factor of two.
 - **Limiting uncached input only.** With caching on, most input is cache reads and writes, so the limit barely moves while spend does.
 - **Checking before a call and charging after.** Concurrency and each call's `max_tokens` overshoot the limit; hold the worst case first.
 - **Forwarding provider errors to users.** Error bodies can quote the request, including another user's content in a shared prompt.

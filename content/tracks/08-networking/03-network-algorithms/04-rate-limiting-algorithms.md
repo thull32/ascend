@@ -133,7 +133,8 @@ Ascend's API limits in three layers: a loose brake in each replica's memory, sec
 | Bucket | Key | Quota in GCRA terms | State | Wraps |
 |---|---|---|---|---|
 | General | Client IP | 1,200/min: burst 1,200, then one per 50 ms | `governor` 0.10, per replica | Every `/api` route |
-| Auth | Client IP | 30/min: one per 2 s | Postgres `rate_limits` | `/auth/register`, `/auth/login` |
+| Auth | Client IP | 30/min: one per 2 s | Postgres `rate_limits` | Sign-up, login, reset, verification |
+| Reset and verification emails | Address; account | 3/hour: one per 20 min | Postgres | Each email |
 | Password attempts | Known device, else account | 10/min: one per 6 s | Postgres | Login and account deletion |
 | AI | Session, else IP | 20/min: one per 3 s | Postgres | Coach and interview routes that call the model |
 | Graded submissions | Session, else IP | 20/min: one per 3 s | Postgres | `POST /submissions` (runs code on the server) |
@@ -289,10 +290,10 @@ A limit of 100 requests per second says nothing about how many are in flight. If
 ## What mid-level engineers get wrong
 
 - **Accepting "100 per minute" without asking for the burst, the key and the action.** Two limiters with that label can admit anything from 100 to 200 in one minute.
-- **Checking and incrementing in two steps**, in SQL or in Redis, and discovering the overshoot under a concurrent load test.
-- **Passing each app server's clock to a shared limiter**, then chasing rate errors that correlate with one host's NTP drift.
-- **Using a queueing limiter in front of a client with a short timeout**, so queued requests are served after the client has given up and retried.
-- **Treating a rate limit as a concurrency limit**, and running out of threads when a dependency slows down at an unchanged request rate.
+- **Checking and incrementing in two steps**, in SQL or in Redis, and discovering the overshoot under load.
+- **Passing each app server's clock to a shared limiter**, then chasing errors that track one host's NTP drift.
+- **Using a queueing limiter in front of a client with a short timeout**, so queued requests are served after the client has retried.
+- **Treating a rate limit as a concurrency limit**, and running out of threads when a dependency slows at an unchanged rate.
 
 ## Exercises
 
