@@ -16,7 +16,7 @@ The interviewer is testing whether you see that the binding constraint is not ba
 ### Functional
 
 - Start from seed URLs and sitemaps; fetch HTML over HTTP(S); extract and follow links.
-- Respect `robots.txt` (allow/disallow and crawl delay) and per-host rate limits.
+- Respect `robots.txt` (allow/disallow, plus a crawl delay where the site sets one; [RFC 9309](https://www.rfc-editor.org/rfc/rfc9309) standardises only the allow and disallow rules) and per-host rate limits.
 - Store every fetched page (raw bytes plus metadata) for the downstream indexer.
 - Detect duplicate URLs (one page, many spellings) and duplicate or near-duplicate content.
 - Recrawl known pages on a schedule that tracks how often they change.
@@ -223,7 +223,7 @@ hints:
 
 ## Deep dive: the frontier, where politeness lives
 
-A single FIFO fails at once: a page from `bigsite.com` yields 50 links to `bigsite.com`, adjacent in the queue, and a pool of fetchers hits that host 50 times in parallel. The Mercator crawler design, as described in the standard information-retrieval texts, splits the frontier in two. **Front queues** hold priority: a prioritiser assigns each URL to one of ~10 queues by importance and staleness, and a biased selector favours high-priority queues without starving the rest. **Back queues** hold politeness: each holds URLs for exactly one host, and a min-heap keyed by "earliest time this host may be fetched" decides who goes next. After a fetch, the host's next time is `now + max(crawl_delay, 10 × fetch_duration)`, a gap an order of magnitude larger than the last fetch, which automatically backs off from slow, often struggling, servers. The texts suggest about three times as many back queues as fetcher threads.
+A single FIFO fails at once: a page from `bigsite.com` yields 50 links to `bigsite.com`, adjacent in the queue, and a pool of fetchers hits that host 50 times in parallel. The Mercator crawler's design, which the standard information-retrieval text follows ([Manning, Raghavan and Schütze, chapter 20](https://nlp.stanford.edu/IR-book/html/htmledition/the-url-frontier-1.html)), splits the frontier in two. **Front queues** hold priority: a prioritiser assigns each URL to one of ~10 queues by importance and staleness, and a biased selector favours high-priority queues without starving the rest. **Back queues** hold politeness: each holds URLs for exactly one host, and a min-heap keyed by "earliest time this host may be fetched" decides who goes next. After a fetch, the host's next time is `now + max(crawl_delay, 10 × fetch_duration)`, a gap an order of magnitude larger than the last fetch (the text calls this a common heuristic), which automatically backs off from slow, often struggling, servers. Mercator's designers recommend about three times as many back queues as fetcher threads.
 
 ```python
 import heapq
@@ -291,7 +291,7 @@ $$ F = \frac{1 - e^{-\lambda I}}{\lambda I} $$
 | A | Hourly ($\lambda = 24$) | Daily | 4.2% |
 | A | Hourly | Twice a day | 8.3% |
 
-One extra daily crawl buys B 15.5 points and A 4.2. That is the counter-intuitive result from Cho and Garcia-Molina's work on refresh policies: to maximise average freshness, do not spend budget in proportion to change rate, because pages that change faster than you can crawl absorb budget without becoming fresh. Weight by importance, and give the hopeless-but-important cases (a news homepage) a dedicated fast lane. Mechanically: halve a URL's interval when its content hash changed, multiply it by 1.5 when it did not, send `If-None-Match` or `If-Modified-Since` so an unchanged page costs a few hundred bytes of `304`, and trust sitemap `lastmod` only from sites that have not lied about it.
+One extra daily crawl buys B 15.5 points and A 4.2. That is the counter-intuitive result from Cho and Garcia-Molina's work on refresh policies, whose SIGMOD 2000 paper proves that a uniform schedule always beats one proportional to change rate: to maximise average freshness, do not spend budget in proportion to change rate, because pages that change faster than you can crawl absorb budget without becoming fresh. Weight by importance, and give the hopeless-but-important cases (a news homepage) a dedicated fast lane. Mechanically: halve a URL's interval when its content hash changed, multiply it by 1.5 when it did not, send `If-None-Match` or `If-Modified-Since` so an unchanged page costs a few hundred bytes of `304`, and trust sitemap `lastmod` only from sites that have not lied about it.
 
 ## Failure modes
 
@@ -300,7 +300,7 @@ One extra daily crawl buys B 15.5 points and A 4.2. That is the counter-intuitiv
 | Spider trap | One host's URL count grows without bound; yield (new, non-duplicate pages per fetch) near zero | Repeating path segments (`/a/b/a/b/`), calendar parameters, session IDs in links | Cap URL length (~2,000 chars) and depth, detect repeated segments, strip session parameters, per-host URL budget scaled by importance |
 | Hostile or broken server | Fetchers blocked on connections that trickle bytes | Fetch duration histogram with a fat tail at the deadline | Total deadline (not only idle timeout), 10 MB body cap, 5 redirects, check `Content-Type` before downloading |
 | Being too fast for a site | Spike of `429`/`503` from one host; complaints | Error rate and latency per host rising together | Honour `Retry-After`, exponential per-host backoff, descriptive `User-Agent` with a contact URL, per-host kill switch |
-| `robots.txt` returns 5xx | Crawling hardest while a site is failing | RFC 9309 treats a 5xx or network failure as "undefined" | Assume full disallow (or keep the cached copy, normally no older than 24 hours); a 4xx means no restrictions |
+| `robots.txt` returns 5xx | Crawling hardest while a site is failing | RFC 9309 calls a 5xx or network failure "unreachable": the rules are undefined | Assume complete disallow, as the RFC requires; a cached copy may be kept past the usual 24 hours while the file is unreachable, and after a long outage (the RFC's example is 30 days) the crawler may treat the file as absent. A 4xx means no restrictions |
 | Fetcher crash | Some URLs fetched twice | Leases expired and re-issued | Nothing to fix: GETs are safe to repeat and storage dedupes by content hash |
 | Frontier shard loss | Its hosts stop being crawled | Shard health check | Hosts move to neighbours by consistent hashing; queues rebuilt from the URL table's `next_fetch_at`; every host restarts at its full politeness delay |
 | DNS bottleneck | Fetch time dominated by lookups; public resolvers rate-limit | DNS time per fetch in the timing breakdown | Local caching resolvers per fetcher group, prefetch for hosts near the head of the heap, respect TTLs |
@@ -324,10 +324,10 @@ One extra daily crawl buys B 15.5 points and A 4.2. That is the counter-intuitiv
 
 ## What real companies describe
 
-- **Mercator** (the Compaq/DEC research crawler) is the publicly described origin of the front-queue/back-queue frontier and the "order of magnitude longer than the last fetch" gap.
-- The **IRLbot** paper describes crawling over six billion pages from a single server, using batched disk-based URL uniqueness checks and per-domain budgets tied to how many other domains link in, to starve spam farms.
+- **Mercator** (Najork and Heydon's crawler) is the design the standard information-retrieval text follows for its front-queue/back-queue frontier; the same text gives the "order of magnitude longer than the last fetch" gap as a common heuristic.
+- The **IRLbot** paper describes crawling 6.3 billion valid HTML pages in 41 days from a single server (about 1,800 pages a second, close to this design's rate), using batched disk-based URL uniqueness checks (DRUM) and per-domain budgets tied to how many other domains link in (STAR), to starve spam farms.
 - **Common Crawl** publishes its crawls as WARC files in public cloud storage: the storage format used here.
-- **Google** has publicly described Googlebot queuing pages for JavaScript rendering separately from fetching, and its researchers published the 64-bit SimHash near-duplicate method.
+- **Google** has publicly described Googlebot queuing pages for JavaScript rendering separately from fetching, and its researchers showed that 64-bit SimHash fingerprints with a 3-bit threshold work for a repository of 8 billion pages.
 
 The numbers in this lesson are assumptions for a 5-billion-page-a-month crawl, not any company's figures.
 
@@ -399,5 +399,5 @@ The numbers in this lesson are assumptions for a 5-billion-page-a-month crawl, n
   options: ["Crawl only the home page until robots.txt returns", "Treat it as full disallow until robots.txt can be fetched", "Delete the host and its URLs from the URL table", "Treat the site as having no restrictions and crawl normally"]
   answer: 1
   explanation: >-
-    A server error on robots.txt signals an unhealthy site, and the standard says to assume full disallow or keep using a recently cached copy. A 404, in contrast, means no restrictions. Crawling hard while a site is failing is exactly the rudeness the protocol exists to prevent.
+    A server error on robots.txt signals an unhealthy site, and the standard says to assume complete disallow, although a crawler may keep using its cached copy while the file is unreachable. A 404, in contrast, means no restrictions. Crawling hard while a site is failing is exactly the rudeness the protocol exists to prevent.
 ```

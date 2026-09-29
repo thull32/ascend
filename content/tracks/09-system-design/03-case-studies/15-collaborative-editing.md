@@ -181,7 +181,7 @@ print(transform(["del", 2], ["ins", 1, "X"], False))   # ['del', 3]
 print(transform(["ins", 1, "X"], ["del", 2], True))    # ['ins', 1, 'X']
 ```
 
-Checked in scratch code for this lesson: 200,000 random concurrent pairs on random strings of up to six characters all converged, and so did 2,998 randomised runs of three clients, each with one batch in flight, random network delays and about 24 edits per run. The pairwise function is easy; OT's reputation comes from what surrounds it. Rich-text operations (formatting spans, lists, tables) multiply the cases, and OT *without* a central order needs transformation properties that several published algorithms turned out to violate. A single server order means only the simple pairwise property is needed.
+Checked in scratch code for this lesson: 200,000 random concurrent pairs on random strings of up to six characters all converged, and so did 2,998 randomised runs of three clients, each with one batch in flight, random network delays and about 24 edits per run. The pairwise function is easy; OT's reputation comes from what surrounds it. Rich-text operations (formatting spans, lists, tables) multiply the cases, and OT *without* a central order needs a second transformation property (TP2) that dOPT, adOPTed, SOCT2 and other published algorithms claimed and were later shown by counter-example to violate ([Gomes et al., 2017](https://arxiv.org/abs/1707.01747) recount the history). A single server order means only the simple pairwise property is needed.
 
 ### A sequence CRDT
 
@@ -343,7 +343,7 @@ Batching cuts message count, not bytes: every viewer still receives ~30 KB/s of 
 
 ## What real companies describe
 
-Google has publicly described Google Docs as using operational transformation with a central server that orders changes, and its Wave protocol documents described OT in the lineage of the Jupiter system, where a server and each client transform against each other. Figma's engineering blog describes its multiplayer design as server-authoritative and inspired by CRDTs, without full OT, largely last-writer-wins per property. Yjs and Automerge are open-source CRDT libraries used in production editors, and the Peritext work addresses formatting marks in text CRDTs. These are public descriptions of approaches, not current internals.
+Google has publicly described Google Docs as using operational transformation with a central server that orders changes, and its Wave protocol documents described OT in the lineage of the Jupiter system, where a server and each client transform against each other. Figma's [engineering blog](https://www.figma.com/blog/how-figmas-multiplayer-technology-works/) describes its multiplayer design as server-authoritative, deliberately not OT, and inspired by CRDTs without being one: two edits to the same property of an object end with the last value the server received. Yjs and Automerge are open-source CRDT libraries used in production editors, and the Peritext work addresses formatting marks in text CRDTs. These are public descriptions of approaches, not current internals.
 
 ## Interviewer follow-ups
 

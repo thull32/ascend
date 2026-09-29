@@ -99,7 +99,7 @@ CREATE TABLE following (user_id BIGINT, followee_id BIGINT, PRIMARY KEY (user_id
 
 The timeline holds **IDs, not bodies**: bodies change (edits, deletes, like counts), and storing 1 KB instead of 20 B would multiply the 10 TB cache by fifty.
 
-Under the hood, Redis stores a list as a *quicklist*: a doubly linked list of *listpack* nodes, each up to 8 KB by default, packing entries with a few bytes of header each. A 16 KB timeline of 20-byte entries is two or three nodes and costs roughly 1.2–1.5× its raw size once allocator rounding is included, which is where 3.2 TB raw becomes about 5 TB. The per-key overhead (on the order of 100 bytes) is noise at 16 KB a key; it would not be for small keys.
+Under the hood, Redis stores a list as a *quicklist*: a doubly linked list of *listpack* nodes (ziplists before Redis 7.0), each up to 8 KB by default (`list-max-listpack-size -2`), packing entries with a few bytes of header each. A 16 KB timeline of 20-byte entries is two or three nodes and costs roughly 1.2–1.5× its raw size once allocator rounding is included, which is where 3.2 TB raw becomes about 5 TB. The per-key overhead (on the order of 100 bytes) is noise at 16 KB a key; it would not be for small keys.
 
 ## High-level design
 
@@ -280,8 +280,8 @@ Monitor fan-out lag as the SLO it is (p99 under 5 s), per lane, measured from po
 
 ## What real companies describe
 
-- Twitter engineers publicly described (around 2012) Redis-backed home timelines capped at roughly 800 entries, filled by fan-out on write, with very large accounts merged at read time: the hybrid above.
-- Facebook engineers have described a pull-oriented feed system (Multifeed): recent actions indexed per user in memory on leaf servers, with aggregators querying leaves and ranking at read time. It fits a feed where every like and comment is a candidate item.
+- Twitter's "Timelines at Scale" talk (Raffi Krikorian, [published by InfoQ](https://www.infoq.com/presentations/Twitter-Timeline-Scalability/) in 2013) described home timelines of tweet IDs held in a Redis-backed cache and filled by fan-out on write, with the largest accounts' fan-out as the hard case: the problem the hybrid above solves.
+- Facebook engineers have [described](https://engineering.fb.com/2015/03/10/production-engineering/serving-facebook-multifeed-efficiency-performance-gains-through-redesign/) a pull-oriented feed system (Multifeed): recent actions indexed per user in memory on leaf servers, with aggregators querying leaves and ranking at read time. It fits a feed where every like and comment is a candidate item.
 - Twitter's Snowflake (2010) is the ID scheme used for time-sortable post IDs above.
 
 ## Interviewer follow-ups

@@ -2,17 +2,17 @@
 slug: failure-detection-and-leases
 title: "Failure detection and leases: heartbeats, phi-accrual, lease clocks and fencing tokens"
 description: Why crashed, slow and partitioned look identical; a simulation of false suspicions against detection time for fixed timeouts and phi-accrual detectors; phi computed by hand under the normal, Akka and Cassandra models; lease arithmetic under clock drift; a GC pause and a VM freeze traced past expiry; fencing tokens traced to the storage check; and the lease settings of Raft, Chubby, Spanner, Kubernetes and etcd.
-minutes: 55
+minutes: 50
 difficulty: expert
 tags: [system-design, distributed-systems, failure-detection, leases, fencing-tokens, heartbeats, gc-pause, phi-accrual]
 ---
-The primary has not sent a heartbeat for 8 seconds. Is it dead? If it is and you wait, every write stalls for as long as you wait. If it is not (it is 12 seconds into a full garbage collection, or a switch between you and it is dropping packets in one direction) and you promote a replica, you have two primaries, and the old one will resume and keep writing as though nothing happened. From outside, a crashed process, a paused process and a partitioned process look the same: silence. A failure detector is a guess, and its two knobs are how long you wait and how often you are wrong.
+The primary has not sent a heartbeat for 8 seconds. Is it dead? If it is and you wait, every write stalls while you wait. If it is not (it is 12 seconds into a full garbage collection, or a switch is dropping its packets in one direction) and you promote a replica, you have two primaries, and the old one resumes writing as though nothing happened. From outside, crashed, paused and partitioned processes look the same: silence. A failure detector is a guess, and its knobs are how long you wait and how often you are wrong.
 
-Leases let a system act on that guess without catastrophe: authority that expires by itself, so a node that stops renewing loses it even when nobody can reach it to say so. Fencing tokens turn a lease from probably safe into safe, because the resource being protected rejects a holder whose lease has lapsed. This lesson simulates the detection trade-off, computes a phi-accrual detector by hand, works the clock arithmetic that keeps a lease safe, traces the pause that breaks it anyway, and ends with the token that fixes it and the lease settings real systems ship.
+Leases let a system act on that guess without catastrophe: authority that expires by itself, so a node that stops renewing loses it even when nobody can reach it to say so. Fencing tokens turn a lease from probably safe into safe, because the protected resource rejects a holder whose lease has lapsed.
 
 ## Heartbeats and timeouts
 
-A heartbeat is a periodic "I am alive" message, pushed by the monitored node or pulled by a monitor that pings and waits for the reply. The detector declares failure when nothing has arrived for a timeout T. After a crash, detection takes T minus however long ago the last heartbeat arrived, so with interval I it lies between T − I and T. A false suspicion happens whenever a live node is silent for longer than T, and every cause is on the node or the path: a stop-the-world collection (G1's pause goal is 200 ms, but a full collection of a large heap takes seconds; see [JVM essentials](/learn/senior-craft/languages-for-senior-engineers/jvm-essentials)), a hypervisor stall, a heartbeat thread starved by CPU saturation, a TCP retransmission (at least 200 ms on Linux), a route change.
+A heartbeat is a periodic "I am alive" message, pushed by the node or pulled by a monitor that pings it. The detector declares failure after a timeout T of silence, so with interval I a crash is detected between T − I and T after it happens. A false suspicion is a live node silent for longer than T: a stop-the-world collection (G1's pause goal is 200 ms, but a full collection of a large heap takes seconds; see [JVM essentials](/learn/senior-craft/languages-for-senior-engineers/jvm-essentials)), a hypervisor stall, a heartbeat thread starved of CPU, a TCP retransmission (at least 200 ms on Linux), a route change.
 
 Real systems choose T from the cost of being wrong:
 
@@ -26,17 +26,11 @@ Real systems choose T from the cost of being wrong:
 | HDFS DataNode | 3 s | 630 s (2 × 5-minute recheck + 10 heartbeats) | Re-replication of every block it held |
 | Load balancer health check | 2–10 s | 2–3 consecutive failures | Removed from rotation; reversible |
 
-Read the table as a price list. HDFS waits ten and a half minutes because declaring a DataNode dead starts copying terabytes; a load balancer acts in seconds because putting an instance back costs nothing.
+Read the table as a price list: HDFS waits ten and a half minutes because declaring a DataNode dead starts copying terabytes; a load balancer acts in seconds because putting an instance back costs nothing.
 
 ## The trade, simulated
 
-To put numbers on it, I simulated one monitored node for 40,000 node-hours with this model:
-
-- The sender's timer fires every 1,000 ms, plus scheduling jitter drawn from an exponential distribution with a 1 ms mean.
-- Stop-the-world pauses come from two independent Poisson processes: minor pauses about every 10 s, lognormal with a 20 ms median; long stalls about once an hour, lognormal with a 500 ms median and σ = 1.0, so one in ten exceeds 1.8 s, one in a hundred 5.1 s, one in a thousand 11 s. A heartbeat due during a pause goes out when the pause ends.
-- The network adds 1 ms plus an exponential delay with a 2 ms mean; one heartbeat in a thousand is retransmitted 200 ms late; delivery is in order.
-
-A false suspicion is a silence longer than the detector's threshold while the node is alive. Detection time comes from crashes injected at random moments.
+A simulation of one node over 40,000 node-hours puts numbers on it. Heartbeats go out every 1,000 ms plus exponential jitter (1 ms mean). Pauses come from two Poisson processes: minor ones about every 10 s (lognormal, 20 ms median) and long stalls about once an hour (lognormal, 500 ms median, σ = 1.0, so one in ten exceeds 1.8 s, one in a hundred 5.1 s, one in a thousand 11 s); a heartbeat due during a pause goes out when it ends. The network adds 1 ms plus an exponential 2 ms, and retransmits one heartbeat in a thousand 200 ms late. False suspicions are silences past the threshold on a live node; detection times come from crashes injected at random.
 
 | Detector (simulated) | Silence before suspicion | False suspicions per node-hour | Per day across 1,000 nodes | Mean detection after a crash |
 |---|---|---|---|---|
@@ -50,11 +44,11 @@ A false suspicion is a silence longer than the detector's threshold while the no
 | φ ≥ 8, Akka's defaults | ≈ 4.5 s | 0.020 | 470 | 4.0 s |
 | φ ≥ 8, Cassandra's exponential model | ≈ 18.4 s | 0.0001 (5 events) | 3 | 17.9 s |
 
-Three readings. Detection time is the threshold minus half an interval, whichever detector you use. The false-suspicion rate is the tail of the pause distribution: every row is stalls per hour times the probability that a stall outlasts the threshold, so going from 5 s to 10 s cut false suspicions ninefold. And fleet size turns a negligible-looking rate into a stream: 0.015 per node-hour is 350 false alarms a day. The numbers belong to the assumed pause model; the method transfers. Measure your heartbeat inter-arrival histogram and your GC and steal logs, and read the threshold off their tail.
+Three readings. Detection time is the threshold minus half an interval, whatever the detector. The false-suspicion rate is the pause tail (stalls per hour times the chance one outlasts the threshold), so 5 s to 10 s cut it ninefold. And fleet size turns a small rate into a stream: 0.015 per node-hour is 350 false alarms a day. The numbers belong to this pause model; read your own threshold off the tail of your inter-arrival histogram and GC and steal logs.
 
 ## Phi-accrual, computed by hand
 
-A fixed timeout is a step: alive until T, dead after. The φ-accrual detector (Hayashibara, Défago, Yared and Katayama, 2004) outputs a continuous suspicion level. It keeps a sliding window of inter-arrival times, fits a distribution with CDF F, and asks how likely a live node's heartbeat is to be this late:
+A fixed timeout is a step: alive until T, dead after. The φ-accrual detector (Hayashibara, Défago, Yared and Katayama, 2004) outputs a continuous suspicion level: it fits a distribution with CDF F to a sliding window of inter-arrival times and asks how likely a live node's heartbeat is to be this late:
 
 $$\varphi(\Delta t) = -\log_{10}\bigl(1 - F(\Delta t)\bigr)$$
 
@@ -100,28 +94,13 @@ for dt in (1000, 1300, 1561, 2000):
     print(dt, round(phi_normal(dt), 2), round(phi_exponential(dt), 2))
 ```
 
-`erfc` computes the upper tail directly; `1 - cdf` would round 0.99999999 and lose the digits φ is made of. Under the normal model, threshold 8 fires 561 ms after the heartbeat was due. The model promises that a live node is this late once in 10⁸ heartbeats, 3.6 × 10⁻⁵ times per hour. The simulation's normal-model row raised 0.25 per hour, about 7,000 times the promise. A window of calm heartbeats has never seen a pause, and the normal tail is thin where pauses are heavy. Threshold 8 means "one in 10⁸ if the model is right", and the model is wrong exactly where it matters.
+`erfc` computes the upper tail directly; `1 - cdf` would round 0.99999999 and lose the digits φ is made of. Under the normal model threshold 8 fires 561 ms after the heartbeat was due, promising a live node is this late once in 10⁸ heartbeats, 3.6 × 10⁻⁵ times per hour. The simulation's normal-model row raised 0.25 per hour, about 7,000 times the promise: a window of calm heartbeats has never seen a pause, so the fitted tail is thin exactly where pauses are heavy.
 
 ## Phi in Akka and Cassandra
 
-The two best-known implementations repair the model in opposite ways.
+**Akka** (`akka.cluster.failure-detector`; reference defaults: heartbeat interval 1 s, threshold 8, `acceptable-heartbeat-pause` 3 s, `min-std-deviation` 100 ms, `max-sample-size` 1,000) floors σ at the minimum, adds the acceptable pause to the mean, and replaces the normal CDF with the logistic approximation F(y) ≈ 1 / (1 + e^(−y(1.5976 + 0.070566y²))). Its tail is thinner than the normal's, so φ crosses 8 at y = 5.23 instead of 5.61. With the history above, the effective mean is 1,000 + 3,000 = 4,000 ms and y = (Δt − 4,000) / 100: φ is 0.30 at 4,000 ms, 7.30 at 4,500 ms and 8.01 at 4,523 ms, so a steady cluster marks a silent member unreachable about 4.5 s after its last heartbeat. Akka's reference configuration says "around 5.5 seconds" because real histories carry more jitter; each 100 ms of σ above the floor moves the crossing out about 0.5 s. The pause allowance tells the detector how long a live process can stall, which calm heartbeats cannot teach it; in the simulation it cut false suspicions from 0.25 to 0.02 per node-hour for 3 s of extra detection time.
 
-**Akka** (`akka.cluster.failure-detector`; reference defaults: heartbeat interval 1 s, threshold 8, `acceptable-heartbeat-pause` 3 s, `min-std-deviation` 100 ms, `max-sample-size` 1,000). The code floors σ at the minimum, adds the acceptable pause to the mean, and replaces the normal CDF with a logistic approximation, F(y) ≈ 1 / (1 + e^(−y(1.5976 + 0.070566y²))). The approximation is within about 10⁻⁴ of the normal CDF near the centre, but its tail is thinner, so φ climbs faster: it crosses 8 at y = 5.23 instead of 5.61. With the steady history above, the effective mean is 4,000 ms:
-
-| Δt after the last heartbeat (ms) | y = (Δt − 4,000) / 100 | φ (Akka) |
-|---|---|---|
-| 3,000 | −10 | 0.00 |
-| 4,000 | 0 | 0.30 |
-| 4,300 | 3 | 2.91 |
-| 4,500 | 5 | 7.30 |
-| 4,523 | 5.23 | 8.01 |
-| 5,000 | 10 | 37.6 |
-
-A steady Akka cluster marks a silent member unreachable about 4.5 s after its last heartbeat; Akka's configuration notes say "around 5.5 seconds" because real histories carry more jitter, and every 100 ms of σ above the floor moves the crossing out by about 0.5 s. The pause allowance is you telling the detector how long a live process can stall, which it cannot learn from heartbeats that never stalled. In the simulation it cut false suspicions from 0.25 to 0.02 per node-hour for 3 s of extra detection time.
-
-**Cassandra** (`gms/FailureDetector.java`) models inter-arrival times as exponential, for which 1 − F(Δt) = e^(−Δt/μ), so φ = Δt / (μ ln 10) ≈ 0.434 Δt/μ: linear in the silence, with no variance term. The default `phi_convict_threshold` of 8 convicts after 8 ln 10 ≈ 18.4 mean intervals, about 18 s with 1 s gossip, and each extra unit of threshold adds 2.3 s. Each endpoint's window holds 1,000 samples, and intervals longer than twice the gossip interval (2 s) are never recorded, so an outage cannot teach the detector that outages are normal. [Gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy) covers how the heartbeat versions reach it.
-
-Both end up as a timeout proportional to the typical interval plus slack for the pauses you expect; φ's advantage is that the proportionality adapts per peer, so a cross-region link and a same-rack link share one threshold.
+**Cassandra** models inter-arrival times as exponential, 1 − F(Δt) = e^(−Δt/μ), so φ = Δt / (μ ln 10) ≈ 0.434 Δt/μ: linear in the silence, with no variance term. The default `phi_convict_threshold` of 8 convicts after 8 ln 10 ≈ 18.4 mean intervals, about 18 s with 1 s gossip, and each extra unit adds 2.3 s. Each endpoint's window holds 1,000 samples, and intervals longer than twice the gossip interval (2 s) are never recorded, so an outage cannot teach the detector that outages are normal. Both designs end up as a timeout proportional to the typical interval plus slack for pauses, but one that adapts per peer, so a cross-region link and a same-rack link share one threshold.
 
 ## What "dead" triggers, and why detectors should only suspect
 
@@ -129,39 +108,39 @@ Both end up as a timeout proportional to the typical interval plus slack for the
 |---|---|---|
 | Stop routing requests to it | Seconds of lost capacity | Yes, at the next good heartbeat |
 | Reassign its work (partitions, pods, shards) | Two workers on one partition until the old one notices; duplicates downstream | Partly; consumers must be idempotent |
-| Re-replicate its data | Copying all it stored: 4 TB at an aggregate 1 GB/s is over an hour of disk and network taken from live traffic | No; the copies are made |
+| Re-replicate its data | Copying all it stored: 4 TB at 1 GB/s is over an hour of disk and network taken from live traffic | No; the copies are made |
 | Take over its authority (promote, elect, grant its lock) | Two nodes exercising an exclusive authority | No; split brain unless fenced |
 
-The rule that follows is that a detector should only **suspect**, and **conviction** should be a separate, slower decision. Suspicion is cheap and local: stop sending the node requests, try another replica. Conviction starts irreversible work, so it should wait longer, gather evidence from more than one observer, and be made once, by one decision-maker. SWIM asks k other members to probe a node before suspecting it and lets the node refute the suspicion with a higher incarnation number; Lifeguard stretches the suspicion timeout until independent members confirm. Consul lets gossip detect but records the failure through its Raft-replicated catalog, so service discovery changes once. Kubernetes separates "unreachable, stop scheduling here" (40–50 s) from eviction (300 s later), and HDFS waits 630 s before re-replicating.
+So a detector should only **suspect**; **conviction** is a separate, slower decision. Suspicion is cheap and local: stop sending the node requests. Conviction starts irreversible work, so it waits longer, gathers evidence from several observers, and is made once, by one decision-maker. SWIM has k other members probe before suspecting and lets the node refute with a higher incarnation number; Lifeguard stretches the suspicion timeout until others confirm; Consul records the failure once, in its Raft-replicated catalog; Kubernetes stops scheduling on a node at 40–50 s and evicts 300 s later.
 
 ```viz
 {"type": "system", "scenario": "gossip", "nodes": 6,
  "title": "Membership spread by gossip", "caption": "Each node's view of who is alive spreads by random pairwise exchange. A suspicion raised by one node is confirmed or refuted by other nodes' probes before the cluster acts on it, which is how a single bad link is prevented from ejecting a healthy node."}
 ```
 
-Correlation is the other reason to wait. A switch reboot silences a whole rack at once, and a detector that convicts on first suspicion turns one blip into a re-replication storm across every node behind that switch.
+Correlation is the other reason to wait: a switch reboot silences a whole rack, and convicting on first suspicion turns one blip into a re-replication storm.
 
 ## Leases
 
-A lease is authority (leadership, a lock, ownership of a partition) granted for a bounded time. The holder must renew before expiry; if it cannot, the authority lapses without any message reaching it, and the grantor (a lease service, or a consensus store such as etcd or ZooKeeper) may reassign it after expiry. A lock held by a crashed process is held until someone breaks it; a lease held by a crashed process ends by itself. That is the reason leases exist, and the price is an assumption about time.
+A lease is authority (leadership, a lock, ownership of a partition) granted for a bounded time. If the holder cannot renew before expiry, the authority lapses without any message reaching it, and the grantor (a lease service, or a consensus store such as etcd or ZooKeeper) may reassign it. A crashed process's lock is held until someone breaks it; its lease ends by itself, at the price of an assumption about time.
 
-Renew early. etcd's Go client sends a keepalive every TTL/3, so a 10 s lease survives two lost keepalives. The TTL also bounds failover from below: nobody can take over until it expires, so a 30 s TTL cannot fail over in less than 30 s however good the detector. Choose the TTL from the unavailability you can accept after a real crash, then derive the renewal period and the detector from it. What a lease gives you is **liveness**: a crashed holder cannot block the system forever. Whether it also gives **safety**, at most one holder acting at a time, depends on clocks and pauses, which the next three sections take apart.
+Renew early: etcd's Go client sends a keepalive every TTL/3, so a 10 s lease survives two lost keepalives. The TTL bounds failover from below (a 30 s TTL cannot fail over in under 30 s), so choose it from the unavailability you can accept after a real crash. A lease gives **liveness**: a crashed holder cannot block the system forever. Whether it gives **safety**, at most one holder acting at a time, depends on clocks and pauses.
 
 ## Lease safety under clock drift
 
-Holder and grantor measure one lease on two clocks that start at different moments and tick at different rates. Let the lease be L and suppose every clock's rate is within ρ of true time: quartz is typically a few to a few tens of parts per million, and Spanner budgets 200 ppm for bad hardware (see [time and ordering](/learn/system-design/distributed-systems/time-and-ordering)). Two rules make the lease safe:
+Holder and grantor measure one lease on two clocks that start at different moments and tick at different rates. Let the lease be L and every clock's rate be within ρ of true time (Spanner budgets 200 ppm; see [time and ordering](/learn/system-design/distributed-systems/time-and-ordering)). Two rules make it safe:
 
-1. **The holder starts its clock when it sends the request**, not when the grant arrives, because the grantor started its own clock at or after receiving the request. It measures on a monotonic clock and stops acting when that clock reads L(1 − ρ) − m, where m is a safety margin.
+1. **The holder starts its clock when it sends the request**, since the grantor starts its own at or after receipt, and stops acting when its monotonic clock reads L(1 − ρ) − m, for a safety margin m.
 2. **The grantor reassigns only after L(1 + ρ) + m** on its own clock, started when it granted.
 
-A holder clock running as slow as allowed reads L(1 − ρ) − m after at most L − m/(1 − ρ) of true time. A grantor clock running as fast as allowed reads L(1 + ρ) + m after at least L + m/(1 + ρ). The holder is always finished before the grantor lets go, with about 2m of true time between them plus the request's transit time.
+The slowest allowed holder clock reads L(1 − ρ) − m after at most L − m/(1 − ρ) of true time; the fastest allowed grantor clock reads L(1 + ρ) + m after at least L + m/(1 + ρ). The holder always finishes first, by about 2m plus the request's transit time.
 
 | L = 10 s, ρ = 200 ppm, m = 100 ms | Local reading | True time, worst case |
 |---|---|---|
 | Holder stops acting | 10 × (1 − 0.0002) − 0.1 = 9.898 s after sending | At most 9.900 s |
 | Grantor reassigns | 10 × (1 + 0.0002) + 0.1 = 10.102 s after granting | At least 10.100 s |
 
-The drift term is 2 ms on a 10 s lease. Drift is not what threatens a lease; the margin exists for the scheduling slack between the holder's check and its action, and no margin covers what the next section traces. Chubby states the same rule: its client keeps "a conservative approximation of the master's lease timeout", allowing for the reply's time in flight and requiring that the master's clock never outpace the client's by more than a known factor.
+The drift term is 2 ms on a 10 s lease, so drift is not the threat; the margin covers scheduling slack between check and action, and no margin covers what the next section traces. Chubby's client follows the same rule, keeping "a conservative approximation of the master's lease timeout" that allows for the reply's flight time and a known bound on how much faster the master's clock runs.
 
 ```viz
 {"type": "system", "scenario": "leader-lease", "nodes": 3,
@@ -170,7 +149,7 @@ The drift term is 2 ms on a 10 s lease. Drift is not what threatens a lease; the
 
 ## Traced: a GC pause and a VM freeze
 
-The arithmetic assumes the holder's check and its action happen together. Client A holds a lease (L = 10 s, the rules above) and is about to write; client B is waiting.
+The arithmetic assumes check and action happen together. Client A holds a lease (L = 10 s, the rules above) and is about to write; client B is waiting.
 
 | True time (s) | Event | A's belief | Storage |
 |---|---|---|---|
@@ -184,13 +163,13 @@ The arithmetic assumes the holder's check and its action happen together. Client
 | 16.001 | A resumes mid-write and sends v1, already past its check | Holds lease | **v1 overwrites vB** |
 | 16.002 | A's next check: 16.001 > 9.898; A stops | Lost lease | |
 
-A's check was correct when it ran. No margin helps, because the pause is longer than the lease; a shorter lease makes the overlap more likely, not less. At least a GC pause leaves the machine's clock running, so A's next check catches it.
+A's check was correct when it ran. No margin helps, because the pause is longer than the lease, and a shorter lease makes the overlap more likely, not less. At least a GC pause leaves the clock running, so A's next check catches it.
 
-A VM freeze (a slow live migration, a hypervisor under memory pressure) can be worse. Linux's `CLOCK_MONOTONIC` does not count time the system is suspended, and depending on the hypervisor and clock source a stopped guest may resume with its clocks not advanced by the freeze. Replay the trace with a 15 s freeze at 1.001: at 16.001 A's monotonic clock reads about 1.001, so even a re-check immediately before the write says 8.9 s remain, and A writes v1 over vB with every check passing. The lease's safety rests on the holder's clock measuring elapsed time, and a freeze is the one event that clock may not see. A lease gives liveness; something else has to give safety.
+A VM freeze (a slow live migration, a hypervisor under memory pressure) can be worse: `CLOCK_MONOTONIC` does not count suspended time, and depending on the hypervisor and clock source a stopped guest may resume with its clocks not advanced by the freeze. Replay the trace with a 15 s freeze at 1.001: at 16.001 A's monotonic clock reads about 1.001, so even a re-check just before the write says 8.9 s remain, and A overwrites vB with every check passing. A lease gives liveness; something else has to give safety.
 
 ## Fencing tokens, traced
 
-The fix Martin Kleppmann laid out in 2016, and Chubby shipped as sequencers a decade earlier: the grantor attaches a number to every grant that increases with each grant, 33 to A and 34 to B. Every operation on the protected resource carries the token, and the resource remembers the highest token it has accepted and rejects anything lower.
+The fix Martin Kleppmann laid out in 2016, and Chubby shipped as sequencers a decade earlier: every grant carries a number that increases with each grant, 33 to A and 34 to B. Every operation on the protected resource carries the token; the resource remembers the highest it has accepted and rejects anything lower.
 
 ```mermaid
 sequenceDiagram
@@ -221,10 +200,10 @@ sequenceDiagram
 
 What the storage must do:
 
-- **Check and write atomically.** If the comparison and the write are two steps, A's check can pass a moment before B's write lands, and A's write lands after it.
+- **Check and write atomically.** As two steps, A's check can pass just before B's write lands, and A's write lands after it.
 - **Accept equal, reject lower.** One holder writes many times under one token.
-- **Store the highest token with the data**, durably and replicated with it. A storage node that forgets it on restart accepts 33 again.
-- **Let a new holder fence before it reads.** Fencing stops a stale write only once the storage has seen the newer token. If B reads, then A's delayed write with 33 lands, then B writes from what it read, B acted on stale data. B closes that gap by touching the resource with 34 first (a fenced read or a no-op write).
+- **Store the highest token with the data**, durably and replicated; a node that forgets it on restart accepts 33 again.
+- **Let a new holder fence before it reads.** Storage rejects 33 only once it has seen 34: if B reads, A's delayed write lands, then B writes from what it read, B acted on stale data. B closes the gap by touching the resource with 34 first (a fenced read or a no-op write).
 
 ```viz
 {"type": "system", "scenario": "distributed-lock",
@@ -233,9 +212,7 @@ What the storage must do:
 
 ## Where the token comes from and where it is checked
 
-The token must be monotonic across grants and issued by the grantor from consensus-replicated state: a ZooKeeper znode's sequence number or zxid, an etcd revision, a Raft term or log index, Chubby's sequencer (lock name, mode and generation number). Never a wall clock (two grants in one millisecond, or a clock step), a per-client counter, or a random value, which is unique but not ordered; that is why Redlock cannot fence, as [distributed locks and coordination](/learn/system-design/distributed-systems/distributed-locks-and-coordination) traces.
-
-The check lives in the resource, as a conditional write. In a SQL table it is one column and one `WHERE` clause:
+The token must be monotonic across grants and issued by the grantor from consensus-replicated state: a ZooKeeper sequence number or zxid, an etcd revision, a Raft term or log index, Chubby's sequencer (lock name, mode, generation). Never a wall clock (two grants in one millisecond, or a clock step), a per-client counter, or a random value, which is unique but not ordered; that is why Redlock cannot fence ([distributed locks and coordination](/learn/system-design/distributed-systems/distributed-locks-and-coordination)). The check lives in the resource as a conditional write; in SQL it is one column and one `WHERE` clause:
 
 ```python
 import sqlite3
@@ -259,33 +236,31 @@ print(fenced_write("report", "B again", 34))   # True: same holder, same token
 print(db.execute("SELECT body, fence FROM files").fetchone())   # ('B again', 34)
 ```
 
-`fence <= ?` is the accept-equal, reject-lower rule, and `rowcount` is how the stale holder learns it lost. Object stores do the same with conditional puts on a version or ETag, and Kafka does it with producer epochs, which [exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics) traces as zombie fencing. A resource that cannot check anything (a third-party API, an email provider) cannot be protected by a lease at all; the options are an idempotency key on the operation (see [idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)), a single writer by construction, or stating the risk.
+`fence <= ?` is accept-equal, reject-lower, and `rowcount` tells the stale holder it lost. Object stores do the same with conditional puts on a version or ETag, and Kafka with producer epochs ([exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics) traces this zombie fencing). A resource that cannot check anything (a third-party API, an email provider) cannot be protected by a lease at all: use an idempotency key ([idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)), a single writer by construction, or state the risk.
 
 ## Leader leases in Raft, Chubby and Spanner
 
-A leader lease lets a leader act alone, serving reads from local state without a round trip, because the others have promised not to elect anyone else for a while.
+A leader lease lets a leader serve reads from local state without a round trip, because the others have promised not to elect anyone else for a while.
 
 | System | What is leased | Duration | What makes it safe |
 |---|---|---|---|
-| Raft lease reads (etcd's raft `ReadOnlyLeaseBased`) | Leadership, for reads | About one election timeout (1 s at etcd defaults) | CheckQuorum: followers that heard from a leader recently ignore vote requests; bounded drift |
+| Raft lease reads (etcd's raft `ReadOnlyLeaseBased`) | Leadership, for reads | About one election timeout (1 s at etcd defaults) | CheckQuorum (followers that heard from a leader recently ignore votes); bounded drift |
 | Chubby master | Mastership | "A few seconds" | Replicas promise not to elect another master during the lease |
-| Chubby session | A client's session, locks and ephemeral files | 12 s default extension per KeepAlive; 45 s grace period | Client's local timeout is conservative; a new master assumes the longest lease its predecessor may have granted |
-| Spanner Paxos group | Leadership of each group | 10 s by default, extended by votes | Lease intervals of successive leaders are disjoint, enforced with TrueTime |
+| Chubby session | A client's session, locks and ephemeral files | 12 s default extension per KeepAlive; 45 s grace period | Conservative client timeout; a new master assumes the longest lease its predecessor may have granted |
+| Spanner Paxos group | Leadership of each group | 10 s by default, extended by votes | Successive leaders' lease intervals kept disjoint with TrueTime |
 | Kubernetes controllers | Leadership, as a Lease object | 15 s lease, 10 s renew deadline, 2 s retry | Leader stops at 10 s without renewal; others wait 15 s; no fencing |
 
-In Raft the lease is implicit: a leader that heard from a majority within the last election timeout knows no rival can have won since, provided clocks drift less than the margin, so it can answer reads without a ReadIndex round. etcd ships ReadIndex by default because lease reads trade a round trip for a clock assumption ([consensus with Raft](/learn/system-design/distributed-systems/consensus-raft) has both).
+In Raft the lease is implicit: a leader that heard from a majority within the last election timeout knows no rival can have won since, if clocks drift less than the margin. etcd defaults to ReadIndex, keeping the round trip rather than the clock assumption ([consensus with Raft](/learn/system-design/distributed-systems/consensus-raft)).
 
-Chubby adds the client's side. When a client's local lease timeout expires it cannot tell whether the master has ended its session, so it enters **jeopardy**: it empties and disables its cache and waits a 45 s grace period for a KeepAlive to succeed; if none does, it treats the session as expired and tells the application its locks are gone. The grace period lets sessions survive a master failover. Chubby also shipped both remedies for the pause: **sequencers** that servers can check, and, for servers that cannot, a **lock-delay**: when a holder fails, nobody may take its lock for a period the client chooses, bounded at one minute. Lock-delay is a timing mitigation, not a guarantee.
+Chubby adds the client's side. When a client's local lease timeout expires it cannot tell whether the master has ended its session, so it enters **jeopardy**: it empties and disables its cache and waits a 45 s grace period for a KeepAlive, which lets sessions survive a master failover; if none succeeds, it tells the application its locks are gone. Chubby also shipped both remedies for the pause: **sequencers** that servers can check and, for servers that cannot, a **lock-delay** (nobody may take a failed holder's lock for a client-chosen period of up to one minute), a timing mitigation rather than a guarantee. Kubernetes' election is traced in [distributed locks and coordination](/learn/system-design/distributed-systems/distributed-locks-and-coordination): a crashed controller manager leaves nobody reconciling for 15 s plus up to one retry period.
 
-Spanner holds 10 s Paxos leader leases and, because TrueTime bounds clock uncertainty, keeps successive leaders' lease intervals disjoint, which lets a leader serve strong reads locally. Kubernetes' Lease-based election is traced in [distributed locks and coordination](/learn/system-design/distributed-systems/distributed-locks-and-coordination); here its settings matter because they fix failover: a crashed controller manager leaves nobody reconciling for 15 s plus up to one retry period.
+## Under the hood: Kubernetes nodes, etcd and memberlist
 
-## Under the hood: Kubernetes nodes, etcd, Cassandra and memberlist
+**Kubernetes nodes.** Since NodeLease went GA (1.17), each kubelet renews a Lease in `kube-node-lease` every 10 s, a quarter of its 40 s duration, and writes the much larger NodeStatus only on change or every 5 minutes, which took most heartbeat writes off etcd. The node lifecycle controller checks every 5 s; after `--node-monitor-grace-period` without an update it sets the node's Ready condition to Unknown and taints it `node.kubernetes.io/unreachable`. The grace period rose from 40 s to 50 s in 1.32 after [an issue](https://github.com/kubernetes/kubernetes/issues/121793) showed a lost watch connection, which HTTP/2 health checks take up to 45 s to notice, making the controller mark every node NotReady. Pods tolerate the taint for 300 s by default, so Deployment pods restart elsewhere about 6 minutes after a node dies; StatefulSet pods wait until the old pod object is deleted, since two pods with one identity would be split brain. When a large fraction of a zone looks unhealthy, the controller slows or stops evicting.
 
-**Kubernetes node heartbeats.** Since the NodeLease feature (GA in 1.17), each kubelet renews a Lease object named after its node in the `kube-node-lease` namespace every 10 s, a quarter of its 40 s lease duration, and writes the much larger NodeStatus only when something changes or every 5 minutes. That moved most heartbeat write load off etcd. The node lifecycle controller in `kube-controller-manager` looks every 5 s (`--node-monitor-period`); if neither Lease nor status was updated within `--node-monitor-grace-period`, it sets the node's Ready condition to Unknown and taints it `node.kubernetes.io/unreachable`. The grace period was 40 s through 1.31 and is 50 s from 1.32, because 40 s produced spurious not-ready nodes when renewals ran slow. Pods carry a default 300 s toleration for that taint, so a dead node's Deployment pods restart elsewhere about 6 minutes after it stops. StatefulSet pods are not recreated until the old pod object is deleted, because two pods with one identity would be split brain. When most of a zone looks unhealthy the controller slows or stops evicting, on the theory that the problem is the network, not the nodes.
+**etcd leases.** A lease is a TTL owned by the etcd leader; keepalives renew it, and at expiry the leader revokes it through Raft, deleting every attached key in one committed operation; that is how etcd locks release. Very short TTLs are raised to a minimum derived from the election timeout. Expiry is timed on the leader's clock, and a new leader extends every lease so none expires because of the election itself (newer releases can checkpoint remaining TTLs), so a lease can outlive its TTL by an election or so. A client should time its authority from when it sent its last acknowledged keepalive.
 
-**etcd leases.** A lease is a TTL owned by the etcd leader; the client's keepalive stream renews it, and at expiry the leader revokes it through Raft, deleting every attached key in one committed operation, which is how etcd locks and elections release. etcd raises very short TTLs to a minimum derived from its election timeout, on the order of seconds. Expiry is timed only on the leader's clock, and a new leader extends every lease so that none expires because of the election itself; newer releases can checkpoint remaining TTLs so repeated elections cannot keep a lease alive indefinitely. An etcd lease can therefore outlive its TTL by an election or so. A client that times its authority from when it sent its last acknowledged keepalive errs on the safe side.
-
-**Cassandra** runs the exponential φ above per endpoint, fed by gossip heartbeat versions; operators on noisy cloud networks commonly raise the threshold to 10–12. **memberlist** (Consul, Nomad, Serf) uses SWIM with Lifeguard instead of φ; [gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy) traces both.
+**memberlist** (Consul, Nomad, Serf) uses SWIM with Lifeguard instead of φ, and Cassandra feeds its φ from gossip heartbeat versions; [gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy) traces both.
 
 ## Choosing a detector and a lease
 
@@ -305,7 +280,7 @@ Spanner holds 10 s Paxos leader leases and, because TrueTime bounds clock uncert
 | Renewal period | TTL / 3 | Renewal traffic | One lost renewal loses the lease |
 | Safety margin m | Hundreds of ms | Acting past expiry under drift or a slow check | Unused lease time |
 
-Pick the threshold from the measured pause tail and the cost of a false conviction, the TTL from the failover time you can tolerate, and put fencing on every resource whose corruption you cannot tolerate, whatever the other two numbers are.
+Pick the threshold from the measured pause tail and the cost of a false conviction, the TTL from the failover time you can tolerate, and fence every resource you cannot afford to corrupt.
 
 ## Exercises
 
@@ -443,45 +418,40 @@ hints:
 
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
-| Pause longer than the lease | Two holders' writes interleaved, or fencing rejections logged at the resource | GC logs or steal metrics show a pause spanning the incident; the rejected token is one below the current | Fencing at the resource; fewer long pauses (smaller heap, a low-pause collector) reduce the rate but never remove it |
-| Lease timed on the wall clock | A holder acts past expiry after an NTP step backwards, or gives up early after a step forwards | Lease code reads `time.time()` or `System.currentTimeMillis()`; incidents line up with steps in chrony or ntpd logs | Monotonic clock, measured from send time, holder stops at L(1 − ρ) − m |
-| Threshold inside the pause tail | Failovers, evictions or membership flaps with no crash | Suspicions line up with GC or steal events; the inter-arrival histogram has a tail past the threshold | Raise the threshold past the measured tail, add a pause allowance, confirm with indirect probes |
-| Renewal starved by the holder's own load | Leases lost exactly when a node is busiest, and the failover adds load elsewhere | Renewal latency climbs with CPU or event-loop lag before each loss | Renew on a dedicated thread or runtime; alert on renewal latency; see [async and event loops](/learn/systems/concurrency/async-and-event-loops) |
-| Token recorded but not enforced | A stale holder's writes succeed although tokens are logged | A test that writes with a lower token is accepted; check and write are separate statements | One conditional write (`WHERE fence <= $token`) in the storage layer, covered by a test |
+| Pause longer than the lease | Two holders' writes interleaved, or fencing rejections at the resource | A GC or steal pause spans the incident; the rejected token is one below the current | Fencing at the resource; shorter pauses lower the rate but never remove it |
+| Lease timed on the wall clock | A holder acts past expiry after an NTP step back, or quits early after a step forward | Lease code reads `time.time()` or `System.currentTimeMillis()`; incidents align with chrony or ntpd steps | Monotonic clock from send time; holder stops at L(1 − ρ) − m |
+| Threshold inside the pause tail | Failovers, evictions or membership flaps with no crash | Suspicions line up with GC or steal events; the inter-arrival histogram's tail passes the threshold | Raise the threshold past the measured tail, add a pause allowance, confirm with indirect probes |
+| Renewal starved by the holder's own load | Leases lost exactly when a node is busiest | Renewal latency climbs with CPU or event-loop lag before each loss | Renew on a dedicated thread; alert on renewal latency; see [async and event loops](/learn/systems/concurrency/async-and-event-loops) |
+| Token recorded but not enforced | A stale holder's writes succeed although tokens are logged | A write with a lower token is accepted; check and write are separate statements | One conditional write (`WHERE fence <= $token`), covered by a test |
 | Token from the wrong source | Two grants with equal or decreasing tokens | Tokens are timestamps, client counters or random IDs | A grantor-issued, consensus-backed counter: zxid, etcd revision, Raft term |
-| Correlated false suspicion | Many nodes declared dead at once, then a re-replication or eviction storm | One network event or one observer's own stall; all suspicions come from one zone or one monitor | Require confirmation from several observers; rate-limit convictions (Kubernetes slows eviction when a zone is mostly unhealthy) |
+| Correlated false suspicion | Many nodes declared dead at once, then a re-replication or eviction storm | All suspicions come from one zone, one network event or one stalled monitor | Confirm from several observers; rate-limit convictions, as Kubernetes does for a mostly unhealthy zone |
 
 ## Interviewer follow-ups
 
-**"Your primary stops heartbeating. When do you fail over, and why that number?"** Model answer: from the measured pause tail and the cost of a wrong failover. In the lesson's model a 5 s threshold means about 350 false alarms a day across 1,000 nodes, and a database failover is expensive and can drop unreplicated writes, so 10–30 s; whatever the number, the promotion carries a higher epoch that storage and replicas enforce, so a wrong guess costs an aborted write, not a forked history. Common wrong answer: "after three missed heartbeats", with no reference to pauses or fencing.
+**"Your primary stops heartbeating. When do you fail over, and why that number?"** Model answer: from the measured pause tail and the cost of a wrong failover. In the lesson's model a 5 s threshold means about 350 false alarms a day across 1,000 nodes, and a database failover is expensive, so 10–30 s; either way the promotion carries a higher epoch that storage enforces, so a wrong guess costs an aborted write, not a forked history. Common wrong answer: "after three missed heartbeats", with no mention of pauses or fencing.
 
-**"What does φ = 8 mean, and do you trust it?"** Model answer: under the fitted distribution a live node's heartbeat would be this late with probability 10⁻⁸; the fit comes from calm heartbeats, so the tail is wrong for pauses, which is why Akka adds an acceptable pause and Cassandra uses an exponential model that works out to 18.4 mean intervals. Common wrong answer: "one false positive in 100 million checks."
+**"What does φ = 8 mean, and do you trust it?"** Model answer: under the fitted distribution a live node would be this late with probability 10⁻⁸, but the fit comes from calm heartbeats, so its tail is wrong for pauses; Akka adds an acceptable pause and Cassandra uses an exponential model. Common wrong answer: "one false positive in 100 million checks."
 
-**"A client holds a 10 s lease and pauses for 15 s. What happens to its writes?"** Model answer: without fencing they overwrite the new holder's work, because the check happened before the pause; with fencing the storage has seen 34 and rejects 33, and the new holder should fence before it reads. Common wrong answer: "re-check the lease before writing" or "use a shorter lease."
-
-**"How do you keep a lease safe across clocks?"** Model answer: holder measures on a monotonic clock from send time and stops at L(1 − ρ) − m; grantor waits L(1 + ρ) + m. At 200 ppm drift is 2 ms per 10 s, so drift is not the danger; pauses and VM freezes are, and only fencing covers those. Common wrong answer: "synchronise the clocks with NTP", which fixes offsets the lease does not use and can step clocks backwards.
-
-**"Why does Kubernetes take about six minutes to reschedule pods from a dead node?"** Model answer: 40–50 s of missed node Lease renewals marks it unreachable, then the default 300 s toleration expires; eviction is slow on purpose because a partitioned node may still run its pods, and StatefulSet pods wait for confirmation. Tune `tolerationSeconds` per workload. Common wrong answer: "the kubelet heartbeat interval is too long."
+**"A client holds a 10 s lease and pauses for 15 s. What happens to its writes?"** Model answer: without fencing they overwrite the new holder's work, because the check happened before the pause; with fencing the storage has seen 34 and rejects 33, and the new holder fences before it reads. Common wrong answer: "re-check the lease before writing" or "use a shorter lease."
 
 ## What mid-level engineers get wrong
 
-- **Treating a timeout as a crash detector.** Consequence: failover logic that assumes the old node is dead and lets it keep writing.
-- **Deriving the timeout from the heartbeat interval** ("three missed beats"). Consequence: false failovers every few hours per node, hundreds a day per fleet.
-- **Trusting φ's nominal probability.** Consequence: a detector that promises 10⁻⁸ and delivers 0.25 false suspicions per node-hour.
-- **Timing a lease on the wall clock, or from when the grant arrived.** Consequence: an NTP step or a slow response keeps the holder acting after the grantor has reassigned.
+- **Treating a timeout as a crash detector.** Consequence: failover logic lets the old node keep writing.
+- **Deriving the timeout from the heartbeat interval** ("three missed beats"). Consequence: hundreds of false failovers a day per fleet.
+- **Trusting φ's nominal probability.** Consequence: a promised 10⁻⁸ that delivers 0.25 false suspicions per node-hour.
+- **Timing a lease on the wall clock, or from when the grant arrived.** Consequence: the holder acts after the grantor has reassigned.
 - **Believing a shorter lease makes a pause safe.** Consequence: more lease losses and the same unsafe write.
 - **Recording fencing tokens without a conditional write.** Consequence: the guarantee exists only in the logs.
-- **Re-replicating or evicting on the first suspicion.** Consequence: one network blip becomes an hour of recovery traffic across a rack.
+- **Re-replicating or evicting on the first suspicion.** Consequence: one network blip becomes an hour of recovery traffic.
 
 ## Senior signals
 
-- You start from **crashed, slow and partitioned look identical** and describe every detector as a false-suspicion rate traded against detection time, with the pause tail setting the rate.
-- You can **compute φ** from a heartbeat history, say what threshold 8 claims, and explain why Akka adds an acceptable pause and Cassandra uses an exponential model.
-- You separate **suspicion from conviction**: cheap, reversible actions on suspicion; failover and re-replication only after confirmation, decided once.
-- You state a lease's **clock rule** with numbers: monotonic clock from send time, holder stops at L(1 − ρ) − m, grantor waits L(1 + ρ) + m, and drift is milliseconds while pauses are seconds.
-- You trace the **pause and the VM freeze** past expiry yourself and say that no lease length fixes them.
-- You define **fencing tokens** by source (grantor, consensus, monotonic) and check (atomic conditional write, accept equal, reject lower, fence before reading), and you say plainly when a resource cannot be fenced.
-- You know the shipped numbers: Kubernetes 10 s node Lease renewals, 40 s (50 s from 1.32) grace and 300 s eviction; controller leader election 15/10/2 s; Chubby's 12 s leases and 45 s grace; Spanner's 10 s leader leases.
+- You start from **crashed, slow and partitioned look identical** and describe every detector as a false-suspicion rate traded against detection time, set by the pause tail.
+- You can **compute φ** from a heartbeat history and explain Akka's pause allowance and Cassandra's exponential model.
+- You separate **suspicion from conviction**: reversible actions on suspicion, irreversible ones after confirmation, decided once.
+- You state a lease's **clock rule** with numbers and say that drift is milliseconds while pauses are seconds, then trace the **pause and VM freeze** that no lease length fixes.
+- You define **fencing tokens** by source (grantor, consensus, monotonic) and check (atomic conditional write, accept equal, reject lower, fence before reading), and say when a resource cannot be fenced.
+- You know shipped numbers: Kubernetes' 10 s node Lease renewals, 50 s grace (40 s before 1.32) and 300 s eviction; Chubby's 12 s leases and 45 s grace.
 
 ## Check yourself
 

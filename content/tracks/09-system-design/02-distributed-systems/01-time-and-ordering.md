@@ -18,13 +18,13 @@ A server's clock is a quartz oscillator counting ticks. Its frequency is off by 
 
 $$\theta = \frac{(t_2 - t_1) + (t_3 - t_4)}{2}, \qquad \delta = (t_4 - t_1) - (t_3 - t_2)$$
 
-Worked: t1 = 0, t2 = 30, t3 = 31, t4 = 12 (ms). The estimated offset θ = (30 + 19) / 2 = 24.5 ms (the server is ahead); the round-trip delay δ = 12 − 1 = 11 ms. NTP assumes the two directions took equal time. If the request actually took 10 ms and the reply 1 ms, the true offset is 20 ms, and the estimate is 4.5 ms off. The error is bounded by δ/2 = 5.5 ms, which is why accuracy tracks network delay and path asymmetry: on the order of a millisecond or less on a LAN with a local time source, tens of milliseconds over the internet, hundreds when a route is congested. PTP (IEEE 1588) with hardware timestamping in the NIC removes most of the software delay and reaches sub-microsecond accuracy on a LAN.
+Worked: t1 = 0, t2 = 30, t3 = 31, t4 = 12 (ms). The estimated offset θ = (30 + 19) / 2 = 24.5 ms (the server is ahead); the round-trip delay δ = 12 − 1 = 11 ms. NTP assumes the two directions took equal time. If the request actually took 10 ms and the reply 1 ms, the true offset is 20 ms, and the estimate is 4.5 ms off. The error is bounded by δ/2 = 5.5 ms, which is why accuracy tracks network delay and path asymmetry. The [NTP FAQ](https://www.ntp.org/ntpfaq/ntp-s-algo/) puts it at within a millisecond on a quiet LAN and about 5 to 100 ms over the internet, and worse when a route is congested or asymmetric. PTP (IEEE 1588) with hardware timestamping in the NIC removes most of the software delay and can reach sub-microsecond accuracy on a LAN.
 
 ### Slew, step and smear
 
 Having an estimate, the daemon corrects the clock in one of two ways. It **slews**, running the clock slightly fast or slow until the offset is gone: ntpd slews offsets under 128 ms at no more than 500 ppm, so removing 100 ms takes at least 200 s. Or it **steps**, jumping the clock, which ntpd does above 128 ms and chrony does under its `makestep` setting (commonly at start-up only). A step can move wall time backwards.
 
-Leap seconds add a 61-second minute that has crashed software assuming otherwise. Google and AWS **smear** the leap second across 24 hours by running their clocks about 11.6 ppm slow, so their clocks disagree with unsmeared UTC by up to half a second at the midpoint. A fleet that mixes smeared and unsmeared time sources disagrees with itself by that much.
+Leap seconds add a 61-second minute that has crashed software assuming otherwise. Google and AWS **[smear](https://developers.google.com/time/smear)** the leap second across 24 hours by running their clocks about 11.6 ppm slow, so their clocks disagree with unsmeared UTC by up to half a second at the midpoint. A fleet that mixes smeared and unsmeared time sources disagrees with itself by that much.
 
 ### Wall clock versus monotonic clock
 
@@ -59,7 +59,7 @@ The opening story is not bad luck; it is a probability you can compute. Model tw
 |---|---|---|---|---|---|---|
 | Uniform, E = 10 ms | 45% | 28% | 12.5% | 0 | 0 | 0 |
 | Uniform, E = 50 ms | 49% | 45% | 40% | 32% | 12.5% | 0 |
-| Normal, σ = 0.5 ms (good LAN) | 7.7% | 0 | 0 | 0 | 0 | 0 |
+| Normal, σ = 0.5 ms (good LAN) | 7.9% | 0 | 0 | 0 | 0 | 0 |
 | Normal, σ = 5 ms | 44% | 24% | 7.8% | 0.2% | 0 | 0 |
 | Normal, σ = 25 ms (internet NTP) | 49% | 44% | 39% | 29% | 7.9% | 0.2% |
 
@@ -209,7 +209,7 @@ Stores track versions of a *key*, not events of a process, so they use **version
 
 - **Dynamo** (Amazon's 2007 paper) attached a vector clock of (coordinator node, counter) pairs to each object. A read returning incomparable versions hands all of them to the client as siblings; the client merges (the shopping cart takes the union) and writes back with a vector that dominates both, collapsing them. The paper truncates a vector once it reaches about 10 entries, dropping the oldest, and accepts that truncation can misreport concurrency.
 - **Riak** used the same model, pruning vectors by size and age (`small_vclock`, `big_vclock`, `young_vclock`, `old_vclock`). Keying entries by client caused unbounded growth; keying by server vnode caused **sibling explosion**, where a server acting for two clients could not tell their writes apart and piled up false siblings. Riak 2.0's **dotted version vectors** add a "dot" (replica, counter) naming the exact write, which keeps the sibling count bounded by the real number of concurrent writers.
-- **Cassandra** keeps no vectors at all: every cell carries a microsecond timestamp (supplied by the client or the coordinator) and the larger one wins, with ties broken in favour of the tombstone, then the larger value. **DynamoDB global tables** resolve concurrent cross-region writes by last-writer-wins as well. These are the stores where the simulation above applies directly.
+- **Cassandra** keeps no vectors at all: every cell carries a microsecond timestamp (supplied by the client or the coordinator) and the larger one wins, with ties broken in favour of the tombstone, then the larger value. **DynamoDB global tables** in their default multi-Region eventual consistency mode resolve concurrent cross-Region writes by last-writer-wins as well (the strong-consistency mode rejects the second write with a conflict error instead). These are the stores where the simulation above applies directly.
 
 Metadata cost is entries × (replica id + counter), a few dozen bytes for three replicas. It becomes a problem only when the entry set grows with clients, which is why production systems key by replica.
 
@@ -231,9 +231,9 @@ Trace it on the opening's clocks: A runs 80 ms fast, B is correct (times in ms p
 | 110 | B local write | 110 | (181, 2) | B's clock is still behind 181, so c counts |
 | 190 | B local write | 190 | (190, 0) | physical time overtakes l; c resets |
 
-B's write at true time 110 happened after it received A's message. Pure physical timestamps would order it at 110, before A's 181, violating causality; the HLC stamps it (181, 2), after. The stamps never go backwards, l stays within the maximum clock skew of true time, and the pair fits in 64 bits (the paper suggests 48 bits of milliseconds and 16 of counter), so it replaces a timestamp column without a schema change.
+B's write at true time 110 happened after it received A's message. Pure physical timestamps would order it at 110, before A's 181, violating causality; the HLC stamps it (181, 2), after. The stamps never go backwards, l stays within the maximum clock skew of true time, and the pair fits in 64 bits (the paper keeps the most significant 48 bits of a 64-bit NTP timestamp for l, still about microsecond granularity, and 16 bits for c), so it replaces a timestamp column without a schema change.
 
-**CockroachDB** stamps transactions with HLCs and configures a maximum clock offset (`--max-offset`, 500 ms by default). A read at timestamp 1,000 that finds a value written at 1,200 cannot tell whether that write happened before the read in real time, because the writer's clock may have been up to 500 ms ahead. Anything in the **uncertainty interval** (1,000, 1,500] forces an uncertainty restart: the read moves its timestamp above 1,200 and retries, which is the latency cost of not having TrueTime. Correctness now rests on the bound, so each node measures its offset against its peers and shuts itself down if it is more than 80% of the maximum offset away from at least half of them. MongoDB's cluster time and YugabyteDB use HLCs for the same reasons.
+**CockroachDB** stamps transactions with HLCs and configures a maximum clock offset (`--max-offset`, 500 ms by default). A read at timestamp 1,000 that finds a value written at 1,200 cannot tell whether that write happened before the read in real time, because the writer's clock may have been up to 500 ms ahead. Anything in the **uncertainty interval** (1,000, 1,500] forces an uncertainty restart: the read moves its timestamp above 1,200 and retries, which is the latency cost of not having TrueTime. Correctness now rests on the bound, so each node measures its offset against its peers and shuts itself down if it is more than 80% of the maximum offset away from at least half of them. YugabyteDB uses HLCs for the same reasons.
 
 ## TrueTime and commit wait
 
@@ -259,7 +259,7 @@ The price is about 2ε per read-write commit, largely hidden behind replication,
 | NTP wall-clock timestamp | 8 bytes | No, and misorders close events | Is wall time | Silently, for correctness | Cassandra cells, DynamoDB global tables, logs |
 | Lamport clock | 8 bytes | No | None | No | Total-order broadcast, the idea behind zxid and Raft indexes |
 | Vector or version vector | 8–16 bytes × writers | Yes, exactly | None | No | Dynamo, Riak, CRDT causality |
-| Hybrid logical clock | 8 bytes | No, but preserves causality | Within max skew | Yes, enforced by self-shutdown | CockroachDB, MongoDB, YugabyteDB |
+| Hybrid logical clock | 8 bytes | No, but preserves causality | Within max skew | Yes, enforced by self-shutdown | CockroachDB, YugabyteDB |
 | TrueTime interval | Two timestamps | No | Is wall time, with a proven bound | Yes, by hardware | Spanner |
 
 | Need | Use |

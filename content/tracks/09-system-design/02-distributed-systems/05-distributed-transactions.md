@@ -132,7 +132,7 @@ Had step 2 been treated as a failure, step 5 would have run for a booking the or
 
 ### Orchestration and the engines behind it
 
-An **orchestrator** is a persisted state machine; after a crash it rereads its table and resumes. **Choreography** has each service react to the previous one's event with no central record, which makes compensation order and "where is saga s42?" hard to answer. [Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) compares them; for compensating workflows, orchestration wins. The engines that run orchestrated sagas are durable-execution systems: Temporal (and Cadence, its predecessor at Uber) records every step's result in an event history and replays the workflow code after a crash; AWS Step Functions persists a state machine; Netflix built Conductor to orchestrate its content and media workflows across microservices.
+An **orchestrator** is a persisted state machine; after a crash it rereads its table and resumes. **Choreography** has each service react to the previous one's event with no central record, which makes compensation order and "where is saga s42?" hard to answer. [Event-driven architecture](/learn/system-design/building-blocks/event-driven-architecture) compares them; for compensating workflows, orchestration wins. The engines that run orchestrated sagas are durable-execution systems: Temporal (and Cadence, its predecessor at Uber) records every step's result in an event history and replays the workflow code after a crash; AWS Step Functions persists a state machine; Netflix built Conductor to orchestrate workflows that span microservices (and stopped maintaining the open-source repository in December 2023).
 
 ### Designing compensations
 

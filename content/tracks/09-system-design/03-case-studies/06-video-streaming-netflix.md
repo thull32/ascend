@@ -45,7 +45,7 @@ Assumptions: 250 million accounts, 40 million concurrent streams at the global p
 | Peak egress | $4 \times 10^7$ streams × 5 Mbps | **200 Tbps** |
 | Bytes per viewing hour | 5 Mbps × 3,600 s ÷ 8 | 2.25 GB |
 | Daily egress | $2.5 \times 10^8$ h × 2.25 GB | 560 PB/day, a 52 Tbps average: the peak is about 4× the average |
-| Egress if bought | $5.6 \times 10^8$ GB/day × \$0.001–0.005 per GB | \$0.5–3 million a day |
+| Egress if bought | $5.6 \times 10^8$ GB/day × \$0.001–0.005 per GB (assumed high-volume contract pricing; list prices are higher) | \$0.5–3 million a day |
 | Catalogue, all formats | (60 Mbps of video ladders across 4 codecs + 20 audio tracks × 0.25 Mbps) × 3,600 s ÷ 8 | 29 GB per content hour; × 50,000 ≈ **1.5 PB** |
 | Encoding leverage | 20% saving on a title watched $10^7$ hours: $10^7$ × 2.25 GB × 0.2 | 4.5 PB never sent, for one title |
 | Stream starts | 40 M streams ÷ 2,700 s average session | 15,000/s at peak, 45,000/s at the top of the hour |
@@ -131,12 +131,12 @@ Everything up to pressing play (browsing, sign-in, the playback decision) runs i
 
 ## Deep dive 1: the encoding ladder, per title and per shot
 
-A **ladder** is the set of renditions (resolution, bitrate, codec) the player switches between. Netflix's 2015 per-title encoding post published the fixed ladder it had used, from 235 kbps at 320×240 to 5,800 kbps at 1080p, and explained why one ladder is wrong in both directions: flat animation looks the same at 1080p and about 2 Mbps as at 5.8 Mbps, while grainy film shows artefacts even at 5.8 Mbps.
+A **ladder** is the set of renditions (resolution, bitrate, codec) the player switches between. Netflix's 2015 [per-title encoding post](https://web.archive.org/web/2016id_/http://techblog.netflix.com/2015/12/per-title-encode-optimization.html) published the fixed ladder it had used, from 235 kbps at 320×240 to 5,800 kbps at 1080p, and explained why one ladder is wrong in both directions: simple content such as flat animation reaches the top rung's quality at a fraction of its bitrate, while grainy, high-motion film shows artefacts even at 5.8 Mbps.
 
 Per-title encoding measures instead of assuming:
 
 1. Encode the title at many (resolution, quality setting) pairs.
-2. Score each encode with a perceptual metric. Netflix's open-source VMAF is trained on human ratings and reports 0–100.
+2. Score each encode with a perceptual metric. Netflix's open-source [VMAF](https://github.com/Netflix/vmaf) is fitted to human ratings and scores up to 100.
 3. Plot quality against bitrate for each resolution. At low bitrates a lower resolution, upscaled, beats a starved higher one; at high bitrates the order flips. The **upper convex hull** across the curves is the efficient frontier.
 4. Place rungs along the hull, each a visible step up.
 
@@ -155,14 +155,14 @@ The search multiplies compute. An illustrative 8 resolutions × 6 quality settin
 
 ## Deep dive 2: Open Connect, proactive fill and placement
 
-Two deployment models are publicly described. **Embedded appliances** sit inside an ISP's network and are provided free to qualifying ISPs, which supply space, power and connectivity and stop carrying Netflix traffic across their interconnects. Appliances at **internet exchange points** serve ISPs without embedded ones and are the upstream tier. Storage-heavy models hold much of the catalogue; flash models serve the most popular files at higher throughput.
+Two deployment models are publicly described. **Embedded appliances** sit inside an ISP's network and are provided free to qualifying ISPs, which supply space, power and connectivity and stop carrying Netflix traffic across their interconnects. Appliances at **internet exchange points** serve ISPs without embedded ones and are the upstream tier. The [appliance page](https://openconnect.netflix.com/en/appliances/) lists storage appliances (up to 120 TB and about 200 Gbps, at exchange points and larger ISPs) and cheaper global appliances (up to 60 TB, about 80 Gbps) for smaller ISPs.
 
 ```viz
 {"type": "network", "scenario": "cdn-cache", "title": "Classic pull-through caching",
  "caption": "The first request misses and goes to origin; later requests hit the edge. Open Connect is publicly described as filling appliances ahead of demand in an off-peak window instead, so a miss at 9 pm, the worst moment to fetch across the internet, is rare by design."}
 ```
 
-A classic CDN pulls a file on its first miss. Open Connect is described as **proactive**: each day the system predicts what each site's members will watch, computes what each site should hold, and appliances download the changes in an **off-peak fill window** agreed with the ISP. Four workload properties make that work, and they decide whether the design transfers to another company:
+A classic CDN pulls a file on its first miss. Open Connect is [described](https://openconnect.netflix.com/Open-Connect-Overview.pdf) as **proactive**: each day the system predicts what each site's members will watch, computes what each site should hold, and appliances download the changes in an **off-peak fill window** agreed with the ISP. Four workload properties make that work, and they decide whether the design transfers to another company:
 
 1. The catalogue is finite and releases are scheduled weeks ahead.
 2. Popularity is predictable from viewing history.
@@ -237,7 +237,7 @@ Simulated with six rungs from the 2015 fixed ladder (235, 750, 1,750, 3,000, 4,3
 | 25.0 | Buffer | Segment 20 at 5,800 kbps takes 19.3 s; the buffer absorbs it | 35.8 s after |
 | 36.1–38.8 | Throughput | Buffer empties: **stall 2.7 s** until segment 10 lands after 15.5 s | 4.0 s |
 | 38.8 | Throughput | Harmonic mean of 8,000, 8,000, 1,500 is 3,273; × 0.8 → 1,750 kbps, a 5.8 s download on 4 s of buffer: **stall 1.8 s** | 4.0 s |
-| 44.3 | Buffer | Target 235 + (25.8 ÷ 40) × 5,565 = 3,827 → 3,000 kbps | 29.8 s |
+| 44.3 | Buffer | Target 235 + (25.8 ÷ 40) × 5,565 = 3,824 → 3,000 kbps | 29.8 s |
 | 44.6–72.5 | Throughput | Estimate 1,477 → 750 kbps for 13 segments while the buffer rebuilds | 5.5 → 27.6 s |
 
 ### What the trace shows
@@ -328,10 +328,10 @@ At 10× streams, appliance count per site is bounded by the ISP's space and powe
 
 ## What real companies describe
 
-- Netflix's technology blog introduced **per-title encoding** in 2015, publishing its old fixed ladder, and later described **shot-based encoding** (the dynamic optimizer), **VMAF**, which it open-sourced, and AV1 streaming to supporting devices.
-- Netflix's Open Connect documentation and talks describe **appliances embedded in ISPs** at no charge to qualifying ISPs, **fill during off-peak windows**, prefixes learned over **BGP**, and FreeBSD with NGINX pushing hundreds of Gbps of TLS video per server.
-- **Huang et al., SIGCOMM 2014**, written with Netflix engineers, tested **buffer-based rate adaptation** on Netflix's production service and reported fewer rebuffers at a similar average video rate, with a startup phase that uses capacity estimates.
-- Netflix has written about **SPS** as its health metric, its Kafka-based **Keystone** pipeline, and **Cassandra** for viewing history.
+- Netflix's technology blog introduced **per-title encoding** in 2015 and later described **shot-based encoding** (the dynamic optimizer), the open-sourced **VMAF**, and AV1 streaming.
+- Netflix's Open Connect documentation and talks describe **appliances embedded in ISPs** at no charge to qualifying ISPs, **fill during off-peak windows**, prefixes learned over **BGP**, and appliances running FreeBSD and NGINX.
+- **Huang et al., SIGCOMM 2014**, written with Netflix engineers, tested **buffer-based rate adaptation** on Netflix's production service and [reported](http://yuba.stanford.edu/~nickm/papers/sigcomm2014-video.pdf) 10–20% fewer rebuffers than the then-default algorithm at a similar average video rate, with a startup phase that uses capacity estimates.
+- Netflix has written about **SPS** as its health metric (also the steady-state metric in its [chaos engineering paper](https://arxiv.org/abs/1702.05843)), its Kafka-based **[Keystone](https://web.archive.org/web/2022id_/https://netflixtechblog.com/keystone-real-time-stream-processing-platform-a3ee651812a)** pipeline, and **[Cassandra for viewing history](https://web.archive.org/web/2022id_/https://netflixtechblog.com/scaling-time-series-data-storage-part-i-ec2b6d44ba39)**.
 - The ladder, appliance, node and latency numbers in this lesson are illustrative assumptions, not Netflix figures.
 
 ## Interviewer follow-ups
@@ -451,7 +451,7 @@ hints:
   options: ["It moves every title to a newer codec with better compression", "It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than before", "It picks rungs from each title's measured quality curves"]
   answer: 3
   explanation: >-
-    A fixed ladder assumes every title needs the same bits for the same quality. Scoring encodes with a perceptual metric and placing rungs on the convex hull shows that flat animation reaches top quality at about 2 Mbps while grainy film needs more than 5.8. Codec choice and client-side adaptation are separate levers.
+    A fixed ladder assumes every title needs the same bits for the same quality. Scoring encodes with a perceptual metric and placing rungs on the convex hull shows, in the illustrative case, that flat animation reaches top quality at about 2 Mbps while grainy film needs more than 5.8. Codec choice and client-side adaptation are separate levers.
 - q: >-
     Which property of the workload most directly makes proactive off-peak fill better than pull-through caching?
   options: ["Video files are large, so each cache miss costs a long origin fetch", "The catalogue is finite and scheduled, so demand can be forecast", "Viewers tolerate a slow first start while the edge pulls the file", "ISPs require content to be pre-positioned before they will peer"]

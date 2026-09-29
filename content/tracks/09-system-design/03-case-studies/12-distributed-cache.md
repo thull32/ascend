@@ -38,7 +38,7 @@ The resilience row is the one to press on: ask what the database behind the cach
 | One node dies, no protection | + its share, $9 \times 10^6 / 130$ = 69,000/s, all missing | 159,000/s: **1.77× normal** |
 | One zone of three dies | a third of the reads miss | 3 million/s: fatal |
 | Hot key | one key at $10^6$ reads/s × 1.1 KB | 1 GB/s on one node sized for 77,000 ops |
-| Cross-zone traffic | two-thirds of 11 GB/s crosses zones | 7.3 GB/s, 634 TB a day; at ~\$0.01/GB charged on each side, ~\$12,700 a day |
+| Cross-zone traffic | two-thirds of 11 GB/s crosses zones | 7.3 GB/s, 634 TB a day; at \$0.01/GB charged in each direction (AWS's cross-zone rate at the time of writing), ~\$12,700 a day |
 | Client connections | 2,000 app hosts × 20 processes × 130 nodes | 5.2 million, 40,000 per node |
 
 **Consequences.** Node loss needs a strategy (replicas or a gutter pool) and zone loss needs replicas in other zones, even though the cache holds nothing irreplaceable. Per-key load, not aggregate load, breaks a well-sized cluster. Zone-local reads pay for themselves. And 40,000 connections per node argues for a proxy per host.
@@ -134,7 +134,7 @@ class Ring:
 
 The last column is the failure argument: with one point per node, a dead node doubles one neighbour's load; with 160 its load spreads over 92 nodes at under 5% each.
 
-**Alternatives.** Redis Cluster hashes keys into 16,384 slots (CRC16 mod 16,384) assigned to nodes explicitly; rebalancing moves slots, and a client that hits a moved slot gets a `MOVED` redirect and refreshes its map. Rendezvous hashing scores every node per key and picks the highest: no ring and minimal movement, at O(N) per lookup. Routing can live in the client (no extra hop; thousands of processes must converge on one ring version), in a proxy per host (one place to change, 8× fewer connections per node, a fraction of a millisecond extra), or in the server via redirects. At hundreds of services a per-host proxy usually wins. [Partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) covers the general case.
+**Alternatives.** Redis Cluster hashes keys into 16,384 slots (CRC16 mod 16,384) assigned to nodes explicitly; rebalancing moves slots, and a client that hits a moved slot gets a `MOVED` redirect and refreshes its map. Rendezvous hashing scores every node per key and picks the highest: no ring and minimal movement, at O(N) per lookup. Routing can live in the client (no extra hop; thousands of processes must converge on one ring version), in a proxy per host (one place to change, up to 20× fewer connections per node because one pool replaces 20 processes' pools, a fraction of a millisecond extra), or in the server via redirects. At hundreds of services a per-host proxy usually wins. [Partitioning and rebalancing](/learn/system-design/distributed-systems/partitioning-and-rebalancing) covers the general case.
 
 ```exercise
 id: ring-moves
@@ -312,19 +312,19 @@ For read-your-writes, route a user's reads to the database for a few seconds aft
 |---|---|---|---|---|
 | Partitioning | Ring with 160 virtual nodes | `hash mod N`; one point per node | 99.24% of keys move with mod-N; 5.79× hot spot with one point | A fixed-size cluster that never changes |
 | Node-loss protection | Zone replicas (plus a small gutter) | Gutter only; nothing | A zone is 3 million reads/s; the database takes 1.5× at most | A database with 10× headroom, or RAM cost dominating |
-| Routing | Proxy per host | Smart client in every process | 8× fewer connections per node; one place to change config | One latency-critical service |
+| Routing | Proxy per host | Smart client in every process | Up to 20× fewer connections per node; one place to change config | One latency-critical service |
 | Write policy | Delete on write + change-stream invalidation | Update on write; write-through | Deletes cannot reorder; every write path invalidates | Data read immediately after write that must be fresh |
 | Engine | Memcached-class for opaque values | Redis Cluster | Multithreaded, simple, efficient per host | Needing sorted sets, counters or server-side routing |
 
 ## At 10× and 100×
 
-**10× (100 million ops/s, 100 TB).** About 1,300 nodes, 2,600 with replicas. With a weekly rolling deploy, 186 nodes restart every day, so the node-failure path becomes the deploy path: every restart must bulk-warm from its replica or the database sees a permanent low-grade storm. Cross-zone traffic would cost ~\$127,000 a day, so zone-local reads are mandatory. Direct client connections become 52 million; a proxy per host is no longer optional.
+**10× (100 million ops/s, 100 TB).** About 1,300 nodes, 2,600 with replicas. With a weekly rolling deploy, about 370 of them restart every day, so the node-failure path becomes the deploy path: every restart must bulk-warm from its replica or the database sees a permanent low-grade storm. Cross-zone traffic would cost ~\$127,000 a day, so zone-local reads are mandatory. Direct client connections become 52 million; a proxy per host is no longer optional.
 
 **100× (a billion ops/s, many regions).** Each region runs its own cluster; invalidation traffic fans out to every region, so deletes are batched through proxies, and the regional replication lag becomes the staleness floor. Hot keys at this rate need near caches everywhere, and the cache hierarchy (in-process, per-host, regional) is designed as one system with a TTL per layer.
 
 ## What real companies describe
 
-Facebook's "Scaling Memcache at Facebook" (NSDI 2013) describes leases for stampedes and stale sets, a gutter pool of about 1% of servers, a routing proxy (mcrouter), invalidation by tailing the database's commit log, and warming a cold cluster from a warm one. Netflix has described EVCache, a Memcached-based cache whose client writes to copies in several zones and reads from the local one, and a cache warmer that fills new replicas from existing ones so clusters can be resized without a cold start. Redis documents Cluster's 16,384 slots and `MOVED` redirects, and warns that asynchronous replication can lose acknowledged writes on failover. Twitter open-sourced twemproxy, a proxy for Memcached and Redis. Treat these as public descriptions, not current internals.
+Facebook's ["Scaling Memcache at Facebook"](https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf) (NSDI 2013) describes leases for stampedes and stale sets, a gutter pool of about 1% of a cluster's memcached servers, a routing proxy (mcrouter), invalidation daemons (mcsqueal) that read the SQL statements each database commits and broadcast the deletes, and Cold Cluster Warmup, which the paper says brings a cold cluster back to full capacity in a few hours instead of a few days. Netflix has described EVCache, a Memcached-based cache whose client writes to copies in several zones and reads from the local one, and a cache warmer that fills new replicas from existing ones so clusters can be resized without a cold start. Redis documents Cluster's 16,384 slots and `MOVED` redirects, and warns that asynchronous replication can lose acknowledged writes on failover. Twitter open-sourced twemproxy, a proxy for Memcached and Redis. Treat these as public descriptions, not current internals.
 
 ## Interviewer follow-ups
 

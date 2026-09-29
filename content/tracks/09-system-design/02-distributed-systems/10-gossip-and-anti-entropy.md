@@ -159,7 +159,7 @@ Every second each Cassandra node increments its own heartbeat version and starts
 
 A's SYN carries only digests. Equal generations compare versions and ship only the delta, in whichever direction is behind; a higher generation wins regardless of version. This is push-pull anti-entropy on digests, and steady-state bytes follow the change rate.
 
-**Failure detection** is the phi-accrual detector from [failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases), fed by the arrival of a newer heartbeat version for each node from anyone. Cassandra approximates inter-arrival times as exponential, so phi = Δt / (mean × ln 10): with a 1-second mean, the default `phi_convict_threshold` of 8 convicts after about 18 seconds of silence, and each step above 8 adds about 2.3 mean intervals. Operators on noisy cloud networks commonly raise it to 10 to 12. Gossip spreads state but does not order decisions; Cassandra's transactional cluster metadata work (CEP-21) moves token ownership and schema changes onto a linearizable log, keeping gossip for liveness.
+**Failure detection** is the phi-accrual detector from [failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases), fed by the arrival of a newer heartbeat version for each node from anyone. Cassandra approximates inter-arrival times as exponential, so phi = Δt / (mean × ln 10): with a 1-second mean, the default `phi_convict_threshold` of 8 convicts after about 18 seconds of silence, and each step above 8 adds about 2.3 mean intervals; the shipped `cassandra.yaml` says most users should never need to adjust it. Gossip spreads state but does not order decisions; Cassandra's transactional cluster metadata work (CEP-21) moves token ownership and schema changes onto a linearizable log, keeping gossip for liveness.
 
 ## Anti-entropy with Merkle trees, traced
 
@@ -174,7 +174,7 @@ Gossip spreads small state. Replicas of a large dataset diverge for other reason
 
 Seven hash comparisons in four round trips. At this size sending all 8 leaf hashes in one message would be cheaper; the tree pays off as leaves multiply. With 2¹⁵ leaves and one differing leaf the walk costs 1 + 2 × 15 = 31 comparisons instead of 32,768, and d scattered differences cost roughly 2d·log₂(L/d). Cassandra trades round trips for bandwidth: each replica sends its whole tree to the repair coordinator, which diffs them locally and then streams the mismatched ranges between replica pairs.
 
-The expensive part is **building** the tree: every row in the range is read and hashed. At 200 MB/s, 2 TB per replica takes nearly 3 hours of disk and CPU, which is why repair is scheduled, throttled and run per range. Dynamo and Riak's active anti-entropy keep trees updated on every write instead, paying on the write path to avoid the scan.
+The expensive part is **building** the tree: every row in the range is read and hashed. At 200 MB/s, 2 TB per replica takes nearly 3 hours of disk and CPU, which is why repair is scheduled, throttled and run per range. Riak's [active anti-entropy](https://docs.riak.com/riak/kv/2.2.3/learn/concepts/active-anti-entropy/index.html) keeps persistent trees updated on every write instead, paying on the write path to avoid the scan.
 
 ```exercise
 id: merkle-diff

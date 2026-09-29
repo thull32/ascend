@@ -290,9 +290,9 @@ At 10× traffic the edge carries it and origin grows linearly. At 10× candidate
 
 ## What real companies describe
 
-- Google's published autocomplete policies say predictions come from real searches and describe removing predictions that are violent, sexually explicit, hateful or dangerous, among other categories: the kill list is a product requirement, not an afterthought.
-- Lucene and Elasticsearch document a completion suggester built on an in-memory finite-state transducer, the main alternative to a hand-built trie.
-- LinkedIn's engineering blog described Cleo, an open-sourced typeahead library, and Facebook's engineering blog described the path of a typeahead query; both treat the index as in-memory and the request path as a latency budget.
+- Google's published [autocomplete policies](https://support.google.com/websearch/answer/7368877) say predictions come from real searches and describe removing predictions that are violent, sexually explicit, hateful, disparaging or dangerous, among other categories: the kill list is a product requirement, not an afterthought.
+- Elasticsearch documents its [completion suggester](https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html) as using in-memory structures that are fast to query and costly to build; underneath, Lucene runs a top-N search over a weighted finite-state transducer. It is the main alternative to a hand-built trie.
+- LinkedIn open-sourced [Cleo](https://github.com/linkedin/cleo), a library for "partial, out-of-order and real-time typeahead search". Facebook's engineering blog [traced a typeahead query](https://engineering.fb.com/2010/05/17/web/the-life-of-a-typeahead-query/): an aggregator fanning out to leaf services that each hold an index, a 100 ms budget because "late answers are wrong answers", and the browser fetching the user's friends, pages and groups as soon as the box gets focus, so personal matches come from the browser's cache: the same split as this lesson's client-side merge.
 - The corpus, ratios and node sizes above are from this lesson's own simulation, and the traffic figures are illustrative.
 
 ## Interviewer follow-ups
@@ -302,6 +302,8 @@ At 10× traffic the edge carries it and origin grows linearly. At 10× candidate
 **"How fast can a brand-new query appear, and what limits it?"** Model answer: about 6 minutes at origin and 11 at the edge, from the trace. The deliberate limit is the distinct-user threshold: every minute removed makes it easier to inject a phrase. Common wrong answer: "rebuild the trie in real time", which is not the bottleneck.
 
 **"What stops autocomplete leaking someone's private search?"** Model answer: only queries searched by at least N distinct users in the window are eligible, with N set with the privacy team, in the batch and the overlay alike; personal history is shown only to its owner and never enters the shared index. Common wrong answer: "we encrypt the logs", which does not stop the ranking pipeline promoting a unique query.
+
+**"A user types 'york' and expects 'new york weather'. How do you match inside a query?"** Model answer: build a second trie in which each query is also inserted from every later word start ("york weather", "weather"), each entry pointing at the full query's ID. For 20-character queries of about three words that roughly doubles the characters inserted, so if node count grows with them the extra trie is 3.5–5.4 GB of nodes, IDs and labels beside the 6.3–8.2 GB base, and it reuses the base's query dictionary. Keep it separate and consult it only when the prefix trie returns fewer than 8, so infix matches never push out completions of what the user actually typed. Common wrong answer: index every character position (a suffix tree): about 20 entry points per query instead of 3, most of them fragments like "ork" that nobody types.
 
 **"Why not use Elasticsearch?"** Model answer: at moderate scale I would. At 140,000 requests a second and a 10 ms budget, a static index replicated in-process is 30 small servers with no cluster coordination and no network hop, and it changes once a day plus an overlay; a search engine pays for write flexibility this workload does not use. Common wrong answer: "it doesn't scale", when the reason is cost and predictability.
 

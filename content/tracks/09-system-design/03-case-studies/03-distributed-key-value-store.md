@@ -42,7 +42,7 @@ The reference point is the design Amazon published in its 2007 Dynamo paper, whi
 | Per node, 48 nodes | 2.2 million ÷ 48 | ~46,000 replica ops/s; ~1 TB of data |
 | Network | Writes 600 MB/s; reads ~1 GB/s (one full response plus digests) | ~35 MB/s, 0.3 Gbit/s per node |
 | Bloom filters | $3 \times 10^{10}$ replica keys ÷ 48 × 10 bits | ~780 MB of RAM per node |
-| Ring metadata | 48 nodes × 256 tokens | 12,288 tokens, a few hundred KB, held by every node |
+| Ring metadata | 48 nodes × 16 tokens (deep dive 1 explains why not 256) | 768 tokens, tens of KB, held by every node |
 | Node recovery | 1 TB ÷ 200 MB/s streaming throttle | 5,000 s, about 1.4 hours with two copies |
 
 **Machine count.** An NVMe node with bloom filters and a warm block cache serves tens of thousands of point operations a second; how many depends on value size, cache hit ratio and compaction load. Storage alone would allow 25 nodes of 2 TB, but that puts ~90,000 replica operations a second on each, too close to the ceiling for a 10 ms p99. So: **48 nodes, 16 per zone, ~1 TB of data each on 4 TB of NVMe** (under 50% full, because compaction needs free space), 64 GB of RAM for bloom filters, indexes and cache.
@@ -208,7 +208,7 @@ Every second each node gossips its view (heartbeats, tokens, status) with a rand
  "caption": "Each round, every node exchanges its view with a random peer. News of a node's status reaches the whole cluster in a logarithmic number of rounds without any coordinator."}
 ```
 
-**Anti-entropy with Merkle trees** fixes what hints and read repair miss. Each replica hashes each token range into a tree; replicas compare roots and descend only into mismatched subtrees. $10^{10}$ keys over 12,288 ranges is ~800,000 keys a range; a $2^{15}$-leaf tree puts ~25 keys under a leaf. If 100 keys differ, the replicas walk 15 levels and stream about 2,500 keys instead of 800,000: repair traffic scales with divergence, but building the tree reads every key, so repair is a scheduled, throttled job.
+**Anti-entropy with Merkle trees** fixes what hints and read repair miss. Each replica hashes each token range into a tree; replicas compare roots and descend only into mismatched subtrees. $10^{10}$ keys over 768 ranges is ~13 million keys a range; a $2^{15}$-leaf tree puts ~400 keys under a leaf. If 100 keys differ, the replicas walk 15 levels and stream at most about 40,000 keys instead of 13 million: repair traffic scales with divergence, but building the tree reads every key, so repair is a scheduled, throttled job.
 
 **The tombstone trap.** A delete writes a tombstone that compaction drops after a grace period (`gc_grace_seconds`, 10 days by default in Cassandra). If replica C missed the delete and is not repaired within the grace period, A and B compact away both tombstone and value, C still holds the value, and the next repair treats it as a missed write and **copies the deleted data back everywhere**. Rule: a full repair must complete on every range more often than the grace period, and a slipping repair schedule is a correctness incident.
 
@@ -217,7 +217,7 @@ Every second each node gossips its view (heartbeats, tokens, status) with a rand
 | Failure | Symptom | Diagnosis | Fix |
 |---|---|---|---|
 | Slow node (worse than dead) | p99 of every range it serves rises; gossip says it is up | Per-replica latency on coordinators; GC or compaction logs on that node | Speculative retry at the p95; latency-aware replica selection |
-| Zone outage, then hint flood | Hints grow at 67 MB/s (a third of 200,000 writes/s × 1 KB), ~720 GB in three hours; on return, unthrottled replay saturates the returning nodes | Hint-store size; returning nodes' disk and CPU pinned | Bound the hint window; throttle replay (100 MB/s drains 720 GB in 2 hours); past the window, full repair before trusting reads at ONE |
+| Zone outage, then hint flood | Every key has one replica in the lost zone, so hints grow at 200 MB/s (200,000 writes/s × 1 KB): ~2.2 TB by the end of a 3-hour hint window (Cassandra's default `max_hint_window`), ~135 GB for each of the 16 returning nodes; unthrottled replay saturates them | Hint-store size; returning nodes' disk and CPU pinned | Bound the hint window; throttle replay (135 GB at 20 MB/s per returning node takes about 2 hours); past the window, full repair before trusting reads at ONE |
 | Hot key | Three replicas saturated at 100,000 reads/s while the cluster idles | Per-partition read metrics; one key's replicas far above peers | Cache above the store with request coalescing; split into k sub-keys and fan in on read |
 | Partition within the region | Both sides accept writes to the same keys | Gossip shows two views; conflicting versions after healing | Decide per key family beforehand: LWW (one side loses) or siblings |
 | Retried non-idempotent write | Counters double after timeouts | Client retries a write that had succeeded but timed out | Idempotent writes (set, not increment) or CRDT counters with per-writer entries |
@@ -243,11 +243,11 @@ Every second each node gossips its view (heartbeats, tokens, status) with a rand
 
 ## What real companies describe
 
-- Amazon's Dynamo paper (SOSP 2007) describes the shopping cart, sloppy quorums, hinted handoff, vector clocks with sibling merges, Merkle-tree anti-entropy, and a common configuration of N=3, R=2, W=2.
-- Amazon's DynamoDB paper (USENIX ATC 2022) describes a different design under a similar name: each partition is a Multi-Paxos replication group across three zones with a leader that takes writes and strongly consistent reads, no client-visible siblings, and conditional writes. The product valued predictable semantics over leaderless availability.
-- Netflix published a 2011 benchmark of Cassandra on AWS passing a million writes a second on a few hundred instances across three zones, and has written extensively about running Cassandra across regions.
-- Discord's engineering blog described moving its message store from Cassandra to ScyllaDB, citing hot partitions and garbage-collection pauses, and adding a data-service layer that coalesces concurrent reads of the same row.
-- Riak 2.0 shipped CRDT data types (counters, sets, maps) as built-ins.
+- Amazon's [Dynamo paper](https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf) (SOSP 2007) describes the shopping cart, sloppy quorums, hinted handoff, vector clocks with sibling merges, Merkle-tree anti-entropy, and a common configuration of N=3, R=2, W=2.
+- Amazon's [DynamoDB paper](https://www.usenix.org/system/files/atc22-elhemali.pdf) (USENIX ATC 2022) describes a different design under a similar name: each partition is a Multi-Paxos replication group across three zones with a leader that takes writes and strongly consistent reads, no client-visible siblings, and conditional writes. The product valued predictable semantics over leaderless availability.
+- Netflix published a [2011 benchmark](https://web.archive.org/web/2012id_/http://techblog.netflix.com/2011/11/benchmarking-cassandra-scalability-on.html) of Cassandra on AWS reaching 1.1 million client writes a second on 288 instances, 96 in each of three availability zones, and has written extensively about running Cassandra across regions.
+- Discord's engineering blog [described](https://discord.com/blog/how-discord-stores-trillions-of-messages) moving its message store from Cassandra to ScyllaDB, citing hot partitions and garbage-collection pauses, and adding a Rust data-service layer that coalesces concurrent reads of the same channel into one database query.
+- Riak added a CRDT counter in 1.4 and, in 2.0, sets and maps as built-in data types (per its 2.0 release notes).
 
 ## Interviewer follow-ups
 

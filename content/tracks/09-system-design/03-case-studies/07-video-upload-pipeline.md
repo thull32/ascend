@@ -2,7 +2,7 @@
 slug: video-upload-pipeline
 title: "Design a video upload pipeline: resumable ingest to transcoding DAG"
 description: A YouTube-scale upload path worked to machine counts, with a resumed upload traced part by part, per-rung encode costs computed from pixels and frames, time to first playable traced through the transcode DAG to its real critical path, processing during upload, and the economics of expensive codecs.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, case-study, video, object-storage, transcoding, workflow-orchestration, message-queue, resumable-upload]
 ---
@@ -34,7 +34,7 @@ Ask first: what is the largest file, does "fast" mean first-playable or all qual
 
 ### Scale
 
-500 hours of video uploaded per minute (the order of magnitude the largest platform has cited publicly), an average upload of 10 minutes at a 10 Mbps source bitrate, and a 3× daily peak. The split between first-playable and full-ladder is the most useful requirement to extract, because it licenses a priority system later.
+500 hours of video uploaded per minute (an assumption; YouTube's [press page](https://www.youtube.com/about/press/) currently cites over 20 million uploads a day), an average upload of 10 minutes at a 10 Mbps source bitrate, and a 3× daily peak. The split between first-playable and full-ladder is the most useful requirement to extract, because it licenses a priority system later.
 
 ## Back-of-envelope estimates
 
@@ -271,7 +271,7 @@ The cost: the copyright and safety checks must work per segment, a segment that 
 
 ### Spending compute where the views are
 
-View counts on user video are extremely skewed. AV1 delivers the same quality in roughly 30–50% fewer bits than H.264, and its software encoders cost an order of magnitude more compute. A full view of the 10-minute video at 1080p and 5 Mbps is 375 MB; saving 35% saves 130 MB, about \$0.002 at \$0.01–0.02 per GB of CDN egress. An AV1 ladder at 10× the H.264 cost is 4,326 × 10 = 43,000 vCPU-seconds, 12 vCPU-hours or about \$0.18. Break-even is on the order of 100 full views. So every video gets H.264 immediately, and a view-count trigger (say 1,000 views in a day) enqueues AV1 on the low-priority queue.
+View counts on user video are extremely skewed. [Facebook's 2018 tests](https://engineering.fb.com/2018/04/10/video-engineering/av1-beats-x264-and-libvpx-vp9-in-practical-use-case/) measured AV1 at about 46–51% fewer bits than x264 for the same PSNR, with the reference encoder of the time thousands of times slower; production encoders trade part of that saving for speed, so assume 35% fewer bits at 10× the H.264 compute. A full view of the 10-minute video at 1080p and 5 Mbps is 375 MB; saving 35% saves 130 MB, about \$0.002 at \$0.01–0.02 per GB of CDN egress. An AV1 ladder at 10× the H.264 cost is 4,326 × 10 = 43,000 vCPU-seconds, 12 vCPU-hours or about \$0.18. Break-even is on the order of 100 full views. So every video gets H.264 immediately, and a view-count trigger (say 1,000 views in a day) enqueues AV1 on the low-priority queue.
 
 ## Failure modes
 
@@ -314,10 +314,10 @@ Compute breaks first: at 10× the bill justifies dedicated encoding hardware and
 
 ## What real companies describe
 
-- Facebook's **SVE** paper (SOSP 2017) describes splitting video into segments, uploading and processing them as they arrive instead of after the whole file, to cut the time before a video can be shared.
-- Google has publicly described building its own **video-transcoding accelerator** for YouTube, the step the 10× row points to.
-- Netflix's technology blog describes **per-title and shot-based encoding** measured with VMAF, and Netflix open-sourced **Conductor**, a workflow orchestrator it has described using for media processing.
-- AWS documents the S3 multipart limits used above: 10,000 parts and a 5 MiB minimum part size.
+- Facebook's [**SVE** paper](https://www.cs.princeton.edu/~wlloyd/papers/sve-sosp17.pdf) (SOSP 2017) describes clients splitting video into GOP-aligned segments, uploading and processing them as they arrive instead of after the whole file, to cut the time before a video can be shared.
+- Google has [described](https://blog.youtube/inside-youtube/new-era-video-infrastructure/) building its own **video-transcoding accelerator** (the VCU) for YouTube, reporting 20–33× the compute efficiency of its previous system: the step the 10× row points to.
+- Netflix's technology blog describes **per-title and shot-based encoding** measured with VMAF, and Netflix open-sourced **Conductor**, a workflow orchestrator for flows that span microservices; Netflix [stopped maintaining it](https://github.com/Netflix/conductor) in December 2023 and community forks carry it on.
+- AWS [documents](https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html) the S3 multipart limits used above: 10,000 parts, and parts of 5 MiB to 5 GiB except the last, which may be smaller.
 - The encoder speed, task overheads, check durations and prices above are illustrative assumptions.
 
 ## Interviewer follow-ups

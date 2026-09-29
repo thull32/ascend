@@ -111,7 +111,7 @@ Five servers, Z1 leader in epoch 1, everything up to 1:4 committed. Z1 proposes 
 
 **Sessions and ephemeral znodes.** A client holds a session kept alive by heartbeats. The server grants a timeout between 2 and 20 ticks by default; with the sample configuration's `tickTime` of 2,000 ms, that is 4 to 40 seconds. When a session expires, its **ephemeral znodes** are deleted, which is how locks and memberships are released when a client dies, and also how they are lost when a live client stalls longer than the timeout, the failure that [distributed locks and coordination](/learn/system-design/distributed-systems/distributed-locks-and-coordination) turns on. Watches are one-shot notifications (persistent, recursive watches were added in 3.6), delivered in order and before any read that would reveal the change.
 
-**Limits.** The whole dataset lives in memory on every server, znodes hold at most about 1 MB (`jute.maxbuffer`), and a snapshot is written every 100,000 transactions by default (`snapCount`). A write costs a quorum round trip plus an fsync of the transaction log on the leader and the acking followers, a few milliseconds in-region. ZooKeeper holds coordination state, not data.
+**Limits.** The whole dataset lives in memory on every server, znodes hold at most about 1 MB (`jute.maxbuffer`), and each server writes a snapshot after a randomly chosen 50,001 to 100,000 transactions (`snapCount` defaults to 100,000; the randomisation stops the whole ensemble snapshotting at once). A write costs a quorum round trip plus an fsync of the transaction log on the leader and the acking followers, a few milliseconds in-region. ZooKeeper holds coordination state, not data.
 
 ## Where they live
 

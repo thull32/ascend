@@ -2,11 +2,11 @@
 slug: netflix-microservices-and-resilience
 title: "Netflix microservices and resilience: Zuul, Eureka, Hystrix, chaos and regional evacuation"
 description: How a streaming control plane made of hundreds of services keeps members pressing play through instance, zone, dependency and region failures, with one home page simulated under five resilience policies, retry amplification computed, a chaos experiment sized by statistics, a timed regional evacuation, and a circuit breaker to build, all grounded in Netflix's publicly described lineage.
-minutes: 35
+minutes: 40
 difficulty: expert
 tags: [system-design, case-study, netflix, microservices, resilience, circuit-breaker, bulkhead, chaos-engineering, multi-region]
 ---
-On Christmas Eve 2012, an AWS load-balancing outage in one region took Netflix streaming down for many members. Nothing in Netflix's own code was broken: the failure came from a dependency, in one place, and the architecture then had no way to route around it. What Netflix built before and after that night, and described publicly in unusual detail, is one of the most influential answers to the question this lesson asks: how do you design hundreds of services so that members can always browse and press play, when every instance, dependency, availability zone and occasionally a whole region will fail?
+On Christmas Eve 2012, an AWS load-balancing outage in one region took Netflix streaming down for many members, mostly on TV-connected devices across the Americas ([Netflix's write-up](https://web.archive.org/web/2013/http://techblog.netflix.com/2012/12/a-closer-look-at-christmas-eve-outage.html)). Nothing in Netflix's own code was broken: the failure came from a dependency, in one place, and the architecture then had no way to route around it. What Netflix built before and after that night, and described publicly in unusual detail, is one of the most influential answers to the question this lesson asks: how do you design hundreds of services so that members can always browse and press play, when every instance, dependency, availability zone and occasionally a whole region will fail?
 
 The question is not "design a feature" but "design for failure at the scale of an organisation". The video bytes come from Netflix's own CDN, Open Connect, covered in [the video streaming case study](/learn/system-design/case-studies/video-streaming-netflix). Here the subject is the *control plane* in the cloud: the services that sign you in, build your home page, authorise playback and choose your CDN server.
 
@@ -18,7 +18,7 @@ A note on sources. Everything said about Netflix is drawn from what its engineer
 
 | Property | Target | Why |
 |---|---|---|
-| Availability metric | Stream starts per second (SPS) stays on its expected daily curve | Netflix has publicly described SPS as its primary health signal; per-service uptime is not what members experience |
+| Availability metric | Stream starts per second (SPS) stays on its expected daily curve | Netflix has publicly described measuring service availability as expected versus actual SPS; per-service uptime is not what members experience |
 | Instance failure | Invisible, continuously | Cloud instances disappear routinely |
 | Zone failure | Invisible or nearly so | Every service runs in several zones |
 | Region failure | Members moved to healthy regions within minutes | The Christmas Eve lesson |
@@ -33,12 +33,12 @@ Illustrative: 250 million accounts, 100 million active on a given day.
 
 | Quantity | Arithmetic | Result |
 |---|---|---|
-| Edge traffic | $10^8$ members × ~200 API calls a day ÷ 86,400 s, ×3 for the evening peak | **~600,000 requests/s** at the edge |
+| Edge traffic | $10^8$ members × ~175 API calls a day ÷ 86,400 s, ×3 for the evening peak | **~600,000 requests/s** at the edge |
 | Internal RPCs | ~10 internal calls per edge request | ~6 million/s: a one-in-a-million failure happens six times a second |
 | Page availability | 30 synchronous dependencies at 99.99% each: $0.9999^{30}$ | 0.9970: 150 failed pages a second at 50,000 page loads/s, with every SLO met |
 | Tail exposure | $1 - 0.99^{30}$ | 26% of pages wait for someone's p99 |
 | Threads for one slow dependency | Little's law: 1,000 requests/s × 5 s | 5,000 in flight against a 200-thread pool: saturated in 0.2 s |
-| Stream starts | $10^8$ × ~1.5 plays a day | ~1,500 SPS average, ~5,000 at peak |
+| Stream starts | $10^8$ × ~1.5 plays a day | ~1,700 SPS average, ~5,000 at peak |
 | Evacuation load | $N/(N-1)$ with three regions | Survivors carry 1.5× their peak: 65% utilisation becomes 98% |
 
 **Consequences.** Turn dependency failure into degraded success; bound concurrency per dependency; judge health by SPS; and plan region capacity as $N/(N-1)$, ready before traffic moves.
@@ -263,7 +263,7 @@ hints:
 
 ## Deep dive: fallbacks and graceful degradation
 
-A fallback is a product decision made in advance. Netflix's public write-ups on its fault-tolerant API described three kinds: return something else useful (often stale cached data), fail silently by omitting optional content, or fail fast when there is no honest substitute. For the home page that is a ladder: live personalisation; else the profile's precomputed rows from the replicated cache, hours stale; else popular rows for the country; else the static default the device already holds. Optional content (a ratings badge, a "because you watched" row, a banner) fails silent. Playback cannot fake a DRM licence or an entitlement check: those fail fast and rely on redundancy, a retry on another instance, and evacuation if the region is broken.
+A fallback is a product decision made in advance. Netflix's [2012 write-up on its fault-tolerant API](http://web.archive.org/web/20170126152131/http://techblog.netflix.com/2012/02/fault-tolerance-in-high-volume.html) listed its fallbacks in order of impact on the user: cached data even if stale, writes queued until the dependency returns, stubbed default values, and an empty response the UI can ignore ("fail silent"), with "fail fast" when no fallback applies. For the home page that is a ladder: live personalisation; else the profile's precomputed rows from the replicated cache, hours stale; else popular rows for the country; else the static default the device already holds. Optional content (a ratings badge, a "because you watched" row, a banner) fails silent. Playback cannot fake a DRM licence or an entitlement check: those fail fast and rely on redundancy, a retry on another instance, and evacuation if the region is broken.
 
 Four rules make the ladder real:
 
@@ -276,7 +276,7 @@ A member shown popular titles still usually finds something to watch; a member s
 
 ## Deep dive: chaos experiments on the same call graph
 
-Netflix's publicly described practice reads as three stages. **Chaos Monkey** terminates instances in production during business hours; its real effect was architectural, because once every team knew instances *would* vanish on a Tuesday, statelessness and redundancy across zones became requirements. The Simian Army extended it: Latency Monkey, Chaos Gorilla (a zone), Chaos Kong (a region). **FIT** (Failure Injection Testing) attaches injection metadata at the edge to requests matching a scope, so services fail or delay *that request's* call to a named dependency: the blast radius is a set of requests, starting with one engineer's account. **ChAP** (the Chaos Automation Platform) runs each experiment on two equal slices of traffic routed to fresh deployments, injects only into the experiment slice, compares SPS, and aborts automatically.
+Netflix's publicly described practice reads as three stages. **Chaos Monkey** terminates instances in production during business hours; its real effect was architectural, because once every team knew instances *would* vanish on a Tuesday, statelessness and redundancy across zones became requirements. The Simian Army extended it with Latency Monkey (injected delays) and Chaos Gorilla (a whole availability zone), and Chaos Kong later rehearsed losing an entire region. **FIT** (Failure Injection Testing) attaches injection metadata at the edge to requests matching a scope, so services fail or delay *that request's* call to a named dependency: the blast radius is a set of requests, starting with one test account or device and widening to a small percentage of production traffic. **ChAP** (the Chaos Automation Platform) runs each experiment on two equal slices of traffic routed to fresh deployments, injects only into the experiment slice, compares the two slices' key metrics, and ends the experiment automatically once an error budget is exceeded.
 
 The experiment for our graph: "home pages whose `ratings` calls fail still start streams at the normal rate", injected for 1% of members against a 1% control. At 5,000 SPS each group sees 50 starts a second. Starts are roughly Poisson, so the standard deviation of the difference between two groups of $n$ starts is $\sqrt{2n}$:
 
@@ -303,7 +303,7 @@ A timed evacuation of region A, three regions at 65% of capacity at peak. Timing
 | 13 | Shift 50% | Same gate |
 | 16 | Shift 100%; region A drained | Debugging starts in a region with no customers |
 
-Shifting before scaling puts the survivors at $65\% \times 1.5 = 97.5\%$, where any wobble overloads them, which is how one regional failure becomes three. Netflix has described work (Project Nimble) to make evacuation much faster, largely by having capacity ready instead of waiting for it. The tooling that performs the evacuation must itself survive the loss of any one region.
+Shifting before scaling puts the survivors at $65\% \times 1.5 = 97.5\%$, where any wobble overloads them, which is how one regional failure becomes three. Netflix has described Project Nimble, which cut a region failover from close to an hour (about 25 minutes of it waiting for services to start) to under 10 minutes, largely by keeping pre-provisioned "dark" instances ready instead of waiting for new ones. The tooling that performs the evacuation must itself survive the loss of any one region.
 
 ## Failure modes
 

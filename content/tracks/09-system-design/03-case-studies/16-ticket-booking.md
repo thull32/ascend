@@ -355,7 +355,7 @@ A seat-map publisher consumes the change stream, flips one bit per seat in a 6.2
 
 ## What real companies describe
 
-Ticketmaster has publicly described Verified Fan, pre-registration that limits high-demand on-sales to vetted accounts. Commercial waiting rooms (Queue-it, Cloudflare Waiting Room) document admitting users at a configured rate and randomising the order of people who arrive before a sale opens. Payment providers document authorise-then-capture and voiding of uncaptured authorisations. Treat these as public descriptions, not current internals.
+Ticketmaster's help centre describes artist presales that fans must sign up for in advance with their account (some asked to pass an identity check first), and a queue in which fans who join before the sale are given a place in line when it starts, with more let in only as space opens up. Commercial waiting rooms document the same two mechanisms: [Queue-it](https://queue-it.com/how-does-queue-it-work/) lets visitors through at a configured number per minute and gives everyone in the pre-queue a random position when the sale starts, and [Cloudflare Waiting Room](https://developers.cloudflare.com/waiting-room/additional-options/create-events/) can shuffle its prequeue randomly at the event's start time. Payment providers document authorise-then-capture and voiding of uncaptured authorisations. Treat these as public descriptions, not current internals.
 
 ## Interviewer follow-ups
 

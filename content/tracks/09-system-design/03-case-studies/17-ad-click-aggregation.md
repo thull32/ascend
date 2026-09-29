@@ -134,7 +134,7 @@ A user taps an ad for `ad-9` at 10:00:41.120 on a phone in the US.
 
 ### Early firings, and a click that was never logged
 
-The early firing is the design point people miss: with a 30 s watermark bound, a click at 10:00:01 would not appear until 10:01:30, 89 s later, which breaks the 30 s freshness target. Emitting partial counts on a processing-time trigger and a final count on the watermark gives both freshness and completeness. The Dataflow model paper calls these early, on-time and late firings.
+The early firing is the design point people miss: with a 30 s watermark bound, a click at 10:00:01 would not appear until 10:01:30, 89 s later, which breaks the 30 s freshness target. Emitting partial counts on a processing-time trigger and a final count on the watermark gives both freshness and completeness. The [Dataflow model paper](https://www.vldb.org/pvldb/vol8/p1792-Akidau.pdf) composes exactly this trigger (a repeating one-minute processing-time trigger until the watermark, the watermark itself, then a repeat for each late arrival), and Apache Beam exposes it as early and late firings around the watermark trigger.
 
 **The edge case.** The redirect returns before the event is durable, so a click server that crashes loses whatever sits in its producer buffer. At ~2,000 clicks/s per instance and a 5 ms batching delay, that is about 10 clicks per crash, plus anything queued behind a slow broker. Writing each click to a local append-only file before answering closes the gap at the cost of a disk write on the redirect path; most designs accept the small loss and make it visible by reconciling click-server request logs against the topic.
 
@@ -309,7 +309,7 @@ Reconciliation compares them per campaign per hour against an expected gap. Illu
 
 ## What real companies describe
 
-- **Google's Photon paper** describes joining ad clicks with the queries that produced them across data centres, using a replicated registry of event IDs so each click is joined once; the **MillWheel** paper describes low watermarks and deduplication of record IDs for exactly-once processing; the **Dataflow model** paper introduced the window, trigger and accumulation vocabulary used here.
+- **Google's Photon paper** describes joining ad clicks with the queries that produced them across data centres, using a Paxos-replicated registry of click IDs so that no click is joined twice, because a duplicate would double-charge an advertiser; the **MillWheel** paper describes low watermarks and deduplication of record IDs for exactly-once processing; the **Dataflow model** paper introduced the window, trigger and accumulation vocabulary used here.
 - **Uber** has publicly described an ad-event pipeline built on Flink, Kafka and Pinot that relies on checkpoints, Kafka transactions and unique record IDs to count each event once, with an upsert-capable OLAP store as the sink.
 
 The rates, gaps and percentages in this lesson are illustrative assumptions, not any company's figures.

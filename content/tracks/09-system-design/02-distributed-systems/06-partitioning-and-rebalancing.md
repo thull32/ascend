@@ -151,7 +151,7 @@ Even hashing spreads keys, not load. Simulating one million keys with Zipf-distr
 | 1.0 | 6.9% | 2.9× |
 | 1.2 | 19% | 6.4× |
 
-Once one key carries more than a node's fair share (1/32 ≈ 3% here), no hash function helps: that key lives in one partition. Managed stores publish the ceiling. DynamoDB documents each partition as serving up to 3,000 read units and 1,000 write units per second and holding about 10 GB, and splits hot partitions automatically, but a single hot item cannot be split. The fixes are specific to the key:
+Once one key carries more than a node's fair share (1/32 ≈ 3% here), no hash function helps: that key lives in one partition. Managed stores publish the ceiling. DynamoDB [documents](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/burst-adaptive-capacity.html) each partition as serving up to 3,000 read units and 1,000 write units per second, and its adaptive capacity splits hot partitions and can even isolate one hot item on a partition of its own, but a single item cannot be split, so that partition maximum is the item's ceiling. The fixes are specific to the key:
 
 - **Hot reads**: a small in-process cache on routers or clients with a TTL of a second absorbs almost all of them; Netflix's EVCache and CDNs play this role at scale.
 - **Hot writes**: split the key into suffixed copies (`post:123:0` … `post:123:15`) on different partitions and sum them on read, only for keys detected as hot, since it multiplies read cost by 16.

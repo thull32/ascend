@@ -2,7 +2,7 @@
 slug: notification-system
 title: "Design a notification system: push, email and SMS without spam or silence"
 description: A multi-channel notification platform for a billion messages a day, worked to machine counts, with a duplicate traced from a retried upstream event through three layers of dedupe, one user's day traced through quiet hours, caps and a digest, priority lanes isolating login codes from campaigns, and delivery semantics chosen per category.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, case-study, notifications, push, kafka, rate-limiting, idempotency, fan-out]
 ---
@@ -43,7 +43,7 @@ Ask which categories exist and what each tolerates; the answer drives the delive
 | Average rate | $10^9$ ÷ 86,400 s | 11,600/s; 29,000/s at the organic peak |
 | One campaign | $5 \times 10^7$ ÷ 1,800 s | 28,000/s on top |
 | Design peak | 29,000 + 28,000 | ~60,000/s, half of it one campaign |
-| SMS cost | $10^7$ SMS a day × ~\$0.01 (US; several times more in many countries) | ~\$100,000 a day |
+| SMS cost | $10^7$ SMS a day × ~\$0.01 (Twilio's US list price is \$0.0083 plus carrier fees; \$0.056 to the UK, \$0.112 to Germany) | ~\$100,000 a day if all US |
 | Inbox storage | $10^9$ × 500 B × 90 days × 3 replicas | 500 GB/day, 45 TB, 135 TB replicated |
 | Dedupe keys | $1.1 \times 10^9$ requests in a 24-hour window × ~110 B (key, ID, per-key overhead) | ~120 GB live |
 | Lookups | 60,000/s × (preferences + devices) | 120,000 cache reads/s; 300 GB of preferences, 110 GB of tokens |
@@ -132,7 +132,7 @@ Every hop is at-least-once: producers retry, Kafka redelivers after a consumer c
 
 1. **Producer retries and replays.** `SET dedupe:u_42:order-8812:shipped <id> NX EX 86400` claims the key atomically; a later request with the same key gets the original ID back.
 2. **Planner redelivery.** The inbox row is an upsert on `notification_id`, and each delivery job has the deterministic ID `notification_id:channel:device_id`, so a sender drops a job it has already completed.
-3. **The provider boundary.** A sender calls APNs, APNs accepts, the sender dies before recording it. No protocol fixes this, because the provider is not in your transaction ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)). APNs accepts an `apns-collapse-id` and FCM a `collapse_key`; set to the `notification_id`, a resend replaces an undisplayed copy on the device.
+3. **The provider boundary.** A sender calls APNs, APNs accepts, the sender dies before recording it. No protocol fixes this, because the provider is not in your transaction ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)). APNs merges notifications that share an `apns-collapse-id` (at most 64 bytes) into one on the device, so set it to the `notification_id` and a resend replaces the first copy instead of adding a second. FCM's `collapse_key` is not the equivalent: it only collapses messages still waiting on FCM's servers, allows four keys per device and is ignored for notification messages. On Android the notification `tag` replaces a notification already in the drawer, so set that to the `notification_id` too.
 
 ```viz
 {"type": "system", "scenario": "idempotency-key", "title": "A replayed event returns the original notification",
@@ -172,7 +172,7 @@ The window is a cost and a promise. At ~110 bytes a key, 24 hours of requests is
 
 ## Deep dive 2: caps, rate limits and quiet hours per user
 
-Caps ("at most 3 marketing pushes a day"), social rate limits, digests and quiet hours are all read-modify-write on per-user state. With 30 planners handling the same user, two can both read "2 sent today", both send, and the cap becomes 4. Atomic Redis counters fix the race at a network call per check; the simpler structure is **partitioning by `user_id`**: every request for a user lands in one partition, one planner owns it, and the state is local, single-threaded and race-free. It also orders a user's messages, so "order shipped" never overtakes "order confirmed".
+Caps ("at most 3 marketing pushes a day"), social rate limits, digests and quiet hours are all read-modify-write on per-user state. With 30 planners handling the same user, two can both read "2 sent today", both send, and the cap becomes 4. Atomic Redis counters fix the race at a network call per check; the simpler structure is **partitioning by `user_id`**: every request for a user lands in one partition, one planner owns it, and the state is local, single-threaded and race-free. It also orders a user's messages, so "order shipped" never overtakes "order confirmed" inside the platform; APNs documents that it may still reorder notifications to one device, which is why each push carries its full state.
 
 ```viz
 {"type": "system", "scenario": "kafka-partitions", "nodes": 3, "keys": ["user:42", "user:7", "user:42", "user:9", "user:7", "user:42"],
@@ -202,7 +202,7 @@ The planner keeps, per user, a ring of recent marketing send times, a ring of so
 
 ## Deep dive 3: priority lanes and provider pacing
 
-Put the campaign and a login code in one FIFO and do the arithmetic: at 28,000 a second the campaign takes 30 minutes to drain, and a code behind it waits 30 minutes. A priority field does not help; the campaign is already ahead in the log. The fix is a bulkhead: separate topics, planners and senders for critical, normal and bulk lanes, and a **reserved share of each provider's rate limit** for the critical lane ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)). Campaigns are paced at the source at their approved `max_rate_per_s`, and "10:00 local" is split into waves by UTC offset (close to 40 are in use, including half- and quarter-hour ones), so 48 million recipients become waves of a few million, each draining in minutes at 20,000 a second.
+Put the campaign and a login code in one FIFO and do the arithmetic: at 28,000 a second the campaign takes 30 minutes to drain, and a code behind it waits 30 minutes. A priority field does not help; the campaign is already ahead in the log. The fix is a bulkhead: separate topics, planners and senders for critical, normal and bulk lanes, and a **reserved share of each provider's rate limit** for the critical lane ([Resilience patterns](/learn/system-design/building-blocks/resilience-patterns)). Campaigns are paced at the source at their approved `max_rate_per_s`, and "10:00 local" is split into waves by UTC offset (the IANA time-zone database has 37 in use at any moment, including half- and quarter-hour ones), so 48 million recipients become waves of a few million, each draining in minutes at 20,000 a second.
 
 Each sender takes a token per call from a bucket shared by every sender instance using that provider credential (a Redis token bucket, or the budget divided among instances), and treats a 429 as a signal to slow down, not to retry at once.
 
@@ -210,6 +210,21 @@ Each sender takes a token per call from a bucket shared by every sender instance
 {"type": "system", "scenario": "token-bucket", "requests": 10, "title": "Pacing sends against a provider limit",
  "caption": "The refill rate is the sustained rate the provider allows; the capacity is the burst allowed after a quiet period. The critical lane has its own bucket, so a campaign can never spend the tokens a login code needs."}
 ```
+
+### Under the hood: what APNs and FCM keep for an offline phone
+
+The providers are not queues you can rely on. Apple's documentation says APNs [stores only one notification per app](https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns) for a device it cannot reach, usually the latest, for up to 30 days depending on `apns-expiration`. FCM treats every notification message as collapsible under one default key, the app's package name, and stores at most 100 uncollapsed data messages per device; past that it [discards all of them](https://firebase.google.com/docs/cloud-messaging/customize-messages/collapsible-message-types) and tells the app to resync. Trace `u_42`'s iPhone, offline from 12:00 to 14:00 UTC:
+
+| t (UTC) | Sent | `expires_at` | What APNs holds |
+|---|---|---|---|
+| 12:05 | Order 8812 out for delivery | 14:30 | That notification |
+| 12:40 | Order 8812 delivered | 18:00 | The delivery, replacing it |
+| 13:10 | Login code | 13:15 | The code, replacing the delivery |
+| 13:15 | The code expires | | Nothing |
+| 13:30 | Digest of 37 likes | Tomorrow | The digest |
+| 14:00 | Phone reconnects | | Shows the digest only |
+
+Four notifications were sent and the lock screen shows one; "your order was delivered" never appears as a push, and an Android phone receiving notification messages ends the same way. The design already absorbs it: the planner wrote all four to the inbox, so the app syncs its inbox when it opens and takes its unread count from there, never from the pushes that arrived. Two rules follow. Every push states its full meaning ("delivered", not "status changed"), because it may be the only one that survives. And an Android data-message path must collapse by category or stay under 100 pending messages per device, because the 101st wipes the rest.
 
 ## Failure modes
 
@@ -221,7 +236,7 @@ Each sender takes a token per call from a bucket shared by every sender instance
 | Hot user partition | One planner lags; that partition's age grows | Per-partition lag; one user with 100,000+ events | Digest bursts; aggregate per object before the per-user topic |
 | Poison message | A planner crash-loops at one offset; its users stop receiving anything | Same offset in every crash; template render exception | Catch per record, park it on a dead-letter topic with the reason, alert |
 | Thundering herd when a provider recovers | A burst of retries trips the provider's limit again | Retry rate spikes the moment errors stop | Retries go through the same token bucket; jitter; drain backlog at the bucket's rate |
-| Stale device tokens | Quota wasted on dead devices | APNs 410 Unregistered; FCM unregistered errors | Invalidate the token on that response |
+| Stale device tokens | Quota wasted on dead devices; Apple warns that repeated 4xx errors slow a connection and can get it disconnected | APNs 410 `Unregistered`; FCM `UNREGISTERED` (HTTP 404) | Invalidate the token on that response and never retry it |
 | Email reputation collapse | Password resets land in spam | Bounce and complaint rates per sending domain | Suppression list; separate subdomains and IP pools for transactional and marketing mail |
 | Region loss | Accepts fail in one region | Health checks | Users homed per region; critical categories fail over with dedupe keys replicated; bulk waits |
 
@@ -253,10 +268,10 @@ At 10×, the provider limits break first: per-credential rate limits and connect
 
 ## What real companies describe
 
-- LinkedIn's engineering blog has described **Air Traffic Controller**, a service between notification producers and delivery that decides whether, when and on which channel to notify a member, applying volume limits and aggregation so members are not overwhelmed.
-- Netflix's technology blog has described **RENO**, its Rapid Event Notification System, which pushes small events to member devices, handles them in separate queues by priority, and has devices fetch the full data after the push.
-- Apple and Google document `apns-collapse-id`, `collapse_key`, expiry, and the "unregistered" responses used above.
-- Google and Yahoo announced bulk-sender requirements in 2024, including one-click unsubscribe and a ceiling on spam-complaint rates, which is why marketing mail needs its own reputation.
+- LinkedIn's engineering blog has [described](https://engineering.linkedin.com/blog/2018/03/air-traffic-controller--member-first-notifications-at-linkedin) **Air Traffic Controller**, the gateway that decides whether, when and on which channel to notify a member and aggregates notifications into digests. It partitions every request and signal by member ID so one Samza task owns each member, keeps that member's state in an embedded RocksDB (a couple of milliseconds per read against 10–100 ms for a remote call), and sends member-to-member messages on high-priority Kafka topics: the partitioning, local state and lanes of this design.
+- Netflix's technology blog has described **RENO**, its [Rapid Event Notification System](https://web.archive.org/web/2022id_/https://netflixtechblog.com/rapid-event-notification-system-at-netflix-6deb1d2b57d1), which routes events to priority-specific queues and processing clusters and uses a hybrid of push and pull: it pushes to devices at once, and devices also call home during the app lifecycle, so a TV that was switched off still catches up.
+- Apple and Google document `apns-collapse-id`, `collapse_key`, the Android `tag`, expiry, and the "unregistered" responses used above.
+- Google and Yahoo [announced](https://blog.google/products/gmail/gmail-security-authentication-spam-protection/) bulk-sender requirements in October 2023, enforced from early 2024, including authentication, one-click unsubscribe and a ceiling on spam-complaint rates, which is why marketing mail needs its own reputation.
 - The rates, sizes and timings above are illustrative.
 
 ## Interviewer follow-ups
@@ -267,7 +282,7 @@ At 10×, the provider limits break first: per-credential rate limits and connect
 
 **"Your dedupe store fails over. What happens to duplicates?"** Model answer: keys claimed in the last second before failover may be lost, so replays in that second pass the first layer; deterministic job IDs and collapse identifiers still stop most visible duplicates, and email is the exposed channel. For categories where one duplicate matters, claim keys with a conditional write in a synchronously replicated store. Common wrong answer: "Redis persistence prevents it".
 
-**"The user's phone was offline for two hours. What arrives when it reconnects?"** Model answer: only what is still true. Provider expiry is set from `expires_at` (APNs takes an expiration timestamp, FCM a time-to-live), so stale pushes are discarded, and collapse identifiers turn ten order updates into the latest one; the inbox is the durable record. Common wrong answer: "everything is queued and delivered in order".
+**"The user's phone was offline for two hours. What arrives when it reconnects?"** Model answer: only what is still true. Provider expiry is set from `expires_at` (APNs takes an expiration timestamp, FCM a time-to-live), so stale pushes are discarded, and APNs keeps only one pending notification per app anyway, so ten order updates become at most the latest one; the inbox is the durable record. Common wrong answer: "everything is queued and delivered in order".
 
 ## What mid-level engineers get wrong
 

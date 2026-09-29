@@ -52,7 +52,7 @@ Assume 50,000 hosts running 200,000 containers.
 | Log ingest CPU | 1.5 GB/s peak × 3 replicas ÷ 276 MB/s per core (zlib level 1, measured in CPython) | ~16 cores: log ingesters are sized by open-chunk memory, not CPU |
 | Reads | 500 engineers × 20 panels ÷ 10 s refresh; 30,000 rules ÷ 30 s | 1,000 panel queries/s in an incident; 1,000 rule evaluations/s always |
 
-**Consequences.** Logs are 250 times the metric bytes, so the logging tier is where the money goes. Memory scales with *series*, not samples, so cardinality is the capacity unit. The rollup tier is 40 times the raw tier, and on triple-replicated SSD at ~\$0.10 per GB-month it would cost ~\$34,000 a month against ~\$2,300 in object storage at ~\$0.02, so historical blocks live in object storage.
+**Consequences.** Logs are 250 times the metric bytes, so the logging tier is where the money goes. Memory scales with *series*, not samples, so cardinality is the capacity unit. The rollup tier is 40 times the raw tier, and on triple-replicated SSD at an assumed ~\$0.10 per GB-month it would cost ~\$34,000 a month against ~\$2,300 in object storage at an assumed ~\$0.02 (list prices vary by provider, region and tier, but the ratio of roughly 15× survives), so historical blocks live in object storage.
 
 ## API
 
@@ -88,7 +88,7 @@ postings  service="checkout" -> [12, 40, 91, 133]
 query {service="checkout", status="500"}  = intersect -> [91, 133]
 ```
 
-Samples live in **chunks** of ~120 samples of one series (20 minutes at 10 s), grouped into immutable two-hour **blocks**, each with its own index. The partition key is the series hash, because every query reads a series' samples in time order and every write appends to one series; keying by time would send every sample of a two-hour window to one shard.
+Samples live in **chunks** of ~120 samples of one series (Prometheus's default target; 20 minutes at 10 s), grouped into immutable two-hour **blocks**, each with its own index. The partition key is the series hash, because every query reads a series' samples in time order and every write appends to one series; keying by time would send every sample of a two-hour window to one shard.
 
 **Under the hood: why 2 bytes a sample is an assumption, not a law.** The Gorilla encoding stores each timestamp as a delta of deltas (a regular 10 s scrape is `0`, one bit) and each value as the XOR with the previous one (unchanged is one bit; similar floats share leading and trailing zero bits). Implementing that bit accounting over 720 synthetic samples gave:
 
@@ -99,7 +99,7 @@ Samples live in **chunks** of ~120 samples of one series (20 minutes at 10 s), g
 | Same counter, 1 scrape in 5 off by ±1 s | 2.51 |
 | Noisy full-precision float (a latency gauge) | 7.26 |
 
-Facebook's Gorilla paper reports about 1.37 bytes per point averaged over its production mix. Your mix decides your storage bill: jittery scrapes and noisy gauges cost several times what constant counters do.
+Facebook's [Gorilla paper](https://www.vldb.org/pvldb/vol8/p1816-teller.pdf) reports about 1.37 bytes per point averaged over its production mix, with about 96% of timestamps and 51% of values compressed to a single bit. Your mix decides your storage bill: jittery scrapes and noisy gauges cost several times what constant counters do.
 
 **Logs** are grouped into **streams**, one per distinct label set. Each stream is a sequence of compressed chunks of lines, and the index maps labels to streams and streams to chunk references with time ranges; it does *not* index words in the body. Each chunk carries a small Bloom filter over high-cardinality fields such as `trace_id`.
 
@@ -311,10 +311,10 @@ The usual senior answer is B with filters, a small full-text index for the few l
 
 ## What real companies describe
 
-- **Facebook's Gorilla paper** describes an in-memory time-series cache with delta-of-delta timestamps and XOR values, at about 1.37 bytes per point, serving recent data while older data lives in a slower store: the head-and-blocks split used here.
-- **Netflix** has publicly described **Atlas**, its open-source in-memory dimensional time-series system, built for operational queries over recent data at high cardinality, with rollups for longer ranges.
+- **Facebook's Gorilla paper** describes an in-memory time-series cache with delta-of-delta timestamps and XOR values, at about 1.37 bytes per point, acting as a write-through cache of the most recent 26 hours in front of an older disk-based store: the head-and-blocks split used here.
+- **Netflix** has publicly described **Atlas**, its open-source system for dimensional time-series data, which [its documentation](https://netflix.github.io/atlas-docs/overview/) says keeps the most recent hours in memory and rolls older data up into S3.
 - **Uber** has publicly described **M3**, its open-source metrics platform, including an aggregation tier that downsamples at ingest.
-- **Prometheus, Thanos, Cortex and Grafana Mimir** document the two-hour block, WAL, object-storage block and query-frontend splitting design; **Grafana Loki** documents label-only indexing with chunks in object storage.
+- **Prometheus** documents the two-hour block and the WAL; **Thanos, Cortex and Grafana Mimir** move those blocks to object storage behind a query frontend that splits long queries (Mimir's default split is 24 hours) and caches the results; **Grafana Loki** documents label-only indexing with chunks in object storage.
 
 Treat these as design lineages; the numbers in this lesson are assumptions for a 200,000-container fleet, not any company's figures.
 

@@ -125,7 +125,7 @@ At checkout the service **authorises** (the issuer reserves the funds) and **cap
 | Day +1 | PSP settlement file lists `ch_1`: gross 1599, fee 76 | Reconciliation matches it | E2: fees +76, receivable −76 |
 | Day +2 | Bank payout arrives | Payout matched to the file's net total | E3: cash +1523, receivable −1523 |
 
-The fee is $0.029 \times 1599 = 46.37$, rounded to 46 cents, plus 30: 76 cents, so the payout is \$15.23. If provisioning fails at 905 ms, the service voids `ch_1` and the customer sees "payment not taken"; an uncaptured authorisation also lapses by itself after a card- and network-dependent period, commonly about a week. The three-phase handler that implements transactions 1–3, with a crash between the side effect and the record, is built and run in [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
+The fee is $0.029 \times 1599 = 46.37$, rounded to 46 cents, plus 30: 76 cents, so the payout is \$15.23. If provisioning fails at 905 ms, the service voids `ch_1` and the customer sees "payment not taken"; an uncaptured authorisation also lapses by itself after a card- and network-dependent period, commonly about a week ([Stripe documents](https://docs.stripe.com/payments/place-a-hold-on-a-payment-method) 7 days for most online card payments, under 5 days for Visa merchant-initiated ones and 2 days for most in-person payments). The three-phase handler that implements transactions 1–3, with a crash between the side effect and the record, is built and run in [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).
 
 ### Under the hood: what the 400–1,500 ms is
 
@@ -161,7 +161,7 @@ Webhooks arrive at least once and in any order, so the payment's status moves on
 
 ### Declines and dunning
 
-If 3% of 8.3 million daily renewals decline, 250,000 retry schedules start every day. Soft declines (insufficient funds, issuer unavailable) are retried over days, often timed to when funds are likely (after a payday), each retry a new intent with a new key. Hard declines (stolen card, closed account) are never retried: card networks publish rules that cap retries of declined cards and charge for excessive ones. Retry timing is a revenue lever, so the schedule is an experiment, not a constant.
+If 3% of 8.3 million daily renewals decline, 250,000 retry schedules start every day. Soft declines (insufficient funds, issuer unavailable) are retried over days, often timed to when funds are likely (after a payday), each retry a new intent with a new key. Hard declines (stolen card, closed account) are never retried: the issuer's advice code says "do not try again", card networks limit how many times one charge may be reattempted, and issuers can read extra retries as fraud and start declining the customer's legitimate charges ([Stripe's guidance](https://docs.stripe.com/declines/card) is at most eight retries). Retry timing is a revenue lever, so the schedule is an experiment, not a constant.
 
 ### Idempotency at every boundary
 
@@ -385,7 +385,7 @@ The file's net is $(1599-76) + (999-59) + (1599-76) + (1499-73) = 5{,}412$. The 
 
 ## What real companies describe
 
-Stripe's API documentation describes idempotency keys that save the first response, compare the parameters of retries and may be pruned after 24 hours. Airbnb's engineering blog has described a payments idempotency library that splits each request into pre-call, call and post-call phases so that a crash between them can be retried safely. Payment providers generally document authorise-then-capture flows, settlement reports per payout, and signed, at-least-once webhooks. The same authorise, confirm, then capture-or-void sequence protects [ticket booking](/learn/system-design/case-studies/ticket-booking) from charging for seats a user did not get. Treat these as public descriptions of approaches, not current internals.
+Stripe's [API documentation](https://docs.stripe.com/api/idempotent_requests) describes idempotency keys that save the status code and body of the first request (a `500` included), reject a retry whose parameters differ, and may be pruned once they are 24 hours old. Airbnb's engineering blog has described Orpheus, a payments idempotency library that splits each request into pre-RPC, RPC and post-RPC phases, with no network calls in the first and last and no database work in the middle, so that a crash between them can be retried safely. Payment providers generally document authorise-then-capture flows, settlement reports per payout, and signed, at-least-once webhooks. The same authorise, confirm, then capture-or-void sequence protects [ticket booking](/learn/system-design/case-studies/ticket-booking) from charging for seats a user did not get. Treat these as public descriptions of approaches, not current internals.
 
 ## Interviewer follow-ups
 
@@ -408,7 +408,7 @@ Stripe's API documentation describes idempotency keys that save the first respon
 - Updating ledger rows to fix mistakes, which destroys the audit trail.
 - One running balance row for a system account, which caps throughput at one commit per WAL flush.
 - Treating reconciliation as finance's job, so double charges are found by customers.
-- Retrying hard declines on a timer, which never succeeds and draws network penalties.
+- Retrying hard declines on a timer, which never succeeds, breaks the networks' retry limits and makes issuers suspicious of the customer's next legitimate charge.
 
 ## Senior signals
 

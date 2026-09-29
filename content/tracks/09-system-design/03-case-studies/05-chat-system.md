@@ -2,11 +2,11 @@
 slug: chat-system
 title: "Chat system: 100 million open connections, ordered delivery and multi-device sync"
 description: A WhatsApp/Messenger-scale chat design with estimates worked to gateways, store nodes and registry shards, a message traced from send to double tick in milliseconds, an owner failover traced through fencing, offline sync from a single per-device cursor, group fan-out and presence arithmetic, and how the design evolves at 10x and 100x.
-minutes: 40
+minutes: 35
 difficulty: hard
 tags: [system-design, case-study, chat, websockets, messaging, ordering, presence, multi-device, push-notifications]
 ---
-A chat system looks like a message queue with a UI. Unlike almost every other system in this module, it keeps a long-lived, stateful connection open to every online device, about 100 million at peak, and it makes promises users notice the moment they break: the same order on every device, nothing lost once the single tick appears, and a phone that was off for a week catching up the moment it comes online. Each promise is a distributed-systems problem wearing a friendly icon.
+A chat system looks like a message queue with a UI. Unlike almost every other system in this module, it keeps a long-lived, stateful connection open to every online device, about 100 million at peak, and it makes promises users notice the moment they break: the same order on every device, nothing lost once the single tick appears, and a phone that was off for a week catching up the moment it comes online.
 
 The senior version is not about WebSockets, which every candidate mentions. It is about three harder questions. How does a message find the gateway holding the recipient's connection? What makes delivery *correct* when that path fails, as it will many times a second? And what do groups and presence do to the arithmetic?
 
@@ -169,7 +169,7 @@ Direct delivery fails many times a second: a stale registry entry, a gateway mid
 
 ### Under the hood: what one idle connection costs
 
-An idle TCP socket costs the kernel a few kilobytes of socket structures: its receive and send buffers are allocated on demand as data queues, not at their configured maximums, so 200,000 idle sockets are hundreds of megabytes, not gigabytes. The larger cost is in user space. A TLS library keeps per-connection record buffers sized for 16 KB TLS records, which is most of the 20–50 KB per connection in the estimate; OpenSSL's `SSL_MODE_RELEASE_BUFFERS` frees them while a connection is idle, which is how gateways fit far more connections per gigabyte. One epoll set per event-loop thread watches all of them, and wakes only for sockets with data. Heartbeats exist because carrier NATs often expire idle TCP mappings after minutes, far below the two hours RFC 5382 recommends; a dead mapping looks like a live socket to both ends until the next write fails, so the interval is tuned per network rather than hard-coded.
+An idle TCP socket costs the kernel a few kilobytes of socket structures: its receive and send buffers are allocated on demand as data queues, not at their configured maximums, so 200,000 idle sockets are hundreds of megabytes, not gigabytes. The larger cost is in user space. A TLS library keeps per-connection record buffers sized for 16 KB TLS records, which is most of the 20–50 KB per connection in the estimate; OpenSSL's `SSL_MODE_RELEASE_BUFFERS` frees them while a connection is idle (around 34 KB per connection, its documentation says), which is how gateways fit far more connections per gigabyte. One epoll set per event-loop thread watches all of them, and wakes only for sockets with data. Heartbeats exist because carrier NATs often expire idle TCP mappings after minutes, far below the minimum of 2 hours 4 minutes that [RFC 5382](https://www.rfc-editor.org/rfc/rfc5382.html) requires; a dead mapping looks like a live socket to both ends until the next write fails, so the interval is tuned per network rather than hard-coded.
 
 ## Deep dive 2: ordering, failover and sync
 
@@ -279,7 +279,7 @@ A full TLS 1.3 handshake costs the server an ephemeral key pair and a key agreem
 | The same, behind a least-connections balancer | 200,000 | All on the empty replacement | 2.3 s / 9.9 s |
 | Region loss (150 of 500 gateways) | 30 million | 85,700 on each of 350 survivors | 1.0 s / 4.2 s |
 
-Spread out, crypto is not the constraint; **concentration and synchronisation are**. A crashed process's kernel closes all 200,000 sockets at once, so every client learns within one RTT, whereas a dead machine is discovered at each client's next heartbeat, over 60 s. If 200,000 SYNs reach one replacement within a second, its accept queue (`somaxconn`, 4,096 by default since Linux 5.4) overflows, clients' kernels resend the dropped SYNs 1, 3 and 7 s later in synchronised waves, and with RSA only about 101,000 handshakes finish inside a 5 s client timeout. Slow start on the balancer ([load balancing](/learn/networking/application-protocols/load-balancing)) removes the concentration; full jitter over 30 s cuts the replacement's load to 6,700 handshakes/s, a third of its RSA capacity; admission control answers any excess at once with a retry-after ([timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff)).
+Spread out, crypto is not the constraint; **concentration and synchronisation are**. A crashed process's kernel closes all 200,000 sockets at once, so every client learns within one RTT, whereas a dead machine is discovered at each client's next heartbeat, over 60 s. If 200,000 SYNs reach one replacement within a second, its accept queue (`somaxconn`, 4,096 by default since Linux 5.4) overflows, clients resend the dropped SYNs in synchronised waves (1, 3 and 7 s later under classic exponential backoff; Linux 6.5 and later retry the first few at 1 s intervals), and with RSA only about 101,000 handshakes finish inside a 5 s client timeout. Slow start on the balancer ([load balancing](/learn/networking/application-protocols/load-balancing)) removes the concentration; full jitter over 30 s cuts the replacement's load to 6,700 handshakes/s, a third of its RSA capacity; admission control answers any excess at once with a retry-after ([timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff)).
 
 At region scale the limit moves downstream: 30 million registry writes are 6.8 s of the registry's entire 4.4 million operations/s, already busy serving deliveries, followed by 30 million syncs. Jitter over 60 s gives 500,000 reconnects/s: 1,430 handshakes/s per gateway (2% of ECDSA capacity) and 11% of the registry. Size the window from the slowest downstream tier, not from TLS.
 
@@ -317,7 +317,7 @@ At region scale the limit moves downstream: 30 million registry writes are 6.8 s
 
 - WhatsApp's engineering blog described holding around two million connections on a single Erlang server in 2012, which is why 200,000 a gateway here is conservative.
 - Discord's engineering blog described storing messages partitioned by channel and a fixed time bucket with Snowflake IDs, for the same bounded-partition reason as `(conv_id, bucket)` above, and later moving that store to ScyllaDB.
-- Facebook engineers have described Messenger using MQTT to mobile devices and a per-user ordered queue of updates with a pointer per device, the shape of the inbox log.
+- Facebook engineers have described Messenger using MQTT to mobile devices and Iris, a totally ordered queue of updates with separate pointers for what the app and the storage tier have received: the shape of the inbox log.
 - Slack's engineering blog described Flannel, an application-level edge cache that answers clients' startup queries near the user, shrinking what each connect or reconnect costs the core services.
 - WhatsApp's security whitepaper describes "sender keys" for group end-to-end encryption.
 
@@ -327,13 +327,9 @@ At region scale the limit moves downstream: 30 million registry writes are 6.8 s
 
 **"Deploy a new gateway version without dropping 100 million connections."** Model answer: roll a few percent at a time; drain each gateway by refusing new connections and asking clients to reconnect elsewhere over ~10 minutes (330 reconnects/s per gateway); keep the frame protocol backward compatible; gate on connection success, delivery latency and reconnect rate. At 500 gateways and 5% at a time, a few hours. Common wrong answer: a rolling restart, which is 200,000 simultaneous reconnects per node.
 
-**"Why not Kafka as the message store, or a topic per conversation?"** Model answer: a cluster handles thousands to low hundreds of thousands of partitions, not billions of conversations, and Kafka cannot answer "messages 900–950 of cv_91" without scanning, while scrollback is core. Kafka is right for large-group fan-out work. Common wrong answer: "Kafka keeps order, so it is the natural store".
+**"Why not Kafka as the message store, or a topic per conversation?"** Model answer: a cluster handles hundreds of thousands of partitions, millions at most, not billions of conversations, and Kafka cannot answer "messages 900–950 of cv_91" without scanning, while scrollback is core. Kafka is right for large-group fan-out work. Common wrong answer: "Kafka keeps order, so it is the natural store".
 
 **"A phone is off for two weeks. What happens?"** Model answer: it syncs after its `inbox_seq`; beyond 10,000 events or past the 30-day trim, it gets a summary resync with history fetched on open. Pushes sent meanwhile were best-effort; sync makes it correct. Common wrong answer: "the queued push notifications deliver the messages".
-
-**"How do read receipts work in a 500-member group?"** Model answer: one coalesced read cursor per member, not a receipt per member per message; aggregate counts are computed from cursors on demand. Common wrong answer: 500 receipt messages per message.
-
-**"My phone dies in a tunnel. How long until my contacts see me offline?"** Model answer: no FIN is sent, so the gateway notices only when heartbeats stop, 60–120 s later with 60 s heartbeats, then the 30 s debounce: 90–150 s; faster detection costs heartbeats and battery. Common wrong answer: "immediately, the socket closes".
 
 **"A region with 30 million connections fails. How long until everyone is back?"** Model answer: TLS needs about a second of crypto across 350 survivors; the registry (6.8 s of its full capacity) and sync are the limits, so clients jitter over about a minute and gateways admit at a fixed rate. Common wrong answer: "as fast as clients retry", which is how the storm starts.
 
@@ -415,8 +411,7 @@ hints:
 - You make sends idempotent with a client message ID and define "sent" as durably stored.
 - You notice that the inbox log, not the message store, is the biggest write load, and trim it with a defined fallback.
 - You do the presence arithmetic and switch to subscribe-on-view before the interviewer asks.
-- You plan for the reconnect storm: draining for deploys, jittered backoff and handshake admission control for crashes.
-- You price presence, typing and reconnect storms with numbers, and know a storm's limits are concentration, synchronisation and the registry, not TLS.
+- You plan for the reconnect storm (draining for deploys, jittered backoff, handshake admission control) and know its limits are concentration, synchronisation and the registry, not TLS.
 
 ## Check yourself
 

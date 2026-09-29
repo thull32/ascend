@@ -314,7 +314,7 @@ def transform(op, against):
 
 The tie-break on `site` orders two inserts at one position identically on both sides. The function satisfies **TP1**: applying `a` then `transform(b, a)` gives the same document as `b` then `transform(a, b)`; checked exhaustively for every pair of single-character operations from different sites on 3- and 4-character documents.
 
-TP1 is enough only when one authority decides the order of operations. Peer-to-peer OT also needs **TP2** (transforming along different paths through a history gives the same result), which proved notoriously hard: several published algorithms were later shown to violate it. Practical OT is therefore client-server. Google Docs descends from the Jupiter protocol (Xerox PARC, 1995) via Google Wave: the server assigns each accepted operation a revision number and every client rebases onto it.
+TP1 is enough only when one authority decides the order of operations. Peer-to-peer OT also needs **TP2** (transforming along different paths through a history gives the same result), which proved notoriously hard: several published algorithms were later shown to violate it. Practical OT is therefore client-server. Google Wave's [OT design](https://svn.apache.org/repos/asf/incubator/wave/whitepapers/operational-transform/operational-transform.html) started from the Jupiter protocol (Xerox PARC, 1995), and Google Docs [describes](https://drive.googleblog.com/2010/09/whats-different-about-new-google-docs.html) the same shape: the server assigns each accepted change a revision number and every client rebases onto it.
 
 ```mermaid
 sequenceDiagram

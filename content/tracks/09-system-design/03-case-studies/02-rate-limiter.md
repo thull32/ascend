@@ -83,12 +83,11 @@ The client sees:
 ```text
 HTTP/1.1 429 Too Many Requests
 Retry-After: 42
-RateLimit-Limit: 10
-RateLimit-Remaining: 0
-RateLimit-Reset: 42
+RateLimit-Policy: "payments";q=10;w=60
+RateLimit: "payments";r=0;t=42
 ```
 
-The `RateLimit-*` fields come from an IETF draft whose syntax has changed between revisions, and many APIs use `X-RateLimit-*` instead; pick one, document it and version it ([API design and versioning](/learn/system-design/building-blocks/api-design-and-versioning)). Rules live in reviewed configuration:
+The 429 status and `Retry-After` are standard ([RFC 6585](https://www.rfc-editor.org/rfc/rfc6585.txt)). The other two fields follow the IETF [RateLimit header fields draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/): `q` units per `w`-second window, `r` units left, usable over the next `t` seconds. It is still a draft, and its early revisions used three fields (`RateLimit-Limit`, `-Remaining`, `-Reset`) that many APIs still send, often as `X-RateLimit-*`; pick one, document it and version it ([API design and versioning](/learn/system-design/building-blocks/api-design-and-versioning)). Rules live in reviewed configuration:
 
 ```yaml
 domain: public-api
@@ -336,8 +335,8 @@ The overshoot is about lag × per-region send rate × (regions − 1), capped at
 
 ## What real companies describe
 
-- Stripe's engineering blog has described running four kinds of limiter: a token-bucket request rate limiter per user, a concurrent-requests limiter, and two load shedders that reserve capacity for critical traffic, built on Redis.
-- Cloudflare has described using the sliding window counter approximation above at scale and reported a very small error rate against exact counting on real traffic.
+- Stripe's [engineering blog](https://stripe.com/blog/rate-limiters) has described running four kinds of limiter: a token-bucket request rate limiter per user, a concurrent-requests limiter, and two load shedders that reserve capacity for critical traffic, built on Redis.
+- Cloudflare [described](https://blog.cloudflare.com/counting-things-a-lot-of-different-things/) using the sliding window counter approximation above; replayed against 400 million requests from 270,000 sources, it wrongly allowed or limited 0.003% of requests.
 - Envoy's global rate limit API, and Lyft's open-source Go service that implements it on Redis, is the descriptor model this lesson's API follows.
 - YouTube's open-source Doorman leases capacity to clients from a central allocator, the leasing model taken to its conclusion.
 - GitHub's GraphQL API documents a points-based limit where a query's cost is computed from how many objects it could return.
