@@ -91,7 +91,12 @@ impl Limiters {
     pub async fn charge(&self, key: &str, quota: SharedQuota) -> Option<Response> {
         match self.shared.check(key, quota).await {
             Ok(Ok(())) => None,
-            Ok(Err(wait)) => Some(throttled(wait)),
+            Ok(Err(wait)) => {
+                // The key's prefix names the bucket ("auth", "pw", "ai", ...).
+                let bucket = key.split(':').next().unwrap_or("shared").to_string();
+                ascend_core::metrics::get().rate_limited.add(1, &[ascend_core::metrics::kv("bucket", bucket)]);
+                Some(throttled(wait))
+            }
             Err(e) => {
                 // Fail closed: these limits guard passwords and spend, and a
                 // request that cannot reach Postgres would fail anyway.
@@ -161,6 +166,7 @@ pub async fn limit(bucket: Bucket, State(state): State<AppState>, req: Request<B
     let refused = match bucket {
         Bucket::General => limiters.general.check_key(&ip).err().map(|not_until| {
             let wait = not_until.wait_time_from(DefaultClock::default().now());
+            ascend_core::metrics::get().rate_limited.add(1, &[ascend_core::metrics::kv("bucket", "general")]);
             throttled(wait)
         }),
         Bucket::Auth => limiters.charge(&format!("auth:ip:{ip}"), AUTH_PER_IP).await,

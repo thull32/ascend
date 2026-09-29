@@ -69,6 +69,10 @@ impl SubmissionService {
         Self { db, curriculum, grader }
     }
 
+    pub fn grader(&self) -> Option<&Grader> {
+        self.grader.as_ref()
+    }
+
     fn target<'a>(
         &self,
         kind: &str,
@@ -134,13 +138,31 @@ impl SubmissionService {
             expected: expected(target.tests),
             time_limit: Duration::from_millis(u64::from(target.time_limit_ms)),
         };
-        let outcome = grader.run(job).await.map_err(|e| match e {
-            GradeError::Busy => AppError::Unavailable {
-                message: "every code runner is busy; try again in a few seconds".into(),
-                retry_after_secs: Some(5),
-            },
-            other => AppError::internal(other),
+        let lang_label = if language == Language::Python { "python" } else { "javascript" };
+        let m = crate::metrics::get();
+        let started = std::time::Instant::now();
+        let outcome = grader.run(job).await.map_err(|e| {
+            let label = if matches!(e, GradeError::Busy) { "busy" } else { "error" };
+            m.grader_runs.add(1, &[crate::metrics::kv("language", lang_label), crate::metrics::kv("outcome", label)]);
+            match e {
+                GradeError::Busy => AppError::Unavailable {
+                    message: "every code runner is busy; try again in a few seconds".into(),
+                    retry_after_secs: Some(5),
+                },
+                other => AppError::internal(other),
+            }
         })?;
+        let total = started.elapsed();
+        m.grader_duration.record(outcome.elapsed.as_secs_f64(), &[crate::metrics::kv("language", lang_label)]);
+        m.grader_queue_wait.record(total.saturating_sub(outcome.elapsed).as_secs_f64(), &[]);
+        let result = match (&outcome.compile_error, &outcome.stopped) {
+            (Some(_), _) => "compile_error",
+            (_, Some(ascend_grader::Stop::TimeLimit)) => "time_limit",
+            (_, Some(_)) => "crashed",
+            _ if outcome.passed.iter().all(|p| *p) => "passed",
+            _ => "failed",
+        };
+        m.grader_runs.add(1, &[crate::metrics::kv("language", lang_label), crate::metrics::kv("outcome", result)]);
 
         let tests = verdicts(target.tests, &outcome);
         let passed_count = tests.iter().filter(|t| t.passed).count();

@@ -10,6 +10,10 @@ pub struct Config {
     /// Address the HTTP server binds to. Railway injects `PORT`.
     pub bind_addr: String,
     pub database_url: SecretString,
+    /// Connections this replica may hold (`DATABASE_POOL_MAX`, default 20).
+    /// Replicas × this must stay under Postgres's `max_connections` with
+    /// headroom; boot checks and warns (see `state::check_connection_budget`).
+    pub database_pool_max: u32,
     /// Public origin of the app, e.g. `https://ascend.up.railway.app`. Used for
     /// CSRF origin checks and cookie `Secure` flag decisions.
     pub public_origin: String,
@@ -116,6 +120,7 @@ impl Config {
         let cfg = Self {
             bind_addr: format!("{host}:{port}"),
             database_url: SecretString::from(var("DATABASE_URL")?),
+            database_pool_max: parse_or::<u32>("DATABASE_POOL_MAX", 20)?.max(2),
             public_origin,
             cookie_secure,
             session_ttl: Duration::from_secs(session_ttl_days * 86_400),

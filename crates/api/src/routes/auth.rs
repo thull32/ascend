@@ -169,7 +169,9 @@ fn send_verification(state: &AppState, user_id: uuid::Uuid) {
                 // to a server or in a Referer header.
                 let url = format!("{origin}/verify-email#token={}", link.token);
                 let email = ascend_core::email::verify_address(&link.email, &link.display_name, &url);
-                if let Err(e) = mailer.send(&email).await {
+                let result = mailer.send(&email).await;
+                count_email("verify", result.is_ok());
+                if let Err(e) = result {
                     tracing::error!(error = %e, "verification email failed");
                 }
             }
@@ -177,6 +179,13 @@ fn send_verification(state: &AppState, user_id: uuid::Uuid) {
             Err(e) => tracing::error!(error = %e, "could not start verification"),
         }
     });
+}
+
+fn count_email(kind: &'static str, sent: bool) {
+    let outcome = if sent { "sent" } else { "failed" };
+    ascend_core::metrics::get()
+        .emails
+        .add(1, &[ascend_core::metrics::kv("kind", kind), ascend_core::metrics::kv("outcome", outcome)]);
 }
 
 fn email_unavailable() -> ascend_core::AppError {
@@ -210,7 +219,9 @@ async fn forgot_password(State(state): State<AppState>, AppJson(body): AppJson<F
             Ok(Some(link)) => {
                 let url = format!("{origin}/reset-password#token={}", link.token);
                 let message = ascend_core::email::password_reset(&link.email, &link.display_name, &url);
-                if let Err(e) = mailer.send(&message).await {
+                let result = mailer.send(&message).await;
+                count_email("reset", result.is_ok());
+                if let Err(e) = result {
                     tracing::error!(error = %e, "password reset email failed");
                 }
             }

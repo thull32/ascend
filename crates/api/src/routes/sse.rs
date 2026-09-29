@@ -45,9 +45,15 @@ where
     let mut full = String::new();
     let mut usage = Usage::default();
     let mut error = None;
+    let started = std::time::Instant::now();
     while let Some(ev) = upstream.next().await {
         match &ev {
-            StreamEvent::Delta(t) => full.push_str(t),
+            StreamEvent::Delta(t) => {
+                if full.is_empty() {
+                    ascend_core::metrics::get().ai_first_token.record(started.elapsed().as_secs_f64(), &[]);
+                }
+                full.push_str(t)
+            }
             StreamEvent::Done { usage: u, .. } => usage = *u,
             StreamEvent::Error(e) => error = Some(e.clone()),
         }

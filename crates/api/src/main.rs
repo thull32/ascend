@@ -63,11 +63,12 @@ async fn main() -> anyhow::Result<()> {
     }
     dotenvy::dotenv().ok();
     let config = Config::from_env().map_err(|e| anyhow::anyhow!("configuration: {e}"))?;
-    telemetry::init(config.log_json);
+    let telemetry = telemetry::init(config.log_json, "ascend-api");
 
     tracing::info!(env = ?config.env, addr = %config.bind_addr, "booting ascend-api");
 
     let db = state::connect_db(&config).await?;
+    state::check_connection_budget(&db, config.database_pool_max).await;
     match ascend_api::migrate::run(&db).await? {
         migrate::Plan::Apply(applied) => tracing::info!(?applied, "migrations applied"),
         migrate::Plan::SchemaAhead(unknown) => {
@@ -92,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     let grader = state::load_grader(&config).await?;
     let state = state::AppState::build(Arc::new(config.clone()), db, curriculum, grader)?;
     ascend_core::auth::password::warm_up().await;
+    telemetry::observe(&state);
     let app = app::build(state.clone());
 
     // Background maintenance, hourly: sweep expired sessions and email
@@ -128,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
     if !serve::finish_tasks(&state.tasks, TASK_TIMEOUT).await {
         tracing::warn!(remaining = state.tasks.len(), "background tasks still running at shutdown");
     }
+    telemetry.shutdown();
     tracing::info!("shutdown complete");
     Ok(())
 }

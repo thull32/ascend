@@ -131,6 +131,7 @@ impl BudgetService {
             billed_input(&row, &self.limits) + row.reserved_input_tokens + input_hold <= self.limits.daily_input_tokens;
         if !within_requests || !within_input || remaining_output < min_output {
             txn.rollback().await?;
+            crate::metrics::get().ai_budget.add(1, &[crate::metrics::kv("decision", "refused")]);
             return Err(self.exhausted());
         }
         let output_hold = Ord::min(max_output, remaining_output);
@@ -149,6 +150,7 @@ impl BudgetService {
         txn.commit().await?;
 
         request.max_tokens = u32::try_from(output_hold).unwrap_or(request.max_tokens);
+        crate::metrics::get().ai_budget.add(1, &[crate::metrics::kv("decision", "reserved")]);
         Ok(Reservation { budget: self.clone(), user_id, day, input_hold, output_hold, settled: false })
     }
 
@@ -230,6 +232,16 @@ impl std::fmt::Debug for Reservation {
 impl Reservation {
     pub async fn settle(mut self, usage: Usage) -> AppResult<()> {
         self.settled = true;
+        let m = crate::metrics::get();
+        m.ai_budget.add(1, &[crate::metrics::kv("decision", "settled")]);
+        for (kind, n) in [
+            ("input", usage.input_tokens),
+            ("output", usage.output_tokens),
+            ("cache_read", usage.cache_read_input_tokens),
+            ("cache_write", usage.cache_creation_input_tokens),
+        ] {
+            m.ai_tokens.add(u64::try_from(n).unwrap_or(0), &[crate::metrics::kv("kind", kind)]);
+        }
         self.budget.apply(self.user_id, self.day, self.input_hold, self.output_hold, usage).await
     }
 
@@ -244,6 +256,7 @@ impl Drop for Reservation {
         if self.settled {
             return;
         }
+        crate::metrics::get().ai_budget.add(1, &[crate::metrics::kv("decision", "released")]);
         let (budget, user_id, day, input_hold, output_hold) =
             (self.budget.clone(), self.user_id, self.day, self.input_hold, self.output_hold);
         match tokio::runtime::Handle::try_current() {

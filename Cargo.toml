@@ -45,6 +45,13 @@ thiserror = "2"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+# Metrics and traces over OTLP (push: every replica sends its own, so no
+# per-replica scrape discovery is needed). Core uses only the API crate;
+# without an installed provider its instruments are no-ops.
+opentelemetry = { version = "0.33", default-features = false, features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
+tracing-opentelemetry = "0.34"
 
 # --- security ---
 argon2 = "0.6"

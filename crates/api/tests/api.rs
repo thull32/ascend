@@ -39,6 +39,7 @@ fn config(url: &str) -> Config {
     Config {
         bind_addr: "127.0.0.1:0".into(),
         database_url: SecretString::from(url.to_string()),
+        database_pool_max: 20,
         public_origin: "http://localhost:8080".into(),
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),

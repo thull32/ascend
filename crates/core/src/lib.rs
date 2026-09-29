@@ -22,6 +22,7 @@ pub mod content;
 pub mod email;
 pub mod entities;
 pub mod error;
+pub mod metrics;
 pub mod services;
 
 pub use config::Config;

@@ -129,6 +129,7 @@ async fn expire<C: ConnectionTrait>(db: &C, rule: &Rule, days: i32) -> AppResult
     }
     if total > 0 {
         tracing::info!(kind = rule.name, deleted = total, "retention");
+        crate::metrics::get().retention_deleted.add(total, &[crate::metrics::kv("kind", rule.name)]);
     }
     Ok(total)
 }

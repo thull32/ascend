@@ -39,6 +39,7 @@ pub fn build(state: AppState) -> Router {
         .merge(routes::comments::router())
         .merge(routes::coach::router(state.clone()))
         .merge(routes::interviews::router(state.clone()))
+        .route_layer(middleware::from_fn(crate::middleware::metrics::stamp_route))
         .fallback(api_not_found)
         .layer(middleware::from_fn_with_state(state.clone(), csrf::enforce))
         .layer(middleware::from_fn_with_state(state.clone(), |s, r, n| {
@@ -50,6 +51,7 @@ pub fn build(state: AppState) -> Router {
         .nest("/api", api)
         .fallback(get(static_handler))
         .layer(middleware::from_fn(security_headers::apply))
+        .layer(middleware::from_fn(crate::middleware::metrics::record))
         .layer(CompressionLayer::new().br(true).gzip(true))
         .layer(TimeoutLayer::with_status_code(StatusCode::SERVICE_UNAVAILABLE, Duration::from_secs(240)))
         .layer(

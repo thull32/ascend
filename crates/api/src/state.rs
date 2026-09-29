@@ -39,10 +39,11 @@ pub struct AppState {
 pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
     let mut opts = ConnectOptions::new(config.database_url.expose_secret().to_string());
     opts
-        // Sized for one replica on a small Postgres (max_connections ~100):
-        // leaves headroom for migrations, psql, and a second replica during
-        // a rolling deploy.
-        .max_connections(20)
+        // DATABASE_POOL_MAX per replica (default 20). Every replica, plus
+        // the old ones still draining during a rolling deploy, shares
+        // Postgres's max_connections (100 by default), so the budget is
+        // checked at boot: see `check_connection_budget`.
+        .max_connections(config.database_pool_max)
         .min_connections(2)
         // SeaORM passes this to sqlx as the acquire timeout: how long a
         // request waits for a free connection before failing fast.
@@ -60,6 +61,36 @@ pub async fn connect_db(config: &Config) -> anyhow::Result<DatabaseConnection> {
     Database::connect(opts)
         .await
         .map_err(|e| anyhow::anyhow!("database connect: {}", redact_credentials(&e.to_string())))
+}
+
+/// Logs this replica's share of Postgres's connection limit and warns when
+/// adding its pool would leave less than 10 connections of headroom (for
+/// migrations, psql and a rolling deploy's overlap). Adding replicas is the
+/// usual way to hit it: lower `DATABASE_POOL_MAX` or put a pooler in front.
+pub async fn check_connection_budget(db: &DatabaseConnection, pool_max: u32) {
+    use sea_orm::ConnectionTrait;
+    let q = "SELECT current_setting('max_connections')::int AS max, \
+             (SELECT count(*) FROM pg_stat_activity)::int AS used";
+    match db.query_one_raw(sea_orm::Statement::from_string(sea_orm::DatabaseBackend::Postgres, q)).await {
+        Ok(Some(row)) => {
+            let max: i32 = row.try_get("", "max").unwrap_or(0);
+            let used: i32 = row.try_get("", "used").unwrap_or(0);
+            let headroom = max - used - i32::try_from(pool_max).unwrap_or(i32::MAX);
+            if headroom < 10 {
+                tracing::warn!(
+                    max_connections = max,
+                    in_use = used,
+                    pool_max,
+                    headroom,
+                    "connection budget nearly exhausted: lower DATABASE_POOL_MAX, remove replicas, or add a pooler"
+                );
+            } else {
+                tracing::info!(max_connections = max, in_use = used, pool_max, headroom, "connection budget");
+            }
+        }
+        Ok(None) => {}
+        Err(e) => tracing::warn!(error = %e, "could not read the connection budget"),
+    }
 }
 
 /// Replaces the password in any `scheme://user:password@host` in `text`.
