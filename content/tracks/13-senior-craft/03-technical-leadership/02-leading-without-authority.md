@@ -2,7 +2,7 @@
 slug: leading-without-authority
 title: "Leading without authority: influence, alignment and disagreement"
 description: How senior engineers move a decision across teams they do not manage, traced through an annotated sequence of conversations, with a stakeholder map, a filled decision brief, disagree-and-commit worked in actions, and how decision rights work behind the scenes.
-minutes: 30
+minutes: 35
 difficulty: medium
 tags: [leadership, influence, decision-making, alignment, disagreement, escalation, stakeholders]
 ---

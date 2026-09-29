@@ -2,7 +2,7 @@
 slug: context-management
 title: "Context management: what the model sees, and how it rots"
 description: The context window as the agent's entire world, a hand-traced token budget across eight iterations with and without prompt caching, what compaction keeps and drops, why quality degrades long before the limit, agentic search versus embedding indexes, repo maps, handoff notes, subagents and session hygiene.
-minutes: 25
+minutes: 30
 difficulty: medium
 tags: [ai-tools, context-window, rag, repo-map, memory-files, coding-agents, prompt-caching]
 ---

@@ -2,7 +2,7 @@
 slug: graph-time-series-and-vector-databases
 title: "Graph, time-series and vector databases: when a specialised store earns its place"
 description: The storage trick behind each of three specialised families (index-free adjacency, Gorilla-compressed time-partitioned columns, and HNSW and IVF vector indexes), traced by hand and measured against Postgres (recursive CTEs, BRIN), with the supernode, cardinality and filtered-search failure modes and the point at which Postgres stops being enough.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [graph-database, time-series, vector-database, hnsw, pgvector, gorilla-compression, neo4j]
 problems: [k-closest-points]

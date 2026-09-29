@@ -2,7 +2,7 @@
 slug: building-the-ai-coach
 title: "Building the AI coach: streaming, caching and budgets"
 description: How Ascend streams model replies through a channel so a closed tab cannot lose a reply or skip its bill, how its prompt caching went from one breakpoint to three blocks, and how a budget check became a hold that no call can overshoot.
-minutes: 50
+minutes: 45
 difficulty: hard
 tags: [case-study, llm, sse, streaming, prompt-caching, rate-limiting, cost-control]
 ---

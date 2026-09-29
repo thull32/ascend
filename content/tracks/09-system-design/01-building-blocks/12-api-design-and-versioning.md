@@ -2,7 +2,7 @@
 slug: api-design-and-versioning
 title: "API design and versioning: contracts that survive their consumers"
 description: Resource modelling, idempotency keys traced, an error envelope built on RFC 9457, offset versus cursor pagination measured on a million rows, rate-limit headers and their traps, a catalogue of breaking changes including the subtle ones, and versioning strategies down to how date-pinned versions are implemented.
-minutes: 35
+minutes: 40
 difficulty: medium
 tags: [system-design, api-design, versioning, pagination, rate-limiting, backwards-compatibility, idempotency, error-handling]
 ---

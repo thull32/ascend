@@ -2,7 +2,7 @@
 slug: transactions-and-acid
 title: "Transactions and ACID: what the database actually promises"
 description: What atomicity, consistency, isolation and durability each guarantee mechanically in Postgres, the exact WAL records one money transfer writes, what synchronous_commit and group commit do to latency and loss, and the five transaction bugs that application code keeps reintroducing.
-minutes: 30
+minutes: 35
 difficulty: medium
 tags: [transactions, acid, wal, durability, postgres, atomicity, synchronous-commit]
 ---

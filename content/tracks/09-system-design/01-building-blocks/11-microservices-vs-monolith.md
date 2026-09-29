@@ -2,7 +2,7 @@
 slug: microservices-vs-monolith
 title: "Microservices vs monolith: boundaries, data ownership and the distributed monolith trap"
 description: Why the real reason to split a system is team scaling, the cost of a network hop measured, latency and availability of call chains simulated, a distributed-monolith cascade traced thread by thread, the modular monolith and how to enforce it, boundaries drawn by data ownership, and extracting a service without building a distributed monolith.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, microservices, monolith, modular-monolith, service-boundaries, strangler-fig, data-ownership, distributed-monolith]
 ---

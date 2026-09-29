@@ -2,7 +2,7 @@
 slug: choosing-a-database
 title: "Choosing a database: a decision framework from access patterns"
 description: A four-question framework (access patterns, per-operation consistency, scale and shape, operating cost) for choosing a datastore, with single-node Postgres limits and this module's measurements as numbers, three worked decisions including this app's own code, the polyglot tax itemised, and how to keep the choice reversible.
-minutes: 25
+minutes: 30
 difficulty: hard
 tags: [database-selection, architecture, trade-offs, postgres, polyglot-persistence, system-design]
 ---

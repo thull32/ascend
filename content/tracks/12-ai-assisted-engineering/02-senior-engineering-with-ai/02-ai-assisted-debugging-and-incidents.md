@@ -2,7 +2,7 @@
 slug: ai-assisted-debugging-and-incidents
 title: "AI-assisted debugging and incident response"
 description: Debugging as hypothesis testing with AI as the hypothesis generator, reducing logs to signatures before a model sees them (with a hand trace and an exercise), reproduce-first fixes and agent-driven bisects traced step by step, hard guardrails on production actions with runbook tools, AI's roles during and after an incident, and the questions an interviewer asks about all of it.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [ai-tools, debugging, incident-response, observability, guardrails, postmortems]
 ---

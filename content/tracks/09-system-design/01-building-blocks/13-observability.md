@@ -2,7 +2,7 @@
 slug: observability
 title: "Observability: metrics, logs, traces and the SLOs that decide when to page"
 description: What each signal can and cannot answer and what it costs, cardinality explosion worked in series and bytes, head versus tail sampling traced, histogram quantile error measured, SLIs, SLOs and error budgets, and multi-window burn-rate alerts derived and simulated against real incident shapes.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, observability, metrics, tracing, slo, alerting, burn-rate, cardinality, sampling]
 ---

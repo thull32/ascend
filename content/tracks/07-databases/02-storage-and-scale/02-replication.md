@@ -2,7 +2,7 @@
 slug: replication
 title: "Replication: streaming the log, measuring lag and surviving failover"
 description: How Postgres ships its write-ahead log to replicas, measured streaming lag and slot retention, how lag in bytes becomes lag in seconds, what each synchronous_commit level guarantees and costs, how to route reads for read-your-writes, and how failover avoids split brain.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [replication, streaming-replication, logical-replication, replication-lag, failover, read-your-writes, postgres, patroni]
 ---

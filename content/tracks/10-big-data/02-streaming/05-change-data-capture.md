@@ -2,7 +2,7 @@
 slug: change-data-capture
 title: "Change data capture: turning a database into a stream"
 description: Why dual writes corrupt caches and search indexes, traced step by step; how Postgres logical decoding and Debezium turn the WAL into change events with before and after images; three SQL statements traced to events, a search-index upsert and a cache invalidation; the outbox pattern and Debezium's event router; replication-slot WAL bloat; MySQL binlog, Postgres logical decoding and MongoDB change streams compared.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [big-data, streaming, change-data-capture, debezium, outbox, postgres, kafka-connect, elasticsearch, caching]
 ---

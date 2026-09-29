@@ -2,7 +2,7 @@
 slug: prefix-sums-and-difference-arrays
 title: Prefix sums and difference arrays
 description: Answer any range sum in O(1) after O(n) preprocessing, extend it to 2D with inclusion–exclusion traced cell by cell, invert it into difference arrays for O(1) range updates, pair it with a hash map for subarray-sum problems, and know where it overflows.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [arrays, prefix-sum, difference-array, range-query, inclusion-exclusion, hash-map, overflow]
 problems: [range-sum-query-immutable, subarray-sum-equals-k, find-pivot-index]

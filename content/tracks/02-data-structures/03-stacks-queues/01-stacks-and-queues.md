@@ -2,7 +2,7 @@
 slug: stacks-and-queues
 title: Stacks and queues
 description: Array-backed stacks, why naive array queues are O(n) with the measured numbers, ring buffers traced through wrap-around and growth with the full/empty problem solved, the two-stack queue with its amortised proof, and what deque, ArrayDeque, VecDeque, Go channels and the Disruptor really are underneath.
-minutes: 40
+minutes: 45
 difficulty: easy
 tags: [stack, queue, deque, ring-buffer, amortized, two-stacks, backpressure, channels]
 problems: [valid-parentheses, min-stack, design-circular-queue]

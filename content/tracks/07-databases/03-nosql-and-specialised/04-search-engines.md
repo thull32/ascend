@@ -2,7 +2,7 @@
 slug: search-engines
 title: "Search engines: inverted indexes, analyzers and relevance"
 description: How an inverted index answers text queries and what Lucene stores on disk, why analysis decides what can ever match, BM25 worked by hand on three documents, segments, refresh, translog and merges, shards and the distributed IDF problem, deep pagination, keeping the index in sync with CDC, and Postgres full-text search measured.
-minutes: 45
+minutes: 50
 difficulty: medium
 tags: [search, inverted-index, elasticsearch, bm25, full-text-search, postgres, cdc]
 problems: [implement-trie]

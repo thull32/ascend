@@ -2,7 +2,7 @@
 slug: vector-search-internals
 title: "Vector search internals: brute force, IVF, HNSW and product quantisation"
 description: What exact search costs for a million 768-dimensional vectors, IVF cells and the nprobe trade-off traced in 2D, HNSW layer probabilities and greedy descent traced on a drawn graph, product-quantisation distance tables worked by hand, recall@k measured in pure Python, why filters and deletes break indexes, and pgvector versus dedicated stores.
-minutes: 55
+minutes: 50
 difficulty: hard
 tags: [vector-search, ann, hnsw, ivf, product-quantisation, pgvector, recall, embeddings]
 problems: []

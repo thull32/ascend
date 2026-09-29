@@ -2,7 +2,7 @@
 slug: key-value-stores-and-redis
 title: "Key-value stores and Redis: data structures at memory speed"
 description: Why a single-threaded server does a million operations a second, what each Redis data structure and encoding costs with the exact conversion thresholds, how RDB, AOF and fork's copy-on-write trade durability for memory, how eviction and cluster slots really work, and the rate-limiter and hot-key arithmetic.
-minutes: 55
+minutes: 50
 difficulty: medium
 tags: [redis, key-value, caching, eviction, persistence, cluster]
 problems: [lru-cache, time-based-kv]

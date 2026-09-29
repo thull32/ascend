@@ -2,7 +2,7 @@
 slug: clarifying-and-scoping
 title: "Clarifying and scoping: the questions that choose the algorithm"
 description: A catalogue of clarifying questions by problem type with the answer that changes the approach, a measured operation budget for n, a worked Meeting Rooms II where one answer turns O(n log n) into O(n), and how clarification is graded, noted and argued in a debrief.
-minutes: 35
+minutes: 25
 difficulty: medium
 tags: [interview, clarifying-questions, constraints, scoping, assumptions]
 problems: [top-k-frequent, merge-intervals, subarray-sum-equals-k, time-based-kv, meeting-rooms-ii]

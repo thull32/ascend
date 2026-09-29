@@ -2,7 +2,7 @@
 slug: ci-cd-and-deployment
 title: "CI/CD and deployment: pipelines, environments, blue-green, canaries, rollbacks and migrations"
 description: A real pipeline timed job by job with and without caches, blue-green and canary releases traced step by step with the sample-size arithmetic that sets stage lengths, a failed canary rolled back, draining and readiness on a real platform, how this app's boot learned to survive a rollback across a migration, expand/contract tied to the versions that are live, and an error budget that decides when to ship.
-minutes: 55
+minutes: 50
 difficulty: medium
 tags: [ci-cd, deployment, blue-green, canary, rollback, migrations, slo, error-budget, senior-craft]
 ---

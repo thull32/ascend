@@ -2,7 +2,7 @@
 slug: cdns-and-edge
 title: "CDNs and the edge: cache hierarchies, cache keys, invalidation and Open Connect"
 description: How requests reach a PoP (anycast versus DNS, with a measured case of one anycast IP served by two PoPs with independent caches), hit ratios multiplied through edge and shield tiers, request coalescing traced, cache keys and their explosion, s-maxage and stale-while-revalidate timelines, purges by URL and tag, edge compute, and Netflix Open Connect's push-based design.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [cdn, caching, edge, cache-control, cache-key, request-coalescing, invalidation, anycast, open-connect, netflix]
 problems: []

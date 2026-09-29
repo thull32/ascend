@@ -2,7 +2,7 @@
 slug: recurrences-and-master-theorem
 title: "Recurrences and the master theorem"
 description: How to write the recurrence for a recursive algorithm, solve it by drawing the recursion tree, by substitution, by the master theorem or by Akra–Bazzi, verify the answer by instrumenting the code, and recognise the handful of recurrences that cover almost every algorithm you will meet.
-minutes: 60
+minutes: 55
 difficulty: medium
 tags: [complexity, recurrences, master-theorem, recursion-tree, divide-and-conquer, akra-bazzi]
 problems: [pow-x-n, merge-k-sorted-lists]

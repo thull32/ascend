@@ -2,7 +2,7 @@
 slug: designing-mock-interviews
 title: "Designing mock interviews: roles, transcripts and rubrics"
 description: How Ascend runs solo and AI-assisted mock interviews with three separate model roles over one transcript, grades them with a JSON-schema rubric, and how a read-modify-write on JSONB lost data until it became one SQL append.
-minutes: 50
+minutes: 45
 difficulty: hard
 tags: [case-study, llm, structured-outputs, prompt-design, postgres, jsonb, race-condition]
 ---

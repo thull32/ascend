@@ -2,7 +2,7 @@
 slug: communicating-while-solving
 title: "Communicating while solving: thinking aloud without losing the thread"
 description: What to say at each step of the problem-solving loop, two annotated transcripts (one clean, one stuck and taking a hint), how to structure an explanation and discuss complexity without hedging, the four-step hint protocol, and how a coding round is actually graded.
-minutes: 40
+minutes: 35
 difficulty: intro
 tags: [communication, interview, thinking-aloud, complexity, hints]
 problems: [two-sum, valid-parentheses, contains-duplicate, daily-temperatures]

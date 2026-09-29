@@ -2,7 +2,7 @@
 slug: isolation-levels-and-anomalies
 title: "Isolation levels and anomalies: what your default lets through"
 description: Every anomaly from dirty reads to write skew reproduced with two interleaved Postgres sessions, the level that prevents each in Postgres and in MySQL, how READ COMMITTED re-checks rows and how serialisable snapshot isolation detects dangerous structures, and what SERIALIZABLE costs under contention, measured.
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [isolation, transactions, write-skew, serializable, mvcc, postgres, mysql, concurrency]
 ---

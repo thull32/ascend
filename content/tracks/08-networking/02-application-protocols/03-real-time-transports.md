@@ -2,7 +2,7 @@
 slug: real-time-transports
 title: "Real-time transports: long polling, SSE, WebSockets and WebRTC"
 description: "How to push data to a browser without it asking: polling and long polling priced per client, the text/event-stream format and a spec-exact parser, WebSocket upgrade and frames byte by byte, WebTransport over HTTP/3, measured memory and keep-alive cost per held connection, what proxies do to each, WebRTC in brief, and why this app streams AI replies over SSE."
-minutes: 50
+minutes: 55
 difficulty: medium
 tags: [sse, websockets, long-polling, webtransport, webrtc, streaming, real-time]
 problems: []

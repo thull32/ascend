@@ -2,7 +2,7 @@
 slug: behavioral-interviews-for-seniors
 title: "Behavioural interviews for seniors: STAR+, the story bank and the drill-down"
 description: How the behavioural round is run and scored, the STAR+ structure and worksheet, a story bank that covers the common questions, and two stories (a disagreement and a costly mistake) told weak and strong with the interviewer's notes, a line-by-line score, the follow-up drill-down and the resulting write-ups.
-minutes: 30
+minutes: 25
 difficulty: easy
 tags: [career, interviews, behavioural, star, storytelling, leadership]
 ---

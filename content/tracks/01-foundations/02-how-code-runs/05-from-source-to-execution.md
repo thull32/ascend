@@ -2,7 +2,7 @@
 slug: from-source-to-execution
 title: "From source to execution: compilers, interpreters and JITs"
 description: One two-line function traced through tokens, AST, bytecode, CPython 3.14's specialised bytecode, V8's Ignition bytecode and its Sparkplug, Maglev and TurboFan tiers, and Go's four and Rust's five bytes of machine code, with measured timings, to explain why the same loop takes 108 milliseconds in Python and under 2 in Go.
-minutes: 40
+minutes: 45
 difficulty: easy
 tags: [compilers, interpreters, jit, bytecode, performance, cpython, v8, llvm]
 problems: []

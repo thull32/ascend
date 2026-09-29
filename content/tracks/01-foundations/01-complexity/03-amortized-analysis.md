@@ -2,7 +2,7 @@
 slug: amortized-analysis
 title: "Amortised analysis: paying for the expensive operation in advance"
 description: Why a dynamic array's append is O(1) even though some appends copy everything, the three ways to prove it (aggregate, accounting, potential), and how amortised differs from average and worst case in ways that show up on latency graphs.
-minutes: 50
+minutes: 55
 difficulty: easy
 tags: [complexity, amortized, dynamic-array, accounting-method, potential-method]
 problems: [min-stack, design-circular-queue]

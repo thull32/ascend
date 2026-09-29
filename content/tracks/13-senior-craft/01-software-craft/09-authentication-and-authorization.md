@@ -2,7 +2,7 @@
 slug: authentication-and-authorization
 title: "Authentication and authorization: OAuth 2 and PKCE, OIDC, sessions and JWTs, refresh tokens, RBAC to ReBAC, SAML and key rotation"
 description: The OAuth 2 authorization-code flow with PKCE traced request by request, client-credentials and device flows, OIDC ID tokens and JWKS, sessions versus JWTs with measured sizes and costs, refresh-token rotation with reuse detection, audience and scope checks, RBAC, ABAC and a Zanzibar check walked by hand, SAML signature wrapping, WebAuthn and key rotation that logs nobody out.
-minutes: 55
+minutes: 50
 difficulty: hard
 tags: [security, authentication, authorization, oauth, pkce, oidc, jwt, sessions, refresh-tokens, rbac, rebac, zanzibar, saml, sso, webauthn, mfa, key-rotation, senior-craft]
 problems: []

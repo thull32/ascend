@@ -2,7 +2,7 @@
 slug: api-styles
 title: "API styles: REST, GraphQL and RPC on the wire"
 description: REST, GraphQL and RPC compared on one screen's data (requests, round trips and bytes counted), where each style puts the N+1 problem and how DataLoader batching removes it, query cost limits and persisted queries, HTTP caching per style, idempotency keys traced through a retried POST, offset versus keyset pagination measured at page 10,000, RFC 9457 errors, and versioning.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [api, rest, graphql, grpc, rpc, idempotency, pagination, keyset-pagination, errors, versioning, dataloader]
 problems: []

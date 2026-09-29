@@ -2,7 +2,7 @@
 slug: the-ai-native-interview
 title: "The AI-native interview: what companies evaluate when you code with an assistant"
 description: How interview policies on AI differ, what an assisted round still tests and what it adds, how this app's solo and assisted mock interviews run and are graded (with the real limits and prompts), a minute-by-minute protocol, two worked sessions on Merge Intervals and LRU Cache, the failure modes that sink candidates, and the follow-up questions an AI-native interviewer asks.
-minutes: 20
+minutes: 25
 difficulty: medium
 tags: [ai-tools, interviews, mock-interview, coding-interview, communication]
 problems: [merge-intervals, lru-cache, time-based-kv]

@@ -2,7 +2,7 @@
 slug: code-review-as-mentorship
 title: "Code review as mentorship: reviewing for design, teaching through comments"
 description: What review is for and the order to review in, a real diff from this app's history reviewed twice (a nitpicking review and a mentoring one, comment by comment), how review latency caps team throughput via Little's law, a review checklist by risk, and how review tooling and policy work underneath.
-minutes: 30
+minutes: 35
 difficulty: medium
 tags: [leadership, code-review, mentorship, communication, security, littles-law]
 ---

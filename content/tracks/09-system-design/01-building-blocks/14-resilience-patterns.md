@@ -2,7 +2,7 @@
 slug: resilience-patterns
 title: "Resilience patterns: timeouts, circuit breakers, bulkheads, backpressure and load shedding"
 description: "How a slow dependency takes down a healthy service, and the patterns that stop it: timeout budgets computed down a call chain, a circuit breaker traced request by request, bulkheads sized with Little's law, bounded queues, fixed versus adaptive concurrency limits simulated under overload, priority shedding, graceful degradation and chaos testing."
-minutes: 30
+minutes: 35
 difficulty: hard
 tags: [system-design, resilience, circuit-breaker, bulkhead, backpressure, load-shedding, adaptive-concurrency, aimd, chaos-engineering]
 ---
