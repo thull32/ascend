@@ -414,13 +414,11 @@ hints:
 ## Senior signals
 
 - You can give the `2^r`-nodes-per-rank argument for the `log n` height bound in two sentences, and you know compression makes rank an upper bound rather than the true height.
-- You quote the complexity as amortised `O(α(n))` with both optimisations, `O(log n)` with either alone, and you know `α(n) ≤ 4` for any physical input.
+- You quote the complexity as amortised `O(α(n))` with both optimisations and `O(log n)` with either alone, never as worst-case `O(1)`, and you can define `α(n)` (`A₃(1) = 2047`, so `α ≤ 3` for a few thousand elements and `≤ 4` for anything physical).
 - You write `find` iteratively (path halving) in production because the recursive version overflows Python's stack on long chains.
-- You turn "connectivity over time" and even "connectivity under deletions" into offline problems by sorting or reversing, and you know dynamic connectivity structures exist for the genuinely online case.
+- You turn "connectivity over time" and even "connectivity under deletions" into offline problems by sorting or reversing, and between offline reversal and fully dynamic connectivity structures you know rollback union-find (rank without compression plus an undo stack).
 - You keep `size` and a component counter so that "how many islands" and "largest group" fall out with no extra traversal.
 - You recognise the parity and weighted extensions ("possible bipartition", "evaluate division") as the same structure with a value on each pointer.
-- You can define `α(n)` (`A₃(1) = 2047`, so `α ≤ 3` for a few thousand elements and `≤ 4` for anything physical) and you never quote the bound as worst-case `O(1)`.
-- You know rollback union-find (rank without compression plus an undo stack) as the tool between offline reversal and full dynamic connectivity.
 - You know why every real implementation links roots only, never non-roots, and why "delete by resetting a parent pointer" corrupts the forest.
 - You can size the structure (about 36 bytes per element as a Python list, 4–8 bytes as a typed array) and explain why compression matters most when the parent array no longer fits in cache.
 

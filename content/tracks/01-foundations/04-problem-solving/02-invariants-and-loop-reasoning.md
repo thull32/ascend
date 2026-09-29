@@ -273,7 +273,7 @@ The in-place compaction in [Remove Duplicates](/practice/remove-duplicates-sorte
 Other places the idea appears under different names:
 
 - **Data structure invariants.** A binary heap's invariant is "every parent ≤ its children"; every operation temporarily breaks it and restores it by sifting. When you debug a corrupted structure, the first question is which operation broke which invariant.
-- **Class invariants.** `Account.balance >= 0`, enforced by every method; violations are usually a missing lock, the subject of [Races, mutexes and invariants](/learn/systems-and-concurrency/concurrency/races-mutexes-and-invariants).
+- **Class invariants.** `Account.balance >= 0`, enforced by every method; violations are usually a missing lock, the subject of [Races, mutexes and invariants](/learn/systems/concurrency/races-mutexes-and-invariants).
 - **Distributed invariants.** "Every committed write is on a majority of replicas." [Raft](/learn/system-design/distributed-systems/consensus-raft) is an elaborate maintenance argument for that one sentence.
 - **Steady-state hypotheses.** Netflix's published chaos-engineering practice (Basiri et al., "Chaos Engineering", *IEEE Software*, 2016) starts every experiment by defining steady state as a measurable output, their primary one being stream starts per second, hypothesising that it continues, and then injecting failures to see whether it holds. It is the loop invariant applied to a fleet: state what must stay true, perturb, check.
 

@@ -61,7 +61,7 @@ fn main() {
 }
 ```
 
-**Under the hood.** `std::hint::black_box` is an identity function the optimiser must treat as opaque: it may read and write the value in ways the compiler cannot see, so the input cannot be assumed constant and the output cannot be assumed dead. JMH's `Blackhole.consume` does the same for the JVM, and in Go, assigning to a package-level `sink` variable defeats the same elimination. The check that catches every variant is a sanity bound: 256 bytes in 0 ns is impossible, and 157 ns is 0.61 ns per byte, about three cycles per byte for a dependent multiply chain.
+**Under the hood.** `std::hint::black_box` is an identity function that tells the optimiser to be maximally pessimistic about it: it may read and write the value in ways the compiler cannot see, so the input cannot be assumed constant and the output cannot be assumed dead. Its documentation calls this "best-effort", not a guarantee, which is one more reason for the sanity bound below. JMH's `Blackhole.consume` does the same for the JVM, and in Go, assigning to a package-level `sink` variable defeats the same elimination. The check that catches every variant is a sanity bound: 256 bytes in 0 ns is impossible, and 157 ns is 0.61 ns per byte, about three cycles per byte for a dependent multiply chain.
 
 ## Warm-up and JIT tiers, measured
 
@@ -291,7 +291,7 @@ Regressions are cheapest to fix on the commit that introduced them, but shared r
 One run per side pages someone every fourth commit; a loose threshold misses what it exists to catch. The workable approaches:
 
 1. **Compare on the same machine in the same job.** Build base and head, run them interleaved many times, and gate on the ratio's confidence interval. Absolute numbers from different runners are not comparable; a ratio from one runner often is.
-2. **Count instructions instead of time.** Cachegrind-based tools (iai-callgrind for Rust) run the benchmark on a simulated CPU and report instruction counts that are nearly deterministic on any runner. They are blind to cache, branch and parallelism effects but catch algorithmic and code-size regressions; the Rust compiler's own performance tracking leans on instruction counts for this reason.
+2. **Count instructions instead of time.** Valgrind-based tools (Callgrind and Cachegrind; for Rust, Gungraun, formerly iai-callgrind) run the benchmark on a simulated CPU and report instruction counts that are nearly deterministic on any runner. They are blind to cache, branch and parallelism effects but catch algorithmic and code-size regressions; the Rust compiler's own performance tracking leans on instruction counts for this reason.
 3. **Dedicated hardware** with fixed frequency, boost off and nothing else running, at the cost of money and maintenance.
 4. **Detect sustained shifts, not single points.** Alert on changes that persist over several commits (change-point detection; MongoDB has published its use of the E-Divisive algorithm for this), with a minimum effect size and automatic re-runs before paging anyone.
 

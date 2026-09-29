@@ -387,8 +387,7 @@ hints:
 ## Senior signals
 
 - You can derive `a^n` in `O(log n)` from the identity `a^n = (a^(n/2))²`, and you generalise it to any associative operation (matrix powers for linear recurrences).
-- You know Karatsuba's identity and can say why three half-size multiplications beat four by pointing at `log₂ 3` versus `log₂ 4`.
-- You know Strassen's exponent comes from `log₂ 7`, that BLAS `dgemm` does not use it, and the phrase "galactic algorithm" for the 2.37 results.
+- You know Karatsuba's identity and can say why three half-size multiplications beat four by pointing at `log₂ 3` versus `log₂ 4`; you know Strassen's exponent comes from `log₂ 7`, that BLAS `dgemm` does not use it, and the phrase "galactic algorithm" for the 2.37 results.
 - You can give the packing argument for why each strip point in closest pair is compared with at most 7 others, and you know the `break` is what makes it linear.
 - You reach for Boyer–Moore for majority and can explain the cancellation argument and the necessity of the verification pass.
 - You know single-sided recursion turns `n log n` into `n` (quickselect) or `log n` (binary search), and you ask "which half has the answer" before recursing into both.

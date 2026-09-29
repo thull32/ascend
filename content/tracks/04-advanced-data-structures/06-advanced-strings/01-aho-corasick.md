@@ -9,7 +9,7 @@ problems: [implement-trie, word-search-ii]
 ---
 An intrusion-detection system inspects every packet against a ruleset of forty thousand byte-string signatures. Running KMP once per signature is `O(40,000 × packet length)` per packet, which is not a design, it is an outage. What you want is to read each byte of the packet **once** and, at every position, know instantly which signatures end there.
 
-Aho-Corasick does exactly that. It builds a finite automaton from the pattern set, in time linear in the total pattern length, and then runs the text through it in time linear in the text length plus the number of matches. Alfred Aho and Margaret Corasick published it in 1975 for a bibliographic search tool; it now runs inside GNU `grep -F` with many patterns, Snort, Suricata, ClamAV, ModSecurity's `@pm` operator, profanity filters, and the literal prefilter of every serious regex engine.
+Aho-Corasick does exactly that. It builds a finite automaton from the pattern set, in time linear in the total pattern length, and then runs the text through it in time linear in the text length plus the number of matches. Alfred Aho and Margaret Corasick published it in 1975 for a bibliographic search tool; it now runs inside GNU `grep -F` with many patterns, Snort, Suricata, ClamAV, ModSecurity's `@pm` operator, profanity filters, and the literal fast path of regex engines such as Rust's `regex` crate.
 
 The two ingredients are the [trie](/learn/data-structures/tries-and-string-structures/tries) and [KMP's failure function](/learn/data-structures/tries-and-string-structures/string-matching). This lesson builds the automaton by hand for `{he, she, his, hers}`, traces a search, proves the linear bound by counting, computes the memory of the full-DFA form, and then looks at what production engines change.
 
@@ -222,11 +222,11 @@ Leftmost-first with `[he, hers]` on `hers` reports `he`, leftmost-longest report
 
 ## Under the hood: the Rust `aho-corasick` crate and `ripgrep`
 
-The `aho-corasick` crate (version 1.x; the `regex` crate uses it for any alternation of literals, and `ripgrep` inherits it for `-F -f patterns.txt`) is the clearest production implementation to read. It has three automaton kinds, selectable with `AhoCorasickKind`:
+The `aho-corasick` crate (version 1.x; the `regex` crate short-circuits a large alternation of plain literals straight to it, and `ripgrep` inherits it for `-F -f patterns.txt`) is the clearest production implementation to read. It has three automaton kinds, selectable with `AhoCorasickKind`:
 
 - **Noncontiguous NFA**: the classic build, each state owning a small list of transitions and a failure link. Cheapest to construct, slowest to search, the intermediate form for the other two.
-- **Contiguous NFA**: the same automaton re-laid-out into one flat `Vec<u32>`, with dense 256-entry rows for the shallow states the search visits most and sparse rows for deep ones. Still follows failure links, but every access is an array index in a cache-friendly block. The default for large pattern sets.
-- **DFA**: the full goto table with byte classes, as above; memory is `states × classes × 4` bytes. The default heuristic picks it for small pattern sets; the threshold is a crate constant that has changed between versions, so check the version you ship.
+- **Contiguous NFA**: the same automaton re-laid-out into one flat `Vec<u32>`, with dense transition rows for the states near the start (up to the builder's `dense_depth`), which the search visits most, and sparse rows for deeper ones. Still follows failure links, but every access is an array index in a cache-friendly block. The default for large pattern sets.
+- **DFA**: the full goto table with byte classes, as above; memory is `states × classes × 4` bytes. The default heuristic picks it only for small pattern sets (at most 100 patterns in the current 1.x source), otherwise a contiguous NFA, falling back to the noncontiguous one if that cannot be built; the threshold is an internal constant, so check the version you ship.
 
 Match semantics are a build option (`MatchKind::{Standard, LeftmostFirst, LeftmostLongest}`), as is ASCII case-insensitivity, implemented by adding both cases of each letter as transitions rather than by lowercasing the haystack.
 
@@ -236,9 +236,9 @@ The crate also ships **Teddy**, a SIMD prefilter borrowed from Hyperscan, used w
 
 | system | multi-pattern engine | what to know |
 |---|---|---|
-| **Snort 2 / 3** | Aho-Corasick family selectable by `search-method`: `ac-full` (dense table), `ac-std`, `ac-banded`, `ac-sparsebands`, `ac-sparse`, `ac-bnfa` (compressed "binary NFA", the long-time default), `lowmem`; Snort 3 adds Hyperscan | Six encodings exist because a full DFA over tens of thousands of content strings costs hundreds of megabytes; `ac-bnfa` trades extra loads per byte for a table that fits in cache. The matcher runs on the literal `content` parts of rules; offsets and PCRE run on its candidates |
-| **Suricata** | `mpm-algo: ac` (a full state table with 16-bit state ids below 65,536 states), `ac-ks` (a compact variant), `hs` (Hyperscan) | Pattern sets are split per rule group so each automaton stays small. Rule reloads build a new detection engine and swap it, because the automaton is static |
-| **Hyperscan / Vectorscan** | Compiles regex *sets* to a graph of engines; literal sets use FDR (a SIMD bucketed literal matcher for large sets) and Teddy (small sets) | Open-sourced by Intel in 2015; Vectorscan is the portable fork for ARM. The engine behind the `hs` options above |
+| **Snort 3** | `search_engine.search_method`: `ac_bnfa` (the default, an Aho-Corasick NFA "with compacted sparse storage"), `ac_full` ("high memory, best performance") or Hyperscan | The choice exists because a full DFA over tens of thousands of content strings costs hundreds of megabytes; `ac_bnfa` trades extra loads per byte for a table that fits in cache. The matcher runs on the literal `content` parts of rules; offsets and PCRE run on its candidates |
+| **Suricata** | `mpm-algo: ac` (a full state table with 16-bit entries while the automaton has fewer than 32,767 states, 32-bit above), `ac-ks` (a compact variant), `hs` (Hyperscan) | Pattern sets are split per rule group so each automaton stays small. Rule reloads build a new detection engine and swap it, because the automaton is static |
+| **Hyperscan / Vectorscan** | Compiles regex *sets* to a graph of engines; literal sets use Teddy when it can be built and fall back to FDR, a separate literal matcher | Open-sourced by Intel in October 2015 (releases after 5.4 are proprietary); Vectorscan is the BSD-licensed fork that adds ARM and Power. The engine behind the `hs` options above |
 | **GNU `grep`** | `kwset.c`: Boyer-Moore for one fixed string, an Aho-Corasick/Commentz-Walter trie for `-F` with several, the blend changing across releases | `grep -F -f words.txt file` is the everyday multi-pattern case; `-i` folds the patterns rather than lowercasing the file |
 | **ClamAV** | Aho-Corasick over a *depth-limited* trie (engine options `CL_ENGINE_AC_MINDEPTH`/`CL_ENGINE_AC_MAXDEPTH`, defaults 2 and 3) plus Boyer-Moore for simple signatures and hashes for whole files | The trie indexes only the first few bytes of each signature; a hit triggers verification of the rest, wildcards included. Depth-limiting caps the automaton's size at the cost of more verification on common prefixes |
 | **ModSecurity** | `@pm` and `@pmFromFile` operators are Aho-Corasick | The OWASP Core Rule Set uses them for scanner user-agents and LFI file-name lists: one pass over a header checks hundreds of literals |
@@ -266,7 +266,7 @@ Warm up on [Implement Trie](/practice/implement-trie), then [Word Search II](/pr
 
 ## Interviewer follow-ups
 
-**"Why not concatenate the patterns into one regex `he|she|his|hers` and use the regex engine?"** Model answer: a backtracking engine tries each alternative at each position, `O(n × patterns × pattern length)` in the worst case; a good engine (RE2, Rust `regex`, Hyperscan) recognises the literal alternation and builds Aho-Corasick or Teddy internally, so the regex is fine *because* it becomes this algorithm. Common wrong answer: "regex is always slower", or "regex is fine" without knowing why.
+**"Why not concatenate the patterns into one regex `he|she|his|hers` and use the regex engine?"** Model answer: a backtracking engine tries each alternative at each position, `O(n × patterns × pattern length)` in the worst case; a good engine avoids that: Rust's `regex` hands a large literal alternation to Aho-Corasick, Hyperscan to Teddy or FDR, and an automaton engine such as RE2 runs a DFA whose states for an unanchored literal alternation are the Aho-Corasick states. The regex is fine *because* the engine turns it into a multi-pattern matcher like this one. Common wrong answer: "regex is always slower", or "regex is fine" without knowing why.
 
 **"Your automaton uses 900 MB. What are your options?"** Model answer: the number is `states × alphabet × 4`, so cut the alphabet with byte classes, use a compressed or failure-link representation for the deep states, or partition the patterns into several automata; also check for suffix-chain patterns inflating output lists. Common wrong answer: "use a smaller integer type", which helps by at most 2× and breaks past 65,535 states.
 
@@ -280,7 +280,7 @@ Warm up on [Implement Trie](/practice/implement-trie), then [Word Search II](/pr
 
 - **Reporting only at the landing node.** Patterns that are suffixes of the current node's string (`he` inside `she`, `bc` and `c` inside `abcd`) are missed: the filter leaks exactly the words nested inside longer words.
 - **Walking the full failure chain at every position "to be safe".** Correct output, but `O(n × depth)`; a long common prefix is the adversarial input.
-- **Assuming the DFA is free.** It removes a loop, not a complexity class; the memory is `states × alphabet × 4`, which is why IDS engines have six table encodings.
+- **Assuming the DFA is free.** It removes a loop, not a complexity class; the memory is `states × alphabet × 4`, which is why IDS engines ship compressed tables alongside the full one.
 - **Rebuilding on every pattern change in the request path.** The build is linear in the total pattern size: fine offline, a latency spike online.
 - **Lowercasing the haystack for case-insensitive search.** Unicode case mapping changes lengths; offsets no longer line up with the original text.
 - **Using standard (all matches) semantics for replacement.** Overlapping matches overwrite each other and the output depends on iteration order.
@@ -423,7 +423,7 @@ hints:
 - You explain the `O(n + m + z)` bound by counting depth increases and decreases, and you know that `z` can dominate and how to short-circuit when only existence matters.
 - You know why dictionary links (or merged output lists) are needed, can give a pattern set that breaks an implementation without them, and know what merged lists cost on suffix-chain pattern sets.
 - You distinguish "many patterns, one text" (Aho-Corasick) from "one pattern, many texts" (index the texts).
-- You compute full-DFA memory as `states × alphabet × 4` bytes, name byte classes and compressed rows as the levers, and can say why Snort has six table encodings.
+- You compute full-DFA memory as `states × alphabet × 4` bytes, name byte classes and compressed rows as the levers, and can say why Snort's default is a compressed NFA rather than the full table.
 - You know the three match semantics, that leftmost-first needs a differently built automaton, and which one replacement or tokenising needs.
 - You know the automaton state is the carry across chunk boundaries, the structure is static and rebuilt on change, and case folding must preserve lengths.
 

@@ -7,7 +7,7 @@ difficulty: hard
 tags: [red-black-tree, balanced-bst, rotations, ordered-map, std-map, treemap]
 problems: [validate-bst, balanced-binary-tree]
 ---
-`std::map`, `std::set`, Java's `TreeMap` and `TreeSet`, the treeified buckets inside Java's `HashMap`, .NET's `SortedDictionary`, the Linux scheduler's run queue, nginx's timers and the memory allocator jemalloc all use the same structure, and it is not the AVL tree you learned first. They use a red-black tree. The reason is a trade-off that the [AVL lesson](/learn/advanced-data-structures/balanced-trees/avl-trees) demonstrated: AVL keeps the tree slightly shorter but pays for it with up to O(log n) rotations on every delete. Red-black trees accept a looser height bound in exchange for a guarantee of at most three rotations per operation and an amortised O(1) amount of restructuring.
+`std::map`, `std::set`, Java's `TreeMap` and `TreeSet`, the treeified buckets inside Java's `HashMap`, .NET's `SortedDictionary`, the Linux scheduler's run queue, nginx's timers and, through version 4, the memory allocator jemalloc all use the same structure, and it is not the AVL tree you learned first. They use a red-black tree. The reason is a trade-off that the [AVL lesson](/learn/advanced-data-structures/balanced-trees/avl-trees) demonstrated: AVL keeps the tree slightly shorter but pays for it with up to O(log n) rotations on every delete. Red-black trees accept a looser height bound in exchange for a guarantee of at most three rotations per operation and an amortised O(1) amount of restructuring.
 
 The mechanics look intimidating because most textbooks present them as a list of cases to memorise. They become obvious once you see that a red-black tree is a 2-3-4 tree drawn with binary nodes. This lesson gives you that reading, then traces insertion and deletion case by case on drawn trees with the rules checked after each step, and finishes with what the nodes cost in libstdc++, the JVM and the Linux kernel.
 
@@ -29,7 +29,7 @@ Claim: a subtree whose root has black height `bh` contains at least `2^bh − 1`
 
 The root's black height is at least `h/2`, because at least half the nodes on the longest path are black (rule 4). So `n ≥ 2^(h/2) − 1`, which gives `h ≤ 2 log₂(n + 1)`.
 
-For a million keys that is a height of at most 40, versus 28 for AVL and 20 for a perfect tree. Measured rather than bounded: inserting 1 through 1,023 in sorted order gives a red-black tree of height 18 against a bound of 20 and a perfect height of 10, so sorted input, the case that matters, lands near the bound; random keys land near `log₂ n`. In the traces below, inserting 1 through 7 in order gives height 4 where the AVL tree had height 3.
+For a million keys that is a height of at most 40, versus 28 for AVL and 20 for a perfect tree. Measured rather than bounded: inserting 1 through 1,023 in sorted order gives a red-black tree of height 18 against a bound of 20 and a perfect height of 10, so sorted input, the case that matters, lands near the bound; random keys land a few levels above `log₂ n` (height 25 measured for a million random keys, against `log₂ n ≈ 20`). In the traces below, inserting 1 through 7 in order gives height 4 where the AVL tree had height 3.
 
 ## The 2-3-4 tree behind it
 
@@ -181,13 +181,13 @@ One rotation. Compare AVL, where a delete on a Fibonacci tree of height `h` cost
 
 ## Under the hood: what a node costs
 
-**libstdc++ `std::map`.** Every element is a separately allocated `_Rb_tree_node`: a base of colour (an `enum`, 4 bytes plus 4 of padding), parent, left and right pointers (32 bytes) followed by the `pair<const Key, T>`. A `std::map<int64_t, int64_t>` node is 48 bytes, and with the allocator's 16-byte header about 64 bytes per entry, four times the payload. The header caches the leftmost and rightmost nodes, so `begin()` and `rbegin()` are O(1), and the standard guarantees that inserting or erasing *other* elements never invalidates an iterator or a reference, which is the guarantee that rules out a B-tree (whose splits move keys between pages) for `std::map`.
+**libstdc++ `std::map`.** Every element is a separately allocated `_Rb_tree_node`: a base of colour (an `enum`, 4 bytes plus 4 of padding), parent, left and right pointers (32 bytes) followed by the `pair<const Key, T>`. A `std::map<int64_t, int64_t>` node is 48 bytes, and with glibc malloc's 8-byte chunk header and 16-byte alignment it occupies a 64-byte chunk, four times the payload. The header caches the leftmost and rightmost nodes, so `begin()` and `rbegin()` are O(1), and the standard guarantees that inserting or erasing *other* elements never invalidates an iterator or a reference, which is the guarantee that rules out a B-tree (whose splits move keys between pages) for `std::map`.
 
-**Java `TreeMap.Entry`.** Fields `key`, `value`, `left`, `right`, `parent` (4-byte compressed references) plus a `boolean color` and the 12-byte object header: 33 bytes, padded to 40, before the boxed key and value objects. A million `Long → Long` entries is about 40 MB of entries plus 32 MB of boxes. Since Java 8, `HashMap` converts a bucket whose chain exceeds 8 entries (in a table of at least 64 slots) into a red-black tree of `TreeNode`s, each 56 bytes, so a hash-flooded bucket degrades to O(log n) rather than O(n); if the keys are not `Comparable` the tie-break is by class name and identity hash, which keeps the tree valid but slow.
+**Java `TreeMap.Entry`.** Fields `key`, `value`, `left`, `right`, `parent` (4-byte compressed references) plus a `boolean color` and the default 12-byte object header: 33 bytes, padded to 40, before the boxed key and value objects. A `Long` box is the same 12-byte header plus 8 bytes, padded to 24, so a million `Long → Long` entries is about 40 MB of entries plus 48 MB of boxes (JDK 25's opt-in [compact object headers](https://openjdk.org/jeps/519) shrink the header to 8 bytes). Since Java 8, `HashMap` converts a bucket whose chain exceeds 8 entries (in a table of at least 64 slots) into a red-black tree of `TreeNode`s, each 56 bytes, so a hash-flooded bucket degrades to O(log n) rather than O(n); if the keys are not `Comparable` the tie-break is by class name and identity hash, which keeps the tree valid but slow.
 
-**Linux `struct rb_node`.** Three `unsigned long`s (24 bytes on 64-bit): `__rb_parent_color`, `rb_right`, `rb_left`. The colour lives in **bit 0 of the parent pointer**, which is free because nodes are at least 4-byte aligned. The node is *intrusive*: it is embedded in the struct it indexes (`struct sched_entity`, `struct vm_area_struct` until 6.1, `struct hrtimer`, an `epitem` for every watched epoll descriptor), and `rb_entry(node, type, member)` is `container_of`, so there is no separate allocation per entry and no key stored in the node, only in the containing struct. `rb_root_cached` keeps the leftmost node, which is how the CFS/EEVDF scheduler picks the next task in O(1) and hrtimers find the next expiry without a descent. The kernel also has *augmented* red-black trees (`rb_insert_augmented`), which maintain a per-subtree value such as the maximum interval endpoint through rotations, exactly as the AVL lesson maintained heights; the interval tree used for reverse mappings is one.
+**Linux `struct rb_node`.** Three `unsigned long`s (24 bytes on 64-bit): `__rb_parent_color`, `rb_right`, `rb_left`. The colour lives in **bit 0 of the parent pointer**, which is free because the struct is declared aligned to `sizeof(long)`. The node is *intrusive*: it is embedded in the struct it indexes (`struct sched_entity`, `struct vm_area_struct` until 6.1, `struct hrtimer`, an `epitem` for every watched epoll descriptor), and `rb_entry(node, type, member)` is `container_of`, so there is no separate allocation per entry and no key stored in the node, only in the containing struct. `rb_root_cached` keeps the leftmost node, which is how CFS picked the next task in O(1) and hrtimers find the next expiry without a descent. EEVDF, the scheduler since 6.6, sorts the tree by virtual deadline, tries the cached leftmost task first, and falls back to an O(log n) search of the augmented tree when that task is not yet eligible. The kernel also has *augmented* red-black trees (`rb_insert_augmented`), which maintain a per-subtree value such as the maximum interval endpoint through rotations, exactly as the AVL lesson maintained heights; the interval tree used for reverse mappings is one.
 
-**jemalloc `rb.h`** is a macro-generated intrusive red-black tree that packs the colour into the low bit of the right-child pointer and, notably, stores no parent pointer at all: rotations are done by recursion with an explicit path array, saving 8 bytes per node in a structure that indexes every extent of memory the allocator manages.
+**jemalloc [`rb.h`](https://raw.githubusercontent.com/jemalloc/jemalloc/dev/include/jemalloc/internal/rb.h)** is a macro-generated intrusive *left-leaning* 2-3 red-black tree that packs the colour into the low bit of the right-child pointer and, notably, stores no parent pointer at all: insert and delete record the root-to-node path in an explicit array on the way down and rebalance while unwinding it, saving 8 bytes per node. jemalloc 4.x used it to index free chunks by size and by address; jemalloc 5 moved free extents to pairing heaps, though `rb.h` still ships.
 
 The common thread: real implementations spend engineering on the node layout (a bit stolen from a pointer, intrusive embedding, a cached minimum) because the tree's cost at scale is memory traffic, not comparisons.
 
@@ -199,7 +199,7 @@ The common thread: real implementations spend engineering on the node layout (a 
 | Java `TreeMap`, `TreeSet` | Ordered maps; also `HashMap` buckets with more than 8 collisions | Worst-case O(log n) even under HashDoS |
 | Linux kernel `rb_tree` | Scheduler run queue keyed by virtual runtime or deadline, high-resolution timers, epoll's watched descriptors, and until 6.1 each process's memory regions (VMAs) | Intrusive, allocation-free, cheap deletes; the VMA use moved to the maple tree in 6.1 because the read path wanted a wide, cache-friendly B-tree-like node and RCU-safe lookups |
 | nginx | Timers keyed by expiry | Need the minimum and arbitrary deletion, both O(log n) |
-| jemalloc | Free extents by size and address | Intrusive, no per-node allocation inside an allocator |
+| jemalloc 4.x | Free chunks by size and by address (5.x uses pairing heaps) | Intrusive, no per-node allocation inside an allocator |
 | Clojure `sorted-map` | Persistent (immutable) ordered map | Path-copying a red-black tree costs O(log n) per update and the insert cases are simple to write functionally |
 
 The pattern across the table: red-black trees win when you need an *ordered* structure with *arbitrary deletion* in memory and you cannot tolerate a bad worst case. When you only need the minimum, a [heap](/learn/data-structures/heaps/binary-heap-mechanics) is smaller and faster. When you need order and the data does not fit in cache, a [B-tree](/learn/advanced-data-structures/balanced-trees/b-trees-and-b-plus-trees) wins on memory traffic, which is why Rust's `BTreeMap` skipped red-black entirely and Go's standard library ships no ordered map at all. Whether you need order in the first place is the question in [ordered maps vs hash maps](/learn/data-structures/hashing/ordered-maps-vs-hash-maps).
@@ -208,8 +208,8 @@ The pattern across the table: red-black trees win when you need an *ordered* str
 
 | | Red-black | AVL | LLRB | In-memory B-tree | Skip list | Binary heap |
 |---|---|---|---|---|---|---|
-| Height for 10⁶ keys | ≤ 40 (≈ 20 random) | ≤ 28 | ≤ 40 | 4–5 | ≈ 20 expected | 20 |
-| Max rotations, insert | 2 | 1 (single or double) | 2–3 | 0 (split) | 0 | 0 (sift) |
+| Height for 10⁶ keys | ≤ 40 (25 measured, random keys) | ≤ 28 | ≤ 40 | 4–5 (64-key nodes) | ≈ 20 expected | 20 |
+| Max rotations, insert | 2 | 1 (single or double) | O(log n) on the way up | 0 (split) | 0 | 0 (sift) |
 | Max rotations, delete | 3 | O(log n) | O(log n) recolour-and-rotate walk | 0 (merge) | 0 | 0 (sift) |
 | Balance data per node | 1 bit | 1 byte or 2 bits | 1 bit | none | level count | none |
 | Arbitrary delete by handle | O(log n) | O(log n) | O(log n) | O(log n) | O(log n) expected | O(n) unless indexed |
@@ -224,7 +224,7 @@ The pattern across the table: red-black trees win when you need an *ordered* str
 | A crash or silent corruption while iterating and erasing (`for (it = m.begin(); …) m.erase(it)`) | Erasing invalidates the erased iterator only, but the loop then increments a dead iterator | Use `it = m.erase(it)` (C++11) or `m.erase(it++)`; in Java use the iterator's `remove()`, or collect keys first |
 | `TreeMap.get` returns null for a key that `containsKey` on a copy finds | A mutable key object was modified after insertion, so it now sorts elsewhere than where it sits (Java allows this; C++ makes `map` keys `const` to prevent it) | Immutable keys, or remove-modify-reinsert |
 | p99 of an ordered lookup service is 10× the p50 with no GC pause | The tree outgrew cache: 40 levels × one DRAM miss ≈ 3–4 µs per cold lookup; `perf` shows the time in pointer loads inside `_M_lower_bound` | A B-tree-shaped container, or shard the tree so each shard's upper levels stay hot |
-| JVM heap dominated by `TreeMap$Entry` and `Long` objects; old-generation GC pauses grow with map size | 40 bytes of entry plus two 16-byte boxes per mapping, tens of millions of long-lived objects to trace | A primitive-specialised sorted map (fastutil `Long2LongAVLTreeMap` / `RBTreeMap`), or an array-backed B-tree; or ask whether a sorted array suffices |
+| JVM heap dominated by `TreeMap$Entry` and `Long` objects; old-generation GC pauses grow with map size | 40 bytes of entry plus two 24-byte `Long` boxes per mapping, tens of millions of long-lived objects to trace | A primitive-specialised sorted map (fastutil `Long2LongAVLTreeMap` / `RBTreeMap`), or an array-backed B-tree; or ask whether a sorted array suffices |
 | `HashMap` operations 5× slower after an attacker-controlled key flood, but not O(n²) | Treeified buckets: keys are not `Comparable`, so the tree is ordered by class name and identity hash and every lookup walks it with full `equals` calls | Make keys `Comparable`, or fix the hash function so buckets do not exceed 8 |
 
 ## Interviewer follow-ups
@@ -246,7 +246,7 @@ The pattern across the table: red-black trees win when you need an *ordered* str
 - **Writing a comparator with `<=`.** `std::map` and `TreeMap` both silently corrupt with a non-strict order; the bug shows up as missing keys weeks later.
 - **Erasing inside a range-for loop** in C++ and reading the resulting crash as a library bug.
 - **Choosing `TreeMap` for a lookup table that never iterates in order.** A `HashMap` is 3–10× faster and smaller; order costs O(log n) per operation and 40 bytes per entry.
-- **Assuming the standard library's tree is fine at 100 million entries.** It works, at 4–6 GB and several microseconds per cold lookup; a B-tree or sorted block structure is a fraction of both.
+- **Assuming the standard library's tree is fine at 100 million entries.** It works, at 6–9 GB (64 bytes per `std::map<int64_t, int64_t>` entry, about 88 per `TreeMap<Long, Long>` entry with its boxes) and several microseconds per cold lookup; a B-tree or sorted block structure is a fraction of both.
 
 ## Exercises
 
@@ -410,10 +410,10 @@ hints:
 ## Senior signals
 
 - You explain red-black trees as **2-3-4 trees in binary clothing**, and use that to say why insertion needs only "add to a node" or "split a node" rather than reciting cases.
-- You derive the `2 log₂(n + 1)` height bound from black height and can compare it to AVL's `1.44 log₂ n` with a concrete number, and you know sorted input lands near the bound while random input lands near `log₂ n`.
+- You derive the `2 log₂(n + 1)` height bound from black height and can compare it to AVL's `1.44 log₂ n` with a concrete number, and you know sorted input lands near the bound while random input lands a few levels above `log₂ n`.
 - You know the trade: AVL is shorter, red-black rotates less, and the difference matters for delete (O(log n) rotations versus at most 3), and you can name the delete case that loops (D2) and say that it only recolours.
 - You can quote a node's cost in libstdc++ (32-byte base plus the pair), the JVM (40-byte `Entry`) and the kernel (24 bytes, colour in bit 0 of the parent pointer, intrusive), and explain why the kernel caches the leftmost node.
-- You can name where red-black trees run (`std::map`, `TreeMap`, kernel scheduler and timers, jemalloc) and why C++ could not use a B-tree for `std::map` (iterator stability).
+- You can name where red-black trees run (`std::map`, `TreeMap`, kernel scheduler and timers, nginx) and why C++ could not use a B-tree for `std::map` (iterator stability).
 - You know that Linux moved VMAs off the rbtree to a B-tree-like maple tree for cache behaviour, and you use that as evidence that in-memory B-trees beat binary trees past cache size.
 - You choose a heap when only the minimum is needed, a hash map when order is not, and a B-tree when the structure is large, before you reach for any balanced BST.
 

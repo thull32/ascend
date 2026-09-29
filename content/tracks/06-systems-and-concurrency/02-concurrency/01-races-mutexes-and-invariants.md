@@ -95,7 +95,7 @@ Every access to `_balance` is locked, so a race detector stays silent. But two t
 | C, C++ | Undefined behaviour; the compiler may transform the code as if races never happen (the `-O2` row above) |
 | Rust (safe code) | A compile error: the type system rejects unsynchronised shared mutation |
 | Go | Detectable at runtime with `-race`; races on multiword values (interfaces, slices, strings) can produce torn values no thread wrote |
-| Java | Defined but weak: stale or reordered values, never values out of thin air |
+| Java | Defined but weak: stale or reordered values, and a non-volatile `long` or `double` may tear into two 32-bit halves (JLS 17.7), but never values out of thin air |
 | CPython with the GIL | A single bytecode or built-in C operation is atomic relative to others; sequences of bytecodes race |
 
 Race detectors find data races. Race conditions need you to find them, by naming the invariant.
@@ -236,7 +236,7 @@ func (c *Counter) Inc() {
 }
 ```
 
-`go test -race` (built on ThreadSanitizer) records, per memory access, which synchronisation events preceded it and reports two conflicting accesses not ordered by happens-before, with both stack traces. It slows execution roughly 2–20× and uses 5–10× the memory, and it only reports races that *actually execute*: a clean run over tests that never run things concurrently proves nothing. Concurrent writes to a built-in `map` are caught unconditionally with `fatal error: concurrent map writes`, which is not recoverable.
+`go test -race` (built on ThreadSanitizer) records, per memory access, which synchronisation events preceded it and reports two conflicting accesses not ordered by happens-before, with both stack traces. It slows execution roughly 2–20× and uses 5–10× the memory, and it only reports races that *actually execute*: a clean run over tests that never run things concurrently proves nothing. Concurrent writes to a built-in `map` are also checked without `-race`: since Go 1.6 the runtime has a lightweight, best-effort detector that stops the program with `fatal error: concurrent map writes`, which is not recoverable, but a clean run does not prove the map is safe.
 
 ### Rust: the mutex owns the data
 

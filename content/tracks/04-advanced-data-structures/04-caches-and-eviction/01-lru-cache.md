@@ -9,11 +9,11 @@ problems: [lru-cache]
 ---
 You have a slow source (a database, a remote API, a disk) and a fixed amount of fast memory. You want `get(key)` to return the cached value if it is there, `put(key, value)` to store one, and both to take constant time. When the memory is full, you must throw something away, and the thing you throw away should be the one least likely to be needed again.
 
-Least Recently Used (LRU) is the policy that guesses "the entry nobody has touched for the longest time". It is the default answer because access patterns have temporal locality: what was used recently tends to be used again. The design problem is that "least recently used" is an ordering, and hash maps have no order, while ordered structures have no O(1) lookup. The LRU cache is the structure that gives you both at once, and it is the single most common design question in coding interviews because it tests whether you can compose two basic structures without breaking either one's invariants. This lesson traces every pointer write, opens CPython's `OrderedDict` and `functools.lru_cache` to show the same design in C, measures what a hit and an entry cost, and then shows that no large production cache implements the textbook list. It builds on [hash tables](/learn/data-structures/hashing/hash-tables) and [linked list fundamentals](/learn/data-structures/linked-lists/linked-list-fundamentals).
+Least Recently Used (LRU) is the policy that guesses "the entry nobody has touched for the longest time". It is the default answer because access patterns have temporal locality: what was used recently tends to be used again. The design problem is that "least recently used" is an ordering, and hash maps have no order, while ordered structures have no O(1) lookup. The LRU cache gives you both at once, and it is a staple of coding interviews because it tests whether you can compose two basic structures without breaking either one's invariants. It builds on [hash tables](/learn/data-structures/hashing/hash-tables) and [linked list fundamentals](/learn/data-structures/linked-lists/linked-list-fundamentals).
 
 ## Why one structure is not enough
 
-A hash map gives `get` and `put` in O(1), but when the map is full you have no idea which key is the oldest; finding it means scanning every entry and comparing timestamps, O(n).
+A hash map gives `get` and `put` in O(1), but when it is full, finding the oldest key means scanning every entry's timestamp, O(n).
 
 A list ordered by recency tells you the oldest entry instantly (it is at one end) and lets you move an entry to the "most recent" end, but finding the entry for a given key is a walk down the list, O(n).
 
@@ -29,7 +29,7 @@ flowchart LR
   H["head"] <--> n4["4 (most recent)"] <--> n3["3"] <--> n1["1 (least recent)"] <--> T["tail"]
 ```
 
-The singly linked list would not do: unlinking a node requires updating its predecessor's `next` pointer, and a singly linked node does not know its predecessor. That is the one sentence that explains why this design uses a doubly linked list, and interviewers like to hear it.
+A singly linked list would not do: unlinking must update the predecessor's `next` pointer, and a singly linked node does not know its predecessor. Interviewers want to hear that sentence.
 
 ## The mechanism, pointer by pointer
 
@@ -57,7 +57,7 @@ Six pointer writes and one or two hash operations per hit, never more, regardles
 
 ## The implementation
 
-Use two sentinel nodes, `head` and `tail`, that are never removed. With sentinels the list is never empty, so `unlink` and `push_front` have no null checks and no special cases for "first node" or "last node". That is the difference between fifteen lines and forty.
+Use two sentinel nodes, `head` and `tail`, that are never removed. With sentinels the list is never empty, so `unlink` and `push_front` have no null checks and no special cases for "first node" or "last node".
 
 ```python
 class Node:
@@ -106,11 +106,11 @@ class LRUCache:
         self._push_front(node)
 ```
 
-Note that the node stores the **key** as well as the value. Eviction finds the node via the list, not the map, and it needs the key to delete the map entry. Forgetting the key in the node is the most common bug in whiteboard versions.
+Note that the node stores the **key** as well as the value. Eviction finds the node via the list, not the map, and it needs the key to delete the map entry. Forgetting the key in the node is a common bug in whiteboard versions.
 
 ### What your standard library already gives you
 
-Every mainstream language ships an insertion-ordered map built on this idea, and knowing where each one stops being O(1) is worth more in production than writing the nodes by hand.
+Every mainstream language ships an insertion-ordered map built on this idea; what matters in production is where each one stops being O(1).
 
 - **Python** `collections.OrderedDict` is a hash map plus a doubly linked list, implemented in C: `move_to_end(key)` is the refresh and `popitem(last=False)` is the eviction, both O(1), and `functools.lru_cache` is the same design wrapped around a function (both are opened below). A plain `dict` (insertion-ordered since 3.7) can refresh with `del d[k]; d[k] = v`, but evicting with `next(iter(d))` is not O(1): a deleted entry stays as a hole in the dict's entries array until the next resize, and iteration starts at the front and walks past every hole. Measured on CPython 3.14, that eviction took 0.22 µs at 1,000 entries and 11.8 µs at 100,000, against 52–74 ns for `popitem(last=False)`.
 - **Java** `LinkedHashMap(capacity, 0.75f, true)` with `accessOrder = true` reorders on `get`; override `removeEldestEntry` to return `size() > capacity` and you have an LRU cache in five lines.
@@ -133,7 +133,7 @@ class LRUCache {
 }
 ```
 
-In an interview, mention the library structure, then write the explicit version if asked; the point of the question is the composition, and "I know `OrderedDict` does this" shows you know why. The `Map` version is fine for a few thousand entries; above that, the explicit list is the one whose eviction stays constant.
+The `Map` version is fine for a few thousand entries; above that, keep the explicit list, whose eviction stays constant.
 
 ## Under the hood: CPython's `OrderedDict`
 
@@ -165,7 +165,7 @@ The pure-Python fallback in `Lib/collections/__init__.py` maps each key to a `_L
 
 **The hit path.** Build the key, hash it once, look it up with the known hash, unlink the link (two writes), relink it before the root (four writes), count a hit, return the stored result.
 
-**The miss path and threads.** The pure-Python wrapper takes an `RLock` for each list update. The C wrapper relies on the GIL and also takes a per-object critical section, which is a real lock only on the free-threaded build: 3.13 held it for the whole call, 3.14 holds it for the lookup and again for the update. In every version the user function runs outside that protection, so two threads that miss the same key both compute it, and the second to finish finds the key present and returns its own result without touching the list. `cache_info()` returns `CacheInfo(hits, misses, maxsize, currsize)`; `cache_clear()` empties the dict and resets the ring.
+**The miss path and threads.** The pure-Python wrapper takes an `RLock` for each list update and calls the function outside it. The C wrapper relies on the GIL and also takes a per-object critical section, which is a real lock only on the free-threaded build: 3.13 held it around the whole call, user function included (a critical section is suspended whenever its thread blocks), and 3.14 holds it for the lookup and again for the update, with the function called in between. Nothing serialises the user function, so two threads that miss the same key can both compute it, and the second to finish finds the key present and returns its own result without touching the list. `cache_info()` returns `CacheInfo(hits, misses, maxsize, currsize)`; `cache_clear()` empties the dict and resets the ring.
 
 ## Tracing an `lru_cache` eviction, pointer by pointer
 
@@ -186,7 +186,7 @@ The C version cannot rotate its root, which is embedded in the wrapper object. O
 
 ## Under the hood: what an entry costs
 
-The list is not free, and its price is the reason every production cache below replaces it. The CPython rows were measured with `tracemalloc` on CPython 3.14 at 10⁶ entries whose `int` keys and values were built beforehand, so they count the container alone.
+The CPython rows were measured with `tracemalloc` on CPython 3.14 at 10⁶ entries whose `int` keys and values were built beforehand, so they count the container alone.
 
 | Runtime | Per-entry cost of the LRU bookkeeping | Measured or derived from |
 |---|---|---|
@@ -199,7 +199,7 @@ The list is not free, and its price is the reason every production cache below r
 | Redis `robj` | **24 bits** of LRU clock in the object header; no list at all | `LRU_BITS 24` in `server.h` |
 | Caffeine `Node` | a generated class with only the fields the configuration needs (two access-order links for size eviction, two write-order links when expiry is on), plus a shared frequency sketch of **8–16 bytes per entry** of maximum size | `BoundedLocalCache`, `FrequencySketch` |
 
-Two pointers per entry look cheap until the cache holds fifty million small entries: 400 MB of `before`/`after` references in Java with compressed pointers (800 MB above a 32 GB heap, where they switch off), 3.2 GB of hand-written CPython nodes, 2.8 GB of `lru_cache` links, all on top of the map and the payload. That arithmetic, plus the cache-line write every `get` performs to move a node, is why Redis keeps 24 bits and samples, why memcached keeps its LRU per slab class and touches an item at most once per minute, and why Caffeine records reads in a buffer instead of moving nodes on the read path.
+Two pointers per entry look cheap until the cache holds fifty million small entries: 400 MB of `before`/`after` references in Java with compressed pointers (800 MB above a 32 GB heap, where they switch off), 3.2 GB of hand-written CPython nodes, 2.8 GB of `lru_cache` links, all on top of the map and the payload. That arithmetic, plus the cache-line write every `get` performs to move a node, is why the production caches below avoid the list or stop moving nodes on every read.
 
 ## Measured: what a hit costs
 
@@ -218,11 +218,9 @@ Nanoseconds per `get` on a cache of 1,000 `int` keys, 10⁶ random hits, best of
 | Node: `Map` LRU `get` (`has`, `get`, `delete`, `set`) | 50 |
 | Node: hand-written node-list LRU `get` | 18 |
 
-The numbers depend on the working set fitting in L1 and L2 (1,000 entries do), on cheap `int` hashing (a `str` key hashes once, then reads its cached hash), and on the runtime version (3.14 makes a plain Python call about as cheap as a dict lookup). Two readings hold beyond this machine. In CPython the C structures win: an `lru_cache` hit costs a quarter of the hand-written class, because every `node.prev = …` in Python is a descriptor store with reference-count updates and every `get` is a Python method call. In Node the ranking flips: JIT-compiled field stores cost almost nothing, while the `Map` refresh is four hash operations plus a periodic rebuild that compacts the holes deletions leave. Write the class in the interview; in production Python use `OrderedDict` or `lru_cache`, and in JavaScript keep the explicit list for large caches.
+The numbers depend on the working set fitting in L1 and L2 (1,000 entries do), on cheap `int` hashing (a `str` key hashes once, then reads its cached hash), and on the runtime version (3.14 makes a plain Python call about as cheap as a dict lookup). In CPython the C structures win: an `lru_cache` hit costs a quarter of the hand-written class, because every `node.prev = …` in Python is a descriptor store with reference-count updates and every `get` is a Python method call. In Node the ranking flips: JIT-compiled field stores cost almost nothing, while the `Map` refresh is four hash operations plus a periodic rebuild that compacts the holes deletions leave. In production Python use `OrderedDict` or `lru_cache`; in JavaScript keep the explicit list for large caches.
 
 ## Interviewer follow-ups
-
-Getting the basic structure right is the mid-level bar. The senior bar is the questions that come after it.
 
 **"Make it thread-safe."** Model answer: a single lock is correct but serialises every `get`, the wrong shape for a structure that exists to make reads fast; shard the map into segments each with its own lock (Guava's `Cache`, 4 segments by default), or record reads in a lock-free ring buffer drained in batches to update the order (Caffeine), accepting that the order is then *approximately* LRU, which is fine because LRU was only ever a heuristic. Common wrong answer: "wrap `get` and `put` in `synchronized`" and stop there.
 
@@ -232,7 +230,7 @@ Getting the basic structure right is the mid-level bar. The senior bar is the qu
 
 **"What about a scan?"** Model answer: a single pass over a large dataset (an analytics query, a backup, a crawler) touches every key once; pure LRU promotes each one to the front and evicts the entire working set for data that will never be read again. This is *scan pollution*, and it is why almost no production system uses pure LRU; the defences are a probation area (2Q, segmented LRU, InnoDB's midpoint insertion) or frequency-based admission ([next lesson](/learn/advanced-data-structures/caches-and-eviction/lfu-and-modern-policies)). Common wrong answer: "make the cache bigger".
 
-**"Is `functools.lru_cache` thread-safe?"** Model answer: its bookkeeping is (an `RLock` in pure Python; the GIL, plus a critical section on the free-threaded build, in C), but the function runs outside that protection, so threads that miss the same key all call it: four threads and a 50 ms function on CPython 3.14 gave four misses and one stored entry. If a duplicate computation is expensive, put a per-key lock or a shared future in front (single-flight, covered in [cache design considerations](/learn/advanced-data-structures/caches-and-eviction/cache-design-considerations)). Common wrong answer: "yes, so each value is computed once".
+**"Is `functools.lru_cache` thread-safe?"** Model answer: its bookkeeping is (an `RLock` in pure Python; the GIL, plus a critical section on the free-threaded build, in C), but nothing serialises the function itself, so threads that miss the same key all call it: four threads and a 50 ms function on CPython 3.14 gave four misses and one stored entry. If a duplicate computation is expensive, put a per-key lock or a shared future in front (single-flight, covered in [cache design considerations](/learn/advanced-data-structures/caches-and-eviction/cache-design-considerations)). Common wrong answer: "yes, so each value is computed once".
 
 ## Under the hood: what real systems do instead
 
@@ -244,11 +242,11 @@ Getting the basic structure right is the mid-level bar. The senior bar is the qu
 
 ## Under the hood: memcached, Postgres and the CDN edge
 
-**memcached** keeps one LRU per slab class and, since 1.4.24, segments each into HOT, WARM and COLD sublists (HOT and WARM capped at 20% and 40% of the class); an item is "bumped" at most once every 60 seconds, so a hot item costs no list writes between bumps, and a background *LRU crawler* thread reclaims expired items. Netflix's EVCache, which fronts most of its microservices, is memcached with this eviction plus replication across availability zones, at a scale of on the order of a trillion requests a day across the fleet.
+**memcached** keeps one LRU per slab class and segments each into HOT, WARM and COLD sublists (introduced as an option in 1.4.23, the default since 1.5.0; HOT and WARM are now capped at 20% and 40% of the class); an item is "bumped" at most once every 60 seconds, so a hot item costs no list writes between bumps, and a background *LRU crawler* thread reclaims expired items. Netflix's EVCache is memcached with this eviction behind a client that replicates data across availability zones.
 
 **Postgres** avoids LRU entirely: `shared_buffers` uses a clock-sweep with a usage counter per buffer, and sequential scans of large tables use a small ring buffer so they cannot pollute the pool. **CDN edges and reverse proxies** (Varnish, Nginx `proxy_cache`, Apache Traffic Server) use LRU or segmented LRU for the object store, often with an admission filter in front (recall the [Bloom filter](/learn/advanced-data-structures/probabilistic-structures/bloom-filters) that only admits an object on its second request).
 
-The lesson: LRU is the *concept* every one of these approximates, and none of them implements the textbook linked list. When you propose "an LRU cache" in a design review, be ready to say which approximation you mean and what protects it from scans.
+None of these implements the textbook list. When you propose "an LRU cache" in a design review, say which approximation you mean and what protects it from scans.
 
 ## Trade-offs
 
@@ -276,14 +274,13 @@ The lesson: LRU is the *concept* every one of these approximates, and none of th
 
 ## What mid-level engineers get wrong
 
-- **Forgetting the key in the node**, then being unable to delete the map entry on eviction.
-- **Inserting a second node on `put` of an existing key**, which desynchronises map and list.
-- **Proposing pure LRU for a cache that a nightly job scans through**, and blaming the database when the morning's hit ratio is 20%.
-- **Counting entries instead of bytes** for a cache of variable-size values.
-- **Quoting O(1) and ignoring the 100 bytes per entry**, so a "10 million entry cache" needs 5× the memory in the plan.
-- **One global lock**, presented as "thread-safe" without saying what it costs.
-- **Putting `@lru_cache` on a method**, which keys every entry by `self` and keeps every instance alive.
-- **Trusting `next(iter(d))` or `map.keys().next()` to evict in O(1).** It walks the holes that deletions leave: 160 times slower than `popitem(last=False)` at 100,000 entries.
+- **Forgetting the key in the node**: eviction cannot delete the map entry.
+- **A second node on `put` of an existing key**: map and list drift apart.
+- **Pure LRU in front of a nightly scan**: a 20% hit ratio every morning.
+- **Counting entries, not bytes**, for variable-size values.
+- **Quoting O(1) and ignoring 100 bytes per entry**: a capacity plan off by 5×.
+- **One global lock called "thread-safe"**, with its cost unstated.
+- **`@lru_cache` on a method, or eviction by `next(iter(d))`**: the library traps in the table above.
 
 ## Exercises
 
@@ -473,7 +470,7 @@ Then do the full problem, with its follow-ups, at [LRU Cache](/practice/lru-cach
 - You raise **scan pollution** unprompted and can describe the 2Q / midpoint-insertion / segmented-LRU defences in Linux, InnoDB and memcached.
 - You know Redis approximates LRU by **sampling** with a 16-entry candidate pool and can say why exact LRU is not worth 16 bytes per key.
 - You answer the thread-safety follow-up with segments or lock-free read buffers, not one global lock, and the byte-bound follow-up with a weight loop that rejects oversized values.
-- You can open the library: `OrderedDict` finds a node through `od_fast_nodes` and refreshes with eight pointer writes; `lru_cache` keys by the `args` tuple (so `self` pins instances), recycles a link on eviction, and computes twice when two threads miss the same key. You know a hit costs about 21 ns in `lru_cache` against 77 ns for a hand-written class on CPython 3.14.
+- You can open the library: `OrderedDict` refreshes through `od_fast_nodes` with eight pointer writes; `lru_cache` keys by the `args` tuple (so `self` pins instances), recycles a link on eviction, and can compute twice when two threads miss one key.
 
 ## Check yourself
 

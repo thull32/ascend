@@ -380,8 +380,7 @@ hints:
 - You know Kruskal is "sort plus union-find", that it produces a spanning forest for free, and that Graph Valid Tree is Kruskal without the sort.
 - You can give a three-node example where the MST path is longer than the shortest path, and you never confuse "minimum total cable" with "minimum latency from the hub".
 - You know the MST is a minimum bottleneck spanning tree and what that buys ("minimum effort path" problems), and that stopping Kruskal at `k` components is single-linkage clustering.
-- You can name Borůvka as the parallel MST algorithm and second-best-MST as the exchange-argument follow-up.
-- You update an MST after an edge insertion in `O(V)` (heaviest edge on the tree cycle) and after a deletion in `O(E)` (lightest edge across the new cut) instead of rebuilding.
+- You can name Borůvka as the parallel MST algorithm and second-best-MST as the exchange-argument follow-up; you update an MST after an edge insertion in `O(V)` (heaviest edge on the tree cycle) and after a deletion in `O(E)` (lightest edge across the new cut) instead of rebuilding.
 - You know what the libraries do (networkx sorts and unions in Python, scipy runs Kruskal over CSR in Cython) and where the MST is not what people think it is (Ethernet's spanning tree is a shortest-path tree from the root bridge).
 - You make tie-breaking deterministic, in integers, before an MST feeds a clustering or a downstream system that must be reproducible.
 

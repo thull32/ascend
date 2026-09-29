@@ -328,12 +328,11 @@ hints:
 - You write the recurrence before the code, and you can name `a`, `b` and `f(n)` for any recursive function in the codebase.
 - You solve the three master-theorem cases from the recursion tree rather than memorising them, and you know the theorem's gaps (unequal splits, `n − 1` recursion, `n log n` combine).
 - You know that slicing in Python or `Array.prototype.slice` in JavaScript adds `O(n)` to `f(n)`, and you pass indices when it matters.
-- You look at any linear combine step and ask what pair-question it could answer for free; inversion counting is the canonical example.
+- You look at any linear combine step and ask what pair-question it could answer for free; inversion counting is the canonical example, and you can name its two alternatives (a Fenwick tree for streaming input, external k-way merging for data that does not fit in memory) and when each wins.
 - You can explain why four subproblems of half size is no better than the naive quadratic algorithm, and why three is.
 - You present the linear algorithm when one exists (Kadane) but can explain why the divide-and-conquer version is the one that generalises (segment trees).
 - You know that `sorted` is Timsort doing the same merge in C with run detection, so a hand-written merge sort in Python is an order of magnitude slower and `O(n)` on sorted input is free only with the library.
 - You size the count before you type it: `n(n − 1)/2` overflows a 32-bit integer at `n = 65,537`, and you know which languages silently wrap.
-- You can name the two alternatives to merge-sort inversion counting (a Fenwick tree for streaming input, external k-way merging for data that does not fit in memory) and when each wins.
 
 ## Check yourself
 

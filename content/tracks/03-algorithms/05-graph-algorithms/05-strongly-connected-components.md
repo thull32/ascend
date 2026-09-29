@@ -411,13 +411,12 @@ hints:
 ## Senior signals
 
 - You can explain in one sentence why the latest-finishing node's SCC is a source of the condensation, which is the whole justification for Kosaraju's second pass.
-- You know why Tarjan's cross-edge update checks `on_stack` and uses `disc[v]` rather than `low[v]`, and you can trace a six-node example without notes.
+- You know why Tarjan's cross-edge update checks `on_stack` and uses `disc[v]` rather than `low[v]`, and you can trace a six-node example without notes; you can show, on a five-node graph, what goes wrong without the `on_stack` check (two non-mutually-reachable nodes merged) and with Kosaraju's second pass in the wrong order (a source component swallowing its successors).
 - You know both algorithms are `O(V + E)`, that Tarjan's avoids the reversed graph and emits components in reverse topological order, and that either needs an iterative DFS on graphs deeper than the language's stack.
 - You go straight from "cyclic graph" to "condensation DAG, then DP or reachability" instead of trying to handle cycles ad hoc.
 - You recognise 2-SAT in disguise (two choices per item, pairwise constraints) and know it is linear time while 3-SAT is not.
 - You know where SCC detection runs in real tooling: cyclic-import diagnostics, compiler loop analysis, and dependency resolution.
 - You can write the iterative Tarjan with `(node, edge index)` frames, and you know the one line (advance the index before descending) that keeps it linear.
-- You can show, on a five-node graph, what goes wrong without the `on_stack` check (two non-mutually-reachable nodes merged) and with Kosaraju's second pass in the wrong order (a source component swallowing its successors).
 - You know what the libraries do: networkx's and scipy's iterative Tarjan (both moved to Tarjan and Zwick's refinements in 2026), and LLVM's bottom-up call-graph SCC passes.
 
 ## Check yourself

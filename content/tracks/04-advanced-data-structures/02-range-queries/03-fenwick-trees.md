@@ -288,7 +288,7 @@ print(g.rect(1, 1, 8, 8), g.rect(3, 2, 6, 5), g.rect(4, 1, 8, 7))   # 12 11 4
 
 AtCoder's `fenwick_tree<T>` is 30 lines and makes two choices worth copying. The public API is 0-based and half-open: `add(p, x)` and `sum(l, r)` for `[l, r)`, with the `p++` conversion hidden inside, so callers never see the 1-based arithmetic. And the storage is `std::vector<U>` where `U` is the unsigned counterpart of `T`: a prefix sum that overflows in the middle of a computation wraps (defined behaviour for unsigned types in C++), and `sum(r) − sum(l)` is still exact whenever the true range sum fits in `T`. With signed storage the same intermediate overflow is undefined behaviour.
 
-Measured on this machine (Ryzen 9 9950X3D, 96 MB L3):
+Measured on this machine (one core of a Ryzen 9 9950X3D):
 
 | operation | CPython 3.14, `n = 10⁶` | Node 24, `Float64Array` |
 |---|---|---|

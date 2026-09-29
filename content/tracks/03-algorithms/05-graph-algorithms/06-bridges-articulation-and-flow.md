@@ -418,11 +418,10 @@ hints:
 
 - You can say why undirected DFS has no cross edges and therefore why low-link on undirected graphs needs no stack, and you can state the `>` versus `≥` distinction between bridges and articulation points.
 - You skip the parent *edge* by index, and you can explain the parallel-edge bug that skipping the parent node introduces.
-- You explain the residual graph as "reverse edges let later paths undo earlier choices" and can produce the five-edge example where greedy path pushing gets stuck at 1 instead of 2.
+- You explain the residual graph as "reverse edges let later paths undo earlier choices" and can produce the five-edge example where greedy path pushing gets stuck at 1 instead of 2; you can run Edmonds–Karp by hand on a small network, point to the round where a reverse edge reroutes earlier flow, and read the minimum cut off the final residual reachability.
 - You know max-flow equals min-cut, how to read the cut off the final residual graph, and that this is why "minimum removals to disconnect" is a flow problem.
 - You reduce "maximum assignments with each item used once" to bipartite matching, write Kuhn's algorithm, and name Hopcroft–Karp and Dinic as the scalable versions.
 - You know König's theorem and the DAG path-cover reduction, which turn cover and scheduling questions into matchings.
-- You can run Edmonds–Karp by hand on a small network, point to the round where a reverse edge reroutes earlier flow, and read the minimum cut off the final residual reachability.
 - You size the algorithms (Edmonds–Karp `O(VE²)`, Dinic `O(V²E)` or `O(E√V)` on unit networks, Kuhn `O(VE)`, Hopcroft–Karp `O(E√V)`) and you know the adjacency-matrix version stops scaling at a few thousand nodes.
 - You know what the libraries default to (networkx push-relabel, scipy Dinic over integer CSR capacities, `linear_sum_assignment` for weighted assignment) and that min-cut is the tool behind image segmentation and link-bottleneck analysis.
 

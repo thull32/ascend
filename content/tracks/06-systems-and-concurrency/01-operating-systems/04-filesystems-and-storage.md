@@ -30,7 +30,7 @@ c.txt inode=592967 links=1 size=5
 
 - **Deleting a file removes a name.** `unlink` decrements the link count; the inode and its blocks are freed only when the count is zero *and* no process has the file open. A Python process that opened `gone.log` and then unlinked it saw `os.fstat(fd).st_nlink == 0`, and `/proc/self/fd/3` pointed at `.../gone.log (deleted)`. A log deleted by a rotation script while the service still writes to it keeps consuming space invisibly: `df` says the disk is full and `du` cannot find the space. `lsof +L1` lists open files with no links.
 - **`rename` within a filesystem is atomic.** Other processes see the old file or the new one under that name, never neither and never a mix. Every safe file-replacement scheme rests on it. Across filesystems it fails with `EXDEV`, and "move" becomes copy-then-delete.
-- **Inodes can run out.** ext4 fixes the inode count at creation: `df -i /` here shows 67,108,864 inodes on a 1 TB filesystem, one per 16 KiB of space (the default ratio). Millions of tiny files (sessions, caches, container layers) can exhaust them with blocks to spare, and writes fail with `ENOSPC`.
+- **Inodes can run out.** ext4 fixes the inode count at creation: `df -i /` here shows 67,108,864 inodes on a 1 TiB filesystem, one per 16 KiB of space (the `inode_ratio` default in `mke2fs.conf`). Millions of tiny files (sessions, caches, container layers) can exhaust them with blocks to spare, and writes fail with `ENOSPC`.
 
 ### From offsets to blocks: pointers and extents
 
@@ -47,7 +47,7 @@ That buffering hides two production surprises:
 - **Writes can suddenly block.** When dirty memory reaches `vm.dirty_ratio` (20%), the kernel throttles every process that is writing, inside `write`, until the flushers catch up. A service that logs heavily to a slow volume sees normally instant writes occasionally take hundreds of milliseconds, and the stall shows up in request latency, not in any I/O metric the service owns.
 - **Nothing is durable until it is flushed.** If power fails, every dirty page is gone. ext4 also uses **delayed allocation**: it does not even choose disk blocks for new data until write-back. In the opening example, `O_TRUNC` freed the old blocks as a metadata change committed within seconds, while the new data had no blocks yet.
 
-Reads go through the same cache. A hit is a memory copy (0.54 µs for a random 4 KiB `pread` here); a miss reads from the device, and **readahead** fetches the next chunk when it detects sequential access. Databases with their own buffer pool (InnoDB, ScyllaDB) open data files with `O_DIRECT` to avoid caching every page twice; PostgreSQL relies on the page cache, which is why its `shared_buffers` is usually a fraction of RAM.
+Reads go through the same cache. A hit is a memory copy (0.54 µs for a random 4 KiB `pread` here); a miss reads from the device, and **readahead** fetches the next chunk when it detects sequential access. Databases with their own buffer pool open data files with `O_DIRECT` to avoid caching every page twice: ScyllaDB always, InnoDB by default on Linux since MySQL 8.4 (`innodb_flush_method`; 8.0 defaulted to `fsync`); PostgreSQL relies on the page cache, which is why its `shared_buffers` is usually a fraction of RAM.
 
 To see what the device is doing, use `iostat -x 1` (columns trimmed):
 
@@ -111,7 +111,7 @@ Suppose the machine loses power at each point. What does `path` hold after reboo
 | After `fsync(dir)` returns | New contents | Data and name are both on stable storage |
 | Recipe without step 1, crash after `rename` | Possibly an empty or partial new file | The name can reach disk before the data blocks |
 
-The last row is the opening incident in another form. ext4 added heuristics in 2009 (`auto_da_alloc`) that start write-back of a file's data when they see truncate-then-rewrite or rename-over-existing patterns; the trace of that heuristic is visible even here, where the unsafe `O_TRUNC`-and-rewrite loop cost 197 µs per iteration instead of a few microseconds because `close` started write-back. It starts the I/O but waits for nothing, so an application relying on it is relying on luck.
+The last row is the opening incident in another form. ext4 added heuristics in 2009 (Linux 2.6.30, the `auto_da_alloc` mount option, on by default) that detect replace-via-truncate and replace-via-rename and force the new data's blocks to be allocated, so that in `data=ordered` mode the data reaches disk no later than the journal commit that records the rename. The trace of that heuristic is visible even here, where the unsafe `O_TRUNC`-and-rewrite loop cost 197 µs per iteration instead of a few microseconds because `close` started write-back. It narrows the window without closing it: `close` starts the I/O and waits for nothing, a journal commit that lands between the truncate and the rewrite still records an empty file, and nothing is durable until a commit you never waited for.
 
 The safe recipe costs two flushes: measured here at 15 ms per replacement (about 4.7 ms for the temporary file's `fsync`, 32 µs for `rename`, 4 ms for the directory `fsync`, plus inode allocation for the new file). That is the price of durability on this VM, and the reason to batch many updates into one replacement rather than replace per update.
 
@@ -202,7 +202,7 @@ At scale the same ideas move up a layer: replication across machines (three copi
 |---|---|---|---|---|
 | `write` only | Yes (data is in the kernel) | No: up to 30 s of writes lost | ~400,000 appends/s | Logs you can afford to lose |
 | `fsync` per record | Yes | Yes | 237 records/s | Small, rare, critical updates |
-| Group commit (`fsync` per batch) | Yes | Yes, for acknowledged batches | 180,701 records/s at 1,000 per batch | PostgreSQL, MySQL, Kafka |
+| Group commit (`fsync` per batch) | Yes | Yes, for acknowledged batches | 180,701 records/s at 1,000 per batch | PostgreSQL, MySQL |
 | Replicate before acknowledging, no `fsync` | Yes | Yes, unless every replica loses power together | Network-bound | Kafka with `acks=all`, many distributed stores |
 | Atomic replace (tmp, `fsync`, `rename`, dir `fsync`) | Yes | Yes, all-or-nothing | 15 ms per replacement | Config and state files |
 

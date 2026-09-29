@@ -83,7 +83,7 @@ Linux offers huge pages two ways:
 | Who uses it | PostgreSQL `huge_pages=on`, JVM `-XX:+UseLargePages`, DPDK | Anything, silently, when set to `always` |
 | Risk | Reserved memory is unavailable to anyone else | Compaction stalls, memory bloat, 2 MiB copy-on-write copies |
 
-THP is the one that bites. To create a 2 MiB page the kernel may have to compact memory first, which can stall an allocation for milliseconds. A 2 MiB page backing 8 KiB of real data wastes the rest. After `fork`, one write to a huge page copies 2 MiB instead of 4 KiB. Redis warns at start-up if THP is `always`, and many database vendors recommend `madvise` or `never`. This machine runs the common modern default:
+THP is the one that bites. To create a 2 MiB page the kernel may have to compact memory first, which can stall an allocation for milliseconds. A 2 MiB page backing 8 KiB of real data wastes the rest. After `fork`, one write to a huge page copies 2 MiB instead of 4 KiB. Redis, on finding THP set to `always`, turns it off for its own process with `prctl(PR_SET_THP_DISABLE)` (its `disable-thp yes` setting) and logs a warning only if that fails, and many database vendors recommend `madvise` or `never`. This machine uses `madvise`, the default many distributions ship:
 
 ```bash
 cat /sys/kernel/mm/transparent_hugepage/enabled
@@ -180,7 +180,7 @@ with open("events.bin", "rb") as f, \
     pos = m.find(b"\x00\xff")    # scans the file as if it were bytes in RAM
 ```
 
-Measured on a 1 GiB file here: mapping it while cached cost 916 minor faults (fault-around maps about 1 MiB of cached neighbours per fault), so 10 ns per page amortised; a cached 4 KiB `pread` cost 0.54 µs; an uncached one 118 µs; and a random-access mapped read that missed the cache, 137–183 µs, all of it invisible to the code that did it. These disk numbers come from a virtual disk file on the Windows host and can be flattered by the host's own cache; a local NVMe drive is typically 50–100 µs per random read.
+Measured on a 1 GiB file here: mapping it while cached cost 916 minor faults, about 1 MiB mapped per fault on average (fault-around maps up to 64 KiB of cached neighbours by default, and a 2 MiB page-cache folio can be mapped whole with one page-directory entry), so 10 ns per page amortised; a cached 4 KiB `pread` cost 0.54 µs; an uncached one 118 µs; and a random-access mapped read that missed the cache, 137–183 µs, all of it invisible to the code that did it. These disk numbers come from a virtual disk file on the Windows host and can be flattered by the host's own cache; a local NVMe SSD typically answers a random 4 KiB read in tens of microseconds to about 100 µs, depending on the drive and its queue depth.
 
 ### Why databases refuse it
 
@@ -220,7 +220,7 @@ Now return to the opening. The kernel does not know what a heap is. The containe
 
 **Symptom: a swapless pod's latency degrades as it approaches its memory limit, with steady major faults.** Diagnosis: `memory.stat` shows `workingset_refault_file` climbing: the cgroup keeps evicting and re-reading its own code and mapped files. Fix: raise the limit or cut anonymous memory; the kernel can only squeeze file pages.
 
-**Symptom: `mmap` fails with `ENOMEM` ("Cannot allocate memory") while gigabytes are free.** Diagnosis: `wc -l /proc/<pid>/maps` is near `vm.max_map_count` (65,530 by default on many distributions; Elasticsearch requires 262,144): each mapping and each thread stack guard counts. Fix: raise the sysctl or use fewer, larger mappings.
+**Symptom: `mmap` fails with `ENOMEM` ("Cannot allocate memory") while gigabytes are free.** Diagnosis: `wc -l /proc/<pid>/maps` is near `vm.max_map_count` (the kernel default is 65,530; Elasticsearch's current documentation asks for 1,048,576, and 7.x asked for 262,144): every mapping counts, including each thread's stack. Fix: raise the sysctl or use fewer, larger mappings.
 
 **Symptom: high system CPU on a many-threaded allocator-heavy service, `TLB` interrupts climbing on bare metal.** Diagnosis: the allocator returns memory with `madvise(MADV_DONTNEED)` or `munmap` at a high rate, forcing shootdowns on every core running the process. Fix: raise the allocator's decay time (jemalloc `dirty_decay_ms`), pool large buffers.
 

@@ -8,7 +8,7 @@ tags: [lfu, cache, eviction, tinylfu, arc, redis, caffeine, design]
 ---
 LRU has a blind spot you met in the [previous lesson](/learn/advanced-data-structures/caches-and-eviction/lru-cache): it treats an entry touched once a second ago as more valuable than an entry touched a thousand times up to two seconds ago. A one-hit wonder evicts a hot key. Web traffic, CDN requests and database page access are all heavily skewed (a small set of keys takes most of the hits, with a long tail of items requested once), so "how often" is at least as good a predictor of reuse as "how recently".
 
-Least Frequently Used (LFU) evicts the entry with the smallest access count. The obvious implementations are slow: a min-heap keyed by count makes every `get` an O(log n) decrease-key, and a hash map of counts makes eviction an O(n) scan for the minimum. Interviewers ask for O(1); two published structures deliver it, and comparing them is a good exercise in composing maps and lists. But the bigger lesson is what comes after: pure LFU has a flaw that makes it unusable, and the policies that fix it, traced here with their real constants, are what your cache library is actually running.
+Least Frequently Used (LFU) evicts the entry with the smallest access count. The obvious implementations are slow: a min-heap keyed by count makes every `get` an O(log n) decrease-key, and a hash map of counts makes eviction an O(n) scan for the minimum. Interviewers ask for O(1); two well-known structures deliver it. The bigger lesson comes after: pure LFU has a flaw that makes it unusable, and the policies that fix it are what your cache library actually runs.
 
 ## O(1) LFU
 
@@ -94,7 +94,7 @@ class LFUCache:
         self.min_freq = 1
 ```
 
-Three dictionaries and an `OrderedDict` per live count are not cheap. Measured with `tracemalloc` on CPython 3.14 (the container only): **175 bytes per entry** at 10⁶ keys all at count 1 and **263–315** once counts spread out (1 to 100, or half the keys at 301), against 106 for the previous lesson's LRU; a `get` took 229 ns against 78 (1,000 keys, 10⁶ random hits, one core). Spreading costs more because a CPython dict never shrinks, so bucket 1 keeps a table sized for the moment every key had count 1, and counts above 256 are separate `int` objects. That is a second reason production caches do not keep exact counts.
+Three dictionaries and an `OrderedDict` per live count are not cheap. Measured with `tracemalloc` on CPython 3.14 (the container only): **175 bytes per entry** at 10⁶ keys all at count 1 and **263–315** once counts spread out (1 to 100, or half the keys at 301), against 106 for the previous lesson's LRU; a `get` took 229 ns against 78 (1,000 keys, 10⁶ random hits, one core). Spreading costs more because a CPython dict does not shrink when keys leave it, so bucket 1 keeps a table sized for the moment every key had count 1, and counts above 256 are separate `int` objects.
 
 ## The original O(1) LFU: a sorted list of frequency nodes
 
@@ -230,8 +230,7 @@ Both make `get`, `put` and eviction O(1). They differ in what else stays O(1), a
 | Per live count | a hash entry and a list sentinel | a node: count, prev, next, list sentinel |
 | CPython, as written in this lesson | 175–315 bytes per entry, 229 ns per `get` | 114–125 bytes per entry, 127 ns per `get` |
 
-In a compiled language the two cost the same five words per entry; the real difference is the first two rows, which is why a cache that also supports deletion or expiry is safer on the frequency list. In CPython the list also wins on measurement, because it is one dict plus one 72-byte slotted object per entry instead of three dicts and a bucket `OrderedDict`. Both CPython rows were measured the same way as above; they compare these two Python programs, not the designs.
-
+In a compiled language both cost five words per entry, so the real difference is the first two rows: a cache that also supports deletion or expiry is safer on the frequency list. The CPython row compares these two programs, not the designs: one dict plus one 72-byte slotted object per entry against three dicts and a bucket `OrderedDict`.
 
 ## Why pure LFU is unusable
 
@@ -254,7 +253,7 @@ Without aging, `a`'s three old hits protect it forever and every newcomer is sac
 
 ## 2Q and SLRU: two lists instead of one
 
-The cheapest fix for LRU's one-hit-wonder problem is a probation area. **2Q** keeps a small FIFO (`A1in`) for first-time entries and an LRU (`Am`) for entries seen at least twice; a key promoted from `A1in` to `Am` has proven it will be reused. A ghost list (`A1out`) remembers keys recently evicted from probation, so a second request shortly after eviction still counts. Linux's active/inactive page lists are this shape.
+The cheapest fix for LRU's one-hit-wonder problem is a probation area. **2Q** keeps a small FIFO (`A1in`) for first-time entries, an LRU (`Am`) for entries that have shown reuse, and a ghost list (`A1out`) of keys recently evicted from `A1in`; a request for a key found in `A1out` goes straight into `Am`, so a second request shortly after eviction still counts. Linux's active/inactive page lists are this shape.
 
 **Segmented LRU (SLRU)** is the same idea within one list: a *probationary* segment and a *protected* segment. New entries go to probationary; a hit promotes to protected; when protected is full its LRU entry drops back to probationary rather than out of the cache. A scan cycles through probationary and never touches protected.
 
@@ -274,13 +273,13 @@ The cheapest fix for LRU's one-hit-wonder problem is a probation area. **2Q** ke
 | 7 | miss | `|T1| = 1`, not above `p`: evict from `T2` (2 into `B2`) | [6, 7] | [3, 1] | [4, 5] | [2] | 1 |
 | 4 | ghost hit in `B1` | `p → 2`; evict from `T2` (3 into `B2`); 4 enters `T2` | [6, 7] | [1, 4] | [5] | [2, 3] | 2 |
 
-Read the `p` column: the workload kept re-requesting keys that `T1` had dropped, so `p` grew and `T1` got more room; when a key came back from `B2`, `p` shrank again. The cache tunes itself between LRU-like and LFU-like behaviour per workload with no parameters, and a key that returns from a ghost list goes straight into `T2` because it has now been seen twice. ZFS uses ARC for its file cache. Postgres implemented it, then removed it in 8.1, because IBM holds a patent on it, and moved to the clock sweep described below.
+Read the `p` column: the workload kept re-requesting keys that `T1` had dropped, so `p` grew and `T1` got more room; when a key came back from `B2`, `p` shrank again. The cache tunes itself between LRU-like and LFU-like behaviour per workload with no parameters, and a key that returns from a ghost list goes straight into `T2` because it has now been seen twice. ZFS uses ARC for its file cache. Postgres shipped ARC in 8.0, replaced it with 2Q in 8.0.2 to avoid a pending IBM patent, and moved to the clock sweep described below in 8.1.
 
 ## W-TinyLFU: what Caffeine runs
 
 **Caffeine** (the standard Java cache, used by Cassandra, Kafka, Spring and many others) implements **Window TinyLFU**, and it is the policy to name when someone asks "what is state of the art".
 
-The idea splits *admission* from *eviction*. The main region, 99% of capacity, is an SLRU with a 20% probationary and 80% protected split. The question is whether a new key should be admitted to it at all. TinyLFU keeps a **count-min sketch** (the one from [count-min sketch and HyperLogLog](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog)) of access frequencies over recent history: 4-bit counters, so an estimate saturates at 15, four counters per key inside one 64-byte block so an estimate costs one cache line, and a **halving reset** once the sample size, ten times the maximum size, has been recorded, so old popularity fades. When a candidate leaves the window and the main region is full, compare the sketch's estimate for the candidate against the estimate for the main region's eviction victim (the probationary LRU entry). Admit the newcomer only if it is more frequent; a tie keeps the victim.
+The idea splits *admission* from *eviction*. The main region, 99% of capacity, is an SLRU with a 20% probationary and 80% protected split. The question is whether a new key should be admitted to it at all. TinyLFU keeps a **count-min sketch** (the one from [count-min sketch and HyperLogLog](/learn/advanced-data-structures/probabilistic-structures/count-min-sketch-and-hyperloglog)) of access frequencies over recent history: 4-bit counters, so an estimate saturates at 15, and a **halving reset** after ten times the maximum size in recorded increments, so old popularity fades. When a candidate leaves the window and the main region is full, compare the sketch's estimate for the candidate against the estimate for the main region's eviction victim (the probationary LRU entry). Admit the newcomer only if it is more frequent; a tie keeps the victim.
 
 Trace the admission with a cache of 1,000 entries, a sketch sample of 10,000, and a victim estimated at 3:
 
@@ -292,7 +291,7 @@ Trace the admission with a cache of 1,000 entries, a sketch sample of 10,000, an
 | the same key after a second halving | 7 → 3 | no, 3 ≤ 3 | it has aged out; ties keep the victim |
 | a key estimated at 6 against a victim estimated at 9 | 6 | 1 time in 128 | the hash-flooding guard in the next section |
 
-Pure admission has a cold-start problem (a newly hot key cannot get in until its count grows), so the "Window" in the name is a small LRU, 1% of capacity, in front, where new keys live briefly and can accumulate hits before facing the admission test. Caffeine resizes the window at runtime by hill climbing on the hit ratio, and it randomises admission slightly so that an attacker who floods the sketch with colliding keys cannot lock newcomers out; the next section gives both their constants. On the traces published with W-TinyLFU (database, search, analytics, OLTP) it comes close to the offline optimum on most, and beats LRU widely on skewed workloads.
+Pure admission has a cold-start problem (a newly hot key cannot get in until its count grows), so the "Window" in the name is a small LRU, 1% of capacity, in front, where new keys live briefly and can accumulate hits before facing the admission test. Caffeine resizes the window at runtime and randomises admission slightly (next section). The TinyLFU paper (Einziger, Friedman and Manes) reports that W-TinyLFU matched or beat the other state-of-the-art policies it was compared with on every trace it used.
 
 ```mermaid
 flowchart LR
@@ -331,11 +330,11 @@ Read from `BoundedLocalCache.java`, `FrequencySketch.java` and the buffer classe
 
 ## Under the hood: Redis's sampled, logarithmic LFU
 
-Redis's `allkeys-lfu` (and `volatile-lfu`) uses the same 24-bit field per key that its LRU uses, split into 16 bits of last-decrement time (minute resolution) and an **8-bit logarithmic counter**. A counter that can only hold 0–255 cannot count a million hits, so it counts probabilistically: a new key starts at `LFU_INIT_VAL = 5` (so that a fresh key is not the first eviction candidate), and on each access the counter increments with probability `1 / ((counter − 5) × lfu_log_factor + 1)`. The table in `redis.conf` gives the resulting counter for the default `lfu-log-factor 10`: about 10 after 100 hits, 18 after 1,000, 142 after 100,000, and 255 after a million. Aging is time-based: every `lfu-decay-time` minutes (default 1) the counter is decremented by one on the next access. Eviction, as for LRU, samples `maxmemory-samples` keys and evicts the one with the lowest counter. Twenty-four bits per key, no lists, and a policy that approximates aged LFU well enough for the workloads Redis serves.
+Redis's `allkeys-lfu` (and `volatile-lfu`) uses the same 24-bit field per key that its LRU uses, split into 16 bits of last-decrement time (minute resolution) and an **8-bit logarithmic counter**. A counter that can only hold 0–255 cannot count a million hits, so it counts probabilistically: a new key starts at `LFU_INIT_VAL = 5` (so that a fresh key is not the first eviction candidate), and on each access the counter increments with probability `1 / ((counter − 5) × lfu_log_factor + 1)`. The table in `redis.conf` gives the resulting counter for the default `lfu-log-factor 10`: about 10 after 100 hits, 18 after 1,000, 142 after 100,000, and 255 after a million. Aging is time-based and lazy: when a key is next accessed or sampled, its counter loses one for every `lfu-decay-time` minutes (default 1) since its last decrement. Eviction, as for LRU, samples `maxmemory-samples` keys and evicts the one with the lowest counter.
 
 ## Under the hood: Postgres's clock sweep
 
-`shared_buffers` in Postgres uses a **clock sweep** (a generalised second-chance algorithm). Each buffer has a `usage_count`, incremented on access up to `BM_MAX_USAGE_COUNT = 5`. To find a victim, a hand sweeps the buffer ring: a buffer with `usage_count > 0` is decremented and skipped; the first buffer found at 0 is evicted. Frequently used pages keep getting reset to 5 and are rarely reached at 0; a page touched once decays to 0 in one sweep. It is an aged-frequency policy with no lists, no locks per access beyond an atomic increment, and no patent. Sequential scans of tables larger than a quarter of `shared_buffers` additionally use a 256 KB ring buffer, and bulk writes a 16 MB one, so that a scan recycles its own pages instead of sweeping the pool.
+`shared_buffers` in Postgres uses a **clock sweep** (a generalised second-chance algorithm). Each buffer has a `usage_count`, incremented on access up to `BM_MAX_USAGE_COUNT = 5`. To find a victim, a hand sweeps the buffer ring: a buffer with `usage_count > 0` is decremented and skipped; the first buffer found at 0 is evicted. Frequently used pages keep getting reset to 5 and are rarely reached at 0; a page touched once decays to 0 in one sweep. It is aged frequency with no lists and no lock per access beyond an atomic increment. Sequential scans of tables larger than a quarter of `shared_buffers` use a ring buffer instead (256 KB up to PostgreSQL 17; 18 adds room for its asynchronous reads in flight), and bulk writes a 16 MB one, so that a scan recycles its own pages instead of sweeping the pool.
 
 ## Choosing a policy
 
@@ -350,7 +349,7 @@ Redis's `allkeys-lfu` (and `volatile-lfu`) uses the same 24-bit field per key th
 | Exact LFU (either O(1) layout) | 5 words + a hash entry | Yes, scanned keys stay at count 1 | No; never forgets without aging | Interview answers |
 | W-TinyLFU | 2 pointers + 8–16 B of sketch | Yes | Yes | Caffeine, and via it Cassandra, Kafka |
 
-The interview version of this decision: say LRU, say its failure mode (scans and one-hit wonders), say what fixes it (a probation area or frequency-based admission), and name one real system for each. If the interviewer pushes on "how would you implement frequency without a counter per key?", the count-min sketch with periodic halving is the answer, and it connects two lessons of this track in one sentence.
+In an interview: say LRU, its failure mode (scans and one-hit wonders), the fix (a probation area or frequency-based admission) and one real system for each. "Frequency without a counter per key?" is answered by the count-min sketch with periodic halving.
 
 ## Failure modes
 
@@ -361,20 +360,20 @@ The interview version of this decision: say LRU, say its failure mode (scans and
 | Hand-written O(1) LFU evicts the wrong key when counts tie | No recency order within a bucket, or a set instead of an ordered list | Ordered buckets, evict from the front |
 | LFU implementation is O(n) on eviction | Scanning for the minimum count instead of tracking `min_freq` | Keep `min_freq`; reset it to 1 on every insert |
 | After `delete` or TTL expiry was added to a `min_freq` LFU, an eviction raises `KeyError` on `buckets[min_freq]` | A removal emptied the `min_freq` bucket, and only an insert resets `min_freq`, so it names a count with no keys | Recompute the minimum over the live counts after such a removal, or use the frequency-node list, whose `head.next` is always the minimum |
-| Redis LFU counters look "stuck" at 5 for keys that are read often | `lfu-log-factor` too high for the traffic, so increments almost never happen; or reads go through a replica whose counters are not updated | Lower `lfu-log-factor` (each level then saturates sooner), read counters on the primary with `OBJECT FREQ` |
-| Postgres shared-buffer hit ratio collapses during a nightly table scan | The table is smaller than a quarter of `shared_buffers`, so the scan uses the main pool instead of the 256 KB ring | Accept it, run the scan against a replica, or tune `shared_buffers` so the ring rule applies |
+| Redis LFU counters (`OBJECT FREQ`) stay in single digits for keys that are read often | `lfu-log-factor` too high for the traffic (at 100, a key needs about 100 hits to reach 8), or the reads go to replicas, which do not touch the primary's counters | Lower `lfu-log-factor` (each level then saturates sooner), read counters on the primary with `OBJECT FREQ` |
+| Postgres shared-buffer hit ratio collapses during a nightly table scan | The table is smaller than a quarter of `shared_buffers`, so the scan uses the main pool instead of the scan ring | Accept it, run the scan against a replica, or tune `shared_buffers` so the ring rule applies |
 
 ## Interviewer follow-ups
 
 **"Why is `min_freq` never searched for in the O(1) LFU?"** Model answer: every insert sets it to 1, because the new key has count 1; it only rises when a promotion empties the bucket it points at, which is a single comparison. Common wrong answer: "we keep a min-heap of bucket counts", which makes eviction O(log n).
 
-**"How does TinyLFU decide whether to admit a key, and what is the cost of that decision?"** Model answer: it compares the count-min-sketch estimate of the candidate against that of the eviction victim and admits only if the candidate is more frequent; the cost is two hash rounds and one 64-byte block read per estimate, and the sketch itself is 8–16 bytes per entry of capacity (128 KiB for `maximumSize(10_000)`); ties keep the victim, and a candidate estimated at 6 or more is admitted anyway once in 128 times, as a guard against hash flooding. Common wrong answer: "it evicts the least frequent entry from the cache", which describes LFU eviction, not admission.
+**"How does TinyLFU decide whether to admit a key, and what is the cost of that decision?"** Model answer: it admits the candidate only if its count-min-sketch estimate beats the eviction victim's (ties keep the victim, apart from a 1-in-128 lottery for candidates at 6 or more against hash flooding); each estimate costs one 64-byte block read, and the sketch 8–16 bytes per entry of capacity. Common wrong answer: "it evicts the least frequent entry from the cache", which describes LFU eviction, not admission.
 
 **"What does ARC adapt, and how does it know which way to move?"** Model answer: the target size `p` of the recency list `T1`; a hit in the ghost list `B1` says a recently-evicted-once key came back, so `p` grows, and a hit in `B2` says a frequently used key came back, so `p` shrinks. Common wrong answer: "it switches between LRU and LFU modes", when it is a continuous split.
 
 **"Redis stores an 8-bit counter. How does it represent a million hits, and what happens to a key that goes cold?"** Model answer: the counter increments with probability `1/((c − 5) × factor + 1)`, so it grows logarithmically and reaches 255 after roughly a million hits at factor 10; a cold key is decremented once per `lfu-decay-time` minute when next touched or sampled. Common wrong answer: "it saturates at 255 hits".
 
-**"Your LFU must also support `delete(key)` and TTL expiry. Does `min_freq` still work?"** Model answer: not by itself; a removal that empties the `min_freq` bucket leaves it naming a count with no keys, and only the next insert repairs it, so an eviction before that insert must scan the live counts. Either recompute the minimum after such a removal, `O(distinct counts)`, or use the frequency-node list, where the removal unlinks an emptied node and `head.next` is the minimum again in O(1). Common wrong answer: "set `min_freq` to 1", which is wrong whenever no key has count 1.
+**"Your LFU must also support `delete(key)` and TTL expiry. Does `min_freq` still work?"** Model answer: not by itself; a removal that empties the `min_freq` bucket leaves it naming a count with no keys until the next insert. Recompute the minimum after such a removal, `O(distinct counts)`, or use the frequency-node list, whose `head.next` stays the minimum in O(1). Common wrong answer: "set `min_freq` to 1", which is wrong whenever no key has count 1.
 
 ## What mid-level engineers get wrong
 
@@ -382,9 +381,8 @@ The interview version of this decision: say LRU, say its failure mode (scans and
 - **Using a set for the bucket**, which makes ties arbitrary and eviction non-deterministic.
 - **Calling TinyLFU an eviction policy.** It is an admission policy in front of an SLRU; the sketch never chooses the victim.
 - **Reading Redis's `OBJECT FREQ` as a hit count.** It is a logarithmic, decaying estimate.
-- **Assuming the exact O(1) LFU is what production runs.** Its 175–315 bytes per entry in CPython (five words plus a hash entry even in a compiled language) is why Redis spends 24 bits per key and Caffeine a shared sketch of 8–16 bytes per entry.
-- **Adding `delete` or TTL expiry to a `min_freq` LFU** without repairing `min_freq`, and meeting a `KeyError` in the eviction path.
-- **Quoting Caffeine's sketch as 4 bits per entry.** Four bits is the counter width; the table is one `long` of sixteen counters per entry of capacity, rounded up to a power of two.
+- **Assuming exact O(1) LFU is what production runs.** Five words plus a hash entry per key is why Redis spends 24 bits and Caffeine 8–16 bytes of shared sketch.
+- **Quoting Caffeine's sketch as 4 bits per entry.** Four bits is the counter width, not the cost.
 - **Treating "LRU vs LFU" as the whole decision space**, when scan resistance and adaptation are the axes that matter.
 
 ## Exercises
@@ -542,13 +540,10 @@ hints:
 
 ## Senior signals
 
-- You implement LFU in O(1) with **frequency buckets and a `min_freq` pointer**, you can explain why `min_freq` never needs a search, and you evict by recency within a bucket.
-- You know the **frequency-node list** of Shah, Mitra and Matani, can trace a promotion that has to splice in the `f + 1` node, and can say why it keeps `delete` and TTL expiry O(1) where `min_freq` does not.
+- You implement O(1) LFU with **`min_freq` buckets** or the **frequency-node list**, evict by recency within a count, and say why only the list keeps `delete` and expiry O(1).
 - You state pure LFU's fatal flaw (**it never forgets**), the two aging mechanisms that fix it, and you can show on a six-operation trace how halving changes the victim.
 - You know the difference between **eviction** and **admission** and can trace TinyLFU's sketch-based admission test with numbers.
-- You can trace **ARC**'s target `p` through ghost hits and say what each ghost list means.
-- You can say what **Redis** (`allkeys-lfu`, 8-bit logarithmic counter starting at 5, factor 10, decay per minute, sampling), **Caffeine** (1% window, 20/80 SLRU, 4-bit counters in a table of 8–16 bytes per entry, halving after 10× the maximum size in increments, a 1-in-128 admission guard for candidates at 6 or more) and **Postgres** (clock sweep, usage count capped at 5, 256 KB scan ring) actually run.
-- You know ARC exists, what it adapts, and why Postgres could not ship it.
+- You can trace **ARC**'s target `p` through ghost hits, and say what **Redis** (8-bit logarithmic counter, decay per minute, sampling), **Caffeine** (1% window, 20/80 SLRU, 8–16 bytes of sketch per entry, a 1-in-128 admission guard) and **Postgres** (clock sweep, usage count capped at 5) actually run.
 - You choose a policy by naming the workload's shape (skew, scans, churn) rather than by defaulting to LRU.
 
 ## Check yourself

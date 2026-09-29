@@ -460,12 +460,11 @@ hints:
 
 - You **name the graph** before writing code: "nodes are cells with value 1, edges are orthogonal adjacency", or "nodes are words, edges are one-letter edits". That sentence is what turns a puzzle into a template.
 - You choose **BFS for distance and either for reachability**, and you say why: BFS levels are distances only when every edge costs the same.
-- You **mark visited on enqueue** and can explain the duplicate-enqueue blow-up that marking on dequeue causes.
+- You **mark visited on enqueue** and can explain the duplicate-enqueue blow-up that marking on dequeue causes; you can say what the **visited structure costs**: on a 1000 × 1000 grid, about 121 MB for a set of tuples against 8 MB for a boolean grid and 1 MB for a bytearray, and you encode cells as single integers when memory is tight.
 - You reach for **multi-source BFS** for "nearest X for every cell" problems and quantify the saving over one BFS per cell.
 - You spot the **reverse-from-the-boundary** move (oceans, surrounded regions) and explain that reachability is symmetric when you flip the edge direction.
 - You offer the **iterative traversal** before the interviewer mentions recursion depth, and you quantify: a million-cell island is a million frames.
 - You know when **union-find replaces traversal** (dynamic edges, many connectivity queries) and when it does not (you need distances or the actual path).
-- You can say what the **visited structure costs**: on a 1000 × 1000 grid, about 121 MB for a set of tuples against 8 MB for a boolean grid and 1 MB for a bytearray, and you encode cells as single integers when memory is tight.
 - You recognise the follow-ups that **add a dimension to the state** (wall removals, collected keys) and put it in the visited key.
 
 ## Check yourself

@@ -2,7 +2,7 @@
 slug: processes-and-threads
 title: "Processes and threads: what the scheduler is doing to your code"
 description: The task_struct behind every process and thread, the clone flags that decide what is shared, what fork copies and what copy-on-write defers, measured context-switch and fork costs, how the Linux scheduler shares a core, and what a container really is.
-minutes: 40
+minutes: 45
 difficulty: medium
 tags: [operating-systems, processes, threads, scheduling, containers, context-switch]
 ---
@@ -25,7 +25,7 @@ The address space makes processes safe from each other: a wild pointer in one ca
 
 A thread is the kernel's unit of *execution*. It has its own:
 
-- **User stack**: 8 MiB of reserved address space by default for glibc threads, backed by physical pages only as they are touched.
+- **User stack**: 8 MiB of reserved address space by default for glibc threads, backed by physical pages only as they are touched. glibc takes the default from the `RLIMIT_STACK` soft limit (`ulimit -s`), which most distributions set to 8 MiB; with an unlimited limit it falls back to 2 MiB on most architectures.
 - **Kernel stack**: 16 KiB on x86-64, used while the thread is inside a system call or an interrupt.
 - **Register state**, including the instruction pointer, the stack pointer and the thread-local-storage base register (`fs` on x86-64).
 - **Scheduling state**: runnable, running, sleeping, a weight and the CPUs it may run on.
@@ -65,9 +65,9 @@ clone3({flags=CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|CLONE_SYS
 clone(child_stack=NULL, flags=CLONE_CHILD_CLEARTID|CLONE_CHILD_SETTID|SIGCHLD) = 515107
 ```
 
-`CLONE_VM` shares `mm` (same address space, same page tables). `CLONE_FILES` shares the descriptor table, so a socket opened by one thread is usable by all. `CLONE_FS` and `CLONE_SIGHAND` share the directory state and handler table. `CLONE_THREAD` puts the child in the parent's thread group, so `getpid()` returns the group ID (`tgid`) in both and `gettid()` returns the task's own ID. `CLONE_SETTLS` loads the new thread's `fs` base, which is how thread-local variables work. The glibc-allocated stack (`stack_size=0x7fff80`, 8 MiB minus a guard page) is passed in from user space. `CLONE_CHILD_CLEARTID` tells the kernel to zero a word and wake a futex on it when the thread exits, and that futex is what `pthread_join` sleeps on.
+`CLONE_VM` shares `mm` (same address space, same page tables). `CLONE_FILES` shares the descriptor table, so a socket opened by one thread is usable by all. `CLONE_FS` and `CLONE_SIGHAND` share the directory state and handler table. `CLONE_THREAD` puts the child in the parent's thread group, so `getpid()` returns the group ID (`tgid`) in both and `gettid()` returns the task's own ID. `CLONE_SETTLS` loads the new thread's `fs` base, which is how thread-local variables work. The glibc-allocated stack is passed in from user space: glibc maps 8 MiB plus a 4 KiB guard page at the low end and keeps the thread descriptor and static TLS at the top, so `stack_size=0x7fff80` is that mapping minus the 4,224 bytes at the top. `CLONE_CHILD_CLEARTID` tells the kernel to zero a word and wake a futex on it when the thread exits, and that futex is what `pthread_join` sleeps on.
 
-The second line is `fork`: no sharing flags at all, only `SIGCHLD` as the exit signal. Every resource is copied. Container runtimes use a third set of flags on the same call: `CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWNET` and friends give the child new namespaces. CPython's `subprocess` uses a fourth variant, `vfork` (`CLONE_VM|CLONE_VFORK`), which lends the child the parent's address space until it calls `execve`.
+The second line is `fork`: no sharing flags at all, only `SIGCHLD` as the exit signal. Every resource is copied. Container runtimes use a third set of flags on the same call: `CLONE_NEWPID`, `CLONE_NEWNS`, `CLONE_NEWNET` and friends give the child new namespaces. On Linux, CPython's `subprocess` uses a fourth variant when it is safe to do so, `vfork` (`CLONE_VM|CLONE_VFORK`), which lends the child the parent's address space until it calls `execve`.
 
 This is why `ps -eLf` and `top -H` list threads individually, each with its own ID.
 
@@ -248,7 +248,7 @@ Trace three CPU-bound tasks on one core with 3 ms slices: A and B at `nice 0` (w
 | 24 | 9.00 / 9.00 / 11.68 | A | A = 12.00 |
 | 27 | 12.00 / 9.00 / 11.68 | B | B = 12.00 |
 
-Over a long run C gets 526 / (1024 + 1024 + 526) ≈ 20% of the core and A and B about 40% each. A task that wakes after sleeping is placed near the current minimum vruntime rather than at its old small value, so a thread that slept for an hour cannot monopolise the CPU on return. The base slice is 0.75 ms, scaled up with the CPU count to 3 ms on machines with eight or more CPUs. The exercise at the end asks you to implement this pick-the-minimum loop.
+Over a long run C gets 526 / (1024 + 1024 + 526) ≈ 20% of the core and A and B about 40% each. A task that wakes after sleeping is placed near the current minimum vruntime rather than at its old small value, so a thread that slept for an hour cannot monopolise the CPU on return. The base slice is 0.70 ms since Linux 6.15 (0.75 ms before), multiplied by 1 + log2 of the CPU count with the count capped at eight, so it is 2.8 ms on this machine and on any machine with eight or more CPUs; the trace rounds it to 3 ms. The exercise at the end asks you to implement this pick-the-minimum loop.
 
 ### Consequences for a service owner
 
@@ -256,7 +256,7 @@ Over a long run C gets 526 / (1024 + 1024 + 526) ≈ 20% of the core and A and B
 
 **Wake-up latency is real.** A thread woken by an arriving packet does not run until a core is free and, if it lands on an idle core, until that core wakes (25 µs per hop measured above under WSL2). Trading systems and packet processors avoid it by pinning a thread to a core and spinning.
 
-**The slice is not the latency.** A CPU-bound neighbour at equal weight can delay your thread by a whole slice, 3 ms here, per wake-up when the core is contended.
+**The slice is not the latency.** A CPU-bound neighbour at equal weight can delay your thread by a whole slice, 2.8 ms here, per wake-up when the core is contended.
 
 ## CPU quotas in containers
 
@@ -295,7 +295,7 @@ A container is an ordinary process tree started with:
 - A **root filesystem** assembled from image layers with an overlay filesystem.
 - Optionally seccomp filters and dropped capabilities restricting which system calls it may make.
 
-Nothing about scheduling or memory management changes: container threads are threads, and the memory limit is a cgroup number that the OOM killer enforces even when the host has 200 GiB free. PID 1 inside a PID namespace is also special: the kernel installs no default signal actions for it, so a `SIGTERM` it has no handler for is ignored, and it is expected to reap orphaned children.
+Nothing about scheduling or memory management changes: container threads are threads, and the memory limit is a cgroup number that the OOM killer enforces even when the host has 200 GiB free. PID 1 inside a PID namespace is also special: the kernel delivers to it only the signals it has installed a handler for (plus `SIGKILL` and `SIGSTOP` sent from an ancestor namespace), so a `SIGTERM` it has no handler for is dropped, and orphaned processes in the namespace are reparented to it for reaping.
 
 ## Threads, processes and user-space threads compared
 
@@ -321,7 +321,7 @@ Use threads (or goroutines, or tasks) when work shares state and needs cheap coo
 
 **Symptom: p99 latency with a flat top near 100 ms while average CPU is well under the limit.** Diagnosis: `nr_throttled` rising in the container's `cpu.stat`, and a worker count derived from the host's cores. Fix: size pools to the quota, or raise the limit.
 
-**Symptom: a container takes exactly 30 seconds to stop on every deploy, and `ps` inside it shows `<defunct>` entries.** Diagnosis: the application runs as PID 1, ignores `SIGTERM` because PID 1 has no default handlers, and never reaps orphans, so Kubernetes waits out the grace period and sends `SIGKILL`. Fix: handle `SIGTERM` explicitly, or run a minimal init (`tini`, `docker run --init`) as PID 1.
+**Symptom: a container takes exactly 30 seconds to stop on every deploy, and `ps` inside it shows `<defunct>` entries.** Diagnosis: the application runs as PID 1, ignores `SIGTERM` because the kernel drops signals PID 1 has no handler for, and never reaps orphans, so Kubernetes waits out the grace period and sends `SIGKILL`. Fix: handle `SIGTERM` explicitly, or run a minimal init (`tini`, `docker run --init`) as PID 1.
 
 ## Interviewer follow-ups
 

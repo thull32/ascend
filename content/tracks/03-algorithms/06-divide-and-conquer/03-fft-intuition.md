@@ -303,14 +303,12 @@ hints:
 
 - You can write the convolution sum `Σ aᵢ·b_{k−i}` from memory and recognise it in integer multiplication, pair-sum counting, sliding correlation and generating functions.
 - You explain the FFT as "evaluate at roots of unity so the even/odd split recurses, multiply pointwise, invert with the conjugate transform" and you know the recurrence is merge sort's.
-- You know floating-point FFT loses exactness for large integer coefficients and that NTT is the integer-exact alternative.
+- You size the precision before you trust `round`: a floating-point FFT loses exactness for large integer coefficients, products near `10¹⁵` are at the edge for double precision, and NTT (the integer-exact transform) or coefficient splitting is the fix.
 - You know the library crossover: direct convolution wins for small kernels, FFT for large ones, and you check the threshold rather than assuming.
-- You name the FFT as a technique in interviews and use a library at work, and you can say why both are the right call.
-- You can point to concrete systems running FFTs at scale (audio, imaging, modems, big-integer arithmetic) rather than describing it as a maths curiosity.
+- You name the FFT as a technique in interviews and use a library at work, and you can say why both are the right call and point to concrete systems running FFTs at scale (audio, imaging, modems, big-integer arithmetic) rather than describing it as a maths curiosity.
 - You can trace the eight-point butterflies with the four twiddle factors, count `(n/2) log₂ n` butterflies, and say why the base cases come out in bit-reversed order.
 - You pad to `len(a) + len(b) − 1` because you know the pointwise product computes a circular convolution, and you can show the wrapped coefficient on a three-by-three example.
 - You know what `numpy.fft` runs (pocketfft, mixed radix, Bluestein for awkward lengths) and that `rfft` halves the work for real input.
-- You size the precision before you trust `round`: products near `10¹⁵` are at the edge for a double-precision FFT, and NTT or coefficient splitting is the fix.
 
 ## Check yourself
 

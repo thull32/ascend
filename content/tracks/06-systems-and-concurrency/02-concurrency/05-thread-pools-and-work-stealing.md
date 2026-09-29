@@ -67,7 +67,7 @@ Queueing theory says how fast waiting grows near saturation. For one server with
 | 0.95 | 20.8 × | 109 × | 2.3 × | 13.4 × |
 | 0.99 | about 100 × (slow to converge) | 384 × | 13.4 × | 47.7 × |
 
-More workers flatten the curve at moderate load (pooling), but every row still explodes as $\rho \to 1$. Two design rules follow. **Run latency-sensitive pools well below 100% utilisation**; 70–80% at peak is a common target. **Bound the queue so the longest wait is shorter than the caller's timeout**: ten workers at 100 ms per task drain 100 tasks per second, so with a 2-second client timeout a task at queue position 200 will time out before it starts. A queue bounded at about 100 turns the rest into immediate, cheap rejections the client can retry elsewhere.
+Up to 0.9 the simulated values match the exact ones (for M/M/1 the p99 wait is $\ln(100\rho)/(1-\rho)$ service times: 7.8, 21.9, 45.0). Closer to saturation a 400,000-task run has not converged: the exact p99 waits are 91× and 460× for one worker and 11× and 57× for eight at 0.95 and 0.99. More workers flatten the curve at moderate load (pooling), but every row still explodes as $\rho \to 1$. Two design rules follow. **Run latency-sensitive pools well below 100% utilisation**; 70–80% at peak is a common target. **Bound the queue so the longest wait is shorter than the caller's timeout**: ten workers at 100 ms per task drain 100 tasks per second, so with a 2-second client timeout a task at queue position 200 will time out before it starts. A queue bounded at about 100 turns the rest into immediate, cheap rejections the client can retry elsewhere.
 
 ### When the queue is full
 

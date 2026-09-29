@@ -43,9 +43,9 @@ The **index block** is sparse: one entry per data block, not per key. To find ke
 
 ## Under the hood: inside a data block
 
-RocksDB's block-based table (inherited from LevelDB) packs each 4 KB data block as a sequence of entries with **prefix compression**: an entry stores `shared` (how many leading bytes it shares with the previous key), `non_shared`, `value_length` as varints, then the non-shared key bytes and the value. Keys like `user:1000042` and `user:1000043` cost one byte of key each. Every 16th key (`block_restart_interval`) is a **restart point** stored in full, and the block ends with an array of restart offsets plus their count, so a lookup binary-searches the restart points and then scans at most 15 entries. A 5-byte trailer (1 byte compression type, 4 bytes CRC-32C) follows each block; blocks are compressed independently (LZ4 or ZSTD by default in production configurations), which is why block size is a trade between compression ratio and read amplification for point lookups. The file's 53-byte footer holds the offsets of the index and metaindex blocks and an 8-byte magic number. Which files belong to which level is not in the files at all: it is recorded in the **MANIFEST**, itself a write-ahead log of "version edits" (add file, delete file), pointed at by the `CURRENT` file; recovery replays it to rebuild the level layout.
+RocksDB's block-based table (inherited from LevelDB) packs each 4 KB data block as a sequence of entries with **prefix compression**: an entry stores `shared` (how many leading bytes it shares with the previous key), `non_shared`, `value_length` as varints, then the non-shared key bytes and the value. Keys like `user:1000042` and `user:1000043` cost one byte of key each. Every 16th key (`block_restart_interval`) is a **restart point** stored in full, and the block ends with an array of restart offsets plus their count, so a lookup binary-searches the restart points and then scans at most 15 entries. A 5-byte trailer (1 byte compression type, 4 bytes CRC-32C) follows each block; blocks are compressed independently (current RocksDB defaults to LZ4 when it is compiled in, Snappy otherwise; ZSTD is a common choice for the bottom level), which is why block size is a trade between compression ratio and read amplification for point lookups. The file's 53-byte footer holds the offsets of the index and metaindex blocks and an 8-byte magic number. Which files belong to which level is not in the files at all: it is recorded in the **MANIFEST**, itself a write-ahead log of "version edits" (add file, delete file), pointed at by the `CURRENT` file; recovery replays it to rebuild the level layout.
 
-Cassandra's SSTable is the same idea spread over several files per table: `Data.db` (blocks), `Index.db` (partition index), `Summary.db` (a sample of the index kept in memory), `Filter.db` (bloom filter), `Statistics.db`, `CompressionInfo.db` (block offsets, since compressed blocks have variable size) and a `TOC.txt`. Lucene segments carry the same shape with different names: postings, term dictionary, a deleted-documents bitset instead of tombstones.
+Cassandra's SSTable is the same idea spread over several files per table. In its default `big` format: `Data.db` (blocks), `Index.db` (partition index), `Summary.db` (a sample of the index kept in memory), `Filter.db` (bloom filter), `Statistics.db`, `CompressionInfo.db` (block offsets, since compressed blocks have variable size) and a `TOC.txt`; the trie-indexed `bti` format available since 5.0 replaces the index and summary with `Partitions.db` and `Rows.db`. Lucene segments carry the same shape with different names: postings, term dictionary, a deleted-documents bitset instead of tombstones.
 
 ## A flush-and-compaction timeline, in megabytes
 
@@ -61,7 +61,7 @@ Take RocksDB's defaults: 64 MB memtables, `level0_file_num_compaction_trigger = 
 | L1 → L2 (L2 empty) | the 256 MB excess | 256 MB (a plain move when nothing overlaps) | L1: 256, L2: 256 MB |
 | …steady state, L2 at 2.5 GB (40 files) | one 64 MB L1 file plus the ~10 L2 files it overlaps: 704 MB | 704 MB | one L1 file moved down |
 
-Total bytes written to disk per byte ingested, once every level is populated: 1 (flush) + 2 (L0→L1, which rewrites L1 each time) + 11 for each further level boundary (a 64 MB file merged with the ten it overlaps). A byte that ends in L4 has been written **1 + 2 + 11 × 3 = 36** times, plus once in the WAL. Measured write amplification in RocksDB deployments is commonly 10–30 because many values are overwritten before they descend and because recent versions size levels dynamically (`level_compaction_dynamic_level_bytes`) so that the bottom level holds about 90% of the data and each level above is a tenth of the one below. After 100 GB ingested, the layout is roughly L1 100 MB, L2 1 GB, L3 10 GB, L4 89 GB, and a point read has at most one candidate file per level.
+Total bytes written to disk per byte ingested, once every level is populated: 1 (flush) + 2 (L0→L1, which rewrites L1 each time) + 11 for each further level boundary (a 64 MB file merged with the ten it overlaps). A byte that ends in L4 has been written **1 + 2 + 11 × 3 = 36** times, plus once in the WAL. Measured write amplification is usually lower than this model because many values are overwritten before they descend, and since RocksDB 8.4 levels are sized dynamically by default (`level_compaction_dynamic_level_bytes`) so that the bottom level holds about 90% of the data and each level above is a tenth of the one below. RocksDB's tuning guide measures it as disk write bandwidth divided by database write bandwidth, or reads it from `rocksdb.stats`. After 100 GB ingested, the layout is roughly L1 100 MB, L2 1 GB, L3 10 GB, L4 89 GB, and a point read has at most one candidate file per level.
 
 ## The read path and read amplification
 
@@ -109,7 +109,7 @@ Group runs of similar size; when there are `T` of them (Cassandra's `min_thresho
 - **Space amplification** is high. Runs in different tiers overlap in key range, so a key can have a stale copy in every tier; and merging four 100 GB runs needs 400 GB free while the output is written. Plan for **2× your data size** in free disk, and expect steady-state overhead of 1.5×–2× when overwrite-heavy.
 - **Read amplification** is moderate: a lookup may check one run per tier plus the tier's siblings.
 
-STCS is Cassandra's default and fits append-mostly, time-series-like workloads where data is rarely overwritten.
+STCS is Cassandra's default when a table names no strategy (5.0 adds the Unified Compaction Strategy, which its `cassandra_latest.yaml` template selects), and it fits append-mostly, time-series-like workloads where data is rarely overwritten.
 
 ### Leveled compaction (LCS)
 
@@ -117,7 +117,7 @@ Organise runs into levels `L0, L1, L2, …` with a size budget that grows by a f
 
 - **Read amplification** is low: at most one file per level (found by binary search on ranges) plus all the L0 files, and bloom filters skip most of them.
 - **Space amplification** is low: overwritten versions live at most one level apart for long, and the last level holds ~90% of the data, so total space is about 1.1× the live data.
-- **Write amplification** is high: roughly `F + 1` units of write per unit moved, per level, as computed above; 10–30 measured.
+- **Write amplification** is high: roughly `F + 1` units of write per unit moved, per level, as computed above, less where overwrites die young.
 
 | | Size-tiered (`T = 4`) | Leveled (`F = 10`, L1 = 256 MB) |
 |---|---|---|
@@ -135,7 +135,7 @@ Compaction is asynchronous, but it is not optional. If writes arrive faster than
 ## Where the LSM tree lives
 
 - **RocksDB** (Meta's fork of LevelDB) is the embeddable LSM engine under MyRocks (MySQL storage engine), TiKV (TiDB's storage layer), YugabyteDB, Kafka Streams and Flink state stores, and many bespoke services. Its knobs are the ones named above.
-- **LevelDB** ships inside Chrome as the backing store for IndexedDB and in early Bitcoin Core.
+- **LevelDB** has long been the backing store for IndexedDB in Chrome (Chromium has begun moving IndexedDB onto SQLite) and still holds Bitcoin Core's chainstate and block index.
 - **Cassandra / ScyllaDB / HBase / Bigtable** are distributed LSM trees: each node runs memtables and SSTables; replication and partitioning sit on top. The [wide-column stores lesson](/learn/databases/nosql-and-specialised/wide-column-stores) covers the data-model consequences.
 - **Lucene / Elasticsearch** are LSM-shaped too: immutable segments, background merges, deletes as marker bitsets.
 
@@ -147,7 +147,7 @@ Compaction is asynchronous, but it is not optional. If writes arrive faster than
 | Reads on a queue-like Cassandra table slow down week by week; `tombstone_warn_threshold` warnings | Every read scans tombstones retained for `gc_grace_seconds` | Change the data model (time-bucketed partitions, TWCS with TTL); never model a queue as a delete-heavy table |
 | Disk usage spikes to 2× during compaction and the node runs out of space | Size-tiered compaction merging the largest tier needs inputs and output on disk at once | Keep 50% headroom under STCS, or switch to leveled at the cost of write amplification |
 | Process dies with "too many open files" or reads slow after the file count grows | Every SSTable is an open file descriptor and an index/filter in memory; `max_open_files` (−1 = unlimited by default) or the OS limit hit | Raise `ulimit -n`, set `max_open_files` sensibly, use larger `target_file_size_base` at deep levels |
-| Read latency doubles after a config change that "only" shrank memory | The block cache (small by default, tens of MB) no longer holds index and filter blocks, so every read fetches them from disk first | Size the block cache to hold all filter and index blocks plus the hot data; pin them with `cache_index_and_filter_blocks` and `pin_l0_filter_and_index_blocks_in_cache` |
+| Read latency doubles after a config change that "only" shrank memory | With `cache_index_and_filter_blocks` on, the block cache (small by default, tens of MB) no longer holds the index and filter blocks, so every read fetches them from disk first | Size the block cache to hold all filter and index blocks plus the hot data; pin them with `cache_index_and_filter_blocks` and `pin_l0_filter_and_index_blocks_in_cache` |
 | Range scans crawl after a `DeleteRange` or a bulk delete | Every scan merges through the tombstones until compaction purges the data below them | Schedule a manual compaction of the affected range, or bound scans to fresh partitions |
 
 ## Interviewer follow-ups

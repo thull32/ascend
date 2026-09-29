@@ -89,11 +89,11 @@ Path copying pays `O(log n)` new nodes per update. **Fat nodes** (Driscoll, Sarn
 | v4: delete 16 | node 15, field `right`: `[(v2, → 16), (v4, → 17)]` | 0 |
 | read node 15's `right` at v3 | last record with version ≤ 3 is `(v2, → 16)` | |
 
-The price moves to reads: a field with `m` modifications needs a binary search, so every pointer dereference costs `O(log m)` and a search costs `O(log n · log m)`. **Node copying**, from the same paper, bounds that: each node carries a fixed number of spare modification slots (one is enough when every node has at most one incoming pointer, as in a tree). The first change to a node fills its slot; the next change copies the node with its current fields and records the copy in its parent's slot, which may in turn copy the parent. Every node copy is paid for by the slots it consumed, so the amortised cost is `O(1)` space and time per change for partial persistence, and reads cost `O(1)` per pointer. It is how the textbook proofs get `O(1)` overhead; production libraries use path copying, because it needs no version numbers in the nodes and makes every node immutable.
+The price moves to reads: a field with `m` modifications needs a binary search, so every pointer dereference costs `O(log m)` and a search costs `O(log n · log m)`. **Node copying**, from the same paper, bounds that: each node carries a fixed number of spare modification slots (one is enough when every node has at most one incoming pointer, as in a tree). The first change to a node fills its slot; the next change copies the node with its current fields and records the copy in its parent's slot, which may in turn copy the parent. Every node copy is paid for by the slots it consumed, so the amortised cost is `O(1)` space and time per change for partial persistence, and reads cost `O(1)` per pointer. It is how the textbook proofs get `O(1)` overhead. Both techniques also reach full persistence in the [same paper](https://www.cs.cmu.edu/~sleator/papers/making-data-structures-persistent.pdf): versions then form a tree rather than a line, so the paper keeps them in a totally ordered version list that makes "the last modification at or before `v`" meaningful again, fat nodes keep `O(1)` space and `O(log m)` access, and a variant of node copying called node splitting keeps `O(1)` amortised. Production libraries use path copying anyway, because it needs no version numbers in the nodes and makes every node immutable.
 
 ## Persistent vectors: a 32-way trie over the index
 
-Clojure's `PersistentVector` (Rich Hickey, after Bagwell) stores a sequence as a trie with 32 children per node. The index itself is the path: each level consumes 5 bits, most significant first. In a vector of 2²⁰ elements the tree has four levels, and element 777,777 is found at slots 23, 23, 17, 17 (`777,777 = 23·32³ + 23·32² + 17·32 + 17`). An update copies one 32-slot array per level.
+Clojure's `PersistentVector` (Rich Hickey, 2007) stores a sequence as a trie with 32 children per node. The index itself is the path: each level consumes 5 bits, most significant first. In a vector of 2²⁰ elements the tree has four levels, and element 777,777 is found at slots 23, 23, 17, 17 (`777,777 = 23·32³ + 23·32² + 17·32 + 17`). An update copies one 32-slot array per level.
 
 ```python
 BITS, MASK = 5, 31
@@ -134,7 +134,7 @@ v2 = v1.set(777_777, -1)
 print(v1.get(777_777), v2.get(777_777), v1.root[0] is v2.root[0])   # 777777 -1 True
 ```
 
-`v2` owns four new arrays (the root and the nodes reached through slots 23, 23 and 17) and shares the other 33,821 of the tree's 33,825 nodes with `v1`. Measured on CPython 3.14: `set` takes 1.6 µs and allocates about 1,370 bytes per version (four 312-byte lists plus the version object), `get` takes 0.28 µs, and a full list copy takes 2.2 ms and 8.4 MB. The real Clojure vector adds a **tail**: the last up-to-32 elements live in a separate array, so 31 of every 32 appends touch only the tail, and the 32nd pushes the full tail into the tree. **Transients** go the other way for batch work: `(transient v)` lets a single thread mutate nodes it created itself, and `persistent!` seals the result, turning a million-element build into in-place writes.
+`v2` owns four new arrays (the root and the nodes reached through slots 23, 23 and 17) and shares the other 33,821 of the tree's 33,825 nodes with `v1`. Measured on CPython 3.14: `set` takes 1.6 µs and allocates about 1,370 bytes per version (four 312-byte lists plus the version object), `get` takes 0.28 µs, and a full list copy takes 2.2 ms and 8.4 MB. The real Clojure vector adds a **tail**: the last up-to-32 elements live in a separate array, so 31 of every 32 appends touch only the tail, and the 32nd pushes the full tail into the tree. **Transients** go the other way for batch work: `(transient v)` lets one thread at a time mutate nodes the transient created itself (Clojure 1.7 dropped the check that it be the creating thread, to suit pooled threads such as `core.async` go blocks), and `persistent!` seals the result, turning a million-element build into in-place writes.
 
 ## HAMTs: a 32-way trie over the hash
 
@@ -142,7 +142,7 @@ A hash array mapped trie (Bagwell, 2001) does the same for maps, as a [trie](/le
 
 `present = bitmap & (1 << c)`, `index = popcount(bitmap & ((1 << c) − 1))`
 
-`popcount` is one instruction on x86-64 (`POPCNT`) and a `CNT` plus a horizontal add on ARM64; `Integer.bitCount` on the JVM compiles to it, and Python has `int.bit_count()` since 3.10. Trace a root holding four keys, with 32-bit FNV-1a hashes:
+`popcount` is one instruction on x86-64 (`POPCNT`), a vector `CNT` plus a horizontal add on baseline ARM64, and a scalar `CNT` on cores with Armv8.9's CSSC extension; `Integer.bitCount` on the JVM compiles to it, and Python has `int.bit_count()` since 3.10. Trace a root holding four keys, with 32-bit FNV-1a hashes:
 
 | key | FNV-1a | level-0 chunk (`h & 31`) | level-1 chunk |
 |---|---|---|---|
@@ -228,7 +228,7 @@ Python's built-ins are either mutable or immutable without sharing. `types.Mappi
 
 ## Git's object model: a persistent Merkle tree
 
-Git stores a repository as immutable objects named by the SHA-1 of their content (SHA-256 repositories exist since 2.29): a **blob** is a file's bytes, a **tree** lists `(mode, name, object id)` for one directory, and a **commit** names a root tree, its parent commits, the author and the message. The name is the hash of `"<type> <size>\0<content>"`: the blob for `hello\n` is `ce013625…`, the SHA-1 of `blob 6\0hello\n`, whoever computes it. A directory's name therefore depends on the names of everything below it, which makes the object graph a [Merkle tree](/learn/advanced-data-structures/log-structured-and-disk-structures/merkle-trees-and-ring-buffers), and a commit is a version of that tree.
+Git stores a repository as immutable objects named by the SHA-1 of their content. SHA-256 repositories have existed since Git 2.29 (2020), still without interoperability with SHA-1 ones; the planned Git 3.0, which has no release date at the time of writing, is to make SHA-256 the default for new repositories. Three kinds of object matter here: a **blob** is a file's bytes, a **tree** lists `(mode, name, object id)` for one directory, and a **commit** names a root tree, its parent commits, the author and the message. The name is the hash of `"<type> <size>\0<content>"`: the blob for `hello\n` is `ce013625…`, the SHA-1 of `blob 6\0hello\n`, whoever computes it. A directory's name therefore depends on the names of everything below it, which makes the object graph a [Merkle tree](/learn/advanced-data-structures/log-structured-and-disk-structures/merkle-trees-and-ring-buffers), and a commit is a version of that tree.
 
 Changing a file is path copying: a new blob, a new tree for every directory on its path up to the root (each must list a new child hash), and a new commit. Everything else is shared by name. Measured on a five-file repository, committing an edit to `src/app/main.py`:
 
@@ -241,7 +241,7 @@ Changing a file is path copying: a new blob, a new tree for every directory on i
 | `src/app/main.py` | `c471b2f` | new `3d6edeb` |
 | `src/app/util.py`, `src/lib/` and `db.py`, `docs/` and `guide.md`, `README.md` | 6 objects | the same 6 objects |
 
-Commit 1 wrote 11 objects; commit 2 added 5, one blob plus three trees for a file at depth two plus the commit, and shares 6. A branch is a 41-byte file holding a commit ID, so creating one is `O(1)`. `git diff` between two commits compares tree entries and skips any subtree whose hash matches, so its cost follows the changed paths, not the repository size. Delta compression in packfiles (storing the new `main.py` as a diff against the old) is a separate, physical layer under this logical sharing.
+Commit 1 wrote 11 objects; commit 2 added 5, one blob plus three trees for a file at depth two plus the commit, and shares 6. With the default `files` ref backend a branch is a 41-byte file holding a commit ID (40 hex digits and a newline), so creating one is `O(1)`. `git diff` between two commits compares tree entries and skips any subtree whose hash matches, so its cost follows the changed paths, not the repository size. Delta compression in packfiles (storing the new `main.py` as a diff against the old) is a separate, physical layer under this logical sharing.
 
 ```mermaid
 flowchart TD
@@ -294,15 +294,15 @@ Reads pay too: `PVector.get` walks four arrays (0.28 µs) where a list index is 
 | Space per update | `O(n)` | `O(log n)` nodes | `O(1)` | `O(1)` amortised | about `log₃₂ n` arrays of 32 | `O(height)` pages | `O(1)` log entry |
 | Read cost | `O(1)` extra | none | `O(log m)` per pointer | `O(1)` | `log₃₂ n` hops | none | none |
 | Old versions readable concurrently | yes | yes | yes | yes | yes | yes | no |
-| Update any old version | yes | yes | no (partial) | no (partial) | yes | no | no |
-| Where | small data | Clojure/Scala sorted maps, Haskell | textbooks | textbooks, some kernels | Clojure, Scala, Immutable.js | LMDB, Btrfs, ZFS | editors, command pattern |
+| Update any old version | yes | yes | with a version list | via node splitting | yes | no | no |
+| Where | small data | Clojure/Scala sorted maps, Haskell | textbooks | textbooks | Clojure, Scala, Immutable.js | LMDB, Btrfs, ZFS | editors, command pattern |
 
 ## Failure modes
 
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | Memory grows steadily during a long session and never falls | Every version is reachable: an unbounded undo stack, a cache or a log holding old roots | Cap history, drop old roots, or periodically compact to one version |
-| An LMDB file keeps growing while the live data stays the same size | A long-lived read transaction pins an old root, so pages freed since then cannot be reused | Keep read transactions short; check the reader table (`mdb_stat -r`) and clear stale readers |
+| An LMDB file keeps growing while the live data stays the same size | A long-lived read transaction pins an old root, so pages freed since then cannot be reused | Keep read transactions short; check the reader table with `mdb_stat -r` (`-rr` also clears stale entries) |
 | A React view does not update, or an "old" undo state shows new data | Someone mutated a shared node in place (`state.todos.push(t)`): the reference did not change, and every version sharing that node changed | Freeze state in development (`Object.freeze`, Immer's automatic freezing), lint for mutation, return new objects on the changed path |
 | Inserts into a persistent BST slow down and memory explodes | Sorted input turned the unbalanced tree into a chain, so each insert copies `O(n)` nodes | A balanced persistent tree (red-black, weight-balanced) or a HAMT keyed by hash |
 | Throughput drops several-fold after switching a bulk loader to immutable collections | Every single-element update allocates `O(log n)` fresh nodes | Transients or builders for the batch, then publish one persistent result |
@@ -507,7 +507,7 @@ hints:
   options: ["Faster pointer reads for O(n) space on every update", "O(1) space per update for O(log m) work per pointer read", "Full persistence for a cap on how many versions exist", "Cheaper updates for needing a tracing garbage collector"]
   answer: 1
   explanation: >-
-    Each field keeps a list of (version, value) modifications, so an update adds one record instead of copying a path, but every read must find the right record, a binary search over m modifications. Fat nodes give partial persistence and put no cap on versions.
+    Each field keeps a list of (version, value) modifications, so an update adds one record instead of copying a path, but every read must find the right record, a binary search over m modifications. They put no cap on versions, and the same paper extends them to full persistence with an ordered version list.
 - q: >-
     A commit changes only src/app/main.py in a repository whose other files are untouched. How many new objects does Git create?
   options: ["2: a new blob and the new commit", "5: a blob, three trees and the commit", "All of them: a full snapshot per commit", "1: a delta against the parent's blob"]

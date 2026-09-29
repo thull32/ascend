@@ -500,8 +500,7 @@ hints:
 - You state the **contract** of a recursive function in one sentence before writing its body, and you write the combine step from the contract.
 - You can trace a recursion's call order and say how deep the stack gets (h + 2 frames for `height`, 2n + 1 calls in total).
 - You ask how deep the tree can get, and who controls that, before choosing recursion; you know CPython's 1,000-frame default, the 8 MiB Linux stack and the JVM's 1 MiB thread stack, and you convert to an explicit stack when the answer is "the client decides".
-- You give memory per node with the arithmetic (24 bytes in Java with compressed oops or boxed Rust, ~100 in CPython, 12 in an arena) and you know why systems code uses arenas.
-- You explain a linked tree's slowness as one DRAM miss per hop below the cached top levels, not as "pointers are slow".
+- You give memory per node with the arithmetic (24 bytes in Java with compressed oops or boxed Rust, ~100 in CPython, 12 in an arena) and you know why systems code uses arenas; you explain a linked tree's slowness as one DRAM miss per hop below the cached top levels, not as "pointers are slow".
 - You know the level-order array layout is perfect for complete trees (heaps) and exponential waste for sparse ones.
 - You recognise hierarchies in a schema (`parent_id`) as trees and build the children index in one pass rather than querying per node.
 

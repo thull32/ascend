@@ -40,13 +40,13 @@ A service handling 20,000 requests a second cannot keep every sample, so it reco
 
 **You cannot average percentiles.** Host A serves every request in 10 ms, so its p99 is 10 ms. Host B serves 90% in 10 ms and 10% in 800 ms, so its p99 is 800 ms. The mean of the two p99s is 405 ms, a number that describes nothing. Merge the samples (equal traffic) and 5% of all requests took 800 ms, so the fleet p99 is 800 ms. Percentiles are order statistics, not sums; aggregate the **histograms** (add bucket counts) and compute the percentile from the merged counts.
 
-**Bucket boundaries set your resolution.** Prometheus's `histogram_quantile` finds the bucket holding the target rank and interpolates linearly inside it. With cumulative buckets `le=0.1: 900`, `le=0.25: 960`, `le=0.5: 990`, `le=1: 1000` for the table above, it reports:
+**Bucket boundaries set your resolution.** Prometheus's `histogram_quantile` finds the bucket holding the target rank and interpolates linearly inside it. Record the table above in buckets with upper bounds 0.1, 0.25, 0.5 and 1 second. The 12 ms and 40 ms requests all fall at or below 0.1 s and the 250 ms ones at or below 0.25 s, so the cumulative counts are `le=0.1: 989`, `le=0.25: 999`, `le=0.5: 999`, `le=1: 999`, and the 2 s request appears only in `+Inf: 1000`. It reports:
 
-1. p95: rank 950 lies in (0.1, 0.25], which holds ranks 901–960, so $0.1 + 0.15 \times 50/60 = 0.225$ s. True value: 40 ms.
-2. p99: rank 990 is the last in (0.25, 0.5], so 0.5 s. True value: 250 ms.
-3. p50: rank 500 is inside (0, 0.1], interpolated as 0.0556 s. True value: 12 ms.
+1. p50: rank 500 lies in (0, 0.1], which holds ranks 1–989, so $0.1 \times 500/989 = 0.051$ s. True value: 12 ms.
+2. p95: rank 950 lies in the same bucket, so $0.1 \times 950/989 = 0.096$ s. True value: 40 ms.
+3. p99: rank 990 is the first of the ten ranks in (0.1, 0.25], so $0.1 + 0.15 \times 1/10 = 0.115$ s. True value: 250 ms.
 
-Every reported number is off by a factor of two to six, because the buckets were not placed around the values that matter. If more than 1% of requests land in the `+Inf` bucket, `histogram_quantile` returns the largest finite boundary: a p99 flat at exactly 1.0 s for a week means "over 1% of requests exceed 1 s", and the true p99 could be 30 s.
+Every reported number is off by a factor of two to four, and not in one direction: the p50 and p95 are overstated and the p99 is understated by more than half, because the buckets were not placed around the values that matter. If more than 1% of requests land in the `+Inf` bucket, `histogram_quantile` returns the largest finite boundary: a p99 flat at exactly 1.0 s for a week means "over 1% of requests exceed 1 s", and the true p99 could be 30 s.
 
 **HdrHistogram** fixes resolution with log-linear buckets: every power-of-two range is split into the same number of linear sub-buckets, so relative error is bounded everywhere. With 2 significant digits there are 256 sub-buckets; values under 256 µs are exact, 12,345 µs is recorded to within 64 µs (0.52%), and covering 1 µs to one hour needs 3,328 counters, about 26 KB. With 3 digits the error drops below 0.1% and the array grows to 23,552 counters, about 188 KB. Merging two HdrHistograms adds their count arrays, exactly. DDSketch (Datadog) and Prometheus's native histograms use exponential buckets for the same reason; t-digest keeps adaptive clusters and is most accurate at the extremes.
 
@@ -192,7 +192,7 @@ A **sampling** profiler interrupts at a fixed rate and records the stack. An **i
 
 Sampling overhead scales with the *rate*: each sample pauses the process and reads its memory, so ten times the rate cost twenty times the overhead. Instrumentation overhead scales with the *number of calls*. cProfile recorded 13.2 million calls, about 330 per request, almost all inside the regex parser. Each call pays a fixed probe cost, so call-heavy Python code is inflated and the single call into the C JSON encoder is not. cProfile ranks `validate` first at 54%; the sampler ranks `render_json` first at 46%. This is the **probe effect**, and here it reorders the priorities.
 
-Sampling's error is statistical and small. A share $p$ estimated from $n$ samples has standard error $\sqrt{p(1-p)/n}$; for `validate`, $\sqrt{0.294 \times 0.706 / 3503} \approx 0.77$ percentage points. Anything worth optimising is measured precisely. Profilers default to odd rates such as 99 Hz so samples do not fall into lockstep with 10 ms timers.
+Sampling's error is statistical and small. A share $p$ estimated from $n$ samples has standard error $\sqrt{p(1-p)/n}$; for `validate`, $\sqrt{0.294 \times 0.706 / 3503} \approx 0.77$ percentage points. Anything worth optimising is measured precisely. Profiling guides use odd rates such as `perf record -F 99` so samples do not fall into lockstep with 10 ms timers; perf's own default is 4,000 Hz and py-spy's is 100 Hz.
 
 Instrumentation is still the right tool for questions sampling cannot answer: exact call counts (cProfile showed `re._compiler._compile` running 120,000 times, three per request), and at coarse grain, tracing spans per RPC, where overhead is a few microseconds per span.
 

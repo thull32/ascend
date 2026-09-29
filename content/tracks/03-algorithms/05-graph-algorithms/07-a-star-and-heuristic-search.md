@@ -355,10 +355,9 @@ hints:
 - You return on pop, not on push, and you break ties toward larger `g`.
 - You can name the right heuristic for 4-way, 8-way and weighted-diagonal grids and for time-based road costs, and you know `max` of consistent heuristics is consistent.
 - You know when A* is the wrong tool (many goals, no heuristic, expensive heuristic) and that weighted A* trades a bounded factor of optimality for speed.
-- You know production routing uses landmarks or contraction hierarchies rather than plain A*, and why.
+- You know the library and engine realities: networkx caches `h` per node and skips stale heap entries, game engines use JPS and navmeshes on top of A*, and production routing engines precompute landmarks or contraction hierarchies (ALT, CH) rather than run plain A*, so that a query touches a small corner of the graph instead of millions of nodes.
 - You can explain A* as Dijkstra on reduced costs `w − h(u) + h(v)`, and consistency as "no reduced edge is negative", and you can produce the four-node example where an admissible but inconsistent heuristic makes the closed-set version return 5 instead of 4.
 - You can trace `g`, `h` and `f` per expansion on a small grid and say what the open list still holds when the goal pops.
-- You know the library and engine realities: networkx caches `h` per node and skips stale heap entries, game engines use JPS and navmeshes on top of A*, and routing engines precompute (CH, ALT) so that a query touches a small corner of the graph instead of millions of nodes.
 
 ## Check yourself
 
