@@ -46,6 +46,21 @@ async fn main() -> anyhow::Result<()> {
         println!("grader ready in {dir}");
         return Ok(());
     }
+    // `ascend-api --grade-solutions [PREFIX] [--exercises|--problems]
+    // [--require-all]` grades every
+    // reference solution in ./solutions with the server's grader, exactly as
+    // learners' submissions are graded. Used by authors and by CI.
+    if let Some(i) = std::env::args().position(|a| a == "--grade-solutions") {
+        let args: Vec<String> = std::env::args().skip(i + 1).collect();
+        let require_all = args.iter().any(|a| a == "--require-all");
+        let scope = match () {
+            _ if args.iter().any(|a| a == "--problems") => ascend_core::services::reference::Scope::Problems,
+            _ if args.iter().any(|a| a == "--exercises") => ascend_core::services::reference::Scope::Exercises,
+            _ => ascend_core::services::reference::Scope::All,
+        };
+        let filter = args.iter().find(|a| !a.starts_with("--")).cloned();
+        return grade_solutions(filter.as_deref(), scope, require_all).await;
+    }
     dotenvy::dotenv().ok();
     let config = Config::from_env().map_err(|e| anyhow::anyhow!("configuration: {e}"))?;
     telemetry::init(config.log_json);
@@ -127,4 +142,53 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
     tracing::info!("shutdown signal received, draining connections");
+}
+
+async fn grade_solutions(
+    filter: Option<&str>,
+    scope: ascend_core::services::reference::Scope,
+    require_all: bool,
+) -> anyhow::Result<()> {
+    let content = std::env::var("CONTENT_DIR").unwrap_or_else(|_| "content".into());
+    let curriculum = ascend_core::content::load_curriculum(&ascend_core::content::ContentSource::Disk(content.into()))?;
+    let dir = std::env::var("GRADER_DIR").unwrap_or_else(|_| "runtimes/grader".into());
+    let parallel = match std::env::var("GRADE_PARALLEL").ok().and_then(|v| v.parse().ok()) {
+        Some(n) => n,
+        None => std::thread::available_parallelism().map_or(2, |n| n.get()).clamp(1, 8),
+    };
+    let options =
+        ascend_grader::Options { slots: parallel, queue_timeout: Duration::from_secs(3600), ..Default::default() };
+    let grader =
+        tokio::task::spawn_blocking(move || ascend_grader::Grader::load(std::path::Path::new(&dir), options)).await??;
+    let solutions = std::env::var("SOLUTIONS_DIR").unwrap_or_else(|_| "solutions".into());
+    let report = ascend_core::services::reference::check(
+        &curriculum,
+        &grader,
+        std::path::Path::new(&solutions),
+        filter,
+        scope,
+        parallel,
+    )
+    .await;
+    let (missing, failed): (Vec<_>, Vec<_>) = report.findings.iter().partition(|f| f.is_missing());
+    for f in &failed {
+        println!("FAIL {} [{}]", f.target, f.language);
+        for line in &f.failures {
+            println!("    {line}");
+        }
+    }
+    for f in &missing {
+        println!("MISSING {} [{}]", f.target, f.language);
+    }
+    println!(
+        "{} checked, {} passed, {} failed, {} missing",
+        report.graded,
+        report.graded - failed.len() - missing.len(),
+        failed.len(),
+        missing.len()
+    );
+    if !failed.is_empty() || (require_all && !missing.is_empty()) {
+        std::process::exit(1);
+    }
+    Ok(())
 }

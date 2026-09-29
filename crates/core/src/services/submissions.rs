@@ -195,7 +195,7 @@ impl SubmissionService {
 
 /// Compares each case's returned value with the expected one. A case the run
 /// never reached fails with the reason the run stopped.
-fn verdicts(tests: &[TestCase], outcome: &Outcome) -> Vec<TestVerdict> {
+pub(crate) fn verdicts(tests: &[TestCase], outcome: &Outcome) -> Vec<TestVerdict> {
     tests
         .iter()
         .enumerate()

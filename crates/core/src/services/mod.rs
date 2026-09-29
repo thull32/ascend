@@ -7,6 +7,7 @@ pub mod interviews;
 pub mod progress;
 pub mod quiz;
 pub mod rate_limit;
+pub mod reference;
 pub mod roadmap;
 pub mod submissions;
 
