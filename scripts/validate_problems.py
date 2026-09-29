@@ -41,6 +41,21 @@ FM = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.S)
 PY_FENCE = re.compile(r"```python\n(.*?)```", re.S)
 
 
+def round6(v):
+    """JavaScript's Math.round(v * 1e6) / 1e6, bit for bit, as every runner
+    and the server grader apply it (crates/grader/conformance.json pins the
+    half-way cases), then integral values collapse to int."""
+    import math
+    if math.isnan(v) or math.isinf(v):
+        return None
+    if v.is_integer():
+        return int(v)
+    x = v * 1e6
+    f = math.floor(x)
+    r = (f + 1 if x - f >= 0.5 else f) / 1e6
+    return int(r) if r.is_integer() else r
+
+
 def normalise(v):
     if isinstance(v, dict) and len(v) == 1:
         for tag in ("$list", "$tree", "$graph"):
@@ -53,9 +68,7 @@ def normalise(v):
     if isinstance(v, dict):
         return {str(k): normalise(x) for k, x in v.items()}
     if isinstance(v, float):
-        # Same rule as the browser runners: round to 6 dp, collapse integers.
-        r = round(v, 6)
-        return int(r) if r.is_integer() else r
+        return round6(v)
     return v
 
 

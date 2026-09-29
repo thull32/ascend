@@ -59,9 +59,14 @@ pub struct Request {
 
 impl Request {
     /// Upper-leaning estimate of this request's billed input, for budget
-    /// holds: one token per three bytes (English prose averages nearer four
-    /// characters per token), plus framing per message, all weighted as cache
-    /// writes (1.25x), the most expensive way input is billed.
+    /// holds: one token per three bytes, plus framing per message, all
+    /// weighted as cache writes (1.25x), the most expensive way input is
+    /// billed. English prose runs about four characters per token on older
+    /// tokenizers; Anthropic's pricing page says Claude 4.7 and later models
+    /// use one that produces about 30% more tokens for the same text (about
+    /// three characters each), so three bytes per token alone is barely
+    /// upper-leaning there and the 1.25x weighting is the real margin.
+    /// Settling replaces the estimate with the billed count either way.
     pub fn estimated_billed_input(&self) -> i64 {
         let bytes = self.system.len()
             + self.context.as_deref().map_or(0, str::len)

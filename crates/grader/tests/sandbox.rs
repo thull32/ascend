@@ -62,6 +62,25 @@ async fn functions_run_in_both_languages() {
 }
 
 #[tokio::test]
+async fn half_way_floats_are_rounded_once_by_the_host() {
+    let Some(g) = grader() else { return };
+    // Python's round() would turn 0.1234565 into 0.123456 in the sandbox and
+    // the host would then round the expected value to 0.123457: a function
+    // returning exactly the expected value would fail. The harness now sends
+    // the float as it is and only the host rounds, with one rule.
+    for (lang, code) in [
+        (Language::Python, "def f():\n    return 0.1234565\n"),
+        (Language::JavaScript, "function f() { return 0.1234565; }"),
+    ] {
+        let o = g.run(job(lang, code, "f", vec![json!([])])).await.unwrap();
+        let got = &actuals(&o)[0];
+        assert!(matches(&json!(0.1234565), got, false), "{lang:?}: {got}");
+        assert!(matches(&json!(0.123457), got, false), "{lang:?}: {got}");
+        assert!(!matches(&json!(0.123456), got, false), "{lang:?}: {got}");
+    }
+}
+
+#[tokio::test]
 async fn structures_and_classes_are_encoded_like_the_browser() {
     let Some(g) = grader() else { return };
     let py = "def rev(head):\n    prev = None\n    while head:\n        head.next, prev, head = prev, head, head.next\n    return prev\n";

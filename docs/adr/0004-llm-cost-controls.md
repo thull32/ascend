@@ -12,10 +12,12 @@ cheap as possible without degrading quality.
 ## Decision
 
 - Per-user, per-UTC-day request and output-token budgets in `ai_usage`, reserved before each call and
-  settled with actual usage after, using single-statement upserts. (Amended: an input budget,
-  `AI_DAILY_INPUT_TOKENS`, was added and counts *billed* input, with cache writes at 1.25x and cache reads
-  at the model's price (0.1x on most models, 0.05x on Opus 5.5, 0.025x on Fable 5.1 and Mythos 5.1), because counting only uncached input left cache writes, the most expensive input, unbudgeted. A
-  spent budget answers 429 with `Retry-After` until the next UTC midnight.)
+  settled with actual usage after. (Amended: at first single-statement upserts; now a hold taken under a row
+  lock, which also caps the call's `max_tokens` at what is left, so a call cannot overshoot the day. Also
+  amended: an input budget, `AI_DAILY_INPUT_TOKENS`, was added and counts *billed* input, with cache writes
+  at 1.25x and cache reads at the model's price (0.1x on most models, 0.05x on Opus 5.5, 0.025x on Fable 5.1
+  and Mythos 5.1), because counting only uncached input left cache writes, the most expensive input,
+  unbudgeted. A spent budget answers 429 with `Retry-After` until the next UTC midnight.)
 - A per-session request-rate limit on model-calling routes on top of the daily budget. (Amended: this was
   per IP until end-to-end tests showed a whole class behind one NAT address sharing a single allowance.)
 - System prompts ordered stable-first with `cache_control`, so multi-turn conversations reuse the cached

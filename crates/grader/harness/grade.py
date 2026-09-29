@@ -109,9 +109,10 @@ def _encode(v, depth=0):
     if isinstance(v, dict): return {str(k): _encode(x, depth + 1) for k, x in v.items()}
     if isinstance(v, (int, str, bool)) or v is None: return v
     if isinstance(v, float):
-        if math.isnan(v) or math.isinf(v): return None  # as JSON.stringify does
-        r = round(v, 6)
-        return int(r) if r.is_integer() else r
+        # Sent exactly (repr round-trips): the host rounds expected and
+        # actual values with one rule, so rounding here too would round
+        # twice. NaN and infinities become null, as in JSON.stringify.
+        return None if math.isnan(v) or math.isinf(v) else v
     return str(v)
 
 _INJECTED = {"ListNode": ListNode, "TreeNode": TreeNode, "Node": Node, "GraphNode": GraphNode}

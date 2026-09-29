@@ -87,6 +87,20 @@ def _decode(v):
         return [_decode(x) for x in v]
     return v
 
+def _round6(v):
+    # JavaScript's Math.round(v * 1e6) / 1e6, bit for bit (halves towards
+    # +infinity on the scaled binary value), then integral values collapse:
+    # 0.9999999999999998 -> 1. Python's round() rounds halves to even on the
+    # exact binary value, which disagreed with the JavaScript harness and the
+    # server at half-way points. One rule everywhere; conformance.json pins it.
+    import math
+    if math.isnan(v) or math.isinf(v): return None
+    if v.is_integer(): return int(v)
+    x = v * 1e6
+    f = math.floor(x)
+    r = (f + 1 if x - f >= 0.5 else f) / 1e6
+    return int(r) if r.is_integer() else r
+
 def _encode(v, depth=0):
     if depth > 50: return "[deep]"
     if isinstance(v, ListNode):
@@ -113,9 +127,7 @@ def _encode(v, depth=0):
     if isinstance(v, (set, frozenset)): return [_encode(x, depth + 1) for x in v]
     if isinstance(v, dict): return {str(k): _encode(x, depth + 1) for k, x in v.items()}
     if isinstance(v, float):
-        # Round first, then collapse integral values: 0.9999999999999998 -> 1.
-        r = round(v, 6)
-        return int(r) if r.is_integer() else r
+        return _round6(v)
     if isinstance(v, (int, str, bool)) or v is None: return v
     return str(v)
 

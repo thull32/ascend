@@ -32,11 +32,13 @@ check: ## Everything CI runs, locally
 	cargo test --workspace
 	cargo run -q -p ascend-core --example validate_content -- ./content
 	python3 scripts/validate_problems.py
+	python3 scripts/check_conformance.py
 	cd web && pnpm typecheck && pnpm test
 
 content: ## Validate curriculum and practice problems
 	cargo run -q -p ascend-core --example validate_content -- ./content
 	python3 scripts/validate_problems.py
+	python3 scripts/check_conformance.py
 	python3 scripts/shuffle_quiz_options.py --check
 
 quizzes: ## Put quiz options in canonical shuffled order and print answer-bias stats

@@ -670,7 +670,8 @@ async fn a_budget_hold_caps_the_call_at_what_is_left_and_releases_itself() {
     let held = budget.reserve(id, &mut first).await.unwrap();
     assert_eq!(held.output_hold(), 800);
 
-    // 200 left is under a quarter of an 800-token call: refused rather than
+    // 200 left is below the least an 800-token call may start with (a
+    // quarter of max_tokens, but never under 256): refused rather than
     // letting a reply be cut off, or the day's budget be overshot.
     assert!(matches!(budget.reserve(id, &mut tiny_request(800)).await, Err(ascend_core::AppError::RateLimited { .. })));
 

@@ -4,9 +4,12 @@
 //! the same decision, so a learner never sees their local run pass and the
 //! server's check fail over comparison rules:
 //!
-//! * floats compare to 6 decimal places (rounded as JavaScript's `Math.round`
-//!   does, half towards positive infinity), and a float with no fractional
-//!   part equals the integer;
+//! * floats compare to 6 decimal places, rounded as JavaScript's
+//!   `Math.round(v * 1e6) / 1e6` rounds them (halves towards positive
+//!   infinity, on the scaled binary value), and a float with no fractional
+//!   part equals the integer. Every copy of this rule (the browser's two
+//!   harnesses, the problem validator and this file) must agree bit for bit;
+//!   `conformance.json` pins the cases where rounding rules differ;
 //! * object keys compare in any order;
 //! * an empty tagged structure (`{"$list": []}`, `$tree`, `$graph`) equals
 //!   `null`, because an empty linked list, tree or graph is `None`;
@@ -49,12 +52,21 @@ fn normalise(v: &Value) -> Value {
     }
 }
 
+/// JavaScript's `Math.round`: the nearest integer, halves towards +infinity.
+/// `floor(x + 0.5)` is not quite it (0.49999999999999994 + 0.5 rounds up to
+/// 1.0 in floating point); `x - floor(x)` is exact, so comparing it with 0.5
+/// is. The same form is used in the Python copies of this rule.
+fn js_round(x: f64) -> f64 {
+    let f = x.floor();
+    if x - f >= 0.5 { f + 1.0 } else { f }
+}
+
 fn normalise_number(n: &Number) -> Value {
     if n.is_i64() || n.is_u64() {
         return Value::Number(n.clone());
     }
     let Some(f) = n.as_f64() else { return Value::Number(n.clone()) };
-    let rounded = if f.fract() == 0.0 { f } else { (f * 1e6 + 0.5).floor() / 1e6 };
+    let rounded = if f.fract() == 0.0 { f } else { js_round(f * 1e6) / 1e6 };
     // Integral values become integers so 2.0 == 2, as in JavaScript. Beyond
     // 2^63 an integer cannot hold them; they stay floats on both sides.
     if rounded.fract() == 0.0 && rounded.abs() < 9.2e18 {
@@ -68,6 +80,30 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    /// The shared corpus every implementation of the rule is tested against
+    /// (also `web/src/runner/harness.test.ts` and `scripts/check_conformance.py`).
+    #[test]
+    fn the_conformance_corpus_holds() {
+        let corpus: Value = serde_json::from_str(include_str!("../conformance.json")).unwrap();
+        let cases = corpus["cases"].as_array().unwrap();
+        assert!(cases.len() >= 20);
+        for (i, c) in cases.iter().enumerate() {
+            let any_order = c["any_order"].as_bool().unwrap_or(false);
+            let want = c["match"].as_bool().unwrap();
+            assert_eq!(matches(&c["expected"], &c["actual"], any_order), want, "case {i}: {c}");
+        }
+    }
+
+    #[test]
+    fn rounding_matches_math_round_at_the_edges() {
+        assert_eq!(js_round(0.49999999999999994), 0.0);
+        assert_eq!(js_round(0.5), 1.0);
+        assert_eq!(js_round(-0.5), 0.0);
+        assert_eq!(js_round(-0.5000000000000001), -1.0);
+        assert_eq!(js_round(2.5), 3.0);
+        assert_eq!(js_round(-2.5), -2.0);
+    }
 
     #[test]
     fn numbers_compare_as_the_browser_compares_them() {
