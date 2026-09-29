@@ -15,7 +15,7 @@
 import { defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 const REPO = "thull32/ascend";
-const PHASE_2 = false; // true once the grader service is healthy: the API grades through it
+const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
 
 export default defineRailway(() => {
   const region = "us-east4-eqdc4a";
