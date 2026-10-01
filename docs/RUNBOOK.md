@@ -105,3 +105,19 @@ it; stop and fix the file (`railway config pull --json` shows the shapes the eng
 The service runs with `RAILWAY_RUN_UID=0`, because the volume is owned by root and the image runs as
 `nobody`. If Prometheus logs `fs_type=OVERLAYFS_SUPER_MAGIC` at start-up, the volume is not mounted,
 and metrics are lost on every deploy.
+
+## Domains
+
+`ascend.engineering` is registered at Cloudflare, which also hosts its DNS. The app is served at
+`https://ascend.engineering` and Grafana at `https://grafana.ascend.engineering`. `www` and the Railway
+domain answer with a 308 to the apex (`REDIRECT_HOSTS`), because the CSRF check accepts only
+`PUBLIC_ORIGIN`.
+
+Each host needs two records at Cloudflare. The first is a CNAME to the target that Railway shows
+(`railway domain status <host> --service <svc>`). The second is the TXT record
+`_railway-verify[.<sub>]`. Keep the CNAMEs **DNS only** (grey cloud). If they are proxied, requests
+reach Railway from Cloudflare addresses, so `X-Real-IP` and every per-IP rate limit see Cloudflare
+instead of the learner.
+
+To add a host: run `railway domain <host> --service <svc>` (custom domains cannot be registered from
+`railway.ts`), add both records, then list the host in that service's `domains` in `railway.ts`.

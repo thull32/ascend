@@ -41,6 +41,7 @@ fn config(url: &str) -> Config {
         database_url: SecretString::from(url.to_string()),
         database_pool_max: 20,
         public_origin: "http://localhost:8080".into(),
+        redirect_hosts: vec!["old.example.test".into()],
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),
@@ -535,6 +536,30 @@ async fn csrf_rejects_requests_without_header_or_with_foreign_origin() {
         .unwrap();
     let res = app.router.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_retired_host_redirects_to_the_public_origin() {
+    let Some(app) = test_app().await else { return };
+    // A listed host (any case, with or without a port) gets a 308 to the
+    // same path and query on the public origin, whatever the method.
+    for (method, host) in [("GET", "old.example.test"), ("POST", "OLD.example.test:443")] {
+        let req = Request::builder()
+            .method(method)
+            .uri("/learn/foundations?tab=quiz")
+            .header(header::HOST, host)
+            .body(Body::empty())
+            .unwrap();
+        let res = app.router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::PERMANENT_REDIRECT, "{method} {host}");
+        assert_eq!(res.headers()[header::LOCATION], "http://localhost:8080/learn/foundations?tab=quiz");
+    }
+    // Any other host (the platform's health check, the private network) is served.
+    for host in ["healthcheck.railway.app", "localhost:8080", "old.example.test.evil"] {
+        let req = Request::builder().uri("/api/healthz").header(header::HOST, host).body(Body::empty()).unwrap();
+        let res = app.router.clone().oneshot(req).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "{host}");
+    }
 }
 
 #[tokio::test]

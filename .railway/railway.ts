@@ -65,6 +65,10 @@ export default defineRailway(() => {
     // Builds the root Dockerfile. A push to main deploys once CI passes.
     source: github(REPO, { checkSuites: true }),
     replicas: { [region]: PHASE_2 ? 2 : 1 },
+    // DNS at Cloudflare, DNS only (not proxied): a proxied request would
+    // reach Railway from a Cloudflare address, and X-Real-IP (rate limits)
+    // would name Cloudflare instead of the learner.
+    domains: ["ascend.engineering", "www.ascend.engineering"],
     // Migrations run on boot before the server binds, so a passing readiness
     // probe means the schema is current and Postgres is reachable.
     healthcheck: "/api/readyz",
@@ -123,6 +127,7 @@ export default defineRailway(() => {
   const grafana = service("grafana", {
     source: github(REPO, { rootDirectory: "ops/grafana" }),
     healthcheck: "/api/health",
+    domains: ["grafana.ascend.engineering"],
     env: {
       PORT: "3000",
       GF_SECURITY_ADMIN_PASSWORD: preserve(),

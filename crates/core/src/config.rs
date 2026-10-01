@@ -17,6 +17,11 @@ pub struct Config {
     /// Public origin of the app, e.g. `https://ascend.up.railway.app`. Used for
     /// CSRF origin checks and cookie `Secure` flag decisions.
     pub public_origin: String,
+    /// Hosts that answer only with a permanent redirect to `public_origin`
+    /// (`REDIRECT_HOSTS`, comma-separated): the platform's own domain and
+    /// `www` once a custom domain is canonical. The CSRF check accepts one
+    /// origin, so the app must be used through one host.
+    pub redirect_hosts: Vec<String>,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
     /// Sessions unused for this long are signed out (`SESSION_IDLE_DAYS`).
@@ -127,6 +132,12 @@ impl Config {
             database_url: SecretString::from(var("DATABASE_URL")?),
             database_pool_max: parse_or::<u32>("DATABASE_POOL_MAX", 20)?.max(2),
             public_origin,
+            redirect_hosts: std::env::var("REDIRECT_HOSTS")
+                .unwrap_or_default()
+                .split(',')
+                .map(|h| h.trim().to_ascii_lowercase())
+                .filter(|h| !h.is_empty())
+                .collect(),
             cookie_secure,
             session_ttl: Duration::from_secs(session_ttl_days * 86_400),
             session_idle: Duration::from_secs(session_idle_days * 86_400),

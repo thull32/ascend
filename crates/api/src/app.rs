@@ -66,6 +66,7 @@ pub fn build(state: AppState) -> Router {
         )
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+        .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::canonical_host::redirect))
         // Outermost: a client-supplied id is kept only if it is a UUID, so
         // logs cannot be polluted or correlated with attacker-chosen values.
         .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
