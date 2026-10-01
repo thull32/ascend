@@ -113,6 +113,7 @@ async fn app(model_url: String) -> Option<App> {
         database_pool_max: 20,
         public_origin: "http://localhost:8080".into(),
         redirect_hosts: vec!["old.example.test".into()],
+        signups: ascend_core::config::Signups::Open,
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),

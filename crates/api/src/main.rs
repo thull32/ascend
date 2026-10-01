@@ -67,6 +67,10 @@ async fn main() -> anyhow::Result<()> {
     }
     dotenvy::dotenv().ok();
     let config = Config::from_env().map_err(|e| anyhow::anyhow!("configuration: {e}"))?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| matches!(a.as_str(), "--create-invite" | "--list-invites" | "--revoke-invite")) {
+        return invites(&config, &args).await;
+    }
     let telemetry = telemetry::init(config.log_json, "ascend-api");
 
     tracing::info!(env = ?config.env, addr = %config.bind_addr, "booting ascend-api");
@@ -184,6 +188,46 @@ async fn grade_solutions(
     );
     if !failed.is_empty() || (require_all && !missing.is_empty()) {
         std::process::exit(1);
+    }
+    Ok(())
+}
+
+/// Invite management for invite-only sign-up (`SIGNUPS=invite`). In
+/// production, run inside the app container: `railway ssh --service ascend
+/// -- /usr/local/bin/ascend-api --create-invite --note "Sam"`.
+///
+/// * `--create-invite [--uses N] [--days D] [--note TEXT]` prints a sign-up
+///   link (1 use, no expiry by default). The code is shown once.
+/// * `--list-invites` shows each invite's id, uses and note.
+/// * `--revoke-invite ID` stops an invite (accounts it created stay).
+async fn invites(config: &Config, args: &[String]) -> anyhow::Result<()> {
+    use ascend_core::auth::invites;
+    let value = |flag: &str| args.iter().skip_while(|a| *a != flag).nth(1).cloned();
+    let db = state::connect_db(config).await?;
+    if args.iter().any(|a| a == "--create-invite") {
+        let uses = value("--uses").map(|v| v.parse::<i32>()).transpose()?.unwrap_or(1);
+        let days = value("--days").map(|v| v.parse::<i64>()).transpose()?;
+        let note = value("--note").unwrap_or_default();
+        let code = invites::create(&db, uses, days.map(chrono::Duration::days), &note).await?;
+        let uses_text = if uses == 1 { "1 sign-up".to_string() } else { format!("{uses} sign-ups") };
+        let expiry = days.map_or("no expiry".to_string(), |d| format!("expires in {d} days"));
+        println!("{}/register?invite={code}", config.public_origin.trim_end_matches('/'));
+        eprintln!("({uses_text}, {expiry}; the code is not shown again)");
+        if config.signups != ascend_core::config::Signups::Invite {
+            eprintln!("note: SIGNUPS is not 'invite', so sign-up is open and the code is not needed");
+        }
+    } else if let Some(id) = value("--revoke-invite") {
+        let n = invites::revoke(&db, &id).await?;
+        println!("revoked {n} invite(s)");
+    } else {
+        let list = invites::list(&db).await?;
+        if list.is_empty() {
+            println!("no invites");
+        }
+        for i in list {
+            let expiry = i.expires_at.map_or("never".to_string(), |t| t.format("%Y-%m-%d %H:%M UTC").to_string());
+            println!("{}  {}/{} used  expires {}  {}", i.id, i.uses, i.max_uses, expiry, i.note);
+        }
     }
     Ok(())
 }

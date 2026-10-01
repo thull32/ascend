@@ -6,10 +6,13 @@
 //!   database stores only its SHA-256, so a DB leak cannot forge sessions.
 //! * Breaches: new passwords are screened against Have I Been Pwned with
 //!   k-anonymity (`breached`), failing open if the service is down.
+//! * Invites: with `SIGNUPS=invite`, registration needs a valid invite code
+//!   (`invites`), consumed in the same transaction that creates the account.
 //! * Timing: login always runs a password verification (against a dummy hash
 //!   when the user does not exist) so response time doesn't reveal whether an
 //!   email is registered.
 pub mod breached;
+pub mod invites;
 pub mod password;
 pub mod service;
 pub mod token;

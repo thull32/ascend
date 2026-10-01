@@ -194,7 +194,8 @@ impl AppState {
                 Some(url) => AuthService::new(db.clone(), config.session_ttl, config.session_idle)
                     .with_breach_check(ascend_core::auth::breached::BreachedPasswords::new(url.clone())?),
                 None => AuthService::new(db.clone(), config.session_ttl, config.session_idle),
-            },
+            }
+            .invite_only(config.signups == ascend_core::config::Signups::Invite),
             progress: ProgressService::new(db.clone(), curriculum.clone()),
             quiz: QuizService::new(db.clone(), curriculum.clone()),
             submissions: SubmissionService::new(db.clone(), curriculum.clone(), grader),

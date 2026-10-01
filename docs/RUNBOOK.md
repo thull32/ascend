@@ -121,3 +121,23 @@ instead of the learner.
 
 To add a host: run `railway domain <host> --service <svc>` (custom domains cannot be registered from
 `railway.ts`), add both records, then list the host in that service's `domains` in `railway.ts`.
+
+## Invites
+
+Sign-up is invite-only in production (`SIGNUPS=invite` in `.railway/railway.ts`). Existing accounts
+are unaffected. Manage invites from inside the app container:
+
+    railway ssh --service ascend -- /usr/local/bin/ascend-api --create-invite --note "Sam"
+    railway ssh --service ascend -- /usr/local/bin/ascend-api --create-invite --uses 20 --days 14 --note "meetup"
+    railway ssh --service ascend -- /usr/local/bin/ascend-api --list-invites
+    railway ssh --service ascend -- /usr/local/bin/ascend-api --revoke-invite <id>
+
+`--create-invite` prints a link (`https://ascend.engineering/register?invite=<code>`). The default is
+one sign-up with no expiry. The code is shown once, because only its hash is stored. Unknown, used-up,
+expired and revoked codes all get the same refusal. A sign-up that fails (for example, the email is
+taken) does not spend a use.
+
+To run the end-to-end suites against production, create a multi-use invite with a short expiry and
+pass it as `E2E_INVITE`. Revoke it afterwards.
+
+To open sign-up again, set `SIGNUPS: "open"` and apply.

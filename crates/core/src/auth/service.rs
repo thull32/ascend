@@ -26,6 +26,9 @@ pub struct RegisterInput {
     /// The browser's IANA time zone. Ignored when Postgres does not know it.
     #[serde(default)]
     pub timezone: Option<String>,
+    /// Required when sign-up is invite-only; ignored otherwise.
+    #[serde(default)]
+    pub invite: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -93,6 +96,8 @@ pub struct AuthService {
     session_idle: Duration,
     /// Screens new passwords against known breaches; `None` skips it.
     breached: Option<BreachedPasswords>,
+    /// Registration needs an invite code (`SIGNUPS=invite`).
+    invite_only: bool,
 }
 
 impl AuthService {
@@ -102,7 +107,13 @@ impl AuthService {
             session_ttl: Duration::from_std(session_ttl).unwrap_or_else(|_| Duration::days(30)),
             session_idle: Duration::from_std(session_idle).unwrap_or_else(|_| Duration::days(14)),
             breached: None,
+            invite_only: false,
         }
+    }
+
+    pub fn invite_only(mut self, invite_only: bool) -> Self {
+        self.invite_only = invite_only;
+        self
     }
 
     pub fn with_breach_check(mut self, breached: BreachedPasswords) -> Self {
@@ -125,6 +136,11 @@ impl AuthService {
         // Registration still says when an email is taken: without an email
         // round trip there is no way to avoid that, and it is rate limited.
         // The login endpoint, which attackers probe at scale, reveals nothing.
+        // Without a well-formed code, refuse before the slow hash and the
+        // breach lookup; whether the code is valid is decided below.
+        if self.invite_only && !input.invite.as_deref().is_some_and(|c| token::looks_valid(c.trim())) {
+            return Err(AppError::Validation("an invite is required to sign up, and this one is not valid".into()));
+        }
         self.screen_password(&input.password).await?;
         let password_hash = password::hash(input.password).await?;
         // A bad zone must not block sign-up: fall back to UTC, and the
@@ -134,6 +150,13 @@ impl AuthService {
             _ => None,
         };
         let now = Utc::now();
+        // The invite is spent in the same transaction as the insert: a
+        // refused or failed sign-up leaves the code unused, and concurrent
+        // sign-ups cannot exceed its uses (the UPDATE takes the row lock).
+        let txn = self.db.begin().await?;
+        if self.invite_only {
+            super::invites::consume(&txn, input.invite.as_deref()).await?;
+        }
         let user = users::ActiveModel {
             id: Set(Uuid::now_v7()),
             email: Set(email),
@@ -151,7 +174,7 @@ impl AuthService {
             created_at: Set(now),
             updated_at: Set(now),
         }
-        .insert(&self.db)
+        .insert(&txn)
         .await
         .map_err(|e| match e.sql_err() {
             Some(SqlErr::UniqueConstraintViolation(_)) => {
@@ -159,6 +182,7 @@ impl AuthService {
             }
             _ => AppError::Database(e),
         })?;
+        txn.commit().await?;
         let session = self.create_session(user.id, user_agent).await?;
         Ok((user.into(), session))
     }

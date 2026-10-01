@@ -5,6 +5,13 @@ use std::time::Duration;
 
 use secrecy::{ExposeSecret, SecretString};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Signups {
+    Open,
+    Invite,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Address the HTTP server binds to. Railway injects `PORT`.
@@ -22,6 +29,9 @@ pub struct Config {
     /// `www` once a custom domain is canonical. The CSRF check accepts one
     /// origin, so the app must be used through one host.
     pub redirect_hosts: Vec<String>,
+    /// Who may create an account (`SIGNUPS`): `open` (default) or `invite`
+    /// (a valid invite code is required; see `auth::invites`).
+    pub signups: Signups,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
     /// Sessions unused for this long are signed out (`SESSION_IDLE_DAYS`).
@@ -132,6 +142,16 @@ impl Config {
             database_url: SecretString::from(var("DATABASE_URL")?),
             database_pool_max: parse_or::<u32>("DATABASE_POOL_MAX", 20)?.max(2),
             public_origin,
+            signups: match var_or("SIGNUPS", "open").trim().to_ascii_lowercase().as_str() {
+                "open" => Signups::Open,
+                "invite" => Signups::Invite,
+                other => {
+                    return Err(ConfigError::Invalid {
+                        name: "SIGNUPS",
+                        reason: format!("{other:?}: use open or invite"),
+                    });
+                }
+            },
             redirect_hosts: std::env::var("REDIRECT_HOSTS")
                 .unwrap_or_default()
                 .split(',')

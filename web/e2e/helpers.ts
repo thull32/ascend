@@ -6,7 +6,9 @@ export function uniqueEmail(prefix = "e2e") {
 
 export async function register(page: Page, opts: { skipOnboarding?: boolean } = {}) {
   const email = uniqueEmail();
-  await page.goto("/register");
+  // Against an invite-only deployment, set E2E_INVITE to a multi-use code.
+  const invite = process.env.E2E_INVITE;
+  await page.goto(invite ? `/register?invite=${encodeURIComponent(invite)}` : "/register");
   await page.getByLabel("Display name").fill("E2E Tester");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("correct-horse-battery-staple");

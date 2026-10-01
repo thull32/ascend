@@ -82,6 +82,9 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     env: {
       APP_ENV: "production",
+      // Invite-only for now: create invites with `ascend-api --create-invite`
+      // (docs/RUNBOOK.md, "Invites").
+      SIGNUPS: "invite",
       PUBLIC_ORIGIN: APP_ORIGIN,
       // Old and alternate hosts 308 to the canonical one (CSRF accepts one origin).
       ...(DOMAIN_LIVE ? { REDIRECT_HOSTS: "www.ascend.engineering,ascend-production-a7ce.up.railway.app" } : {}),

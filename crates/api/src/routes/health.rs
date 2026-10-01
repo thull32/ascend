@@ -40,5 +40,6 @@ async fn features(State(state): State<AppState>) -> Json<serde_json::Value> {
         "ai": state.coach.enabled(),
         "email": state.mailer.enabled(),
         "contact": state.config.contact_email,
+        "signups": state.config.signups,
     }))
 }

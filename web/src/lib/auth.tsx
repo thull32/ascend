@@ -7,7 +7,7 @@ interface AuthState {
   loading: boolean;
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<User>;
-  register: (email: string, password: string, display_name: string) => Promise<User>;
+  register: (email: string, password: string, display_name: string, invite?: string) => Promise<User>;
   logout: () => Promise<void>;
   update: (patch: Partial<Pick<User, "display_name" | "target_company" | "target_level" | "weekly_hours" | "preferred_language" | "timezone">> & { onboarded?: boolean }) => Promise<User>;
 }
@@ -61,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u);
         return u;
       },
-      async register(email, password, display_name) {
-        const u = await api.post<User>("/auth/register", { email, password, display_name, timezone: deviceTimeZone() });
+      async register(email, password, display_name, invite) {
+        const u = await api.post<User>("/auth/register", { email, password, display_name, timezone: deviceTimeZone(), invite: invite?.trim() || undefined });
         setUser(u);
         return u;
       },

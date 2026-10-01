@@ -42,6 +42,7 @@ fn config(url: &str) -> Config {
         database_pool_max: 20,
         public_origin: "http://localhost:8080".into(),
         redirect_hosts: vec!["old.example.test".into()],
+        signups: ascend_core::config::Signups::Open,
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),
@@ -310,6 +311,7 @@ async fn breached_passwords_are_refused_at_sign_up_and_an_outage_does_not_block_
         password: password.into(),
         display_name: "T".into(),
         timezone: None,
+        invite: None,
     };
     match auth.register(input("a-breached-passphrase-123"), None).await {
         Err(ascend_core::AppError::Validation(m)) => assert!(m.contains("data breach"), "{m}"),
@@ -560,6 +562,59 @@ async fn a_retired_host_redirects_to_the_public_origin() {
         let res = app.router.clone().oneshot(req).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK, "{host}");
     }
+}
+
+#[tokio::test]
+async fn invite_only_sign_up_spends_each_code_once() {
+    use ascend_core::auth::{AuthService, RegisterInput, invites};
+    let Some(app) = test_app().await else { return };
+    let auth = AuthService::new(app.db.clone(), Duration::from_secs(3600), Duration::from_secs(1800)).invite_only(true);
+    let input = |invite: Option<&str>| RegisterInput {
+        email: format!("i-{}@example.com", uuid::Uuid::now_v7()),
+        password: "a long enough passphrase".into(),
+        display_name: "I".into(),
+        timezone: None,
+        invite: invite.map(Into::into),
+    };
+    let refused = |r: Result<_, ascend_core::AppError>| match r {
+        Err(ascend_core::AppError::Validation(m)) => assert!(m.contains("invite"), "{m}"),
+        Err(e) => panic!("expected an invite refusal, got {e:?}"),
+        Ok(_) => panic!("signed up without a valid invite"),
+    };
+
+    // No code, a malformed one, an unknown one.
+    refused(auth.register(input(None), None).await);
+    refused(auth.register(input(Some("not-a-code")), None).await);
+    refused(auth.register(input(Some(&ascend_core::auth::token::generate())), None).await);
+
+    // A two-use code creates two accounts, then stops.
+    let code = invites::create(&app.db, 2, None, "two friends").await.unwrap();
+    auth.register(input(Some(&code)), None).await.unwrap();
+    auth.register(input(Some(&format!(" {code} "))), None).await.unwrap();
+    refused(auth.register(input(Some(&code)), None).await);
+
+    // A refused sign-up does not spend the code: a taken email rolls back.
+    let one = invites::create(&app.db, 1, None, "").await.unwrap();
+    let taken = input(Some(&one));
+    let email = taken.email.clone();
+    auth.register(taken, None).await.unwrap();
+    let again = invites::create(&app.db, 1, None, "").await.unwrap();
+    let mut dup = input(Some(&again));
+    dup.email = email;
+    assert!(matches!(auth.register(dup, None).await, Err(ascend_core::AppError::Conflict(_))));
+    auth.register(input(Some(&again)), None).await.unwrap();
+
+    // Expired codes and revoked codes are refused.
+    let expired = invites::create(&app.db, 5, Some(chrono::Duration::seconds(-1)), "").await.unwrap();
+    refused(auth.register(input(Some(&expired)), None).await);
+    let revoked = invites::create(&app.db, 5, None, "revoke me").await.unwrap();
+    let id = invites::list(&app.db).await.unwrap().into_iter().find(|i| i.note == "revoke me").unwrap().id;
+    assert_eq!(invites::revoke(&app.db, &id).await.unwrap(), 1);
+    refused(auth.register(input(Some(&revoked)), None).await);
+
+    // Open sign-up ignores the field, and the UI is told which mode is on.
+    let r = app.call("GET", "/api/features", None, None, false).await;
+    assert_eq!(r.body["signups"], "open");
 }
 
 #[tokio::test]
