@@ -33,6 +33,7 @@ pub fn build(state: AppState) -> Router {
     let api = Router::new()
         .merge(routes::health::router())
         .nest("/auth", routes::auth::router(state.clone()))
+        .merge(routes::admin::router())
         .merge(routes::curriculum::router())
         .merge(routes::problems::router(state.clone()))
         .merge(routes::progress::router())

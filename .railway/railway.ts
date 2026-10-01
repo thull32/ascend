@@ -19,7 +19,7 @@ const REPO = "thull32/ascend";
 // issued its certificate. Until then the Railway domains stay canonical.
 // RAILWAY_PUBLIC_DOMAIN cannot be used for this: once a custom domain is
 // added it names the custom domain, verified or not.
-const DOMAIN_LIVE = false;
+const DOMAIN_LIVE = true;
 const APP_ORIGIN = DOMAIN_LIVE ? "https://ascend.engineering" : "https://ascend-production-a7ce.up.railway.app";
 const GRAFANA_ORIGIN = DOMAIN_LIVE ? "https://grafana.ascend.engineering" : "https://grafana-production-d1d7.up.railway.app";
 const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
@@ -82,9 +82,10 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     env: {
       APP_ENV: "production",
-      // Invite-only for now: create invites with `ascend-api --create-invite`
-      // (docs/RUNBOOK.md, "Invites").
+      // Invite-only for now: invites are made through the operator API with
+      // ADMIN_TOKEN (docs/RUNBOOK.md, "Invites").
       SIGNUPS: "invite",
+      ADMIN_TOKEN: preserve(),
       PUBLIC_ORIGIN: APP_ORIGIN,
       // Old and alternate hosts 308 to the canonical one (CSRF accepts one origin).
       ...(DOMAIN_LIVE ? { REDIRECT_HOSTS: "www.ascend.engineering,ascend-production-a7ce.up.railway.app" } : {}),

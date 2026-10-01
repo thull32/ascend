@@ -43,6 +43,7 @@ fn config(url: &str) -> Config {
         public_origin: "http://localhost:8080".into(),
         redirect_hosts: vec!["old.example.test".into()],
         signups: ascend_core::config::Signups::Open,
+        admin_token: Some(SecretString::from("an-admin-token-that-is-long-enough-123")),
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),
@@ -615,6 +616,54 @@ async fn invite_only_sign_up_spends_each_code_once() {
     // Open sign-up ignores the field, and the UI is told which mode is on.
     let r = app.call("GET", "/api/features", None, None, false).await;
     assert_eq!(r.body["signups"], "open");
+}
+
+#[tokio::test]
+async fn the_operator_api_manages_invites_with_the_admin_token() {
+    let Some(app) = test_app().await else { return };
+    let send = |method: &str, path: &str, token: Option<&str>, body: Option<Value>| {
+        let mut req = Request::builder().method(method).uri(path).header("x-requested-with", "fetch");
+        if let Some(t) = token {
+            req = req.header(header::AUTHORIZATION, format!("Bearer {t}"));
+        }
+        let req = match body {
+            Some(b) => req.header(header::CONTENT_TYPE, "application/json").body(Body::from(b.to_string())),
+            None => req.body(Body::empty()),
+        }
+        .unwrap();
+        let router = app.router.clone();
+        async move {
+            let res = router.oneshot(req).await.unwrap();
+            let status = res.status();
+            let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+            (status, serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null))
+        }
+    };
+    const TOKEN: &str = "an-admin-token-that-is-long-enough-123";
+
+    for token in [None, Some("wrong-token"), Some("")] {
+        assert_eq!(send("GET", "/api/admin/invites", token, None).await.0, StatusCode::UNAUTHORIZED, "{token:?}");
+    }
+    let (status, made) =
+        send("POST", "/api/admin/invites", Some(TOKEN), Some(json!({"uses": 3, "days": 7, "note": "operator test"})))
+            .await;
+    assert_eq!(status, StatusCode::OK, "{made}");
+    let link = made["link"].as_str().unwrap();
+    let code = link.split("invite=").nth(1).unwrap();
+    assert!(link.starts_with("http://localhost:8080/register?invite=") && code.len() == 43, "{link}");
+    assert_eq!(
+        send("POST", "/api/admin/invites", Some(TOKEN), Some(json!({"days": 0}))).await.0,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+
+    let (_, list) = send("GET", "/api/admin/invites", Some(TOKEN), None).await;
+    let mine = list.as_array().unwrap().iter().find(|i| i["note"] == "operator test").unwrap().clone();
+    assert_eq!((mine["uses"].as_i64(), mine["max_uses"].as_i64()), (Some(0), Some(3)));
+    assert!(!list.to_string().contains(code), "the list never shows codes");
+
+    let id = mine["id"].as_str().unwrap();
+    let (status, revoked) = send("DELETE", &format!("/api/admin/invites/{id}"), Some(TOKEN), None).await;
+    assert_eq!((status, revoked["revoked"].as_i64()), (StatusCode::OK, Some(1)));
 }
 
 #[tokio::test]

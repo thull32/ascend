@@ -114,6 +114,7 @@ async fn app(model_url: String) -> Option<App> {
         public_origin: "http://localhost:8080".into(),
         redirect_hosts: vec!["old.example.test".into()],
         signups: ascend_core::config::Signups::Open,
+        admin_token: Some(SecretString::from("an-admin-token-that-is-long-enough-123")),
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),

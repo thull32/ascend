@@ -125,19 +125,29 @@ To add a host: run `railway domain <host> --service <svc>` (custom domains canno
 ## Invites
 
 Sign-up is invite-only in production (`SIGNUPS=invite` in `.railway/railway.ts`). Existing accounts
-are unaffected. Manage invites from inside the app container:
+are unaffected. The production image has no shell, so `railway ssh` cannot run commands in it.
+Instead, manage invites through the operator API with `ADMIN_TOKEN`, a Railway secret:
 
-    railway ssh --service ascend -- /usr/local/bin/ascend-api --create-invite --note "Sam"
-    railway ssh --service ascend -- /usr/local/bin/ascend-api --create-invite --uses 20 --days 14 --note "meetup"
-    railway ssh --service ascend -- /usr/local/bin/ascend-api --list-invites
-    railway ssh --service ascend -- /usr/local/bin/ascend-api --revoke-invite <id>
+    T=$(railway variables --service ascend --json | jq -r .ADMIN_TOKEN)
+    A=https://ascend.engineering/api/admin/invites
+    H=(-H "Authorization: Bearer $T" -H "x-requested-with: fetch" -H "content-type: application/json")
+    curl -s "${H[@]}" -X POST $A -d '{"note": "Sam"}'                        # 1 use, no expiry
+    curl -s "${H[@]}" -X POST $A -d '{"uses": 20, "days": 14, "note": "meetup"}'
+    curl -s "${H[@]}" $A                                                     # list: id, uses, note
+    curl -s "${H[@]}" -X DELETE $A/<id>                                      # revoke
 
-`--create-invite` prints a link (`https://ascend.engineering/register?invite=<code>`). The default is
-one sign-up with no expiry. The code is shown once, because only its hash is stored. Unknown, used-up,
-expired and revoked codes all get the same refusal. A sign-up that fails (for example, the email is
-taken) does not spend a use.
+(Those lines are bash or zsh. In fish, put the headers inline.) Creating an invite returns a `link`,
+`https://ascend.engineering/register?invite=<code>`. The default is one sign-up with no expiry. The
+code is shown once, because only its hash is stored. Unknown, used-up, expired and revoked codes all
+get the same refusal. A sign-up that fails (for example, the email is taken) does not spend a use.
 
-To run the end-to-end suites against production, create a multi-use invite with a short expiry and
-pass it as `E2E_INVITE`. Revoke it afterwards.
+With a database connection, `ascend-api --create-invite [--uses N] [--days D] [--note TEXT]`,
+`--list-invites` and `--revoke-invite <id>` do the same.
+
+To rotate the token, run `railway variables --service ascend --set "ADMIN_TOKEN=$(openssl rand -hex 32)"`.
+Without `ADMIN_TOKEN`, the operator API answers 404.
+
+To run the end-to-end suites against production, create an invite with several uses and one day,
+pass the code as `E2E_INVITE`, and revoke the invite afterwards.
 
 To open sign-up again, set `SIGNUPS: "open"` and apply.

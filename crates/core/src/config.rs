@@ -32,6 +32,9 @@ pub struct Config {
     /// Who may create an account (`SIGNUPS`): `open` (default) or `invite`
     /// (a valid invite code is required; see `auth::invites`).
     pub signups: Signups,
+    /// Bearer token for the operator API (`/api/admin`, `ADMIN_TOKEN`, 32+
+    /// characters). Unset disables it.
+    pub admin_token: Option<SecretString>,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
     /// Sessions unused for this long are signed out (`SESSION_IDLE_DAYS`).
@@ -152,6 +155,7 @@ impl Config {
                     });
                 }
             },
+            admin_token: std::env::var("ADMIN_TOKEN").ok().filter(|t| !t.trim().is_empty()).map(SecretString::from),
             redirect_hosts: std::env::var("REDIRECT_HOSTS")
                 .unwrap_or_default()
                 .split(',')
@@ -210,6 +214,9 @@ impl Config {
                 name: "EMAIL_FROM",
                 reason: "required with RESEND_API_KEY (an address on a domain verified with Resend)".into(),
             });
+        }
+        if self.admin_token.as_ref().is_some_and(|t| t.expose_secret().len() < 32) {
+            return Err(ConfigError::Invalid { name: "ADMIN_TOKEN", reason: "must be at least 32 characters".into() });
         }
         if self.env == Environment::Production && !self.cookie_secure {
             return Err(ConfigError::Invalid {
