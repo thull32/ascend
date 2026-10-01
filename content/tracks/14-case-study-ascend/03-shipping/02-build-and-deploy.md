@@ -190,7 +190,10 @@ const app = service("ascend", {
   healthcheckTimeout: 120,
   env: {
     APP_ENV: "production",
-    PUBLIC_ORIGIN: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+    // The one origin the CSRF check accepts. Pinned, not derived from
+    // RAILWAY_PUBLIC_DOMAIN: that names a custom domain as soon as it is
+    // added, before its certificate exists.
+    PUBLIC_ORIGIN: APP_ORIGIN,
     DATABASE_URL: db.env.DATABASE_URL,
     // 2 replicas, and up to 4 while a deploy overlaps old and new: 4 x 15
     // = 60 of Postgres's 100 connections, leaving room for migrations and
@@ -370,6 +373,7 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 | Grafana cannot search traces | Spans are exported, but the Jaeger data source errors | Jaeger 2.21 removed the v1 query API (`/api/services`, `/api/traces`) the data source calls | Hold the image at 2.20.0 by digest (`2f1daaa`) until the data source moves |
 | Metrics reset at every deploy | Dashboards and burn-rate windows start empty after Prometheus redeploys | `railway volume list` shows `prometheus-data` attached to nothing; Prometheus logs `fs_type=OVERLAYFS_SUPER_MAGIC`. Cause: a `volumeMounts` shape the engine ignored | Declare `volumeMounts: { "/prometheus": promData }` and set `RAILWAY_RUN_UID=0`, since the mount is root-owned and Prometheus runs as `nobody`; runbook, "Prometheus storage" |
 | Backups assumed, not configured | Found only when a restore is needed | The file declared daily and weekly `backupSchedules` in a shape the config engine ignored | Schedules set on the volume in the dashboard; runbook, "Backups" (`2f1daaa`) |
+| Every sign-in refused after adding a custom domain | `403 csrf` on the old host while the new one has no certificate yet | `PUBLIC_ORIGIN` was `https://${{RAILWAY_PUBLIC_DOMAIN}}`, and Railway points that variable at a custom domain the moment it is added, before DNS or the certificate. Caught while the next deploy waited for CI | Pin the origin (`DOMAIN_LIVE` in `railway.ts`), switch once the certificate is issued, and 308 the old hosts (`REDIRECT_HOSTS`, `7b3c544`) |
 | A drain window of 0 s | Replies cut off at every deploy although the code drains them | Railway's `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` unset | 60 s, with the server's own drain bounded to 55 s (in place) |
 
 ## Interviewer follow-ups

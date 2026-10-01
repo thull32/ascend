@@ -15,6 +15,13 @@
 import { defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 const REPO = "thull32/ascend";
+// ascend.engineering becomes canonical once Railway has verified it and
+// issued its certificate. Until then the Railway domains stay canonical.
+// RAILWAY_PUBLIC_DOMAIN cannot be used for this: once a custom domain is
+// added it names the custom domain, verified or not.
+const DOMAIN_LIVE = false;
+const APP_ORIGIN = DOMAIN_LIVE ? "https://ascend.engineering" : "https://ascend-production-a7ce.up.railway.app";
+const GRAFANA_ORIGIN = DOMAIN_LIVE ? "https://grafana.ascend.engineering" : "https://grafana-production-d1d7.up.railway.app";
 const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
 
 export default defineRailway(() => {
@@ -75,7 +82,9 @@ export default defineRailway(() => {
     healthcheckTimeout: 120,
     env: {
       APP_ENV: "production",
-      PUBLIC_ORIGIN: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+      PUBLIC_ORIGIN: APP_ORIGIN,
+      // Old and alternate hosts 308 to the canonical one (CSRF accepts one origin).
+      ...(DOMAIN_LIVE ? { REDIRECT_HOSTS: "www.ascend.engineering,ascend-production-a7ce.up.railway.app" } : {}),
       DATABASE_URL: db.env.DATABASE_URL,
       // 2 replicas, and up to 4 while a deploy overlaps old and new: 4 x 15
       // = 60 of Postgres's 100 connections, leaving room for migrations and
@@ -131,7 +140,7 @@ export default defineRailway(() => {
     env: {
       PORT: "3000",
       GF_SECURITY_ADMIN_PASSWORD: preserve(),
-      GF_SERVER_ROOT_URL: "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+      GF_SERVER_ROOT_URL: GRAFANA_ORIGIN,
     },
   });
 
