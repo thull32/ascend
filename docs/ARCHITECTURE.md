@@ -173,17 +173,25 @@ with a JSON fence (` ```viz {"type": "graph", "algorithm": "dijkstra", …} `).
 
 ## Deployment
 
-`.railway/railway.ts` declares everything ([ADR 0006](adr/0006-scaling-the-deployment.md)):
+`.railway/railway.ts` declares everything ([ADR 0006](adr/0006-scaling-the-deployment.md)). While Ascend is
+invite-only it runs lean: `ascend` (one replica, grading in-process) and `Postgres`, about 0.15 GB of memory
+in all. Two switches in that file bring back the rest; each is one apply (runbook, "Scaling back up"):
 
-| Service | What | Replicas | Reached |
-|---|---|---|---|
-| `ascend` | API and SPA (this binary) | 2+ | public domain |
-| `grader` | same image, `--serve-grader`: the WebAssembly runtimes and a token, no other secrets | 2+ | private network |
-| `Postgres` | primary, 50 GB volume | 1 | private network |
-| `prometheus` | OTLP metrics receiver, SLO rules, 30 days on a volume | 1 | private network |
-| `alertmanager` | routes alerts to `ALERT_WEBHOOK_URL` | 1 | private network |
-| `jaeger` | traces (in memory) | 1 | private network |
-| `grafana` | provisioned dashboards over the three above | 1 | public domain, sign-in |
+| Service | What | Replicas | Reached | Switch |
+|---|---|---|---|---|
+| `ascend` | API and SPA (this binary) | 1, or 2+ with `PHASE_2` | public domain | always |
+| `Postgres` | primary, 50 GB volume | 1 | private network | always |
+| `grader` | same image, `--serve-grader`: the WebAssembly runtimes and a token, no other secrets | 2+ | private network | `PHASE_2` |
+| `prometheus` | OTLP metrics receiver, SLO rules, 30 days on a volume | 1 | private network | `OBSERVABILITY` |
+| `alertmanager` | routes alerts to `ALERT_WEBHOOK_URL` | 1 | private network | `OBSERVABILITY` |
+| `jaeger` | traces (in memory) | 1 | private network | `OBSERVABILITY` |
+| `grafana` | provisioned dashboards over the three above | 1 | public domain, sign-in | `OBSERVABILITY` |
+
+Idle cost is memory held, billed every minute. Three settings keep it small. `TOKIO_WORKER_THREADS=2` and
+`MALLOC_ARENA_MAX=2` matter because Railway reports its 24-vCPU limit as the CPU count. The grader also maps
+runtimes that were compiled ahead of time (`python.cwasm`, `qjs.cwasm`, written by `--prepare-grader` in the
+image build) instead of compiling them into anonymous memory at boot. Measured idle RSS: 470 MB by default,
+342 MB with the two variables, 97 MB with all three.
 
 ## Scaling notes
 

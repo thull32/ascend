@@ -105,7 +105,10 @@ impl Grader {
         let mut linker: Linker<Host> = Linker::new(&engine);
         p1::add_to_linker_sync(&mut linker, |h: &mut Host| &mut h.wasi).map_err(internal)?;
         let compile = |path: &Path| -> Result<InstancePre<Host>, GradeError> {
-            let module = Module::from_file(&engine, path).map_err(internal)?;
+            let module = match load_precompiled(&engine, path) {
+                Some(module) => module,
+                None => Module::from_file(&engine, path).map_err(internal)?,
+            };
             linker.instantiate_pre(&module).map_err(internal)
         };
         let python = compile(&python_wasm)?;
@@ -335,9 +338,48 @@ fn tail(stderr: &[u8]) -> String {
     lines[lines.len().saturating_sub(4)..].join("\n").chars().take(1000).collect()
 }
 
+/// The module compiled ahead of time next to `wasm` (`python.cwasm` for
+/// `python.wasm`), if there is one this engine can use.
+///
+/// Compiling at boot puts the machine code (a few hundred MB for CPython) in
+/// anonymous memory that a host bills for as long as the process lives. A
+/// precompiled file is mapped instead: its pages are file-backed, loaded on
+/// first use and reclaimable, and boot skips the compile. Wasmtime refuses a
+/// file built by another Wasmtime version, engine configuration or CPU
+/// feature set; then this returns `None` and the caller compiles as before.
+fn load_precompiled(engine: &Engine, wasm: &Path) -> Option<Module> {
+    let cwasm = wasm.with_extension("cwasm");
+    if !cwasm.is_file() {
+        return None;
+    }
+    // SAFETY: deserialising trusts the file to be Wasmtime's own output.
+    // These are written by `precompile_modules` at image build time, from
+    // the same binary, into the read-only runtime directory.
+    match unsafe { Module::deserialize_file(engine, &cwasm) } {
+        Ok(module) => Some(module),
+        Err(e) => {
+            tracing::warn!(file = %cwasm.display(), error = %e, "precompiled module unusable; compiling instead");
+            None
+        }
+    }
+}
+
+/// Compiles `python.wasm` and `qjs.wasm` in `dir` ahead of time to
+/// `python.cwasm` and `qjs.cwasm` (see [`load_precompiled`]).
+fn precompile_modules(engine: &Engine, dir: &Path) -> Result<(), GradeError> {
+    for name in ["python", "qjs"] {
+        let wasm = dir.join(format!("{name}.wasm"));
+        let bytes = std::fs::read(&wasm).map_err(internal)?;
+        let compiled = engine.precompile_module(&bytes).map_err(internal)?;
+        std::fs::write(wasm.with_extension("cwasm"), compiled).map_err(internal)?;
+    }
+    Ok(())
+}
+
 /// Compiles the Python standard library in `dir` to bytecode, with the same
 /// interpreter that will import it, so each run skips parsing the modules it
-/// imports (about 0.2 s saved per run). Needs write access to `dir`; used
+/// imports (about 0.2 s saved per run), and compiles both runtimes ahead of
+/// time ([`precompile_modules`]). Needs write access to `dir`; used
 /// once when preparing the runtimes (the Docker build, `make grader`).
 pub fn precompile_stdlib(dir: &Path) -> Result<(), GradeError> {
     let dir = dir.to_path_buf();
@@ -356,6 +398,7 @@ fn precompile_on_this_thread(dir: &Path) -> Result<(), GradeError> {
         return Err(GradeError::Missing(dir.to_path_buf()));
     }
     let engine = engine()?;
+    precompile_modules(&engine, dir)?;
     let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
     p1::add_to_linker_sync(&mut linker, |c| c).map_err(internal)?;
     let module = Module::from_file(&engine, dir.join("python.wasm")).map_err(internal)?;

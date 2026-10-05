@@ -4,6 +4,21 @@ What to do when an alert fires or a deploy misbehaves. Each alert in
 `ops/prometheus/rules.yml` links to a section here. Objectives are in
 [SLO.md](SLO.md); the deployment is in `.railway/railway.ts`.
 
+## Scaling back up
+
+Production runs lean while Ascend is invite-only: one `ascend` replica grading in-process, plus `Postgres`.
+The rest of this runbook (alerts, Grafana, Jaeger, the grading service) applies once the switches in
+`.railway/railway.ts` are on:
+
+1. `OBSERVABILITY = true`, then `railway config plan` and `railway config apply`. This recreates
+   Prometheus (its `prometheus-data` volume was kept), Alertmanager, Jaeger and Grafana. Then set
+   `GF_SECURITY_ADMIN_PASSWORD` and `ALERT_WEBHOOK_URL` again ("Secrets" below), register
+   `grafana.ascend.engineering` again ("Domains"), and add its CNAME and TXT records back at Cloudflare.
+2. `PHASE_2 = true`, then plan and apply. This creates the `grader` service and gives the API two
+   replicas that grade through it. Set the grader's `GRADER_TOKEN` again before the API needs it.
+
+Check the plan before applying: it should only add.
+
 ## Secrets
 
 Secrets live only in Railway variables (`preserve()` in `railway.ts` keeps

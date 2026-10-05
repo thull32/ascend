@@ -4,14 +4,22 @@
 // (set once with `railway variables --set`, see docs/RUNBOOK.md#secrets).
 //
 // Topology (docs/ARCHITECTURE.md#deployment):
-//   ascend        API + SPA, 2+ replicas behind Railway's edge
+//   ascend        API + SPA behind Railway's edge (1 replica; 2+ with PHASE_2)
+//   Postgres      one primary, 50 GB volume
+// With PHASE_2:
 //   grader        grading service, same image, --serve-grader; no secrets,
 //                 no public domain; the API reaches it on the private network
-//   Postgres      one primary, 50 GB volume
+// With OBSERVABILITY:
 //   prometheus    metrics (OTLP push from every replica) + SLO rules
 //   alertmanager  alert routing to ALERT_WEBHOOK_URL
 //   jaeger        traces (OTLP)
 //   grafana       dashboards; the only observability service with a domain
+//
+// Both are off while Ascend is invite-only and idle: idle, they cost about
+// five times what the app does (Railway bills memory held, every minute).
+// Turning one back on is one apply; secrets they held (GRADER_TOKEN,
+// GF_SECURITY_ADMIN_PASSWORD, ALERT_WEBHOOK_URL) must be set again
+// (docs/RUNBOOK.md, "Scaling back up").
 import { defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 const REPO = "thull32/ascend";
@@ -22,18 +30,26 @@ const REPO = "thull32/ascend";
 const DOMAIN_LIVE = true;
 const APP_ORIGIN = DOMAIN_LIVE ? "https://ascend.engineering" : "https://ascend-production-a7ce.up.railway.app";
 const GRAFANA_ORIGIN = DOMAIN_LIVE ? "https://grafana.ascend.engineering" : "https://grafana-production-d1d7.up.railway.app";
-const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
+const PHASE_2 = false; // true: 2 API replicas grading through the grader service
+const OBSERVABILITY = false; // true: Prometheus, Alertmanager, Jaeger and Grafana
 
 export default defineRailway(() => {
   const region = "us-east4-eqdc4a";
   const internal = (name: string, port: number) => `http://${name}.railway.internal:${port}`;
   // Telemetry for every app process: push to Prometheus and Jaeger.
-  const telemetry = {
-    OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: `${internal("prometheus", 9090)}/api/v1/otlp/v1/metrics`,
-    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${internal("jaeger", 4318)}/v1/traces`,
-    // A fifth of new traces: enough to debug with, bounded as traffic grows.
-    OTEL_TRACES_SAMPLE_RATIO: "0.2",
-  };
+  const telemetry = OBSERVABILITY
+    ? {
+        OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: `${internal("prometheus", 9090)}/api/v1/otlp/v1/metrics`,
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${internal("jaeger", 4318)}/v1/traces`,
+        // A fifth of new traces: enough to debug with, bounded as traffic grows.
+        OTEL_TRACES_SAMPLE_RATIO: "0.2",
+      }
+    : {};
+  // Railway reports its 24-vCPU limit as the CPU count, so by default the
+  // runtime starts 24 worker threads and glibc up to 8 malloc arenas per
+  // core, memory that is billed whether or not anything runs on it. Two
+  // workers carry far more traffic than Ascend has.
+  const sized = { TOKIO_WORKER_THREADS: "2", MALLOC_ARENA_MAX: "2" };
 
   const db = postgres("Postgres", { region });
   db.networking = { privateNetworkEndpoint: "postgres" };
@@ -64,6 +80,7 @@ export default defineRailway(() => {
       PORT: "8080",
       LOG_JSON: "true",
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "40",
+      ...sized,
       ...telemetry,
     },
   });
@@ -90,9 +107,9 @@ export default defineRailway(() => {
       // Old and alternate hosts 308 to the canonical one (CSRF accepts one origin).
       ...(DOMAIN_LIVE ? { REDIRECT_HOSTS: "www.ascend.engineering,ascend-production-a7ce.up.railway.app" } : {}),
       DATABASE_URL: db.env.DATABASE_URL,
-      // 2 replicas, and up to 4 while a deploy overlaps old and new: 4 x 15
-      // = 60 of Postgres's 100 connections, leaving room for migrations and
-      // psql. Boot warns if the headroom drops below 10.
+      // Up to 2 replicas, and up to 4 while a deploy overlaps old and new:
+      // 4 x 15 = 60 of Postgres's 100 connections, leaving room for
+      // migrations and psql. Boot warns if the headroom drops below 10.
       DATABASE_POOL_MAX: "15",
       // Railway's edge sets X-Real-IP; the rate limiter trusts only that header.
       CLIENT_IP_HEADER: "x-real-ip",
@@ -104,17 +121,21 @@ export default defineRailway(() => {
       RESEND_API_KEY: preserve(),
       EMAIL_FROM: preserve(),
       CONTACT_EMAIL: preserve(),
-      ...(PHASE_2 ? { GRADER_URL: internal("grader", 8080), GRADER_TOKEN: grader.env.GRADER_TOKEN } : {}),
+      // Graded in-process unless PHASE_2: two runs at once.
+      ...(PHASE_2 ? { GRADER_URL: internal("grader", 8080), GRADER_TOKEN: grader.env.GRADER_TOKEN } : { GRADER_SLOTS: "2" }),
       // Strict: a dangling cross-reference or malformed block fails the build.
       CONTENT_LENIENT: "0",
       // Time between SIGTERM and SIGKILL for a replaced deployment. The
       // server's own shutdown is bounded to fit inside it: 25 s for open
       // connections, then 30 s for replies still being persisted.
       RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60",
+      ...sized,
       ...telemetry,
     },
   });
 
+  // Kept while OBSERVABILITY is off, so metric history survives (a few
+  // hundred MB; billed by use).
   const promData = volume("prometheus-data", { region, sizeMB: 10000, allowOnlineResize: true });
   const prometheus = service("prometheus", {
     source: github(REPO, { rootDirectory: "ops/prometheus" }),
@@ -149,6 +170,13 @@ export default defineRailway(() => {
   });
 
   return project("ascend", {
-    resources: [db, dbVolume, app, grader, promData, prometheus, alertmanager, jaeger, grafana],
+    resources: [
+      db,
+      dbVolume,
+      app,
+      promData,
+      ...(PHASE_2 ? [grader] : []),
+      ...(OBSERVABILITY ? [prometheus, alertmanager, jaeger, grafana] : []),
+    ],
   });
 });
