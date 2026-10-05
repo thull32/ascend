@@ -74,7 +74,7 @@ COPY --from=runtimes /opt/ascend/grader /opt/ascend/grader
 RUN /ascend-api --prepare-grader /opt/ascend/grader
 
 # ---------- runtime ----------
-FROM gcr.io/distroless/cc-debian13:nonroot@sha256:54df941ed0d06a1bd95ef5e0ce391fd8d9f94b64782dc9a60062727849ee3f97 AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2 AS runtime
 COPY --from=builder /ascend-api /usr/local/bin/ascend-api
 COPY --from=builder /opt/ascend/grader /opt/ascend/grader
 ENV APP_ENV=production \
