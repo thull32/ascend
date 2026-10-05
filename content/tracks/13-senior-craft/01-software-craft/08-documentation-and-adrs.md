@@ -500,11 +500,11 @@ hints:
   explanation: >-
     ADRs are a history. Superseding preserves why the first decision was made and why it changed, which is exactly what the next person needs; editing or deleting erases that history, and a code comment leaves the ADR log asserting something false.
 - q: >-
-    A release applies migration m0014, which only adds a nullable column, and then fails its health check, so Railway keeps the previous deployment serving. An hour later that old process restarts. Since commit 8f82820, what happens?
-  options: ["It refuses to boot, because its migrator does not know m0014", "It plans SchemaAhead, logs a warning and serves as before", "It runs m0014's down step so the schema matches its own again", "It waits on the migration lock until the failed release is removed"]
+    A release applies migration m0015, which only adds a nullable column, and then fails its health check, so Railway keeps the previous deployment serving. An hour later that old process restarts. Since commit 8f82820, what happens?
+  options: ["It waits on the migration lock until the failed release is removed", "It plans SchemaAhead, logs a warning and serves as before", "It runs m0015's down step so the schema matches its own again", "It refuses to boot, because its migrator does not know m0015"]
   answer: 1
   explanation: >-
-    migrate.rs finds a migration it does not know and none of its own pending, so it starts without migrating, and an expand-only change leaves the old code able to read and write. Before the commit, sea-orm-migration's own check refused the unknown m0014, so the restart took the service down with no deploy in progress; that hazard is what the worked ADR's facts exposed. Nothing runs down steps automatically, and the advisory lock is held only while a boot is migrating.
+    migrate.rs finds a migration it does not know and none of its own pending, so it starts without migrating, and an expand-only change leaves the old code able to read and write. Before the commit, sea-orm-migration's own check refused the unknown m0015, so the restart took the service down with no deploy in progress; that hazard is what the worked ADR's facts exposed. Nothing runs down steps automatically, and the advisory lock is held only while a boot is migrating.
 - q: >-
     A runbook step says: check whether the database is healthy. What is the main problem?
   options: ["Runbooks should leave databases to the DBA team and cover only the application", "It is not actionable: give the exact command and what healthy output looks like", "It is too short; runbook steps should explain the database architecture first", "It belongs in an ADR, because database health is an architectural decision"]

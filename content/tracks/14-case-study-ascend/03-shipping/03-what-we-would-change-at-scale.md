@@ -1,8 +1,8 @@
 ---
 slug: what-we-would-change-at-scale
 title: "What we would change at scale: a design review of Ascend"
-description: A candid design review of this codebase at 10k and 100k daily users, covering multi-replica rate limiting, the real AI cost model, table growth and retention, observability and SLOs, server-verified submissions and a grading service, content hot-reload, what the review's fixes closed, and a ranked list of what is still open.
-minutes: 45
+description: A candid design review of this codebase at 10k and 100k daily users, covering multi-replica rate limiting, the real AI cost model, table growth and retention, observability and SLOs, server-verified submissions and a grading service, right-sizing an idle deployment, content hot-reload, what the review's fixes closed, and a ranked list of what is still open.
+minutes: 50
 difficulty: expert
 tags: [case-study, design-review, scalability, cost-modelling, observability, slo, rate-limiting, data-retention]
 ---
@@ -14,12 +14,12 @@ This lesson is the design review of the codebase you have been reading. It assum
 
 | Property | Today | Source |
 |---|---|---|
-| App servers | 2 API replicas, grading through the grader service since `PHASE_2` was switched on (`eed6d46`); stateless except a loose per-IP bucket kept in memory on purpose | `.railway/railway.ts`, `middleware/rate_limit.rs` |
+| App servers | 1 API replica grading in-process while invite-only (`04ab90f`); from `eed6d46` until then 2 replicas grading through the grader service, still one `PHASE_2` flag away; stateless except a loose per-IP bucket kept in memory on purpose | `.railway/railway.ts`, `middleware/rate_limit.rs` |
 | Database | One Postgres, 50 GB volume, `DATABASE_POOL_MAX` 15 per replica with a boot-time budget check; hourly retention | `railway.ts`, `state.rs`, `services/retention.rs` |
 | Hot reads (curriculum, lessons, problems) | From memory, never touch Postgres | `content/` loader, ETags |
 | AI | `claude-opus-5-5`; per user per UTC day, 150 requests, 120,000 output tokens and 2,000,000 billed input tokens (a default; cache writes count 1.25x, reads at the model's price, 0.05x here), each call's worst case held before it runs; 20 model calls per minute per session | `railway.ts`, `config.rs`, `ai/budget.rs` |
-| Code execution | In the browser for feedback; graded again on the server in WebAssembly, whose verdict is the one stored, by a separate `grader` service (2 replicas of 2 slots) | ADRs 0003, 0005 and 0006 |
-| Observability | JSON logs; metrics and 20%-sampled traces pushed over OTLP to Prometheus and Jaeger; three SLOs with burn-rate alerts; Grafana | `telemetry.rs`, `docs/SLO.md`, `ops/` |
+| Code execution | In the browser for feedback; graded again on the server in WebAssembly, whose verdict is the one stored: in the API process (2 slots) today, by a separate `grader` service (2 replicas of 2 slots) with `PHASE_2` | ADRs 0003, 0005 and 0006 |
+| Observability | JSON logs. Built, then switched off while invite-only (`OBSERVABILITY`, `04ab90f`): metrics and 20%-sampled traces pushed over OTLP to Prometheus and Jaeger, three SLOs with burn-rate alerts, Grafana | `telemetry.rs`, `docs/SLO.md`, `ops/` |
 | Deploys | Push to `main`, build on Railway once CI passes, readiness-gated | `railway.ts` |
 
 The architecture document's own scaling note is right about the shape: "Postgres is the bottleneck long before the app servers; the hot read paths (curriculum, lessons, problems) never touch it." The curriculum is served from memory with ETags, so 100x more readers is mostly a bandwidth problem. The interesting pressure points are elsewhere: the AI bill, the write-heavy tables, grading CPU and, until the latest round of changes, the fact that nobody could see any of it.
@@ -118,9 +118,13 @@ Until `3658224` the telemetry was one structured log line per request with a req
 
 ### After: pushed metrics, sampled traces, three SLOs
 
-`3658224` and `d3e239b` shipped most of it. Every replica pushes metrics over OTLP to Prometheus, labelled with its replica id and build: `http.server.request.duration` by route template and status, grading runs, duration and queue wait, AI tokens by class, budget decisions and time to first token, rate-limit refusals, retention deletes, emails, and pool and grading-slot gauges. Traces go to Jaeger, a fifth of requests sampled at the root. `docs/SLO.md` sets 99.5 percent availability over 30 days, 95 percent of ordinary API requests under 250 ms and 95 percent of grading under 5 s, with fast (14.4×) and slow (6×) burn-rate alerts ([Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) works the numbers). Note the target it chose: 99.5 percent, 3.6 hours a month, not the review's 99.9, because the SLO document calls that "honest for one region, one Postgres primary and a small team". An unmeetable SLO trains people to ignore the page.
+`3658224` and `d3e239b` shipped most of it. Every replica pushed metrics over OTLP to Prometheus, labelled with its replica id and build: `http.server.request.duration` by route template and status, grading runs, duration and queue wait, AI tokens by class, budget decisions and time to first token, rate-limit refusals, retention deletes, emails, and pool and grading-slot gauges. Traces went to Jaeger, a fifth of requests sampled at the root. `docs/SLO.md` sets 99.5 percent availability over 30 days, 95 percent of ordinary API requests under 250 ms and 95 percent of grading under 5 s, with fast (14.4×) and slow (6×) burn-rate alerts ([Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) works the numbers). Note the target it chose: 99.5 percent, 3.6 hours a month, not the review's 99.9, because the SLO document calls that "honest for one region, one Postgres primary and a small team". An unmeetable SLO trains people to ignore the page.
 
 Bringing the stack up in production found two gaps that no reading of the code could have. The alert rules evaluated, but `prometheus.yml` had no `alerting:` block, so no page could ever have been sent. And the Prometheus volume was declared but never attached, because the mount was written in a shape Railway's config engine ignored without an error (the backup schedules too), so every deploy of Prometheus started from empty. A second review of the scale work found a third that reading could: a request cut off by the 240 s timeout never reached the histogram, because the timing layer sat inside the timeout. `2f1daaa` and `f4fab0a` fixed all three; [Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) has the failure-mode rows. An SLO is only as real as the path from the failing request to a person's phone.
+
+### Then: switched off, because the path ended nowhere
+
+The path never reached a phone. `ALERT_WEBHOOK_URL` was never set, so every alert stopped at Alertmanager; Grafana's traffic was mostly bots; and idle, Grafana (about 920 MB) with Prometheus, Jaeger and Alertmanager (about 210 MB together) held over a gigabyte of memory, which Railway bills every minute. `04ab90f` put the four services behind `OBSERVABILITY = false`. Logs are the production telemetry again; `metrics.rs` still records through the OpenTelemetry API, which is a no-op without an exporter, and one apply brings the stack back with its volume's history. Observability is for a reader: a pipeline that pages no one is cost without protection, and the cheaper first step when traffic arrives is the webhook, not more dashboards.
 
 What is still missing is where this review's cost story lives: tokens are counted by class but not priced per product, nothing counts stream outcomes (completed, disconnected, upstream error, persistence failed), the API's spans stop at the request with no child for the model call or the database (only grading continues the trace, as a `grade` span in the grader since `2f1daaa`), the browser reports nothing, and Jaeger keeps traces in memory, so a restart loses them. See [Observability](/learn/system-design/building-blocks/observability) for the general method; the point for this codebase is that its cost weaknesses were invisible *because* there were no metrics, and a token counter by class is what would have shown the unbudgeted cache writes without reading the code.
 
@@ -128,7 +132,15 @@ What is still missing is where this review's cost story lives: tokens are counte
 
 The first review took ADR 0003's closing line as the trigger ("Leaderboards or competitive features would need server-side verification") and priced two options. Verifying every run at 100,000 DAU with 15 runs each means 1.5 million sandboxed executions a day, about 17 per second on average and perhaps five times that at peak; at roughly one vCPU-second per run in a container sandbox, that is on the order of 90 busy vCPUs at peak. Verifying only "submit for credit" was a fifteenth of that, so the review recommended it.
 
-ADR 0005 verifies every signed-in run instead, because the unit price changed, not the method: on the development machine a WebAssembly CPython starts in about 0.09 s with a precompiled standard library, QuickJS in about 0.02 s. Redo the arithmetic assuming 0.1 to 0.2 CPU-seconds per run (start-up plus small tests): 87 runs a second at peak needs roughly 9 to 17 busy cores, a few replicas rather than a fleet. ADR 0005 named the next step, a grading service behind the same interface, and `c0b3151` built it: `ascend-api --serve-grader`, no secrets, reached over the private network with a new connection per request and one retry on a busy or failed replica (any failure but a timeout, since `2f1daaa`). At `GRADER_SLOTS` of 2 per replica, those 9 to 17 cores are 5 to 9 grader replicas, added in `railway.ts` when `GraderSaturated` fires, without touching the API or its database connections. Skipping a run whose code matches the previous one would save a grading run as well as a row. Price both options, and re-price when the technology under one of them changes.
+ADR 0005 verifies every signed-in run instead, because the unit price changed, not the method: on the development machine a WebAssembly CPython starts in about 0.09 s with a precompiled standard library, QuickJS in about 0.02 s. Redo the arithmetic assuming 0.1 to 0.2 CPU-seconds per run (start-up plus small tests): 87 runs a second at peak needs roughly 9 to 17 busy cores, a few replicas rather than a fleet. ADR 0005 named the next step, a grading service behind the same interface, and `c0b3151` built it: `ascend-api --serve-grader`, no secrets, reached over the private network with a new connection per request and one retry on a busy or failed replica (any failure but a timeout, since `2f1daaa`). At `GRADER_SLOTS` of 2 per replica, those 9 to 17 cores are 5 to 9 grader replicas, added in `railway.ts` (with `PHASE_2` back on) when `GraderSaturated` fires, without touching the API or its database connections. Skipping a run whose code matches the previous one would save a grading run as well as a row. Price both options, and re-price when the technology under one of them changes.
+
+## Right-sizing: the scale work, switched off
+
+The review so far asks what breaks with more traffic. The bill asked the opposite question. Idle, the scaled deployment held about 2.7 GB of memory: Grafana about 920 MB, two API replicas about 400 MB each, two grader replicas about 375 MB each, Prometheus, Jaeger and Alertmanager about 210 MB, Postgres about 50 MB. On a platform that bills memory held, every minute, that was about $27 a month against about $5 for the app alone, five times the app's cost for a site that was invite-only.
+
+`04ab90f` kept the work and stopped paying for it. `PHASE_2` and `OBSERVABILITY` are `false`, production is one `ascend` replica grading in-process plus Postgres, about 0.15 GB, and each switch is one apply back (runbook, "Scaling back up"). The same commit shrank the one process left: `TOKIO_WORKER_THREADS=2` and `MALLOC_ARENA_MAX=2` took idle RSS from 470 MB to 342 MB, because Railway reports its 24-vCPU limit as the CPU count; mapping ahead-of-time-compiled runtimes instead of compiling them at boot took it to 97 MB, against 92 MB with no grader at all ([Build and deploy](/learn/case-study-ascend/shipping/build-and-deploy) has the table).
+
+Three habits generalise. **YAGNI applies to infrastructure**: build what correctness needs before the second replica (shared limits, locked migrations, a connection budget), and run capacity when a named trigger fires. **Price idle as well as peak**: per-service idle memory times the platform's rate is a number you can know before the invoice. **Measure before scaling out**: the 24-thread default was invisible until someone read RSS, and the process ended at about a fifth of its first figure.
 
 ## Content hot-reload
 
@@ -147,6 +159,7 @@ Keep both lists: the fixed one is evidence the review was worth doing, and most 
 | Streaks from a mutable column, in UTC days; deletion cascaded into others' comments | `m0007`, `m0011` | `activity_days` in the learner's time zone (`0203d76`); `ON DELETE SET NULL` |
 | Results self-reported; then four copies of the comparison rule, and exercises no server had graded | `crates/grader` | Graded on the server in WebAssembly (`25fd477`); one `compare.js` and 1,430 reference solutions in CI (`e47282a`, `f29c337`) |
 | One replica grading in-process; no metrics, traces or SLOs; rows kept forever; no password reset | `railway.ts`, `telemetry.rs`, `retention.rs`, `auth/` | A grading service (`c0b3151`), switched on with two API replicas (`eed6d46`); OTLP metrics, traces, SLOs (`3658224`, `d3e239b`); retention (`531f48d`); reset links (`39052ce`) |
+| An idle stack costing five times the app; Tokio workers and malloc arenas sized for 24 CPUs; runtimes compiled into anonymous memory at boot | `railway.ts`, `sandbox.rs` | `PHASE_2` and `OBSERVABILITY` off; two workers and two arenas; mapped `.cwasm` runtimes: 470 MB to 97 MB idle (`04ab90f`) |
 | Alerts never sent; metrics lost at each deploy; timeouts unmeasured; a grader dying mid-request failed the submission; one transaction for every retention batch | `prometheus.yml`, `railway.ts`, `app.rs`, `grading.rs`, `retention.rs` | An `alerting:` block, Jaeger held at 2.20, metrics outside the timeout, a retry on any failure but a timeout, a transaction per batch (`2f1daaa`); the volume attached (`f4fab0a`) |
 | Transcripts: read-modify-write, replies landing after or during a grade, racing finishes, an orphaned grade stuck on a spinner | `interviews.rs` | One SQL append; status guards; `grading` before the grader runs (`c4c5de7`); "Grade again" (`7066802`) |
 | Coach lock UI-only; deploys not waiting for CI | `coach.rs`, `railway.ts` | A 409; `checkSuites: true` |
@@ -163,18 +176,19 @@ What is still open, ranked, with the symptom each would show and how you would f
 | 2 | Budgets in weighted tokens, not money | A model or price change silently moves every bound | Compare `ai_usage` with the invoice | Price each token class per call from a table keyed by model |
 | 3 | Railway builds its own image (`railway.ts`) | Production fails in a way CI never saw | The running image's digest matches nothing CI tested | Push CI's image and deploy that digest |
 | 4 | Retention's bound exceeds the volume at 10,000 DAU | The volume alerts at 80 percent | Size `submissions` and `messages` against their periods | Shorter periods, dedupe, partitions or object storage |
-| 5 | AI cost invisible per product; no stream outcomes; traces lost on restart | A dearer coach or lost replies go unnoticed | Tokens are counted by class only; Jaeger is in memory | Priced counters, an outcome counter, persistent traces |
-| 6 | No pooler | A deploy past about four replicas exhausts connections | The boot check warns below 10 spare | PgBouncer in transaction mode |
-| 7 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
+| 5 | Nothing pages while observability is off | An outage is reported by a learner | No Prometheus runs, and `ALERT_WEBHOOK_URL` was never set | Set the webhook first, then `OBSERVABILITY` on, when traffic justifies it |
+| 6 | AI cost invisible per product; no stream outcomes; traces lost on restart | A dearer coach or lost replies go unnoticed | Tokens are counted by class only; Jaeger is in memory | Priced counters, an outcome counter, persistent traces |
+| 7 | No pooler | A deploy past about four replicas exhausts connections | The boot check warns below 10 spare | PgBouncer in transaction mode |
+| 8 | Readiness checks only the database (`routes/health.rs`) | A revoked AI key goes live with `ai: true` | Every coach call fails after a green deploy | Boot-time key probe |
 
 ## The plan, in order
 
 1. **Cost safety now**, whatever the traffic: a global spend breaker, and the per-user limit moved from weighted tokens to money before a second model arrives.
 2. **Before 10,000 DAU**: effort and `max_tokens` tuning per product, priced AI metrics and stream outcomes, retention periods that fit the volume (or partitions), and deploying the tested image by digest.
-3. **Past a few replicas**: `PHASE_2` is on (`eed6d46`), so add grader replicas as `GraderSaturated` asks, PgBouncer past about four API replicas, and canary releases on the per-replica metrics that now exist.
+3. **When traffic arrives**: `OBSERVABILITY` back on with the webhook set, then `PHASE_2` (one apply each), grader replicas as `GraderSaturated` asks, PgBouncer past about four API replicas, and canary releases on the per-replica metrics.
 4. **When the product changes**: server-only tests if contests arrive, content hot-reload for non-engineer authors.
 
-Notice what is *not* on the list: splitting the monolith, sharding Postgres, moving the SPA to a CDN. At 100,000 DAU the constraints are money, data growth and visibility, and each has a specific fix that does not require a rewrite.
+Notice what is *not* on the list: splitting the monolith, sharding Postgres, moving the SPA to a CDN, or running the scaled stack before step 3. At 100,000 DAU the constraints are money, data growth and visibility, and each has a specific fix that does not require a rewrite.
 
 ## What to test more, at scale
 
@@ -189,9 +203,11 @@ Notice what is *not* on the list: splitting the monolith, sharding Postgres, mov
 
 **"Is the AI spend bounded?"** Model answer: per user, yes: $2.40 of output and $8.00 of billed input, $10.40 a day at worst, and since holds are taken before each call nothing in flight can overshoot it (bar an input estimate that runs low). In total, no: the per-user fuse times 100,000 users is over a million dollars a day, which is why a global breaker and a money-denominated budget come first on the plan. Common wrong answer: "the budget caps the cost", which confuses a per-user fuse with a bill.
 
-**"Would you split this into services?"** Model answer: only where a boundary buys something, and Ascend split exactly one. Grading scales on CPU rather than requests, and it runs untrusted code, so a service with no secrets gains isolation too; ADR 0006 accepts a network hop and a retry for that. None of the other constraints (money, data growth) is solved by a network boundary. Common wrong answer: "microservices scale better", answering a question the numbers do not ask.
+**"Would you split this into services?"** Model answer: only where a boundary buys something, and Ascend split exactly one. Grading scales on CPU rather than requests, and it runs untrusted code, so a service with no secrets gains isolation too; ADR 0006 accepts a network hop and a retry for that, and since the service is the same binary behind a flag, production could fold it back in-process while idle. None of the other constraints (money, data growth) is solved by a network boundary. Common wrong answer: "microservices scale better", answering a question the numbers do not ask.
 
-**"How would you know the coach got slower after a deploy?"** Model answer: `ascend_ai_first_token_seconds` is a histogram, and every replica labels its metrics with its build, so compare p95 before and after the deploy in Grafana. It is deliberately not an SLO, because most of that time is the provider's. What you still could not see is replies lost or cut short, since nothing counts stream outcomes. Common wrong answer: "check the logs", which hold no such number.
+**"How would you know the coach got slower after a deploy?"** Model answer: `ascend_ai_first_token_seconds` is a histogram, and every replica labels its metrics with its build, so compare p95 before and after the deploy in Grafana, once `OBSERVABILITY` is back on; while it is off you could not, which is the price of the lean setup. It is deliberately not an SLO, because most of that time is the provider's. Replies lost or cut short stay invisible either way, since nothing counts stream outcomes. Common wrong answer: "check the logs", which hold no such number.
+
+**"You built a grading service and a monitoring stack, then switched both off. Was building them a mistake?"** Model answer: no, running them idle was. The correctness work behind them (shared limits, locked migrations, a connection budget) has to exist before a second replica, and the services now sit one apply away. Running them cost about five times the app, for alerts routed to an unset webhook and a dashboard visited by bots. Size what runs to the traffic you have, know each service's idle cost, and turn capacity on at a named trigger. Common wrong answer: "always run production as you would at scale", which pays for capacity and alerts nobody uses.
 
 ## What mid-level engineers get wrong
 
@@ -201,6 +217,7 @@ Notice what is *not* on the list: splitting the monolith, sharding Postgres, mov
 - **Deleting old rows in bulk.** Dead tuples, vacuum debt and WAL for every row; dropping a monthly partition costs almost nothing.
 - **Pricing tokens without their cache class.** Reads at 0.05x and writes at 1.25x move a conversation's cost by a factor of two either way.
 - **Scaling out before you can see.** Without metrics, the second replica's effect on limits, pool and cost is a guess.
+- **Running capacity before there is traffic.** Idle replicas and dashboards are billed by the minute, and an alert pipeline with no receiver protects nothing.
 
 ## Exercise
 
@@ -283,6 +300,7 @@ hints:
 - You plan retention per table from what each row is for, check that the bound fits the storage, and know when batched deletes stop being enough and partitions are needed.
 - You set SLOs the architecture can meet, alert on error-budget burn, and use metrics to find the weaknesses you cannot see by reading code.
 - You rank changes (correctness and cost safety, then visibility, then scale-out, then product redesigns), say what you would *not* change, and keep the list of what was fixed as evidence.
+- You price idle as well as peak, keep built capacity behind switches until a trigger fires, and measure a process's memory before adding replicas of it.
 
 ## Check yourself
 

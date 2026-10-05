@@ -80,13 +80,13 @@ The same artifact runs everywhere; only configuration and data differ.
 | CI | debug and release builds | an empty Postgres per job | regressions, integration, browser journeys | the rust and image jobs |
 | Preview | one deployment per pull request | seeded | what reviewers need to click | not configured |
 | Staging | the production artifact | realistic volume | config, migrations on real-sized data, third-party integrations | none |
-| Production | the artifact | real | everything else | Railway: the API, a grading service, monitoring |
+| Production | the artifact | real | everything else | Railway: the API and Postgres; a grading service and monitoring behind switches, off while invite-only |
 
 Staging earns its cost when it differs from CI in the dimension that breaks you: data volume (a migration that takes 40 ms on 10,000 rows can take minutes on 400 million, as [schema migrations at scale](/learn/databases/data-modeling-and-evolution/schema-migrations-at-scale) measures) or real integrations. Staging with CI's data adds only a queue.
 
 Configuration must be data read from the environment and **validated at boot**. `crates/core/src/config.rs` refuses to start on a bad value (a non-Postgres `DATABASE_URL`, or production without secure cookies), so a bad variable fails the new deployment's health check while the previous version keeps serving, instead of failing the first request that touches it.
 
-Configuration can also be a release switch. With no `ANTHROPIC_API_KEY`, AI routes return `AiDisabled` (a 503 with code `ai_disabled`) and the UI shows a notice. That is a **feature flag**: it separates *deploying* code from *releasing* behaviour.
+Configuration can also be a release switch. With no `ANTHROPIC_API_KEY`, AI routes return `AiDisabled` (a 503 with code `ai_disabled`) and the UI shows a notice. That is a **feature flag**: it separates *deploying* code from *releasing* behaviour. Infrastructure has them too: `PHASE_2` and `OBSERVABILITY` in `.railway/railway.ts` decide whether the grading service and the monitoring stack exist, so commit `04ab90f` could switch both off while the site is invite-only, and turning them back on is one apply.
 
 ## How this app deploys
 
@@ -97,7 +97,7 @@ Configuration can also be a release switch. With no `ANTHROPIC_API_KEY`, AI rout
 const app = service("ascend", {
   // Builds the root Dockerfile. A push to main deploys once CI passes.
   source: github("thull32/ascend", { checkSuites: true }),
-  replicas: { [region]: PHASE_2 ? 2 : 1 }, // PHASE_2 is true since eed6d46: 2 replicas
+  replicas: { [region]: PHASE_2 ? 2 : 1 }, // PHASE_2: true from eed6d46, false since 04ab90f
   // Migrations run on boot before the server binds, so a passing readiness
   // probe means the schema is current and Postgres is reachable.
   healthcheck: "/api/readyz",

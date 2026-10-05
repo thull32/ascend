@@ -232,7 +232,7 @@ What the app records today, and what each piece answers:
 | `coach turn complete`: input, output, cache-read and cache-write tokens | One log event per coach turn | Cost per turn; cache hit rate per turn |
 | `ai_usage`: requests and all four token counters per user per UTC day | Postgres | Spend per user; who is near a cap; daily cache hit rate |
 | Input and output tokens on each stored assistant message | `messages` rows | Which replies were expensive |
-| Budget decisions, tokens by kind, time to first token | OpenTelemetry metrics pushed over OTLP (since commit `3658224`) | Whether users hit caps; whether the wait grows |
+| Budget decisions, tokens by kind, time to first token | OpenTelemetry metrics pushed over OTLP (since commit `3658224`; production has set no endpoint since `04ab90f`) | Whether users hit caps; whether the wait grows |
 | Provider failures | warn-level logs with the provider's status and a truncated body | Whether the provider is struggling |
 
 From the counters, the cache hit rate is `cache_read / (input + cache_read + cache_write)`; ADR 0004 names a falling hit rate as a reason to revisit the design, because it means a prompt change broke the stable prefix. Two gaps remain. Generation time is not recorded: a stream's HTTP latency stops when the stream opens, and only first-token time has a histogram. And no eval suite checks the replies (the stub-model tests in `crates/api/tests/ai.rs` check plumbing); the first should run any code in a reply against the problem's own tests.

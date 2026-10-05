@@ -20,8 +20,8 @@ flowchart LR
   C --> P[("PostgreSQL")]
   C --> M[("Curriculum in memory")]
   C -->|HTTPS, SSE| AN["Anthropic API"]
-  C -->|in process, or HTTP| G["ascend-grader: Wasm sandbox, also its own service"]
-  A -.->|OTLP| O["Prometheus, Jaeger"]
+  C -->|in process, or HTTP| G["ascend-grader: Wasm sandbox, its own service behind PHASE_2"]
+  A -.->|OTLP| O["Prometheus, Jaeger: off while invite-only"]
 ```
 
 Three facts shape almost every other decision:
@@ -38,7 +38,7 @@ Three facts shape almost every other decision:
 | `crates/api` | HTTP adapter: router, middleware, extractors, routes, static SPA hosting. A library plus a thin `main.rs`. | You add an endpoint or change request handling |
 | `crates/grader` | Server-side grading: CPython and QuickJS on WASI, run by Wasmtime under limits; `harness/` holds the one harness per language and `compare.js`, shared with the browser | You change how submissions are judged |
 | `crates/api/tests` | Integration tests against a real Postgres (`api.rs`), the AI routes against a stub model (`ai.rs`), the grading service (`grading_service.rs`), shutdown over real sockets (`shutdown.rs`) | You want to know what the API actually promises |
-| `migration` | SeaORM migrations `m0001` to `m0013`, append-only | You touch the schema |
+| `migration` | SeaORM migrations `m0001` to `m0014`, append-only | You touch the schema |
 | `content` | Curriculum and practice problems as Markdown with YAML front matter, plus the authoring contract | You write or fix content |
 | `web` | React SPA, code runners (`web/src/runner`), visualisation engine (`web/src/viz`) | You change the UI |
 | `solutions` | Reference solutions for every exercise and problem, graded by the server in CI | An exercise fails only on the server |
@@ -106,7 +106,7 @@ Trace a production boot step by step, with what each step changes and what happe
 | 2 | `connect_db`, `check_connection_budget` | A pool of 2 to `DATABASE_POOL_MAX` (15 in production), 5 s acquire timeout; a warning if under 10 connections would be spare | Exit; the old deployment keeps serving |
 | 3 | `migrate::run` | Takes a Postgres advisory lock, compares the build's migrations with `seaql_migrations`, **applies pending ones to the shared schema** | Exit non-zero, and the readiness probe never passes; a database *ahead* of the build (a rollback) boots without migrating |
 | 4 | `load_curriculum` | None | Exit, *after* step 3 has already migrated |
-| 5 | `load_grader`, `AppState::build`, `password::warm_up` | The grading service if `GRADER_URL` is set, else compiles the Wasm runtimes; builds every service; the dummy Argon2 hash | A missing local grader is fatal in production; a missing API key only disables AI features |
+| 5 | `load_grader`, `AppState::build`, `password::warm_up` | The grading service if `GRADER_URL` is set, else loads the Wasm runtimes (mapping the `.cwasm` files compiled at image build, compiling only if Wasmtime rejects them); builds every service; the dummy Argon2 hash | A missing local grader is fatal in production; a missing API key only disables AI features |
 | 6 | Hourly maintenance | Prunes limiter state; sweeps sessions and email links; retention | A warning in the log |
 | 7 | Bind and serve | `/api/readyz` runs `SELECT 1` and reports the build id; Railway waits up to 120 s for it | The deploy is not promoted |
 | 8 | `SIGTERM` | Stop accepting; wait up to 25 s (`DRAIN_TIMEOUT`) for open connections, then up to 30 s for tracked AI tasks, inside Railway's 60 s drain window | Warnings for connections still open and for tasks cut off |
@@ -117,7 +117,7 @@ The table also shows the flaw. Step 4 is pure and takes milliseconds; step 3 mut
 
 ### The router is the table of contents
 
-`crates/api/src/app.rs` mounts eight route modules under `/api` (about forty endpoints) and falls back to the SPA for everything else. The middleware wrapped around them is the subject of [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request); for now, notice that the whole public surface fits on one screen, and that is itself a design goal.
+`crates/api/src/app.rs` mounts nine route modules under `/api` (about forty endpoints; the ninth, `admin`, answers 404 unless `ADMIN_TOKEN` is set) and falls back to the SPA for everything else. The middleware wrapped around them is the subject of [Anatomy of a request](/learn/case-study-ascend/the-system/anatomy-of-a-request); for now, notice that the whole public surface fits on one screen, and that is itself a design goal.
 
 ### One vertical slice
 
@@ -253,7 +253,7 @@ ADR 0001 records the decision: a single Rust binary serves the API and the built
 Compare Ascend with the textbook web stack. Step through it, then map each box.
 
 ```viz
-{"type": "system", "algorithm": "request-flow", "title": "The textbook request path", "caption": "Map each box to Ascend: the CDN is the browser cache plus immutable hashed assets, the load balancer is Railway's edge in front of two replicas, and there is no Redis because the hot data is compiled into the binary."}
+{"type": "system", "algorithm": "request-flow", "title": "The textbook request path", "caption": "Map each box to Ascend: the CDN is the browser cache plus immutable hashed assets, the load balancer is Railway's edge in front of one replica (two with PHASE_2), and there is no Redis because the hot data is compiled into the binary."}
 ```
 
 Concretely, Ascend sets `Cache-Control: public, max-age=31536000, immutable` on content-hashed files under `/assets/` and `no-cache` on `index.html`, which gets most of a CDN's benefit for a single-region product.
@@ -264,15 +264,15 @@ One claim deserves a correction. Shipping the SPA inside the API binary does not
 
 | Concern | Today | At 100x | Why |
 |---|---|---|---|
-| Replicas | Two API replicas since `PHASE_2` was switched on (`eed6d46`), one region | Several, and a second region | Availability |
+| Replicas | One API replica while invite-only (`04ab90f`); two from `eed6d46` until then, one flag away; one region | Several, and a second region | Availability |
 | Rate limiting | Security limits in Postgres, one upsert per check; a per-replica flood bucket | The shared table on its own store if its writes show up on the primary | Every login, model call and graded run writes a row |
-| Grading | A `grader` service (ADR 0006), 2 replicas of 2 slots, no secrets | More grader replicas when `GraderSaturated` fires | Grading CPU scales apart from requests |
+| Grading | In the API process, 2 slots, while invite-only; a `grader` service (ADR 0006) of 2 replicas of 2 slots, no secrets, behind `PHASE_2` | More grader replicas when `GraderSaturated` fires | Grading CPU scales apart from requests |
 | Database connections | `DATABASE_POOL_MAX` 15 per replica, checked at boot | PgBouncer past about four replicas | A rolling deploy doubles the replicas |
 | Lesson responses | Serialised and compressed per request | Pre-serialised and pre-compressed at boot, assets on a CDN | CPU per request goes to zero for the hottest path |
 | AI streaming | A tracked task inside the web process, drained for up to 30 s after connections close | A job queue and worker, streaming through a broker | No reply is cut off by a deploy, however long it runs |
 | Migrations | Run at boot under an advisory lock; other replicas wait, then find nothing to do | A separate release step | A long migration holds every booting replica behind the lock |
 
-Knowing the order in which these become necessary is the point. The in-process rate limiter was the one thing that would have been *wrong* with two replicas, so it moved first, while Ascend still ran one; the grader and the connection budget followed before the second replica, and everything left in the table is merely slower.
+Knowing the order in which these become necessary is the point. The in-process rate limiter was the one thing that would have been *wrong* with two replicas, so it moved first, while Ascend still ran one; the grader and the connection budget followed before the second replica, and everything left in the table is merely slower. The same order made the way back cheap: when idle capacity cost five times the app, `04ab90f` returned to one replica with a flag, because nothing that kept the system correct depended on the second.
 
 ## When comments and code disagree
 
@@ -305,13 +305,13 @@ The senior response is neither outrage nor indifference. Trust the code, fix the
 | Postgres is unreachable for a minute | Lessons still load, but logins, model calls and graded runs answer 503 `unavailable` | `shared rate limit unavailable` in the log; `/api/readyz` reports `database: false` | Intended: the shared limiter fails closed because it guards passwords and spend; restore the database rather than fail open |
 | A deploy lands during a long AI reply | A reply saved half-written, or not at all | `background tasks still running at shutdown` with a `remaining` count | Today up to 25 s for connections and 30 s for tasks, inside a 60 s window; at scale a job queue that outlives the web process |
 | A tab opened before a deploy | 4xx errors from one browser on an endpoint whose shape changed; before `8f82820`, a blank screen when it lazily loaded a chunk | Request ids on the errors, all within minutes of the deploy; 404s for `/assets/` names the new build lacks | Additive API changes; the content ETag includes the build id; missing assets are 404 and the SPA reloads once |
-| Slow queries hold the pool | Requests fail after exactly 5 s with a pool timeout, while Postgres looks idle | The acquire timeout in `connect_db`; `DbPoolNearlyExhausted` fires; `pg_stat_activity` shows 15 busy connections | Fix the slow query first; replicas do not help, and a pooler only past about four |
+| Slow queries hold the pool | Requests fail after exactly 5 s with a pool timeout, while Postgres looks idle | The acquire timeout in `connect_db`; `DbPoolNearlyExhausted` fires when observability is on; `pg_stat_activity` shows 15 busy connections | Fix the slow query first; replicas do not help, and a pooler only past about four |
 
 ## Interviewer follow-ups
 
 **"Why one binary serving the SPA and the API, rather than a CDN plus an API service?"** Model answer: ADR 0001 buys one artifact, one pipeline and same-origin cookies with no CORS; content-hashed assets marked `immutable` and a `no-cache` `index.html` get most of a CDN's benefit for a single-region product. What it gives up is edge latency far from the region and independent front-end deploys, and version skew survives in open tabs. Common wrong answer: "a monolith is simpler", with no statement of what it costs or when to revisit it.
 
-**"What breaks first at 100 times the users?"** Model answer: separate *incorrect* from *slower*. The things that used to become wrong at two replicas are fixed: the security rate limits are shared in Postgres, and migrations, which used to race, queue behind an advisory lock; only the loose flood bucket multiplies, by design. Then 15 connections per replica against `max_connections` past about four replicas, then AI spend, bounded per user but not in total; grading CPU already scales on its own service. Serving lessons stays cheap because the content is in memory. Common wrong answer: "the database", without a number or a mechanism.
+**"What breaks first at 100 times the users?"** Model answer: separate *incorrect* from *slower*. The things that used to become wrong at two replicas are fixed: the security rate limits are shared in Postgres, and migrations, which used to race, queue behind an advisory lock; only the loose flood bucket multiplies, by design. Then 15 connections per replica against `max_connections` past about four replicas, then AI spend, bounded per user but not in total; grading CPU moves to its own service with one flag. Serving lessons stays cheap because the content is in memory. Common wrong answer: "the database", without a number or a mechanism.
 
 **"Why integration tests against Postgres instead of repository traits and mocks?"** Model answer: the correctness of this codebase lives in SQL semantics: a row lock for the budget hold, a conditional upsert for the shared rate limits, a partial unique index for one active interview. A mock returns whatever the test author believed, so it would pass exactly the races those statements exist to stop. Common wrong answer: "mocks are faster, so unit-test everything", which tests the author's model of Postgres instead of Postgres.
 

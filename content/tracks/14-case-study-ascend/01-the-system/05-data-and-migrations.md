@@ -8,7 +8,7 @@ tags: [case-study, postgres, schema-design, upsert, migrations, idempotency, con
 ---
 The schema is the part of a system you cannot redeploy your way out of. Code can be rolled back in a minute; a column that was dropped, a constraint that was never added, or a table whose rows reference content that no longer exists stays wrong until someone writes a migration and a backfill. That is why a senior reviewer reads the migrations before the services.
 
-Ascend's database is small: fifteen tables across thirteen migrations (twelve and seven when this lesson was first written), and almost every row is owned directly or indirectly by a user (the exceptions are the rate limiter's keys and comments whose author deleted their account, one of this lesson's stories). What makes it worth a lesson is what is *not* in it (the curriculum), how its writes avoid read-modify-write races, how it forgets, and how the schema changes while the previous version of the code is still serving traffic.
+Ascend's database is small: sixteen tables across fourteen migrations (twelve and seven when this lesson was first written; the newest, `m0014_invites`, holds the hashed codes for invite-only sign-up), and almost every row is owned directly or indirectly by a user (the exceptions are the rate limiter's keys, invite codes, and comments whose author deleted their account, one of this lesson's stories). What makes it worth a lesson is what is *not* in it (the curriculum), how its writes avoid read-modify-write races, how it forgets, and how the schema changes while the previous version of the code is still serving traffic.
 
 ## The schema in one diagram
 
@@ -469,10 +469,10 @@ Migrations **run on boot, before the server binds**, through `crates/api/src/mig
 
 | This build knows | The database has applied | Plan | Boot does |
 |---|---|---|---|
-| `m0001` to `m0013` | nothing (a fresh database) | `Apply` all thirteen | Runs them, logs `migrations applied` |
-| `m0001` to `m0013` | `m0001` to `m0013` | `UpToDate` | Nothing |
-| `m0001` to `m0012` (a rollback) | `m0001` to `m0013` | `SchemaAhead(["m0013_retention_indexes"])` | Warns and starts without migrating |
-| `m0001` to `m0012` plus a new `m0014` from another branch | `m0001` to `m0013` | `Diverged` | Refuses to boot |
+| `m0001` to `m0014` | nothing (a fresh database) | `Apply` all fourteen | Runs them, logs `migrations applied` |
+| `m0001` to `m0014` | `m0001` to `m0014` | `UpToDate` | Nothing |
+| `m0001` to `m0013` (a rollback) | `m0001` to `m0014` | `SchemaAhead(["m0014_invites"])` | Warns and starts without migrating |
+| `m0001` to `m0013` plus a new `m0015` from another branch | `m0001` to `m0014` | `Diverged` | Refuses to boot |
 
 The third row is new in commit `8f82820`. Before it, `main` called `Migrator::up` directly, which refuses to start when the database records a migration the binary has no file for, so after any release that migrated, rollback did not work. Inside `Apply`, `sea-orm-migration` runs each migration in its own transaction together with its bookkeeping row, so a failure leaves no half-applied schema; the process exits non-zero, the new deployment never passes `/api/readyz`, and Railway keeps the old one serving. `boot_migrations_are_locked_and_tolerate_a_newer_schema` runs two boots at once and then plants a version from the future.
 

@@ -6,7 +6,7 @@ minutes: 40
 difficulty: hard
 tags: [case-study, axum, middleware, http, error-handling, extractors, request-lifecycle]
 ---
-You tap "Mark complete" at the end of a lesson and the button turns green about thirty milliseconds later. In between, the request crossed a TLS terminator, eight layers of middleware wrapped around the whole app, three more wrapped around the API, four extractors, one service, three database round trips and a single function that turns domain errors into status codes, and then went back out through most of those layers in reverse.
+You tap "Mark complete" at the end of a lesson and the button turns green about thirty milliseconds later. In between, the request crossed a TLS terminator, nine layers of middleware wrapped around the whole app, three more wrapped around the API, four extractors, one service, three database round trips and a single function that turns domain errors into status codes, and then went back out through most of those layers in reverse.
 
 Every one of those steps is ordinary. The interesting part is the *order*. Move the request-ID layer inside the tracer and every log line says `request_id=-`. Put the timeout outside the tracer and timed-out requests vanish from your logs. Check the body before the session and you parse JSON for strangers. This lesson follows one real request through `crates/api` in the order the code applies it, and shows what each position buys.
 
@@ -56,6 +56,7 @@ Router::new()
     )
     .layer(PropagateRequestIdLayer::x_request_id())
     .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+    .layer(middleware::from_fn_with_state(state.clone(), crate::middleware::canonical_host::redirect))
     // Outermost: a client-supplied id is kept only if it is a UUID, so
     // logs cannot be polluted or correlated with attacker-chosen values.
     .layer(middleware::from_fn(crate::middleware::request_id::sanitise))
@@ -68,6 +69,7 @@ The rule that makes this readable: **each `.layer()` wraps everything built befo
 let api = Router::new()
     .merge(routes::health::router())
     .nest("/auth", routes::auth::router(state.clone()))
+    .merge(routes::admin::router())
     .merge(routes::curriculum::router())
     .merge(routes::problems::router(state.clone()))
     .merge(routes::progress::router())
@@ -88,7 +90,9 @@ Put together, the request path looks like this:
 ```mermaid
 flowchart TD
   RQ["request from Railway edge"] --> SN["Sanitise client request id"]
-  SN --> SR["SetRequestId"]
+  SN --> CH{"host in REDIRECT_HOSTS?"}
+  CH -->|yes| R308["308 to PUBLIC_ORIGIN"]
+  CH -->|no| SR["SetRequestId"]
   SR --> PR["PropagateRequestId"]
   PR --> TR["Trace span"]
   TR --> MR["Metrics: time the request"]
@@ -111,6 +115,7 @@ flowchart TD
 | Layer | What it does | Why this position | What breaks if you move it |
 |---|---|---|---|
 | `request_id::sanitise` | Drops a client-supplied `x-request-id` unless it parses as a UUID | Outermost, before anything reads the header | Inside `SetRequestId`, a forged id such as `<script>` would already have been adopted as the request's id, and removing it afterwards would leave later layers with none |
+| `canonical_host::redirect` | Answers a request for a host in `REDIRECT_HOSTS` (`www` and the old `up.railway.app` name, since `7b3c544`) with a 308 to the same path on `PUBLIC_ORIGIN`, keeping method and body | Just inside the sanitiser, so a redirect does no other work; health checks and private-network calls use other host names, so they pass | Inside the `/api` layers, the SPA would load on the old host and every sign-in there would fail CSRF, which accepts one origin |
 | `SetRequestId` | Puts a fresh UUID in `x-request-id` if none survived sanitising | Outside everything that logs, so every other layer can read it | Inside `Trace`, every span logs `request_id=-` because `make_span_with` reads the header before it exists |
 | `PropagateRequestId` | Copies the id onto the response | Outside the timeout | Inside it, a timed-out request returns without an id, which is exactly the one a user will report |
 | `Trace` | One span per request, one INFO line per response with status and latency | Outside the timeout, inside the id | Inside the timeout, a timed-out request's span is dropped and it never logs a response |
@@ -265,7 +270,7 @@ sequenceDiagram
   M-->>B: 200, headers, x-request-id
 ```
 
-In the same region each database round trip is roughly a millisecond, so the three cost a few milliseconds; most of the thirty goes on the network between the browser and the edge, and the ten layers of middleware cost microseconds. The count has moved twice, and both moves were deliberate. An earlier version of the service ran the upsert and then re-read the row with a separate `SELECT`; returning the row from the upsert itself removed a round trip from the most frequent write in the product. Then the streak fix added one back: the activity-log insert that makes streaks correct ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations)). One millisecond for correct streaks is a good trade; if it ever was not, a data-modifying CTE could send both writes as one statement.
+In the same region each database round trip is roughly a millisecond, so the three cost a few milliseconds; most of the thirty goes on the network between the browser and the edge, and the twelve layers of middleware cost microseconds. The count has moved twice, and both moves were deliberate. An earlier version of the service ran the upsert and then re-read the row with a separate `SELECT`; returning the row from the upsert itself removed a round trip from the most frequent write in the product. Then the streak fix added one back: the activity-log insert that makes streaks correct ([Data and migrations](/learn/case-study-ascend/the-system/data-and-migrations)). One millisecond for correct streaks is a good trade; if it ever was not, a data-modifying CTE could send both writes as one statement.
 
 ## From AppError to HTTP
 
@@ -369,7 +374,7 @@ The same rule reaches upstream errors through one constructor. `AiUpstream(Strin
 
 ## The way back out, and the 100x view
 
-The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID; since `3658224` the same response also lands in the request-duration histogram (recorded just inside `Trace`, so the timeout's own 503 is counted too), and one request in five exports its span to Jaeger.
+The handler's `Json(row)` becomes a response and unwinds: through the CSRF and rate-limit layers untouched, gains security headers, is compressed if the browser accepted Brotli or gzip, passes the timeout, is logged by `Trace` with its status and latency, and leaves with `x-request-id` attached. In production the log is one JSON line per request carrying that ID; since `3658224` the same response can also land in the request-duration histogram (recorded just inside `Trace`, so the timeout's own 503 is counted too), with one request in five exporting its span to Jaeger. Both need an OTLP endpoint, which production has not set since `04ab90f` switched the monitoring stack off while Ascend is invite-only, so for now the JSON line is the record.
 
 At 100x the order stays and the parameters change:
 

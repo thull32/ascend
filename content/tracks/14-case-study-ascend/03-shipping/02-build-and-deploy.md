@@ -1,14 +1,14 @@
 ---
 slug: build-and-deploy
 title: "Build and deploy: one binary, cargo-chef, distroless and health-gated rollouts"
-description: How Ascend turns a commit into a running container, why content and the SPA are compiled into the binary, how cargo-chef keeps builds fast, how readiness gates a rollout, and the client-IP bug hiding at the edge.
+description: How Ascend turns a commit into a running container, why content and the SPA are compiled into the binary, how cargo-chef keeps builds fast, how readiness gates a rollout, why production runs lean while idle, and the client-IP bug hiding at the edge.
 minutes: 50
 difficulty: hard
 tags: [case-study, docker, ci-cd, infrastructure-as-code, deployment, rate-limiting, migrations]
 ---
 Every deployment answers three questions whether or not anyone asks them. What exactly is running in production? How did it get there? And how do you know it is healthy before users find out it is not? Most outages that are not caused by traffic are caused by a wrong answer to one of those: an artifact that differs from the one that was tested, a pipeline step that was skipped, a health check that checks the wrong thing.
 
-Ascend's answers: one Rust binary with the curriculum and the built SPA compiled into it, beside the grader's pinned WebAssembly runtimes, in a distroless image built by a multi-stage Dockerfile, deployed by Railway from `main`, switched to only after its readiness endpoint reports healthy. The same image runs twice, as the API and as the grading service, beside four small services that answer the third question: Prometheus, Alertmanager, Jaeger and Grafana. This lesson reads the `Dockerfile`, `.github/workflows/ci.yml`, `.railway/railway.ts`, `ops/`, `docs/SLO.md`, the `Makefile`, `crates/api/src/main.rs` and the rate limiter's client-IP logic, and finds where each answer is weaker than it looks.
+Ascend's answers: one Rust binary with the curriculum and the built SPA compiled into it, beside the grader's pinned WebAssembly runtimes, in a distroless image built by a multi-stage Dockerfile, deployed by Railway from `main`, switched to only after its readiness endpoint reports healthy. The same image can run twice, as the API and as a grading service, beside four small services built to answer the third question: Prometheus, Alertmanager, Jaeger and Grafana. All five were built, run, and then switched off (`04ab90f`): while Ascend is invite-only, production is one API replica grading in-process, plus Postgres. This lesson reads the `Dockerfile`, `.github/workflows/ci.yml`, `.railway/railway.ts`, `ops/`, `docs/SLO.md`, the `Makefile`, `crates/api/src/main.rs` and the rate limiter's client-IP logic, and finds where each answer is weaker than it looks.
 
 ## One artifact
 
@@ -78,7 +78,7 @@ COPY --from=runtimes /opt/ascend/grader /opt/ascend/grader
 RUN /ascend-api --prepare-grader /opt/ascend/grader
 ```
 
-Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles only the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute". The **runtimes** stage, added with server grading, downloads CPython and QuickJS for WASI and checks their SHA-256 digests; its only input is `grader-runtimes.sh`, so it stays cached until a pin changes. Its output joins the builder *after* the build, where the fresh binary precompiles the Python standard library (`--prepare-grader`), so that step reruns on every commit: a few seconds bought back as about 0.2 s on every graded run.
+Docker caches a layer until one of its inputs changes. A naive Rust Dockerfile copies the source and runs `cargo build`, so any change to any file invalidates the layer that compiles every dependency, and a one-line fix costs a full rebuild of hundreds of crates. cargo-chef splits that step in two. The **planner** reads only the manifests and lockfile and writes `recipe.json`, a description of the dependency graph. The **builder** copies only the recipe and runs `cargo chef cook`, which compiles the dependencies alone. That layer's only input is the recipe, so it stays cached until `Cargo.toml` or `Cargo.lock` changes. Then the real sources are copied and `cargo build` compiles only the workspace crates. The Dockerfile's own comment sums up the result: "a content-only change rebuilds in about a minute". The **runtimes** stage, added with server grading, downloads CPython and QuickJS for WASI and checks their SHA-256 digests; its only input is `grader-runtimes.sh`, so it stays cached until a pin changes. Its output joins the builder *after* the build, where the fresh binary precompiles the Python standard library (`--prepare-grader`), so that step reruns on every commit: a few seconds bought back as about 0.2 s on every graded run. Since `04ab90f` it also writes `python.cwasm` and `qjs.cwasm`, both runtimes compiled ahead of time, for a reason measured below.
 
 Trace four commits through the stages to see which layers Docker reuses:
 
@@ -156,7 +156,7 @@ rust:
     # then: strict validate_content, and cargo audit against the RustSec database
 ```
 
-Four jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service including the grader's sandbox tests and `grading_parity`, which grades all 1,430 reference solutions, strict content validation), **problems** (problem structure and quiz checks on Python 3.14), **web** (typecheck, Vitest, production build), and **image**, which builds the Dockerfile with GitHub Actions layer caching, then (since `8861312`, replacing a separate job that tested a debug build) runs the image against Postgres, checks that `/api/readyz` reports the commit, runs the Playwright smoke suite on desktop and phone profiles, and requires `docker stop` to exit 0 within 25 s; the image is not pushed. A `concurrency` group cancels superseded runs on the same branch. Since `8f82820` the workflow runs with a read-only token (`permissions: contents: read`), pins every action to a commit SHA rather than a movable tag such as `v4`, audits Rust dependencies with `cargo audit` and web production dependencies with `pnpm audit --prod`, and `.github/dependabot.yml` proposes weekly, grouped updates to the pins, the base images, and the Cargo and npm dependencies. A tag is a pointer its owner can move; a SHA is the code you reviewed. Pins only help if they move, so since `040cf0a` `dependabot-automerge.yml` enables auto-merge for patch, minor and digest-only updates once every required check passes, image smoke test included; majors wait for a person, and Node's base image ignores majors until they are adopted at LTS together with CI's `node-version`. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
+Four jobs run on every push and pull request: **rust** (format, clippy with `RUSTFLAGS=-D warnings` set for the whole workflow, tests against a Postgres service including the grader's sandbox tests and `grading_parity`, which grades all 1,430 reference solutions, strict content validation), **problems** (problem structure and quiz checks on Python 3.14), **web** (typecheck, Vitest, production build), and **image**, which builds the Dockerfile with GitHub Actions layer caching, then (since `8861312`, replacing a separate job that tested a debug build) runs the image against Postgres, checks that `/api/readyz` reports the commit, runs the Playwright smoke suite on desktop and phone profiles, and requires `docker stop` to exit 0 within 25 s; the image is not pushed. A `concurrency` group cancels superseded runs on the same branch. Since `8f82820` the workflow runs with a read-only token (`permissions: contents: read`), pins every action to a commit SHA rather than a movable tag such as `v4`, audits Rust dependencies with `cargo audit` and web production dependencies with `pnpm audit --prod`, and `.github/dependabot.yml` proposes weekly, grouped updates to the pins, the base images, and the Cargo and npm dependencies. A tag is a pointer its owner can move; a SHA is the code you reviewed. Pins only help if they move, so since `040cf0a` `dependabot-automerge.yml` enables auto-merge for patch, minor and digest-only updates once every required check passes, image smoke test included; majors wait for a person. The placeholder `web/dist` is a small, useful trick: the Rust job needs the directory to exist for `include_dir!` but does not need a real frontend, so it skips a Node install.
 
 ### Before and after: a deploy path that did not wait for CI
 
@@ -170,7 +170,12 @@ One divergence remains. CI now runs the smoke suite against the image it built, 
 
 ```typescript
 // .railway/railway.ts (excerpt)
-const PHASE_2 = true; // the API grades through the grader service (set false to grade in-process again)
+const PHASE_2 = false; // true: 2 API replicas grading through the grader service
+const OBSERVABILITY = false; // true: Prometheus, Alertmanager, Jaeger and Grafana
+// Railway reports its 24-vCPU limit as the CPU count, so by default the
+// runtime starts 24 worker threads and glibc up to 8 malloc arenas per
+// core, memory that is billed whether or not anything runs on it.
+const sized = { TOKIO_WORKER_THREADS: "2", MALLOC_ARENA_MAX: "2" };
 
 const grader = service("grader", {
   source: github(REPO, { checkSuites: true }),
@@ -190,14 +195,18 @@ const app = service("ascend", {
   healthcheckTimeout: 120,
   env: {
     APP_ENV: "production",
+    // Invite-only for now: invites are made through the operator API with
+    // ADMIN_TOKEN (docs/RUNBOOK.md, "Invites").
+    SIGNUPS: "invite",
+    ADMIN_TOKEN: preserve(),
     // The one origin the CSRF check accepts. Pinned, not derived from
     // RAILWAY_PUBLIC_DOMAIN: that names a custom domain as soon as it is
     // added, before its certificate exists.
     PUBLIC_ORIGIN: APP_ORIGIN,
     DATABASE_URL: db.env.DATABASE_URL,
-    // 2 replicas, and up to 4 while a deploy overlaps old and new: 4 x 15
-    // = 60 of Postgres's 100 connections, leaving room for migrations and
-    // psql. Boot warns if the headroom drops below 10.
+    // Up to 2 replicas, and up to 4 while a deploy overlaps old and new:
+    // 4 x 15 = 60 of Postgres's 100 connections, leaving room for
+    // migrations and psql. Boot warns if the headroom drops below 10.
     DATABASE_POOL_MAX: "15",
     // Railway's edge sets X-Real-IP; the rate limiter trusts only that header.
     CLIENT_IP_HEADER: "x-real-ip",
@@ -205,13 +214,15 @@ const app = service("ascend", {
     AI_DAILY_REQUESTS: "150",
     AI_DAILY_OUTPUT_TOKENS: "120000",
     ANTHROPIC_API_KEY: preserve(),
-    ...(PHASE_2 ? { GRADER_URL: internal("grader", 8080), GRADER_TOKEN: grader.env.GRADER_TOKEN } : {}),
+    // Graded in-process unless PHASE_2: two runs at once.
+    ...(PHASE_2 ? { GRADER_URL: internal("grader", 8080), GRADER_TOKEN: grader.env.GRADER_TOKEN } : { GRADER_SLOTS: "2" }),
     // Strict: a dangling cross-reference or malformed block fails the build.
     CONTENT_LENIENT: "0",
     // Time between SIGTERM and SIGKILL for a replaced deployment. The
     // server's own shutdown is bounded to fit inside it: 25 s for open
     // connections, then 30 s for replies still being persisted.
     RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60",
+    ...sized,
     ...telemetry,
   },
 });
@@ -231,27 +242,52 @@ const jaeger = service("jaeger", {
   // /api/traces) that Grafana's Jaeger data source calls.
   source: image("jaegertracing/jaeger:2.20.0@sha256:46a886260e04002d8f45e213fc39063fa11a50446048fdaa64786fc0840cb9f8"),
 });
+
+return project("ascend", {
+  resources: [
+    db, dbVolume, app, promData,
+    ...(PHASE_2 ? [grader] : []),
+    ...(OBSERVABILITY ? [prometheus, alertmanager, jaeger, grafana] : []),
+  ],
+});
 ```
 
-The whole project (Postgres, a 50 GB volume with usage alerts at 80, 95 and 100 percent, the API, the grader and the four observability services) is a TypeScript file. `railway config plan` shows the diff against the live project and `railway config apply` applies it. Secrets never appear: `preserve()` keeps whatever value is set in Railway. Everything else, including the model name, the AI budgets and the trusted client-IP header, is in version control, reviewed like code, and recoverable if the project is deleted (the configuration, that is; the data needs backups).
+The whole project (Postgres, a 50 GB volume with usage alerts at 80, 95 and 100 percent, the API, and, behind their switches, the grader and the four observability services) is a TypeScript file. `railway config plan` shows the diff against the live project and `railway config apply` applies it. Secrets never appear: `preserve()` keeps whatever value is set in Railway. Everything else, including the model name, the AI budgets and the trusted client-IP header, is in version control, reviewed like code, and recoverable if the project is deleted (the configuration, that is; the data needs backups).
 
 Settings changed by hand in a dashboard are invisible to review and forgotten in a rebuild; the client-IP fix at the end of this lesson is one line that `railway.ts` makes impossible to lose.
 
-One entry used to deserve a raised eyebrow: `CONTENT_LENIENT: preserve()`, meaning "whatever the dashboard says". Lenient mode downgrades dangling cross-references to warnings and skips files that fail to parse. It is useful while a hundred lessons are being written in parallel, and a `1` left over from that sprint would have quietly disabled the gate the Dockerfile comment describes as "a broken lesson fails the build, not the deploy", in the build and at boot alike. The file now pins it to `"0"`, so the value is reviewed like any other line of code. The binary itself still honours the flag if it is set some other way; a check that refuses to boot when `APP_ENV=production` and lenient mode are both set would make the mistake impossible rather than unlikely. Notice the pattern shared with `checkSuites`: both fixes were one line in the infrastructure file, and both were invisible from the application code.
+One entry used to deserve a raised eyebrow: `CONTENT_LENIENT: preserve()`, meaning "whatever the dashboard says". Lenient mode downgrades dangling cross-references to warnings and skips files that fail to parse, so a `1` left over from an authoring sprint would quietly have disabled the gate the Dockerfile describes as "a broken lesson fails the build, not the deploy", in the build and at boot alike. The file now pins `"0"`. The binary still honours the flag if it is set some other way; refusing to boot with `APP_ENV=production` and lenient mode would make the mistake impossible rather than unlikely. Like `checkSuites`, the fix was one line in the infrastructure file, invisible from the application code.
 
 ### Before and after: one replica, and logs as the only telemetry
 
-ADR 0006 records the starting point: one replica grading in-process, a pool sized for one process, and logs as the only telemetry. Commits `3658224`, `c0b3151` and `d3e239b` changed three things, rolled out in two phases. First the `grader` service came up: the same image started with `--serve-grader`, two replicas of two slots each, no public domain, holding the runtimes and a token but no database URL or AI key. Then `eed6d46` flipped `PHASE_2`: the API runs two replicas and grades through `GRADER_URL`. Grading and serving scale separately, and untrusted code runs away from every secret.
+ADR 0006 records the starting point: one replica grading in-process, a pool sized for one process, and logs as the only telemetry. Commits `3658224`, `c0b3151` and `d3e239b` changed three things, rolled out in two phases. First the `grader` service came up: the same image started with `--serve-grader`, two replicas of two slots each, no public domain, holding the runtimes and a token but no database URL or AI key. Then `eed6d46` flipped `PHASE_2`: the API runs two replicas and grades through `GRADER_URL`. Grading and serving scale separately, and untrusted code runs away from every secret. Production ran that way until `04ab90f` switched it off again, for reasons two sections down.
 
 **Connections are a budget.** `DATABASE_POOL_MAX` (default 20) is 15 in production, and at boot `check_connection_budget` compares `max_connections` with the connections in use plus this pool, warning below 10 spare. Work the number: a rolling deploy briefly runs old and new replicas side by side, so two replicas become four, 4 × 15 = 60 of Postgres's default 100, which is why ADR 0006 puts PgBouncer at about the fifth replica, not the second.
 
-**Telemetry is pushed.** Each process records metrics through the OpenTelemetry API (`crates/core/src/metrics.rs`) and pushes them every 15 s over OTLP/HTTP to Prometheus, labelled with its `RAILWAY_REPLICA_ID`; ADR 0006 chose push because Railway's documentation does not say how internal DNS resolves for a multi-replica service, and push needs no discovery. The main histogram is `http.server.request.duration` by method, route template and status: an inner route layer stamps the matched template on the response and an outer layer times the request, so rate-limit and CSRF refusals are counted too, and, since `2f1daaa` moved it outside the 240 s timeout, so is a timed-out request, as a 503. Templates such as `/api/problems/{slug}` keep the label set small. Beside it sit grading, AI, rate-limit, retention and email counters and pool and grading-slot gauges, with no personal data in any label. Traces go to Jaeger, one request in five sampled (`OTEL_TRACES_SAMPLE_RATIO: "0.2"`), spans only.
+**Telemetry is pushed.** Each process records metrics through the OpenTelemetry API (`crates/core/src/metrics.rs`) and, when an OTLP endpoint is set, pushes them every 15 s over OTLP/HTTP to Prometheus, labelled with its `RAILWAY_REPLICA_ID`; ADR 0006 chose push because Railway's documentation does not say how internal DNS resolves for a multi-replica service, and push needs no discovery. The main histogram is `http.server.request.duration` by method, route template and status: an inner route layer stamps the matched template on the response and an outer layer times the request, so rate-limit and CSRF refusals are counted too, and, since `2f1daaa` moved it outside the 240 s timeout, so is a timed-out request, as a 503. Templates such as `/api/problems/{slug}` keep the label set small. Beside it sit grading, AI, rate-limit, retention and email counters and pool and grading-slot gauges, with no personal data in any label. Traces go to Jaeger, one request in five sampled (`OTEL_TRACES_SAMPLE_RATIO: "0.2"`), spans only.
 
-**SLOs are code.** `docs/SLO.md` sets three objectives: 99.5% of API requests do not fail on the server's side over 30 days, 95% of ordinary API requests answer within 250 ms, and 95% of graded submissions within 5 s. `ops/prometheus/rules.yml` turns the first into multi-window burn-rate alerts from Google's SRE workbook. Trace the arithmetic: 0.5% of 720 hours is an error budget of 3.6 hours. `ApiErrorBudgetFastBurn` fires when the 1-hour *and* 5-minute error ratios both exceed 14.4 × 0.5% = 7.2%; burning at 14.4 times the sustainable rate for an hour spends 14.4 / 720 = 2% of the month's budget, which pages. `ApiErrorBudgetSlowBurn` uses 6 × 0.5% over 6 hours and 30 minutes: 36 / 720 = 5% of the budget, a ticket.  Alertmanager routes to `ALERT_WEBHOOK_URL`, each alert links into `docs/RUNBOOK.md`, and Grafana is the only observability service with a public domain.
+**SLOs are code.** `docs/SLO.md` sets three objectives: 99.5% of API requests do not fail on the server's side over 30 days, 95% of ordinary API requests answer within 250 ms, and 95% of graded submissions within 5 s. `ops/prometheus/rules.yml` turns the first into multi-window burn-rate alerts from Google's SRE workbook. Trace the arithmetic: 0.5% of 720 hours is an error budget of 3.6 hours. `ApiErrorBudgetFastBurn` fires when the 1-hour *and* 5-minute error ratios both exceed 14.4 × 0.5% = 7.2%; burning at 14.4 times the sustainable rate for an hour spends 14.4 / 720 = 2% of the month's budget, which pages. `ApiErrorBudgetSlowBurn` uses 6 × 0.5% over 6 hours and 30 minutes: 36 / 720 = 5% of the budget, a ticket. Alertmanager routes to `ALERT_WEBHOOK_URL`, each alert links into `docs/RUNBOOK.md`, and Grafana was the only observability service with a public domain.
 
 ### Before and after: a stack that only looked deployed
 
 Every service came up green, and three were not doing their job. Prometheus evaluated the SLO rules but had no `alerting:` block, so no alert reached Alertmanager until `2f1daaa`. Grafana could not search traces once Jaeger 2.21 removed the query API it calls. And two lines of `railway.ts` had a shape Railway's config engine did not recognise, which it ignored without an error: the Postgres backup schedules and the Prometheus volume mount (keyed by volume name; the engine wants `{ "/prometheus": promData }`). Metrics vanished at every deploy. The volume was attached by CLI (`f4fab0a`), and the next `plan` then proposed to *detach* it, since the file still said nothing the engine understood; reading the plan instead of applying it caught that, and the file now uses the right shape. Green proves a process runs, not that its output arrives: fire a test alert, open a trace, restart Prometheus and look for yesterday.
+
+### Before and after: paying for capacity nobody used
+
+The scaled stack worked, and it sat idle. Railway bills memory held, every minute, traffic or not, and idle the stack held about 2.7 GB: Grafana about 920 MB, each API replica about 400 MB, each grader replica about 375 MB, Prometheus, Jaeger and Alertmanager about 210 MB together, Postgres about 50 MB. That came to about $27 a month against about $5 for the app alone, for an invite-only site. Two outputs reached nobody: `ALERT_WEBHOOK_URL` had never been set, so alerts stopped at Alertmanager, and Grafana's traffic was mostly bots.
+
+`04ab90f` set `PHASE_2` back to `false` and added a second switch, `OBSERVABILITY`. `resources` spreads the five services in only when their switch is on, so the apply removed them, while their configuration stays in the file and `prometheus-data` stays in the list, keeping metric history. Turning either back on is one apply, plus re-setting the secrets the deleted services held (runbook, "Scaling back up").
+
+Then the process that was left, measured idle on the release binary:
+
+| Change | Idle RSS | Mechanism |
+|---|---|---|
+| Defaults | 470 MB | Railway reports its 24-vCPU limit as the CPU count, so Tokio starts 24 worker threads and glibc allows up to 8 malloc arenas per core, each holding freed memory of its own |
+| `TOKIO_WORKER_THREADS=2`, `MALLOC_ARENA_MAX=2` | 342 MB | Two workers carry far more than Ascend's traffic; two arenas bound the fragmentation |
+| Precompiled runtimes, mapped | 97 MB | The grader compiled CPython and QuickJS at boot into about 250 MB of anonymous memory; it now maps `python.cwasm` (18 MB) and `qjs.cwasm` (3.3 MB) with `Module::deserialize_file`: file-backed pages, loaded on first use |
+| No grader at all | 92 MB | The floor |
+
+The last two rows settle where grading belongs at this size: in-process, it costs about 5 MB. If Wasmtime rejects a `.cwasm` (built by another Wasmtime version, engine configuration or CPU), `load_precompiled` in `sandbox.rs` compiles instead; all 1,430 reference solutions pass on the precompiled modules, and with corrupt files they fall back and still pass. Building the scale work was not the mistake, since it is tested and one apply away; running it before anyone needed it was. Measure idle cost before scaling out, and keep the switch in the reviewed file.
 
 ## Boot order, readiness and rollouts
 
@@ -310,7 +346,7 @@ Two smaller weaknesses sit in the same code, and a third has been fixed:
 
 - **Readiness checks one dependency.** A deploy with a revoked `ANTHROPIC_API_KEY` reports `ai: true` (which means "configured", not "working") and goes live. A readiness check should not call a paid API on every poll, but a boot-time probe of the key, logged loudly, would catch it.
 - **Migrate-on-boot assumed one replica** (fixed in `8f82820`). Several replicas starting at once each ran the migrator, and one failed on "relation already exists". `migrate::run` now holds `pg_advisory_xact_lock` for the whole run; `boot_migrations_are_locked_and_tolerate_a_newer_schema` boots twice at once and expects two `UpToDate`s.
-- **Graceful shutdown that never ran** (fixed, then tested). First, background work lived in a bare `tokio::spawn`, so an AI reply whose browser had gone was dropped when `main` returned; a `TaskTracker` drained for up to 30 s fixed that. Then the platform: Railway's draining window defaulted to 0 seconds, so SIGKILL followed SIGTERM at once and none of that code ran in production. `RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60"` now gives it room, and the drain is bounded to fit: 25 s for open connections (a stalled SSE reader cannot hold the process), then 30 s for tasks. Finally it gained evidence: `95b6623` moved the drain into `serve.rs`, where `crates/api/tests/shutdown.rs` checks over real sockets that an in-flight request finishes, idle keep-alive connections do not delay shutdown and a stalled stream is abandoned at the deadline; and CI's image job stops the real container. A shutdown guarantee is only as long as the window the platform grants, so read that setting rather than assuming it.
+- **Graceful shutdown that never ran** (fixed, then tested). Background work lived in a bare `tokio::spawn`, so an AI reply whose browser had gone was dropped when `main` returned; a `TaskTracker` drained for up to 30 s fixed that. But Railway's draining window defaulted to 0 seconds, so SIGKILL followed SIGTERM at once and none of it ran in production. `RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "60"` now gives it room, with the drain bounded to fit: 25 s for open connections (a stalled SSE reader cannot hold the process), then 30 s for tasks. `95b6623` moved the drain into `serve.rs`, where `crates/api/tests/shutdown.rs` checks over real sockets that an in-flight request finishes and a stalled stream is abandoned at the deadline, and CI's image job stops the real container. A shutdown guarantee is only as long as the window the platform grants.
 
 ## The edge, and the client IP incident
 
@@ -356,7 +392,7 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 
 - **Build once, deploy by digest.** CI already builds the image and runs the smoke suite and a graceful stop against it; pushing it and having the platform deploy that exact digest closes the last gap between what CI tested and what runs.
 - **Canary instead of all-at-once.** One replica on the new version, automated comparison of error rate and p99 against the stable version, then promotion. The per-replica metrics now exist; the comparison and the promotion do not.
-- **PgBouncer past about four API replicas**, and Jaeger on persistent storage (today a restart loses every trace), both named in ADR 0006's "revisit when".
+- **PgBouncer past about four API replicas**, and Jaeger on persistent storage (in memory, a restart loses every trace), both named in ADR 0006's "revisit when".
 - **Migrations as their own step**, run once, with expand/contract enforced in review.
 - **A job queue for AI replies**, so no deploy cuts off a stream, however long it runs; the task tracker covers 30 seconds.
 
@@ -375,6 +411,8 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 | Backups assumed, not configured | Found only when a restore is needed | The file declared daily and weekly `backupSchedules` in a shape the config engine ignored | Schedules set on the volume in the dashboard; runbook, "Backups" (`2f1daaa`) |
 | Every sign-in refused after adding a custom domain | `403 csrf` on the old host while the new one has no certificate yet | `PUBLIC_ORIGIN` was `https://${{RAILWAY_PUBLIC_DOMAIN}}`, and Railway points that variable at a custom domain the moment it is added, before DNS or the certificate. Caught while the next deploy waited for CI | Pin the origin (`DOMAIN_LIVE` in `railway.ts`), switch once the certificate is issued, and 308 the old hosts (`REDIRECT_HOSTS`, `7b3c544`) |
 | A drain window of 0 s | Replies cut off at every deploy although the code drains them | Railway's `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` unset | 60 s, with the server's own drain bounded to 55 s (in place) |
+| Paying for idle capacity | A bill about five times the app's for an invite-only site | Railway's per-service memory: about 2.7 GB held with no traffic, Grafana alone 920 MB; alerts routed to a webhook nobody set | `PHASE_2` and `OBSERVABILITY` off (`04ab90f`); one apply restores them when traffic arrives |
+| Threads and arenas sized for 24 CPUs | 470 MB idle for a process serving a handful of requests | The container reports the platform's 24-vCPU limit as its CPU count; Tokio starts a worker per CPU and glibc sizes its arenas to match | `TOKIO_WORKER_THREADS=2` and `MALLOC_ARENA_MAX=2` in `railway.ts`: 342 MB, then 97 MB with mapped runtimes |
 
 ## Interviewer follow-ups
 
@@ -384,7 +422,7 @@ There is a second valid design worth knowing: take the *rightmost* entry of `X-F
 
 **"Why does readiness check only the database?"** Model answer: readiness answers "can this process take traffic". The database is required for almost every route; the model is required for one feature, and a readiness check that calls a paid API on every poll costs money and would take the whole site out during a provider outage. Probe the key once at boot instead, and let AI routes degrade on their own. Common wrong answer: "check every dependency", which turns a partial outage into a total one.
 
-**"What changes to run three replicas?"** Model answer: less than it would have, because ADR 0006 did the groundwork. Migrations run under an advisory lock; sessions, budgets and the security limits live in Postgres, and only the loose general bucket multiplies; retention takes an advisory lock per batch so one replica deletes at a time; grading is its own service; telemetry is pushed per replica. What remains is arithmetic: three replicas become six during a deploy, 6 × 15 = 90 of 100 connections, under the boot check's 10 spare, so lower `DATABASE_POOL_MAX` or add PgBouncer first. Common wrong answer: "set `replicas: 3`".
+**"What changes to run three replicas?"** Model answer: less than it would have, because ADR 0006 did the groundwork. Migrations run under an advisory lock; sessions, budgets and the security limits live in Postgres, and only the loose general bucket multiplies; retention takes an advisory lock per batch so one replica deletes at a time; grading moves to its own service with one flag; telemetry is pushed per replica once its endpoints are set. What remains is arithmetic: three replicas become six during a deploy, 6 × 15 = 90 of 100 connections, under the boot check's 10 spare, so lower `DATABASE_POOL_MAX` or add PgBouncer first. Common wrong answer: "set `replicas: 3`".
 
 ## What mid-level engineers get wrong
 
@@ -463,6 +501,7 @@ hints:
 - You treat readiness as "can take traffic", know it does not prove the release is good, and name what does (canary analysis, error budgets).
 - You insist that every migration leaves the schema usable by the previous release, because rollback runs old code on new schema.
 - You never trust a client-supplied header for identity, and you tie trust in a proxy header to the deployment topology in configuration that lives next to the infrastructure.
+- You know what your deployment costs idle, per service, and keep capacity behind reviewed switches, so scaling out, and back, is one apply.
 - You read infrastructure as code for footguns (a lenient flag, a deploy that does not wait for CI) the same way you read application code for bugs, and you check that every gate you have is actually on the path to production.
 
 ## Check yourself

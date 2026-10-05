@@ -229,7 +229,7 @@ The third row is the trap nearest to hand. The span records `req.uri().path()`, 
 
 ## RED, USE and what Ascend measures
 
-Until commit `3658224` Ascend exported no application metrics: counting failed requests meant counting log lines. Now `crates/core/src/metrics.rs` records through the OpenTelemetry metrics API (a no-op until an exporter is installed, so tests need nothing), and `crates/api/src/telemetry.rs` pushes every 15 seconds over OTLP/HTTP to Prometheus. Each replica labels its data with its `RAILWAY_REPLICA_ID`, so nothing has to discover and scrape replicas.
+Until commit `3658224` Ascend exported no application metrics: counting failed requests meant counting log lines. Now `crates/core/src/metrics.rs` records through the OpenTelemetry metrics API (a no-op until an exporter is installed, so tests need nothing), and `crates/api/src/telemetry.rs` pushes every 15 seconds over OTLP/HTTP to Prometheus. Each replica labels its data with its `RAILWAY_REPLICA_ID`, so nothing has to discover and scrape replicas. Since commit `04ab90f` production sets no OTLP endpoint while Ascend is invite-only: the alert webhook had never been set, so no alert reached anyone, and the four monitoring services held over a gigabyte of billed memory to watch almost no traffic. The instruments are no-ops there and the JSON logs are the telemetry again; one apply restores the pipeline.
 
 | Signal | Checklist | Before: from the logs | Now: instrument |
 |---|---|---|---|
@@ -316,7 +316,7 @@ Take 1,000,000 requests a day, 0.3% errors (3,000), 0.5% slower than 2 seconds (
 | Head, 10% | 100,000 | about 300 | $1 - 0.9^5 = 41\%$ | ten times the storage |
 | Tail: every error, every trace over 2 s, 1% of the rest | 17,920 | 3,000 | 100% | a collector that buffers every span until the decision |
 
-**Head sampling** decides at the root, before the outcome is known, and writes the decision into bit 0 of the flags: cheap and complete, but only 1% of the interesting traces survive. Ascend's sampler is `ParentBased(TraceIdRatioBased(0.2))` in production, so the same incident leaves a trace with probability $1 - 0.8^5 = 67\%$. **Tail sampling** sends every span to a collector that groups spans by trace ID, waits for the trace to finish (the OpenTelemetry tail-sampling processor's `decision_wait` defaults to 30 seconds), then applies the policy. The buffer is rate times wait: 11.6 requests per second for 30 s is about 350 traces in flight here, and gigabytes at 10,000 requests per second, as the [system design lesson](/learn/system-design/building-blocks/observability) works out. Google's Dapper paper (2010) reports that its first production version sampled one trace in 1,024, which suits high-volume services and misses a five-request incident.
+**Head sampling** decides at the root, before the outcome is known, and writes the decision into bit 0 of the flags: cheap and complete, but only 1% of the interesting traces survive. Ascend's sampler is `ParentBased(TraceIdRatioBased(0.2))` whenever tracing is on, so the same incident leaves a trace with probability $1 - 0.8^5 = 67\%$. **Tail sampling** sends every span to a collector that groups spans by trace ID, waits for the trace to finish (the OpenTelemetry tail-sampling processor's `decision_wait` defaults to 30 seconds), then applies the policy. The buffer is rate times wait: 11.6 requests per second for 30 s is about 350 traces in flight here, and gigabytes at 10,000 requests per second, as the [system design lesson](/learn/system-design/building-blocks/observability) works out. Google's Dapper paper (2010) reports that its first production version sampled one trace in 1,024, which suits high-volume services and misses a five-request incident.
 
 ## What never to log
 
@@ -478,8 +478,8 @@ hints:
 |---|---|---|---|---|
 | Structured logs | microseconds of CPU, hundreds of bytes | yes: any field | slow scans | yes |
 | Log-based metrics | none in the app; paid at ingestion | no | adequate at low volume | possible |
-| Prometheus-style metrics | nanoseconds per increment | no: bounded labels | fast, mergeable histograms | yes, pushed over OTLP |
-| Traces, head-sampled | spans for the sampled share | yes, in attributes | few rare events kept | yes, 20% |
+| Prometheus-style metrics | nanoseconds per increment | no: bounded labels | fast, mergeable histograms | built, pushed over OTLP; off while invite-only |
+| Traces, head-sampled | spans for the sampled share | yes, in attributes | few rare events kept | built, 20%; off while invite-only |
 | Traces, tail-sampled | every span to a collector | yes | every error and slow trace kept | no |
 
 ## Interviewer follow-ups
