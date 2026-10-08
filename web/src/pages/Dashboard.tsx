@@ -30,7 +30,7 @@ export default function Dashboard() {
               </Link>
             </>
           ) : (
-            <p className="mt-1">You have completed the roadmap. Time to book the interview.</p>
+            <p className="mt-1">You have finished the reading roadmap. Review your quiz results and try unfamiliar problems or a mock interview to check your readiness.</p>
           )}
           <p className="mt-4 text-xs text-muted">
             {formatHours(r.remaining_hours)} remaining · about {Math.ceil(r.weeks_at_current_pace)} weeks at your pace
@@ -52,13 +52,13 @@ export default function Dashboard() {
             </div>
           </div>
           <dl className="mt-4 space-y-2 text-sm">
-            <Stat label="Lessons" value={`${p.lessons_completed} / ${p.lessons_total}`} />
+            <Stat label="Lessons read" value={`${p.lessons_completed} / ${p.lessons_total}`} />
             <Stat label="Problems solved" value={`${p.problems_solved} / ${p.problems_total}`} />
             <Stat label="Quizzes passed" value={String(p.quizzes_passed)} />
           </dl>
         </Card>
       </div>
-      <h2 className="mb-3 mt-8 text-lg font-semibold">Progress by track</h2>
+      <h2 className="mb-3 mt-8 text-lg font-semibold">Reading progress by track</h2>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {tracks.map((t) => {
           const tp = p.per_track.find((x) => x.track_slug === t.slug);

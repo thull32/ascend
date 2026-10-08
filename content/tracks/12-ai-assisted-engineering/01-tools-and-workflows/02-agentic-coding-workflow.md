@@ -1,7 +1,7 @@
 ---
 slug: agentic-coding-workflow
 title: "The agentic coding loop: plan, implement, verify"
-description: How to scope work into one reviewable diff, get a plan before code, prompt test-first, freeze the tests with a hook the harness enforces, give the agent a command that proves done, catch verification gaming (including tests that assert the bug), and know when to stop and reset, with a full illustrative session and an exercise that flags a suspicious test diff.
+description: How to scope work into one reviewable diff, get a plan before code, prompt test-first, protect reviewed tests with an editor hook and a read-only sandbox, give the agent a command that proves done, catch verification gaming (including tests that assert the bug), and know when to stop and reset, with a full illustrative session and an exercise that flags a suspicious test diff.
 minutes: 35
 difficulty: medium
 tags: [ai-tools, coding-agents, workflow, testing, code-review, git, hooks]
@@ -118,9 +118,13 @@ $ claude --permission-mode plan                     # read-only: no edits, no mu
   Bash: pytest tests/test_ratelimit.py -x -q                 (pre-approved: Bash(pytest:*))
   E   ImportError: cannot import name 'FixedWindowLimiter' from 'app.ratelimit'
 
-> Good: it fails on the import, so the test reaches the code. Implement
-  app/ratelimit.py until these tests pass. Do not modify the test file.
-  [Shift+Tab: acceptEdits, so file edits no longer prompt; the hook below still guards tests/]
+> The import failure confirms the implementation is missing, but no behavioral
+  assertion has run yet. Add the interface with a stub that allows every request,
+  then show that the eleventh-request assertion fails. Do not modify the test file.
+  (Write app/ratelimit.py)  Bash: pytest tests/test_ratelimit.py -x -q
+  E   AssertionError: assert not decision.allowed
+> Now implement app/ratelimit.py until these tests pass. Do not modify the test file.
+  [Shift+Tab: acceptEdits, so file edits no longer prompt; the hook below guards matching editor calls to tests/]
   (Write app/ratelimit.py)  Bash: pytest tests/test_ratelimit.py -x -q   4 passed
   Bash: pytest tests/test_ratelimit.py && ruff check app      All checks passed
 
@@ -161,7 +165,7 @@ def test_window_resets(clock):
     assert limiter.check("user-1").allowed
 ```
 
-This does three things. The test is the specification in executable form, and you review 20 lines of intent instead of 200 lines of implementation. Seeing it fail proves it exercises the behaviour, and seeing *why* it fails matters: an `ImportError` means the test ran nothing, while an assertion failing on `decision.allowed` means it checks the right thing. And it gives the agent a target it cannot quietly redefine, provided you then say:
+This does three things. The test expresses a piece of the specification in executable form, and you review 20 lines of intent instead of 200 lines of implementation. A failing behavioural assertion demonstrates that the test reaches that check; inspecting *why* it fails matters: an `ImportError` means the test ran nothing, while an assertion failing on `decision.allowed` reaches the rejection check. Review the expected value against the requirement as well. Finally, it gives the agent a reviewed target. Request that the target stay fixed, then enforce that boundary as described below:
 
 ```text
 Now implement until these tests pass. Do not modify the test file.
@@ -169,16 +173,16 @@ Now implement until these tests pass. Do not modify the test file.
 
 Notice what the tests pin down that a prose request would not: the window is fixed, not sliding; `retry_after_s` at the start of a window is the full window; the boundary at exactly 60 seconds resets. Each is a decision. If you did not make it, the agent did, silently.
 
-## Freeze the tests with a hook
+## Guard editor changes with a hook
 
-"Do not modify the test file" is a request. Under pressure, a failing assertion and a long transcript, models do not always honour requests. The harness can enforce what the prompt only asks for. In Claude Code, at the time of writing, a `PreToolUse` hook runs a command of yours before a tool call executes; it receives the call as JSON on standard input and can deny it by printing a decision. Register it in `.claude/settings.local.json` for the implementation step:
+"Do not modify the test file" is a request. Under pressure, a failing assertion and a long transcript, models do not always honour requests. A hook can deny matching tool calls. In Claude Code, at the time of writing, a `PreToolUse` hook runs a command of yours before a tool call executes; it receives the call as JSON on standard input and can deny it by printing a decision. The [hook reference](https://code.claude.com/docs/en/hooks) defines matching by tool name. Register this editor guard in `.claude/settings.local.json` for the implementation step:
 
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/protect_tests.py", "timeout": 10 }
         ]
@@ -224,9 +228,13 @@ $
 
 The reason string goes back to the model as the tool's result, so it learns why the edit was refused and works on the implementation instead. Exiting with status 2 and a message on standard error blocks the call too. When the tests themselves need to change, do that as its own step with the hook removed, and review that diff with the care a spec change deserves. Codex and Gemini CLI have hook systems of their own at the time of writing; the shape (a command run before the tool, with the call as input and a decision as output) is the same.
 
+This guard covers only the named editor tools and matching paths. A shell command, another write-capable tool, a symlink to a protected file, or a change to the hook itself can bypass it. Test those paths before claiming enforcement. To freeze tests across all tools, use a sandbox with the reviewed tests mounted read-only and the policy outside the agent's writable area. Run an independent check of the test files against the reviewed baseline before accepting the result; a hook is useful feedback, but this example alone does not make the files immutable.
+
 ## Verify: a command that proves done
 
-Give every task a verification command and make the agent run it until it passes: `pytest tests/test_ratelimit.py && ruff check app`, or `pnpm tsc -b && pnpm vitest run src/ratelimit`, or in this repository `CONTENT_LENIENT=1 cargo run -q -p ascend-core --example validate_content -- ./content 2>&1 | tail -5`.
+Give every task a verification command and make the agent run it until it passes: `pytest tests/test_ratelimit.py && ruff check app`, or `pnpm tsc -b && pnpm vitest run src/ratelimit`, or in this repository `CONTENT_LENIENT=0 cargo run -q -p ascend-core --example validate_content -- ./content`.
+
+The final content check must be strict: lenient mode can skip malformed lessons and tolerate missing references while authors are still working. It is not a completeness check. Preserve the checker's exit status too: in Bash, `false | tail -5` exits successfully unless `pipefail` is enabled. Run the checker directly, or use `set -o pipefail` before piping its output; a successful log-filter command says nothing about whether validation passed.
 
 The agent will make the check pass by any means the environment allows. That is not malice; it is optimisation against the only signal it has. Know the verification-gaming patterns on sight:
 
@@ -257,9 +265,9 @@ The loop also has a cost curve. Each iteration resends the whole transcript, inc
 
 A permission mode is a policy the harness applies between the model's proposal and the tool's execution. In the default mode, read-only tools (file reads, search, commands the harness classifies as read-only) run without asking and anything that writes or reaches the network prompts you. `acceptEdits` moves file edits and common filesystem commands into the pre-approved set. Plan mode goes the other way: the model can read, search and run commands the harness judges read-only, but edits stay blocked until you approve a plan or switch modes. `auto` mode replaces your judgement with a classifier model's (and in recent versions it is the mode a session starts in), and `bypassPermissions` removes the check entirely, which is why organisations can disable it. Allow, ask and deny rules refine whichever mode is active by matching the tool call as a string, `Bash(pytest:*)` or `Read(./.env)`; matching is on the request, not on what the command does, which is the gap a sandbox closes.
 
-Hooks are the harness calling out to you at fixed points in the loop: before a tool call (with the power to deny or rewrite it), after one, when the model stops, when a session starts. Because the hook runs before execution, it holds when the model is wrong, tired or being manipulated, which an instruction in the prompt does not. The observation the model receives is whatever the hook said, so a good reason string steers the next decision.
+Hooks are the harness calling out to you at fixed points in the loop: before a tool call (with the power to deny or rewrite it), after one, when the model stops, when a session starts. A hook denies the matching call before execution even when the model is wrong or being manipulated; its coverage is limited to the matched tools and paths. The observation the model receives is whatever the hook said, so a good reason string steers the next decision.
 
-A git worktree gives a second agent its own working directory, index and `HEAD` while sharing the repository's single object store and branch list. Commits made in one worktree are visible from the other; working files are not. Two agents in separate worktrees cannot overwrite each other's edits, and each sees only its own test results, which is what makes parallel agents safe.
+A git worktree gives a second agent its own working directory, index and `HEAD` while sharing the repository's single object store and branch list. Commits made in one worktree are visible from the other; working files are not. Separate worktrees isolate working files and indexes. Tests still need separate databases, ports and output directories; shared external state can make one agent's run affect another.
 
 ## Review the diff
 
@@ -279,7 +287,9 @@ Agents are cheap to redo and expensive to untangle, so commit at every green ste
 ```bash
 git switch -c agent/export-rate-limit        # one branch per task
 git add -p && git commit -m "ratelimit: fixed-window limiter"   # after each verified step
-git restore . && git clean -fd               # discard a failed attempt entirely
+git diff && git status --short              # inspect uncommitted work before recovery
+# Preserve unrelated work. Restore only reviewed task paths; preview any
+# untracked-file cleanup with git clean -nd -- <task-path> before deleting.
 git worktree add ../app-task2 -b agent/task2 # a second working tree for a parallel agent
 ```
 
@@ -302,7 +312,7 @@ Do not argue with it in the same session. The context is now full of failed atte
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | A new test asserts `total_pages(7, 3) == 2` next to an implementation that floors; both were written in one step and the spec says round up | The expected value was produced by running the code, so the test pins the bug rather than the requirement | Derive expected values from the spec by hand before implementation; treat tests added in the same step as the code as unverified |
-| Green run; the test diff shows `assert status == 429` became `assert status in (202, 429)` | Loosened assertion to reach green | Restore the assertion, rerun, fix the implementation; freeze tests with the hook |
+| Green run; the test diff shows `assert status == 429` became `assert status in (202, 429)` | Loosened assertion to reach green | Restore the assertion, rerun, fix the implementation; guard editor calls with the hook and freeze reviewed tests in a read-only sandbox |
 | Green run; a test carries a new `@pytest.mark.skip` or `it.skip` | The failing case was removed from the signal instead of fixed | Un-skip, reproduce, fix; add the skip patterns to the diff check |
 | The error path is now `except Exception: pass` and the test that provoked the error passes | Swallowed error: the failure became invisible rather than absent | Reject; require errors to surface to callers or logs; lint for blind excepts |
 | The unit under test is patched with a mock in its own test | The test checks the mock's behaviour, not the code's | Mock only external boundaries; keep the subject real |
@@ -335,9 +345,9 @@ Parallelism multiplies throughput and blast radius together. Five agents with no
 
 **"The agent says all tests pass. What do you look at first?"** Model answer: `git diff --stat` for unexpected files, then the test diff for removed or loosened assertions, skips and new tests whose expected values came from the code; the implementation after that; the agent's summary last. Common wrong answer: reading the summary and the implementation, which is reviewing the author's claim before the evidence.
 
-**"Why insist on a failing test before implementation when working with an agent?"** Model answer: the failure proves the test reaches the behaviour and shows why it fails, the reviewed test becomes a spec the agent cannot quietly redefine, and expected values written before the code cannot have come from the code. Common wrong answer: "because TDD is best practice", which is a slogan rather than a mechanism.
+**"Why insist on a failing test before implementation when working with an agent?"** Model answer: a behavioural assertion failure demonstrates the test reaches the check, whereas an import failure does not. Review the expected values against the requirement before implementation, then protect that reviewed baseline independently. The failure alone does not prove the test is correct or comprehensive. Common wrong answer: "because TDD is best practice", which is a slogan rather than a mechanism.
 
-**"What is the difference between telling the agent not to edit tests and a hook that blocks it?"** Model answer: the instruction is text in the context window that later pressure can override; the hook runs in the harness before the tool executes and denies the call whatever the model decided, and its reason feeds back as the observation. Common wrong answer: "the instruction is enough if you put it in the memory file".
+**"What is the difference between telling the agent not to edit tests and a hook that blocks it?"** Model answer: the instruction is text in the context window that later pressure can override; the hook denies matching editor calls and feeds back a reason, but shell writes and other unmatched paths remain possible; a read-only sandbox mount outside the agent's control is needed to freeze files across all tools. Common wrong answer: "the instruction is enough if you put it in the memory file".
 
 **"It is the fourth attempt at the same failing test. What do you do and why does a new session help?"** Model answer: stop, write down the missing fact, and start fresh with a sharper spec, because the failed attempts in the transcript bias every retry and each retry costs more as the transcript grows. Common wrong answer: "keep going, it is narrowing down the cause", which describes what the repeated variations are not doing.
 
@@ -346,7 +356,7 @@ Parallelism multiplies throughput and blast radius together. Five agents with no
 - **Delegating the whole feature.** The result is a 600-line diff nobody can review, so it is skimmed and merged on the strength of green tests.
 - **Skipping the read-only pass.** The agent duplicates a helper that already exists (the login limiter) because nobody asked it to look first.
 - **Letting the same step write tests and implementation.** The expected values come from the code, and the tests pin the bug.
-- **Treating "do not modify the tests" as enforcement.** It is a request; a hook or a permission rule is enforcement.
+- **Treating "do not modify the tests" as enforcement.** It is a request; an editor hook guards only matching calls; freeze reviewed tests with a read-only sandbox boundary the agent cannot change.
 - **Reading the summary first.** It is written by the author of the diff; `git diff --stat` and the test diff are the evidence.
 - **Arguing through a fifth attempt in a polluted session.** The transcript's failed attempts bias the next one and each iteration costs more; a fresh session with one new fact is cheaper.
 - **Running parallel agents in one working tree.** They overwrite each other and each debugs the other's failures; worktrees or separate sandboxes fix it.
@@ -430,7 +440,7 @@ hints:
 - You **scope** agent work to one concern, one done command and one reviewable diff of a few hundred lines, and you decompose features before delegating.
 - You get a **plan before code** and review it for layer, reuse, dependencies and irreversibility.
 - You prompt **test-first**, look at why the test fails, and derive expected values from the spec so a test cannot assert the bug.
-- You **enforce with the harness** what the prompt only requests: a hook that freezes tests during implementation, permission rules on paths, a done command the agent cannot edit.
+- You **enforce with the environment** what the prompt only requests: reviewed tests mounted read-only, policy outside the agent's control, and independent verification. You use an editor hook for immediate feedback and can name the write paths it does not cover.
 - You recognise **verification gaming** (skips, loosened assertions, swallowed errors, mocked subjects) and check test diffs before implementation diffs, with a script rather than by eye.
 - You **reset** a polluted session with a sharper spec instead of arguing through a fourth attempt.
 - You run parallel agents with **disjoint ownership**, separate worktrees and hard resource limits.
@@ -457,11 +467,11 @@ hints:
   explanation: >-
     A read-only explanation exposes misunderstandings before any code exists, which is the cheapest place to catch them, and it surfaces existing helpers the agent would otherwise duplicate. Implementing first moves discovery to diff review or production.
 - q: >-
-    You told the agent not to modify the test file, and it did anyway under a long failing loop. Which change makes that impossible rather than unlikely?
-  options: ["Switch to a larger model that follows instructions more reliably", "Ask the agent to confirm it understood the instruction before it starts", "Repeat the instruction at the top of the memory file in capital letters", "A PreToolUse hook or permission rule that denies edits to the test paths"]
-  answer: 3
+    You told the agent not to modify the test file, and it did anyway under a long failing loop. Which setup prevents writes through every tool?
+  options: ["Ask the agent to confirm it understood the instruction before it starts", "Repeat the instruction at the top of the memory file in capital letters", "Mount reviewed tests read-only in a sandbox whose policy the agent cannot change", "Switch to a larger model that follows instructions more reliably"]
+  answer: 2
   explanation: >-
-    An instruction is text in the context window; a hook runs in the harness before the tool executes and denies the call whatever the model decided, feeding the reason back as the observation. Louder instructions, confirmations and bigger models lower the odds without removing the capability.
+    A read-only mount enforced outside the agent's control prevents writes regardless of which tool attempts them. An editor-only hook denies matching editor calls but leaves shell and other write paths uncovered. Instructions, confirmations and bigger models do not remove the capability; an independent baseline check also verifies that the reviewed tests are the ones being run.
 - q: >-
     The agent is on its fourth attempt at the same failing test, each attempt a small variation, and the session transcript is very long. What should you do?
   options: ["Ask it to disable the test for now, so the rest of the work can proceed", "Keep going, since each variation narrows down the cause of the failing test", "Tell it the fix is urgent, so it tries harder and more carefully", "Stop, note what you learned, and start a fresh session with a sharper spec"]

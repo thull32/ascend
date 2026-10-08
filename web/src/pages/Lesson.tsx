@@ -78,7 +78,7 @@ export default function LessonPage() {
         <footer className="mt-10 flex flex-wrap items-center gap-3 border-t border-line pt-6">
           {user ? (
             <Button variant={completed ? "secondary" : "primary"} onClick={() => setStatus.mutate({ slug, status: completed ? "in_progress" : "completed" })} data-testid="mark-complete">
-              <CheckCircle2 className="h-4 w-4" /> {completed ? "Completed" : "Mark as complete"}
+              <CheckCircle2 className="h-4 w-4" /> {completed ? "Read" : "Mark as read"}
             </Button>
           ) : (
             <Link to="/login" className="text-sm text-accent">
@@ -105,6 +105,8 @@ export default function LessonPage() {
             )}
           </div>
         </footer>
+
+        {user && <p className="mt-3 text-xs text-muted">This tracks your reading. Quiz results and solved exercises are recorded separately.</p>}
 
         <Comments kind="lesson" slug={slug} />
       </article>

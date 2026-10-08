@@ -35,6 +35,25 @@ test.describe("public pages", () => {
     await expect(page).toHaveURL(/\/(learn|practice)\//);
   });
 
+  test("practice collection counts reflect membership and remain stable under filters", async ({ page }) => {
+    const response = await page.request.get("/api/problems");
+    expect(response.ok()).toBe(true);
+    const problems = await response.json() as { lists: string[]; difficulty: string }[];
+    const core = problems.filter((p) => p.lists.includes("core-75"));
+    const full = problems.filter((p) => p.lists.includes("ascend-150"));
+    // Existing bookmarked list IDs still select the same collection.
+    await page.goto("/practice?list=core-75");
+    const coreButton = page.getByRole("button", { name: `Core practice (${core.length})`, exact: true });
+    await expect(coreButton).toBeVisible();
+    await expect(page.getByRole("button", { name: `Full practice (${full.length})`, exact: true })).toBeVisible();
+    await expect(page.getByTestId("problem-row")).toHaveCount(core.length);
+    await page.getByRole("button", { name: "Medium", exact: true }).click();
+    await expect(page.getByTestId("problem-row")).toHaveCount(core.filter((p) => p.difficulty === "medium").length);
+    await expect(coreButton).toBeVisible();
+    await page.getByRole("button", { name: `Full practice (${full.length})`, exact: true }).click();
+    await expect(page.getByTestId("problem-row")).toHaveCount(full.filter((p) => p.difficulty === "medium").length);
+  });
+
   test("practice list and problem page work; JS tests run in the browser", async ({ page }) => {
     await page.goto("/practice/two-sum");
     await expect(page.getByRole("heading", { name: "Two Sum" })).toBeVisible();
@@ -112,7 +131,8 @@ test.describe("authenticated flows", () => {
     await page.getByTestId("continue").click();
     await expect(page).toHaveURL(/\/learn\//);
     await page.getByTestId("mark-complete").click();
-    await expect(page.getByTestId("mark-complete")).toContainText("Completed");
+    await expect(page.getByTestId("mark-complete")).toHaveText("Read");
+    await expect(page.getByText("This tracks your reading. Quiz results and solved exercises are recorded separately.")).toBeVisible();
     await page.goto("/dashboard");
     await expect(page.locator("dd").first()).toContainText(/^1 \//);
   });

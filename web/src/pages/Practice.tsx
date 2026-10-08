@@ -12,6 +12,11 @@ export default function Practice() {
   const difficulty = params.get("difficulty") ?? undefined;
   const [hideSolved, setHideSolved] = useState(false);
   const q = useProblems({ pattern, list, difficulty });
+  // Count the collections independently of active filters or solved status.
+  // Keep the existing list IDs so bookmarks continue to work.
+  const allProblems = useProblems();
+  const collectionLabel = (name: string, id: string) =>
+    allProblems.data ? `${name} (${allProblems.data.filter((p) => p.lists.includes(id)).length})` : name;
   const curriculum = useCurriculum();
   const progress = useProgress();
   const solved = new Set(progress.data?.solved_problem_slugs ?? []);
@@ -26,7 +31,7 @@ export default function Practice() {
     <div>
       <PageTitle
         title="Practice"
-        subtitle="The Ascend 150: classic interview problems organised by the pattern that solves them. Learn the pattern in its lesson, then apply it here. Original statements; runs in your browser."
+        subtitle="Classic interview problems organised by the pattern that solves them. Learn the pattern in its lesson, then apply it here. Original statements; runs in your browser."
         actions={
           progress.data && (
             <span className="text-sm text-muted">
@@ -37,8 +42,8 @@ export default function Practice() {
       />
       <div className="mb-4 flex flex-wrap gap-2">
         <Chip active={!list} onClick={() => set("list")} label="All" />
-        <Chip active={list === "core-75"} onClick={() => set("list", "core-75")} label="Core 75" />
-        <Chip active={list === "ascend-150"} onClick={() => set("list", "ascend-150")} label="Ascend 150" />
+        <Chip active={list === "core-75"} onClick={() => set("list", "core-75")} label={collectionLabel("Core practice", "core-75")} />
+        <Chip active={list === "ascend-150"} onClick={() => set("list", "ascend-150")} label={collectionLabel("Full practice", "ascend-150")} />
         <span className="mx-1 border-l border-line" />
         {["easy", "medium", "hard"].map((d) => (
           <Chip key={d} active={difficulty === d} onClick={() => set("difficulty", difficulty === d ? undefined : d)} label={titleCase(d)} />

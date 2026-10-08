@@ -11,7 +11,7 @@ problems: [climbing-stairs, min-cost-climbing-stairs, house-robber, house-robber
 
 The hard part of DP in an interview is not the table; it is naming the state. "What is the smallest description of a partial solution such that the rest of the problem depends only on that description?" Once you can say `dp[i]` means *the answer for the first `i` items* or `dp[i][j]` means *the answer for prefix `i` of A and prefix `j` of B*, the recurrence is usually one line and the code is ten.
 
-The [dynamic programming module](/learn/algorithms/dynamic-programming/the-dp-mindset) teaches the mindset and each family in depth, [the knapsack family](/learn/algorithms/dynamic-programming/knapsack-family) included. This lesson is the interview layer on top: the statements that select DP and the ones that only look like it, the six state shapes that cover the Ascend 150, and the execution details (recursion limits, memo keys, number widths) that decide whether a correct recurrence passes.
+The [dynamic programming module](/learn/algorithms/dynamic-programming/the-dp-mindset) teaches the mindset and each family in depth, [the knapsack family](/learn/algorithms/dynamic-programming/knapsack-family) included. This lesson is the interview layer on top: the statements that select DP and the ones that only look like it, the six state shapes that cover the full practice collection, and the execution details (recursion limits, memo keys, number widths) that decide whether a correct recurrence passes.
 
 ## The signal
 

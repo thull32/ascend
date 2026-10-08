@@ -9,7 +9,7 @@ import { Button, Card, ErrorBox, PageTitle } from "../components/ui";
 import { cn, timeAgo } from "../lib/utils";
 
 const KINDS: { kind: InterviewKind; title: string; body: string; icon: typeof Code2; minutes: number }[] = [
-  { kind: "coding", title: "Coding", body: "One problem from the Ascend 150, a live editor, and an interviewer who probes complexity, edge cases and trade-offs.", icon: Code2, minutes: 45 },
+  { kind: "coding", title: "Coding", body: "One problem from the full practice collection, a live editor, and an interviewer who probes complexity, edge cases and trade-offs.", icon: Code2, minutes: 45 },
   { kind: "system_design", title: "System design", body: "A Netflix-scale design prompt. Requirements, estimates, architecture, deep dives, failure modes.", icon: Server, minutes: 45 },
   { kind: "behavioral", title: "Behavioural", body: "Senior-level STAR questions with follow-ups that test ownership, judgement and conflict handling.", icon: MessagesSquare, minutes: 30 },
 ];

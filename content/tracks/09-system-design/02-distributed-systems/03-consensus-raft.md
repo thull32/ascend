@@ -68,7 +68,7 @@ Leader L in term 3 with four followers; indexes 1–4 are committed everywhere, 
 | F3 acknowledges up to 7 | 7, 7, 5, 7, 4 | 7 | **7** |
 | Next heartbeat carries commitIndex 7 | | | F2 applies up to 5, F4 up to 4: each applies min(leader's commit, its own last index) |
 
-The commit index is the median of the match indexes. One slow follower (F4) changes nothing; two slow followers in a five-node cluster would put one of them in every majority, and commit latency would track it.
+The majority replication index is the median of the five match indexes; advancing the commit index also requires the current-term check above. With a healthy leader, even two slow followers need not delay a commit: the leader and the two fast followers already form a majority of three. For example, match indexes `[7, 7, 7, 4, 4]` allow index 7 to commit if it belongs to the current term. With three slow followers, only two servers acknowledge promptly, so committing must wait for at least one slow follower. This is the [Raft paper's](https://raft.github.io/raft.pdf) majority-completion guarantee, not a requirement to wait for every replica.
 
 ```mermaid
 sequenceDiagram
