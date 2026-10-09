@@ -1,8 +1,9 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, List, MessageSquare } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Headphones, List, MessageSquare } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useAuth } from "../lib/auth";
 import { useLesson, useProgress, useSetLessonStatus } from "../lib/queries";
+import { formatDuration, useAudio } from "../lib/audio";
 import { Badge, Button, Crumbs, Spinner } from "../components/ui";
 import { Markdown } from "../components/Markdown";
 import { Comments } from "../components/Comments";
@@ -18,6 +19,7 @@ export default function LessonPage() {
   const progress = useProgress();
   const setStatus = useSetLessonStatus();
   const dock = useCoachDock();
+  const audio = useAudio();
   const [tocOpen, setTocOpen] = useState(false);
 
   // Mark "in progress" on first open; scroll to top on navigation.
@@ -47,6 +49,14 @@ export default function LessonPage() {
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge className={cn(difficultyColor(l.summary.difficulty))}>{l.summary.difficulty}</Badge>
             <Badge>{l.summary.minutes} min</Badge>
+            {(() => {
+              const e = audio.data?.episodes.find((x) => x.lesson === lesson);
+              return e ? (
+                <Link to={`/listen?play=${encodeURIComponent(e.name)}`} className="flex items-center gap-1 rounded-full border border-accent px-2 py-0.5 text-xs text-accent hover:bg-elev-2">
+                  <Headphones className="h-3 w-3" /> Listen, {formatDuration(e.duration)}
+                </Link>
+              ) : null;
+            })()}
             {l.summary.tags.filter((t) => !t.startsWith("pattern:")).slice(0, 5).map((t) => (
               <Badge key={t}>{t}</Badge>
             ))}

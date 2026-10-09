@@ -1,6 +1,7 @@
 //! HTTP route modules. Each module exposes `router()` returning a `Router<AppState>`
 //! mounted under `/api` by `app::build`.
 pub mod admin;
+pub mod audio;
 pub mod auth;
 pub mod coach;
 pub mod comments;

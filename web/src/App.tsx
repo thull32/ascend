@@ -30,6 +30,7 @@ const InterviewRoom = lazy(() => import("./pages/InterviewRoom"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Playground = lazy(() => import("./pages/Playground"));
 const VizGallery = lazy(() => import("./pages/VizGallery"));
+const Listen = lazy(() => import("./pages/Listen"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
@@ -67,6 +68,7 @@ export function App() {
               /coach -> /coach/:id without remounting the page mid-stream. */}
           <Route path="/coach/:id?" element={<RequireAuth><CoachPage /></RequireAuth>} />
           <Route path="/interviews" element={<RequireAuth><Interviews /></RequireAuth>} />
+          <Route path="/listen" element={<RequireAuth><Listen /></RequireAuth>} />
           <Route path="/interviews/:id" element={<RequireAuth><InterviewRoom /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="/playground" element={<Playground />} />

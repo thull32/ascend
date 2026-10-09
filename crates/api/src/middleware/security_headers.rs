@@ -26,6 +26,9 @@ pub async fn apply(req: Request<Body>, next: Next) -> Response {
             "style-src 'self' 'unsafe-inline'; ",
             "font-src 'self' data:; ",
             "img-src 'self' data: blob:; ",
+            // The web player's episodes redirect to signed links on Railway's
+            // object storage (services/audio.rs).
+            "media-src 'self' https://*.storageapi.dev; ",
             "connect-src 'self' https://cdn.jsdelivr.net https://pypi.org https://files.pythonhosted.org; ",
             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
         )),

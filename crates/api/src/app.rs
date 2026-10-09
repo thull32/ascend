@@ -34,6 +34,7 @@ pub fn build(state: AppState) -> Router {
         .merge(routes::health::router())
         .nest("/auth", routes::auth::router(state.clone()))
         .merge(routes::admin::router())
+        .merge(routes::audio::router())
         .merge(routes::curriculum::router())
         .merge(routes::problems::router(state.clone()))
         .merge(routes::progress::router())

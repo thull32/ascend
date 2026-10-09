@@ -85,6 +85,9 @@ jobs:
       # Quiz options must be in their canonical shuffled order, so correct
       # answers stay spread evenly across positions as quizzes are edited.
       - run: python3 scripts/shuffle_quiz_options.py --check
+      # Audio scripts follow content/AUDIO_GUIDE.md and match their lessons:
+      # a lesson edit marks its script stale until it is reviewed.
+      - run: python3 scripts/audio/check.py
       - run: python3 scripts/quiz_stats.py
 
   web:

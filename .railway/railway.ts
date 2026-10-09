@@ -20,7 +20,7 @@
 // Turning one back on is one apply; secrets they held (GRADER_TOKEN,
 // GF_SECURITY_ADMIN_PASSWORD, ALERT_WEBHOOK_URL) must be set again
 // (docs/RUNBOOK.md, "Scaling back up").
-import { defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
+import { bucket, defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 const REPO = "thull32/ascend";
 // ascend.engineering becomes canonical once Railway has verified it and
@@ -121,6 +121,12 @@ export default defineRailway(() => {
       RESEND_API_KEY: preserve(),
       EMAIL_FROM: preserve(),
       CONTACT_EMAIL: preserve(),
+      // The audio bucket's S3 credentials (railway bucket credentials --bucket
+      // audio); the API signs links to episodes with them.
+      AUDIO_S3_ENDPOINT: preserve(),
+      AUDIO_S3_BUCKET: preserve(),
+      AUDIO_S3_ACCESS_KEY_ID: preserve(),
+      AUDIO_S3_SECRET_ACCESS_KEY: preserve(),
       // Graded in-process unless PHASE_2: two runs at once.
       ...(PHASE_2 ? { GRADER_URL: internal("grader", 8080), GRADER_TOKEN: grader.env.GRADER_TOKEN } : { GRADER_SLOTS: "2" }),
       // Strict: a dangling cross-reference or malformed block fails the build.
@@ -133,6 +139,10 @@ export default defineRailway(() => {
       ...telemetry,
     },
   });
+
+  // Audio editions of the lessons (MP3s and the episode manifest), uploaded by
+  // scripts/audio/publish.py; the API signs short-lived URLs to them.
+  const audio = bucket("audio", { region: "iad" });
 
   // Kept while OBSERVABILITY is off, so metric history survives (a few
   // hundred MB; billed by use).
@@ -174,6 +184,7 @@ export default defineRailway(() => {
       db,
       dbVolume,
       app,
+      audio,
       promData,
       ...(PHASE_2 ? [grader] : []),
       ...(OBSERVABILITY ? [prometheus, alertmanager, jaeger, grafana] : []),

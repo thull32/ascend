@@ -2,6 +2,7 @@
 //! `DatabaseConnection` (cheap to clone; it's a pool handle) and returns
 //! domain types. No HTTP, no global state.
 pub mod activity;
+pub mod audio;
 pub mod comments;
 pub mod grading;
 pub mod interviews;

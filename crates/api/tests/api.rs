@@ -44,6 +44,7 @@ fn config(url: &str) -> Config {
         redirect_hosts: vec!["old.example.test".into()],
         signups: ascend_core::config::Signups::Open,
         admin_token: Some(SecretString::from("an-admin-token-that-is-long-enough-123")),
+        audio: None,
         cookie_secure: false,
         session_ttl: Duration::from_secs(3600),
         session_idle: Duration::from_secs(1800),
@@ -664,6 +665,29 @@ async fn the_operator_api_manages_invites_with_the_admin_token() {
     let id = mine["id"].as_str().unwrap();
     let (status, revoked) = send("DELETE", &format!("/api/admin/invites/{id}"), Some(TOKEN), None).await;
     assert_eq!((status, revoked["revoked"].as_i64()), (StatusCode::OK, Some(1)));
+}
+
+#[tokio::test]
+async fn a_new_podcast_feed_url_revokes_the_old_one() {
+    let Some(app) = test_app().await else { return };
+    let (_, user) = app.register().await;
+    let id: uuid::Uuid = user["id"].as_str().unwrap().parse().unwrap();
+    let audio = &app.state.audio;
+    assert!(!audio.has_feed(id).await.unwrap());
+    let first = audio.new_feed(id).await.unwrap();
+    assert_eq!(audio.feed_owner(&first).await.unwrap(), id);
+    let second = audio.new_feed(id).await.unwrap();
+    assert_eq!(audio.feed_owner(&second).await.unwrap(), id);
+    assert!(
+        matches!(audio.feed_owner(&first).await, Err(ascend_core::AppError::NotFound(_))),
+        "the old URL stops working"
+    );
+    assert!(matches!(audio.feed_owner("not-a-token").await, Err(ascend_core::AppError::NotFound(_))));
+    // Without a bucket configured, audio is off and its routes are absent.
+    let r = app.call("GET", &format!("/api/audio/feed/{second}.xml"), None, None, false).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+    let r = app.call("GET", "/api/features", None, None, false).await;
+    assert_eq!(r.body["audio"], false);
 }
 
 #[tokio::test]

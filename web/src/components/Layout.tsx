@@ -1,4 +1,4 @@
-import { BookOpen, Code2, LogOut, Map, MessageSquare, Mic, Moon, Search, Sun, User as UserIcon, Menu, X, LayoutDashboard, Play } from "lucide-react";
+import { BookOpen, Code2, Headphones, LogOut, Map, MessageSquare, Mic, Moon, Search, Sun, User as UserIcon, Menu, X, LayoutDashboard, Play } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { api } from "../lib/api";
@@ -15,9 +15,13 @@ const nav = [
   { to: "/interviews", label: "Interviews", icon: Mic },
   { to: "/playground", label: "Playground", icon: Play },
 ];
+// Shown when the deployment has audio editions and someone is signed in.
+const listen = { to: "/listen", label: "Listen", icon: Headphones };
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const features = useFeatures();
+  const items = user && features.data?.audio ? [...nav.slice(0, 2), listen, ...nav.slice(2)] : nav;
   const [theme, setTheme] = useState(loadTheme);
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -56,7 +60,7 @@ export function Layout({ children }: { children: ReactNode }) {
             Ascend
           </Link>
           <nav className="ml-4 hidden items-center gap-1 lg:flex">
-            {nav.map((n) => (
+            {items.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
@@ -103,7 +107,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
         {open && (
           <nav className="border-t border-line px-2 py-2 lg:hidden">
-            {nav.map((n) => (
+            {items.map((n) => (
               <NavLink key={n.to} to={n.to} className={({ isActive }) => cn("flex items-center gap-3 rounded-md px-3 py-2.5 text-sm", isActive ? "bg-elev-2 text-fg" : "text-muted")}>
                 <n.icon className="h-4 w-4" />
                 {n.label}

@@ -5,6 +5,19 @@ use std::time::Duration;
 
 use secrecy::{ExposeSecret, SecretString};
 
+/// S3-compatible storage for the audio editions (a Railway bucket).
+#[derive(Debug, Clone)]
+pub struct AudioStorage {
+    pub endpoint: String,
+    pub bucket: String,
+    pub region: String,
+    /// `AUDIO_S3_URL_STYLE=path` for stores that do not support
+    /// virtual-host addressing (MinIO in tests); Railway's does.
+    pub path_style: bool,
+    pub access_key_id: String,
+    pub secret_access_key: SecretString,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Signups {
@@ -35,6 +48,8 @@ pub struct Config {
     /// Bearer token for the operator API (`/api/admin`, `ADMIN_TOKEN`, 32+
     /// characters). Unset disables it.
     pub admin_token: Option<SecretString>,
+    /// Where the audio editions live (`AUDIO_S3_*`); unset hides audio.
+    pub audio: Option<AudioStorage>,
     pub cookie_secure: bool,
     pub session_ttl: Duration,
     /// Sessions unused for this long are signed out (`SESSION_IDLE_DAYS`).
@@ -154,6 +169,22 @@ impl Config {
                         reason: format!("{other:?}: use open or invite"),
                     });
                 }
+            },
+            audio: match (
+                std::env::var("AUDIO_S3_ENDPOINT").ok().filter(|v| !v.trim().is_empty()),
+                std::env::var("AUDIO_S3_BUCKET").ok().filter(|v| !v.trim().is_empty()),
+                std::env::var("AUDIO_S3_ACCESS_KEY_ID").ok().filter(|v| !v.trim().is_empty()),
+                std::env::var("AUDIO_S3_SECRET_ACCESS_KEY").ok().filter(|v| !v.trim().is_empty()),
+            ) {
+                (Some(endpoint), Some(bucket), Some(access_key_id), Some(secret)) => Some(AudioStorage {
+                    endpoint,
+                    bucket,
+                    region: var_or("AUDIO_S3_REGION", "auto"),
+                    path_style: var_or("AUDIO_S3_URL_STYLE", "virtual-host") == "path",
+                    access_key_id,
+                    secret_access_key: SecretString::from(secret),
+                }),
+                _ => None,
             },
             admin_token: std::env::var("ADMIN_TOKEN").ok().filter(|t| !t.trim().is_empty()).map(SecretString::from),
             redirect_hosts: std::env::var("REDIRECT_HOSTS")

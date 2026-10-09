@@ -10,6 +10,9 @@ Free learning platform taking mid-level engineers to senior at top-tier companie
 - Content: `cargo run -q -p ascend-core --example validate_content -- ./content` (add `CONTENT_LENIENT=1` while authoring)
 - Problems: `python3 scripts/validate_problems.py [content/problems/<slug>.md]` (structure only). Reference solutions
   (`solutions/`) are graded by the server sandbox: `cargo run -q -p ascend-api -- --grade-solutions [PREFIX]`
+- Audio: scripts for listening live in `content/audio` (`content/AUDIO_GUIDE.md`). `python3 scripts/audio/check.py`
+  (CI) flags a script stale when its lesson changes: review it, then `--fix-source`. Render, verify and publish with
+  `uv run scripts/audio/{render,verify,publish}.py`.
 - Quizzes: `make quizzes` after editing any quiz (canonical option order; CI checks it). `make minutes` after editing lesson prose.
 - Web: `cd web && pnpm typecheck && pnpm test`; e2e: `make e2e` (needs a running server)
 

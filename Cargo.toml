@@ -70,6 +70,8 @@ gray_matter = "0.3"
 regex = "1"
 
 # --- http client / ai ---
+rusty-s3 = "0.10"
+url = "2"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
 eventsource-stream = "0.2"
 

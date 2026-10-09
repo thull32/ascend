@@ -29,6 +29,8 @@ include_dir = { workspace = true }
 gray_matter = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true }
+rusty-s3 = { workspace = true }
+url = { workspace = true }
 eventsource-stream = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true }

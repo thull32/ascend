@@ -10,7 +10,7 @@ const CONTENT_STALE = 30 * 60 * 1000;
 
 /** Optional features this deployment has (an AI key, an email provider). */
 export const useFeatures = () =>
-  useQuery({ queryKey: ["features"], queryFn: () => api.get<{ ai: boolean; email: boolean; contact: string | null; signups: "open" | "invite" }>("/features"), staleTime: 10 * 60_000 });
+  useQuery({ queryKey: ["features"], queryFn: () => api.get<{ ai: boolean; email: boolean; contact: string | null; signups: "open" | "invite"; audio: boolean }>("/features"), staleTime: 10 * 60_000 });
 export const useCurriculum = () => useQuery({ queryKey: ["curriculum"], queryFn: () => api.get<Curriculum>("/curriculum"), staleTime: CONTENT_STALE });
 export const useTrack = (slug: string) => useQuery({ queryKey: ["track", slug], queryFn: () => api.get<Track>(`/curriculum/tracks/${slug}`), staleTime: CONTENT_STALE });
 export const useModule = (track: string, module: string) =>
