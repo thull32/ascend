@@ -187,7 +187,8 @@ impl AudioService {
     /// next few hours.
     pub async fn episode_url(&self, name: &str) -> AppResult<url::Url> {
         let manifest = self.manifest().await?;
-        let known = manifest.episodes.iter().any(|e| e.name == name) || manifest.walkthroughs.iter().any(|w| w.name == name);
+        let known =
+            manifest.episodes.iter().any(|e| e.name == name) || manifest.walkthroughs.iter().any(|w| w.name == name);
         if !known {
             return Err(AppError::NotFound("episode"));
         }
