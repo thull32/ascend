@@ -107,7 +107,7 @@ Kruskal's algorithm sorts every edge by weight and walks the list, adding an edg
  "edges": [{"from":"A","to":"B","w":4},{"from":"A","to":"C","w":2},{"from":"B","to":"C","w":5},{"from":"B","to":"D","w":10},{"from":"C","to":"D","w":8},{"from":"C","to":"E","w":3},{"from":"D","to":"E","w":6},{"from":"D","to":"F","w":7},{"from":"E","to":"F","w":9}]}
 ```
 
-Sorted: A–C 2, C–E 3, A–B 4, B–C 5, D–E 6, D–F 7, C–D 8, E–F 9, B–D 10. The table shows the union-find forest (union by size, path compression) after each edge; `X→Y` means `parent[X] = Y`, and a node that points to itself is a root.
+Sorted: A–C 2, C–E 3, A–B 4, B–C 5, D–E 6, D–F 7, C–D 8, E–F 9, B–D 10. The table shows the union-find forest (union by size, path halving, as in the code below) after each edge; `X→Y` means `parent[X] = Y`, and a node that points to itself is a root.
 
 | Edge | `find(u)`, `find(v)` | Decision | Components after | `parent` after |
 |---|---|---|---|---|
@@ -126,7 +126,7 @@ Same 22, same tree; with distinct weights the MST is unique, so every correct al
 
 ```python
 def kruskal(n, edges):
-    parent = list(range(n))
+    parent, size = list(range(n)), [1] * n
     def find(x):
         while parent[x] != x:
             parent[x] = parent[parent[x]]   # path halving
@@ -136,7 +136,10 @@ def kruskal(n, edges):
     for w, u, v in sorted((w, u, v) for u, v, w in edges):
         ru, rv = find(u), find(v)
         if ru != rv:
-            parent[ru] = rv
+            if size[ru] < size[rv]:         # union by size: hang the smaller tree
+                ru, rv = rv, ru
+            parent[rv] = ru
+            size[ru] += size[rv]
             total += w
             taken += 1
             if taken == n - 1:

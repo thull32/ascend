@@ -1,6 +1,6 @@
 ---
 lesson: number-theory-essentials
-source: f456d67b1509364d
+source: b63d300a8700885c
 fit: partial
 desk:
   - "The Euclid trace and the halving argument behind its logarithmic bound"

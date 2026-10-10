@@ -1,6 +1,6 @@
 ---
 lesson: strongly-connected-components
-source: ae32365d97ad2804
+source: c6c249ff0bd4c479
 fit: partial
 desk:
   - "Kosaraju's two passes on the six-node graph, with the finish order and the reversed edges"
@@ -36,7 +36,7 @@ Before I say it: what goes wrong if you take the second pass in increasing finis
 
 [pause]
 
-You start from a component that is a source of the reversed graph, and it swallows its successors. On the lesson's six-node version, a search from the sink node F on the reversed graph walks into D and E and reports all three as one component, although F cannot reach D. The order is the whole proof.
+Sooner or later a search starts in a component that is a source of the reversed graph, and it swallows its successors. On the lesson's six-node version, the first search, from C, happens to find the triangle. The second starts at the sink node F, walks into D and E on the reversed graph, and reports all three as one component, although F cannot reach D. The order is the whole proof.
 
 The cost: two DFS passes and a reversed copy of the graph, order V plus E. And a bonus: Kosaraju's component numbers come out in topological order of the condensation, sources first.
 

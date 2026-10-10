@@ -1,6 +1,6 @@
 ---
 lesson: amortized-analysis
-source: 6e16a526fd67fb4a
+source: 54f7a50e5b967ab8
 fit: partial
 desk:
   - "The nine-push table with credit and potential columns, read three ways"

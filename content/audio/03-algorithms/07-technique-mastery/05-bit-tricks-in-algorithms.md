@@ -1,6 +1,6 @@
 ---
 lesson: bit-tricks-in-algorithms
-source: bbaa305c86be6ea3
+source: 2326c567f094ef3e
 fit: partial
 desk:
   - "The mask-as-set table, and the member loop that peels off the lowest set bit"

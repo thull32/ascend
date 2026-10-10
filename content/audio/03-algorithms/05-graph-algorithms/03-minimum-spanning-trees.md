@@ -1,6 +1,6 @@
 ---
 lesson: minimum-spanning-trees
-source: 8cdb660452a0a37e
+source: 4ba4f2a2e9812f9c
 fit: partial
 desk:
   - "The cut-property proof run on the six-node graph, and the cycle property beside it"

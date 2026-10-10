@@ -49,7 +49,7 @@ If updates cluster (a hot set of pages), the page absorbs many updates before it
 
 Read amplification is storage reads per logical read.
 
-**B-tree.** A point lookup walks $\log_B n$ pages, where `B` is the fan-out. With 8 KB pages and ~20-byte index entries, `B` ≈ 400; a billion keys is four levels. The top three levels total about 1.3 GB and are always cached, so a point read on a cold leaf costs **about one** disk read for the index plus one for the heap row, and a hot one costs zero. Range scans are what B-trees are best at: leaf pages are linked, so a scan reads consecutive pages with no merging.
+**B-tree.** A point lookup walks $\log_B n$ pages, where `B` is the fan-out. With 8 KB pages and ~20-byte index entries, `B` ≈ 400; a billion keys is four levels. The 2.5 million leaves take 20 GB, but the three levels above them total about 6,300 pages, roughly 50 MB, and are always cached, so a point read on a cold leaf costs **about one** disk read for the index plus one for the heap row, and a hot one costs zero. Range scans are what B-trees are best at: leaf pages are linked, so a scan reads consecutive pages with no merging.
 
 **LSM tree.** A point read may consult the memtable, every L0 file, and one file per level: with leveled compaction and five levels, 5–8 candidates. Bloom filters (typically 10 bits per key for ~1% false positives) reject almost all of the ones that lack the key, so a cold point read for a present key costs about **one block read plus a few filter checks**, and a read for an absent key costs close to zero. Without bloom filters, or with a size-tiered layout whose runs all overlap, the cost is one read per run. Range scans cannot use bloom filters and must merge iterators over every run whose range intersects the query; a scan that touches five runs does five times the I/O of a B-tree scan over the same rows.
 
@@ -248,11 +248,11 @@ hints:
   explanation: >-
     16,384 / 100 is about 164 bytes written per byte changed, and each page lands wherever the key hashes in the tree, so the I/O pattern is random. The WAL adds to this figure; it does not replace the page write.
 - q: >-
-    Leveled compaction with fanout 10 and six levels. A row that eventually settles in L6 has been rewritten roughly how many times, in the simple model?
-  options: ["About 60", "About 51", "About 6", "About 10"]
-  answer: 1
+    Leveled compaction with fanout 10 and six levels, L1 to L6. A row that eventually settles in L6 has been rewritten roughly how many times, in the exercise's simple model?
+  options: ["About 51", "About 100,000", "About 6", "About 10"]
+  answer: 0
   explanation: >-
-    One write for the flush plus ten rewrites per move through five level boundaries: 1 + 10 x 5 = 51. Real numbers are lower because overwritten versions never descend, but the shape (linear in levels, times fanout) is right.
+    The exercise's model counts one write for the flush into L1 plus ten rewrites per move through five level boundaries: 1 + 10 x 5 = 51. Multiplying by the fanout at every level (10^5) confuses capacity, which grows geometrically, with rewrites, which add up linearly. The finer count in the prose, with an L0 above L1 and 11 units per move, gives 1 + 2 + 11 x 5 = 58: the same shape. Real numbers are lower because overwritten versions never descend, but the shape (linear in levels, times fanout) is right.
 - q: >-
     A workload updates the same 5 GB of rows over and over on a server with a 32 GB buffer pool. Which engine's write amplification does this locality reduce?
   options: ["The LSM tree's, because hot keys stay in the memtable and never flush", "Neither, because amplification depends only on row and page sizes", "The B-tree's, because each page absorbs many updates before one flush", "Both equally, because fewer distinct bytes change in either engine"]

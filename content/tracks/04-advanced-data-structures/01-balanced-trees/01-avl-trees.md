@@ -198,7 +198,7 @@ Every node leans left by exactly one. Delete **12**, the only leaf on the short 
 | 2 | 11 | (2, 0) | **+2**, child 10 is +1 | LL: right-rotate at 11 | subtree `10 → (9, 11)`, height 2, balances 0 0 0 |
 | 3 | 8 | (4, 2) | **+2**, child 5 is +1 | LL: right-rotate at 8 | root `5 → (3 → (2 → (1, ·), 4), 8 → (7 → (6, ·), 10 → (9, 11)))`, height 4 |
 
-Two rotations in one delete, one level apart, and the tree got one level shorter. Level order afterwards: `5, 3, 8, 2, 4, 7, 10, 1, 6, 9, 11`; check each balance: 5(0), 3(+1), 8(0), 2(+1), 4(0), 7(+1), 10(0), and every leaf 0. On a Fibonacci tree of height `h`, deleting the shallowest leaf cascades a rotation at every ancestor: `h − 2` rotations for one delete. Worst case O(log n) rotations, still O(log n) total, but a materially more expensive operation than insert. That asymmetry is one of the reasons [red-black trees](/learn/advanced-data-structures/balanced-trees/red-black-trees) exist: they cap delete at three rotations.
+Two rotations in one delete, one level apart, and the tree got one level shorter. Level order afterwards: `5, 3, 8, 2, 4, 7, 10, 1, 6, 9, 11`; check each balance: 5(0), 3(+1), 8(0), 2(+1), 4(0), 7(+1), 10(0), and every leaf 0. On a Fibonacci tree of height `h`, deleting the shallowest leaf cascades rotations up its short spine: `⌊(h − 1)/2⌋` of them for one delete, two here at `h = 5`, about `h/2` in general. Worst case O(log n) rotations, still O(log n) total, but a materially more expensive operation than insert. That asymmetry is one of the reasons [red-black trees](/learn/advanced-data-structures/balanced-trees/red-black-trees) exist: they cap delete at three rotations.
 
 ### The balance-0 case that only delete produces
 

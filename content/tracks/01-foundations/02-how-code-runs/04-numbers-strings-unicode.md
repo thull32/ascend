@@ -178,7 +178,7 @@ Each `+=` copies everything accumulated so far, so the total copying is $k + 2k 
 | Building 100,000 six-character pieces | Time | Why |
 |---|---|---|
 | CPython, `s += piece` on a local variable | 1.46 ms | the specialised bytecode `BINARY_OP_INPLACE_ADD_UNICODE` sees that `s` has exactly one reference and the next instruction stores back to `s`, so it extends the buffer in place: linear |
-| CPython, same loop with a second reference to `s` alive | 668 ms | the reference count is 2, the fast path is skipped, every `+=` copies: quadratic (10× the pieces took 4 s) |
+| CPython, same loop with a second reference to `s` alive | 668 ms | the reference count is 2, the fast path is skipped, every `+=` copies: quadratic (doubling the pieces roughly quadruples the time) |
 | CPython, `"".join(pieces)` | 0.21 ms | two passes, one allocation |
 | V8, `s += piece` | 7.6 ms | `+` builds a **cons string** (a rope: a node pointing at both halves) without copying; the string is flattened once, on first indexed access, in 0.6 ms |
 | V8, `parts.push(piece)` then `join("")` | 3.1 ms | one allocation of the final size |

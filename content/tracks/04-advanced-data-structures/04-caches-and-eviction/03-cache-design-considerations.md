@@ -82,7 +82,7 @@ where `δ` is the time the recompute takes and `β ≈ 1`. Since `ln(rand())` is
 | 50 ms | 36.8% | |
 | 10 ms | 81.9% | about 170 in the final 100 ms |
 
-Well before the deadline nobody refreshes; in the last couple of `δ` someone almost certainly does, and the refreshed value pushes `T` forward before the herd forms. The tens of refreshers in the final window are each *one* backend call spread over 100 ms, not 200 simultaneous ones at `T`, and combining early expiry with coalescing collapses them to one. It needs no locks and no coordination, only that each entry store its `δ` and `T`.
+Well before the deadline nobody refreshes; in the last couple of `δ` someone almost certainly does, and the refreshed value pushes `T` forward before the herd forms. The table's 170 or so refreshers in the final window assume no refresh has landed yet; the first one to finish pushes `T` forward and most of the rest never start. Even those 170 would be backend calls spread over 100 ms, not 200 simultaneous ones at `T`, and combining early expiry with coalescing collapses them to one. It needs no locks and no coordination, only that each entry store its `δ` and `T`.
 
 The three compose. A CDN edge typically does stale-while-revalidate plus coalescing at the origin; a Redis-backed application cache does a lock with a stale fallback.
 

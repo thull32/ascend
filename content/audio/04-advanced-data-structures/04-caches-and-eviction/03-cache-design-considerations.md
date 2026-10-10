@@ -1,6 +1,6 @@
 ---
 lesson: cache-design-considerations
-source: ceb844484983fdef
+source: 1dec3fc1a7b85147
 fit: great
 desk:
   - "The hit-ratio table with average, backend load and 99th percentile"

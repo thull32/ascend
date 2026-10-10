@@ -1,6 +1,6 @@
 ---
 lesson: recurrences-and-master-theorem
-source: 01f9e311108ca7b2
+source: ddf8a1a7522e86bc
 fit: partial
 desk:
   - "The level-by-level recursion tree tables for the three regimes"

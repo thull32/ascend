@@ -175,7 +175,7 @@ The last row is the only way a red-black tree loses black height: the double bla
 | 3 | D2 | 25 has black children: colour 25 red, `x` = 20 | 20 is red, loop ends |
 | 4 | absorb | colour 20 black | `30B→(20B→(·, 25R), 35B)`, bh 2, all rules hold |
 
-One rotation. Compare AVL, where a delete on a Fibonacci tree of height `h` costs `h − 2` rotations: here D2 propagates by recolouring only, and the three rotating cases can each fire at most once. That is the whole reason write-heavy ordered containers are red-black.
+One rotation. Compare AVL, where a delete on a Fibonacci tree of height `h` costs `⌊(h − 1)/2⌋` rotations, about `h/2`: here D2 propagates by recolouring only, and the three rotating cases can each fire at most once. That is the whole reason write-heavy ordered containers are red-black.
 
 **Left-leaning red-black trees.** Sedgewick's LLRB variant (2008) restricts red links to left children, which removes the mirror cases and shrinks insert and delete to a few dozen lines. If you ever have to write one from scratch, write that. In an interview, nobody expects you to write red-black delete from memory. They expect you to know the invariants, derive the height bound, insert a handful of keys correctly, name the delete cases and the three-rotation bound, and explain the AVL trade-off.
 

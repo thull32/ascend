@@ -1,6 +1,6 @@
 ---
 lesson: bellman-ford-and-floyd-warshall
-source: 4d92aa57fc8c70be
+source: aa1286c1fe6992c6
 fit: partial
 desk:
   - "The five-node Bellman-Ford trace, in place and against a copy, round by round"

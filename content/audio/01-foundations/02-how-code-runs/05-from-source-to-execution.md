@@ -1,6 +1,6 @@
 ---
 lesson: from-source-to-execution
-source: 89c88cccf8962a86
+source: 541f1859e07d0af8
 fit: great
 desk:
   - "The two-line function traced through tokens, syntax tree, CPython bytecode and its specialised form"

@@ -348,7 +348,7 @@ The Node query cost more than doubles once the array (134 MB at `1.7 × 10⁷`) 
 - **Forgetting coordinate compression** and allocating a tree the size of the value range, or crashing on a negative value.
 - **Binary searching over `prefix()`** for the k-th element: `O(log² n)` and 5× slower than the descent in the measurement above.
 - **Building with `n` adds** in a service that restarts often.
-- **Reaching for a lazy segment tree** for range add plus range sum, when two Fenwick trees do it in a fifth of the code and a fifth of the time in Python.
+- **Reaching for a lazy segment tree** for range add plus range sum, when two Fenwick trees do it in a fifth of the code and 3–6 times faster in Python (5.6× on adds, 3.4× on sums).
 
 ## Exercises
 

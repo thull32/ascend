@@ -1,6 +1,6 @@
 ---
 lesson: bloom-filters
-source: a0d585c5f6a3f435
+source: 2fd319aef816cbaa
 fit: partial
 desk:
   - "The 64-bit Bloom filter code, and the ten-fruit trace of every bit it sets"

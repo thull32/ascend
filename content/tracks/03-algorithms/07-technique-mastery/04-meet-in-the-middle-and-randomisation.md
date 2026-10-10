@@ -9,7 +9,7 @@ problems: [two-sum, target-sum, kth-largest-array, insert-delete-getrandom, word
 ---
 You are given 40 integers, each as large as 10⁹ in absolute value, and asked for the subset whose sum is closest to a goal. There are 2⁴⁰ ≈ 1.1 × 10¹² subsets, which is hours of work even in a compiled language. Dynamic programming over reachable sums is hopeless, because the sums span 8 × 10¹⁰ values. Greedy has no argument. Every textbook technique seems to fail.
 
-Then split the 40 numbers into two halves of 20. Each half has 2²⁰ ≈ 1.05 million subset sums. Sort one list, and for each sum in the other ask "what is the best partner?" with a binary search or a two-pointer sweep. The whole thing takes about a second in a compiled language and a few seconds in Python. That is **meet in the middle**: it turns `2^n` into roughly `2^(n/2)` by solving two half-size problems and combining them in a way that does not multiply their costs.
+Then split the 40 numbers into two halves of 20. Each half has 2²⁰ ≈ 1.05 million subset sums. Sort one list, and for each sum in the other ask "what is the best partner?" with a binary search or a two-pointer sweep. The whole thing takes tens of milliseconds in a compiled language and a few seconds in Python. That is **meet in the middle**: it turns `2^n` into roughly `2^(n/2)` by solving two half-size problems and combining them in a way that does not multiply their costs.
 
 The second half of this lesson covers the other tool for when determinism fails: **randomness**. Sometimes you need it for speed, as with random pivots. Sometimes you need it for safety, because an adversary who knows your hash function can pick your worst case. And sometimes you need it for scale, as with samples you can merge across machines and verification that is far cheaper than recomputation.
 
@@ -153,7 +153,7 @@ To check whether `A · B = C` for `n × n` matrices, multiplying out costs `O(n�
 
 ## Quantified costs
 
-- **Time.** `2^(n/2)` sums per half, each `O(1)` to generate; sorting one half is `O(2^(n/2) · n/2)`. For `n = 40`: about a million sums per half, a two-second job in Python and a few milliseconds in C. Brute force over `2^40 ≈ 1.1 × 10^12` subsets is hours in C.
+- **Time.** `2^(n/2)` sums per half, each `O(1)` to generate; sorting one half is `O(2^(n/2) · n/2)`. For `n = 40`: about a million sums per half, a two-second job in Python and tens of milliseconds in C, most of it the sort. Brute force over `2^40 ≈ 1.1 × 10^12` subsets is hours in C.
 - **Memory.** About 45 MB per half of `2^20` in Python, 8 MB as `int64`. At `n = 50`, `2^25 ≈ 3.4 × 10^7` per half is roughly 1.4 GB in Python and 270 MB in NumPy; this is where the technique stops on a laptop.
 - **Bidirectional search.** With branching factor `b` and distance `d`, one-sided BFS touches about `b^d` states and two-sided about `2 · b^(d/2)`: for `b = 10, d = 8` that is `10^8` against `2 × 10^4`. In Word Ladder the frontier is capped by the dictionary size, so the saving is "a fraction of the dictionary" rather than these raw numbers.
 - **Amplification.** A Monte Carlo test with one-sided error `1/2` needs 20 rounds for `10^-6` and 40 for `10^-12`; Freivalds' check therefore costs `40 · 3n²` multiplications to verify a product that cost `n³` to compute, a win above `n ≈ 120`.

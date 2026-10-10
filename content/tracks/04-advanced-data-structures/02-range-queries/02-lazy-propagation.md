@@ -269,7 +269,7 @@ Measured on CPython 3.14 on one core of a Ryzen 9 9950X3D, `n = 10⁶`, 20,000 r
 | range sum | **9.3 µs** | 2.7 µs | 2.9 ms (`sum(a[l:r+1])`) |
 | memory for `sum` + `lazy` (pointers only) | 64 MB (`2 × 4n × 8 B`) | 16 MB | 8 MB |
 
-The same recursive tree in Node 24 over `Float64Array`s: 11 ms to build, 506 ns per range add and 398 ns per range sum. A Python lazy tree therefore sustains roughly 60,000 range updates per second per core; the Node version roughly 2 million. The two-Fenwick structure, covered in the next lesson, is five times faster in Python because it has no recursion and no push, but it only handles add-and-sum.
+The same recursive tree in Node 24 over `Float64Array`s: 11 ms to build, 506 ns per range add and 398 ns per range sum. A Python lazy tree therefore sustains roughly 60,000 range updates per second per core; the Node version roughly 2 million. The two-Fenwick structure, covered in the next lesson, is 3–6 times faster in Python (5.6× on range adds, 3.4× on range sums in the table above) because it has no recursion and no push, but it only handles add-and-sum.
 
 ## Where range updates meet range queries
 
@@ -318,7 +318,7 @@ In each case the lazy tree is worth it only when *both* sides are ranges. Range 
 
 - **Testing only with add.** Add is commutative, so wrong composition order and missing pushes in some paths pass every test until assign appears.
 - **Using 0 as "no pending tag"** for an operation where 0 is a meaningful value.
-- **Reaching for a lazy tree when one side is a point.** A difference array over a Fenwick tree is a fifth of the code and five times faster in Python.
+- **Reaching for a lazy tree when one side is a point.** A difference array over a Fenwick tree is a fifth of the code and several times faster in Python.
 - **Pushing in updates but not in queries**, or the reverse, and concluding the bug is elsewhere because single-element tests pass.
 - **Forgetting the length.** A sum node must know how many elements it covers; ACL forces you to store it, recursive code gets it from `hi − lo + 1`, and code that mixes the two conventions is off by `delta`.
 - **Quoting `O(log n)` without the constant.** In CPython a lazy update is 17 µs; 10⁵ updates per second need 1.7 cores for the tree alone.

@@ -184,7 +184,7 @@ The same property is an attack surface. Integer hashing is not randomised in CPy
 - **The template.** One dict `get` and one `set` per element: about 0.2 s for 10⁶ elements in Python, 10–20 ms in C or Rust with a good hash map. The `O(n²)` extend-from-every-start version does 5 × 10¹¹ additions at 10⁶ elements, which is hours.
 - **Memory.** Hash map of prefixes: roughly 65 bytes × (number of distinct prefixes), up to 65 MB at 10⁶. Residue array: `8k` bytes. Parity-mask array: 32 slots.
 - **Inequalities.** A Fenwick tree over compressed prefix values does `2 log₂ n` array steps per element: about 4 × 10⁷ steps for `n = 10⁶`, a few seconds in Python and tens of milliseconds in C.
-- **Two dimensions.** `R² × C` map operations: 10⁶ for a 100 × 100 grid, 1.25 × 10⁸ for 500 × 500 (minutes in pure Python, under a second in C). Transposing so the smaller dimension is squared is a free factor of `R/C`.
+- **Two dimensions.** `R(R + 1)/2 × C ≈ R² × C / 2` map operations, one per row pair and column: about 5 × 10⁵ for a 100 × 100 grid, 6.3 × 10⁷ for 500 × 500 (over ten seconds in pure Python at the template's rate, under a second in C). Transposing so the smaller dimension is squared is a free factor of `R/C`.
 
 ## Failure modes
 

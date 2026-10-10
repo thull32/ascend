@@ -1,6 +1,6 @@
 ---
 lesson: lazy-propagation
-source: 6a5c7597218b0e58
+source: 834ea760b3bf6a6d
 fit: partial
 desk:
   - "The difference-array picture"

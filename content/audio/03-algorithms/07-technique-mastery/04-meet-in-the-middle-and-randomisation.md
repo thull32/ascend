@@ -1,6 +1,6 @@
 ---
 lesson: meet-in-the-middle-and-randomisation
-source: 3b46c31c3806bc56
+source: 0d4c251f8fc4bdec
 fit: partial
 desk:
   - "The subset-sum doubling code, the mask animation, and the closest-sum sweep on 5, minus 7, 3, 5 with goal 4"

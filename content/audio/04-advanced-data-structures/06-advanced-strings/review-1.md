@@ -1,6 +1,6 @@
 ---
 review: advanced-strings
-source: 5b34fcbd709b1dc6
+source: 3ced7dc5a66b5616
 ---
 ## Introduction
 
@@ -80,11 +80,11 @@ The answer is D. The two occurrences of the longest repeat are adjacent in sorte
 
 Why do short-read genome aligners use an FM-index rather than a plain suffix array?
 
-A, it supports inserts, so newly sequenced reads join without a rebuild. B, its Burrows-Wheeler transform plus a sampled suffix array take one to two bytes per base, so it fits in memory. C, it builds in linear time, where a suffix array needs n squared log n to build. D, suffix arrays break on tiny alphabets, where most suffixes tie on rank.
+A, it supports inserts, so newly sequenced reads join without a rebuild. B, its Burrows-Wheeler transform plus a sampled suffix array take about half a byte per base, so it fits in memory. C, it builds in linear time, where a suffix array needs n squared log n to build. D, suffix arrays break on tiny alphabets, where most suffixes tie on rank.
 
 [think]
 
-The answer is B: it fits in memory. A suffix array needs 4 to 5 bytes per base, 12 to 16 gigabytes for a human genome before the text itself. The FM-index keeps the 2-bit transform, occurrence checkpoints and every 32nd suffix-array entry, a few gigabytes in total, and still answers queries by backward search in time proportional to the pattern. Build time and alphabet are not the constraints: SA-IS builds a suffix array in linear time on any alphabet.
+The answer is B: it fits in memory. A suffix array needs 4 to 5 bytes per base, 12 to 16 gigabytes for a human genome before the text itself. The FM-index keeps the 2-bit transform, occurrence checkpoints and every 32nd suffix-array entry, about half a byte per base or 1.6 gigabytes, and the aligners run in a few gigabytes with their working memory. It still answers queries by backward search in time proportional to the pattern. Build time and alphabet are not the constraints: SA-IS builds a suffix array in linear time on any alphabet.
 
 ## Question 9
 

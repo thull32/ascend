@@ -73,7 +73,7 @@ Reverse every edge: `B→A, C→B, A→C, D→B, E→D, D→E, F→E`. Pass 2 ta
 | B visited, so D | D → B (visited), D → E; E → D (visited) | 1: {D, E} |
 | E visited, so F | F → E (visited) | 2: {F} |
 
-Component 0 is the source of the condensation `{A,B,C} → {D,E} → {F}`, as promised. Run pass 2 in *increasing* finish order instead and it breaks: starting at F on the reversed graph reaches E and D, and reports `{F, E, D}` as one component although F cannot reach D.
+Component 0 is the source of the condensation `{A,B,C} → {D,E} → {F}`, as promised. Run pass 2 in *increasing* finish order instead and it breaks: the first search, from C, happens to find `{A, B, C}`, but the second starts at F, reaches E and D on the reversed graph, and reports `{F, E, D}` as one component although F cannot reach D.
 
 ## Tarjan: one pass with low-link values
 

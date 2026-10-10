@@ -123,7 +123,7 @@ The positions are two thirds of successive powers of two (a CPython dict resizes
 
 ## Shrinking, and the thrashing trap
 
-If you also shrink when the array gets sparse, the naive rule (halve capacity when size drops to half) is wrong. Consider an array at capacity 8 with 4 elements: push, and it grows to 16 (copy 8); pop, and it drops to 4 elements at capacity 16, which halves to 8 (copy 4); push again and it grows; pop again and it shrinks. Every operation copies, and the amortised cost is $O(n)$.
+If you also shrink when the array gets sparse, the naive rule (halve capacity when size drops to half) is wrong. Consider a full array, 8 elements at capacity 8: push, and it grows to 16 (copy 8); pop, and it drops to 8 elements at capacity 16, which halves to 8 (copy 8); push again and it grows; pop again and it shrinks. Every operation copies, and the amortised cost is $O(n)$.
 
 The fix is hysteresis: grow at full, shrink only when the size falls to a *quarter* of capacity. Then after any resize the structure is between a quarter and a half full, and at least $n/4$ operations must happen before the next resize. The potential-method proof goes through with $\Phi = |2 \cdot \text{size} - \text{capacity}|$. The lesson generalises: whenever a threshold triggers expensive work in both directions, put a gap between the two thresholds. CPython never shrinks a list's allocation on `pop` unless the size falls below half the capacity, and a dict never shrinks on deletion: its table only gets smaller when a later insertion triggers a resize (sized from the live entries) or on `clear()`.
 

@@ -1,6 +1,6 @@
 ---
 lesson: suffix-arrays-and-lcp
-source: 91f9df82135c4edd
+source: 03de163d2727b722
 fit: partial
 desk:
   - "The sorted suffixes of banana, and the two binary searches traced probe by probe"
