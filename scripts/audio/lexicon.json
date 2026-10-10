@@ -936,5 +936,10 @@
   "imp-51": "imp five one",
   "imp-07": "imp zero seven",
   "imp-93": "imp nine three",
-  "imp-22": "imp two two"
+  "imp-22": "imp two two",
+  "AS": "A S",
+  "ACKs": "acks",
+  "CRCs": "C R Cs",
+  "NATs": "nats",
+  "POSTs": "posts"
 }
