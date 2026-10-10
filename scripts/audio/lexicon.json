@@ -941,5 +941,10 @@
   "ACKs": "acks",
   "CRCs": "C R Cs",
   "NATs": "nats",
-  "POSTs": "posts"
+  "POSTs": "posts",
+  "ReLU": "ray-loo",
+  "KD-tree": "K D tree",
+  "KD-trees": "K D trees",
+  "Gini": "Jee-nee",
+  "Retry-After": "Retry After"
 }

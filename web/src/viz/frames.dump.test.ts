@@ -29,7 +29,7 @@ describe.skipIf(!lesson)("frame dump", () => {
       out.push(`  frames: ${result.frames.length}`, `  input: ${JSON.stringify(result.input).slice(0, 400)}`);
       result.frames.forEach((f, i) => {
         out.push(`  @${i} [${f.tag ?? ""}] ${f.note}`);
-        out.push(`      state: ${JSON.stringify(f.state).slice(0, 500)}`);
+        out.push(`      state: ${JSON.stringify(f.state)}`);
       });
     });
     writeFileSync(process.env.FRAMES_OUT ?? "/dev/stdout", out.join("\n") + "\n");
