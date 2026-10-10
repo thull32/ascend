@@ -231,7 +231,7 @@ When is it the wrong tool? **Maximum subarray of length at most `k`** is not "en
 
 ## Failure modes
 
-**`[1, 3, 2]` returns 2.** Symptom: LIS is right whenever the array happens to end on its longest run, wrong otherwise. Diagnosis: the answer was read from `dp[n-1]` instead of `max(dp)`. Fix: take the maximum over all cells, or track a running best.
+**`[1, 2, 0]` returns 1.** Symptom: LIS is right whenever the array happens to end on its longest run, wrong otherwise. Diagnosis: the answer was read from `dp[n-1]` instead of `max(dp)`. Fix: take the maximum over all cells, or track a running best.
 
 **`[7, 7, 7]` returns 3.** Symptom: equal elements count as increasing. Diagnosis: `bisect_right` (or `<=` in a hand-written search) where the problem says strictly increasing. Fix: `bisect_left`, the first tail `>= x`; test with a run of equal values.
 

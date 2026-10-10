@@ -45,7 +45,7 @@ Now hash eight keys and walk clockwise to the first point:
 | user:7 | 57.6% | A#2 (68.6%) | A |
 | user:8 | 95.6% | none: wrap to B#1 (3.9%) | B |
 
-**Remove B.** Its three points vanish and only the keys that were walking to them move: user:4 (75.9%) now continues past 76.8% to C#1, and user:8 wraps to C#0. The other six keys do not change owner; B's load was split between A's and C's neighbouring arcs rather than dumped on one server, because B's points were scattered around the ring.
+**Remove B.** Its three points vanish and only the keys that were walking to them move: user:4 (75.9%) now continues past 76.8% to C#1, and user:8 wraps to C#0. The other six keys do not change owner. With only three points per server both of B's keys happen to land on C, at two different points; with many points per server (next section), a departing server's keys spread across all the others.
 
 **Add D** with points at 46.1%, 59.9% and 97.6%. Each new point claims only the arc immediately before it: user:1 (41.1%) now stops at D#2 (46.1%) instead of A#0; user:7 (57.6%) stops at D#0 (59.9%) instead of A#2; user:8 (95.6%) stops at D#1 (97.6%) instead of wrapping. user:5 (61.3%) still walks to A#2. Three of eight keys moved, all of them *to* D, which is the `1/n` ideal within rounding.
 
@@ -60,7 +60,7 @@ Implementation is a sorted array of points with binary search: `get(key)` hashes
 With one point per server the arcs are wildly uneven: three random points on a ring routinely give one server half the keys, and the expected largest arc among `n` random points is about `(ln n) / n` of the ring rather than `1/n`. Placing each server at `v` points shrinks the spread: the standard deviation of a server's share falls roughly as `1/√v`, so 100 points brings a typical server within about 10% of its fair share and 1,000 within about 3%. Two more things become possible:
 
 - **Weighting.** A server with twice the capacity gets twice the virtual nodes.
-- **Spread on failure.** When a server dies, its arcs were scattered around the ring, so its load is spread across *all* the remaining servers rather than dumped on one neighbour, as the removal of B showed.
+- **Spread on failure.** When a server dies, its arcs were scattered around the ring, so its load is spread across *all* the remaining servers rather than dumped on one neighbour.
 
 Cassandra's default was 256 tokens per node until 4.0, which lowered it to 16 alongside a token allocator that places new tokens where they balance load best; the original memcached ring (ketama) uses 160 points per server (40 MD5 hashes, each cut into four 32-bit points); Amazon's Dynamo paper describes the same design. The cost is a larger sorted array (`n × v` points) and, for replication, the rule that the "next `r` *distinct physical* servers clockwise" hold the replicas, so that a server does not replicate to its own virtual node.
 

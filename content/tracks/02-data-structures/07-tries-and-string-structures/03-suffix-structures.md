@@ -195,7 +195,7 @@ Row 2 is the algorithm's saving: `nana` is `anana` minus its first character, `a
 
 - **Longest repeated substring**: the maximum LCP value. For `banana` it is 3, `ana`, at `sa[2]` and `sa[1]`.
 - **Number of distinct substrings**: n(n + 1)/2 − Σ lcp. `banana` has 21 − 6 = 15 distinct substrings.
-- **Longest common substring of two texts**: build the array of `A + "#" + B`, then take the maximum LCP between adjacent suffixes that start on different sides of the separator. For `banana` and `bandana` the generalised array has 14 entries, the maximum cross-text LCP is 3, and the substring is `ana`.
+- **Longest common substring of two texts**: build the array of `A + "#" + B`, then take the maximum LCP between adjacent suffixes that start on different sides of the separator. For `banana` and `bandana` the generalised array has 14 entries, and the maximum cross-text LCP is 3: `ban` and `ana` are both common substrings of that length, so the answer is a length with one or more substrings that achieve it.
 - **Count occurrences of P**: the width of the block found by binary search.
 - **Longest substring occurring at least k times**: maximum over windows of `k − 1` consecutive LCP values of the window minimum, which is a sliding-window minimum with a [monotonic deque](/learn/data-structures/stacks-queues/monotonic-deque).
 

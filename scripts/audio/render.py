@@ -13,8 +13,12 @@
     uv run scripts/audio/render.py --samples "text" --voices af_heart,am_michael,bf_emma
 
 Speech is synthesised locally with Kokoro (82M parameters, Apache-2.0; the
-model is downloaded once into runtimes/audio/models), on the GPU when CUDA is
-available (about 80 times realtime on an RTX 5090, 11 on 32 CPU cores). The MP3 carries ID3
+model is downloaded once into runtimes/audio/models), on the CPU with 16
+threads: about 11 times realtime, and reproducible to the sample, so a
+re-render of an unchanged script gives an identical file. --gpu is about 80
+times realtime on an RTX 5090 but differs from run to run (onnxruntime's CUDA
+kernels for this model, ScatterND among them, are not deterministic); its
+output sounds the same, but published audio uses the CPU. The MP3 carries ID3
 chapters, one per `## Chapter`, and a JSON sidecar lists the chapters and
 duration for the feed and the web player. Nothing leaves the machine.
 """
@@ -34,10 +38,13 @@ MODELS = ROOT / "runtimes" / "audio" / "models"
 RELEASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
 FILES = ["kokoro-v1.0.onnx", "voices-v1.0.bin"]
 RATE = 24_000
+# Bumped whenever a change to rendering should redo existing episodes:
+# 3 = CPU synthesis with 16 threads (reproducible) and 96 kbit/s MP3.
+RENDER = 3
 GAP = {"paragraph": 0.45, "pause": 2.0, "think": 6.0, "chapter": 1.1}
 
 
-def models():
+def models(gpu=False, threads=16):
     MODELS.mkdir(parents=True, exist_ok=True)
     for name in FILES:
         path = MODELS / name
@@ -50,9 +57,12 @@ def models():
     ort.preload_dlls()
     options = ort.SessionOptions()
     options.log_severity_level = 3
-    session = ort.InferenceSession(
-        str(MODELS / FILES[0]), options, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
-    )
+    # Fixed, so a re-render reproduces the same samples: the thread count
+    # changes floating-point summation order and so the waveform (slightly,
+    # inaudibly). 16 measured fastest on short paragraphs on 32 cores.
+    options.intra_op_num_threads = threads
+    providers = [("CUDAExecutionProvider", {"use_tf32": "0"}), "CPUExecutionProvider"] if gpu else ["CPUExecutionProvider"]
+    session = ort.InferenceSession(str(MODELS / FILES[0]), options, providers=providers)
     print(f"synthesising on {session.get_providers()[0]}", file=sys.stderr)
     return Kokoro.from_session(session, str(MODELS / FILES[1]))
 
@@ -113,7 +123,7 @@ def synth(tts, text, voice, speed):
 
 def encode_mp3(audio, path: Path, title, chapters):
     enc = lameenc.Encoder()
-    enc.set_bit_rate(64)
+    enc.set_bit_rate(96)
     enc.set_in_sample_rate(RATE)
     enc.set_channels(1)
     enc.set_quality(2)
@@ -136,6 +146,13 @@ def encode_mp3(audio, path: Path, title, chapters):
     tags.save(path)
 
 
+def spoken_hash(script: Path) -> str:
+    """Hash of what is spoken: the body, without the front matter, so that
+    recording a lesson's new hash (`source:`) does not force a re-render."""
+    body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
+    return hashlib.sha256(body.encode()).hexdigest()[:16]
+
+
 def episode_name(script: Path) -> str:
     meta, _ = parse(script)
     return meta.get("lesson") or f"{meta['review']}-{script.stem}"
@@ -146,7 +163,7 @@ def up_to_date(script: Path, out: Path) -> bool:
     if not sidecar.is_file():
         return False
     s = json.loads(sidecar.read_text())
-    return s.get("script") == hashlib.sha256(script.read_bytes()).hexdigest()[:16]
+    return s.get("render") == RENDER and s.get("script") == spoken_hash(script)
 
 
 def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
@@ -184,8 +201,9 @@ def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
         "name": name,
         "title": title,
         "source": meta.get("source"),
-        "script": hashlib.sha256(script.read_bytes()).hexdigest()[:16],
+        "script": spoken_hash(script),
         "voice": voice,
+        "render": RENDER,
         "duration": round(t, 1),
         "bytes": mp3.stat().st_size,
         "chapters": marks,
@@ -195,8 +213,8 @@ def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
     return mp3
 
 
-def samples(text, voices, speed, out: Path):
-    tts, lex = models(), lexicon()
+def samples(text, voices, speed, out: Path, gpu=False):
+    tts, lex = models(gpu), lexicon()
     out.mkdir(parents=True, exist_ok=True)
     for voice in voices:
         audio = synth(tts, speakable(text, lex), voice, speed)
@@ -213,18 +231,22 @@ def main():
     p.add_argument("--out", type=Path, default=ROOT / "runtimes" / "audio" / "out")
     p.add_argument("--samples")
     p.add_argument("--voices", default="af_heart,am_michael,bf_emma,bm_george")
+    # Splits a directory's work between processes: --shard 0/2 and 1/2.
+    p.add_argument("--shard", default="0/1")
+    p.add_argument("--gpu", action="store_true", help="faster, not deterministic; for drafts only")
     a = p.parse_args()
     a.out = a.out.resolve()
     if a.samples:
-        samples(a.samples, a.voices.split(","), a.speed, a.out)
+        samples(a.samples, a.voices.split(","), a.speed, a.out, a.gpu)
     elif a.script.is_dir():
-        todo = [p for p in sorted(a.script.resolve().rglob("*.md")) if not up_to_date(p, a.out)]
+        i, n = (int(x) for x in a.shard.split("/"))
+        todo = [p for k, p in enumerate(sorted(a.script.resolve().rglob("*.md"))) if k % n == i and not up_to_date(p, a.out)]
         print(f"{len(todo)} to render", file=sys.stderr)
-        tts, lex = models(), lexicon()
+        tts, lex = models(a.gpu), lexicon()
         for p in todo:
             render(p, a.voice, a.speed, a.out, tts, lex)
     else:
-        render(a.script.resolve(), a.voice, a.speed, a.out)
+        render(a.script.resolve(), a.voice, a.speed, a.out, models(a.gpu))
 
 
 if __name__ == "__main__":

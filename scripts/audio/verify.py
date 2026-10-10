@@ -1,6 +1,6 @@
 # /// script
-# requires-python = ">=3.11"
-# dependencies = ["faster-whisper>=1.1", "soundfile>=0.12", "numpy"]
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["faster-whisper>=1.1", "soundfile>=0.12", "numpy", "nvidia-cublas-cu12", "nvidia-cudnn-cu12>=9,<10"]
 # ///
 """Listens to a rendered episode and reports where it differs from the script.
 
@@ -48,19 +48,55 @@ def main():
     p.add_argument("scripts", type=Path, nargs="+")
     p.add_argument("--out", type=Path, default=ROOT / "runtimes" / "audio" / "out")
     p.add_argument("--model", default="small.en")
+    # Transcription only checks the audio, so the GPU's nondeterminism does
+    # not matter here; it is many times faster than the CPU.
+    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    # Write one result per episode here, and skip episodes whose current
+    # render already has a result.
+    p.add_argument("--results", type=Path)
     a = p.parse_args()
+    if a.device == "cuda":
+        preload_cuda()
     from faster_whisper import WhisperModel
 
-    model = WhisperModel(a.model, device="cpu", compute_type="int8")
-    for script in a.scripts:
-        report(model, script, a.out)
+    model = WhisperModel(a.model, device=a.device, compute_type="float16" if a.device == "cuda" else "int8")
+    scripts = [p for s in a.scripts for p in (sorted(s.rglob("*.md")) if s.is_dir() else [s])]
+    for script in scripts:
+        report(model, script, a.out, a.results)
 
 
-def report(model, script: Path, out: Path):
+def preload_cuda():
+    """faster-whisper's CTranslate2 finds cuBLAS and cuDNN through the loader
+    path; the pip wheels put them under site-packages/nvidia/*/lib."""
+    import ctypes
+    import glob
+    import site
+
+    for lib in ("cublas", "cudnn"):
+        for path in sorted(glob.glob(f"{site.getsitepackages()[0]}/nvidia/{lib}/lib/*.so*")):
+            try:
+                ctypes.CDLL(path, mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                pass
+
+
+def report(model, script: Path, out: Path, results: Path | None = None):
     body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
     body = re.sub(r"^## .*$|^\[(pause|think)\]$", "", body, flags=re.M)
     meta = dict(re.findall(r"^(\w+):\s*(\S+)", script.read_text(), re.M))
     name = meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    sidecar_path = out / f"{name}.json"
+    if not sidecar_path.is_file():
+        return
+    import json
+
+    sidecar = json.loads(sidecar_path.read_text())
+    if results:
+        done = results / f"{name}.json"
+        if done.is_file():
+            prev = json.loads(done.read_text())
+            if prev.get("script") == sidecar.get("script") and prev.get("render") == sidecar.get("render"):
+                return
     import numpy as np
     import soundfile
 
@@ -76,9 +112,18 @@ def report(model, script: Path, out: Path):
     want, got = words(body), words(heard)
     sm = difflib.SequenceMatcher(a=want, b=got, autojunk=False)
     issues = [(want[i1:i2], got[j1:j2]) for op, i1, i2, j1, j2 in sm.get_opcodes() if op != "equal"]
-    print(f"{name}: {sm.ratio():.3f} word agreement, {len(issues)} differences")
-    for w, g in issues:
-        print(f"  script: {' '.join(w) or '-':40}  heard: {' '.join(g) or '-'}")
+    print(f"{name}: {sm.ratio():.3f} word agreement, {len(issues)} differences", flush=True)
+    if results:
+        results.mkdir(parents=True, exist_ok=True)
+        (results / f"{name}.json").write_text(json.dumps({
+            "script": sidecar.get("script"),
+            "render": sidecar.get("render"),
+            "agreement": round(sm.ratio(), 4),
+            "differences": [[" ".join(w), " ".join(g)] for w, g in issues],
+        }, indent=1) + "\n")
+    else:
+        for w, g in issues:
+            print(f"  script: {' '.join(w) or '-':40}  heard: {' '.join(g) or '-'}")
 
 
 if __name__ == "__main__":
