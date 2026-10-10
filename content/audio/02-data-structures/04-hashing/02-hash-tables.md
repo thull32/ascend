@@ -1,6 +1,6 @@
 ---
 lesson: hash-tables
-source: 6b3f401423ca2703
+source: 997df843784a7d50
 fit: partial
 desk:
   - "The five-insert linear-probing trace with real FNV-1a values, the peach miss and the tombstone lookup"

@@ -368,7 +368,7 @@ Batching pays most when supply is scarce, which is exactly the stadium at 22:40;
 **Sequential or broadcast offers?** Offering to one driver at a time can cost 15 s per decline; offering to three and confirming the first to accept annoys the two who accepted and lost. Most systems offer sequentially with a short expiry and rank candidates partly by acceptance history.
 
 ```viz
-{"type": "system", "scenario": "leader-lease", "nodes": 3,
+{"type": "system", "scenario": "leader-lease", "fencing": true, "holders": ["Matcher A","Matcher B"], "resource": "Trip store", "epoch": 3, "writes": ["assign d17 → r1","assign d22 → r2","assign d22 → r3"],
  "title": "One matcher per city, fenced",
  "caption": "Each city's matcher holds a lease. A matcher that pauses past its lease and wakes up still believing it owns the city is stopped by the epoch carried in every write: the store rejects writes from an older epoch."}
 ```

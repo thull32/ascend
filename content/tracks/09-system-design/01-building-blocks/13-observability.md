@@ -77,8 +77,9 @@ The cost is volume: 10,000 requests per second at one 1 KB line each is 10 MB/s,
 A trace follows one request across services: a tree of spans (start, duration, service, operation, attributes) joined by a trace ID propagated in headers. The W3C `traceparent` header carries it: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01` is version, a 16-byte trace ID, the 8-byte parent span ID, and flags whose low bit means "sampled". A trace answers "this request took 900 ms, 700 of them in one inventory query", which no metric can, because metrics have discarded per-request association.
 
 ```viz
-{"type": "system", "scenario": "request-flow", "nodes": 4,
- "title": "Trace context propagating across hops", "caption": "The gateway starts a trace and sends the traceparent header downstream. Each service creates a child span and forwards the header. The collector stitches spans into one tree keyed by trace ID; a hop that drops the header breaks the tree."}
+{"type": "system", "scenario": "request-flow", "variant": "trace",
+ "title": "Trace context propagating across hops",
+ "caption": "The gateway starts a trace and sends the traceparent header downstream. Each service creates a child span and forwards the header. The collector stitches spans into one tree keyed by trace ID; a hop that drops the header breaks the tree."}
 ```
 
 **Exemplars** join the two worlds: a histogram bucket carries a sample trace ID, so the p99 spike on a dashboard opens a trace from that bucket instead of a search by timestamp.

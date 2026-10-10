@@ -5,7 +5,20 @@ import { Frames, type Family, type RendererProps } from "../engine";
 export interface ArrayInput {
   values: number[];
   target?: number;
+  /** Window size for sliding windows; target difference for prefix-sum (subarray sum equals k). */
   k?: number;
+  /** prefix-sum: use P[0] = 0 and P[i + 1] = P[i] + values[i] (n + 1 entries). */
+  leadingZero?: boolean;
+  /** prefix-sum: finish with the range-sum query values[l..r] (inclusive). */
+  query?: [number, number];
+  /** prefix-sum: count subarrays whose sum is divisible by mod (remainder buckets). */
+  mod?: number;
+  /** prefix-sum: finish by pointing at the largest running sum (sweep line / difference array). */
+  peak?: boolean;
+  /** two-pointers-sum: trace the closest-pair-sum loop instead of stopping at an exact match. */
+  closest?: boolean;
+  /** binary-search-first-true: name of the predicate (e.g. "feasible"); probes are then phrased as name(value). */
+  predicate?: string;
 }
 
 export interface ArrayState {
@@ -17,13 +30,18 @@ export interface ArrayState {
   bars?: boolean;
   /** Secondary row (e.g. prefix sums, stack contents). */
   aux?: { label: string; values: (string | number | null)[]; tones?: (Tone | undefined)[] };
+  /** Third row (e.g. counting sort's output, prefix residues). */
+  aux2?: { label: string; values: (string | number | null)[]; tones?: (Tone | undefined)[] };
 }
 
 type G = (input: ArrayInput) => ReturnType<Frames<ArrayState>["done"]>;
 
+/** "a + b" written as "a − 3" when b is negative. */
+const plus = (a: number, b: number) => (b < 0 ? `${a} − ${-b}` : `${a} + ${b}`);
+
 function make(values: number[], bars = false) {
   const s: ArrayState = { values: [...values], tones: values.map(() => undefined), pointers: {}, vars: {}, bars };
-  const f = new Frames<ArrayState>(() => ({ ...s, values: [...s.values], tones: [...s.tones], pointers: { ...s.pointers }, vars: { ...s.vars }, aux: s.aux ? { ...s.aux, values: [...s.aux.values], tones: s.aux.tones ? [...s.aux.tones] : undefined } : undefined }));
+  const f = new Frames<ArrayState>(() => ({ ...s, values: [...s.values], tones: [...s.tones], pointers: { ...s.pointers }, vars: { ...s.vars }, aux: s.aux ? { ...s.aux, values: [...s.aux.values], tones: s.aux.tones ? [...s.aux.tones] : undefined } : undefined, aux2: s.aux2 ? { ...s.aux2, values: [...s.aux2.values], tones: s.aux2.tones ? [...s.aux2.tones] : undefined } : undefined }));
   const clearTones = () => s.tones.fill(undefined);
   return { s, f, clearTones };
 }
@@ -85,36 +103,80 @@ const binarySearch: G = ({ values, target = 0 }) => {
   return f.done();
 };
 
-const binarySearchFirstTrue: G = ({ values, target = 0 }) => {
+const binarySearchFirstTrue: G = ({ values, target = 0, predicate }) => {
   // Predicate: values[i] >= target. Find the first index where it holds.
   const { s, f, clearTones } = make(values);
+  const name = typeof predicate === "string" && predicate.trim() ? predicate.trim() : undefined;
   let lo = 0;
   let hi = values.length;
-  f.push(`Predicate P(i) = values[i] ≥ ${target} is monotone (false…false true…true). Find the first true. Search space [lo, hi) = [0, ${hi}).`);
+  let probes = 0;
+  f.push(
+    name
+      ? `The cells are candidate answers, not data. ${name}(x) is false below ${target} and true from ${target} on: once it holds, it holds for every larger candidate. Find the first true. Search range [lo, hi) = [0, ${hi}).`
+      : `Predicate P(i) = values[i] ≥ ${target} is monotone (false…false true…true). Find the first true. Search space [lo, hi) = [0, ${hi}).`,
+  );
   while (lo < hi) {
     const mid = lo + Math.floor((hi - lo) / 2);
+    probes++;
     clearTones();
     for (let i = 0; i < values.length; i++) if (i < lo || i >= hi) s.tones[i] = "muted";
     s.tones[mid] = "compare";
     s.pointers = { lo, mid, hi: hi < values.length ? hi : undefined };
-    s.vars = { lo, hi, mid, "P(mid)": values[mid]! >= target };
-    if (values[mid]! >= target) {
+    const ok = values[mid]! >= target;
+    s.vars = name ? { lo, hi, mid, [`${name}(${values[mid]})`]: ok } : { lo, hi, mid, "P(mid)": ok };
+    if (name) {
+      f.push(ok ? `Check ${name}(${values[mid]}): true. ${values[mid]} might be the answer, so it stays in range: hi = mid, index ${mid}.` : `Check ${name}(${values[mid]}): false, and so is every smaller candidate: lo = mid + 1, index ${mid + 1}.`, ok ? "true" : "false");
+    } else if (ok) {
       f.push(`P(${mid}) is true, so the answer is ≤ ${mid}: hi = mid.`, "true");
-      hi = mid;
     } else {
       f.push(`P(${mid}) is false, so the answer is > ${mid}: lo = mid + 1.`, "false");
-      lo = mid + 1;
     }
+    if (ok) hi = mid;
+    else lo = mid + 1;
   }
   clearTones();
   if (lo < values.length) s.tones[lo] = "done";
   s.pointers = { lo };
   s.vars = { answer: lo };
-  f.push(lo < values.length ? `lo = hi = ${lo}: the first index with values[i] ≥ ${target}.` : `No index satisfies the predicate; answer is n = ${lo} (insertion point).`, "done");
+  if (name) f.push(lo < values.length ? `lo = hi = index ${lo}: ${values[lo]} is the smallest candidate where ${name} holds, found with ${probes} checks of ${name} instead of ${values.length}.` : `lo = hi = ${lo}: no candidate satisfies ${name}.`, "done");
+  else f.push(lo < values.length ? `lo = hi = ${lo}: the first index with values[i] ≥ ${target}.` : `No index satisfies the predicate; answer is n = ${lo} (insertion point).`, "done");
   return f.done();
 };
 
-const twoPointersSum: G = ({ values, target = 0 }) => {
+const closestPairSum: G = ({ values, target = 0 }) => {
+  const { s, f, clearTones } = make(values);
+  let lo = 0;
+  let hi = values.length - 1;
+  let best: number | null = null;
+  let iter = 0;
+  s.pointers = { lo, hi };
+  s.vars = { target };
+  f.push(`Sorted array, closest pair sum to ${target}. lo and hi start at the two ends, ${hi} apart; every iteration moves one of them inward, so the loop runs at most n − 1 = ${Math.max(0, values.length - 1)} times whatever the data.`);
+  while (lo < hi) {
+    iter++;
+    const sum = values[lo]! + values[hi]!;
+    const improved = best === null || Math.abs(sum - target) < Math.abs(best - target);
+    if (improved) best = sum;
+    clearTones();
+    s.tones[lo] = "compare";
+    s.tones[hi] = "compare";
+    s.pointers = { lo, hi };
+    s.vars = { target, s: sum, best, iteration: iter };
+    const move = sum < target ? "lo += 1" : "hi -= 1";
+    f.push(`Iteration ${iter}: ${values[lo]} + ${values[hi]} = ${sum}. ${improved ? `That is the closest so far: best = ${sum}.` : `No closer than best = ${best}.`} ${sum} ${sum < target ? "<" : "≥"} ${target}, so ${move}.`, sum < target ? "lo++" : "hi--");
+    if (sum < target) lo++;
+    else hi--;
+  }
+  clearTones();
+  s.pointers = { lo, hi };
+  s.vars = { target, best, iterations: iter };
+  f.push(`lo = hi = ${lo}: lo < hi fails and the loop stops after ${iter} iterations for n = ${values.length}. The closest sum is ${best ?? "undefined (fewer than two values)"}. The sort costs O(n log n); the walk is O(n).`, "done");
+  return f.done();
+};
+
+const twoPointersSum: G = (input) => {
+  if (input.closest) return closestPairSum(input);
+  const { values, target = 0 } = input;
   const { s, f, clearTones } = make(values);
   let i = 0;
   let j = values.length - 1;
@@ -214,67 +276,233 @@ const slidingWindowLongestUnique: G = ({ values }) => {
   return f.done();
 };
 
-const prefixSum: G = ({ values }) => {
+const prefixSum: G = ({ values, leadingZero, query, k, mod, peak }) => {
+  const n = values.length;
   const { s, f } = make(values);
-  const prefix: (number | null)[] = values.map(() => null);
+  const m = mod !== undefined && Number.isFinite(mod) && Math.floor(mod) >= 2 ? Math.floor(mod) : undefined;
+  const target = m === undefined && k !== undefined && Number.isFinite(k) ? k : undefined;
+  const lz = Boolean(leadingZero) || m !== undefined || target !== undefined;
+  const P: (number | null)[] = Array.from({ length: lz ? n + 1 : n }, () => null);
+  const label = lz ? "P[j] = sum of the first j values (P[0] = 0)" : "prefix[i] = sum of values[0..i]";
+  /** Paint the prefix row: filled cells visited, `cur` done, plus explicit overrides. */
+  const paint = (cur: number | null, extra: Record<number, Tone> = {}) => {
+    s.aux = { label, values: [...P], tones: P.map((v, j) => extra[j] ?? (j === cur ? "done" : v !== null ? "visited" : undefined)) };
+  };
+  const list = (xs: number[]) => xs.join(", ");
+  if (n === 0) {
+    f.push("There are no values, so there is nothing to sum: give a non-empty values list.", "input");
+    return f.done();
+  }
+  if (lz) P[0] = 0;
   let acc = 0;
-  s.aux = { label: "prefix", values: [...prefix] };
-  f.push(`prefix[i] = sum of values[0..i]. Build it once in O(n); then any range sum is one subtraction.`);
-  for (let i = 0; i < values.length; i++) {
+
+  if (target !== undefined) {
+    // Subarray sum equals k: look up P[j] - k among earlier prefixes, then record P[j].
+    const seen = new Map<number, number>([[0, 1]]);
+    const fmtSeen = () => [...seen.entries()].map(([key, c]) => `${key}:${c}`).join(", ");
+    const found: string[] = [];
+    let count = 0;
+    paint(0);
+    s.vars = { k: target, count, seen: fmtSeen() };
+    f.push(`Count the subarrays that sum to ${target}. Two prefixes that differ by ${target} bracket such a subarray. P[0] = 0 is the empty prefix, already seen once; for each new prefix, look up P − ${target} among the earlier ones before recording it.`);
+    for (let j = 1; j <= n; j++) {
+      const v = values[j - 1]!;
+      const prev = acc;
+      acc += v;
+      P[j] = acc;
+      const want = acc - target;
+      const hits: number[] = [];
+      for (let i = 0; i < j; i++) if (P[i] === want) hits.push(i);
+      count += hits.length;
+      seen.set(acc, (seen.get(acc) ?? 0) + 1);
+      s.tones.fill(undefined);
+      const extra: Record<number, Tone> = {};
+      for (const i of hits) {
+        extra[i] = "active";
+        for (let q = i; q < j; q++) s.tones[q] = "active";
+        found.push(`[${values.slice(i, j).join(", ")}]`);
+      }
+      s.tones[j - 1] = "compare";
+      paint(j, extra);
+      s.vars = { k: target, prefix: acc, [`look up ${acc} − ${target}`]: want, count, seen: fmtSeen() };
+      const head = `P[${j}] = P[${j - 1}] + values[${j - 1}] = ${plus(prev, v)} = ${acc}. Look up ${acc} − ${target} = ${want}:`;
+      f.push(
+        hits.length === 0
+          ? `${head} no earlier prefix has that value, so count stays ${count}.`
+          : `${head} ${hits.length === 1 ? `P[${hits[0]}] has it` : `P[${list(hits)}] have it`}, so ${hits.map((i) => `values[${i}..${j - 1}]`).join(" and ")} ${hits.length === 1 ? "sums" : "each sum"} to ${target}. count = ${count}.`,
+        hits.length ? "hit" : "miss",
+      );
+    }
+    s.tones.fill(undefined);
+    s.pointers = {};
+    paint(null);
+    s.vars = { k: target, count };
+    f.push(`${count} subarray${count === 1 ? "" : "s"} sum to ${target}${found.length ? `: ${found.join(", ")}` : ""}. One pass, O(n): each prefix is looked up before it is recorded, and the seed P[0] = 0 is what counts subarrays that start at index 0.`, "done");
+    return f.done();
+  }
+
+  if (m !== undefined) {
+    // Remainder buckets: equal residues bound a subarray divisible by m.
+    const R: (number | null)[] = P.map(() => null);
+    const counts = new Array<number>(m).fill(0);
+    const rlabel = `P[j] mod ${m}`;
+    const paintR = (cur: number | null, same: number[]) => {
+      s.aux2 = { label: rlabel, values: [...R], tones: R.map((v, j) => (j === cur ? "done" : same.includes(j) ? "active" : v !== null ? "visited" : undefined)) };
+    };
+    let total = 0;
+    R[0] = 0;
+    counts[0] = 1;
+    paint(0);
+    paintR(0, []);
+    s.vars = { mod: m, total, [`count[0..${m - 1}]`]: counts.join(" ") };
+    f.push(`Count the subarrays whose sum is divisible by ${m}. The sum of a subarray is P[j] − P[i], and it is divisible by ${m} exactly when P[i] and P[j] leave the same remainder. P[0] = 0 has remainder 0, so count[0] starts at 1.`);
+    for (let j = 1; j <= n; j++) {
+      const v = values[j - 1]!;
+      const prev = acc;
+      acc += v;
+      P[j] = acc;
+      const r = ((acc % m) + m) % m;
+      R[j] = r;
+      const same: number[] = [];
+      for (let i = 0; i < j; i++) if (R[i] === r) same.push(i);
+      const c = counts[r]!;
+      total += c;
+      counts[r]!++;
+      s.tones.fill(undefined);
+      s.tones[j - 1] = "compare";
+      const extra: Record<number, Tone> = {};
+      for (const i of same) extra[i] = "active";
+      paint(j, extra);
+      paintR(j, same);
+      s.vars = { mod: m, total, [`count[0..${m - 1}]`]: counts.join(" ") };
+      const head = `P[${j}] = ${plus(prev, v)} = ${acc}, remainder ${r}.`;
+      f.push(
+        c === 0
+          ? `${head} No earlier prefix has remainder ${r}, so total stays ${total}; count[${r}] becomes ${counts[r]}.`
+          : `${head} ${c} earlier prefix${c === 1 ? " has" : "es have"} remainder ${r} (P[${list(same)}]), so ${c} more subarray${c === 1 ? "" : "s"} ending at index ${j - 1} ${c === 1 ? "is" : "are"} divisible by ${m}: total = ${total}; count[${r}] becomes ${counts[r]}.`,
+        c ? "hit" : "miss",
+      );
+    }
+    s.tones.fill(undefined);
+    s.pointers = {};
+    paint(null);
+    paintR(null, []);
+    s.vars = { mod: m, total, [`count[0..${m - 1}]`]: counts.join(" ") };
+    f.push(`${total} subarray${total === 1 ? "" : "s"} have a sum divisible by ${m}. Each prefix added the number of earlier prefixes with its remainder, so a bucket holding c prefixes contributes c(c − 1)/2 pairs. One pass, ${m} counters.`, "done");
+    return f.done();
+  }
+
+  paint(lz ? 0 : null);
+  f.push(lz ? `P[0] = 0 is the empty prefix, and P[i + 1] = P[i] + values[i]. Build it once in O(n); then the sum of values[l..r] is P[r + 1] − P[l], one subtraction.` : `prefix[i] = sum of values[0..i]. Build it once in O(n); then any range sum is one subtraction.`);
+  for (let i = 0; i < n; i++) {
+    const prev = acc;
     acc += values[i]!;
-    prefix[i] = acc;
     s.tones.fill(undefined);
     s.tones[i] = "compare";
-    s.aux = { label: "prefix", values: [...prefix], tones: prefix.map((_, j) => (j === i ? "done" : j < i ? "visited" : undefined)) };
-    f.push(`prefix[${i}] = prefix[${i - 1}] + values[${i}] = ${acc - values[i]!} + ${values[i]} = ${acc}.`, "build");
+    if (lz) {
+      P[i + 1] = acc;
+      paint(i + 1);
+      f.push(`P[${i + 1}] = P[${i}] + values[${i}] = ${plus(prev, values[i]!)} = ${acc}.`, "build");
+    } else {
+      P[i] = acc;
+      paint(i);
+      f.push(i === 0 ? `prefix[0] = values[0] = ${acc}.` : `prefix[${i}] = prefix[${i - 1}] + values[${i}] = ${plus(prev, values[i]!)} = ${acc}.`, "build");
+    }
   }
-  if (values.length >= 3) {
-    const a = 1;
-    const b = values.length - 2;
+  const q = Array.isArray(query) && query.length === 2 && Number.isInteger(query[0]) && Number.isInteger(query[1]) && query[0] >= 0 && query[0] <= query[1] && query[1] < n ? query : undefined;
+  if (q) {
+    const [l, r] = q;
     s.tones.fill(undefined);
-    for (let i = a; i <= b; i++) s.tones[i] = "active";
-    s.aux = { label: "prefix", values: [...prefix], tones: prefix.map((_, j) => (j === b ? "done" : j === a - 1 ? "danger" : undefined)) };
-    s.vars = { [`sum[${a}..${b}]`]: prefix[b]! - prefix[a - 1]! };
-    f.push(`Range sum [${a}, ${b}] = prefix[${b}] − prefix[${a - 1}] = ${prefix[b]} − ${prefix[a - 1]} = ${prefix[b]! - prefix[a - 1]!}. O(1) per query.`, "query");
+    for (let i = l; i <= r; i++) s.tones[i] = "active";
+    let hiIdx: number;
+    let loIdx: number | null;
+    if (lz) {
+      hiIdx = r + 1;
+      loIdx = l;
+    } else {
+      hiIdx = r;
+      loIdx = l === 0 ? null : l - 1;
+    }
+    const hiV = P[hiIdx]!;
+    const loV = loIdx === null ? 0 : P[loIdx]!;
+    const extra: Record<number, Tone> = {};
+    if (loIdx !== null) extra[loIdx] = "danger";
+    paint(hiIdx, extra);
+    s.vars = { [`sum(${l}, ${r})`]: hiV - loV };
+    const terms = values.slice(l, r + 1).join(" + ");
+    const formula = lz ? `P[${hiIdx}] − P[${loIdx}] = ${hiV} − ${loV}` : loIdx === null ? `prefix[${hiIdx}] = ${hiV}` : `prefix[${hiIdx}] − prefix[${loIdx}] = ${hiV} − ${loV}`;
+    f.push(`sum(${l}, ${r}) = ${formula} = ${hiV - loV} (${terms}): one subtraction, O(1) per query, however long the range.`, "query");
+  } else if (peak) {
+    const nums = P.map((v) => v ?? -Infinity);
+    const best = Math.max(...nums);
+    const extra: Record<number, Tone> = {};
+    nums.forEach((v, j) => {
+      if (v === best) extra[j] = "done";
+    });
+    s.tones.fill(undefined);
+    paint(null, extra);
+    s.vars = { peak: best };
+    const where = nums.map((v, j) => (v === best ? j : -1)).filter((j) => j >= 0);
+    f.push(`The running sum peaks at ${best}, at ${where.length > 1 ? "indices" : "index"} ${list(where)}. One pass over the row finds it.`, "peak");
+  } else {
+    s.tones.fill(undefined);
+    paint(null);
+    s.vars = {};
+    f.push(`${lz ? "P" : "The prefix row"} is complete: ${list(P as number[])}. One addition per element, O(n); from here any range sum is one subtraction.`, "done");
   }
   return f.done();
 };
 
 const kadane: G = ({ values }) => {
   const { s, f, clearTones } = make(values);
-  let cur = 0;
-  let best = -Infinity;
+  const n = values.length;
+  if (n === 0) {
+    f.push("There are no values: the maximum subarray of an empty array is undefined. Give a non-empty values list.", "input");
+    return f.done();
+  }
+  f.push(`Kadane: cur is the best sum of a subarray ending at the current index, best the best seen anywhere. At each index, extend the running subarray or start fresh there: restart only when cur is negative (cur ≥ 0 extends, so ties keep the longer run).`);
+  let cur = values[0]!;
+  let best = cur;
   let start = 0;
   let bestL = 0;
   let bestR = 0;
-  f.push(`Kadane: at each index decide "extend the running subarray or start fresh here".`);
-  for (let i = 0; i < values.length; i++) {
-    const v = values[i]!;
-    let note: string;
-    if (cur + v < v) {
-      cur = v;
-      start = i;
-      note = `cur + ${v} < ${v}: the running sum was a burden, restart at ${i}.`;
-    } else {
-      cur += v;
-      note = `Extend: cur = ${cur}.`;
-    }
-    if (cur > best) {
-      best = cur;
-      bestL = start;
-      bestR = i;
-    }
+  const paint = (i: number) => {
     clearTones();
     for (let j = start; j <= i; j++) s.tones[j] = "active";
     s.tones[i] = "compare";
     s.pointers = { start, i };
     s.vars = { cur, best };
-    f.push(`${note} best = ${best}.`, cur === v && start === i ? "restart" : "extend");
+  };
+  paint(0);
+  f.push(`Start with the first element: cur = best = ${cur}, the run is [0, 0].`, "start");
+  for (let i = 1; i < n; i++) {
+    const v = values[i]!;
+    let note: string;
+    let tag: string;
+    if (cur < 0) {
+      note = `cur = ${cur} < 0 would only drag ${v} down: restart at ${i}, cur = ${v}.`;
+      cur = v;
+      start = i;
+      tag = "restart";
+    } else {
+      note = `cur = ${cur} ≥ 0, so extend: cur = ${plus(cur, v)} = ${cur + v}.`;
+      cur += v;
+      tag = "extend";
+    }
+    const improved = cur > best;
+    if (improved) {
+      best = cur;
+      bestL = start;
+      bestR = i;
+    }
+    paint(i);
+    f.push(`${note} ${improved ? `New best = ${best}, over [${bestL}, ${bestR}].` : `best stays ${best}.`}`, tag);
   }
   clearTones();
   for (let j = bestL; j <= bestR; j++) s.tones[j] = "done";
   s.pointers = {};
-  f.push(`Maximum subarray sum is ${best} over [${bestL}, ${bestR}]. O(n) time, O(1) space.`, "done");
+  s.vars = { cur, best };
+  f.push(`Maximum subarray sum is ${best} over [${bestL}, ${bestR}]: ${values.slice(bestL, bestR + 1).join(", ")}. O(n) time, O(1) space.`, "done");
   return f.done();
 };
 
@@ -284,31 +512,42 @@ const dutchFlag: G = ({ values }) => {
   let mid = 0;
   let hi = values.length - 1;
   const a = s.values;
-  f.push(`Three-way partition (0/1/2). Invariant: [0,lo) are 0s, [lo,mid) are 1s, (hi,n) are 2s, [mid,hi] unknown.`);
-  while (mid <= hi) {
+  // Every frame shows the state after its step: values, pointers and regions agree with the note.
+  const paint = (touched: number[]) => {
     clearTones();
     for (let i = 0; i < lo; i++) s.tones[i] = "done";
     for (let i = lo; i < mid; i++) s.tones[i] = "visited";
     for (let i = hi + 1; i < a.length; i++) s.tones[i] = "danger";
-    s.tones[mid] = "compare";
+    for (const t of touched) s.tones[t] = "compare";
     s.pointers = { lo, mid, hi };
+    s.vars = { lo, mid, hi };
+  };
+  paint([]);
+  f.push(`Three-way partition (0/1/2). Invariant: [0, lo) are 0s, [lo, mid) are 1s, (hi, n) are 2s and [mid, hi] is unknown. Each step examines a[mid] and shrinks the unknown region by one.`);
+  while (mid <= hi) {
     const v = a[mid]!;
     if (v === 0) {
+      const ol = lo;
+      const om = mid;
       [a[lo], a[mid]] = [a[mid]!, a[lo]!];
-      f.push(`a[mid] = 0: swap with a[lo], advance both.`, "swap lo");
       lo++;
       mid++;
+      paint(ol === om ? [om] : [ol, om]);
+      f.push(ol === om ? `a[${om}] was 0 and lo = mid, so it is already in place: lo and mid both advance, to ${lo}.` : `a[${om}] was 0: swapped with the ${a[om]} at a[${ol}], which was already examined, then lo and mid both advance, to ${lo} and ${mid}.`, "swap lo");
     } else if (v === 2) {
+      const oh = hi;
       [a[mid], a[hi]] = [a[hi]!, a[mid]!];
-      f.push(`a[mid] = 2: swap with a[hi], shrink hi. mid stays (the swapped-in value is unknown).`, "swap hi");
       hi--;
+      paint(oh === mid ? [mid] : [mid, oh]);
+      f.push(oh === mid ? `a[${mid}] was 2 and mid = hi, so it stays where it is: hi moves to ${hi}.` : `a[${mid}] was 2: swapped with a[${oh}], then hi moves to ${hi}. mid stays at ${mid}, because the ${a[mid]} that arrived has not been examined yet.`, "swap hi");
     } else {
-      f.push(`a[mid] = 1: already in the middle region, advance mid.`, "skip");
       mid++;
+      paint([mid - 1]);
+      f.push(`a[${mid - 1}] = 1 already belongs in the middle region: mid advances to ${mid}.`, "skip");
     }
   }
-  clearTones();
-  f.push(`Partitioned in one pass with O(1) extra space.`, "done");
+  paint([]);
+  f.push(`mid (${mid}) has passed hi (${hi}): the unknown region is empty. Partitioned in one pass with O(1) extra space.`, "done");
   return f.done();
 };
 
@@ -317,7 +556,7 @@ const monotonicNextGreater: G = ({ values }) => {
   const stack: number[] = [];
   const ans: (number | null)[] = values.map(() => null);
   s.aux = { label: "stack (indices)", values: [] };
-  f.push(`Next greater element with a decreasing stack of indices: each index is pushed and popped at most once.`);
+  f.push(`Next greater element with a stack of indices whose values never increase upwards: each index is pushed and popped at most once.`);
   for (let i = 0; i < values.length; i++) {
     while (stack.length && values[stack[stack.length - 1]!]! < values[i]!) {
       const j = stack.pop()!;
@@ -337,7 +576,7 @@ const monotonicNextGreater: G = ({ values }) => {
     s.aux = { label: "stack (indices)", values: [...stack] };
     s.pointers = { i };
     s.vars = { answer: [...ans] };
-    f.push(`Push ${i}. Stack values stay decreasing: ${stack.map((j) => values[j]).join(" > ") || "∅"}.`, "push");
+    f.push(`Push ${i}. Stack values never increase upwards: ${stack.map((j, q) => (q === 0 ? `${values[j]}` : `${values[stack[q - 1]!] === values[j] ? "=" : ">"} ${values[j]}`)).join(" ") || "∅"}.`, "push");
   }
   clearTones();
   s.vars = { answer: ans.map((v) => (v === null ? -1 : v)) };
@@ -443,7 +682,8 @@ const mergeSort: G = ({ values }) => {
   f.push(`Merge sort: split in halves recursively, then merge sorted halves with two pointers.`);
   const rec = (lo: number, hi: number, depth: number) => {
     if (hi - lo < 1 || f.full) return;
-    const mid = lo + Math.floor((hi - lo) / 2);
+    // Left half gets floor(len / 2) elements, as in a[:len(a) // 2].
+    const mid = lo + Math.floor((hi - lo + 1) / 2) - 1;
     clearTones();
     for (let i = lo; i <= hi; i++) s.tones[i] = "active";
     f.push(`Split [${lo}, ${hi}] into [${lo}, ${mid}] and [${mid + 1}, ${hi}] (depth ${depth}).`, "split");
@@ -515,32 +755,61 @@ const quickSort: G = ({ values }) => {
 
 const countingSort: G = ({ values }) => {
   const { s, f, clearTones } = make(values);
+  const n = values.length;
+  if (values.some((v) => v < 0 || !Number.isInteger(v))) {
+    f.push("Counting sort needs non-negative integer keys, because each key is used as an index into the count array.", "input");
+    return f.done();
+  }
   const max = Math.max(0, ...values);
+  if (max > 60) {
+    f.push(`The largest key is ${max}, so the count array would need ${max + 1} slots for ${n} values. Counting sort wants a key range about the size of the input; use keys up to 60 here.`, "input");
+    return f.done();
+  }
   const counts = new Array<number>(max + 1).fill(0);
-  s.aux = { label: "count[value]", values: [...counts] };
-  f.push(`Counting sort: values are small non-negative integers (max ${max}), so count occurrences instead of comparing.`);
-  for (let i = 0; i < values.length; i++) {
+  const out: (number | null)[] = values.map(() => null);
+  s.aux = { label: "count[key]", values: [...counts] };
+  f.push(`Counting sort: the keys are small non-negative integers (0..${max}), so count how often each occurs, turn the counts into starting positions, then place each element. No comparisons.`);
+  for (let i = 0; i < n; i++) {
     counts[values[i]!]!++;
     clearTones();
     s.tones[i] = "compare";
-    s.aux = { label: "count[value]", values: [...counts], tones: counts.map((_, v) => (v === values[i] ? "done" : undefined)) };
-    f.push(`count[${values[i]}]++ → ${counts[values[i]!]}.`, "count");
+    s.pointers = { i };
+    s.aux = { label: "count[key]", values: [...counts], tones: counts.map((_, v) => (v === values[i] ? "done" : undefined)) };
+    f.push(`values[${i}] = ${values[i]}: count[${values[i]}] becomes ${counts[values[i]!]}.`, "count");
   }
-  let k = 0;
+  // Prefix pass: start[v] = number of keys smaller than v, the first output slot for key v.
+  const start: number[] = [...counts];
+  let total = 0;
+  clearTones();
+  s.pointers = {};
   for (let v = 0; v <= max; v++) {
-    for (let c = 0; c < counts[v]!; c++) {
-      s.values[k] = v;
-      clearTones();
-      for (let t = 0; t < k; t++) s.tones[t] = "visited";
-      s.tones[k] = "done";
-      s.aux = { label: "count[value]", values: [...counts], tones: counts.map((_, i) => (i === v ? "active" : undefined)) };
-      f.push(`Write value ${v} at index ${k}.`, "write");
-      k++;
-    }
+    const c = counts[v]!;
+    start[v] = total;
+    total += c;
+    s.aux = { label: "start[key]: first output slot for each key", values: [...start.slice(0, v + 1), ...counts.slice(v + 1)], tones: counts.map((_, u) => (u === v ? "done" : u < v ? "visited" : undefined)) };
+    s.vars = { "running total": total };
+    f.push(c === 0 ? `Key ${v} does not occur: start[${v}] = ${start[v]}, and the running total stays ${total}.` : `Key ${v} occurs ${c} time${c === 1 ? "" : "s"}: ${start[v]} smaller key${start[v] === 1 ? " comes" : "s come"} first, so start[${v}] = ${start[v]}; the running total becomes ${total}.`, "prefix");
+  }
+  s.vars = {};
+  s.aux2 = { label: "out", values: [...out] };
+  for (let i = 0; i < n; i++) {
+    const x = values[i]!;
+    const pos = start[x]!;
+    out[pos] = x;
+    start[x] = pos + 1;
+    clearTones();
+    for (let t = 0; t < i; t++) s.tones[t] = "visited";
+    s.tones[i] = "compare";
+    s.pointers = { i };
+    s.aux = { label: "start[key]: next output slot for each key", values: [...start], tones: start.map((_, v) => (v === x ? "active" : undefined)) };
+    s.aux2 = { label: "out", values: [...out], tones: out.map((v, j) => (j === pos ? "done" : v !== null ? "visited" : undefined)) };
+    f.push(`values[${i}] = ${x} goes to out[start[${x}]] = out[${pos}]; start[${x}] becomes ${pos + 1}, the slot for the next ${x}.`, "place");
   }
   clearTones();
-  s.tones.fill("done");
-  f.push(`Sorted in O(n + k) with k = ${max + 1} buckets: no comparisons at all.`, "done");
+  s.pointers = {};
+  s.aux = { label: "start[key]: next output slot for each key", values: [...start] };
+  s.aux2 = { label: "out", values: [...out], tones: out.map(() => "done") };
+  f.push(`Sorted: ${out.join(", ")}. Elements were placed in input order, so equal keys keep their order (stable). O(n + k) with k = ${max + 1} keys, and not a single comparison.`, "done");
   return f.done();
 };
 
@@ -650,6 +919,12 @@ function Renderer({ frame }: RendererProps<ArrayInput, ArrayState>) {
           <Cells values={state.aux.values} tones={state.aux.tones} size="sm" />
         </div>
       )}
+      {state.aux2 && (
+        <div>
+          <div className="mb-1 text-[11px] text-muted">{state.aux2.label}</div>
+          <Cells values={state.aux2.values} tones={state.aux2.tones} size="sm" />
+        </div>
+      )}
       <Vars vars={state.vars} />
       <Legend items={[{ tone: "compare", label: "comparing" }, { tone: "active", label: "window / range" }, { tone: "done", label: "final" }, { tone: "muted", label: "excluded" }]} />
     </div>
@@ -730,5 +1005,11 @@ export const arrayFamily: Family<ArrayInput, ArrayState> = {
     values: Array.isArray(raw.values) ? (raw.values as unknown[]).map(Number).filter((n) => Number.isFinite(n)).slice(0, 40) : [1, 2, 3],
     target: raw.target === undefined ? undefined : Number(raw.target),
     k: raw.k === undefined ? undefined : Number(raw.k),
+    leadingZero: raw.leadingZero === true ? true : undefined,
+    query: Array.isArray(raw.query) && raw.query.length === 2 ? [Number(raw.query[0]), Number(raw.query[1])] : undefined,
+    mod: raw.mod === undefined ? undefined : Number(raw.mod),
+    peak: raw.peak === true ? true : undefined,
+    closest: raw.closest === true ? true : undefined,
+    predicate: typeof raw.predicate === "string" ? raw.predicate.slice(0, 24) : undefined,
   }),
 };

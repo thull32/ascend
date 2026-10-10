@@ -59,9 +59,52 @@ describe("stack-queue family", () => {
     expect(mins).toEqual([3, 3, 5]);
   });
 
+  it("min-stack parallel variant keeps the min stack as tall as the main stack", () => {
+    const frames = stackQueueFamily.algorithms["min-stack"]!(stackQueueFamily.normalise!({ variant: "parallel", operations: [["push", 5], ["push", 3], ["push", 7], ["push", 3], ["getMin"], ["pop"], ["getMin"], ["pop"], ["pop"], ["getMin"]] }));
+    for (const f of frames) expect(f.state.containers[1]!.items.length).toBe(f.state.containers[0]!.items.length);
+    const afterPushes = frames.filter((f) => f.tag === "push").at(-1)!.state;
+    expect(afterPushes.containers[1]!.items).toEqual([5, 3, 3, 3]);
+    expect(frames.filter((f) => f.tag === "getMin").map((f) => f.state.vars.min)).toEqual([3, 3, 5]);
+  });
+
+  it("min-stack default variant pushes to the min stack only on a new minimum or a tie", () => {
+    const frames = stackQueueFamily.algorithms["min-stack"]!({ operations: [["push", 5], ["push", 3], ["push", 7], ["push", 3]] });
+    expect(frames.at(-1)!.state.containers[1]!.items).toEqual([5, 3, 3]);
+  });
+
+  it("two-stack transfer notes say the oldest item is on top only after the last move", () => {
+    const frames = stackQueueFamily.algorithms["queue-via-two-stacks"]!({ operations: [["push", 1], ["push", 2], ["push", 3], ["pop"]] });
+    const moves = frames.filter((f) => f.tag === "move");
+    expect(moves).toHaveLength(3);
+    for (const m of moves) {
+      const out = m.state.containers[1]!.items;
+      expect(m.note.includes("oldest item") ).toBe(out[out.length - 1] === 1);
+    }
+  });
+
+  it("stack notes: singular grammar and no false reverse-order claim", () => {
+    const frames = stackQueueFamily.algorithms["stack-ops"]!({ operations: [["push", 3], ["push", 7], ["push", 1]] });
+    expect(frames[2]!.note).toContain("the 1 item below is untouched");
+    expect(frames[3]!.note).toContain("the 2 items below are untouched");
+    expect(frames.at(-1)!.note).not.toContain("reverse order");
+  });
+
   it("sliding-window-max computes the classic answer", () => {
     const frames = stackQueueFamily.algorithms["sliding-window-max"]!({ values: [1, 3, -1, -3, 5, 3, 6, 7], k: 3 });
     expect(frames[frames.length - 1]!.state.output?.values).toEqual([3, 3, 5, 5, 6, 7]);
+  });
+
+  it("sliding-window-max expires the old maximum from the front", () => {
+    const frames = stackQueueFamily.algorithms["sliding-window-max"]!({ values: [5, 1, 1, 1, 1], k: 2 });
+    const expiries = frames.filter((f) => f.tag === "expire front");
+    expect(expiries).toHaveLength(1);
+    expect(expiries[0]!.state.vars.i).toBe(2);
+    expect(expiries[0]!.state.containers[0]!.items).toEqual([1]);
+    expect(expiries[0]!.state.containers[0]!.sub).toEqual(["i=2"]);
+    expect(frames.at(-1)!.state.output?.values).toEqual([5, 1, 1, 1]);
+    const longer = stackQueueFamily.algorithms["sliding-window-max"]!({ values: [4, 2, 12, 3, 8, 5, 1, 6], k: 3 });
+    expect(longer.filter((f) => f.tag === "expire front").map((f) => f.state.vars.i)).toEqual([5, 7]);
+    expect(longer.at(-1)!.state.output?.values).toEqual([12, 12, 12, 8, 8, 6]);
   });
 
   it("normalise accepts alternate field names and caps sizes", () => {

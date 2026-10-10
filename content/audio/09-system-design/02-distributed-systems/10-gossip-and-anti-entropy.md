@@ -1,6 +1,6 @@
 ---
 lesson: gossip-and-anti-entropy
-source: 2051e408249aa064
+source: 1c2c34507bc69cf2
 fit: great
 desk:
   - "The convergence simulation code and its table of rounds by mode, fanout and cluster size"

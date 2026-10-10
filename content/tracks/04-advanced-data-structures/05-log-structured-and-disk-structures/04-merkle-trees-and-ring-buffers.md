@@ -121,7 +121,7 @@ The exercise below uses a count for clarity. Production SPSC queues use one of t
 Restrict to **one producer and one consumer**, each on its own thread, and the ring buffer becomes a lock-free queue with no compare-and-swap at all. The key idea is *ownership*: the producer is the only writer of `tail`; the consumer is the only writer of `head`. Each side *reads* the other's index but never modifies it, so there is no read-modify-write race to resolve.
 
 ```viz
-{"type": "concurrency", "scenario": "producer-consumer",
+{"type": "concurrency", "scenario": "producer-consumer", "mode": "spsc",
  "title": "One producer, one consumer, one ring",
  "caption": "The producer checks for space by reading head, writes the slot, then publishes by advancing tail. The consumer mirrors it. Neither index has two writers, so no lock or CAS is needed."}
 ```

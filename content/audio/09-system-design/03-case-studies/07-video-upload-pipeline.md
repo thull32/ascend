@@ -1,6 +1,6 @@
 ---
 lesson: video-upload-pipeline
-source: f6a6cd580db73e6d
+source: dda9e4d4bbbc0913
 fit: great
 desk:
   - "The API calls, the data model and the video's state machine"

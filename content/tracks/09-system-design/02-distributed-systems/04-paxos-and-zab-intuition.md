@@ -63,8 +63,9 @@ A log is a sequence of single-decree instances, one per slot. Running both phase
 **Flexible Paxos** (Howard, Malkhi and Spiegelman, 2016) observed that the proof needs only every phase-1 quorum to intersect every phase-2 quorum, not majorities for both: |Q1| + |Q2| > N. With N = 5 you can commit with any 2 acceptors (Q2 = 2) if leader changes need 4 (Q1 = 4). Steady-state writes wait for the fastest one follower instead of two; leader changes need four of five alive. It is the quorum-overlap argument from [replication strategies](/learn/system-design/distributed-systems/replication-strategies) applied to the two phases separately.
 
 ```viz
-{"type": "system", "scenario": "quorum", "replicas": 3,
- "title": "Majorities overlap", "caption": "Any two majorities of three acceptors share at least one. That shared acceptor is how a later proposer learns what an earlier majority already accepted; it is the entire reason Paxos can survive proposer crashes."}
+{"type": "system", "scenario": "quorum", "replicas": 3, "variant": "paxos",
+ "title": "Majorities overlap",
+ "caption": "Any two majorities of three acceptors share at least one. That shared acceptor is how a later proposer learns what an earlier majority already accepted; it is the entire reason Paxos can survive proposer crashes."}
 ```
 
 **Learning and reading.** A value is chosen at the moment a majority accepts it, but nobody knows that until the `accepted` messages are counted. Acceptors can send them to every learner (acceptors × learners messages) or to one distinguished learner, usually the leader, which then tells the others; in Multi-Paxos the leader piggybacks "slots up to k are chosen" on its next accept, exactly as Raft piggybacks `commitIndex`. Reads face the problem Raft's ReadIndex solves: a leader that has been replaced does not know it. Spanner gives each Paxos leader a **lease**, 10 seconds by default according to the Spanner paper, during which the other replicas promise not to elect anyone else, so the leader can serve reads locally; the lease is renewed on every successful write, and TrueTime's bounded clock error is what makes "the lease has not expired" a safe judgement.

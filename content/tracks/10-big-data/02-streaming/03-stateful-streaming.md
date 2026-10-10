@@ -25,7 +25,7 @@ A **state backend** decides how the state is stored:
 Size it before choosing. 200 million users × about 300 bytes of serialised session state is 60 GB. On the heap, with object overhead, that is 120–300 GB spread over 32 instances, 4–9 GB of heap each, with GC pauses to match. In RocksDB it is 60–120 GB on disk including space amplification, 2–4 GB of local SSD per instance, with hot keys served from the block cache. RocksDB is the default for large state for this reason.
 
 ```viz
-{"type": "system", "scenario": "lsm-tree",
+{"type": "system", "scenario": "lsm-tree", "client": "Operator", "checkpoint": true,
  "title": "RocksDB underneath the operator",
  "caption": "State updates go to a memtable and are flushed as immutable sorted files, which compaction merges. Immutable files are what make incremental checkpoints cheap: a checkpoint uploads only the files created since the last one."}
 ```

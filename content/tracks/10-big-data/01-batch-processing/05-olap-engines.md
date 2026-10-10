@@ -161,7 +161,7 @@ For `title_id = 81234 AND country = 'BR'`, a granule can hold matching rows only
 Now the query `WHERE device = 'tv'`: `device` is not a prefix of the sort key, so no granule can be excluded, and the engine reads every granule of `device` (cheap, because `LowCardinality` stores one byte per row) and filters. A skip index (`INDEX device_idx device TYPE set(100) GRANULARITY 4`) would let it drop blocks of four granules whose set of devices lacks `tv`, at the cost of a small index per part.
 
 ```viz
-{"type": "system", "scenario": "lsm-tree",
+{"type": "system", "scenario": "lsm-tree", "variant": "parts",
  "title": "Parts and merges: the LSM idea inside an OLAP engine",
  "caption": "Writes land as small sorted runs and background compaction merges them into larger ones. ClickHouse parts, Druid segments and Pinot segments all follow this pattern. Too many small inserts create parts faster than merges can absorb them."}
 ```

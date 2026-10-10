@@ -1,6 +1,6 @@
 ---
 lesson: math-and-geometry
-source: de6f70a6f48d252f
+source: 7a229879e867948a
 fit: partial
 desk:
   - "The four templates in Python and JavaScript: digit addition, repeated squaring and its modular form, cross product and squared distance, the spiral fill"

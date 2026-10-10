@@ -1,6 +1,6 @@
 ---
 lesson: recursion-design
-source: 1e491abb5e16269a
+source: d6921793546460db
 fit: great
 desk:
   - "The factorial frame-by-frame trace and the power trace"

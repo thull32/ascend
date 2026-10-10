@@ -1,6 +1,6 @@
 ---
 lesson: idempotency-and-retries
-source: 8faf84eef2f51e2b
+source: cf82fda07a3c2b12
 fit: great
 desk:
   - "The double-charge trace and the Postgres unique-index experiment"

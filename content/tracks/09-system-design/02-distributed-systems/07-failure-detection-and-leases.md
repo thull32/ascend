@@ -114,8 +114,9 @@ for dt in (1000, 1300, 1561, 2000):
 So a detector should only **suspect**; **conviction** is a separate, slower decision. Suspicion is cheap and local: stop sending the node requests. Conviction starts irreversible work, so it waits longer, gathers evidence from several observers, and is made once, by one decision-maker. SWIM has k other members probe before suspecting and lets the node refute with a higher incarnation number; Lifeguard stretches the suspicion timeout until others confirm; Consul records the failure once, in its Raft-replicated catalog; Kubernetes stops scheduling on a node at 40–50 s and evicts 300 s later.
 
 ```viz
-{"type": "system", "scenario": "gossip", "nodes": 6,
- "title": "Membership spread by gossip", "caption": "Each node's view of who is alive spreads by random pairwise exchange. A suspicion raised by one node is confirmed or refuted by other nodes' probes before the cluster acts on it, which is how a single bad link is prevented from ejecting a healthy node."}
+{"type": "system", "scenario": "gossip", "nodes": 6, "variant": "suspicion",
+ "title": "Membership spread by gossip",
+ "caption": "Each node's view of who is alive spreads by random pairwise exchange. A suspicion raised by one node is confirmed or refuted by other nodes' probes before the cluster acts on it, which is how a single bad link is prevented from ejecting a healthy node."}
 ```
 
 Correlation is the other reason to wait: a switch reboot silences a whole rack, and convicting on first suspicion turns one blip into a re-replication storm.

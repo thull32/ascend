@@ -1,6 +1,6 @@
 ---
 lesson: stack-applications
-source: 74f58eed3a4124de
+source: 4ad92361377296d4
 fit: partial
 desk:
   - "The bracket-matching code and its trace"

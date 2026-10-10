@@ -1,6 +1,6 @@
 ---
 lesson: mcp-and-integrations
-source: 316e3ba23fd4a978
+source: e34c5463841982bb
 fit: great
 desk:
   - "The discovery and call messages on the wire, and the sequence diagram"

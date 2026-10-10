@@ -1,6 +1,6 @@
 ---
 lesson: distributed-transactions
-source: a889b0ddd7d49595
+source: c90a54ff94ac1af8
 fit: great
 desk:
   - "The two-phase commit crash table, one row per crash point"

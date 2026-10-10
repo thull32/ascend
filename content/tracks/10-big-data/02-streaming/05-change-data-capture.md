@@ -171,7 +171,7 @@ COMMIT;
 Debezium's **outbox event router** is a single message transform on the connector: `transforms=outbox`, `transforms.outbox.type=io.debezium.transforms.outbox.EventRouter`. For each insert into `outbox` it emits a record to topic `outbox.event.<aggregatetype>` (`route.topic.replacement` changes the pattern), with key = `aggregateid`, value = `payload`, and a header carrying the outbox row id for consumer deduplication; the event type becomes a header too if you set `table.fields.additional.placement=type:header:type`. Deletes of outbox rows are ignored, so the table can be emptied in the same transaction and never grows. The trace: the transaction above produces one record on `outbox.event.order`, key `9001`, value `{"order_id": 9001, "total_cents": 4598, "currency": "USD"}`, header `id = <uuid>`; every consumer of orders gets a versioned contract, not a view of `orders` and `order_lines`.
 
 ```viz
-{"type": "system", "scenario": "outbox", "requests": 4,
+{"type": "system", "scenario": "outbox", "requests": 4, "relay": "CDC (Debezium)",
  "title": "Transactional outbox",
  "caption": "The event row commits in the same transaction as the business change, so neither can exist without the other. A relay (here, CDC on the outbox table) publishes it; a crash before the relay records progress causes a re-publish, so consumers still deduplicate by event id."}
 ```

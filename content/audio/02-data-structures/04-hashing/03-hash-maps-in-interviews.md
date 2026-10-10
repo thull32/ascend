@@ -1,6 +1,6 @@
 ---
 lesson: hash-maps-in-interviews
-source: 6b4630b31155e4e7
+source: f99f5cab73dd466c
 fit: partial
 desk:
   - "The seven shapes, each with its code and state-table trace: valid anagram, two sum, group anagrams, longest consecutive sequence, subarray sum equals k, longest substring without repeats, insert-delete-getRandom"

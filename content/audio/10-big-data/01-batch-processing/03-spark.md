@@ -1,6 +1,6 @@
 ---
 lesson: spark
-source: 5754a8447d896535
+source: 586902efd05b1813
 fit: great
 desk:
   - "The example physical plan from explain, read bottom-up"

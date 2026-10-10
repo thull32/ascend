@@ -1,6 +1,6 @@
 ---
 lesson: building-the-ai-coach
-source: cb330cee9bd83bf2
+source: 211e59656a7900f3
 fit: great
 desk:
   - "The streaming method, the pump loop and the send handler, with the sequence diagram"

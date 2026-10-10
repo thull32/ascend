@@ -46,7 +46,7 @@ So `P = [0, 3, 4, 8, 9, 14, 23, 25, 31]`, and:
 Building `P` is one pass, O(n), with one addition per element. Each query is one subtraction, O(1). For `q` queries the total is O(n + q) instead of O(nq).
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [3, 1, 4, 1, 5, 9, 2, 6], "title": "Building the prefix array"}
+{"type": "array", "algorithm": "prefix-sum", "values": [3, 1, 4, 1, 5, 9, 2, 6], "leadingZero": true, "query": [3, 5], "title": "Building the prefix array", "caption": "P[0] = 0 and P[i+1] = P[i] + a[i]: one addition per element. Then sum(3, 5) = P[6] - P[3] = 23 - 8 = 15, one subtraction."}
 ```
 
 ```python

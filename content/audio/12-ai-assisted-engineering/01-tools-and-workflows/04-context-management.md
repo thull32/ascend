@@ -1,6 +1,6 @@
 ---
 lesson: context-management
-source: 90db3fd27abfade1
+source: 969307c6c495fdd7
 fit: great
 desk:
   - "The token budget table for one bug fix"

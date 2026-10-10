@@ -1,6 +1,6 @@
 ---
 lesson: cycle-detection
-source: 63909554bcdfedda
+source: c02fed94fd8d77cd
 fit: partial
 desk:
   - "The meeting-time and cycle-start proofs, written out with the modular arithmetic"

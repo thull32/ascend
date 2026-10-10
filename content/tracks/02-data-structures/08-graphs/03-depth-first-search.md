@@ -220,7 +220,7 @@ Counting islands, flooding a region, computing the area of a connected blob: DFS
 {"type": "graph", "algorithm": "dfs", "directed": false, "start": "A",
  "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}, {"id": "E"}, {"id": "F"}],
  "edges": [{"from": "A", "to": "B"}, {"from": "A", "to": "C"}, {"from": "B", "to": "D"}, {"from": "C", "to": "D"}, {"from": "D", "to": "E"}, {"from": "B", "to": "F"}],
- "title": "DFS from A", "caption": "The search dives A, B, D, then E before it ever considers C. The stack (or recursion) holds only the current path."}
+ "title": "DFS from A", "caption": "The search dives A, B, D, C before it backs up to E and F. C's edge to A, an ancestor that is not its parent, is the only back edge. The stack (or recursion) holds only the current path."}
 ```
 
 ## Iterative deepening

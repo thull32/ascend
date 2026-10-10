@@ -1,6 +1,6 @@
 ---
 lesson: string-matching
-source: 7fde0eb66530c444
+source: 9eb9d4df15359ca5
 fit: partial
 desk:
   - "The failure-function code and its trace on aabaaab, including the fall-back chain in row 5"

@@ -1,6 +1,6 @@
 ---
 lesson: data-and-migrations
-source: d680ee2261abe4e5
+source: 088d95970eebcaa3
 fit: great
 desk:
   - "The schema diagram and the table of indexes and the queries they serve"

@@ -150,8 +150,9 @@ Each server periodically snapshots its state machine at some index and discards 
 A leader cannot serve linearizable reads from its own state, because a partitioned leader may not know it has been deposed. **ReadIndex**: the leader records its commit index, confirms leadership with a heartbeat round to a majority, waits until it has applied up to the recorded index, then answers: one round trip, no disk write. **Lease reads** skip the round trip for a period after each successful heartbeat round, trusting that no election can finish within the lease; that trust rests on bounded clock drift. Follower reads are stale by the replication delay, which is etcd's `serializable` read mode.
 
 ```viz
-{"type": "system", "scenario": "leader-lease", "nodes": 3,
- "title": "Lease-based reads on the leader", "caption": "The leader serves reads from local state while its lease holds. Followers promise not to elect a new leader before the lease expires, so the read cannot be stale, provided clocks drift less than the safety margin."}
+{"type": "system", "scenario": "leader-lease", "variant": "raft",
+ "title": "Lease-based reads on the leader",
+ "caption": "The leader serves reads from local state while its lease holds. Followers promise not to elect a new leader before the lease expires, so the read cannot be stale, provided clocks drift less than the safety margin."}
 ```
 
 A client that times out and resends can get its command applied twice. The fix is a client session with a sequence number per command, which the state machine uses to ignore duplicates: the idempotency-key idea from [idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries).

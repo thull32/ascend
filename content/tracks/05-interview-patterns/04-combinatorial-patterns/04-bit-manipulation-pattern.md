@@ -155,7 +155,7 @@ The same expression differs between the two languages:
 Watch 5 and 3 split into the two operators the add loop repeats:
 
 ```viz
-{"type": "bits", "algorithm": "and-or-xor", "a": 5, "b": 3, "title": "5 and 3: XOR is the carry-less sum, AND marks the carries", "caption": "5 ^ 3 = 6 and 5 & 3 = 1. Shifting the AND left by one gives the carry, 2, and 6 + 2 = 8 is the sum; the add loop repeats this split until the carry is 0."}
+{"type": "bits", "algorithm": "and-or-xor", "a": 5, "b": 3, "ops": ["xor", "and"], "carry": true, "title": "5 and 3: XOR is the carry-less sum, AND marks the carries", "caption": "5 ^ 3 = 6 and 5 & 3 = 1. Shifting the AND left by one gives the carry, 2, and 6 + 2 = 8 is the sum; the add loop repeats this split until the carry is 0."}
 ```
 
 ## Why the identities hold

@@ -1,6 +1,6 @@
 ---
 lesson: indexed-heaps-and-decrease-key
-source: 79d0f3728c7734ca
+source: 60003e6203afeea0
 fit: partial
 desk:
   - "Dijkstra with lazy deletion, as code, and the measured garbage numbers on random graphs"

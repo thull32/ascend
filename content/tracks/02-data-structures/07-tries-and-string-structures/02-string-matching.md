@@ -148,7 +148,7 @@ Worked with digits, base 10 and a deliberately tiny `q = 13` so that collisions 
 Rolling from `31` to `14`: `(5 − 3·10) = −25 ≡ 1 (mod 13)`, then `1·10 + 4 = 14 ≡ 1`. Check: `14 mod 13 = 1`. Now look at the collisions in that table: `14`, `92` and `53` all hash to 1, and `41` and `15` both hash to 2. A search for `92` would find three candidate windows and only the verification step would reject two of them; without verification it would report matches at 1 and 8. That is the whole failure mode of Rabin-Karp in one table.
 
 ```viz
-{"type": "string", "algorithm": "rabin-karp", "text": "3141592653", "pattern": "59",
+{"type": "string", "algorithm": "rabin-karp", "text": "3141592653", "pattern": "59", "base": 10, "mod": 13,
  "title": "Rabin-Karp with a rolling hash", "caption": "Each window's hash is derived from the previous one in O(1). Only windows whose hash equals the pattern's are compared character by character."}
 ```
 
@@ -200,7 +200,7 @@ Trace on `aabxaab`:
 | 5 | a | yes | min(r − i + 1 = 2, z[1] = 1) = 1 | s[1] = a vs s[6] = b, stop | 1 | [4, 6] |
 | 6 | b | yes | min(1, z[2] = 0) = 0 | s[0] = a vs s[6] = b, stop | 0 | [4, 6] |
 
-Row 5 is the algorithm's whole idea: position 5 sits inside the box that mirrors positions 1–3 of the prefix, so `z[5]` starts at `z[1]` without re-reading the matched characters, and only one fresh comparison is needed.
+Row 5 is the algorithm's whole idea: position 5 sits inside the box `[4, 6]`, which mirrors positions 0–2 of the prefix, so `z[5]` starts at `z[1]` without re-reading the matched characters, and only one fresh comparison is needed.
 
 ```viz
 {"type": "string", "algorithm": "z-algorithm", "text": "aabxaab",

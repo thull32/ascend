@@ -25,7 +25,7 @@ def ways(n):
 Watch the call tree for $n = 6$ (this is the Fibonacci tree; the recurrence is identical):
 
 ```viz
-{"type": "recursion", "algorithm": "fibonacci", "n": 6,
+{"type": "recursion", "algorithm": "fibonacci", "n": 6, "name": "ways", "bases": [1, 1],
  "title": "ways(6) as a call tree: count how many times ways(2) appears"}
 ```
 
@@ -161,7 +161,7 @@ def word_break(s, words):
 ```
 
 ```viz
-{"type": "dp", "algorithm": "word-break", "s": "applepenapple", "words": ["apple", "pen"],
+{"type": "dp", "algorithm": "word-break", "s": "applepenapple", "words": ["apple", "pen"], "direction": "suffix",
  "title": "can(i) depends only on i: thirteen states, each decided once"}
 ```
 

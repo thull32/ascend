@@ -1,7 +1,7 @@
 ---
 lesson: binary-search
 episode: binary-search-pattern
-source: 2e82a54dd86edd6a
+source: 3734b93c087bedb0
 fit: partial
 desk:
   - "The five-decisions table, and the predicate table for lower bound, upper bound, last true and exact match"

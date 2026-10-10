@@ -1,6 +1,6 @@
 ---
 lesson: modelling-for-access-patterns
-source: 78a08ce554174cc1
+source: cb4c71988582a44e
 fit: great
 desk:
   - "The access-pattern table and the index derived for each query"

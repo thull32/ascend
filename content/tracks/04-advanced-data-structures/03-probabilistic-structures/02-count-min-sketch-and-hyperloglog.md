@@ -99,9 +99,9 @@ Counting distinct items is a different problem: adding the same key twice must n
 So if you hash every element and record the *longest run of leading zeros* you have ever seen, `R`, you have seen roughly `2^R` distinct elements: it takes about `2^R` random draws to produce one with `R` leading zeros. Duplicates hash identically and contribute nothing new, which is exactly the property you need.
 
 ```viz
-{"type": "bits", "algorithm": "count-bits", "values": [1, 6, 8, 32, 96],
- "title": "Bit patterns of hashed values",
- "caption": "HyperLogLog looks at the position of the first 1 bit in each hash. A hash starting with r zeros is a 1-in-2^r event, so the longest run seen estimates log2 of the number of distinct hashes."}
+{"type": "bits", "algorithm": "count-bits", "mode": "leading-zeros", "width": 8, "values": [178, 75, 41, 220, 75, 23, 99, 150],
+ "title": "Leading zeros of hashed values",
+ "caption": "Each value is an 8-bit hash. HyperLogLog counts the zeros before the first 1: at least r leading zeros is a 1-in-2^r event, so the longest run seen, R, suggests about 2^R distinct hashes. The repeated 75 changes nothing."}
 ```
 
 A single maximum is a terrible estimator: one unlucky hash with 30 leading zeros and you claim a billion elements. Two fixes turn the idea into HyperLogLog.

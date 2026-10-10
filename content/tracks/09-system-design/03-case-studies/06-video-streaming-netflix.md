@@ -274,7 +274,7 @@ A player's throughput is TCP's throughput, so [congestion control](/learn/networ
 Every session reports play delay, switches, rebuffers, errors, the appliance used and throughput samples. Netflix has described **stream starts per second (SPS)** as its primary health signal ([Observability](/learn/system-design/building-blocks/observability) covers SLIs in general): viewing follows strong daily and weekly cycles, so actual SPS per region, device and ISP is compared with the expected value for that minute, and a dip means members press play and get nothing, whatever the cause. SPS is also described as the steady-state metric for its chaos experiments.
 
 ```viz
-{"type": "system", "scenario": "stream-windowing",
+{"type": "system", "scenario": "stream-windowing", "size": 60,
  "title": "Turning a firehose of events into per-minute health",
  "caption": "Start events are counted in tumbling one-minute windows per region, device and ISP, and each window is compared with the expected count for that minute. A shortfall in one ISP's window points at that ISP's appliances or peering, not at the whole service."}
 ```

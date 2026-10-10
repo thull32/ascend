@@ -104,3 +104,51 @@ describe("recursion family", () => {
     expect(h.at(-1)!.state.pegs!.discs).toEqual([[], [], [3, 2, 1]]);
   });
 });
+
+describe("recursion generator fixes", () => {
+  it("factorial with base 0 recurses to fact(0): six frames for n = 5", () => {
+    const frames = run("factorial", { n: 5, base: 0 });
+    expect(Math.max(...frames.map((fr) => fr.state.stack.length))).toBe(6);
+    expect(frames.at(-1)!.state.nodes.at(-1)!.label).toBe("fact(0)");
+    expect(frames.at(-1)!.note).toContain("factorial(5) = 120 after 6 calls");
+  });
+  it("fibonacci takes a name and base values: ways(6) = 13", () => {
+    const frames = run("fibonacci", { n: 6, name: "ways", bases: [1, 1] });
+    expect(frames.at(-1)!.note).toContain("ways(6) = 13 took 25 calls");
+    expect(frames.every((fr) => fr.state.nodes.every((nd) => nd.label.startsWith("ways(")))).toBe(true);
+    const base0 = frames.at(-1)!.state.nodes.find((nd) => nd.label === "ways(0)")!;
+    expect(base0.result).toBe("1");
+  });
+  it("combinations does not count pruned branches as calls", () => {
+    const frames = run("combinations", { values: [1, 2, 3, 4], k: 2 });
+    const last = frames.at(-1)!;
+    const pruned = last.state.nodes.filter((nd) => nd.result === "pruned");
+    expect(pruned.length).toBeGreaterThan(0);
+    expect(last.state.vars.calls).toBe(last.state.nodes.length - pruned.length);
+    expect(last.note).toContain(`from ${last.state.nodes.length - pruned.length} calls`);
+  });
+  it("notes name values, not indices, and avoid placeholder symbols", () => {
+    expect(run("subsets", { values: [1, 2, 3] }).some((fr) => /element \d/.test(fr.note))).toBe(false);
+    const merge = run("merge-sort-tree", { values: [38, 27, 43, 3] });
+    expect(merge.some((fr) => fr.note.includes("∅"))).toBe(false);
+    expect(merge.find((fr) => fr.tag === "split")!.note).toContain("level 0");
+    expect(run("hanoi", { n: 3 }).some((fr) => / 1 (smaller )?discs/.test(fr.note))).toBe(false);
+  });
+});
+
+describe("recursion generator fixes, part 2", () => {
+  it("n-queens reports the column first, as the lesson's check does", () => {
+    const notes = run("n-queens", { n: 4 }).map((fr) => fr.note);
+    expect(notes).toContain("(2, 2) is attacked by the queen at (1, 2): same column. Skip.");
+    expect(notes).toContain("(3, 1) is attacked by the queen at (2, 1): same column. Skip.");
+    expect(notes).toContain("(3, 3) is attacked by the queen at (1, 3): same column. Skip.");
+  });
+  it("merge-sort-tree with split even-odd shows the FFT's parity split", () => {
+    const frames = run("merge-sort-tree", { values: ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"], split: "even-odd" });
+    const last = frames.at(-1)!;
+    expect(last.state.nodes[1]!.label).toBe("[a0,a2,a4,a6]");
+    expect(last.state.nodes.some((nd) => nd.label === "[a1,a3,a5,a7]")).toBe(true);
+    expect(last.state.vars.butterflies).toBe(12);
+    expect(frames.some((fr) => fr.note.includes("Merge"))).toBe(false);
+  });
+});

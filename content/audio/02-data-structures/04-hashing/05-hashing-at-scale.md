@@ -1,6 +1,6 @@
 ---
 lesson: hashing-at-scale
-source: d360e46e58be376a
+source: 76e50d7ee0c5decd
 fit: partial
 desk:
   - "The ring trace: nine virtual-node positions, eight keys, then removing B and adding D"

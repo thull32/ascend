@@ -267,7 +267,9 @@ Status columns are `varchar(16)` guarded by Rust enums on the way in. A `CHECK (
 The progress PUT is idempotent by construction. `POST /api/submissions` and `POST /api/comments` are not: a double click or a retry inserts twice, a cosmetic duplicate for submissions ("solved" uses `DISTINCT`) and a visible one for comments. The web client respects that: `web/src/main.tsx` retries only *queries*, never a mutation. The general fix is an idempotency key per *intent* ([Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)).
 
 ```viz
-{"type": "system", "algorithm": "idempotency-key", "title": "Making a non-idempotent POST safe to retry", "caption": "Ascend's PUT endpoints are idempotent by construction; its POST endpoints would need a key like this before any retry logic is added to the client.", "requests": 3}
+{"type": "system", "algorithm": "idempotency-key", "requests": 3, "client": "Browser", "service": "Ascend API", "request": "POST /api/comments", "key": "k1", "effect": "insert comment 812", "target": "", "record": "comment 812", "response": "201 comment 812", "effects": "comments", "changed": "edited text",
+ "title": "Making a non-idempotent POST safe to retry",
+ "caption": "Ascend's PUT endpoints are idempotent by construction; its POST endpoints would need a key like this before any retry logic is added to the client."}
 ```
 
 For Ascend a client UUID per comment or submission and a unique constraint on `(user_id, client_id)` would do: a retry hits the constraint and returns the existing row.

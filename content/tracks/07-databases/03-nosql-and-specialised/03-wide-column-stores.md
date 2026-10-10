@@ -41,7 +41,9 @@ flowchart LR
 The Murmur3 partitioner maps the key to a token between −2⁶³ and 2⁶³ − 1. Each node owns several ranges of that ring (virtual nodes: `num_tokens` is 16 by default since 4.0, 256 before), and a partition is stored on the owner of its token plus the next nodes clockwise, up to the replication factor (RF), skipping to other racks or datacentres under `NetworkTopologyStrategy`. A new node takes over some ranges and streams only that data. That is the mechanism behind "linear scalability".
 
 ```viz
-{"type": "system", "scenario": "consistent-hashing", "title": "Partition placement on the ring", "caption": "Each partition key hashes to a token; the token's owner and the next replicas store it. Adding a node moves only the ranges it takes over."}
+{"type": "system", "scenario": "consistent-hashing", "replicas": 3,
+ "title": "Partition placement on the ring",
+ "caption": "Each partition key hashes to a token; the token's owner and the next replicas store it. Adding a node moves only the ranges it takes over."}
 ```
 
 ## Designing tables from queries, with sizes
@@ -75,7 +77,9 @@ A client sends a write to any node, which becomes the **coordinator** for that r
 3. When memtable space fills (by default a quarter of the heap) or the commit log reaches its limit, the memtable is flushed to an immutable **SSTable** and the commit log segments it covered are recycled.
 
 ```viz
-{"type": "system", "scenario": "lsm-tree", "title": "Write path through memtable to SSTables", "caption": "Writes append to the commit log and land in the sorted memtable; flushes produce immutable SSTables; compaction merges SSTables so reads consult fewer files."}
+{"type": "system", "scenario": "lsm-tree", "log": "Commit log", "grace": "gc_grace_seconds, 10 days by default",
+ "title": "Write path through memtable to SSTables",
+ "caption": "Writes append to the commit log and land in the sorted memtable; flushes produce immutable SSTables; compaction merges SSTables so reads consult fewer files."}
 ```
 
 Each cell carries a microsecond **write timestamp**, set by the coordinator or the client. A row's current state may be spread across the memtable and several SSTables, and a read merges them cell by cell, newest timestamp wins. The [LSM tree lesson](/learn/advanced-data-structures/log-structured-and-disk-structures/lsm-trees-and-sstables) opens the SSTable format; here the operational facts matter.

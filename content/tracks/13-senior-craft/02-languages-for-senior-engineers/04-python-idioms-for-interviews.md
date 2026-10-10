@@ -236,7 +236,7 @@ Also: `list.sort()` returns `None`, so `x = xs.sort()` loses your data; mutating
 CPython frees most objects the instant their reference count reaches zero, which is why a file opened without `with` usually closes as soon as its last reference disappears. Cycles never reach zero, so a cycle collector runs periodically to find unreachable groups (its thresholds on 3.14 were `(2000, 10, 10)`).
 
 ```viz
-{"type": "memory", "algorithm": "reference-counting",
+{"type": "memory", "algorithm": "reference-counting", "lang": "python",
  "title": "How CPython frees most objects",
  "caption": "Every assignment, argument and container slot adjusts a count; zero frees immediately. The final steps show the cycle that reference counting alone can never free, which is what CPython's separate cycle collector exists for."}
 ```

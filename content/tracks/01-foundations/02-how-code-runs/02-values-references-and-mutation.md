@@ -188,7 +188,7 @@ Steps 3 and 6 are the same statement with opposite outcomes, decided by a capaci
 Maps and channels are pointers to runtime structures, so assignment shares. There is no way to copy a map except by iterating (`maps.Clone` does that for you).
 
 ```viz
-{"type": "memory", "scenario": "dynamic-array-growth", "title": "Growth by doubling", "caption": "Appends within capacity write in place; the one that exceeds capacity allocates a new block and copies everything, which is when old aliases stop seeing new writes."}
+{"type": "memory", "scenario": "dynamic-array-growth", "gc": true, "title": "Growth by doubling", "caption": "Appends within capacity write in place; the one that exceeds capacity allocates a new block and copies everything, which is when old aliases stop seeing new writes."}
 ```
 
 ## Rust: moves, copies and the borrow checker's reasoning

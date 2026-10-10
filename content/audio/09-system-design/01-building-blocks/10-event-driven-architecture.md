@@ -1,6 +1,6 @@
 ---
 lesson: event-driven-architecture
-source: f52949d2706cefe7
+source: 4f3d8a4f98dfe7eb
 fit: great
 desk:
   - "The event-sourcing fold, the projection rebuild and the optimistic-concurrency traces"

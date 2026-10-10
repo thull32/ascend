@@ -52,7 +52,7 @@ Count the nodes by argument:
 Twenty-five calls, of which only **7** are distinct subproblems (`ways(0)` through `ways(6)`). The call counts are themselves Fibonacci numbers: `ways(k)` is called `fib(n-k+1)` times for `k ≥ 1` (and `ways(0)` `fib(n-1)` times), and the total is `2·fib(n+1) − 1` with `fib(1) = fib(2) = 1`. For `n = 6` that is `2·13 − 1 = 25`; for `n = 40` it is `2·165,580,141 − 1 = 331,160,281`. The tree has about `1.6ⁿ` nodes because every internal node spawns two children and the depth shrinks by only one or two per level, while the number of distinct arguments is `n + 1`. The ratio between those two numbers, exponential calls versus linear distinct subproblems, is the entire opportunity. The [recursion-design lesson](/learn/algorithms/recursion-backtracking/recursion-design) shows how to draw these trees for any recursion; [from backtracking to memoisation](/learn/algorithms/recursion-backtracking/from-backtracking-to-memoisation) is the bridge that lands here.
 
 ```viz
-{"type": "recursion", "algorithm": "fibonacci", "n": 6, "title": "Naive recursion: watch fib(3) and fib(2) get recomputed", "caption": "Every repeated subtree is wasted work. The number of distinct arguments is tiny compared with the number of calls."}
+{"type": "recursion", "algorithm": "fibonacci", "n": 6, "name": "ways", "bases": [1, 1], "title": "Naive recursion: watch ways(3) and ways(2) get recomputed", "caption": "Every repeated subtree is wasted work. The number of distinct arguments is tiny compared with the number of calls."}
 ```
 
 ## The two properties that make a problem DP
@@ -232,7 +232,7 @@ Memory is the number of states you have to keep *simultaneously*, which is often
 **The stack.** The default recursion limit is 1,000 (`sys.getrecursionlimit()`), so a memoised chain deeper than that raises `RecursionError` at `n = 10⁴`. `sys.setrecursionlimit` lifts it, but on CPython before 3.11 every Python-level call also consumed C stack, and a raised limit could segfault when the OS thread stack (8 MB by default on Linux) ran out, hence the folk remedy of running in a thread created after `threading.stack_size(256 << 20)`. From 3.11 Python-to-Python calls no longer consume C stack and 3.12 tracks the C recursion limit separately, so raising the limit is safer, at the cost of one frame object per level. JavaScript engines have no configurable frame count; V8 stops at a stack-size limit that corresponds to roughly ten thousand frames for a small function (it depends on frame size and `--stack-size`). The [call-stack lesson](/learn/foundations/how-code-runs/stack-heap-and-the-call-stack) has the frame layout.
 
 ```viz
-{"type": "memory", "algorithm": "call-stack", "n": 6, "title": "Top-down ways(6): six frames deep before the first base case returns", "caption": "Memoisation removes repeated work, not depth. The chain ways(6) → ways(5) → … → ways(0) is as long as n, which is what hits the recursion limit."}
+{"type": "memory", "algorithm": "call-stack", "fn": "ways", "n": 6, "title": "Top-down ways(6): six frames deep before the first base case returns", "caption": "Memoisation removes repeated work, not depth. The chain ways(6) → ways(5) → … → ways(1) is as long as n, which is what hits the recursion limit."}
 ```
 
 ### Bytes per cell

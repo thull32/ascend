@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_FRAMES } from "../engine";
-import { hashKey, hashTableFamily, type HashInput, type HashOp } from "./hash-table";
+import { fnv1a, hashKey, hashTableFamily, movedFraction, type HashInput, type HashOp } from "./hash-table";
 
 const keys = Array.from({ length: 40 }, (_, i) => `k${i}`);
 const manySet: HashOp[] = keys.map((k, i) => ["set", k, i] as HashOp);
@@ -65,6 +65,43 @@ describe("hash-table family", () => {
     expect(last.table.slots.length).toBe(8);
     expect(last.old).toBeUndefined();
     expect(last.table.slots.flat().map((e) => e.key).sort()).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  it("resize counts keys that changed bucket separately from keys rehashed", () => {
+    // Java hashes 97..100 for a..d: mod 4 = 1,2,3,0 and mod 8 = 1,2,3,4, so only d moves.
+    const frames = hashTableFamily.algorithms.resize!({ buckets: 4, operations: [["set", "a", 1], ["set", "b", 2], ["set", "c", 3], ["set", "d", 4], ["set", "e", 5]] });
+    const done = frames.find((f) => f.tag === "resized")!;
+    expect(done.state.vars).toMatchObject({ rehashed: 4, moved: 1 });
+    expect(frames.filter((f) => f.tag === "moves").map((f) => f.state.hash!.key)).toEqual(["d"]);
+    expect(frames.filter((f) => f.tag === "stays").map((f) => f.state.hash!.key).sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("resize with growth 1.25 goes from 4 to 5 buckets and moves most keys", () => {
+    const input = hashTableFamily.normalise!({ buckets: 4, loadFactor: 1, growth: 1.25, hash: "fnv1a", operations: [1, 2, 3, 4, 5].map((i) => ["set", `user:${i}`, i]) });
+    const frames = hashTableFamily.algorithms.resize!(input);
+    const done = frames.find((f) => f.tag === "resized")!;
+    expect(done.state.table.slots.length).toBe(5);
+    expect(done.state.vars).toMatchObject({ rehashed: 5, moved: 4 });
+    expect(done.note).toContain("about 80% of keys");
+    expect(movedFraction(4, 8)).toBe(0.5);
+    expect(movedFraction(4, 5)).toBe(0.8);
+  });
+
+  it("fnv1a matches the 32-bit FNV-1a values quoted in the hash tables lesson", () => {
+    expect(fnv1a("melon")).toBe(1927437660);
+    expect(fnv1a("lime")).toBe(132336572);
+    expect(fnv1a("peach")).toBe(2698319462);
+    const frames = hashTableFamily.algorithms["open-addressing"]!(hashTableFamily.normalise!({ buckets: 8, hash: "fnv1a", operations: [["set", "melon", 1], ["set", "lime", 2], ["set", "fig", 3], ["set", "pear", 4], ["set", "mango", 5]] }));
+    const slots = frames.at(-1)!.state.table.slots.map((c) => c[0]?.key ?? null);
+    expect(slots).toEqual(["mango", null, null, null, "melon", "lime", "fig", "pear"]);
+  });
+
+  it("append groups values under one entry", () => {
+    const frames = hashTableFamily.algorithms.chaining!({ buckets: 6, operations: [["append", "aet", "eat"], ["append", "aet", "tea"], ["append", "ant", "tan"], ["get", "aet"]] });
+    const last = frames.at(-1)!.state;
+    expect(last.table.slots.flat().map((e) => [e.key, e.value])).toEqual(expect.arrayContaining([["aet", "[eat, tea]"], ["ant", "[tan]"]]));
+    expect(last.table.slots.flat()).toHaveLength(2);
+    expect(frames.find((f) => f.tag === "get")!.state.vars.result).toBe("[eat, tea]");
   });
 
   it("normalise clamps buckets and caps operations", () => {

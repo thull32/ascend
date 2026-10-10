@@ -73,7 +73,7 @@ Output `[3, 3, 5, 5, 6, 7]`. Index 1 (value 3) survived from `i = 1` to `i = 3` 
 Output `[5, 1, 1, 1]`. At `i = 2` nothing bigger than 5 ever arrives, yet 5 must leave because the window `[1, 2]` no longer contains index 0. Both eviction rules are needed; a solution with only back-pops reports 5 forever.
 
 ```viz
-{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3, "title": "Monotonic deque: evict dominated from the back, expired from the front"}
+{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [5, 1, 1, 1, 1], "k": 2, "title": "Monotonic deque: evict dominated from the back, expired from the front", "caption": "The second trace: nothing larger than 5 ever arrives, yet index 0 must leave from the front at i = 2, while each new 1 evicts the equal 1 behind it from the back."}
 ```
 
 ## Under the hood: why O(n), and what it costs

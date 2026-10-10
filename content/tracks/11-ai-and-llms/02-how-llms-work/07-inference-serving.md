@@ -86,9 +86,9 @@ A serving engine must hold every active sequence's KV cache, and sequences grow 
 Pages also enable **sharing**. Three requests with the same 1,024-token system prompt can point their first 64 block-table entries at the same physical blocks (reference-counted, copied on write), saving 256 MiB; that is the in-GPU half of prefix caching. When blocks run out, the scheduler **preempts** a sequence, either discarding its blocks to recompute later or swapping them to CPU memory, and its user sees a stall.
 
 ```viz
-{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat",
+{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat", "mode": "paged", "blockSize": 2,
  "title": "The cache that paging manages",
- "caption": "Each decode step appends one key and one value per layer. A paged allocator stores these in 16-token blocks and allocates a new block only when the last one fills."}
+ "caption": "Each decode step appends one key and one value per layer. A paged allocator stores these in fixed-size blocks (2 tokens here so that one fills; 16 in the example above) and allocates a new block only when the last one fills."}
 ```
 
 ## Quantisation: fewer bytes per weight

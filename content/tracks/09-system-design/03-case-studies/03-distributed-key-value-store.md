@@ -82,7 +82,8 @@ The partition key is the hash of the whole key and there is no sort key: every r
 **Under the hood**, each node runs a log-structured merge tree ([Storage engine internals](/learn/databases/storage-and-scale/storage-engine-internals)). A write appends to a commit log, inserts into an in-memory sorted memtable, and is acknowledged; full memtables flush to immutable sorted SSTables, each with a bloom filter and a sparse index. A point read checks the memtable, then asks each SSTable's bloom filter. At 10 bits per key with 7 hash functions the false-positive rate is $(1 - e^{-7/10})^7 \approx 0.8\%$, so a read that consults six SSTables wastes a disk read about 5% of the time. Cassandra's default commit-log mode syncs to disk every 10 seconds rather than per write, so an acknowledged write's durability comes from being on two machines in two zones, not from `fsync`; the `batch` mode fsyncs before acknowledging at a latency cost.
 
 ```viz
-{"type": "system", "scenario": "lsm-tree", "title": "The write path on each replica",
+{"type": "system", "scenario": "lsm-tree", "log": "Commit log", "grace": "gc_grace_seconds, 10 days by default",
+ "title": "The write path on each replica",
  "caption": "Writes land in the commit log and the memtable; full memtables flush to immutable SSTables that compaction later merges, dropping overwritten versions and, after the grace period, tombstones."}
 ```
 
@@ -204,7 +205,8 @@ Choose LWW for data written once or by one owner (sessions, profiles), vectors o
 Every second each node gossips its view (heartbeats, tokens, status) with a random peer, reaching all 48 nodes in $O(\log N)$ rounds. A silent node is **temporarily unavailable**: hints accumulate and nothing moves. Removal is an **explicit operator action**, because a gossip-driven removal would turn a 30-second GC pause into a terabyte of data movement ([Gossip and anti-entropy](/learn/system-design/distributed-systems/gossip-and-anti-entropy)).
 
 ```viz
-{"type": "system", "scenario": "gossip", "title": "Membership spreads by gossip",
+{"type": "system", "scenario": "gossip", "mode": "push-pull",
+ "title": "Membership spreads by gossip",
  "caption": "Each round, every node exchanges its view with a random peer. News of a node's status reaches the whole cluster in a logarithmic number of rounds without any coordinator."}
 ```
 

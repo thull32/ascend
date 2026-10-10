@@ -102,7 +102,15 @@ The final transcript is about 11,000 tokens, but the model processed 46,470 inpu
 3. **Nothing leaves the transcript.** The input only grows; the ways down are clearing old tool results, compaction, or handing a subtask to a fresh context.
 
 ```viz
-{"type": "ml", "algorithm": "agent-loop", "text": "How many open PRs are older than 7 days?",
+{"type": "ml", "algorithm": "agent-loop", "text": "Customer says they were charged twice for INV-2291",
+ "tools": ["get_dispute", "get_invoice", "list_payments", "get_payment", "issue_credit", "and three more"],
+ "calls": [{"why": "It starts from the dispute record.", "call": "get_dispute(\"D-881\")", "check": "a read tool, so it runs", "result": "dispute D-881: customer cus_42 says INV-2291 was charged twice", "input": 4500},
+  {"why": "It needs the invoice amount.", "call": "get_invoice(\"INV-2291\")", "check": "a read tool, so it runs", "result": "INV-2291: 49.00 EUR, customer cus_42", "input": 5350},
+  {"why": "It looks for payments against the invoice.", "call": "list_payments(\"cus_42\", since=\"2026-08-01\")", "check": "a read tool, so it runs", "result": "2,400 tokens of raw provider JSON, two 49.00 EUR payments for INV-2291 among them", "input": 6450},
+  {"why": "It checks both payments, in parallel, in one turn.", "call": "get_payment(first) + get_payment(second)", "check": "read tools, so both run", "result": "both captured: a real double charge", "input": 9070, "parallel": 2},
+  {"why": "It refunds the duplicate.", "call": "issue_credit(\"D-881\", 49.00 EUR)", "check": "a write that moves money, so the loop pauses for a person to approve it, then runs it", "result": "credit of 49.00 EUR issued against D-881", "input": 10330}],
+ "final": {"answer": "Confirmed a duplicate charge on INV-2291 and issued a 49.00 EUR credit.", "input": 10770},
+ "maxIter": 12,
  "title": "An agent is a model in a loop",
  "caption": "Each iteration resends the whole transcript. The final step lists the guards a production loop needs: an iteration cap, a token budget, tool timeouts and human confirmation for irreversible actions."}
 ```
@@ -112,7 +120,7 @@ The final transcript is about 11,000 tokens, but the model processed 46,470 inpu
 Each call is a fresh, stateless request. The provider keeps no conversation; the harness sends `system`, `tools` and the whole `messages` array every time, rendered in that order. Prompt caching works because consecutive calls share a byte-identical prefix: the tools and system prompt never change, and the messages array only appends. Put one breakpoint at the end of the static system prompt and let the conversation breakpoint move to the newest message ([LLM system design](/learn/ai-and-llms/building-with-llms/llm-system-design) traces the same layout in this app's coach). Anything that rewrites earlier content, such as editing a past tool result, reordering tools or switching model mid-task, breaks the prefix and turns the next call into a full cache write.
 
 ```viz
-{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat",
+{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat", "mode": "prompt-cache",
  "title": "What a cache read skips",
  "caption": "Prefill computes a key and value for every input token. A prompt-cache hit reuses those for the unchanged prefix, so each agent call pays full price only for what was appended since the last one."}
 ```

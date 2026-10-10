@@ -45,7 +45,7 @@ Trace with `k = 3` on the stream 4, 9, 1, 7, 3, 8, 2, 6. The heap is shown in ar
 | 2 | 7 | reject | `[7, 9, 8]` |
 | 6 | 7 | reject | `[7, 9, 8]` |
 
-Result 9, 8, 7. Three of the eight items touched the heap after it filled; the rest cost one comparison each.
+Result 9, 8, 7. After the heap filled, only two items, 7 and 8, touched it; the other three cost one comparison each.
 
 ```viz
 {"type": "heap", "algorithm": "top-k", "kind": "min", "k": 3, "values": [4, 9, 1, 7, 3, 8, 2, 6],

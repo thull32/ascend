@@ -1,6 +1,6 @@
 ---
 lesson: rate-limiter
-source: d56b20c7389f18a6
+source: 953acd270f8bb689
 fit: great
 desk:
   - "The sizing tables and the gRPC check and response formats"

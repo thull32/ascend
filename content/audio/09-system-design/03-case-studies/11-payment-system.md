@@ -1,6 +1,6 @@
 ---
 lesson: payment-system
-source: ad44285922915948
+source: fd4420f68fa3aca4
 fit: great
 desk:
   - "The API, the data model and the architecture diagram"

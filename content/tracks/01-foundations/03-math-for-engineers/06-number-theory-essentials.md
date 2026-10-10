@@ -137,7 +137,7 @@ For a composite $n$ at most a quarter of the bases lie, so $k$ random bases give
 Computing $x^n$ by multiplying $n$ times is $O(n)$, which is unacceptable when $n$ is $10^{18}$ and also silly when $n$ is 1000. Square-and-multiply does it in $O(\log n)$ multiplications: write $n$ in binary, $x^{13} = x^8 \cdot x^4 \cdot x^1$ because $13 = 1101_2$; squaring repeatedly gives $x, x^2, x^4, x^8$ in one multiplication each; multiply together the ones whose bit is set. The loop reads the exponent's bits from the low end by shifting it right, which is the halving the visualisation shows:
 
 ```viz
-{"type": "bits", "algorithm": "shift", "a": 13, "title": "The exponent 13 = 1101, shifted right", "caption": "Each right shift drops the lowest bit, which is the bit the loop has just consumed; four shifts empty a four-bit exponent, so the loop runs log n times."}
+{"type": "bits", "algorithm": "shift", "a": 13, "left": [], "right": 4, "title": "The exponent 13 = 1101, shifted right", "caption": "Each right shift drops the lowest bit, which is the bit the loop has just consumed; four shifts empty a four-bit exponent, so the loop runs log n times."}
 ```
 
 ```python

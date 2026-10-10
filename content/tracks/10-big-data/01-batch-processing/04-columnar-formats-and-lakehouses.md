@@ -99,7 +99,7 @@ That is why writers sort within partitions (`ORDER BY` or `sortWithinPartitions`
 Min/max statistics cannot help an equality predicate on a high-cardinality, unclustered column such as `user_id = 91823311`: every row group's range covers it. That is what column-chunk [Bloom filters](/learn/advanced-data-structures/probabilistic-structures/bloom-filters) are for.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter",
+{"type": "system", "scenario": "bloom-filter", "app": "Reader", "store": "object store",
  "title": "Bloom filters: definitely absent, or maybe present",
  "caption": "A Parquet reader can check a column chunk's Bloom filter before fetching it. A negative answer is certain, so the chunk is skipped; a positive answer may be false, costing one unnecessary read. A few bits per distinct value buy skipping for point lookups that min/max statistics cannot prune."}
 ```
@@ -252,7 +252,7 @@ Choose per table: copy-on-write for tables with rare, large batch updates; merge
 Delta's log deserves one trace because it is the other common design. Commit 42 is the file `_delta_log/00000000000000000042.json`, a list of actions: `add` (a data file path, size, partition values and statistics), `remove` (a file that is no longer part of the table), and occasionally `metaData` or `protocol`. The current table is the replay of every commit; to avoid replaying thousands of files, every tenth commit writes a Parquet **checkpoint** of the whole state and `_last_checkpoint` points at it. Atomicity is "create file 43 only if it does not exist", which HDFS and Azure give natively; on S3, Delta's multi-cluster mode uses DynamoDB for it, and S3's 2024 conditional writes now provide the same put-if-absent primitive. Both formats converged on the same ideas: immutable data files, a log or tree of metadata, optimistic concurrency, snapshots, and row-level deletes. Pick by the engines you need to support and the write pattern, not by benchmark claims.
 
 ```viz
-{"type": "system", "scenario": "mvcc",
+{"type": "system", "scenario": "mvcc", "variant": "table",
  "title": "Snapshots are MVCC at table scale",
  "caption": "A database keeps row versions so readers see a consistent snapshot while writers proceed. A table format does the same with whole files: a reader pins a snapshot, writers add a new one, and old versions are garbage-collected by snapshot expiry, the table-scale equivalent of vacuum."}
 ```

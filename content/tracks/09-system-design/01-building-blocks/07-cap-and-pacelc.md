@@ -86,7 +86,9 @@ A CP store is unavailable only to clients that can reach nothing but the minorit
 Put numbers on the worst row: a region holding a third of the users, isolated for 30 minutes a year, costs a CP design 30 minutes of writes for those users, 99.994% write availability for them over the year; it costs an AP design 30 minutes of writes that may conflict. Place quorums so that the common events never cost a quorum: three replicas in three zones survive any single-zone loss.
 
 ```viz
-{"type": "system", "scenario": "quorum", "replicas": 3, "title": "A write during a partition", "caption": "With N=3 and W=2, the side of the partition holding two replicas can still commit; the side with one replica cannot reach a quorum and must either reject the write (C) or accept it locally and reconcile later (A)."}
+{"type": "system", "scenario": "quorum", "replicas": 3, "variant": "partition",
+ "title": "A write during a partition",
+ "caption": "With N=3 and W=2, the side of the partition holding two replicas can still commit; the side with one replica cannot reach a quorum and must either reject the write (C) or accept it locally and reconcile later (A)."}
 ```
 
 ## Harvest and yield: availability is not binary

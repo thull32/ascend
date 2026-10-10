@@ -83,7 +83,8 @@ GET  /v1/videos/v_9Qx             -> 200 {"status": "processing", "playable": ["
 Creating a session is idempotent, so a double tap does not create two videos. Pre-signed URLs are scoped to one part of one upload, so a leaked URL cannot overwrite another creator's file. `GET /v1/uploads/{id}` answers from the object store's own list of received parts, never from what the client claims. `complete` is idempotent on `upload_id`: a retry returns the same `video_id` and starts no second workflow ([Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)).
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "title": "A retried complete starts one workflow",
+{"type": "system", "scenario": "idempotency-key", "requests": 2, "client": "Creator app", "service": "Upload API", "request": "POST …/up_81f/complete", "key": "up_81f", "effect": "start workflow v_9Qx", "target": "Workflow engine", "record": "upload up_81f → v_9Qx", "response": "202 v_9Qx", "effects": "workflows", "changed": "a different parts list",
+ "title": "A retried complete starts one workflow",
  "caption": "The first complete call claims the upload's key and records the workflow it started; a retry after a lost response finds the record and returns the same video_id instead of transcoding the file twice."}
 ```
 
@@ -185,7 +186,7 @@ A 4 GiB file (256 parts of 16 MiB) on a 15 Mbps uplink: 4.29 GB × 8 ÷ 15 Mbps 
 The sleep cost at most the three in-flight parts, 48 MiB or about 27 s of uplink. Failed part `PUT`s are retried with jittered exponential backoff, so 20,000 clients reconnecting after an edge outage do not return in lockstep. The edge case: if the app lost its local state, the whole-file SHA-256 in a new session lets the server find the incomplete upload. Two triggers start the workflow, the `complete` call and a sweeper that finds uploads with every part present still marked `uploading`, and starting is idempotent on `video_id`.
 
 ```viz
-{"type": "system", "scenario": "retry-backoff", "requests": 5, "title": "Retrying a failed part upload",
+{"type": "system", "scenario": "retry-backoff", "requests": 5, "example": "\"complete upload\" call that was not keyed on video_id", "title": "Retrying a failed part upload",
  "caption": "Each failed part PUT waits twice as long as the last, with random jitter, before retrying. Only the failed part is resent; the parts the store already acknowledged are never uploaded again."}
 ```
 
@@ -243,8 +244,8 @@ Assumed durations are in the DAG diagram; the high-priority lane's p95 queue wai
 The critical path is probe → copyright scan → gate (1 + 3 + 30 + 1 = 35 s), not the encode. With no queue wait the low rungs are packaged at 24 s and the video still becomes playable at 35 s, so faster encoders buy nothing here until the scan runs per chunk. With only 4 workers for the video, the encode path becomes critical and first playable moves to 84 s. The full ladder, with ample normal-lane capacity, is 1 + 3 + 10 + 19 + 5 = 38 s; under load it waits on the normal queue, which the 15-minute target allows.
 
 ```viz
-{"type": "system", "scenario": "message-queue", "requests": 10, "title": "Transcode tasks on a queue",
- "caption": "Each message is one chunk-rung encode. A visibility timeout turns a crashed worker into a redelivery, which is safe only because the task's output key is deterministic; a file that crashes the decoder every time exhausts its attempts and lands in the dead-letter queue."}
+{"type": "system", "scenario": "message-queue", "requests": 10, "flavor": "lease", "effect": "uploaded its encoded chunk", "dedupe": "a deterministic output key, so the retry overwrites the same object with the same bytes", "title": "Transcode tasks on a queue",
+ "caption": "Each message is one chunk-rung encode. An expiring lease turns a crashed worker into a redelivery, which is safe only because the task's output key is deterministic; a file that crashes the decoder every time exhausts its attempts and lands in the dead-letter queue."}
 ```
 
 ### Idempotent tasks, leases and poison files

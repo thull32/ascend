@@ -167,7 +167,7 @@ Watch Dijkstra settle nodes in distance order, then Bellman-Ford's rounds:
 ```
 
 ```viz
-{"type": "graph", "algorithm": "bellman-ford", "directed": true, "start": "A", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}], "edges": [{"from": "A", "to": "B", "w": 4}, {"from": "A", "to": "C", "w": 2}, {"from": "C", "to": "B", "w": -3}, {"from": "B", "to": "D", "w": 2}, {"from": "C", "to": "D", "w": 6}], "title": "Bellman-Ford rounds", "caption": "After round i every node has its best distance over paths of at most i edges."}
+{"type": "graph", "algorithm": "bellman-ford", "directed": true, "start": "A", "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}], "edges": [{"from": "A", "to": "B", "w": 4}, {"from": "A", "to": "C", "w": 2}, {"from": "C", "to": "B", "w": -3}, {"from": "B", "to": "D", "w": 2}, {"from": "C", "to": "D", "w": 6}], "title": "Bellman-Ford rounds", "caption": "Edges are relaxed in place, so a round can already use a distance improved earlier in the same round: after round i every node is at least as good as its best path of at most i edges. A round that changes nothing ends the search early."}
 ```
 
 ## Why each is correct

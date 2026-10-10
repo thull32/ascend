@@ -1,6 +1,6 @@
 ---
 lesson: sequence-dp
-source: 5a94bfae6f4cd3d7
+source: cfaac9027893bed5
 fit: partial
 desk:
   - "The quadratic LIS trace, the patience-sorting piles, and the two binary-search probe traces"

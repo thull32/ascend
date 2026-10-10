@@ -1,6 +1,6 @@
 ---
 lesson: cap-and-pacelc
-source: 4011d892008754ec
+source: 714dd3fcbafc25b9
 fit: great
 desk:
   - "The etcd and Cassandra partition traces, and the partial-partition flapping trace"

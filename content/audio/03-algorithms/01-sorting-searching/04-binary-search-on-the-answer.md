@@ -1,6 +1,6 @@
 ---
 lesson: binary-search-on-the-answer
-source: e14054a44e55c315
+source: 6fe47d6b2e2b826d
 fit: partial
 desk:
   - "The template and its correctness proof, with the invariant written out"

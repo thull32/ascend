@@ -48,9 +48,9 @@ Total pushes are bounded by the number of *successful* relaxations, so the heap 
 For **deletion** rather than decrease-key, the same trick is a multiset of pending removals. `remove(x)` records `pending[x] += 1`. `pop()` discards roots while `pending[root] > 0`, decrementing as it goes. `size()` must report live elements, so track `live = pushes − removals` separately. This is exactly how a sliding-window median works with two heaps: the element leaving the window is marked, not removed, and each heap's *logical* size (live elements) drives the rebalancing while the stale entries sit harmlessly until they reach a root.
 
 ```viz
-{"type": "heap", "algorithm": "push-pop", "kind": "min",
- "operations": [["push", 7], ["push", 3], ["push", 9], ["push", 3], ["pop"], ["pop"], ["push", 1], ["pop"], ["pop"]],
- "title": "Lazy decrease-key by duplicate push", "caption": "The second push of 3 stands in for a decrease from 7 to 3. Both entries sit in the heap; the caller keeps a record of which one is current and skips the stale one when it surfaces."}
+{"type": "heap", "algorithm": "push-pop", "kind": "min", "lazy": true,
+ "operations": [["push", 7, "A"], ["push", 3, "B"], ["push", 9, "C"], ["push", 3, "A"], ["pop"], ["pop"], ["push", 1, "D"], ["pop"], ["pop"], ["pop"]],
+ "title": "Lazy decrease-key by duplicate push", "caption": "The second push for item A stands in for a decrease from 7 to 3. Both entries for A sit in the heap; the caller's record says A is 3, so when the old 7 surfaces after A was served, it is discarded instead of returned."}
 ```
 
 The trap with lazy deletion: a `remove(x)` for a value that is **not present** must be a no-op, or a later `push(x)` will be silently eaten. Track live counts per value, and only record a pending removal when `live[x] > 0`. The exercise below tests exactly that.

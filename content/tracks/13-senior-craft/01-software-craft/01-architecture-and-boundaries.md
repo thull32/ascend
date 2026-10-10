@@ -265,7 +265,9 @@ Read outermost first: drop a client-supplied request ID unless it is a UUID, set
 One more boundary sits in the router: unknown `/api/...` paths hit `api_not_found` and return a JSON 404, while every other unknown path serves the SPA's `index.html`. Without that split, a typo in a client's API URL returns `200 OK` with HTML, and the failure surfaces far away as a JSON parse error.
 
 ```viz
-{"type": "system", "algorithm": "request-flow", "title": "A request crossing the layers", "caption": "Each hop is a boundary with its own vocabulary. In Ascend, the load balancer is the platform edge, the API service is one binary whose middleware stack runs in the order above, and Postgres sits behind the core crate."}
+{"type": "system", "algorithm": "request-flow", "variant": "layers",
+ "title": "A request crossing the layers",
+ "caption": "Each hop is a boundary with its own vocabulary. In Ascend the platform edge forwards to one binary whose middleware stack runs in the order above; the handler turns HTTP into a call on the core crate, and Postgres sits behind it."}
 ```
 
 ## Boundaries a transaction cannot cross

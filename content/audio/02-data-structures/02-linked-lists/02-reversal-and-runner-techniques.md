@@ -1,6 +1,6 @@
 ---
 lesson: reversal-and-runner-techniques
-source: 7fda6f86725c3853
+source: 3c3265ecafde647f
 fit: partial
 desk:
   - "The iterative reversal code and trace, and the reversal visualiser"

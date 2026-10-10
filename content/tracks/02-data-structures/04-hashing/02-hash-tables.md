@@ -41,8 +41,10 @@ With `m = 8` and 32-bit FNV-1a as the hash, `"melon"` hashes to `1927437660`, wh
 Each slot holds a pointer to a chain of entries. Insert walks the chain to check for an existing key, then appends. Lookup walks the chain comparing keys.
 
 ```viz
-{"type": "hash-table", "algorithm": "chaining", "buckets": 5,
- "operations": [["set","apple",1],["set","grape",2],["set","melon",3],["set","kiwi",4],["get","grape"],["delete","apple"],["get","apple"]]}
+{"type": "hash-table", "algorithm": "chaining", "buckets": 5, "hash": "fnv1a",
+ "operations": [["set","apple",1],["set","grape",2],["set","melon",3],["set","kiwi",4],["get","melon"],["get","lemon"],["delete","apple"],["get","apple"]],
+ "title": "Separate chaining: colliding keys share one bucket's chain",
+ "caption": "FNV-1a mod 5 sends grape and melon to bucket 0. Finding melon walks past grape, a miss walks a whole chain, and a delete unlinks one node."}
 ```
 
 The cost of a lookup is the length of the chain you walk. If the hash function spreads `n` keys evenly over `m` slots, each chain has about `n/m` entries. That ratio, `α = n/m`, is the **load factor**, and it is the single number that governs hash table performance:
@@ -76,8 +78,10 @@ Only two home slots were ever involved (4 and 5), yet the occupied run now spans
 Now delete `"lime"` (slot 5) and look up `"pear"` (home 5). If deletion emptied slot 5, the lookup would stop at slot 5 and report `pear` missing, although it sits in slot 7. So deletion writes a **tombstone**: "occupied once, keep probing". The lookup then reads 5 (tombstone, continue), 6 (fig), 7 (pear): found. An insert that passes a tombstone remembers the first one it saw and, if the key turns out to be absent, reuses that slot. Tombstones count toward the load factor for probing purposes and are only cleared when the table is rebuilt.
 
 ```viz
-{"type": "hash-table", "algorithm": "open-addressing", "buckets": 8,
- "operations": [["set","melon",1],["set","lime",2],["set","fig",3],["set","pear",4],["set","mango",5],["get","peach"],["delete","lime"],["get","pear"]]}
+{"type": "hash-table", "algorithm": "open-addressing", "buckets": 8, "hash": "fnv1a",
+ "operations": [["set","melon",1],["set","lime",2],["set","fig",3],["set","pear",4],["set","mango",5],["get","peach"],["delete","lime"],["get","pear"]],
+ "title": "Linear probing: a cluster forms, and a tombstone keeps pear reachable",
+ "caption": "The five inserts from the table above, with FNV-1a mod 8: two home slots build a run of five. Deleting lime leaves a tombstone, so the lookup for pear still probes past slot 5."}
 ```
 
 **Quadratic probing** (`i + 1, i + 4, i + 9, …`) and **double hashing** (`i + k·h₂(key)`) break primary clusters at the cost of probes that jump between cache lines; the modern answer, below, keeps linear probing and checks 8 or 16 slots per step.
@@ -123,8 +127,10 @@ Two production consequences follow from any stop-the-world rehash:
 - **Pre-sizing.** If you know `n`, construct for it (`HashMap::with_capacity(n)`, `make(map[K]V, n)`, `new HashMap<>(n / 0.75 + 1)`; CPython exposes no capacity argument). From 8 slots to a million entries is 18 doublings in both Rust and CPython (8 → 2²¹ slots), each copying the live entries.
 
 ```viz
-{"type": "hash-table", "algorithm": "resize", "buckets": 4,
- "operations": [["set","a",1],["set","b",2],["set","c",3],["set","d",4],["set","e",5]]}
+{"type": "hash-table", "algorithm": "resize", "buckets": 4, "hash": "fnv1a",
+ "operations": [["set","a",1],["set","b",2],["set","c",3],["set","d",4],["set","e",5]],
+ "title": "Resize: doubling from 4 to 8 buckets rehashes every key, and about half move",
+ "caption": "At load factor 0.75 the fourth insert triggers growth. Each key's bucket is recomputed mod 8: it either keeps its bucket number or moves up by the old size, 4."}
 ```
 
 ## Under the hood: CPython's dict

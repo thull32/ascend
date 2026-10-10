@@ -85,7 +85,7 @@ Nineteen halvings to reach 1, twenty to reach 0: $\log_2 10^6 = 19.93$, and $10^
 Every factor of a thousand adds about ten, because $2^{10} = 1{,}024$. So a billion-element sorted array needs at most 30 probes for binary search, and a balanced binary tree of a billion nodes is about 30 levels tall. Those are the numbers behind the claim that "$\log n$ is effectively constant": no realistic input makes $\log_2 n$ larger than about 60, because $2^{60}$ bytes is more than most data centres hold.
 
 ```viz
-{"type": "array", "algorithm": "binary-search", "values": [3, 7, 11, 15, 19, 24, 31, 38, 44, 52, 61, 70, 85, 93, 99, 104], "target": 85, "title": "Sixteen elements, four probes", "caption": "Each probe halves the remaining range. log₂(16) = 4, so at most four probes for any target."}
+{"type": "array", "algorithm": "binary-search", "values": [3, 7, 11, 15, 19, 24, 31, 38, 44, 52, 61, 70, 85, 93, 99, 104], "target": 85, "title": "Sixteen elements, four halvings", "caption": "Each probe halves the remaining range. log₂(16) = 4: four halvings take sixteen candidates down to one, so any target needs at most five probes, the last one checking the single survivor. 85 is found on the fourth."}
 ```
 
 The base of the logarithm does not matter inside Big-O. $\log_2 n = \log_{10} n / \log_{10} 2 \approx 3.32 \log_{10} n$, a constant factor, so $O(\log_2 n) = O(\log_{10} n) = O(\ln n)$ and you write $O(\log n)$. It does matter for exact counts: a B-tree with fan-out 1,000 is $\log_{1000} n$ levels tall, which for a billion keys is 3 rather than 30, and that factor of ten is exactly why databases use B-trees rather than binary trees on disk. The [logarithms lesson](/learn/foundations/math-for-engineers/logarithms-and-exponentials) goes further.
@@ -167,7 +167,7 @@ The sort is $O(n \log n)$. The while loop looks like it could run forever, but e
 Six iterations for $n = 7$: the gap `hi - lo` starts at 6 and shrinks by exactly one per iteration, so the loop runs at most $n - 1$ times whatever the data. Total $O(n \log n) + O(n) = O(n \log n)$. That "every iteration makes progress on a bounded quantity" argument is the standard way to bound a loop with a non-obvious counter; the [invariants lesson](/learn/foundations/problem-solving/invariants-and-loop-reasoning) turns it into a habit.
 
 ```viz
-{"type": "array", "algorithm": "two-pointers-sum", "values": [1, 3, 4, 6, 8, 11, 14], "target": 15, "title": "Two pointers: at most n steps", "caption": "lo and hi only ever move toward each other, so the loop runs at most n - 1 times regardless of the data."}
+{"type": "array", "algorithm": "two-pointers-sum", "values": [1, 3, 4, 6, 8, 11, 14], "target": 15, "closest": true, "title": "Two pointers: at most n steps", "caption": "lo and hi only ever move toward each other, so the loop runs at most n - 1 times regardless of the data."}
 ```
 
 Now one that catches people.

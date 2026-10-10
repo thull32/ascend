@@ -1,6 +1,6 @@
 ---
 lesson: prefix-sums-and-hashing-tricks
-source: 33d3357671fe6831
+source: e7a9b5ef81a5d5f8
 fit: partial
 desk:
   - "The table of operations and whether each has an inverse"

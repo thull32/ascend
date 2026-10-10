@@ -110,8 +110,9 @@ A saga replaces one atomic transaction with a sequence of **local transactions**
 | T5 | Send confirmation email | None: retried until it succeeds |
 
 ```viz
-{"type": "system", "scenario": "saga", "nodes": 4,
- "title": "Forward steps, then compensations on failure", "caption": "Each step commits locally. When the car reservation fails, the saga runs the compensations for the hotel and flight in reverse. The intermediate state (flight booked, no car) is visible to other transactions while it lasts."}
+{"type": "system", "scenario": "saga", "steps": [{"service":"Flight svc","step":"T1 book flight","undo":"C1 cancel flight","ok":"flight booked","undone":"flight cancelled","why":"The seat goes back to the airline; the booking and its cancellation are both on record."},{"service":"Hotel svc","step":"T2 book hotel","undo":"C2 cancel hotel","ok":"hotel booked","undone":"hotel cancelled","why":"The room goes back on sale."},{"service":"Car svc","step":"T3 reserve car","undo":"–","ok":"reserved","undone":"–"}],
+ "title": "Forward steps, then compensations on failure",
+ "caption": "Each step commits locally. When the car reservation fails, the saga runs the compensations for the hotel and flight in reverse. The intermediate state (flight booked, no car) is visible to other transactions while it lasts."}
 ```
 
 ### A saga traced through a timeout and a failure

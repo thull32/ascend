@@ -1,6 +1,6 @@
 ---
 lesson: lambda-vs-kappa
-source: 54bdd05b55c6e7cf
+source: 52c765f455b9c1b6
 fit: great
 desk:
   - "The lambda and kappa architecture diagrams"

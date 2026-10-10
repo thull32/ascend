@@ -1,6 +1,6 @@
 ---
 lesson: what-to-still-do-by-hand
-source: 5e5ace4506879a04
+source: 7a76427b410eb1b8
 fit: great
 desk:
   - "The skills table: why each matters more with AI, its decay symptom and its maintenance rep"

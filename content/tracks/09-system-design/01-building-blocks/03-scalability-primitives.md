@@ -62,7 +62,7 @@ A balancer presents one address for many replicas, picks a replica per request o
 - **Drain on removal.** Fail readiness first, wait for balancers to notice, finish in-flight requests, then exit.
 
 ```viz
-{"type": "network", "scenario": "load-balancer-least-conn", "title": "Least connections routes around a slow replica",
+{"type": "network", "scenario": "load-balancer-least-conn", "slow": 3, "factor": 3, "title": "Least connections routes around a slow replica",
  "caption": "A replica whose requests take three times longer accumulates in-flight requests and stops receiving new ones. Round robin would keep feeding it its full share."}
 ```
 
@@ -123,7 +123,7 @@ print(replicas_needed(2000, 0.05, 20))                   # 12
 **A slow dependency.** One downstream call slows from 5 ms to a 500 ms timeout: concurrent calls become $2{,}000 \times 0.5 = 1{,}000$. With a pool capped at 200, 800 requests a second queue or fail. That is the mechanism behind "one slow service took the site down"; the fixes bound $W$ (a timeout) and $L$ per dependency (a bulkhead) and shed the excess. [Resilience patterns](/learn/system-design/building-blocks/resilience-patterns) works through each.
 
 ```viz
-{"type": "system", "scenario": "bulkhead", "title": "Isolating a slow dependency",
+{"type": "system", "scenario": "bulkhead", "slow": "Recommendations", "slowMs": 500, "normalMs": 5, "title": "Isolating a slow dependency",
  "caption": "Each dependency gets its own bounded pool. When the recommendations service slows to 500 ms, its pool fills and requests to it fail fast; the checkout pool next to it is untouched."}
 ```
 
@@ -264,7 +264,8 @@ Add replicas and the stateless tier scales roughly linearly; the database does n
 5. Only then partition. [Database scaling](/learn/system-design/building-blocks/database-scaling) is the next step for a reason.
 
 ```viz
-{"type": "system", "scenario": "request-flow", "title": "Aggregate load lands on shared components",
+{"type": "system", "scenario": "request-flow", "variant": "aggregate",
+ "title": "Aggregate load lands on shared components",
  "caption": "Every replica added to the stateless tier adds its connections, cache misses and writes to the same database and cache. The load balancer distributes requests; nothing distributes the database."}
 ```
 

@@ -1,6 +1,6 @@
 ---
 lesson: red-black-trees
-source: 999727e6f7d2aaf8
+source: 1eef16f0d6c14e43
 fit: partial
 desk:
   - "The 2-3-4 node drawn next to its red-black form"

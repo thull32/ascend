@@ -52,7 +52,9 @@ Now multiply by frequency. Q1 costs 200 × 0.26 ms = 0.05 CPU-seconds per second
 This app makes the same call. `ProgressService::summary` computes the dashboard from the base tables on every request with six queries (lesson progress, module preferences, distinct solved problems, quiz attempts, the learner's local date, recent activity days) and keeps no summary table, and Q6 is served by `idx_comments_target` on `(target_kind, target_slug, created_at)` from `m0004_community`. The [indexes lesson](/learn/databases/relational-fundamentals/indexes) measures that index; every hot query names its index, and every index names the query that pays for its writes.
 
 ```viz
-{"type": "system", "scenario": "b-tree-index", "title": "The index that serves Q6", "caption": "An index on (target_kind, target_slug, created_at) descends to the first comment on the lesson and walks the leaf level in created_at order, so the query needs no sort and a LIMIT can stop early."}
+{"type": "system", "scenario": "b-tree-index", "variant": "composite",
+ "title": "The index that serves Q6",
+ "caption": "An index on (target_kind, target_slug, created_at) descends to the first comment on the lesson and walks the leaf level in created_at order, so the query needs no sort and a LIMIT can stop early."}
 ```
 
 ## The normalised starting point
@@ -289,7 +291,7 @@ The first is the default inside one Postgres. It costs nothing extra and it is a
 Change-data-capture is the answer once the copy lives where the transaction cannot reach: a Redis sorted set for the leaderboard (see the [Redis lesson](/learn/databases/nosql-and-specialised/key-value-stores-and-redis)), a search index, a warehouse, a cache. A connector tails the write-ahead log and a consumer applies each committed change; the commit-to-apply delay is your staleness window, so monitor it.
 
 ```viz
-{"type": "system", "scenario": "cdc", "title": "Change data capture from the WAL to a read model", "caption": "Each committed change appears in the WAL, the connector emits it, and a consumer applies it to the summary store. The gap between commit and apply is the staleness a reader can observe."}
+{"type": "system", "scenario": "cdc", "sink": "read-model", "title": "Change data capture from the WAL to a read model", "caption": "Each committed change appears in the WAL, the connector emits it, and a consumer applies it to the summary store. The gap between commit and apply is the staleness a reader can observe."}
 ```
 
 The [CDC lesson](/learn/big-data/streaming/change-data-capture) covers Debezium and the outbox pattern. The rule: **one transaction for copies inside the database, CDC for copies outside it, triggers only with a written reason.**

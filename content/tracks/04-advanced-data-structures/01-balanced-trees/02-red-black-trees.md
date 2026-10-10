@@ -123,7 +123,7 @@ The implementation uses parent pointers and a loop rather than recursion, which 
 There is no red-black visualiser in the catalogue, so watch the shape a plain BST takes on sorted input, which is exactly the shape the colour rules forbid, and compare with the AVL animation from the previous lesson.
 
 ```viz
-{"type": "tree", "algorithm": "bst-insert", "values": [1, 2, 3, 4, 5, 6, 7],
+{"type": "tree", "algorithm": "bst-insert", "values": [1, 2, 3, 4, 5, 6, 7], "heightUnit": "nodes",
  "title": "Unbalanced BST on sorted input",
  "caption": "Seven nodes, height 7. A red-black tree on the same input has height 4; an AVL tree has height 3."}
 ```

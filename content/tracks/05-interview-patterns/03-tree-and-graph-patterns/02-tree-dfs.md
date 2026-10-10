@@ -104,7 +104,7 @@ def with_side_channel(root):
 Watch the two quantities separate on a real tree:
 
 ```viz
-{"type": "tree", "algorithm": "diameter", "values": [1, 6, 4, 8, 3, 5, 7, 9], "title": "Diameter: return height, record the best left + right", "caption": "Each call returns its height to the parent and updates the global best with left + right."}
+{"type": "tree", "algorithm": "diameter", "values": [1, 6, 4, 8, 3, 5, 7, 9], "heightUnit": "nodes", "title": "Diameter: return height, record the best left + right", "caption": "Each call returns its height to the parent and updates the global best with left + right."}
 ```
 
 The complexity of every shape is `O(n)` time, because each node is visited once and the combine step is `O(1)`, and `O(h)` space for the recursion stack, where `h` is the height: `O(log n)` on a balanced tree, `O(n)` on a chain. Two consequences are worth stating with numbers. A balanced tree of 10⁶ nodes has height about 20, so twenty frames; a chain of 10⁶ nodes needs 10⁶ frames, and CPython's default limit is 1,000 (see "Under the hood"). And the `O(1)` combine step is only `O(1)` if it does not rebuild anything: a combine that concatenates the children's path lists, or slices an array, or calls a separate `height()` function, multiplies the cost by the subtree size and turns `O(n)` into `O(n²)` on a chain and `O(n log n)` on a balanced tree.
@@ -240,7 +240,7 @@ def kth_smallest(root, k):
 Trace on `[5, 3, 6, 2, 4, null, null, 1]` with `k = 3`: push 5, 3, 2, 1 (walking left). Pop 1 (`k = 2`); no right child. Pop 2 (`k = 1`); no right. Pop 3 (`k = 0`): return 3. The stack never held more than the height, four nodes, and nodes 4, 5 and 6 were never visited. Time `O(h + k)`, space `O(h)`.
 
 ```viz
-{"type": "tree", "algorithm": "inorder", "values": [5, 3, 6, 2, 4, 1], "title": "In-order walk of a BST", "caption": "The stack holds the left spine; each pop yields the next key in ascending order, which is why the kth pop is the kth smallest."}
+{"type": "tree", "algorithm": "inorder", "values": [5, 3, 6, 2, 4, 1], "iterative": true, "title": "In-order walk of a BST", "caption": "The stack holds the left spine; each pop yields the next key in ascending order, which is why the kth pop is the kth smallest."}
 ```
 
 The follow-up is always "what if the tree is modified often and kth is queried often?": augment each node with the size of its left subtree, so the query becomes a single root-to-node walk in `O(h)` and updates cost `O(h)` too. Say that without being asked and the interviewer moves on to something harder.

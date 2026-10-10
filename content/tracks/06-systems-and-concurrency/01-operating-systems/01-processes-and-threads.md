@@ -33,7 +33,7 @@ A thread is the kernel's unit of *execution*. It has its own:
 Everything else, most importantly the heap and the global variables, is shared with every other thread in the process. That is the reason threads exist and the reason they are dangerous.
 
 ```viz
-{"type": "memory", "algorithm": "stack-heap", "values": [4, 8, 15],
+{"type": "memory", "algorithm": "stack-heap", "values": [4, 8, 15], "threads": 2,
  "title": "Each thread has its own stack; every thread sees the same heap",
  "caption": "Stack frames are private to the thread that pushed them. Anything reachable through a heap pointer is visible to every thread in the process, which is what makes sharing cheap and races possible."}
 ```

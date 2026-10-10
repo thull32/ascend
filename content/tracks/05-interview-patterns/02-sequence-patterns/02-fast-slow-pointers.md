@@ -122,7 +122,7 @@ function kthFromEnd(head, k) {
 The invariant for the speed templates: **after `t` iterations, `slow` is `t` steps from the head and `fast` is `2t` steps from the head.** For the gap template: **`fast` is always exactly `k` nodes ahead of `slow`**, so when `fast` is one past the last node, `slow` is `k` nodes before that. Watch the cycle case close its gap:
 
 ```viz
-{"type": "linked-list", "algorithm": "cycle-detect", "values": [1, 2, 3, 4, 5, 6], "cycleAt": 2}
+{"type": "linked-list", "algorithm": "cycle-detect", "values": [1, 2, 3, 4, 5, 6], "cycleAt": 2, "title": "Floyd on six nodes, with 6 linking back to 3", "caption": "Phase one: fast closes the gap by one node per step and meets slow on 5. Phase two: slow restarts at the head, both move one node per step, and they meet on the entry, 3."}
 ```
 
 ## Why they meet, and why the reset finds the entry
@@ -178,7 +178,7 @@ Time O(n): at most `a + c` iterations in phase one and exactly `a` in phase two.
 Odd lengths agree; even lengths differ by one node. Decide which middle the next phase needs before you write the guard, and trace a four-node list, not a five-node one, because five hides the difference. The second guard dereferences `fast.next` unconditionally, so it needs `head` to be non-null first.
 
 ```viz
-{"type": "linked-list", "algorithm": "middle", "values": [1, 2, 3, 4, 5, 6]}
+{"type": "linked-list", "algorithm": "middle", "values": [1, 2, 3, 4, 5, 6], "title": "Middle of six nodes: the fast and fast.next guard", "caption": "fast runs off the end after three steps, leaving slow on 4, the second of the two middles. The first-middle guard would stop one step earlier, on 3."}
 ```
 
 ### Find the Duplicate Number: an array that is a linked list

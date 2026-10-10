@@ -140,7 +140,7 @@ The non-obvious lines. `accumulate(nums, initial=0)` (Python 3.8 and later) prod
 The invariants. **Array form:** `P[i]` is the sum of the first `i` elements, so `P[j + 1] − P[i]` telescopes to `nums[i] + … + nums[j]`. **Count form:** when element `j` is processed, `seen` holds the counts of exactly the prefixes at positions `0 … j`, all strictly before the current one; that is why the seed is `{0: 1}` and why the lookup comes before the insert. **Longest form:** `first[v]` is the smallest position whose prefix is `v`, so `pos − first[prefix − k]` is the longest subarray ending here with sum `k`.
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [3, 1, 4, 1, 5, 9, 2, 6]}
+{"type": "array", "algorithm": "prefix-sum", "values": [3, 1, 4, 1, 5, 9, 2, 6], "leadingZero": true, "query": [0, 3], "title": "Building P with a leading zero", "caption": "P has n + 1 entries and P[0] = 0, so sum(i, j) = P[j + 1] - P[i] for every range, including one that starts at index 0: sum(0, 3) = P[4] - P[0] = 9."}
 ```
 
 ## Worked problems
@@ -224,7 +224,7 @@ The edge the hidden tests use: `[2, 1, −1]` has pivot 0 (left 0, right 1 − 1
 Answer 4: `[3, 4]` (prefix 0 → 7), `[7]` (7 → 14), `[7, 2, −3, 1]` (7 → 14 again) and `[1, 4, 2]` (13 → 20). Row 5 is the one a window cannot find: the subarray contains a negative and its prefix 14 *repeats* an earlier prefix, so `seen[14]` is now 2. A later prefix of 21 would complete two subarrays at once, which is why the map stores counts, not a set. At row 1 the hit comes from the seed: without `{0: 1}`, `[3, 4]` is never counted.
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [3, 4, 7, 2, -3, 1, 4, 2], "title": "Prefixes of the Subarray Sum Equals K input", "caption": "Two prefixes that differ by k bracket a subarray summing to k; the value 14 appears twice, so two different subarrays end at a prefix of 14."}
+{"type": "array", "algorithm": "prefix-sum", "values": [3, 4, 7, 2, -3, 1, 4, 2], "k": 7, "title": "Prefixes of the Subarray Sum Equals K input", "caption": "Two prefixes that differ by k bracket a subarray summing to k; the value 14 appears twice, so two different subarrays end at a prefix of 14."}
 ```
 
 ### Product of Array Except Self

@@ -1,6 +1,6 @@
 ---
 lesson: api-design-and-versioning
-source: 561c4e70f9d68c66
+source: ab76c963272ccb25
 fit: great
 desk:
   - "The idempotency-key and If-Match traces, as tables"

@@ -196,7 +196,7 @@ return 1
 **CDC invalidation** tails the database's log and deletes keys for every committed change, in commit order, including changes from other services, migrations and a manual `UPDATE` in `psql`, which all bypass the application's write path. Facebook's paper describes daemons (McSqueal) that tail the MySQL commit log and broadcast deletes. Because the delete arrives tens of milliseconds after commit, a slow fill that lands in between is removed, which narrows race 3 without closing it. The [change data capture lesson](/learn/big-data/streaming/change-data-capture) covers the pipeline. A "delayed double delete" (delete again a fixed interval later) is the same narrowing by hand; call it a heuristic in the design doc.
 
 ```viz
-{"type": "system", "scenario": "cdc", "title": "Invalidating the cache from the database's log", "caption": "Each committed change appears in the WAL; a consumer turns it into a cache delete. Every writer is covered, including ones that bypass the application, and the consumer's lag is how long a stale entry can survive."}
+{"type": "system", "scenario": "cdc", "sink": "cache", "title": "Invalidating the cache from the database's log", "caption": "Each committed change appears in the WAL; a consumer turns it into a cache delete. Every writer is covered, including ones that bypass the application, and the consumer's lag is how long a stale entry can survive."}
 ```
 
 ## Stampedes, in numbers

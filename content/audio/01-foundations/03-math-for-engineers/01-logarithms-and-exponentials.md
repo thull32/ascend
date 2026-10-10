@@ -1,6 +1,6 @@
 ---
 lesson: logarithms-and-exponentials
-source: 47c50ac8f6eebe1e
+source: 1c2fda5cd8c9cf90
 fit: partial
 desk:
   - "The halving table for 1000 and the floor and ceiling of log base 2"
@@ -24,7 +24,7 @@ Log base 2 of n answers one question: how many times do you double 1 to reach n?
 
 Try it with 1000, halving and rounding down the way code does. 500, 250, 125, 62, 31, 15, 7, 3, 1. Nine halvings. So the floor of log base 2 of 1000 is 9, because 2 to the 9 is 512, which is at most 1000, and 2 to the 10 is 1024, which is past it. Doubling up from 1 gives you the ceiling instead: ten doublings to pass 1000. Floor and ceiling differ exactly when n is not a power of two.
 
-That halving loop is the whole definition. Every algorithm that halves its problem each step runs for exactly that many steps. Binary search on 8 sorted elements: eight candidates, then four, then two, then one. Three comparisons, which is log base 2 of 8.
+That halving loop is the whole definition. Every algorithm that halves its problem each step runs for exactly that many steps. Binary search on 8 sorted elements: eight candidates, then four, then two, then one. Three halvings, which is log base 2 of 8, and then one comparison to check the last candidate.
 
 Every log rule is an exponent rule read backwards. Multiplying powers adds exponents, so the log of a product is the sum of the logs. Raising to a power multiplies the exponent, so the log of a to the k is k times the log of a. And change of base says a log in one base is a log in another base divided by a constant.
 

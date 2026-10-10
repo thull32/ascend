@@ -241,7 +241,7 @@ Serialising `[1, 2, 3, null, null, 4, 5]` emits `1,2,3,#,#,4,5,#,#,#,#`: the `#`
 Watch the same encoding produced from a BST built by inserting values in order:
 
 ```viz
-{"type": "tree", "algorithm": "serialize", "values": [4, 2, 6, 1, 3, 5, 7], "title": "Level-order serialisation", "caption": "Each node emits its value; each missing child emits a marker, which is what lets the decoder consume tokens in pairs."}
+{"type": "tree", "algorithm": "serialize", "values": [4, 2, 6, 1, 3, 5, 7], "order": "level", "title": "Level-order serialisation", "caption": "Each node emits its value; each missing child emits a marker, which is what lets the decoder consume tokens in pairs."}
 ```
 
 ## Variations

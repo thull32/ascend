@@ -76,7 +76,7 @@ function reverse(head) {
 The invariant to say aloud: **at the top of each iteration, `prev` heads a fully reversed list of the nodes already visited, `curr` heads the untouched remainder, and no node is reachable from both.** One node crosses from the remainder to the reversed side per iteration, so after `n` iterations every node has crossed and none was lost.
 
 ```viz
-{"type": "linked-list", "algorithm": "reverse", "values": [1, 2, 3, 4, 5]}
+{"type": "linked-list", "algorithm": "reverse", "values": [1, 2, 3, 4, 5], "title": "Iterative reversal: one node crosses per iteration", "caption": "prev heads the reversed part and curr the untouched rest. Each iteration saves the next node, flips one link back to prev, and advances both pointers."}
 ```
 
 ### Primitive two: split at the first middle
@@ -136,7 +136,7 @@ function merge(a, b, takeA) {
 With `take_a = lambda a, b: a.val <= b.val` this is [Merge Two Sorted Lists](/practice/merge-two-sorted-lists), and `<=` rather than `<` keeps it stable. With `take_a` alternating it is the interleave of [Reorder List](/practice/reorder-list), whose full trace is in [Merging and partitioning](/learn/data-structures/linked-lists/merging-and-partitioning).
 
 ```viz
-{"type": "linked-list", "algorithm": "merge-sorted", "values": [1, 3, 5, 7], "values2": [2, 4, 6]}
+{"type": "linked-list", "algorithm": "merge-sorted", "values": [1, 3, 5, 7], "values2": [2, 4, 6], "title": "Merge two sorted lists: take the smaller head", "caption": "The heads are compared six times and the lists alternate; when B runs out, the rest of A is attached with one assignment."}
 ```
 
 The composition rule: **split, reverse, merge** in some order solves most of the list: Reorder List is split + reverse second + alternate merge; [Palindrome Linked List](/practice/palindrome-linked-list) is split + reverse second + compare + reverse back; merge sort on a list is split + recurse + merge. Draw four boxes and the names `prev`, `curr`, `nxt` before writing any loop, and read the assignments off the drawing.
@@ -342,7 +342,7 @@ The `put(1, 10)` row is the one that fails most often: code that checks capacity
 [Remove Nth Node From End](/practice/remove-nth-from-end) is the smallest composition of the two patterns: the gap template from [fast and slow pointers](/learn/interview-patterns/sequence-patterns/fast-slow-pointers) finds the predecessor, and the dummy head makes deleting the first node ordinary:
 
 ```viz
-{"type": "linked-list", "algorithm": "remove-nth-from-end", "values": [1, 2, 3, 4, 5], "n": 2}
+{"type": "linked-list", "algorithm": "remove-nth-from-end", "values": [1, 2, 3, 4, 5], "n": 2, "title": "Remove the 2nd node from the end: a dummy and a gap of two", "caption": "fast moves two nodes ahead of slow, then both advance until fast is on the tail. slow is then just before 4, and one assignment unlinks it."}
 ```
 
 ## Complexity, derived

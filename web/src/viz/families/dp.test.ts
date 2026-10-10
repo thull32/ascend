@@ -98,3 +98,38 @@ describe("dp family", () => {
     }
   });
 });
+
+describe("dp fixes", () => {
+  it("max-subarray: dp[i-1] = 0 extends (ties keep the longer run)", () => {
+    const frames = run("max-subarray", { values: [5, -3, 5, -7, 4, 2] });
+    expect(frames[5]!.tag).toBe("extend");
+    expect(frames[5]!.note).not.toContain("start fresh:");
+    expect(frames.at(-1)!.state.vars.range).toEqual([0, 2]);
+  });
+
+  it("coin-change with order coin-outer sweeps amounts once per coin", () => {
+    const frames = run("coin-change", { coins: [1, 3, 4], amount: 6, order: "coin-outer" });
+    expect(frames).toHaveLength(16);
+    const fills = frames.filter((f) => f.tag === "improve" || f.tag === "keep");
+    expect(fills.map((f) => f.state.vars.coin)).toEqual([1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 4, 4, 4]);
+    expect(frames[11]!.state.formula).toBe("dp[6] = min(dp[6], dp[3] + 1) = min(6, 2) = 2");
+    expect(frames.at(-1)!.note).toContain("3 + 3");
+  });
+
+  it("lis: the answer is the maximum cell when the last cell is smaller", () => {
+    const end = run("lis", { values: [10, 9, 2, 5, 3, 7, 101, 18, 4] }).at(-1)!;
+    expect(end.state.rows[1]!.values).toEqual([1, 1, 1, 2, 2, 3, 4, 4, 3]);
+    expect(end.note).toContain("LIS length 4");
+  });
+});
+
+describe("word-break by suffix", () => {
+  it("can(i) means the suffix from i, filled from the end", () => {
+    const frames = run("word-break", { s: "applepenapple", words: ["apple", "pen"], direction: "suffix" });
+    expect(frames[1]!.state.formula).toBe("can(13) = T");
+    const end = frames.at(-1)!;
+    expect(end.state.rows[1]!.values).toEqual(["T", "F", "F", "F", "F", "T", "F", "F", "T", "F", "F", "F", "F", "T"]);
+    expect(end.note).toContain("apple | pen | apple");
+    expect(frames).toHaveLength(16);
+  });
+});

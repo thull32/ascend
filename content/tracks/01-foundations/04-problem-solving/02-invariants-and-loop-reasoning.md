@@ -148,7 +148,7 @@ function first_true(flags) {
 **Termination.** With `lo < hi`, `mid = lo + (hi - lo) // 2` satisfies `lo ≤ mid < hi`. Then `hi = mid` strictly decreases `hi`, and `lo = mid + 1` strictly increases `lo`; the width `hi − lo` shrinks every iteration and is bounded below by 0. At exit `lo == hi`: everything below `lo` is false, everything at or above `lo` is true, so `lo` is the first true index, including the all-false case where `lo` climbs to `n`. The number of iterations is $\lceil \log_2 n \rceil$: 20 for a million elements, 31 for $2^{31} - 1$, 40 for $10^{12}$.
 
 ```viz
-{"type": "array", "algorithm": "binary-search-first-true", "values": [0, 0, 0, 1, 1, 1], "title": "Binary search for the first true", "caption": "The half-open range [lo, hi) is the unknown region; it halves every step and the answer is lo at exit."}
+{"type": "array", "algorithm": "binary-search-first-true", "values": [0, 0, 0, 1, 1, 1], "target": 1, "title": "Binary search for the first true", "caption": "The half-open range [lo, hi) is the unknown region; it halves every step and the answer is lo at exit."}
 ```
 
 ### Trace, and the infinite-loop bug

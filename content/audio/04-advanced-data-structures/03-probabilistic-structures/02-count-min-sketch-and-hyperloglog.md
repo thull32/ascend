@@ -1,6 +1,6 @@
 ---
 lesson: count-min-sketch-and-hyperloglog
-source: 69b7cb13366af63f
+source: 6de7e26db2952fb0
 fit: partial
 desk:
   - "The count-min cell trace for ten request paths, and the conservative-update example"

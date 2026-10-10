@@ -175,7 +175,7 @@ For tables that are joined on the same key again and again, **bucketing** pays t
 Back to the three-hour job. Its real join is against the 40 GB title metadata table, far too big to broadcast, so Spark shuffles both sides by `title_id` and runs a sort-merge join. Hash partitioning spreads distinct keys evenly across partitions, but it cannot split a single key. The new series produced 18% of yesterday's plays, so every one of its play rows went to the same join partition, and one task processed tens of times more rows than its neighbours. The same arithmetic governs hot keys in any [partitioned store](/learn/system-design/distributed-systems/partitioning-and-rebalancing).
 
 ```viz
-{"type": "system", "scenario": "sharding-hash", "nodes": 3,
+{"type": "system", "scenario": "sharding-hash", "nodes": 3, "variant": "shuffle",
  "title": "Hash partitioning spreads keys, not load",
  "caption": "Each key goes to partition hash(key) mod n, exactly like a shuffle. Distinct keys spread evenly, but every row for one hot key lands in one partition, and changing the partition count reshuffles almost everything."}
 ```

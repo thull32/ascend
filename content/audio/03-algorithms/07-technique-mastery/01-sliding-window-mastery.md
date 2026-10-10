@@ -1,6 +1,6 @@
 ---
 lesson: sliding-window-mastery
-source: b36f6c8516555871
+source: 0b5c83acd10910e4
 fit: partial
 desk:
   - "The heredity table: which window properties survive shrinking, and which survive growing"

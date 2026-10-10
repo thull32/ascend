@@ -1,6 +1,6 @@
 ---
 lesson: segment-trees
-source: f380ff11f9ed3083
+source: 74531c21382099bc
 fit: partial
 desk:
   - "The eight-value tree drawn and as its array, indices 1 to 15"

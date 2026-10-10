@@ -249,7 +249,8 @@ Without the sequence check the box would flip back to suggestions for "netf" whi
 ### Edge caching, no sharding, snapshot rollout
 
 ```viz
-{"type": "network", "scenario": "cdn-cache", "title": "Short prefixes live at the edge",
+{"type": "network", "scenario": "cdn-cache", "title": "Short prefixes live at the edge", "user": "User (US, en)", "edge": "Edge PoP", "origin": "Suggest server", "path": "/suggest?q=netf&lang=en&region=US", "asset": "suggestions for the prefix netf", "same": "prefix", "nearby": "in the same region", "maxAge": 300, "missNote": "Cache miss for (netf, en, US): the edge forwards to a suggest server, which walks the trie and returns the top suggestions.", "missMs": 60, "hitMs": 10,
+ "closing": "The cache key is (normalised prefix, language, region) and the TTL is 300 s, so a hot prefix reaches the suggest servers about once per edge every five minutes. Freshness comes from the TTL, with one exception: removing a harmful suggestion purges every prefix of it from the CDN at once.",
  "caption": "The first request for a prefix in a region misses and reaches a suggest server; later requests for the same normalised prefix, language and region are served by the edge until the TTL expires. With 18,278 prefixes of up to three letters per language, a small key set carries most of the traffic."}
 ```
 

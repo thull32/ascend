@@ -30,7 +30,7 @@ The bandwidths are round assumptions; time = bytes ÷ bandwidth is exact. Two le
 Brute force is right more often than teams expect: below a few hundred thousand vectors (200,000 × 768 is 614 MB, milliseconds on a server), over a small filtered subset, and always as **ground truth**, because recall is defined against it.
 
 ```viz
-{"type": "ml", "algorithm": "embeddings-similarity", "text": "king queen man woman apple banana",
+{"type": "ml", "algorithm": "embeddings-similarity", "text": "king queen man woman apple banana", "analogy": false,
  "title": "Brute force is this table, one row per query",
  "caption": "Every cell is one cosine similarity between two word vectors. Exact search computes one row of this table against all N stored vectors and keeps the top k; every index in this lesson is a way to skip most of the row."}
 ```

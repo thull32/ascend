@@ -23,8 +23,9 @@ What is spread divides protocols in two. **Rumour mongering** spreads a specific
 Bandwidth decides which one you can afford. With 200 nodes, a 1-second interval, fanout 3 and 2 KB of state per node sent whole in both directions, each node sends 3 × 2 × 2 KB = 12 KB/s and receives about as much: 5 MB/s cluster-wide, which is nothing. At 5,000 nodes carrying 100 KB each it is 600 KB/s per node and 3 GB/s cluster-wide. Real implementations therefore gossip **digests** (node id plus version per entry) and fetch only the entries whose version is newer, so steady-state traffic follows the change rate, not the state size.
 
 ```viz
-{"type": "system", "scenario": "gossip", "nodes": 8,
- "title": "Push-pull gossip with fanout 3", "caption": "One node learns a fact. Each round, every node exchanges with three random peers. Watch the count of informed nodes multiply per round until it saturates; the last few nodes are reached by pull, not push."}
+{"type": "system", "scenario": "gossip", "nodes": 8, "fanout": 3, "mode": "push-pull",
+ "title": "Push-pull gossip with fanout 3",
+ "caption": "One node learns a fact. Each round, every node exchanges with three random peers. Watch the count of informed nodes multiply per round until it saturates; the last few nodes are reached by pull, not push."}
 ```
 
 ## Convergence, simulated
@@ -236,8 +237,9 @@ hints:
 A **Bloom filter** answers the one-sided question "which of my keys do you lack?" in one message: a replica sends a filter of its keys (about 1.2 MB for a million keys at a 1% false-positive rate, 9.6 bits per key), and the peer sends back every key the filter says is absent. A false positive hides a missing key until the next round or a Merkle comparison.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter", "keys": ["k1","k2","k3","k7","k9"],
- "title": "Bloom filter as a set digest", "caption": "One replica sends a compact filter of its keys. The peer tests each of its own keys: a miss means the first replica definitely lacks it and it is sent; a hit might be a false positive, so a rare missing key survives until the next round or a Merkle comparison."}
+{"type": "system", "scenario": "bloom-filter", "keys": ["k1","k2","k3","k7","k9"], "variant": "digest",
+ "title": "Bloom filter as a set digest",
+ "caption": "One replica sends a compact filter of its keys. The peer tests each of its own keys: a miss means the first replica definitely lacks it and it is sent; a hit might be a false positive, so a rare missing key survives until the next round or a Merkle comparison."}
 ```
 
 ## Cassandra repair: full, incremental and overstreaming

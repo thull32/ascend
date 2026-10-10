@@ -29,7 +29,7 @@ A call without a timeout can wait forever; a call with the wrong timeout waits l
 Checkout retries because it sits next to the flaky dependency; nobody else does, so a hard-down pricing service receives at most 2× its traffic, not the $2^4$ that four retrying layers would send. The per-attempt numbers are defaults; the real bound is the propagated deadline. gRPC carries it natively; over HTTP, pass the remaining milliseconds in a header, and a hop whose remaining budget is below its own p50 rejects at once instead of starting work that cannot finish. [Timeouts, retries and backoff](/learn/networking/networking-in-practice/timeouts-retries-and-backoff) measures the network layer and retry budgets.
 
 ```viz
-{"type": "system", "scenario": "retry-backoff", "requests": 5,
+{"type": "system", "scenario": "retry-backoff", "requests": 5, "deadlineMs": 1000, "attemptMs": 120,
  "title": "Bounded retries with jitter inside a deadline", "caption": "Each attempt is spaced by growing, jittered delays, and no attempt starts once the remaining deadline is shorter than the call's expected latency. Retrying past the caller's deadline is wasted work on a struggling dependency."}
 ```
 
@@ -94,7 +94,7 @@ An unbounded queue turns overload into memory exhaustion: it looks fine until it
 Size a queue from the delay you will tolerate: at a service rate of 1,000 per second, 100 slots add at most 100 ms of waiting; 100,000 slots add 100 seconds, and nothing that has waited 100 seconds is still wanted. Small queues fail fast; that is the point.
 
 ```viz
-{"type": "system", "scenario": "backpressure", "requests": 20,
+{"type": "system", "scenario": "backpressure", "mode": "reject", "requests": 20,
  "title": "Bounded queue rejecting at the edge", "caption": "The queue holds a fixed number of requests. Once full, new arrivals are rejected immediately with a clear signal, instead of waiting in a queue whose latency already exceeds every caller's timeout."}
 ```
 

@@ -68,7 +68,7 @@ Locals plus the spilled argument need 25 bytes, but the reservation must be 32, 
 Three details matter later. The compiler owns the layout: at `-O2` GCC folds this function to two instructions (`lea rax, [rdi+rdi+98]; ret`, since `'a'` is 97) with no frame at all, and the `push rbp` disappears (GCC omits the frame pointer at `-O1` and above unless you pass `-fno-omit-frame-pointer`, which profilers want). Frame size is a property of the binary, not the source. The return address sits at a known offset above the locals, so writing past the end of `tag` overwrites it and lets an attacker choose where the function "returns"; stack canaries and address randomisation exist because of this layout. And leaf functions may use a 128-byte **red zone** below `rsp` without moving it, so tiny functions have no visible frame at all.
 
 ```viz
-{"type": "memory", "scenario": "call-stack", "n": 3, "title": "Frames pushed and popped", "caption": "Each call pushes a frame with its return address and locals; each return pops it. The stack pointer is the only state the machine needs."}
+{"type": "memory", "scenario": "call-stack", "n": 3, "base": 1, "name": "fact", "title": "Frames pushed and popped", "caption": "Each call pushes a frame with its return address and locals; each return pops it. The stack pointer is the only state the machine needs."}
 ```
 
 ## A hand trace: three frames of factorial

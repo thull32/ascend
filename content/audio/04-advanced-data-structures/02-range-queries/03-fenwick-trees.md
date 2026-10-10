@@ -1,6 +1,6 @@
 ---
 lesson: fenwick-trees
-source: d28bc3a61cd87908
+source: 4f002b73ffa15ad3
 fit: partial
 desk:
   - "The lowbit table for indices 1 to 8, and the block diagram"

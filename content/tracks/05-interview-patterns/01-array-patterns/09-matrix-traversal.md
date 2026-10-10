@@ -254,7 +254,7 @@ Trace on `[["1","1","0","0"], ["1","0","0","1"], ["0","0","1","1"]]`:
 Answer 2. Every cell is scanned once and enqueued at most once, so `O(rows × cols)`. Marking on push is what guarantees "at most once". The common alternative, marking when a cell is popped and skipping it if already marked, is also correct but lets a cell sit in the queue once per neighbour that saw it first. Measured on a 1,000 × 1,000 all-land grid from one corner (`mt_bfs.py`): 1,000,000 enqueues and a peak queue of 1,000 cells when marking on push, against 1,998,001 enqueues, a peak of 1,999 and 29% more time when marking on pop. Forget the skip check in the mark-on-pop version and cells are *processed* repeatedly, which is a correctness bug for anything that counts.
 
 ```viz
-{"type": "graph", "algorithm": "grid-islands", "grid": [[1, 1, 0, 0], [1, 0, 0, 1], [0, 0, 1, 1]], "title": "Islands as components of an implicit graph", "caption": "The same 3 × 4 grid. Each land cell's edges are the in-bounds land cells reached by the four direction vectors; no adjacency list is built."}
+{"type": "graph", "algorithm": "grid-islands", "method": "bfs", "grid": [[1, 1, 0, 0], [1, 0, 0, 1], [0, 0, 1, 1]], "title": "Islands as components of an implicit graph", "caption": "The same 3 × 4 grid. Each land cell's edges are the in-bounds land cells reached by the four direction vectors; no adjacency list is built."}
 ```
 
 ## Grids as graphs and as flat arrays

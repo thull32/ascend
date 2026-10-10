@@ -1,6 +1,6 @@
 ---
 lesson: rust-essentials
-source: 8f3a72be76204899
+source: 39fcda9da2309a81
 fit: partial
 desk:
   - "The pump signature from the opening, read as an ownership contract"

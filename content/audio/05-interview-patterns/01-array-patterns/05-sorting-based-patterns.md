@@ -1,6 +1,6 @@
 ---
 lesson: sorting-based-patterns
-source: 558c43cd9270f188
+source: dd8b739f9daef90a
 fit: partial
 desk:
   - "The three-decisions table (key, tool, sweep body) for eight classic problems"

@@ -156,7 +156,7 @@ def rob_tree(root) -> int:
 Returning a tuple per node is the tree-DP idiom: the "table" is the recursion's return values, and the fill order is post-order. **Diameter of a tree** is the same shape: each node returns its height, and the diameter through `v` is `height(left) + height(right)`, with the global answer the max over nodes. **Maximum path sum** returns "best downward path from `v`" and updates a global with `left + val + right`. [Tree recursion patterns](/learn/data-structures/trees/tree-recursion-patterns) has more of the family.
 
 ```viz
-{"type": "tree", "algorithm": "diameter", "values": [1, 2, 3, 4, 5, 6, 7, 8, 9], "title": "Tree DP by post-order: each node returns its height, the diameter is combined on the way up", "caption": "The children are finished before the parent reads them. That is the tree-DP fill order."}
+{"type": "tree", "algorithm": "diameter", "values": [], "levelOrder": [3, 4, 5, 1, 3, null, 1], "heightUnit": "nodes", "title": "Tree DP by post-order: each node returns its height, the diameter is combined on the way up", "caption": "The house-robber tree again. The children are finished before the parent reads them, and a node with two children combines both heights. That is the tree-DP fill order."}
 ```
 
 ### Rerooting: an answer for every root

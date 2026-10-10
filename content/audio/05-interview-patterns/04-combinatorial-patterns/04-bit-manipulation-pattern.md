@@ -1,6 +1,6 @@
 ---
 lesson: bit-manipulation-pattern
-source: b62f67da81f2fdc1
+source: a5debe6b41b7733a
 fit: partial
 desk:
   - "The six identities table, and the template loops in Python and JavaScript: popcount, lowest bit, 32-bit add, reverse, submasks"

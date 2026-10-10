@@ -189,8 +189,9 @@ Here both attempts saw the same charge, so a late write would have been harmless
 
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "requests": 3,
- "title": "Three deliveries of one payment request", "caption": "The first request records the key and executes. The retries find the key, skip execution and return the stored response. The charge happens once regardless of how many times the request arrives."}
+{"type": "system", "scenario": "idempotency-key", "requests": 3, "service": "Payments API", "request": "POST /payments $30", "key": "order-7781", "effect": "charge $30", "target": "Card processor", "record": "payment pay_1", "response": "201 ch_1", "effects": "charges", "changed": "$300 instead of $30",
+ "title": "Three deliveries of one payment request",
+ "caption": "The first request records the key and executes. The retries find the key, skip execution and return the stored response. The charge happens once regardless of how many times the request arrives."}
 ```
 
 ```exercise
@@ -272,8 +273,9 @@ A queue consumer sees duplicates after a crash mid-batch, a visibility timeout t
 Whatever holds the IDs, the window must exceed the longest possible redelivery: a dead-letter queue replayed three days later sails past a one-day window. Size a store as rate × window × bytes per ID.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter", "keys": ["evt-1","evt-2","evt-3","evt-9"],
- "title": "Bloom filter as a dedupe pre-check", "caption": "A miss in the filter means the ID was never seen, so the consumer skips the exact lookup. A hit might be a false positive, so it is confirmed against the dedupe store before the message is dropped."}
+{"type": "system", "scenario": "bloom-filter", "keys": ["evt-1","evt-2","evt-3","evt-9"], "app": "Consumer", "store": "dedupe store",
+ "title": "Bloom filter as a dedupe pre-check",
+ "caption": "A miss in the filter means the ID was never seen, so the consumer skips the exact lookup. A hit might be a false positive, so it is confirmed against the dedupe store before the message is dropped."}
 ```
 
 ## Across a queue and a database, crash by crash

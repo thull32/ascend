@@ -185,7 +185,7 @@ Contention on the best seats is not a throughput problem: the doomed attempts ar
 | **Conditional update** | Correct in one statement; the lock lasts one short transaction |
 
 ```viz
-{"type": "system", "scenario": "distributed-lock", "nodes": 3,
+{"type": "system", "scenario": "distributed-lock", "holders": ["Fan A","Fan B"], "resource": "Database", "item": "seat 8", "state": "seat 8 AVAILABLE", "fence": "conditional", "writeB": "seat 8 SOLD to B", "writeA": "seat 8 SOLD to A", "check": "set the seat to sold only where it is still held by the writer",
  "title": "Why a per-seat Redis lock is not the answer",
  "caption": "A client pauses while holding a lease, the lease expires, a second client acquires it, and both believe they own the seat. Only a fencing check at the storage layer saves you, and for seats the storage layer's conditional update already is that check, with no second system to keep consistent."}
 ```
@@ -217,7 +217,7 @@ Had U clicked at 10:10:00.5, the checkout `UPDATE` would have matched 0 rows (th
 The same idempotency discipline applies at the API: the client generates one key per checkout attempt and reuses it on every retry, and the server stores the key with the resulting order.
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "requests": 3,
+{"type": "system", "scenario": "idempotency-key", "requests": 3, "client": "Fan browser", "service": "Checkout API", "request": "POST /checkout (hold h_51)", "key": "k1", "effect": "authorise the order total", "target": "Card provider", "record": "order o_42", "response": "201 o_42", "effects": "authorisations", "changed": "different seats",
  "title": "Three clicks, one order",
  "caption": "The first checkout request with a key creates the order and stores the result under that key; retries with the same key return the stored result and never reach the payment provider again."}
 ```
@@ -318,7 +318,7 @@ If the waiting room or admission controller fails, admit nobody and show a holdi
 A seat-map publisher consumes the change stream, flips one bit per seat in a 6.25 KB bitmap per event, and publishes it to the CDN with a version number every second; clients discard any version older than the one they hold and overlay their own holds, which they know first. A mostly-sold or mostly-free bitmap compresses to a fraction of its size, and publishing the whole map every second is simpler and cheaper than pushing per-seat deltas to hundreds of thousands of connections ([change data capture](/learn/big-data/streaming/change-data-capture)).
 
 ```viz
-{"type": "system", "scenario": "cdc",
+{"type": "system", "scenario": "cdc", "sink": "seat-map",
  "title": "Seat changes out of the database",
  "caption": "The publisher reads committed changes from the write-ahead log rather than asking the booking service to publish them, so every path that changes a seat, including support tools and sweepers, reaches the seat map without a second write that could be forgotten."}
 ```

@@ -126,7 +126,7 @@ Kafka's log cleaner keeps exactly the latest record per key, so the compacted lo
 Once you see it, it is everywhere: a database's write-ahead log is a stream and its tables are materialised from it; a compacted topic is a table stored as a stream; a materialised view is a table maintained by applying a stream; a cache is a materialised view you maintain by hand. Kappa's reprocessing is rebuilding a table from its changelog with a new function, the same operation as restoring a Kafka Streams store or rebuilding a search index from CDC.
 
 ```viz
-{"type": "system", "scenario": "pubsub", "nodes": 3,
+{"type": "system", "scenario": "pubsub", "flavor": "log", "nodes": 3,
  "title": "One log, many derived views",
  "caption": "Each subscriber reads the same events independently and builds its own view: a search index, a cache, a warehouse table. Adding a new view means adding a subscriber and replaying, not changing the producer."}
 ```

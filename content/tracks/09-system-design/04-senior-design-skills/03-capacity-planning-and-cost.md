@@ -139,7 +139,7 @@ The total falls to about $38,300, or $0.39 per million requests: two-thirds chea
 Know where bytes are metered, because that is where the surprises come from. Traffic between zones is typically billed on both sides of the hop, so a request and its response to a cache in another zone are metered four times: out and in, each way. NAT gateways charge per GB processed on top of their hourly price, so a service pulling container images or calling public APIs through one pays twice for the same bytes. Internet egress is tiered by monthly volume and falls further behind a CDN or private peering ([CDNs and edge](/learn/networking/application-protocols/cdns-and-edge)). Logs are billed at ingestion, again for retention and again for queries, which is why sampling at the source beats filtering in the backend ([metrics and logging platform](/learn/system-design/case-studies/metrics-and-logging-platform)).
 
 ```viz
-{"type": "network", "scenario": "cdn-cache", "title": "Egress is a cost lever, not only a latency one",
+{"type": "network", "scenario": "cdn-cache", "closing": "On the bill the two paths differ too: the miss was origin egress across the ocean, metered by the cloud provider; the hit was edge bytes at CDN prices, and the origin sent nothing. For byte-heavy products every point of hit ratio is bytes the origin never sends.", "title": "Egress is a cost lever, not only a latency one",
  "caption": "A miss crosses the ocean to origin and is billed as origin egress; a hit is served from the edge. For byte-heavy products the CDN hit ratio is a line item on the bill: each point of hit ratio is bytes the origin never sends."}
 ```
 

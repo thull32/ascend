@@ -1,6 +1,6 @@
 ---
 lesson: shortest-path-pattern
-source: 77fa09bcdce4af41
+source: 460028b91a9a74b7
 fit: partial
 desk:
   - "The lazy-deletion Dijkstra, k-round Bellman-Ford and 0-1 BFS templates, and the JavaScript min-heap"

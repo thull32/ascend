@@ -1,6 +1,6 @@
 ---
 lesson: olap-engines
-source: 1719e4a5611220b3
+source: 3d5767da42357020
 fit: great
 desk:
   - "The two-architecture diagram and comparison table"

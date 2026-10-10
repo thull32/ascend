@@ -258,7 +258,17 @@ git diff main...HEAD -- '*test*' | grep -E '^-.*(assert|expect)'   # removed ass
 The loop also has a cost curve. Each iteration resends the whole transcript, including every file read and every test log, so iteration 30 is far more expensive than iteration 3, and less focused.
 
 ```viz
-{"type": "ml", "scenario": "agent-loop", "title": "Why long fix loops get expensive", "caption": "Watch the token count: every observation stays in the transcript and is resent on the next decision. Iteration caps and budgets are part of the harness for a reason; your equivalent is noticing the third failed attempt and resetting."}
+{"type": "ml", "scenario": "agent-loop", "text": "Make tests/test_ratelimit.py pass", "compact": true, "maxIter": 25,
+ "tools": ["read_file", "edit_file", "run_tests"],
+ "calls": [{"why": "It reads the code under test.", "call": "read_file(\"app/ratelimit.py\")", "result": "the limiter, about 3,000 tokens", "input": 14300},
+  {"why": "It runs the test file.", "call": "run_tests(\"tests/test_ratelimit.py\")", "result": "1 failed: the 11th request was allowed, about 3,500 tokens of output", "input": 18500},
+  {"why": "It changes the window check.", "call": "edit_file(\"app/ratelimit.py\")", "result": "the diff, about 600 tokens", "input": 23200},
+  {"why": "It runs the tests again.", "call": "run_tests(\"tests/test_ratelimit.py\")", "result": "the same test fails, another 3,500 tokens", "input": 25000},
+  {"why": "It tries a different change.", "call": "edit_file(\"app/ratelimit.py\")", "result": "the diff, about 600 tokens", "input": 29700},
+  {"why": "It runs the tests a third time.", "call": "run_tests(\"tests/test_ratelimit.py\")", "result": "the same test fails, another 3,500 tokens", "input": 31500}],
+ "stop": "Third failed attempt on the same test. The harness would carry on until its cap of 25 iterations, each resending everything above; this is the point to stop, write down what was ruled out, and restart in a fresh session.",
+ "closing": "Iteration 6 alone resends both earlier attempts and their test logs. A reset with a short handoff note starts again near 14,300.",
+ "title": "Why long fix loops get expensive", "caption": "Watch the token count: every observation stays in the transcript and is resent on the next decision. Iteration caps and budgets are part of the harness for a reason; your equivalent is noticing the third failed attempt and resetting."}
 ```
 
 ## Under the hood: modes, hooks and worktrees

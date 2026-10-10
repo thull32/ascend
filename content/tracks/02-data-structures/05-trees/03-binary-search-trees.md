@@ -251,8 +251,8 @@ On the bad tree: visit 5 (prev none), 10 (5 < 10), 6 (10 ≤ 6 fails after three
 With the "equal keys go left" policy the bound check becomes `lo < v <= hi`. Then `[2, 2]` (a 2 with a left child 2) validates and `[2, null, 2]` does not; with strict bounds both fail. Whichever side the insert code chooses, the validator must use the non-strict comparison on exactly that side, or it rejects trees the insert built. Ask the interviewer which policy they want before writing the comparison.
 
 ```viz
-{"type": "tree", "algorithm": "validate-bst", "values": [10, 5, 15, 6, 20],
- "title": "Validating with ancestor bounds", "caption": "The visualiser inserts the values as a BST, then checks each node against the (lo, hi) range inherited from its ancestors."}
+{"type": "tree", "algorithm": "validate-bst", "values": [], "levelOrder": [10, 5, 15, null, null, 6, 20],
+ "title": "Validating with ancestor bounds", "caption": "The broken tree from above. Each node is checked against the (lo, hi) range inherited from all its ancestors, so 6 fails under 15 although it is smaller than its parent, as a left child should be."}
 ```
 
 ## The degenerate tree

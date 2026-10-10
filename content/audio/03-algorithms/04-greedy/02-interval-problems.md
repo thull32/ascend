@@ -1,6 +1,6 @@
 ---
 lesson: interval-problems
-source: 9188455f1df37f67
+source: c1204b036dfd5960
 fit: partial
 desk:
   - "The table of seven interval problems with their sort key, state and rule"

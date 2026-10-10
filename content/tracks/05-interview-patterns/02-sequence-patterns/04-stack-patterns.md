@@ -83,7 +83,7 @@ The invariant: **the stack holds exactly the opened-but-not-yet-closed items, mo
 Watch the matching family stop at the first close that has no matching open, which is what makes one pass with no lookahead enough:
 
 ```viz
-{"type": "stack-queue", "algorithm": "balanced-parentheses", "input": "{[()]}(]"}
+{"type": "stack-queue", "algorithm": "balanced-parentheses", "input": "{[()]}(]", "title": "Matching: stop at the first closer that does not match", "caption": "{[()]} pushes three openers and pops all three. Then ( is pushed, and ] does not match it, so the string is rejected on the spot."}
 ```
 
 ## Worked problems
@@ -161,7 +161,7 @@ class MinStack:
 Under time pressure write the pairs version: it cannot get the duplicate case wrong. The parallel version saves memory on ascending input (only new minimums are stored); mention it and the `<=`.
 
 ```viz
-{"type": "stack-queue", "algorithm": "min-stack", "operations": [["push",4],["push",2],["push",2],["push",5],["getMin"],["pop"],["pop"],["getMin"],["pop"],["getMin"]]}
+{"type": "stack-queue", "algorithm": "min-stack", "operations": [["push",4],["push",2],["push",2],["push",5],["getMin"],["pop"],["pop"],["getMin"],["pop"],["getMin"]], "title": "The two-stack min-stack with <=: the second 2 is recorded", "caption": "The trace from the table above, with the <= rule. Because the duplicate 2 went onto mins, popping one 2 leaves the minimum at 2."}
 ```
 
 ### Evaluate RPN: operand order and truncation

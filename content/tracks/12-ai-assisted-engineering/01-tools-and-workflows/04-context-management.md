@@ -58,7 +58,19 @@ The final transcript is 44,300 tokens, but the model processed 199,900 input tok
 3. **Nothing in the table removes anything.** The transcript only grows. The only ways down are compaction, a fresh session or delegation to a subagent.
 
 ```viz
-{"type": "ml", "scenario": "agent-loop", "title": "Why long fix loops get expensive", "caption": "Every observation stays in the transcript and is resent on the next decision. The token counter in this loop is the input-tokens column of the table above; the harness's iteration cap and budget exist because the sum grows quadratically."}
+{"type": "ml", "scenario": "agent-loop", "text": "Fix the pagination test that fails when two orders share a timestamp", "compact": true, "maxIter": 25,
+ "tools": ["read_file", "grep", "edit_file", "run_tests"],
+ "calls": [{"call": "read_file(\"orders/list.py\")", "result": "list_orders, about 3,000 tokens", "input": 14300},
+  {"call": "read_file(\"pagination.py\")", "result": "the cursor helpers, about 2,500 tokens", "input": 18500},
+  {"call": "grep(\"encode_cursor\")", "result": "every caller, about 600 tokens", "input": 22200},
+  {"call": "run_tests(one test, \"-x -q\")", "result": "test_tie_break fails, about 500 tokens", "input": 24000},
+  {"call": "edit_file(\"list.py\")", "result": "the diff, about 300 tokens", "input": 25700},
+  {"call": "run_tests(one test, \"-x -q\")", "result": "passes, about 500 tokens", "input": 27200},
+  {"call": "run_tests(full suite, verbose)", "result": "all pass, about 9,000 tokens of verbose output", "input": 28900},
+  {"call": "read_file(\"repo/orders.py\")", "result": "about 4,000 tokens", "input": 39100}],
+ "stop": "The trace stops after iteration 8. With the last result appended, the transcript is about 44,300 tokens, and iteration 7's verbose test output is in it for good.",
+ "closing": "Nothing in the loop removes anything; the only ways down are compaction, a fresh session or a subagent.",
+ "title": "Why long fix loops get expensive", "caption": "Every observation stays in the transcript and is resent on the next decision. The token counter in this loop is the input-tokens column of the table above; the harness's iteration cap and budget exist because the sum grows quadratically."}
 ```
 
 ## Under the hood: prompt caching
@@ -66,7 +78,7 @@ The final transcript is 44,300 tokens, but the model processed 199,900 input tok
 Prompt caching lets the serving system reuse the work of processing a prefix it has seen before. The expensive part of a call is the prefill, which computes the attention keys and values for every input token; if the first 30,000 tokens are byte-for-byte identical to a recent request, their keys and values can be reused rather than recomputed. Step through the mechanism at token scale:
 
 ```viz
-{"type": "ml", "scenario": "kv-cache", "text": "The cat sat", "title": "The cache the prompt cache reuses", "caption": "Prefill computes a key and value for every prompt token; decode appends one pair per new token. Prompt caching stores the prefill result for a prefix and serves it again to the next request with the same prefix, which is why a cache hit is billed at a fraction of the input rate."}
+{"type": "ml", "scenario": "kv-cache", "text": "The cat sat", "mode": "prompt-cache", "title": "The cache the prompt cache reuses", "caption": "Prefill computes a key and value for every prompt token; decode appends one pair per new token. Prompt caching stores the prefill result for a prefix and serves it again to the next request with the same prefix, which is why a cache hit is billed at a fraction of the input rate."}
 ```
 
 Two rules follow from "byte-for-byte prefix":

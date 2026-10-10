@@ -283,7 +283,7 @@ The gateway gives the limiter a 2 ms budget and wraps the client in a circuit br
 | ~21 s | Breakers half-open, probes succeed, breakers close | Buckets on the new primary may be a few writes behind, so some are fuller than they should be |
 
 ```viz
-{"type": "system", "scenario": "circuit-breaker", "title": "The breaker stops every request paying the 2 ms timeout",
+{"type": "system", "scenario": "circuit-breaker", "caller": "Gateway", "dependency": "Redis", "timeoutMs": 2, "fallback": "the local fallback bucket", "openFor": 10, "title": "The breaker stops every request paying the 2 ms timeout",
  "caption": "Closed: calls go to Redis. After a burst of failures the breaker opens and the gateway decides from its local fallback bucket without waiting. Half-open: a few probes test Redis, and success closes the breaker again."}
 ```
 

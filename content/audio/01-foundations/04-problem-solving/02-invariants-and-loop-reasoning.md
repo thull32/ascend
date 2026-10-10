@@ -1,6 +1,6 @@
 ---
 lesson: invariants-and-loop-reasoning
-source: 37069813ef6daea6
+source: 07fbb2e7e9e67ec4
 fit: great
 desk:
   - "The pair-sum code and its trace on 1, 3, 4, 6, 10"

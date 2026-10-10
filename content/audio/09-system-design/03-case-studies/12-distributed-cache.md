@@ -1,6 +1,6 @@
 ---
 lesson: distributed-cache
-source: a7dabb1432cd80ea
+source: eae882a45b9cfdfc
 fit: great
 desk:
   - "The API, the in-node data model and the architecture diagram"

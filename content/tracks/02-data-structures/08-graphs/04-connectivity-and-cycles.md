@@ -205,8 +205,8 @@ def has_cycle_directed(n, adj):
 ```viz
 {"type": "graph", "algorithm": "cycle-detect", "directed": true, "start": "A",
  "nodes": [{"id": "A"}, {"id": "B"}, {"id": "C"}, {"id": "D"}, {"id": "E"}],
- "edges": [{"from": "A", "to": "B"}, {"from": "B", "to": "C"}, {"from": "A", "to": "C"}, {"from": "C", "to": "D"}, {"from": "D", "to": "E"}, {"from": "E", "to": "C"}],
- "title": "Three-colour cycle detection", "caption": "A → C reaches a black vertex and is not a cycle. E → C reaches a grey vertex, still on the path, and is."}
+ "edges": [{"from": "A", "to": "B"}, {"from": "B", "to": "C"}, {"from": "A", "to": "C"}, {"from": "A", "to": "D"}, {"from": "D", "to": "E"}, {"from": "E", "to": "A"}],
+ "title": "Three-colour cycle detection", "caption": "A → C reaches a black vertex and is not a cycle. E → A reaches a grey vertex, still on the path, and is."}
 ```
 
 ### Hand trace: a cross edge that is not a cycle, then a back edge that is

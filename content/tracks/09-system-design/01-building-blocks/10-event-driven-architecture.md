@@ -163,7 +163,9 @@ The saga's persisted state is what makes it recoverable. Order 7781, where payme
 Step 3 works only because the key is derived from the saga and the step, not generated per attempt, so the payment service can return the first attempt's outcome instead of charging again.
 
 ```viz
-{"type": "system", "scenario": "saga", "nodes": 3, "title": "Orchestrated saga with compensation", "caption": "Each step is a local transaction. When payment fails, the orchestrator runs the compensations for completed steps in reverse order; inventory is released, the order is marked failed."}
+{"type": "system", "scenario": "saga", "steps": [{"service":"Order svc","step":"T1 create order","undo":"C1 mark order failed","ok":"order pending","undone":"order FAILED","why":"The order is marked failed and OrderFailed is emitted; the row stays as a record of what happened."},{"service":"Inventory svc","step":"T2 reserve stock","undo":"C2 release stock","ok":"reserved r9","undone":"released","why":"The reserved units go back to the available count."},{"service":"Payment svc","step":"T3 capture payment","undo":"–","ok":"captured","undone":"–"}],
+ "title": "Orchestrated saga with compensation",
+ "caption": "Each step is a local transaction. When payment fails, the orchestrator runs the compensations for completed steps in reverse order; inventory is released, the order is marked failed."}
 ```
 
 ## The dual write and the outbox
@@ -241,7 +243,7 @@ The consumer's dedupe works because `shipments` and `processed` live in the same
 **CDC relay.** Debezium tails the write-ahead log and routes outbox inserts to topics (its outbox event router), in commit order, with tens of milliseconds of latency. The outbox table can be deleted from right after insert, because the connector reads the log, not the table. [Change data capture](/learn/big-data/streaming/change-data-capture) covers the mechanics.
 
 ```viz
-{"type": "system", "scenario": "cdc", "requests": 4, "title": "CDC tailing the write-ahead log", "caption": "Every committed change appears in the log in commit order. The connector reads it once and publishes; the database is unaware. Latency is bounded by log shipping, typically tens of milliseconds."}
+{"type": "system", "scenario": "cdc", "sink": "topic", "requests": 4, "title": "CDC tailing the write-ahead log", "caption": "Every committed change appears in the log in commit order. The connector reads it once and publishes; the database is unaware. Latency is bounded by log shipping, typically tens of milliseconds."}
 ```
 
 ## Schema evolution

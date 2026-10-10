@@ -175,7 +175,7 @@ Why is the peak the *minimum* number of rooms and not only a lower bound? Lower 
 If times are small integers you can skip the sort entirely with a difference array: `diff[start] += 1`, `diff[end] -= 1`, then a prefix sum. The prefix-sum viz shows the count materialising from the difference array for these five meetings (index = time 0..8):
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [0, 1, 1, 1, 0, 0, -1, -1, -1],
+{"type": "array", "algorithm": "prefix-sum", "values": [0, 1, 1, 1, 0, 0, -1, -1, -1], "peak": true,
  "title": "Sweep line as a difference array",
  "caption": "diff[t] is (+1 per meeting starting at t) + (-1 per meeting ending at t). The running prefix sum 0,1,2,3,3,3,2,1,0 is the number of rooms in use; its peak, 3, is the answer."}
 ```

@@ -1,6 +1,6 @@
 ---
 lesson: latency-bandwidth-and-math
-source: 121cd50881267460
+source: 65e6a110d6744990
 fit: partial
 desk:
   - "The serialisation versus propagation table, and the round-trip staircase for a cold HTTPS request"

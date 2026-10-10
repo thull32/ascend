@@ -1,6 +1,6 @@
 ---
 lesson: api-and-error-design
-source: 8039a8d39b42b14c
+source: a631ad47d81b3a39
 fit: great
 desk:
   - "The table of every error a client can see, with codes and Retry-After"

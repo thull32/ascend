@@ -143,7 +143,9 @@ Watch the frequency count inside a real table: each `set` of an existing key wal
 
 ```viz
 {"type": "hash-table", "algorithm": "chaining", "buckets": 5,
- "operations": [["set","a",1],["set","b",1],["set","a",2],["set","c",1],["set","a",3],["get","a"],["get","b"],["get","z"]]}
+ "operations": [["set","a",1],["set","b",1],["set","a",2],["set","c",1],["set","a",3],["get","a"],["get","b"],["get","z"]],
+ "title": "Frequency count: a repeated key updates its one entry",
+ "caption": "Counting a, b, a, c, a in five buckets. Each repeat of a hashes to bucket 2, finds its entry and overwrites the count; the miss for z compares against a in the same bucket and stops."}
 ```
 
 The only design decision that matters is the key. In complement lookup the key is the value you will *ask about later*, so you store `x` and query `target - x`. In grouping the key is a canonical form that must be immutable and hashable: a string, a number, a tuple in Python. In JavaScript a `Map` key must be a primitive for value semantics, because two arrays with the same contents are different keys.
@@ -302,7 +304,7 @@ For short words the sort is a C loop over five items and the count tuple is 26 i
 The count signature has a second life: slid across a longer text, with one increment for the character entering and one decrement for the character leaving, it finds every anagram of a pattern in O(n). That is a frequency map inside a [sliding window](/learn/interview-patterns/array-patterns/sliding-window):
 
 ```viz
-{"type": "string", "algorithm": "anagram-window", "text": "cbaebabacd", "pattern": "abc"}
+{"type": "string", "algorithm": "anagram-window", "text": "cbaebabacd", "pattern": "abc", "title": "The count signature, slid across a text", "caption": "Anagrams of abc in cbaebabacd: one increment for the character entering the window, one decrement for the one leaving, and a window whose counts equal the pattern's is an anagram."}
 ```
 
 ## Where the map is the wrong answer

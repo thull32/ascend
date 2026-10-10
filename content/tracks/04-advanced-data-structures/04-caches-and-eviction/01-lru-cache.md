@@ -34,7 +34,7 @@ A singly linked list would not do: unlinking must update the predecessor's `next
 ## The mechanism, pointer by pointer
 
 ```viz
-{"type": "system", "scenario": "lru-cache",
+{"type": "system", "scenario": "lru-cache", "capacity": 2, "keys": ["1", "2", "1", "3", "4", "3", "4"],
  "title": "LRU cache with capacity 2",
  "caption": "Every get or put moves the entry to the front. When a put needs space, the entry at the back is evicted."}
 ```

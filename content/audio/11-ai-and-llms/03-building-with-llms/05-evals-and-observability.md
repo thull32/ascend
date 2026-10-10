@@ -1,6 +1,6 @@
 ---
 lesson: evals-and-observability
-source: 6c6e245650911ebd
+source: 92b95acd5634367e
 fit: great
 desk:
   - "The Cohen's kappa arithmetic for two annotators and for the judge against humans"

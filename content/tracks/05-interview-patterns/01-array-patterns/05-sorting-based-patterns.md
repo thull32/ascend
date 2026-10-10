@@ -98,11 +98,11 @@ The invariant after the sort: for any `i < j`, `key(items[i]) ≤ key(items[j])`
 Composite keys are where most of the design happens. Intervals by start, longest first on ties: Python `key=lambda iv: (iv[0], -iv[1])`, JavaScript `(a, b) => a[0] - b[0] || b[1] - a[1]`. Frequency descending then value ascending: `key=lambda x: (-count[x], x)`. Indices instead of values when positions matter: `order = sorted(range(n), key=nums.__getitem__)`. Both languages sort stably (CPython always, V8 since 7.0 in 2018), so two stable passes, secondary key first, give the same composite order; below you will see that on large inputs the two-pass version is also faster.
 
 ```viz
-{"type": "array", "algorithm": "quick-sort", "values": [7, 2, 9, 4, 1, 8, 3]}
+{"type": "array", "algorithm": "quick-sort", "values": [7, 2, 9, 4, 1, 8, 3], "title": "Quicksort on seven values", "caption": "Lomuto partition, last element as pivot. Each partition puts its pivot in its final place; quickselect is the same partition, recursing only into the side that holds the index it wants."}
 ```
 
 ```viz
-{"type": "array", "algorithm": "counting-sort", "values": [3, 1, 4, 1, 5, 9, 2, 6, 5, 3], "caption": "Keys in a small range: count them, then emit. No comparisons, and it is stable if you emit by prefix counts."}
+{"type": "array", "algorithm": "counting-sort", "values": [3, 1, 4, 1, 5, 9, 2, 6, 5, 3], "title": "Counting sort: count, prefix, place", "caption": "Keys in a small range: count them, turn the counts into starting positions with a running total, then place each element. No comparisons, and placing in input order keeps it stable."}
 ```
 
 ## Worked problems

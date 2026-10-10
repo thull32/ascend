@@ -1,6 +1,6 @@
 ---
 lesson: hash-map-patterns
-source: a5d043167edb1f8e
+source: b3f5883d2cb0336b
 fit: partial
 desk:
   - "The four five-line templates, complement, count, group and seen, in Python and JavaScript"

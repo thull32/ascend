@@ -168,7 +168,7 @@ This is the command pattern, and it is how editors, image tools and database tra
 "A stack with O(1) `get_min`." Push onto the main stack, and onto an auxiliary stack push `min(x, aux_top)` so that `aux[i]` is the minimum of `main[0..i]`. Pop both together. `get_min` is `aux[-1]`.
 
 ```viz
-{"type": "stack-queue", "algorithm": "min-stack", "operations": [["push", 5], ["push", 3], ["push", 7], ["push", 3], ["getMin"], ["pop"], ["getMin"], ["pop"], ["pop"], ["getMin"]], "title": "Min-stack: the auxiliary stack tracks the running minimum"}
+{"type": "stack-queue", "algorithm": "min-stack", "variant": "parallel", "operations": [["push", 5], ["push", 3], ["push", 7], ["push", 3], ["getMin"], ["pop"], ["getMin"], ["pop"], ["pop"], ["getMin"]], "title": "Min-stack: the auxiliary stack tracks the running minimum"}
 ```
 
 The trick generalises: any *associative* summary of the stack contents (min, max, sum, gcd, "count of vowels") can be kept as a parallel stack of prefix summaries, giving O(1) queries. The space optimisation of pushing onto the auxiliary stack only when a new minimum arrives (and popping it only when the popped value equals it) saves memory at the cost of a subtle equality bug with duplicates; the parallel version is the one to write on a whiteboard. [Min Stack](/practice/min-stack) is the practice problem and the second exercise.

@@ -159,13 +159,13 @@ The non-obvious lines. `del counts[out]` makes `len(counts) > k` an `O(1)` test;
 The invariants to say out loud. **Longest:** after step 2, `s[left..right]` is the longest valid window ending at `right`, because the shrink stops at the first valid start and every earlier start was invalid. **Shortest:** after the loop, the window is invalid or empty, and every valid window ending at `right` that starts at or after the old `left` was recorded before its first element left. **Fixed:** after each slide, `window` equals the sum of exactly the `k` elements ending at `right`.
 
 ```viz
-{"type": "array", "algorithm": "sliding-window-longest-unique", "values": [1, 2, 3, 1, 2, 4, 3, 5]}
+{"type": "array", "algorithm": "sliding-window-longest-unique", "values": [1, 2, 3, 1, 2, 4, 3, 5], "title": "Longest window without a repeat", "caption": "Variable width: right admits one element per step, and when a duplicate enters, left jumps just past its previous position. Both pointers only move right, so the scan is O(n)."}
 ```
 
 The fixed-width form replaces the shrink loop with exactly one eviction per step:
 
 ```viz
-{"type": "array", "algorithm": "sliding-window-max-sum", "values": [2, 1, 5, 1, 3, 2, 7, 1], "k": 3}
+{"type": "array", "algorithm": "sliding-window-max-sum", "values": [2, 1, 5, 1, 3, 2, 7, 1], "k": 3, "title": "Fixed window of size 3", "caption": "Each slide admits one element and evicts one, so the running sum is updated in O(1) instead of re-adding the window."}
 ```
 
 ## Worked problems
@@ -304,7 +304,7 @@ Each admit or evict changes one count by one, so `matches` changes by at most on
 The string visualiser runs the same fixed-window count on an anagram search:
 
 ```viz
-{"type": "string", "algorithm": "anagram-window", "text": "cbaebabacd", "pattern": "abc"}
+{"type": "string", "algorithm": "anagram-window", "text": "cbaebabacd", "pattern": "abc", "title": "Anagrams of abc in cbaebabacd", "caption": "A fixed window of length 3 with character counts. Each slide adds one character and drops one; a window whose counts equal the pattern's is an anagram."}
 ```
 
 ### Minimum Window Substring
@@ -348,7 +348,7 @@ Answer `"CBA"`. In the last row the shrink ran twice because dropping `X` kept t
 [Sliding Window Maximum](/practice/sliding-window-maximum) completes the problem list. The window is fixed and trivial; the state is a deque of indices with decreasing values, and the mechanics belong to the [monotonic stack pattern](/learn/interview-patterns/sequence-patterns/monotonic-stack-pattern):
 
 ```viz
-{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3, "title": "Fixed window, deque state", "caption": "Indices whose values can never be the maximum again leave from the back; indices that slid out of the window leave from the front."}
+{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [4, 2, 12, 3, 8, 5, 1, 6], "k": 3, "title": "Fixed window, deque state", "caption": "Indices whose values can never be the maximum again leave from the back; indices that slid out of the window leave from the front."}
 ```
 
 ## Variants

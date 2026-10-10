@@ -264,7 +264,7 @@ trace 4bf92f35  POST /support/answer                        0 → 2480 ms
 The chat span takes 1,755 of 2,480 ms (71%), yet the user waits 710 + 640 = 1,350 ms for the first token, 710 ms of it before the model is called and 385 ms in the query rewrite alone. Skipping the rewrite for short keyword queries is the cheapest win, and only the span tree shows it. The chunk ids separate retrieval failures from generation failures ([Retrieval-augmented generation](/learn/ai-and-llms/building-with-llms/retrieval-augmented-generation) defines the retrieval metrics; the second exercise implements two).
 
 ```viz
-{"type": "ml", "algorithm": "rag-pipeline", "text": "What is the refund window?", "k": 2,
+{"type": "ml", "algorithm": "rag-pipeline", "text": "What is the refund window?", "k": 2, "spans": true,
  "title": "Every stage is a span",
  "caption": "Instrument each box: retrieval latency and hit ids, prompt size, model latency, tokens and stop reason. Then attach the right metric to the right span: recall at retrieval, faithfulness at generation."}
 ```

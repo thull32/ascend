@@ -36,8 +36,9 @@ The choice is per audience: gRPC inside, REST at the public edge, GraphQL at the
 The server stores the key, a hash of the body and the response, and keeps them for a documented window, which bounds how long a client may retry. Stripe's [API reference](https://docs.stripe.com/api/idempotent_requests) says keys can be pruned once they are at least 24 hours old, and that a key reused after pruning starts a new request. Put it in the contract on day one; adding it later leaves every existing client unsafe to retry.
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "requests": 3,
- "title": "POST with an Idempotency-Key", "caption": "The contract promises that a retried POST with the same key is a replay, not a new resource. That promise is what makes client-side retries safe, and it must be in the API before the first client ships."}
+{"type": "system", "scenario": "idempotency-key", "requests": 3, "service": "Orders API", "request": "POST /orders (cart A)", "key": "k1", "effect": "create order ord_1", "target": "", "record": "order ord_1", "response": "201 ord_1", "effects": "orders", "changed": "cart B",
+ "title": "POST with an Idempotency-Key",
+ "caption": "The contract promises that a retried POST with the same key is a replay, not a new resource. That promise is what makes client-side retries safe, and it must be in the API before the first client ships."}
 ```
 
 ## Errors as a contract

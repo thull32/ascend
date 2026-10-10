@@ -1,6 +1,6 @@
 ---
 lesson: training-and-generalisation
-source: b83a1e1a4e8847be
+source: cd45f09741f68719
 fit: partial
 desk:
   - "The bias-variance decomposition and the simulation code behind its table"

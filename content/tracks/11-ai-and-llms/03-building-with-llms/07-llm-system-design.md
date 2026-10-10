@@ -74,7 +74,7 @@ There is no official Rust SDK, so `crates/core/src/ai/anthropic.rs` is a small t
 Prompt caching is KV-cache reuse across requests. During prefill the model computes attention keys and values for every prompt token ([Context windows and the KV cache](/learn/ai-and-llms/how-llms-work/context-windows-and-kv-cache)); if a later request starts with a byte-identical prefix, the provider loads them instead of recomputing, which cuts both the price of those tokens and the time to first token.
 
 ```viz
-{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat",
+{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat", "mode": "prompt-cache",
  "title": "Prompt caching reuses the prefill",
  "caption": "Within one generation the cache avoids recomputing earlier tokens. Prompt caching keeps a prefix's keys and values across requests, so a byte-identical prefix is not prefilled again."}
 ```

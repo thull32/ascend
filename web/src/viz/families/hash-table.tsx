@@ -1,8 +1,9 @@
 // Hash tables: separate chaining, open addressing with linear probing and
 // tombstones, and growth by rehashing. Keys are hashed with the classic
-// 31-polynomial string hash (Java's String.hashCode, 32-bit) and reduced
-// modulo the bucket count; every frame's note spells out that computation
-// so the learner can follow it by hand.
+// 31-polynomial string hash (Java's String.hashCode, 32-bit) or, when a lesson
+// asks for it, 32-bit FNV-1a, and reduced modulo the bucket count; every
+// frame's note spells out that computation so the learner can follow it by
+// hand.
 import { Cells, Legend, Vars, toneClass, type Tone } from "../primitives";
 import { Frames, type Family, type RendererProps } from "../engine";
 import { cn } from "../../lib/utils";
@@ -13,6 +14,10 @@ export interface HashInput {
   operations: HashOp[];
   /** resize: grow when n / m exceeds this (default 0.75). */
   loadFactor?: number;
+  /** resize: the new bucket count is max(m + 1, round(m × growth)) (default 2, doubling). */
+  growth?: number;
+  /** String hash: "java" (31·h + c, default) or "fnv1a" (32-bit FNV-1a over UTF-8 bytes). */
+  hash?: "java" | "fnv1a";
 }
 
 export interface Slot {
@@ -52,8 +57,26 @@ export function hashKey(s: string): number {
   return h >>> 0;
 }
 
+/** 32-bit FNV-1a over the key's UTF-8 bytes. */
+export function fnv1a(s: string): number {
+  let h = 0x811c9dc5;
+  for (const b of new TextEncoder().encode(s)) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+  return h >>> 0;
+}
+
+type HashFn = (s: string) => number;
+const hashFnOf = (input: HashInput): HashFn => (input.hash === "fnv1a" ? fnv1a : hashKey);
+const hashName = (input: HashInput) => (input.hash === "fnv1a" ? "32-bit FNV-1a over the bytes" : "hash = 31·h + c over the characters, like Java's String.hashCode");
+
+/** Append v to a list value shown as "[a, b]" (null starts a new list). */
+const appendValue = (old: string | null, v: string | null): string => {
+  const item = v ?? "";
+  if (old !== null && old.startsWith("[") && old.endsWith("]")) return old.length > 2 ? `${old.slice(0, -1)}, ${item}]` : `[${item}]`;
+  return old === null ? `[${item}]` : `[${old}, ${item}]`;
+};
+
 interface ParsedOp {
-  name: "set" | "get" | "delete" | "unknown";
+  name: "set" | "get" | "delete" | "append" | "unknown";
   raw: string;
   key: string;
   value: string | null;
@@ -79,10 +102,10 @@ function parseOps(ops: HashOp[]): ParsedOp[] {
       [raw, key, value] = [parts[0] ?? "", parts[1], parts[2]];
     }
     const n = raw.toLowerCase();
-    const name: ParsedOp["name"] = SET.has(n) ? "set" : GET.has(n) ? "get" : DEL.has(n) ? "delete" : "unknown";
+    const name: ParsedOp["name"] = SET.has(n) ? "set" : GET.has(n) ? "get" : DEL.has(n) ? "delete" : n === "append" ? "append" : "unknown";
     const k = key === undefined || key === null ? "" : String(key);
     const v = value === undefined || value === null ? null : String(value);
-    const text = name === "set" ? `set(${k}${v === null ? "" : `, ${v}`})` : `${name === "unknown" ? raw : name}(${k})`;
+    const text = name === "set" || name === "append" ? `${name}(${k}${v === null ? "" : `, ${v}`})` : `${name === "unknown" ? raw : name}(${k})`;
     out.push({ name, raw, key: k, value: v, text });
   }
   return out;
@@ -119,22 +142,36 @@ function make(mode: HashState["mode"], m: number, ops: ParsedOp[]) {
 const alpha = (n: number, m: number) => Number((n / Math.max(1, m)).toFixed(2));
 
 /** Shared driver for chaining, with optional growth (used by `resize`). */
+/** Fraction of uniformly random hash values whose bucket differs between mod a and mod b. */
+export function movedFraction(a: number, b: number): number {
+  const gcd = (x: number, y: number): number => (y === 0 ? x : gcd(y, x % y));
+  const l = (a / gcd(a, b)) * b;
+  let same = 0;
+  for (let r = 0; r < l; r++) if (r % a === r % b) same++;
+  return 1 - same / l;
+}
+
 function chainingRun(input: HashInput, grow: boolean): ReturnType<Frames<HashState>["done"]> {
   const m0 = input.buckets;
   const ops = parseOps(input.operations);
+  const hashOf = hashFnOf(input);
   const lf = grow ? (input.loadFactor ?? 0.75) : Infinity;
+  const growth = input.growth !== undefined && input.growth > 1 ? input.growth : 2;
+  const grownSize = (old: number) => Math.max(old + 1, Math.round(old * growth));
+  const doubling = growth >= 2;
+  let resizes = 0;
   const { s, f, clearTones, count, show } = make("chaining", m0, ops);
   const m = () => s.table.slots.length;
   const vars = () => ({ n: count(), m: m(), α: alpha(count(), m()) });
   s.vars = vars();
   f.push(
     grow
-      ? `${m0} buckets with separate chaining and a load-factor bound of ${lf}: whenever n / m exceeds ${lf} the table doubles and every key is rehashed with the new modulus.`
-      : `${m0} buckets, each the head of a chain of entries; hash(key) mod ${m0} picks the bucket (hash = 31·h + c over the characters, like Java's String.hashCode) and colliding keys simply share a chain.`,
+      ? `${m0} buckets with separate chaining (${hashName(input)}) and a load-factor bound of ${lf}: whenever n / m exceeds ${lf} the table ${growth === 2 ? "doubles" : `grows from ${m0} to ${grownSize(m0)} buckets`} and every key is rehashed with the new modulus.`
+      : `${m0} buckets, each the head of a chain of entries; hash(key) mod ${m0} picks the bucket (${hashName(input)}) and colliding keys simply share a chain.`,
   );
   if (ops.length === 0) f.push(`No operations given: the table stays empty.`, "empty");
   const hashTo = (key: string, op: ParsedOp) => {
-    const h = hashKey(key);
+    const h = hashOf(key);
     const idx = h % m();
     clearTones();
     s.table.tones[idx] = "compare";
@@ -193,53 +230,64 @@ function chainingRun(input: HashInput, grow: boolean): ReturnType<Frames<HashSta
       }
     } else {
       if (j >= 0) {
-        chain[j]!.value = op.value;
-        chain[j]!.tone = "done";
-        f.push(`Key exists: overwrite its value${show(op.value)} in place. A map never holds two entries for one key.`, "update");
+        if (op.name === "append") {
+          chain[j]!.value = appendValue(chain[j]!.value, op.value);
+          chain[j]!.tone = "done";
+          f.push(`Key exists: append "${op.value ?? ""}" to its list${show(chain[j]!.value)}. Still one entry for "${op.key}": the group grows, the table does not.`, "append");
+        } else {
+          chain[j]!.value = op.value;
+          chain[j]!.tone = "done";
+          f.push(`Key exists: overwrite its value${show(op.value)} in place. A map never holds two entries for one key.`, "update");
+        }
       } else {
-        chain.push({ key: op.key, value: op.value, tone: "done" });
+        const value = op.name === "append" ? appendValue(null, op.value) : op.value;
+        chain.push({ key: op.key, value, tone: "done" });
         s.table.tones[idx] = "done";
         s.vars = vars();
-        f.push(`${chain.length === 1 ? "Bucket empty" : `Chain end reached with no match`}: append ("${op.key}"${op.value === null ? "" : `, ${op.value}`}) to bucket ${idx}${chain.length > 1 ? ` (chain length now ${chain.length}: a collision)` : ""}. n = ${count()}, α = ${alpha(count(), m())}.`, "insert");
+        f.push(`${chain.length === 1 ? "Bucket empty" : `Chain end reached with no match`}: ${op.name === "append" ? `new key, so start its list: add ("${op.key}", ${value})` : `append ("${op.key}"${op.value === null ? "" : `, ${op.value}`})`} to bucket ${idx}${chain.length > 1 ? ` (chain length now ${chain.length}: a collision)` : ""}. n = ${count()}, α = ${alpha(count(), m())}.`, "insert");
         if (grow && count() > lf * m() && !f.full) resize(lf);
       }
     }
   }
   function resize(bound: number) {
     const oldM = m();
-    const newM = oldM * 2;
+    const newM = grownSize(oldM);
     const n = count();
+    resizes++;
     s.old = { label: `old (${oldM} buckets)`, slots: s.table.slots, tones: new Array<Tone | undefined>(oldM).fill("muted") };
     s.table = { label: `new (${newM} buckets)`, slots: Array.from({ length: newM }, () => []), tones: new Array<Tone | undefined>(newM).fill(undefined) };
     clearTones();
     s.pointers = {};
     s.vars = { n, m: newM, α: alpha(n, newM), threshold: bound };
     f.push(`n = ${n} > ${bound} × ${oldM} = ${bound * oldM}: the load-factor bound is exceeded, so allocate ${newM} buckets and rehash every entry (the hash values are unchanged, only the modulus is).`, "grow");
+    let rehashed = 0;
     let moved = 0;
     for (let b = 0; b < oldM && !f.full; b++) {
       const chain = s.old.slots[b]!;
       while (chain.length && !f.full) {
         const e = chain.shift()!;
-        const h = hashKey(e.key);
+        const h = hashOf(e.key);
         const idx = h % newM;
         s.table.slots[idx]!.push({ key: e.key, value: e.value });
-        moved++;
+        rehashed++;
+        if (idx !== b) moved++;
         clearTones();
         s.old.tones[b] = "compare";
         s.table.tones[idx] = "done";
         s.table.slots[idx]![s.table.slots[idx]!.length - 1]!.tone = "done";
         s.pointers = { hash: idx };
         s.hash = { key: e.key, h, m: newM, idx };
-        s.vars = { moved, n, m: newM };
-        f.push(`Rehash "${e.key}": ${h} mod ${newM} = ${idx} (it was in bucket ${b} under mod ${oldM}).`, "rehash");
+        s.vars = { rehashed, moved, n, m: newM };
+        f.push(idx === b ? `Rehash "${e.key}": ${h} mod ${newM} = ${idx}, the same bucket number it had under mod ${oldM}, so this key stays put (it is still copied into the new array).` : `Rehash "${e.key}": ${h} mod ${newM} = ${idx}, but it was in bucket ${b} under mod ${oldM}: this key moves.`, idx === b ? "stays" : "moves");
       }
     }
+    const pct = Math.round(movedFraction(oldM, newM) * 100);
     s.old = undefined;
     clearTones();
     s.pointers = {};
     s.hash = undefined;
-    s.vars = vars();
-    f.push(`Rehash complete: ${n} entries moved in O(n), α is back to ${alpha(n, newM)}. Spread over the inserts that filled the table, the resize costs O(1) amortised per insert.`, "resized");
+    s.vars = { ...vars(), rehashed, moved };
+    f.push(`Rehash complete: ${rehashed === 2 ? "both" : `all ${rehashed}`} entries recomputed in O(n), and ${moved} of ${rehashed} changed bucket; α is back to ${alpha(n, newM)}. For random hash values, going from mod ${oldM} to mod ${newM} moves about ${pct}% of keys.${newM >= 2 * oldM ? " Spread over the inserts that filled the table, the resize costs O(1) amortised per insert." : ""}`, "resized");
   }
   clearTones();
   s.opIndex = ops.length;
@@ -248,7 +296,9 @@ function chainingRun(input: HashInput, grow: boolean): ReturnType<Frames<HashSta
   const n = count();
   f.push(
     grow
-      ? `${n} keys in ${m()} buckets: α = ${alpha(n, m())}. Doubling keeps α bounded, so lookups stay O(1 + α) on average; the price is an occasional O(n) pause, which is why latency-sensitive systems rehash incrementally.`
+      ? doubling || resizes === 0
+        ? `${n} keys in ${m()} buckets: α = ${alpha(n, m())}. Doubling keeps α bounded, so lookups stay O(1 + α) on average; the price is an occasional O(n) pause, which is why latency-sensitive systems rehash incrementally.`
+        : `${n} keys in ${m()} buckets: α = ${alpha(n, m())}. Every resize recomputes every key's bucket, because the modulus changed; growing by a constant factor such as doubling is what keeps that O(n) pause O(1) amortised per insert.`
       : `${n} keys in ${m()} buckets: α = n/m = ${alpha(n, m())}, the expected chain length. Lookup costs O(1 + α), which is O(1) as long as resizing keeps α bounded.`,
     "done",
   );
@@ -261,11 +311,12 @@ const resize: G = (input) => chainingRun(input, true);
 const openAddressing: G = (input) => {
   const m = input.buckets;
   const ops = parseOps(input.operations);
+  const hashOf = hashFnOf(input);
   const { s, f, clearTones, count, tombstones, show } = make("open", m, ops);
   const slotAt = (i: number) => s.table.slots[i]![0];
   const vars = () => ({ n: count(), tombstones: tombstones(), m, α: alpha(count() + tombstones(), m) });
   s.vars = vars();
-  f.push(`Open addressing with ${m} slots: every entry lives in the slot array itself (hash = 31·h + c over the characters, mod ${m}). On a collision, linear probing tries slot h+1, h+2, … until it finds what it needs.`);
+  f.push(`Open addressing with ${m} slots: every entry lives in the slot array itself (${hashName(input)}, mod ${m}). On a collision, linear probing tries slot h+1, h+2, … until it finds what it needs.`);
   if (ops.length === 0) f.push(`No operations given: all slots stay empty.`, "empty");
   for (let i = 0; i < ops.length && !f.full; i++) {
     const op = ops[i]!;
@@ -275,8 +326,9 @@ const openAddressing: G = (input) => {
       f.push(`Unknown operation "${op.raw}"; skipped. Use set, get or delete.`, "skip");
       continue;
     }
-    const h = hashKey(op.key);
+    const h = hashOf(op.key);
     const home = h % m;
+    const writes = op.name === "set" || op.name === "append";
     clearTones();
     s.table.tones[home] = "compare";
     s.pointers = { hash: home };
@@ -298,14 +350,14 @@ const openAddressing: G = (input) => {
       if (!e) {
         outcome = "empty";
         at = idx;
-        s.table.tones[idx] = op.name === "set" ? "done" : "danger";
-        f.push(p === 0 ? `Slot ${idx} is empty${op.name === "set" ? ": no collision, the home slot is free" : `, so "${op.key}" is absent: an empty slot ends every probe sequence`}.` : `Slot ${idx} is empty after ${p} occupied slot${p === 1 ? "" : "s"}${op.name === "set" ? ": the probe sequence ends here" : `, so "${op.key}" is absent; if it had been inserted it would sit somewhere in that run`}.`, "empty");
+        s.table.tones[idx] = writes ? "done" : "danger";
+        f.push(p === 0 ? `Slot ${idx} is empty${writes ? ": no collision, the home slot is free" : `, so "${op.key}" is absent: an empty slot ends every probe sequence`}.` : `Slot ${idx} is empty after ${p} occupied slot${p === 1 ? "" : "s"}${writes ? ": the probe sequence ends here" : `, so "${op.key}" is absent; if it had been inserted it would sit somewhere in that run`}.`, "empty");
         break;
       }
       if (e.tombstone) {
         if (firstTomb < 0) firstTomb = idx;
         e.tone = "frontier";
-        f.push(`Slot ${idx} holds a tombstone: a key was deleted here, so keep probing${op.name === "set" ? " but remember this slot as reusable" : "; if the slot were simply emptied, keys placed beyond it would become unreachable"}.`, "tombstone");
+        f.push(`Slot ${idx} holds a tombstone: a key was deleted here, so keep probing${writes ? " but remember this slot as reusable" : "; if the slot were simply emptied, keys placed beyond it would become unreachable"}.`, "tombstone");
         continue;
       }
       if (e.key === op.key) {
@@ -335,17 +387,19 @@ const openAddressing: G = (input) => {
       }
     } else {
       if (outcome === "found") {
-        slotAt(at)!.value = op.value;
-        slotAt(at)!.tone = "done";
-        f.push(`Key exists at slot ${at}: overwrite its value${show(op.value)} in place.`, "update");
+        const e = slotAt(at)!;
+        e.value = op.name === "append" ? appendValue(e.value, op.value) : op.value;
+        e.tone = "done";
+        f.push(op.name === "append" ? `Key exists at slot ${at}: append "${op.value ?? ""}" to its list${show(e.value)}.` : `Key exists at slot ${at}: overwrite its value${show(op.value)} in place.`, op.name === "append" ? "append" : "update");
       } else if (outcome === "empty" || firstTomb >= 0) {
         const target = firstTomb >= 0 ? firstTomb : at;
-        s.table.slots[target] = [{ key: op.key, value: op.value, tone: "done" }];
+        const value = op.name === "append" ? appendValue(null, op.value) : op.value;
+        s.table.slots[target] = [{ key: op.key, value, tone: "done" }];
         clearTones();
         s.table.tones[target] = "done";
         s.pointers = { hash: home, probe: target };
         s.vars = { ...vars(), probes, displacement: (target - home + m) % m };
-        f.push(`Store ("${op.key}"${op.value === null ? "" : `, ${op.value}`}) in slot ${target}${firstTomb >= 0 ? " by reusing the first tombstone seen" : ""}${target === home ? ", its home slot" : `, ${(target - home + m) % m} past its home slot ${home}: this is primary clustering, and every later key hashing into the run pays for it`}. α = ${alpha(count() + tombstones(), m)}.`, "insert");
+        f.push(`Store ("${op.key}"${value === null ? "" : `, ${value}`}) in slot ${target}${firstTomb >= 0 ? " by reusing the first tombstone seen" : ""}${target === home ? ", its home slot" : `, ${(target - home + m) % m} past its home slot ${home}: this is primary clustering, and every later key hashing into the run pays for it`}. α = ${alpha(count() + tombstones(), m)}.`, "insert");
       } else {
         s.table.tones.fill("danger");
         f.push(`Every slot is occupied: the table is full and must resize before "${op.key}" can be inserted.`, "full");
@@ -454,10 +508,13 @@ export const hashTableFamily: Family<HashInput, HashState> = {
   normalise: (raw) => {
     const b = Number(raw.buckets ?? raw.size ?? raw.capacity ?? raw.m);
     const lf = Number(raw.loadFactor ?? raw.maxLoad ?? raw.threshold);
+    const growth = Number(raw.growth);
     return {
       buckets: Number.isFinite(b) && b >= 1 ? Math.min(MAX_BUCKETS, Math.floor(b)) : 8,
       operations: Array.isArray(raw.operations) ? (raw.operations as HashOp[]).slice(0, MAX_OPS) : Array.isArray(raw.ops) ? (raw.ops as HashOp[]).slice(0, MAX_OPS) : [],
       loadFactor: Number.isFinite(lf) && lf > 0 ? lf : undefined,
+      growth: Number.isFinite(growth) && growth > 1 ? Math.min(4, growth) : undefined,
+      hash: String(raw.hash ?? "").toLowerCase().replace(/[^a-z0-9]/g, "") === "fnv1a" ? "fnv1a" : undefined,
     };
   },
 };

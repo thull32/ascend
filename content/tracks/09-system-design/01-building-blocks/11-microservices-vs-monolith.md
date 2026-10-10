@@ -109,8 +109,9 @@ The last row is a real trap. `http.server` writes headers and body in two `send(
 Two surprises. The sequential p50 is 35 ms, not 5 × 5 = 25 ms: latency is skewed, so each call's mean (8.2 ms) exceeds its median and the sum inherits the means. And a quarter of five-hop requests take longer than any single service's p99. The fan-out figure matches $1 - 0.99^{20} = 18\%$; it is why search and feed systems use hedged requests, tight per-call timeouts and partial results.
 
 ```viz
-{"type": "system", "scenario": "request-flow", "nodes": 5,
- "title": "One request across a service chain", "caption": "Each hop adds a network round trip, serialisation and a chance of hitting that service's tail. Five sequential hops turn 99.9% per service into 99.5% end to end."}
+{"type": "system", "scenario": "request-flow", "nodes": 5, "variant": "chain",
+ "title": "One request across a service chain",
+ "caption": "Each hop adds a network round trip, serialisation and a chance of hitting that service's tail. Five sequential hops turn 99.9% per service into 99.5% end to end."}
 ```
 
 ## The distributed monolith, traced

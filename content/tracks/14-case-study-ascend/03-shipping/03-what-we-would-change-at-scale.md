@@ -89,7 +89,7 @@ For a free product that is the whole problem in one table (the general method is
 5. **A global spend breaker.** Sum today's priced usage across all users; above a threshold, flip AI features into the existing `AiDisabled` path and page someone.
 
 ```viz
-{"type": "system", "algorithm": "circuit-breaker", "requests": 16, "title": "A breaker for spend as well as for errors", "caption": "The same state machine protects the bill: closed while spend is under the daily threshold, open (AI disabled, graceful message) when it is crossed, half-open the next day."}
+{"type": "system", "algorithm": "circuit-breaker", "mode": "spend", "requests": 16, "title": "A breaker for spend as well as for errors", "caption": "The same state machine protects the bill: closed while spend is under the daily threshold, open (AI disabled, graceful message) when it is crossed, half-open the next day."}
 ```
 
 ## Database growth and retention

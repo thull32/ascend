@@ -1,6 +1,6 @@
 ---
 lesson: prefix-sums-and-difference-arrays
-source: dcb25ac4f5fc28d1
+source: 414fce6d665c2403
 fit: partial
 desk:
   - "The prefix array build trace, and the prefix-sum visualiser"

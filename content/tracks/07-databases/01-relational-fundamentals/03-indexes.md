@@ -186,7 +186,7 @@ Two measurements. **BRIN** on `placed_at` for the 2-million-row table is **24 kB
 The `bloom` extension answers "users filter on any combination of 12 columns": twelve B-trees cost twelve index writes per insert, while one signature per row rejects most rows cheaply.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter", "keys": ["colour=red", "size=L", "brand=acme"],
+{"type": "system", "scenario": "bloom-filter", "keys": ["colour=red","size=L","brand=acme"], "app": "Query", "store": "heap",
  "title": "The idea behind a bloom index",
  "caption": "Each row's column values are hashed into a small bit signature. A query hashes its conditions the same way and skips every row whose signature lacks one of those bits. A match might be a false positive, so Postgres rechecks the heap row."}
 ```

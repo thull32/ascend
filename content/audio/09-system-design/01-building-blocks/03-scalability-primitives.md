@@ -1,6 +1,6 @@
 ---
 lesson: scalability-primitives
-source: 1fc2971a34e74261
+source: 295afbd1f0633f54
 fit: great
 desk:
   - "The load-test and key-affinity simulation tables"

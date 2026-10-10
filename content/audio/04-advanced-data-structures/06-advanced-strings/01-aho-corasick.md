@@ -1,6 +1,6 @@
 ---
 lesson: aho-corasick
-source: d55a1737438ff6a1
+source: 03d7b13be527567f
 fit: partial
 desk:
   - "The trie and finished-automaton tables for he, she, his, hers, and the breadth-first build step by step"

@@ -1,6 +1,6 @@
 ---
 lesson: llm-system-design
-source: e16f8244c657c00e
+source: 15aa06ccca5ff19d
 fit: great
 desk:
   - "The prompt parts table and the per-turn cost table, with and without caching"

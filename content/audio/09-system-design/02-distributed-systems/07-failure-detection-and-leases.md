@@ -1,6 +1,6 @@
 ---
 lesson: failure-detection-and-leases
-source: f260c4b89a3bdccb
+source: 2186222056937a47
 fit: great
 desk:
   - "The false-suspicion simulation table, row by row"

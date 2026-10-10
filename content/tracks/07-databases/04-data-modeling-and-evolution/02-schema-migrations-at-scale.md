@@ -271,7 +271,7 @@ Shadow reads make the check continuous. Ship the read path behind a flag that re
 Phase 2 has a trap when the two shapes are written by separate statements: if request B interleaves its two writes between request A's, the columns describe different names with no request at fault. Inside one database, write both shapes in one statement or one transaction holding the row lock. Across two stores no such lock exists and dual writes can always interleave; write one store and derive the other from its change stream.
 
 ```viz
-{"type": "system", "scenario": "cdc", "title": "Migrating to a new store by replaying the change log", "caption": "The old store stays the source of truth. A connector tails its WAL and replays every change into the new store, which catches up and then stays in sync without any dual-write race."}
+{"type": "system", "scenario": "cdc", "sink": "new-store", "title": "Migrating to a new store by replaying the change log", "caption": "The old store stays the source of truth. A connector tails its WAL and replays every change into the new store, which catches up and then stays in sync without any dual-write race."}
 ```
 
 Phases 2 and 4 are code switches, and flags make them instant and reversible: `write_both` and `read_new` flipped per percentage of users, rolled back in seconds when the disagreement counter moves. Data-migration flags are temporary; each gets an owner and a removal date.

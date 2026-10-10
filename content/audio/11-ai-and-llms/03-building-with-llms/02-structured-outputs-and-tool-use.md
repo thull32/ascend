@@ -1,6 +1,6 @@
 ---
 lesson: structured-outputs-and-tool-use
-source: 537ee9ceaed1f779
+source: 8a1caa96879d9104
 fit: great
 desk:
   - "The token-by-token grammar trace and the logit table at the enum step"

@@ -1,6 +1,6 @@
 ---
 lesson: stack-patterns
-source: 351eb2f7ee229faa
+source: bc6d3959f27849bf
 fit: partial
 desk:
   - "The stack-scan skeleton in Python and JavaScript, and the four-families table"

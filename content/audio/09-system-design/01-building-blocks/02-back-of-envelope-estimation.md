@@ -1,6 +1,6 @@
 ---
 lesson: back-of-envelope-estimation
-source: f7d389f56e39cdba
+source: 2d731fcb417955b9
 fit: partial
 desk:
   - "The reference tables of latencies and throughput ceilings, with their provenance"

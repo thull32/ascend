@@ -21,6 +21,8 @@ export interface GraphInput {
   start?: string;
   goal?: string;
   grid?: number[][];
+  /** cycle-detect: "floyd" runs tortoise and hare on a functional graph. grid-islands: "bfs" fills each island by BFS (default DFS). */
+  method?: string;
 }
 
 export interface GraphState {
@@ -85,39 +87,76 @@ const bfs: G = (input) => {
   return f.done();
 };
 
+// Recursive DFS with one clock for discovery and finish times (the clock is
+// incremented before each stamp, so the first discovery is time 1, as in the
+// lessons' tables). Directed graphs classify every non-tree edge by the colour
+// of its target (grey: back, black: forward or cross). In an undirected graph
+// the edge back to the parent is the tree edge seen from the other end, and an
+// edge to a finished vertex was already classified from that vertex, so the
+// only frames are tree edges and genuine back edges.
 const dfs: G = (input) => {
   const { s, f, adj, start } = make(input);
-  const seen = new Set<string>();
+  const directed = Boolean(input.directed);
+  const sep = directed ? "→" : "—";
   let t = 0;
   const disc: Record<string, number> = {};
   const fin: Record<string, number> = {};
-  f.push(`DFS from ${start}: go deep before wide; the call stack remembers where to return.`);
-  const visit = (u: string, depth: number) => {
-    seen.add(u);
-    disc[u] = t++;
+  const path: string[] = [];
+  let backEdges = 0;
+  const vars = (extra: Record<string, unknown> = {}) => ({ stack: [...path], time: t, ...extra });
+  f.push(`DFS from ${start}: go deep before wide; the call stack holds only the current path and remembers where to return.`);
+  const visit = (u: string, via: string | null) => {
+    disc[u] = ++t;
+    path.push(u);
     s.nodeTones[u] = "active";
     s.labels[u] = `${disc[u]}/`;
-    s.vars = { stackDepth: depth, discovered: { ...disc } };
-    f.push(`Enter ${u} (discovery time ${disc[u]}, depth ${depth}).`, "enter");
+    s.vars = vars();
+    f.push(`Enter ${u}: discovery time ${disc[u]}; the path is now ${path.join(", ")}.`, "enter");
     for (const { to, key } of adj.get(u) ?? []) {
-      if (!seen.has(to)) {
+      if (!directed && key === via) continue;
+      const e = `${u}${sep}${to}`;
+      if (disc[to] === undefined) {
         s.edgeTones[key] = "path";
-        visit(to, depth + 1);
-        s.nodeTones[u] = "active";
-      } else if (fin[to] === undefined && to !== u) {
+        visit(to, key);
+      } else if (fin[to] === undefined) {
+        backEdges++;
         s.edgeTones[key] = "danger";
-        s.vars = { stackDepth: depth, backEdge: `${u}→${to}` };
-        f.push(`${u}→${to} reaches a node still on the stack: a back edge (a cycle).`, "back edge");
+        s.vars = vars({ edge: `${e} back` });
+        f.push(
+          directed
+            ? `${e}: ${to} is grey, still on the current path, so this is a back edge: a cycle.`
+            : `${e}: ${to} is an ancestor still on the path and not ${u}'s parent, so this is a back edge: a cycle.`,
+          "back edge",
+        );
+      } else if (directed) {
+        const forward = disc[u]! < disc[to]!;
+        s.edgeTones[key] = "muted";
+        s.vars = vars({ edge: `${e} ${forward ? "forward" : "cross"}` });
+        f.push(
+          forward
+            ? `${e}: ${to} is black and was discovered after ${u} (${disc[u]} < ${disc[to]}), a descendant already finished: a forward edge, not a cycle.`
+            : `${e}: ${to} is black and was discovered before ${u} (${disc[to]} < ${disc[u]}), in a finished subtree: a cross edge, not a cycle.`,
+          forward ? "forward" : "cross",
+        );
       }
     }
-    fin[u] = t++;
+    fin[u] = ++t;
+    path.pop();
     s.labels[u] = `${disc[u]}/${fin[u]}`;
     s.nodeTones[u] = "visited";
-    f.push(`Finish ${u} (finish time ${fin[u]}).`, "finish");
+    s.vars = vars();
+    f.push(`Finish ${u}: every edge out of it is explored; finish time ${fin[u]}.`, "finish");
   };
-  visit(start, 0);
-  for (const n of input.nodes) if (!seen.has(n.id)) visit(n.id, 0);
-  f.push(`Labels show discovery/finish times. Sorting by decreasing finish time gives a topological order for a DAG.`, "done");
+  visit(start, null);
+  for (const n of input.nodes) if (disc[n.id] === undefined) visit(n.id, null);
+  s.vars = { time: t };
+  const cycles = backEdges === 0 ? "No back edge, so the graph has no cycle." : `${backEdges} back edge${backEdges === 1 ? "" : "s"}, so the graph has a cycle.`;
+  f.push(
+    directed
+      ? `Labels show discovery/finish times. ${cycles}${backEdges === 0 ? " Decreasing finish time is a topological order." : " Without cycles, decreasing finish time would be a topological order."}`
+      : `Labels show discovery/finish times. Every edge was a tree edge or a back edge. ${cycles}`,
+    "done",
+  );
   return f.done();
 };
 
@@ -125,6 +164,7 @@ const dijkstra: G = (input) => {
   const { s, f, adj, start } = make(input);
   const dist: Record<string, number> = {};
   const prev: Record<string, string> = {};
+  const prevKey: Record<string, string> = {};
   for (const n of input.nodes) {
     dist[n.id] = Infinity;
     s.labels[n.id] = "∞";
@@ -137,12 +177,21 @@ const dijkstra: G = (input) => {
   f.push(`Dijkstra from ${start}: always settle the closest unsettled node; its distance can never improve (non-negative weights).`);
   while (pq.length) {
     pq.sort((a, b) => a[0] - b[0]);
+    // Lazy deletion: an entry for a node that is already settled is stale
+    // (a better entry was pushed later and popped first). Pop and discard it,
+    // and say so in the next settle frame so the heap never shrinks silently.
+    const stale: string[] = [];
+    while (pq.length && done.has(pq[0]![1])) {
+      const [dd, n] = pq.shift()!;
+      stale.push(`${n}:${dd}`);
+    }
+    if (!pq.length) break;
     const [d, u] = pq.shift()!;
-    if (done.has(u)) continue;
     done.add(u);
     s.nodeTones[u] = "active";
-    s.vars = { settled: u, dist: d, heap: pq.map(([dd, n]) => `${n}:${dd}`) };
-    f.push(`Pop ${u} with distance ${d}: settle it.`, "settle");
+    s.vars = { settled: u, dist: d, heap: pq.map(([dd, n]) => `${n}:${dd}`), ...(stale.length ? { discarded: stale } : {}) };
+    const skipped = stale.length ? `Pop and discard the stale ${stale.length === 1 ? "entry" : "entries"} ${stale.join(", ")} (already settled). ` : "";
+    f.push(`${skipped}Pop ${u} with distance ${d}: settle it.`, "settle");
     for (const { to, w, key } of adj.get(u) ?? []) {
       if (done.has(to)) continue;
       const nd = d + w;
@@ -150,6 +199,7 @@ const dijkstra: G = (input) => {
         const old = dist[to];
         dist[to] = nd;
         prev[to] = u;
+        prevKey[to] = key;
         pq.push([nd, to]);
         s.labels[to] = String(nd);
         s.nodeTones[to] = "frontier";
@@ -160,7 +210,7 @@ const dijkstra: G = (input) => {
     }
     s.nodeTones[u] = "visited";
   }
-  for (const [v, p] of Object.entries(prev)) s.edgeTones[ek(p, v)] = "path";
+  for (const k of Object.values(prevKey)) s.edgeTones[k] = "path";
   for (const k of Object.keys(s.edgeTones)) if (s.edgeTones[k] === "compare") s.edgeTones[k] = "muted";
   if (input.goal && prev[input.goal] !== undefined) {
     let v = input.goal;
@@ -202,6 +252,7 @@ const bellmanFord: G = (input) => {
       }
     }
     if (!changed) {
+      s.vars = { round, relaxed: "none" };
       f.push(`Round ${round}: nothing changed, so distances are final. Early exit.`, "stable");
       break;
     }
@@ -361,7 +412,129 @@ const components: G = (input) => {
   return f.done();
 };
 
-const cycleDetect: G = (input) => (input.directed ? topoDfs(input) : undirectedCycle(input));
+const cycleDetect: G = (input) => (input.method === "floyd" ? floydCycle(input) : input.directed ? directedCycle(input) : undirectedCycle(input));
+
+// Three-colour check (white: undiscovered, grey: on the current DFS path,
+// black: finished). Stops at the first edge into a grey vertex and reports the
+// cycle as the path segment from that vertex plus the closing edge.
+const directedCycle: G = (input) => {
+  const { s, f, adj } = make({ ...input, directed: true });
+  const colour: Record<string, "grey" | "black"> = {};
+  const path: string[] = [];
+  const vars = (extra: Record<string, unknown> = {}) => ({ path: [...path], ...extra });
+  f.push(`Three-colour cycle check: white is undiscovered, grey is on the current DFS path, black is finished. An edge into a grey vertex closes a cycle; an edge into a black vertex cannot.`);
+  const visit = (u: string): boolean => {
+    colour[u] = "grey";
+    path.push(u);
+    s.nodeTones[u] = "active";
+    s.labels[u] = "grey";
+    s.vars = vars();
+    f.push(`Enter ${u}: colour it grey. The current path is ${path.join(" → ")}.`, "enter");
+    for (const { to, key } of adj.get(u) ?? []) {
+      if (colour[to] === "grey") {
+        const cyc = path.slice(path.indexOf(to));
+        for (let i = 0; i < cyc.length; i++) {
+          s.edgeTones[ek(cyc[i]!, cyc[(i + 1) % cyc.length]!)] = "danger";
+          s.nodeTones[cyc[i]!] = "danger";
+        }
+        s.vars = vars({ cycle: [...cyc, to].join(" → ") });
+        f.push(`${u}→${to}: ${to} is grey, still on the path, so this is a back edge. Cycle: ${[...cyc, to].join(" → ")}. Stop.`, "cycle");
+        return true;
+      }
+      if (colour[to] === "black") {
+        s.edgeTones[key] = "muted";
+        s.vars = vars({ checked: `${u}→${to}` });
+        f.push(`${u}→${to}: ${to} is black, already finished and not on the path. Visited, but not a cycle.`, "black");
+        continue;
+      }
+      s.edgeTones[key] = "path";
+      if (visit(to)) return true;
+    }
+    colour[u] = "black";
+    path.pop();
+    s.nodeTones[u] = "visited";
+    s.labels[u] = "black";
+    s.vars = vars();
+    f.push(`Every edge out of ${u} is explored: colour it black.`, "finish");
+    return false;
+  };
+  const order = input.start ? [input.start, ...input.nodes.map((n) => n.id).filter((id) => id !== input.start)] : input.nodes.map((n) => n.id);
+  for (const id of order) if (!colour[id] && visit(id)) return f.done();
+  s.vars = {};
+  f.push(`No edge ever reached a grey vertex: the graph has no cycle. O(V + E).`, "done");
+  return f.done();
+};
+
+// Floyd's tortoise and hare on a functional graph (every node has exactly one
+// outgoing edge, such as i → nums[i]). Phase 1: slow moves one step, fast two,
+// until they meet. Phase 2: a pointer from the start and slow from the meeting
+// point move one step each; they meet at the cycle's entry.
+const floydCycle: G = (input) => {
+  const { s, f } = make({ ...input, directed: true });
+  const next: Record<string, string> = {};
+  for (const e of input.edges) if (next[e.from] === undefined) next[e.from] = e.to;
+  const start = input.start ?? input.nodes[0]?.id ?? "";
+  const show = (marks: Record<string, string>) => {
+    s.labels = {};
+    s.nodeTones = {};
+    for (const [name, at] of Object.entries(marks)) {
+      s.labels[at] = s.labels[at] ? `${s.labels[at]} ${name}` : name;
+      s.nodeTones[at] = s.nodeTones[at] ? "done" : name === "slow" ? "active" : "frontier";
+    }
+  };
+  let slow = start;
+  let fast = start;
+  show({ slow, fast });
+  s.vars = { iteration: 0, slow, fast };
+  f.push(`Floyd's tortoise and hare: every node has exactly one outgoing edge. slow and fast both start at ${start}; each iteration slow takes one step and fast takes two.`);
+  let it = 0;
+  for (;;) {
+    if (next[fast] === undefined || next[next[fast]!] === undefined) {
+      s.vars = { iteration: it, slow, fast };
+      f.push(`fast ran off the end at ${fast}: there is no cycle.`, "done");
+      return f.done();
+    }
+    it++;
+    slow = next[slow]!;
+    fast = next[next[fast]!]!;
+    show({ slow, fast });
+    s.vars = { iteration: it, slow, fast };
+    if (slow === fast) {
+      f.push(`Iteration ${it}: slow moves to ${slow}, fast moves two steps to ${fast}. They meet at ${slow}, so there is a cycle.`, "meet");
+      break;
+    }
+    f.push(`Iteration ${it}: slow moves to ${slow}, fast moves two steps to ${fast}.`, "step");
+    if (f.full) return f.done();
+  }
+  const meet = slow;
+  let p = start;
+  let step = 0;
+  show({ p, slow });
+  s.vars = { phase: 2, step, p, slow };
+  f.push(`Phase 2: p starts again at ${start} while slow stays at the meeting point ${meet}. Both now move one step at a time.`, "phase 2");
+  while (p !== slow) {
+    step++;
+    p = next[p]!;
+    slow = next[slow]!;
+    show({ p, slow });
+    s.vars = { phase: 2, step, p, slow };
+    f.push(p === slow ? `Step ${step}: p moves to ${p} and slow moves to ${slow}. They meet at ${p}: the entry of the cycle.` : `Step ${step}: p moves to ${p} and slow moves to ${slow}.`, p === slow ? "entry" : "step");
+    if (f.full) return f.done();
+  }
+  const entry = p;
+  const cyc = [entry];
+  for (let v = next[entry]!; v !== entry; v = next[v]!) cyc.push(v);
+  s.labels = {};
+  s.nodeTones = { [entry]: "danger" };
+  for (const v of cyc) if (v !== entry) s.nodeTones[v] = "visited";
+  for (const e of input.edges) if (e.to === entry) s.edgeTones[ek(e.from, e.to)] = "danger";
+  s.labels[entry] = "entry";
+  const into = input.edges.filter((e) => e.to === entry).map((e) => e.from);
+  s.vars = { cycle: [...cyc, entry].join(" → "), entry };
+  const why = entry === start ? `${entry} is where the walk started, so there is no tail` : `${entry} has two incoming edges, from ${into.join(" and ")}: one from the tail and one closing the cycle`;
+  f.push(`The cycle is ${[...cyc, entry].join(" → ")}. Its entry ${why}. O(n) time, O(1) extra space.`, "done");
+  return f.done();
+};
 
 const undirectedCycle: G = (input) => {
   const { s, f, adj } = make(input);
@@ -477,6 +650,12 @@ const kruskal: G = (input) => {
   return f.done();
 };
 
+// Union by rank with path compression, as in the lessons: find both roots;
+// if the ranks differ, hang the lower-rank root under the higher; on a tie,
+// hang the second root under the first and increment the first's rank. Labels
+// are parent pointers and change only when a pointer is actually written (by a
+// union or by a find's path compression); colouring uses a read-only root walk
+// so it never compresses behind the learner's back.
 const unionFind: G = (input) => {
   const { s, f } = make({ ...input, directed: false });
   const parent: Record<string, string> = {};
@@ -486,36 +665,60 @@ const unionFind: G = (input) => {
     rank[n.id] = 0;
     s.labels[n.id] = `p=${n.id}`;
   }
-  const find = (x: string): string => {
-    if (parent[x] !== x) {
-      parent[x] = find(parent[x]!);
-      s.labels[x] = `p=${parent[x]}`;
-    }
-    return parent[x]!;
+  const rootOf = (x: string): string => {
+    let r = x;
+    while (parent[r] !== r) r = parent[r]!;
+    return r;
   };
-  f.push(`Union-find: each node starts as its own root. Edges are union operations; labels show parent pointers.`);
+  const compressed: string[] = [];
+  const find = (x: string): string => {
+    const r = rootOf(x);
+    for (let y = x; parent[y] !== r && y !== r; ) {
+      const next = parent[y]!;
+      parent[y] = r;
+      s.labels[y] = `p=${r}`;
+      compressed.push(y);
+      y = next;
+    }
+    return r;
+  };
+  const ranks = () => Object.fromEntries(input.nodes.filter((n) => parent[n.id] === n.id && rank[n.id]! > 0).map((n) => [n.id, rank[n.id]!]));
+  s.vars = { rank: ranks() };
+  f.push(`Union-find: each node starts as its own root (p is its parent pointer, rank 0). Each edge is a union: find both roots, then link them by rank.`);
   for (const e of input.edges) {
     const key = ek(e.from, e.to);
+    compressed.length = 0;
     const a = find(e.from);
     const b = find(e.to);
     s.edgeTones[key] = "compare";
-    f.push(`union(${e.from}, ${e.to}): find → roots ${a} and ${b}.`, "find");
+    s.vars = { union: `${e.from}, ${e.to}`, roots: `${a}, ${b}`, rank: ranks() };
+    const comp = compressed.length ? ` Path compression points ${compressed.join(" and ")} straight at the root.` : "";
+    f.push(`union(${e.from}, ${e.to}): find gives roots ${a} and ${b}.${comp}`, "find");
     if (a === b) {
       s.edgeTones[key] = "danger";
-      f.push(`Same root: already connected (this edge would close a cycle).`, "same set");
+      f.push(`Same root: ${e.from} and ${e.to} are already connected, so this edge would close a cycle. union returns false.`, "same set");
       continue;
     }
-    if (rank[a]! < rank[b]!) parent[a] = b;
-    else if (rank[a]! > rank[b]!) parent[b] = a;
-    else {
+    let note: string;
+    if (rank[a]! < rank[b]!) {
+      parent[a] = b;
+      s.labels[a] = `p=${b}`;
+      note = `Rank ${rank[a]} is less than rank ${rank[b]}: hang ${a} under ${b}. No rank changes.`;
+    } else if (rank[a]! > rank[b]!) {
       parent[b] = a;
+      s.labels[b] = `p=${a}`;
+      note = `Rank ${rank[b]} is less than rank ${rank[a]}: hang ${b} under ${a}. No rank changes.`;
+    } else {
+      parent[b] = a;
+      s.labels[b] = `p=${a}`;
       rank[a]!++;
+      note = `Ranks tie at ${rank[a]! - 1}: hang ${b} under ${a} and raise ${a}'s rank to ${rank[a]}.`;
     }
-    for (const n of input.nodes) s.labels[n.id] = `p=${parent[n.id]}`;
     s.edgeTones[key] = "path";
-    const root = find(e.from);
-    for (const n of input.nodes) if (find(n.id) === root) s.nodeTones[n.id] = "done";
-    f.push(`Union by rank: attach the shorter tree under the taller root (${find(a)}).`, "union");
+    const root = rootOf(e.from);
+    for (const n of input.nodes) if (rootOf(n.id) === root) s.nodeTones[n.id] = "done";
+    s.vars = { union: `${e.from}, ${e.to}`, root, rank: ranks() };
+    f.push(note, "union");
   }
   f.push(`With path compression + union by rank, each operation is amortised α(n) ≈ constant.`, "done");
   return f.done();
@@ -573,12 +776,22 @@ const tarjanScc: G = (input) => {
       if (idx[to] === undefined) {
         s.edgeTones[key] = "path";
         strong(to);
-        low[u] = Math.min(low[u]!, low[to]!);
+        const before: number = low[u]!;
+        low[u] = Math.min(before, low[to]!);
+        s.labels[u] = `${idx[u]}/${low[u]}`;
+        if (low[u] !== before) {
+          s.nodeTones[u] = "active";
+          s.vars = { stack: [...stack] };
+          f.push(`Back in ${u}: ${to}'s subtree reaches index ${low[to]}, so low(${u}) = min(${before}, ${low[to]}) = ${low[u]}.`, "low");
+        }
       } else if (onStack.has(to)) {
-        low[u] = Math.min(low[u]!, idx[to]!);
+        const before: number = low[u]!;
+        low[u] = Math.min(before, idx[to]!);
         s.edgeTones[key] = "compare";
+        s.labels[u] = `${idx[u]}/${low[u]}`;
+        s.vars = { stack: [...stack] };
+        f.push(`${u}→${to}: ${to} is still on the stack, so low(${u}) = min(${before}, index(${to}) = ${idx[to]}) = ${low[u]}.`, "back edge");
       }
-      s.labels[u] = `${idx[u]}/${low[u]}`;
     }
     if (low[u] === idx[u]) {
       comps++;
@@ -616,16 +829,27 @@ const bridges: G = (input) => {
       if (disc[to] === undefined) {
         s.edgeTones[key] = "path";
         visit(to, u);
-        low[u] = Math.min(low[u]!, low[to]!);
+        const before: number = low[u]!;
+        low[u] = Math.min(before, low[to]!);
         s.labels[u] = `${disc[u]}/${low[u]}`;
         if (low[to]! > disc[u]!) {
           s.edgeTones[key] = "danger";
           found.push(`${u}—${to}`);
+          s.vars = { bridges: [...found] };
           f.push(`low(${to}) = ${low[to]} > disc(${u}) = ${disc[u]}: ${u}—${to} is a bridge.`, "bridge");
+        } else if (low[u] !== before) {
+          s.vars = { bridges: [...found] };
+          f.push(`Back in ${u}: ${to}'s subtree reaches discovery time ${low[to]}, so low(${u}) = min(${before}, ${low[to]}) = ${low[u]}, and ${u}—${to} is not a bridge.`, "low");
         }
-      } else {
-        low[u] = Math.min(low[u]!, disc[to]!);
+      } else if (disc[to]! < disc[u]!) {
+        // A back edge to an ancestor. (Seen from the ancestor's side, the same
+        // edge leads to an already-visited descendant and changes nothing.)
+        const before: number = low[u]!;
+        low[u] = Math.min(before, disc[to]!);
         s.labels[u] = `${disc[u]}/${low[u]}`;
+        s.edgeTones[key] = "compare";
+        s.vars = { bridges: [...found] };
+        f.push(`${u}—${to} is a back edge to an ancestor: low(${u}) = min(${before}, disc(${to}) = ${disc[to]}) = ${low[u]}.`, "back edge");
       }
     }
     s.nodeTones[u] = "visited";
@@ -653,7 +877,9 @@ const aStar: G = (input) => {
   s.nodeTones[goal] = "danger";
   f.push(`A* from ${start} to ${goal}: like Dijkstra but ordered by f = g + h, where h is an admissible estimate (here scaled straight-line distance).`);
   while (open.length) {
-    open.sort((a, b) => g[a]! + h(a) - (g[b]! + h(b)));
+    // Order by f = g + h; break ties towards larger g (deeper along a path),
+    // as the lesson recommends. sort is stable, so remaining ties keep push order.
+    open.sort((a, b) => g[a]! + h(a) - (g[b]! + h(b)) || g[b]! - g[a]!);
     const u = open.shift()!;
     if (u === goal) {
       let v = goal;
@@ -663,8 +889,12 @@ const aStar: G = (input) => {
         v = prev[v]!;
       }
       s.nodeTones[start] = "done";
-      s.vars = { pathCost: g[goal], expanded: closed.size };
-      f.push(`Goal popped with cost ${g[goal]} after expanding ${closed.size} node(s); the heuristic pruned the rest.`, "done");
+      const skipped = input.nodes.map((n) => n.id).filter((id) => id !== goal && !closed.has(id));
+      s.vars = { pathCost: g[goal], expanded: closed.size, ...(skipped.length ? { neverExpanded: skipped } : {}) };
+      const rest = skipped.length
+        ? `${skipped.join(", ")} ${skipped.length === 1 ? "was" : "were"} never expanded: f told A* ${skipped.length === 1 ? "it" : "they"} could not beat the goal.`
+        : `every other node was expanded, so on this graph the heuristic saved nothing.`;
+      f.push(`Goal popped with cost ${g[goal]} after expanding ${closed.size} node(s); ${rest}`, "done");
       return f.done();
     }
     closed.add(u);
@@ -692,7 +922,59 @@ const aStar: G = (input) => {
 
 // ---- grid ----
 
-const gridIslands: G = (input) => {
+const gridIslands: G = (input) => (input.method === "bfs" ? gridIslandsBfs(input) : gridIslandsDfs(input));
+
+// Number of islands by BFS, as in the matrix-traversal lesson: directions in
+// the order right, down, left, up; a cell is marked when it is pushed, so no
+// cell is ever queued twice. One frame per scan hit and per pop.
+const gridIslandsBfs: G = (input) => {
+  const grid = input.grid ?? [[1, 1, 0], [0, 1, 0], [0, 0, 1]];
+  const { s, f } = make({ nodes: [], edges: [] });
+  s.grid = { cells: grid.map((r) => [...r]), tones: {} };
+  const R = grid.length;
+  const C = grid[0]?.length ?? 0;
+  const tones: Tone[] = ["path", "done", "compare", "frontier"];
+  const dirs: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+  const seen = new Set<string>();
+  const cell = (y: number, x: number) => `(${y}, ${x})`;
+  let islands = 0;
+  s.vars = { islands, queue: [] };
+  f.push(`Count islands: scan cells in order; each unseen land cell starts a BFS that marks its whole island. Cells are marked when pushed, so none is queued twice.`);
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++) {
+      if (grid[r]![c] !== 1 || seen.has(`${r},${c}`)) continue;
+      islands++;
+      const tone = tones[(islands - 1) % tones.length]!;
+      seen.add(`${r},${c}`);
+      s.grid.tones[`${r},${c}`] = "frontier";
+      const queue: [number, number][] = [[r, c]];
+      s.vars = { islands, queue: queue.map(([y, x]) => cell(y, x)) };
+      f.push(`Scan finds unseen land at ${cell(r, c)}: island ${islands}. Mark it and push it.`, "new island");
+      while (queue.length) {
+        const [y, x] = queue.shift()!;
+        s.grid.tones[`${y},${x}`] = tone;
+        const pushed: string[] = [];
+        for (const [dy, dx] of dirs) {
+          const ny = y + dy;
+          const nx = x + dx;
+          const k = `${ny},${nx}`;
+          if (ny < 0 || nx < 0 || ny >= R || nx >= C || grid[ny]![nx] !== 1 || seen.has(k)) continue;
+          seen.add(k);
+          s.grid.tones[k] = "frontier";
+          queue.push([ny, nx]);
+          pushed.push(cell(ny, nx));
+        }
+        s.vars = { islands, popped: cell(y, x), queue: queue.map(([qy, qx]) => cell(qy, qx)) };
+        f.push(`Pop ${cell(y, x)} into island ${islands}; ${pushed.length ? `mark and push its unseen land ${pushed.length === 1 ? "neighbour" : "neighbours"} ${pushed.join(" and ")}.` : "no unseen land neighbours."}`, "pop");
+        if (f.full) return f.done();
+      }
+    }
+  s.vars = { islands };
+  f.push(`${islands} island(s). Every cell is scanned once and enqueued at most once: O(R·C).`, "done");
+  return f.done();
+};
+
+const gridIslandsDfs: G = (input) => {
   const grid = input.grid ?? [[1, 1, 0], [0, 1, 0], [0, 0, 1]];
   const { s, f } = make({ nodes: [], edges: [] });
   s.grid = { cells: grid.map((r) => [...r]), tones: {} };
@@ -949,6 +1231,6 @@ export const graphFamily: Family<GraphInput, GraphState> = {
       ids.add(id);
       nodes.push({ id });
     }
-    return { nodes, edges, directed: Boolean(raw.directed), start: raw.start as string | undefined, goal: raw.goal as string | undefined, grid: raw.grid as number[][] | undefined };
+    return { nodes, edges, directed: Boolean(raw.directed), start: raw.start as string | undefined, goal: raw.goal as string | undefined, grid: raw.grid as number[][] | undefined, ...(typeof raw.method === "string" ? { method: raw.method } : {}) };
   },
 };

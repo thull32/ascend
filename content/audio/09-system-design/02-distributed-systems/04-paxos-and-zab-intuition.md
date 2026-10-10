@@ -1,6 +1,6 @@
 ---
 lesson: paxos-and-zab-intuition
-source: 4b31f4fbf17615a9
+source: 115e89cead7b5146
 fit: great
 desk:
   - "The two-proposer Paxos trace as a table, in both message orders"

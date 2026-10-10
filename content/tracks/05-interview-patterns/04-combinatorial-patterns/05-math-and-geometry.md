@@ -180,7 +180,7 @@ The exponent's bits drive repeated squaring:
 ```
 
 ```viz
-{"type": "bits", "algorithm": "shift", "values": [13, -13], "title": "Halving the exponent with a right shift", "caption": "13 >> 1 = 6 drops the bit the loop has consumed. For -13, an arithmetic shift gives -7, which is floor(-13 / 2), while a logical shift gives a large positive number: the reason the JavaScript template divides instead of shifting."}
+{"type": "bits", "algorithm": "shift", "values": [13, -13], "left": [], "title": "Halving the exponent with a right shift", "caption": "13 >> 1 = 6 drops the bit the loop has consumed. For -13, an arithmetic shift gives -7, which is floor(-13 / 2), while a logical shift gives a large positive number. The JavaScript template divides instead of shifting for a different reason: >> first converts its operand to a 32-bit signed integer, so 2^31 >> 1 is negative."}
 ```
 
 ## Why each template is correct

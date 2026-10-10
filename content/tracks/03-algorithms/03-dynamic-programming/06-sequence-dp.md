@@ -42,7 +42,7 @@ Trace:
 **Why "ends at `i`" works.** Whether a later element can extend a subsequence depends only on the subsequence's last value; the length is the quantity being maximised; and `i` fixes both the last value (`nums[i]`) and which elements remain (`i+1..`). Two subsequences ending at the same `i` are therefore interchangeable for every future decision, and only the longer one matters. **Why the transition is exhaustive.** The predecessor of `nums[i]` in any increasing subsequence ending at `i` is either nothing (length 1) or some `j < i` with `nums[j] < nums[i]`; the recurrence tries all of them. Cut-and-paste closes it: if the subsequence through `j` were not the best one ending at `j`, swapping in the best one would give a longer subsequence ending at `i`.
 
 ```viz
-{"type": "dp", "algorithm": "lis", "values": [10, 9, 2, 5, 3, 7, 101, 18], "title": "LIS O(n²): dp[i] = 1 + max dp[j] over smaller earlier elements", "caption": "Each cell scans everything to its left. The answer is the maximum cell, not the last one."}
+{"type": "dp", "algorithm": "lis", "values": [10, 9, 2, 5, 3, 7, 101, 18, 4], "title": "LIS O(n²): dp[i] = 1 + max dp[j] over smaller earlier elements", "caption": "The traced input with a 4 appended. Each cell scans everything to its left. dp[8] = 3 is below the maximum 4, so the answer is the maximum cell, not the last one."}
 ```
 
 ```python

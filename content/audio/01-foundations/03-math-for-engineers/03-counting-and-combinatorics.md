@@ -1,6 +1,6 @@
 ---
 lesson: counting-and-combinatorics
-source: 40f6565e99bb41da
+source: adbda0a03808b775
 fit: partial
 desk:
   - "The derivations of permutations, combinations, lattice paths and stars and bars"

@@ -57,7 +57,8 @@ The unmasked denominator is 16.741; after masking only $e^{1.5} + e^{1.0} = 7.20
 3. **Key order is fixed by the grammar.** Implementations generate properties in the order the schema lists them: OpenAI documents this for its strict mode, and Anthropic documents schema order with one twist, required properties before optional ones. The order of fields is therefore a decision you make in the schema. It matters because generation runs left to right: put `reasoning` before `verdict` and the verdict is conditioned on the reasoning; the other way round, the reasoning is a justification of a verdict already emitted.
 
 ```viz
-{"type": "ml", "algorithm": "next-token-sampling", "text": "The candidate's verdict is", "temperature": 0.7, "topP": 0.9,
+{"type": "ml", "algorithm": "next-token-sampling", "text": "{\"verdict\": \"",
+ "tokens": ["maybe", "hire", "no", "strong", "\\n", "Sure"], "logits": [2.0, 1.5, 1.0, 0.5, -1.0, -2.0], "allowed": ["hire", "no"],
  "title": "A grammar mask is a sampling mask",
  "caption": "Top-p zeroes the tokens outside the nucleus and renormalises the rest. A schema grammar does the same with a different rule: every token that would leave the grammar gets probability zero."}
 ```
@@ -223,7 +224,11 @@ Nothing has happened yet. Your code, the **harness**, validates both calls, runs
 Read the token counts (illustrative, but the shape is exact). Request 2's input is request 1's 1,012 tokens plus the 118 tokens of the assistant's calls plus about 70 tokens of results and framing. Every later request in the conversation carries all of it again, which is why result size is a cost decision ([Agents](/learn/ai-and-llms/building-with-llms/agents) computes the growth over a long loop). The model computed "18 days" itself from the date in the system prompt; if date arithmetic must be right, give it a tool rather than trusting it.
 
 ```viz
-{"type": "ml", "algorithm": "agent-loop", "text": "How many open PRs are older than 7 days?",
+{"type": "ml", "algorithm": "agent-loop", "text": "I'm in Germany. Can I still return ORD-48213?",
+ "tools": ["get_order(order_id)", "get_return_policy(country)"],
+ "calls": [{"why": "It needs the order and the German return policy, and asks for both in one turn.", "call": "get_order(\"ORD-48213\") + get_return_policy(\"DE\")", "check": "two read tools, so both run", "result": "delivered 2026-09-02, electronics; return_days 30, electronics_return_days 14", "input": 1012, "parallel": 2}],
+ "final": {"why": "The delivery date, the 14-day rule for electronics and today's date from the system prompt are all in context.", "answer": "Unfortunately not. Electronics bought in Germany can be returned within 14 days of delivery. ORD-48213 was delivered on 2 September, 18 days ago.", "input": 1203},
+ "closing": "The answer's date arithmetic was the model's own; if it must be right, give it a tool. Every later request in the conversation carries this whole transcript again.",
  "title": "The tool-use loop",
  "caption": "The model only ever emits text or a structured call. The harness runs the tool and appends the result, and the whole transcript is sent again on every iteration."}
 ```

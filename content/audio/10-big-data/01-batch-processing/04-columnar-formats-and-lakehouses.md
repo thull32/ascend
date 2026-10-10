@@ -1,6 +1,6 @@
 ---
 lesson: columnar-formats-and-lakehouses
-source: 766c1eddb84837c8
+source: 44aaa4472c32f198
 fit: great
 desk:
   - "The Parquet layout diagram and the row group worked out in bytes, per encoding"

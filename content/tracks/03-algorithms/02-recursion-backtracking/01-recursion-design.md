@@ -36,8 +36,8 @@ Two things must be true for the trust to be justified:
 Watch the shape of this on the simplest possible function. Each frame waits for the one below it, and the answers are combined on the way back up.
 
 ```viz
-{"type": "recursion", "algorithm": "factorial", "n": 5,
- "title": "factorial(5): five frames go down, five multiplications come back up"}
+{"type": "recursion", "algorithm": "factorial", "n": 5, "base": 0,
+ "title": "factorial(5): six frames go down, five multiplications come back up"}
 ```
 
 ## Trace: factorial(4) frame by frame
@@ -99,7 +99,9 @@ Five frames for $n = 10$; for $n = 10^{18}$ it would be about 60. This is the al
 Binary search is the same recurrence with a different reduction: discard the half that cannot contain the target.
 
 ```viz
-{"type": "recursion", "algorithm": "binary-search-recursive", "values": [2, 5, 8, 12, 16, 23, 38, 56, 72, 91], "target": 23}
+{"type": "recursion", "algorithm": "binary-search-recursive", "values": [2, 5, 8, 12, 16, 23, 38, 56, 72, 91], "target": 23,
+ "title": "Recursive binary search for 23: one call per level",
+ "caption": "Each call looks at the middle of its range and recurses into the one half that can still hold 23. Ten values take three calls, and the answer comes back up unchanged."}
 ```
 
 The general rule from [Recurrences and the master theorem](/learn/foundations/complexity/recurrences-and-master-theorem): count the calls per level, the size reduction per call, and the non-recursive work per call, and the recurrence writes itself.
@@ -109,7 +111,7 @@ The general rule from [Recurrences and the master theorem](/learn/foundations/co
 Each call pushes a frame: the return address, the arguments, the local variables, and in interpreted languages a fair amount of bookkeeping. The frame lives until the call returns. Recursion depth is therefore memory, and in most runtimes that memory is a fixed-size region reserved at thread start.
 
 ```viz
-{"type": "memory", "algorithm": "call-stack",
+{"type": "memory", "algorithm": "call-stack", "n": 4, "base": 0, "name": "fact",
  "title": "Frames pushed on call, popped on return; depth is live memory"}
 ```
 
@@ -256,6 +258,7 @@ The first two versions also copy the list on every call (`xs[1:]`), making them 
 
 ```viz
 {"type": "recursion", "algorithm": "hanoi", "n": 3,
+ "title": "Towers of Hanoi with 3 discs: shallow but wide",
  "caption": "Depth 3, but 7 moves: the call tree is a full binary tree"}
 ```
 

@@ -1,6 +1,6 @@
 ---
 lesson: two-pointers
-source: feb718be5d389c65
+source: 9e9f8f5a4ee98fa6
 fit: partial
 desk:
   - "The pair-with-sum and read-write compaction templates, in Python and JavaScript"

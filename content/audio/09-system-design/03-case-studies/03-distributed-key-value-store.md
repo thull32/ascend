@@ -1,6 +1,6 @@
 ---
 lesson: distributed-key-value-store
-source: 0f07a93a7e0e74f2
+source: 1147da1c67861a2f
 fit: great
 desk:
   - "The estimates table and the tokens-per-node simulation"

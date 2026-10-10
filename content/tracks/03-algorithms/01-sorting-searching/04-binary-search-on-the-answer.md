@@ -27,7 +27,7 @@ feasible(x): F  F  F  T  T  T  T  T  T  T  T
 and the smallest feasible `x` is the first `T`, which is [`first_true`](/learn/algorithms/sorting-searching/binary-search) from the previous lesson with the predicate swapped in.
 
 ```viz
-{"type": "array", "algorithm": "binary-search-first-true", "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], "target": 4, "title": "Searching the answer space, not the input", "caption": "The values are candidate speeds; the predicate is feasible(speed), false for 1-3 and true from 4 onwards. Each probe evaluates the predicate, not a comparison with an array element."}
+{"type": "array", "algorithm": "binary-search-first-true", "values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], "target": 4, "predicate": "feasible", "title": "Searching the answer space, not the input", "caption": "The values are candidate speeds; the predicate is feasible(speed), false for 1-3 and true from 4 onwards. Each probe evaluates the predicate, not a comparison with an array element."}
 ```
 
 The template has three parts, and every problem in this family is solved by filling them in.

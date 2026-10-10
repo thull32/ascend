@@ -1,6 +1,6 @@
 ---
 lesson: in-place-linked-list
-source: d813b48adb7ed938
+source: db7d63bff716b58d
 fit: partial
 desk:
   - "The reverse, split and merge primitives in Python and JavaScript, and the dummy-head and save-next habits"

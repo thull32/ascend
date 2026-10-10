@@ -190,7 +190,8 @@ Client clocks are wrong and group members send concurrently, so the server picks
 Without the conditional write and the fencing token, 1044 would exist twice with different bodies on different devices ([Failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases)).
 
 ```viz
-{"type": "system", "scenario": "leader-lease", "title": "Conversation ownership is a lease with a fencing token",
+{"type": "system", "scenario": "leader-lease", "fencing": true, "holders": ["Owner X","Owner Y"], "resource": "Message store", "epoch": 7, "writes": ["seq 1043","seq 1044 (Bob)","seq 1044 (Ann)"],
+ "title": "Conversation ownership is a lease with a fencing token",
  "caption": "The owner holds a time-limited lease. When it pauses past expiry, a new owner takes over with a higher epoch, and the store rejects writes carrying the old one."}
 ```
 
@@ -236,7 +237,7 @@ End-to-end encryption moves the cut to the clients. Each member encrypts group m
 **Presence is a fan-out bomb.** 100 million online users with 200 contacts each change state about every 10 minutes: $10^8 / 600 \approx 170{,}000$ changes/s × 200 = **33 million notifications/s**, almost all to people not looking. **Subscribe on view**: a client subscribes only to the ~20 users on its screen and unsubscribes when they scroll away; changes publish to a per-user channel that only gateways with a subscriber receive. Debounce "offline" for ~30 s so a Wi-Fi-to-cellular switch does not flash offline to 200 people, and write "last seen" lazily.
 
 ```viz
-{"type": "system", "scenario": "pubsub",
+{"type": "system", "scenario": "pubsub", "flavor": "presence",
  "title": "Presence: publish per user, deliver only to subscribers",
  "caption": "A status change is published once to the user's topic. Only gateways with a client that currently has that user on screen are subscribed, so the fan-out follows attention, not the contact list."}
 ```

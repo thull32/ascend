@@ -1,6 +1,6 @@
 ---
 lesson: sliding-window
-source: 7d1addeb3e24f890
+source: c47b7bbaef48d2c4
 fit: partial
 desk:
   - "The four-decisions table for seven classic problems"

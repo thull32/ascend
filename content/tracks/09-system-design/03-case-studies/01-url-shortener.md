@@ -87,7 +87,8 @@ DELETE /v1/links/{short_key}
 Say three things while you write it. Mobile clients retry on timeout, so the `Idempotency-Key` is mandatory and stored as `(owner_id, key) -> short_key` for 24 hours ([Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries)). A 404 ("never existed": a typo or enumeration) and a 410 ("existed, now gone") need different alerts and cache TTLs, and a 503 is never collapsed into a 404, because crawlers and caches believe a 404. The redirect status code is a product decision with caching consequences, covered in deep dive 2.
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "title": "A retried create returns the same short link",
+{"type": "system", "scenario": "idempotency-key", "requests": 2, "client": "Mobile app", "service": "Links API", "request": "POST /v1/links", "key": "k1", "effect": "mint short key x7Kq", "target": "", "record": "link x7Kq", "response": "201 x7Kq", "effects": "links", "changed": "a different long URL",
+ "title": "A retried create returns the same short link",
  "caption": "The first POST claims the idempotency key and stores the result; the retry after a timeout finds the stored result and returns it instead of minting a second link."}
 ```
 

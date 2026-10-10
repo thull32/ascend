@@ -1,6 +1,6 @@
 ---
 lesson: llm-security
-source: 8868087b500e3185
+source: dc63916872b2909e
 fit: great
 desk:
   - "The nine-step message trace of the email-assistant injection, and its three configurations"

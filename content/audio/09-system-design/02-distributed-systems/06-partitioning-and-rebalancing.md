@@ -1,6 +1,6 @@
 ---
 lesson: partitioning-and-rebalancing
-source: f53e787496ccb881
+source: 1a045b47fb294642
 fit: great
 desk:
   - "The virtual-node imbalance table, by tokens per node"

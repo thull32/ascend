@@ -1,6 +1,6 @@
 ---
 lesson: observability-in-code
-source: 3050dbd3a93ccbd7
+source: 324309aa73c96ace
 fit: great
 desk:
   - "The real Ascend JSON log line, taken apart field by field"

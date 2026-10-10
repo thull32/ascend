@@ -132,7 +132,7 @@ The fee is $0.029 \times 1599 = 46.37$, rounded to 46 cents, plus 30: 76 cents, 
 The PSP, acting for your acquiring bank, sends an authorisation request over the card network to the issuing bank, which checks the card, the available funds and its fraud models and answers approve or decline with a reason code. Nothing has moved yet: the issuer has only reduced the available balance. Capture puts the transaction into **clearing**, batches the acquirer submits to the network, typically daily; in **settlement** the issuer pays the network, the network pays the acquirer, and the PSP pays you net of fees on its payout schedule, often one to a few business days later. That is why the settlement file and the bank payout arrive days after the customer saw "paid", and why reconciliation must work in windows. When the issuer demands strong customer authentication (3-D Secure), a challenge in the customer's banking app comes first: the API returns `requires_action`, and the payment may wait minutes, which is another reason nothing holds a transaction open.
 
 ```viz
-{"type": "system", "scenario": "saga", "nodes": 3,
+{"type": "system", "scenario": "saga", "steps": [{"service":"PSP","step":"T1 authorise $15.99","undo":"C1 void authorisation","ok":"authorised","undone":"voided","why":"Nothing was captured, so voiding releases the hold and the customer sees payment not taken instead of a refund days later."},{"service":"Entitlements","step":"T2 grant entitlement","undo":"C2 revoke entitlement","ok":"granted","undone":"revoked","why":"The subscription grant is withdrawn so the customer does not keep a product nobody paid for."},{"service":"PSP","step":"T3 capture","undo":"–","ok":"captured","undone":"–"}],
  "title": "Checkout as a small saga",
  "caption": "Authorise, grant the entitlement, capture: each step commits on its own. If a later step fails, earlier ones are undone by compensation (void the authorisation, revoke the entitlement), not by a rollback, because the PSP is not in our transaction."}
 ```
@@ -173,12 +173,14 @@ If 3% of 8.3 million daily renewals decline, 250,000 retry schedules start every
 | Payment service → downstream | Outbox relay republishes after a crash | Consumers dedupe on `event_id` |
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "requests": 3, "title": "A retried charge with an idempotency key",
+{"type": "system", "scenario": "idempotency-key", "requests": 3, "service": "Payment service", "request": "POST /payments $20", "key": "k1", "effect": "charge $20", "target": "PSP", "record": "payment pay_7Q", "response": "201 pay_7Q", "effects": "charges", "changed": "$30 instead of $20",
+ "title": "A retried charge with an idempotency key",
  "caption": "The first request claims the key, charges once and saves the response. The retry after a lost reply finds the saved response and replays it; a concurrent duplicate is refused with 409. Same key with a different body is a client bug and gets 422."}
 ```
 
 ```viz
-{"type": "system", "scenario": "outbox", "requests": 3, "title": "Payment succeeded, event guaranteed",
+{"type": "system", "scenario": "outbox", "requests": 3, "service": "Payment service", "entity": "payment", "event": "PaymentSucceeded", "consumer": "Entitlement svc",
+ "title": "Payment succeeded, event guaranteed",
  "caption": "The status change, ledger entry and outbox row commit together. The relay may publish an event twice after a crash, so the entitlement service dedupes on event_id; it can never miss one."}
 ```
 

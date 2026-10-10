@@ -135,7 +135,8 @@ Every hop is at-least-once: producers retry, Kafka redelivers after a consumer c
 3. **The provider boundary.** A sender calls APNs, APNs accepts, the sender dies before recording it. No protocol fixes this, because the provider is not in your transaction ([Exactly-once semantics](/learn/system-design/distributed-systems/exactly-once-semantics)). APNs merges notifications that share an `apns-collapse-id` (at most 64 bytes) into one on the device, so set it to the `notification_id` and a resend replaces the first copy instead of adding a second. FCM's `collapse_key` is not the equivalent: it only collapses messages still waiting on FCM's servers, allows four keys per device and is ignored for notification messages. On Android the notification `tag` replaces a notification already in the drawer, so set that to the `notification_id` too.
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "title": "A replayed event returns the original notification",
+{"type": "system", "scenario": "idempotency-key", "requests": 2, "store": "cache", "client": "Order service", "service": "Notify API", "db": "Redis", "request": "POST /notifications", "key": "order-8812:shipped", "effect": "enqueue n_77", "target": "Kafka", "response": "202 n_77", "effects": "enqueued", "changed": "a different template", "downstream": false,
+ "title": "A replayed event returns the original notification",
  "caption": "The first request claims the dedupe key and stores the notification ID; the replay after the producer's crash finds the key and gets the same ID back, so nothing new is enqueued."}
 ```
 
@@ -241,7 +242,7 @@ Four notifications were sent and the lock screen shows one; "your order was deli
 | Region loss | Accepts fail in one region | Health checks | Users homed per region; critical categories fail over with dedupe keys replicated; bulk waits |
 
 ```viz
-{"type": "system", "scenario": "retry-backoff", "requests": 5, "title": "Retrying a failing provider",
+{"type": "system", "scenario": "retry-backoff", "requests": 5, "example": "push send", "title": "Retrying a failing provider",
  "caption": "Delays double with each failure and are jittered so thousands of senders do not retry in lockstep. The retry budget ends at the message's expires_at: a late 'your driver is here' is worse than none."}
 ```
 

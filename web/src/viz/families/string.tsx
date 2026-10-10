@@ -9,6 +9,9 @@ import { Frames, type Family, type RendererProps } from "../engine";
 export interface StringInput {
   text: string;
   pattern?: string;
+  /** rabin-karp: hash base and modulus (default 31 and 101). */
+  base?: number;
+  mod?: number;
 }
 
 export interface Row {
@@ -173,16 +176,21 @@ const kmp: G = ({ text, pattern = "" }) => {
 
 // ---------- Rabin-Karp ----------
 
-const rabinKarp: G = ({ text, pattern = "" }) => {
+/** The digits as one base-B number (exact for the short patterns the visualiser takes). */
+const hashOfDigits = (chars: string[], B: number) => chars.reduce((h, c) => h * B + (c.charCodeAt(0) - 48), 0);
+
+const rabinKarp: G = ({ text, pattern = "", base, mod }) => {
   if (pattern.length === 0) return problem(text, "The pattern is empty; give a non-empty pattern to see rolling hashes compared.");
   const { s, f, resetAll } = make(text, pattern);
   const t = [...text];
   const p = [...pattern];
   const n = t.length;
   const m = p.length;
-  const B = 31;
-  const M = 101;
-  const code = (c: string) => c.charCodeAt(0);
+  const B = base !== undefined && Number.isInteger(base) && base >= 2 && base <= 1000 ? base : 31;
+  const M = mod !== undefined && Number.isInteger(mod) && mod >= 2 && mod <= 1_000_003 ? mod : 101;
+  // All-digit text is hashed by digit value (the classic base-10 worked example); anything else by character code.
+  const digits = [...text, ...pattern].every((c) => c >= "0" && c <= "9");
+  const code = (c: string) => (digits ? c.charCodeAt(0) - 48 : c.charCodeAt(0));
   const hashOf = (chars: string[]) => chars.reduce((h, c) => (h * B + code(c)) % M, 0);
   if (m > n) {
     s.vars = { n, m };
@@ -196,7 +204,7 @@ const rabinKarp: G = ({ text, pattern = "" }) => {
   s.aux = [hashRow];
   s.pattern!.tones!.fill("active");
   s.vars = { "hash(pattern)": hp, B, M };
-  f.push(`Hash the pattern once: hash = Σ code(c)·B^k mod ${M} = ${hp}. Each text window will get the same treatment, but in O(1) each thanks to rolling.`, "hash");
+  f.push(digits ? `Hash the pattern once: read "${pattern}" as a base-${B} number, mod ${M}: ${hashOfDigits(p, B)} mod ${M} = ${hp}. Each text window gets the same treatment, but in O(1) each thanks to rolling.` : `Hash the pattern once: hash = Σ code(c)·B^k mod ${M} = ${hp}. Each text window will get the same treatment, but in O(1) each thanks to rolling.`, "hash");
   let pow = 1;
   for (let q = 0; q < m - 1; q++) pow = (pow * B) % M;
   let hw = hashOf(t.slice(0, m));
@@ -250,7 +258,7 @@ const rabinKarp: G = ({ text, pattern = "" }) => {
       s.text.tones![w + m] = "compare";
       s.pattern!.offset = w + 1;
       s.vars = { "hash(pattern)": hp, "hash(window)": hw, out: `'${out}'`, in: `'${inc}'` };
-      f.push(`Roll: drop '${out}' (subtract code·B^${m - 1}), shift by B, add '${inc}': new hash ${hw}, computed in O(1).`, "roll");
+      f.push(digits ? `Roll: drop '${out}' (subtract ${out}·${B}^${m - 1}), multiply by ${B}, add ${inc}: new hash ${hw}, computed in O(1).` : `Roll: drop '${out}' (subtract code·B^${m - 1}), shift by B, add '${inc}': new hash ${hw}, computed in O(1).`, "roll");
     }
   }
   resetAll();
@@ -274,32 +282,35 @@ const zAlgorithm: G = ({ text }) => {
   s.aux = [zRow];
   z[0] = n;
   zRow.tones![0] = "done";
-  s.vars = { n, l: 0, r: 0 };
-  f.push(`z[0] = ${n} by convention (the whole string matches itself). The Z-box [l, r) tracks the rightmost prefix-match found so far.`, "init");
+  // The Z-box [l, r] (inclusive) is the rightmost prefix match found so far; none until a match.
   let l = 0;
   let r = 0;
+  let hasBox = false;
+  const boxVars = () => (hasBox ? { box: `[${l}, ${r}]` } : { box: "none" });
+  s.vars = { n, ...boxVars() };
+  f.push(`z[0] = ${n} by convention (the whole string matches itself). The Z-box [l, r] will track the rightmost stretch known to match the prefix; there is none yet.`, "init");
   const paintBox = (i: number) => {
     resetAll();
     for (let q = 0; q < n; q++) if (z[q] !== null) zRow.tones![q] = "done";
-    for (let q = l; q < r; q++) s.text.tones![q] = "active";
-    s.text.pointers = { i, l: r > 0 ? l : undefined, r: r > 0 ? r : undefined };
-    s.vars = { n, l, r, i };
+    if (hasBox) for (let q = l; q <= r; q++) s.text.tones![q] = "active";
+    s.text.pointers = { i, l: hasBox ? l : undefined, r: hasBox ? r : undefined };
+    s.vars = { n, i, ...boxVars() };
   };
   for (let i = 1; i < n && !f.full; i++) {
     let zi = 0;
     paintBox(i);
-    if (i < r) {
+    if (hasBox && i <= r) {
       const mirror = i - l;
-      zi = Math.min(r - i, z[mirror] ?? 0);
+      zi = Math.min(r - i + 1, z[mirror] ?? 0);
       z[i] = zi;
       zRow.tones![mirror] = "compare";
       zRow.tones![i] = "active";
       s.text.pointers = { i, l, r, mirror };
-      f.push(`i = ${i} is inside the box [${l}, ${r}): text[${i}..] copies text[${mirror}..] (its mirror in the prefix), so start from z[${i}] = min(r − i, z[${mirror}]) = ${zi} without comparing.`, "copy");
+      f.push(`i = ${i} is inside the box [${l}, ${r}], which matches the prefix [0, ${r - l}], so text[${i}..] mirrors text[${mirror}..]: start from z[${i}] = min(r − i + 1, z[${mirror}]) = min(${r - i + 1}, ${z[mirror]}) = ${zi} without comparing.`, "copy");
     } else {
       z[i] = 0;
       zRow.tones![i] = "active";
-      f.push(`i = ${i} is outside the box, so nothing is known: start z[${i}] at 0 and compare from scratch.`, "fresh");
+      f.push(`i = ${i} is ${hasBox ? `outside the box [${l}, ${r}]` : "not covered by any box"}, so nothing is known: start z[${i}] at 0 and compare from scratch.`, "fresh");
     }
     while (i + zi < n && t[zi] === t[i + zi] && !f.full) {
       zi++;
@@ -308,7 +319,7 @@ const zAlgorithm: G = ({ text }) => {
       zRow.tones![i] = "active";
       s.text.tones![zi - 1] = "compare";
       s.text.tones![i + zi - 1] = "compare";
-      f.push(`text[${zi - 1}] = '${t[zi - 1]}' equals text[${i + zi - 1}]: extend z[${i}] to ${zi}.`, "extend");
+      f.push(`text[${zi - 1}] = '${t[zi - 1]}' equals text[${i + zi - 1}]: extend z[${i}] to ${zi}.${i + zi === n ? " That reaches the end of the string." : ""}`, "extend");
     }
     if (i + zi < n) {
       paintBox(i);
@@ -317,11 +328,12 @@ const zAlgorithm: G = ({ text }) => {
       s.text.tones![i + zi] = "danger";
       f.push(`text[${zi}] = '${t[zi]}' ≠ text[${i + zi}] = '${t[i + zi]}': z[${i}] settles at ${zi}.`, "stop");
     }
-    if (i + zi > r) {
+    if (zi > 0 && (!hasBox || i + zi - 1 > r)) {
       l = i;
-      r = i + zi;
+      r = i + zi - 1;
+      hasBox = true;
       paintBox(i);
-      f.push(`The match reaches further right than before, so the box becomes [${l}, ${r}).`, "box");
+      f.push(`The match [${l}, ${r}] reaches further right than any before, so it becomes the box: [l, r] = [${l}, ${r}].`, "box");
     }
   }
   resetAll();
@@ -348,13 +360,12 @@ const expandPalindrome: G = ({ text }) => {
     s.text.pointers = { lo: lo >= 0 ? lo : undefined, hi: hi < n ? hi : undefined };
     s.vars = { best: text.slice(bestLo, bestHi + 1), bestLen: bestHi - bestLo + 1 };
   };
-  f.push(`Every palindrome has a centre: one of the ${n} characters (odd length) or one of the ${n - 1} gaps between them (even length). Try each centre and expand outward.`, "start");
+  f.push(`Every palindrome has a centre: one of the ${n} characters (odd length) or one of the ${n - 1} gaps between them (even length). Try all ${2 * n - 1} centres and expand each outward while the ends match.`, "start");
   for (let c = 0; c < 2 * n - 1 && !f.full; c++) {
     let lo = Math.floor(c / 2);
     let hi = lo + (c % 2);
-    const maxLen = 2 * Math.min(lo + 1, n - hi) - (c % 2 === 0 ? 1 : 0);
-    if (maxLen <= bestHi - bestLo + 1) continue;
-    const kind = c % 2 === 0 ? `character ${lo}` : `gap between ${lo} and ${hi}`;
+    const odd = c % 2 === 0;
+    const kind = odd ? `character ${lo} ('${t[lo]}')` : `gap between ${lo} and ${hi}`;
     paint(lo, hi);
     s.text.tones![lo] = "compare";
     s.text.tones![hi] = "compare";
@@ -362,11 +373,16 @@ const expandPalindrome: G = ({ text }) => {
     if (t[lo] !== t[hi]) {
       s.text.tones![lo] = "danger";
       s.text.tones![hi] = "danger";
-      f.push(`Centre at the ${kind}: '${t[lo]}' ≠ '${t[hi]}', so no even palindrome sits here.`, "centre");
+      f.push(`Centre ${c + 1} of ${2 * n - 1}, the ${kind}: '${t[lo]}' ≠ '${t[hi]}', so no even palindrome sits here.`, "centre");
       continue;
     }
-    f.push(`Centre at the ${kind}: '${t[lo]}' = '${t[hi]}', so [${lo}, ${hi}] is a palindrome; try to widen it.`, "centre");
-    while (lo - 1 >= 0 && hi + 1 < n && !f.full) {
+    f.push(odd ? `Centre ${c + 1} of ${2 * n - 1}, the ${kind}: a single character is a palindrome of length 1; try to widen it.` : `Centre ${c + 1} of ${2 * n - 1}, the ${kind}: '${t[lo]}' = '${t[hi]}', so [${lo}, ${hi}] is a palindrome; try to widen it.`, "centre");
+    while (!f.full) {
+      if (lo - 1 < 0 || hi + 1 >= n) {
+        paint(lo - 1, hi + 1);
+        f.push(`[${lo}, ${hi}] touches the ${lo - 1 < 0 ? "start" : "end"} of the text, so it cannot widen further: length ${hi - lo + 1}.`, "edge");
+        break;
+      }
       if (t[lo - 1] === t[hi + 1]) {
         lo--;
         hi++;
@@ -378,7 +394,7 @@ const expandPalindrome: G = ({ text }) => {
         paint(lo - 1, hi + 1);
         s.text.tones![lo - 1] = "danger";
         s.text.tones![hi + 1] = "danger";
-        f.push(`text[${lo - 1}] = '${t[lo - 1]}' ≠ text[${hi + 1}] = '${t[hi + 1]}': expansion stops at [${lo}, ${hi}].`, "stop");
+        f.push(`text[${lo - 1}] = '${t[lo - 1]}' ≠ text[${hi + 1}] = '${t[hi + 1]}': expansion stops at [${lo}, ${hi}], length ${hi - lo + 1}.`, "stop");
         break;
       }
     }
@@ -391,7 +407,7 @@ const expandPalindrome: G = ({ text }) => {
   }
   paint(-1, n);
   s.text.pointers = {};
-  f.push(`Longest palindromic substring is "${text.slice(bestLo, bestHi + 1)}" (length ${bestHi - bestLo + 1}). ${2 * n - 1} centres, each expanded at most n/2 times: O(n²) time, O(1) space.`, "done");
+  f.push(`Longest palindromic substring is "${text.slice(bestLo, bestHi + 1)}" (length ${bestHi - bestLo + 1}). All ${2 * n - 1} centres were tried. The cost is the sum of the expansions: near-linear on text like this, quadratic when every centre grows to the edge.`, "done");
   return f.done();
 };
 
@@ -544,24 +560,30 @@ const runLength: G = ({ text }) => {
   const outRow: Row = { label: "encoded output", values: [], tones: [] };
   s.aux = [outRow];
   let runStart = 0;
-  f.push("Walk the string with a run pointer: count how long the current character repeats, then emit it once with its count.", "start");
+  // A run of length 1 is written as the bare character ("aaabccdddd" -> "a3bc2d4").
+  const token = (c: string, count: number) => (count === 1 ? glyph(c) : `${glyph(c)}${count}`);
+  f.push("Walk the string with a run pointer: count how long the current character repeats, then emit it once with its count. A run of one is written as the bare character.", "start");
   for (let i = 0; i < n && !f.full; i++) {
+    if (i > 0 && t[i] !== t[i - 1]) runStart = i;
+    const count = i - runStart + 1;
     const last = i === n - 1 || t[i + 1] !== t[i];
     resetAll();
     for (let q = 0; q < runStart; q++) s.text.tones![q] = "muted";
     for (let q = runStart; q <= i; q++) s.text.tones![q] = "active";
     s.text.tones![i] = "compare";
     s.text.pointers = { run: runStart, i };
-    s.vars = { char: `'${glyph(t[i]!)}'`, count: i - runStart + 1, runs: out.length };
+    const c = glyph(t[i]!);
+    const read = count === 1 ? `text[${i}] = '${c}' starts a new run: count 1.` : `text[${i}] = '${c}' continues the run: count ${count}.`;
     if (last) {
-      const count = i - runStart + 1;
-      out.push(`${glyph(t[i]!)}${count}`);
+      out.push(token(t[i]!, count));
       outRow.values = [...out];
       outRow.tones = out.map((_, q) => (q === out.length - 1 ? "done" : undefined));
-      f.push(i + 1 < n ? `text[${i + 1}] = '${glyph(t[i + 1]!)}' differs: the run of '${glyph(t[i]!)}' ends with length ${count}, so emit "${glyph(t[i]!)}${count}" and start a new run at ${i + 1}.` : `End of text: the run of '${glyph(t[i]!)}' has length ${count}, so emit "${glyph(t[i]!)}${count}".`, "emit");
-      runStart = i + 1;
+      s.vars = { char: `'${c}'`, count, runs: out.length };
+      const why = i + 1 < n ? `text[${i + 1}] = '${glyph(t[i + 1]!)}' differs, so the run ends` : "The text ends, so the run ends";
+      f.push(`${read} ${why}: emit "${out[out.length - 1]}"${count === 1 ? " (a run of one is written bare)" : ""}.`, "emit");
     } else {
-      f.push(`text[${i + 1}] = '${glyph(t[i + 1]!)}' is the same as '${glyph(t[i]!)}': the run continues, count is now ${i - runStart + 2}.`, "extend");
+      s.vars = { char: `'${c}'`, count, runs: out.length };
+      f.push(`${read} text[${i + 1}] is '${c}' too, so keep counting.`, "extend");
     }
   }
   resetAll();
@@ -643,6 +665,9 @@ export const stringFamily: Family<StringInput, StringState> = {
     };
     const text = str(raw.text ?? raw.s ?? raw.string ?? raw.input ?? raw.values, MAX_TEXT) ?? "";
     const pattern = str(raw.pattern ?? raw.p ?? raw.needle ?? raw.target, MAX_PATTERN);
-    return { text, pattern };
+    const num = (v: unknown) => (v === undefined || v === null || !Number.isFinite(Number(v)) ? undefined : Number(v));
+    const base = num(raw.base);
+    const mod = num(raw.mod);
+    return { text, pattern, ...(base !== undefined ? { base } : {}), ...(mod !== undefined ? { mod } : {}) };
   },
 };

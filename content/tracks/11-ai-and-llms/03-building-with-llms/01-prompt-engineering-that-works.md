@@ -374,7 +374,7 @@ for name, turns in [("no caching", uncached), ("cached", conversation()),
 ```
 
 ```viz
-{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat",
+{"type": "ml", "algorithm": "kv-cache", "text": "The cat sat", "mode": "prompt-cache",
  "title": "What a cache hit skips",
  "caption": "Prefill computes a key and value for every prompt token. Prompt caching keeps them for a byte-identical prefix, so the next turn prefills only the new tokens, which is why a hit is billed at a fraction of the input price."}
 ```

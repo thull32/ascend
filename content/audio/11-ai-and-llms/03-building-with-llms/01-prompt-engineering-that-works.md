@@ -1,6 +1,6 @@
 ---
 lesson: prompt-engineering-that-works
-source: 52daeddeff475e75
+source: 39d38189e9f91784
 fit: great
 desk:
   - "The v5 system prompt in full, and the five-version results and cost tables"

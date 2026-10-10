@@ -1,6 +1,6 @@
 ---
 lesson: agentic-coding-workflow
-source: 05317a30a95f01a1
+source: 89ae2ec786f69a6c
 fit: great
 desk:
   - "The loop diagram and the full illustrative session transcript"

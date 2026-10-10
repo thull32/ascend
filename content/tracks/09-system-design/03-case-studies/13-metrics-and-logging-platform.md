@@ -136,7 +136,7 @@ The agent pushes compressed batches and spools to a bounded local disk buffer wh
 ```
 
 ```viz
-{"type": "system", "scenario": "backpressure", "requests": 8,
+{"type": "system", "scenario": "backpressure", "mode": "spool", "requests": 8,
  "title": "429 is backpressure, not an error",
  "caption": "When the gateway or a tenant limit refuses a batch, the agent keeps it in a bounded disk spool and retries later. The application never waits; if the spool fills, the oldest telemetry is dropped first."}
 ```
@@ -273,7 +273,7 @@ $$m = -\frac{n \ln p}{(\ln 2)^2} = \frac{5{,}000 \times 4.605}{0.4805} = 47{,}92
 That is 0.7% of the chunk. Be honest about the whole-day needle query, though: $10^6$ lines/s is 8.6 million chunks a day, so checking every filter reads ~52 GB of filters, and 1% false positives still fetch 86,400 chunks (~72 GB). That beats scanning 7.2 TB by two orders of magnitude but is not free; narrowing by a `service` label first, or 14.4 bits per key for 0.1%, cuts it by another 10×.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter", "keys": ["trace-4bf9", "trace-a3c1", "trace-77e0", "trace-19d2"],
+{"type": "system", "scenario": "bloom-filter", "keys": ["trace-4bf9","trace-a3c1","trace-77e0","trace-19d2"], "app": "Querier", "store": "chunk store",
  "title": "Skipping chunks that cannot contain the trace",
  "caption": "Each chunk's filter answers 'definitely not here' or 'maybe here'. A 'no' is always right, so the querier skips that chunk; a 'maybe' costs one fetch that is occasionally wasted. About 10 bits per key gives 1%."}
 ```

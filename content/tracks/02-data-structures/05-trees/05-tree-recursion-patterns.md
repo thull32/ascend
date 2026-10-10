@@ -158,8 +158,8 @@ def diameter(root):
 Diameter 6, the path −1, 7, 8, −3, −5, 9, 10, found at node −3; the candidate at the root is only 5. That is why the running best is updated at *every* node and the answer is not the root's candidate.
 
 ```viz
-{"type": "tree", "algorithm": "diameter", "values": [1, 2, 3, 4, 5],
- "title": "Diameter in one bottom-up pass", "caption": "Each node returns its height and updates the running best with left height + right height + 2. Note: the visualiser inserts values in BST order, so the shape differs from the lesson's tree."}
+{"type": "tree", "algorithm": "diameter", "values": [], "levelOrder": [4, -3, 6, 8, -5, null, null, 7, null, null, 9, -1, null, null, 10],
+ "title": "Diameter in one bottom-up pass", "caption": "The example tree. Each node returns its height and updates the running best with left height + right height + 2; the best, 6, is found at −3, not at the root."}
 ```
 
 ### The O(n²) trap, counted
@@ -291,8 +291,8 @@ def lca_safe(node, p, q):                 # returns (candidate, found_p, found_q
 `lca_safe(root, 7, 99)` returns `(7, True, False)`, and the caller checks both flags. The price is that the search no longer stops at the first match (it must keep looking for the other value below it), so it visits all n nodes instead of stopping early.
 
 ```viz
-{"type": "tree", "algorithm": "lca", "values": [6, 2, 8, 0, 4, 7, 9, 3, 5], "a": 3, "b": 5,
- "title": "Lowest common ancestor", "caption": "Bottom-up: a node that receives a hit from both children is the answer. The values here form a BST, so the top-down walk would find the same node."}
+{"type": "tree", "algorithm": "lca", "values": [], "levelOrder": [4, -3, 6, 8, -5, null, null, 7, null, null, 9, -1, null, null, 10], "a": 7, "b": 10,
+ "title": "Lowest common ancestor", "caption": "LCA(7, 10) on the example tree, bottom-up: a node that receives a hit from both children is the answer, and every node above it passes that answer up unchanged."}
 ```
 
 ### With parent pointers

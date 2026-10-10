@@ -86,7 +86,7 @@ $$\text{throughput} \le \frac{\text{window}}{\text{RTT}}$$
 Every modern stack negotiates window scaling in the SYN, but the ceiling reappears whenever something caps the window: an application that sets a small `SO_RCVBUF` (which also switches off receive-buffer autotuning), a `tcp_rmem` maximum below the BDP, a middlebox that strips the option, or an application that reads slowly and lets the receive window fill. Halving the RTT doubles the ceiling, which is why a CDN edge 10 ms from the user can serve a large file many times faster than an origin 150 ms away, on identical links ([CDNs and the edge](/learn/networking/application-protocols/cdns-and-edge)).
 
 ```viz
-{"type": "network", "scenario": "sliding-window-protocol", "title": "At most one window in flight", "caption": "The sender may have one window of unacknowledged bytes outstanding. If the window is smaller than bandwidth times RTT, the sender idles until ACKs return, and throughput is window divided by RTT whatever the link speed."}
+{"type": "network", "scenario": "sliding-window-protocol", "loss": 0, "title": "At most one window in flight", "caption": "The sender may have one window of unacknowledged bytes outstanding. If the window is smaller than bandwidth times RTT, the sender idles until ACKs return, and throughput is window divided by RTT whatever the link speed."}
 ```
 
 ## Measured: the window ceiling on a 50 ms path

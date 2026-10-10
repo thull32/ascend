@@ -234,7 +234,9 @@ The cheapest way to make retries safe is to **design operations to be idempotent
 `POST /api/comments` is different: two identical posts create two comments. When an operation is inherently "create a new thing" or "move money", the client supplies an **idempotency key**: a unique ID per logical operation, sent as a header. The server records the key with a hash of the request and the response. A retry with the same key gets the stored response without re-executing; the same key with a *different* body is a client bug and gets a client error; a retry that arrives while the first attempt is still running gets a 409 or waits. The IETF's [`Idempotency-Key` header draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) recommends `422` and `409` for those two cases; it reached revision 07 in October 2025 without becoming an RFC, so treat them as convention, not standard.
 
 ```viz
-{"type": "system", "algorithm": "idempotency-key", "title": "Idempotency keys turn retries into replays", "caption": "The second request carries the same key, so the server returns the stored result instead of charging twice. Keys need a TTL and must be scoped per caller."}
+{"type": "system", "algorithm": "idempotency-key", "service": "Payments API", "request": "POST /payments $20", "key": "k1", "effect": "charge $20", "target": "", "record": "charge", "response": "201 pay_1", "effects": "charges", "changed": "$30 instead of $20",
+ "title": "Idempotency keys turn retries into replays",
+ "caption": "The second request carries the same key, so the server returns the stored result instead of charging twice. Keys need a TTL and must be scoped per caller."}
 ```
 
 Traced for `POST /payments` with `Idempotency-Key: k1`, where the server stores the key, a hash of the body and the response:
@@ -252,7 +254,7 @@ Row 5 is why the TTL must outlast every client's retry window. The details that 
 The error taxonomy also decides what **callers' resilience machinery** does. A circuit breaker should count timeouts and 5xx responses as failures, and must not count 4xx: a buggy client sending invalid requests should not open the breaker for every other caller.
 
 ```viz
-{"type": "system", "algorithm": "circuit-breaker", "title": "The caller's side of your error contract", "caption": "After repeated failures the breaker opens and fails fast, then lets a probe through. Which statuses count as failures is decided by the error taxonomy."}
+{"type": "system", "algorithm": "circuit-breaker", "contract": true, "title": "The caller's side of your error contract", "caption": "After repeated failures the breaker opens and fails fast, then lets a probe through. Which statuses count as failures is decided by the error taxonomy."}
 ```
 
 ## Pagination: offsets lie, cursors scale

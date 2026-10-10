@@ -1,6 +1,6 @@
 ---
 lesson: monotonic-stack-pattern
-source: 94986e7152834ad9
+source: 655f90a1ed3bf41b
 fit: partial
 desk:
   - "The template in Python and JavaScript, and the direction and tie-rule table"

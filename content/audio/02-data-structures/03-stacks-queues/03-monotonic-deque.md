@@ -1,6 +1,6 @@
 ---
 lesson: monotonic-deque
-source: d7727f416e1529a4
+source: 0f12cc71124eab5e
 fit: partial
 desk:
   - "The sliding-window-maximum code, and the two full traces: the classic input, and the expiry-only input"

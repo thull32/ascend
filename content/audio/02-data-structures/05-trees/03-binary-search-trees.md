@@ -1,6 +1,6 @@
 ---
 lesson: binary-search-trees
-source: 51b01f8ebaad5ed9
+source: 74151a27f46a5012
 fit: partial
 desk:
   - "The eight-key example tree, and the hand trace of its eight inserts"

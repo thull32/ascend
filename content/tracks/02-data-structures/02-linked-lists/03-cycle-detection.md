@@ -151,7 +151,7 @@ Floyd never uses the fact that the sequence is a linked list. It uses only that 
 **Arrays as functions.** An array `nums` of `n + 1` integers each in `1..n` defines `f(i) = nums[i]`. Follow `i → nums[i]` from index 0. No value is 0, so index 0 has no incoming edge and is in the tail, never the cycle; there are `n + 1` indices and only `n` targets, so some target has two incoming edges, and that node is the cycle start and the duplicated value. Floyd finds it in O(n) time, O(1) space, read-only. [Find the Duplicate Number](/practice/find-duplicate-number) is the first exercise.
 
 ```viz
-{"type": "graph", "algorithm": "cycle-detect", "directed": true, "start": "0", "nodes": [{"id": "0"}, {"id": "1"}, {"id": "3"}, {"id": "2"}, {"id": "4"}], "edges": [{"from": "0", "to": "1"}, {"from": "1", "to": "3"}, {"from": "3", "to": "2"}, {"from": "2", "to": "4"}, {"from": "4", "to": "2"}], "title": "nums = [1, 3, 4, 2, 2] as the functional graph i → nums[i]: the node with two incoming edges is the duplicate"}
+{"type": "graph", "algorithm": "cycle-detect", "method": "floyd", "directed": true, "start": "0", "nodes": [{"id": "0"}, {"id": "1"}, {"id": "3"}, {"id": "2"}, {"id": "4"}], "edges": [{"from": "0", "to": "1"}, {"from": "1", "to": "3"}, {"from": "3", "to": "2"}, {"from": "2", "to": "4"}, {"from": "4", "to": "2"}], "title": "nums = [1, 3, 4, 2, 2] as the functional graph i → nums[i]: the node with two incoming edges is the duplicate"}
 ```
 
 | iteration | `slow` (index) | `fast` (index) | phase 2 step | `p` | `slow` |

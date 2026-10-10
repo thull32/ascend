@@ -88,7 +88,7 @@ Each of $n$ items is either in a subset or out: two choices, $n$ times, $2^n$ su
 Combinations of a fixed size are the subsets with exactly $k$ bits set:
 
 ```viz
-{"type": "recursion", "algorithm": "combinations", "values": [1, 2, 3, 4], "k": 2, "title": "C(4, 2) = 6 combinations", "caption": "Same tree, but branches that can no longer reach k items are pruned. Pruning is what makes combination enumeration cheaper than subset enumeration."}
+{"type": "recursion", "algorithm": "combinations", "values": [1, 2, 3, 4], "k": 2, "title": "C(4, 2) = 6 combinations", "caption": "Each level picks the next item from those after the last one chosen, and a branch that can no longer reach k items is pruned without being called. Pruning is what makes combination enumeration cheaper than subset enumeration."}
 ```
 
 Where $2^n$ appears: [Subsets](/practice/subsets), subset-sum and partition problems, bitmask DP over "which items are used", the feature-flag matrix. When $n \le 20$ the space is a million and a plain loop over masks is the intended solution. When $n \approx 40$, meet-in-the-middle splits it into two $2^{20}$ halves: enumerate each half's sums, sort one, and binary-search or two-pointer the other, turning $2^{40}$ into about $2 \cdot 2^{20} \log 2^{20}$.

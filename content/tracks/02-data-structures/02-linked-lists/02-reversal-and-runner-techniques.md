@@ -81,7 +81,7 @@ The call stack for `1 → 2 → 3 → 4`, in time order (the list state column s
 Four frames are alive at event 4, one per node. That is the cost.
 
 ```viz
-{"type": "memory", "algorithm": "call-stack", "n": 4, "title": "One frame per node: the recursion is as deep as the list is long"}
+{"type": "memory", "algorithm": "call-stack", "fn": "reverse", "values": [1, 2, 3, 4], "title": "One frame per node: the recursion is as deep as the list is long"}
 ```
 
 ## The recursion cliff, measured

@@ -59,8 +59,9 @@ flowchart LR
 Ten rows, about fifteen minutes on a whiteboard, and every row is a design decision you would otherwise make in a postmortem. The reporting-service hole from the opening is the "Gateway → invoices" and "Invoices API" rows.
 
 ```viz
-{"type": "system", "scenario": "request-flow", "nodes": 4,
- "title": "A request crossing three trust boundaries", "caption": "At each boundary the caller is authenticated and its request authorised. The gateway verifies the user; each internal hop verifies the calling service's identity and checks that the user context permits this operation on this resource."}
+{"type": "system", "scenario": "request-flow", "variant": "trust",
+ "title": "A request crossing three trust boundaries",
+ "caption": "At each boundary the caller is authenticated and its request authorised. The gateway verifies the user; each internal hop verifies the calling service's identity and checks that the user context permits this operation on this resource."}
 ```
 
 ### From threats to controls and residual risk
@@ -251,7 +252,7 @@ The record ID passed as associated data binds each ciphertext to its row, so an 
 Every unauthenticated endpoint is an abuse surface: login (credential stuffing), signup (account farming), password reset (enumeration), anything expensive (denial of wallet). Limit per account and device with the algorithms in [Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms), use IP as one signal in a risk score rather than the key (thousands of users share a university NAT; a botnet is one attacker on thousands of addresses), and never reveal whether an account exists.
 
 ```viz
-{"type": "system", "scenario": "token-bucket", "requests": 10,
+{"type": "system", "scenario": "token-bucket", "requests": 10, "capacity": 5, "refill": 12,
  "title": "Per-account bucket on the login endpoint", "caption": "Legitimate users never exhaust a bucket of five attempts per minute. A credential-stuffing run against one account is throttled after five, and a distributed run across many accounts is caught by a second bucket keyed on IP range and device."}
 ```
 

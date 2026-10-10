@@ -1,6 +1,6 @@
 ---
 lesson: python-idioms-for-interviews
-source: ab6b720a59aa2c84
+source: 9748d8a6278588ae
 fit: partial
 desk:
   - "The cost table of the built-ins, with every measured timing"

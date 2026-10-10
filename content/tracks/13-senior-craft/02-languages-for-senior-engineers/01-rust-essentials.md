@@ -258,7 +258,7 @@ When the lock genuinely must span an await, use `tokio::sync::Mutex`, whose guar
 The cost of thread-safe sharing, measured: `Rc::clone` plus drop took 0.5 ns, `Arc::clone` plus drop 7.2 ns single-threaded. With 2, 4 and 8 threads cloning the *same* `Arc`, each clone took 21, 42 and 88 ns, because the count's cache line bounces between cores. An uncontended `Mutex` lock and unlock took 7.3 ns; eight threads fighting over one took 291 ns per acquisition. `AppState` derives `Clone` cheaply because every field is an `Arc` or a pool handle, but an `Arc` cloned per request on 32 cores is a contention point worth knowing about.
 
 ```viz
-{"type": "memory", "algorithm": "reference-counting",
+{"type": "memory", "algorithm": "reference-counting", "lang": "rust",
  "title": "What Arc and Rc do under the hood",
  "caption": "Counts rise on clone and fall on drop; the object is freed the instant the count hits zero. The final steps show the cycle that never reaches zero, which is why Rust gives you Weak."}
 ```

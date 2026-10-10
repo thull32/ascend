@@ -48,10 +48,10 @@ floor_log2(1024)      # 10
 (999).bit_length()    # 10  -> ceil_log2(1000), for n >= 1 use (n - 1).bit_length()
 ```
 
-The loop *is* the definition: every algorithm that halves its problem each step runs for exactly this many steps. Binary search halves the candidate range every comparison, so on 8 elements it needs at most $\log_2 8 = 3$:
+The loop *is* the definition: every algorithm that halves its problem each step runs for exactly this many steps. Binary search halves the candidate range every comparison, so on 8 elements it needs at most $\log_2 8 = 3$ halvings to get down to one candidate, plus one comparison to check it:
 
 ```viz
-{"type": "array", "algorithm": "binary-search", "values": [2, 5, 8, 12, 16, 23, 38, 56], "target": 23, "title": "Three halvings", "caption": "Eight candidates become four, then two, then one. The step count is log2 of the array length, not the array length."}
+{"type": "array", "algorithm": "binary-search", "values": [2, 5, 8, 12, 16, 23, 38, 56], "target": 56, "title": "Three halvings", "caption": "Eight candidates become four, then two, then one, and a fourth comparison checks the survivor. The step count is log2 of the array length, not the array length."}
 ```
 
 ## The rules, derived from the exponent rules

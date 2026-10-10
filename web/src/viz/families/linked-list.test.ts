@@ -44,8 +44,18 @@ describe("linked-list family", () => {
   it("cycle-detect finds the entry node", () => {
     const frames = linkedListFamily.algorithms["cycle-detect"]!({ values: [1, 2, 3, 4, 5, 6], cycleAt: 2 });
     const last = frames[frames.length - 1]!;
-    expect(last.note).toContain("index 2");
+    expect(last.note).toContain("They meet at 3:");
     expect(last.state.pointers.entry).toBe(last.state.rows[0]!.nodes[2]!.id);
+  });
+
+  it("cycle-detect notes name nodes by label, not by drawing position", () => {
+    // Find the Duplicate on [1, 3, 4, 2, 2]: labels are array indices; the tail (4) links to label 2, drawn at position 3.
+    const frames = linkedListFamily.algorithms["cycle-detect"]!({ values: [0, 1, 3, 2, 4], cycleAt: 3 });
+    expect(frames[0]!.note).toContain("The tail (4) points back to 2,");
+    const last = frames.at(-1)!;
+    expect(last.note).toContain("They meet at 2:");
+    expect(last.note).not.toMatch(/index|position/);
+    for (const f of frames) expect(f.note).not.toMatch(/node 3 \(value 2\)/);
   });
 
   it("merge-sorted produces a sorted merged row", () => {
@@ -64,6 +74,14 @@ describe("linked-list family", () => {
     const frames = linkedListFamily.algorithms["insert-sorted"]!({ values: [2, 5, 9, 14], target: 7 });
     const labels = frames[frames.length - 1]!.state.rows[0]!.nodes.map((n) => n.label);
     expect(labels).toEqual(["2", "5", "7", "9", "14"]);
+  });
+
+  it("middle: fast follows twice as many next pointers as slow, including the one off the end", () => {
+    const frames = linkedListFamily.algorithms.middle!({ values: [1, 2, 3, 4, 5, 6] });
+    const steps = frames.filter((f) => f.tag === "step");
+    expect(steps.map((f) => f.note.match(/fast has followed (\d+) next pointers, slow (\d+)/)!.slice(1).map(Number))).toEqual([[2, 1], [4, 2], [6, 3]]);
+    expect(steps.at(-1)!.state.pointers.fast).toBeNull();
+    expect(steps.at(-1)!.note).toContain("fast → null");
   });
 
   it("normalise tolerates junk and caps length", () => {

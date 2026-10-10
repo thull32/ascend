@@ -1,6 +1,6 @@
 ---
 lesson: interval-and-tree-dp
-source: 5ca9cb5ee087ed2e
+source: 1090b7813224f7b3
 fit: partial
 desk:
   - "The matrix-chain trace for four matrices, length by length, and the code"

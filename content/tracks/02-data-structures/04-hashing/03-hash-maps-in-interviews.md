@@ -241,7 +241,7 @@ The swap-with-last trick is the whole problem: deleting from the middle of a lis
 - **Reaching for a heap for top-k when bucket sort by count is O(n)**, or for a `Counter` when a 26-slot array is one cache line.
 
 ```viz
-{"type": "hash-table", "algorithm": "chaining", "buckets": 6, "operations": [["set", "aet", 1], ["set", "ant", 1], ["set", "aet", 2], ["set", "abt", 1], ["set", "aet", 3], ["set", "ant", 2], ["get", "aet"]], "title": "Grouping by canonical key: repeated keys update one bucket entry"}
+{"type": "hash-table", "algorithm": "chaining", "buckets": 6, "operations": [["append", "aet", "eat"], ["append", "aet", "tea"], ["append", "ant", "tan"], ["append", "aet", "ate"], ["append", "ant", "nat"], ["append", "abt", "bat"], ["get", "aet"]], "title": "Grouping by canonical key: repeated keys update one bucket entry"}
 ```
 
 ## Exercises

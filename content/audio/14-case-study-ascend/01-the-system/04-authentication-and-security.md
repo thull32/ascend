@@ -1,6 +1,6 @@
 ---
 lesson: authentication-and-security
-source: 488070a046e5fe25
+source: 389227a8092d87ce
 fit: great
 desk:
   - "The threat table and the login sequence diagram"

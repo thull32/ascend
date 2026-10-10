@@ -1,6 +1,6 @@
 ---
 lesson: depth-first-search
-source: d38c916121cba983
+source: 9da79b1bf7901f5b
 fit: partial
 desk:
   - "The recursive DFS with colours and timestamps, and the eight-vertex event log with every edge type"

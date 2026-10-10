@@ -153,7 +153,7 @@ $$m = -\frac{n \ln p}{(\ln 2)^2} = \frac{10^{10} \times 4.605}{0.4805} = 9.59 \t
 At $p = 0.001$ it is 14.4 bits per URL, 18 GB and 10 hash functions. The subtle point: a filter never says "no" to a URL it has seen, but it says "maybe" to 1% of genuinely new URLs, and trusting that blindly means 1% of new URLs are never crawled. For low-priority links that is acceptable; for sitemap and high-priority URLs, confirm "maybe" against the URL table.
 
 ```viz
-{"type": "system", "scenario": "bloom-filter", "keys": ["a.com/", "a.com/about", "b.org/x", "c.net/"],
+{"type": "system", "scenario": "bloom-filter", "keys": ["a.com/","a.com/about","b.org/x","c.net/"], "app": "Crawler", "store": "URL table",
  "title": "The seen test",
  "caption": "Each URL sets k bits. A lookup that finds any of its bits unset is definitely new and goes straight to the frontier. A lookup that finds all bits set is 'probably seen'; at about 10 bits per URL the probability of being wrong is about 1%."}
 ```

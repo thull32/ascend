@@ -1,6 +1,6 @@
 ---
 lesson: change-data-capture
-source: b30a77f7804b890f
+source: ef0c3facf3940f08
 fit: great
 desk:
   - "The dual-write race traced with timestamps"

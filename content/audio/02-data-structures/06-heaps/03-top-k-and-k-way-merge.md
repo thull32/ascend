@@ -1,6 +1,6 @@
 ---
 lesson: top-k-and-k-way-merge
-source: 8316997ac318a10e
+source: a4ba963304d976ea
 fit: partial
 desk:
   - "The top-k code and its trace with k equal to 3 over eight items"

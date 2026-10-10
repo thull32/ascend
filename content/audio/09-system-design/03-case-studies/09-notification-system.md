@@ -1,6 +1,6 @@
 ---
 lesson: notification-system
-source: e31a93c680701205
+source: bf1ad40011b7c269
 fit: great
 desk:
   - "The API, the data model and the architecture diagram"

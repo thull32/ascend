@@ -1,6 +1,6 @@
 ---
 lesson: inference-serving
-source: afe838ce850f6c5e
+source: 8e1a38b7cda23e05
 fit: great
 desk:
   - "The arithmetic intensity and ridge point calculation, and the prefill time table"

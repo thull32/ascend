@@ -175,23 +175,56 @@ Common optional fields on every viz: `"title": "…"`, `"caption": "…"`.
 
 | type | algorithm / scenario | required input |
 |---|---|---|
-| `array` | `linear-search`, `binary-search`, `two-pointers-sum`, `sliding-window-max-sum`, `sliding-window-longest-unique`, `prefix-sum`, `kadane`, `dutch-flag`, `bubble-sort`, `insertion-sort`, `selection-sort`, `merge-sort`, `quick-sort`, `counting-sort`, `reverse`, `rotate`, `move-zeroes`, `remove-duplicates`, `monotonic-stack-next-greater`, `binary-search-first-true` | `values: number[]`; `target` for searches/sums; `k` for windows |
+| `array` | `linear-search`, `binary-search`, `two-pointers-sum`, `sliding-window-max-sum`, `sliding-window-longest-unique`, `prefix-sum`, `kadane`, `dutch-flag`, `bubble-sort`, `insertion-sort`, `selection-sort`, `merge-sort`, `quick-sort`, `counting-sort`, `reverse`, `rotate`, `move-zeroes`, `remove-duplicates`, `monotonic-stack-next-greater`, `binary-search-first-true` | `values: number[]`; `target` for searches/sums; `k` for windows; `two-pointers-sum` takes `closest: true`; `binary-search-first-true` takes `predicate` (a name shown in probes); `prefix-sum` takes `leadingZero`, `query: [l, r]`, `peak`, `k` (subarray sum) or `mod` |
 | `linked-list` | `traverse`, `reverse`, `cycle-detect`, `middle`, `merge-sorted`, `remove-nth-from-end`, `insert-sorted` | `values: number[]` (+ `values2` for merge, `cycleAt` index for cycle, `n`) |
-| `stack-queue` | `stack-ops`, `queue-ops`, `deque-ops`, `balanced-parentheses`, `queue-via-two-stacks`, `min-stack`, `sliding-window-max` | `operations: [["push",3],["pop"]]` or `input: string`/`values` |
-| `hash-table` | `chaining`, `open-addressing`, `resize` | `buckets: number`, `operations: [["set","k",1],["get","k"],["delete","k"]]` |
-| `tree` | `bst-insert`, `bst-search`, `bst-delete`, `inorder`, `preorder`, `postorder`, `level-order`, `height`, `diameter`, `lca`, `validate-bst`, `avl-insert`, `invert`, `serialize` | `values: number[]` (inserted in order), `target`, `a`/`b` for lca |
-| `heap` | `push-pop`, `heapify`, `heap-sort`, `top-k`, `two-heaps-median` | `values: number[]` or `operations`, `kind: "min"|"max"`, `k` |
+| `stack-queue` | `stack-ops`, `queue-ops`, `deque-ops`, `balanced-parentheses`, `queue-via-two-stacks`, `min-stack`, `sliding-window-max` | `operations: [["push",3],["pop"]]` or `input: string`/`values`; `min-stack` takes `"variant": "parallel"` (min pushed on every push) |
+| `hash-table` | `chaining`, `open-addressing`, `resize` | `buckets: number`, `operations: [["set","k",1],["get","k"],["delete","k"],["append","k","v"]]` (append makes list values); `"hash": "fnv1a"` (default Java hashCode); `resize` takes `growth` (new bucket count) |
+| `tree` | `bst-insert`, `bst-search`, `bst-delete`, `inorder`, `preorder`, `postorder`, `level-order`, `height`, `diameter`, `lca`, `validate-bst`, `avl-insert`, `invert`, `serialize` | `values: number[]` (inserted in order), `target`, `a`/`b` for lca, or `levelOrder` (with nulls) for an exact shape; `"heightUnit": "nodes"` (default edges) for bst-insert, avl-insert, diameter; `"thenInorder": true` on bst-insert; `"iterative": true` on inorder; `"order": "level"` on serialize |
+| `heap` | `push-pop`, `heapify`, `heap-sort`, `top-k`, `two-heaps-median` | `values: number[]` or `operations`, `kind: "min"|"max"`, `k`; push ops may name the item (`["push",3,"A"]`) and `"lazy": true` shows stale entries discarded |
 | `trie` | `insert-search`, `prefix-autocomplete`, `word-break` | `operations: [["insert","cat"],["search","car"],["prefix","ca"]]` |
-| `graph` | `bfs`, `dfs`, `dijkstra`, `bellman-ford`, `topo-sort-kahn`, `topo-sort-dfs`, `dag-build`, `connected-components`, `cycle-detect`, `bipartite`, `prim`, `kruskal`, `union-find`, `a-star`, `floyd-warshall`, `tarjan-scc`, `bridges`, `grid-islands`, `grid-bfs` | `nodes: [{"id":"A"}]` (x/y optional 0–100), `edges: [{"from":"A","to":"B","w":3}]`, `directed: bool`, `start`, `goal`; grid algorithms take `grid: number[][]` |
-| `dp` | `fibonacci`, `climbing-stairs`, `coin-change`, `house-robber`, `lis`, `lcs`, `edit-distance`, `knapsack-01`, `unique-paths`, `min-path-sum`, `word-break`, `palindrome-substrings`, `max-subarray` | problem-specific: `n`, `coins`, `amount`, `values`, `a`, `b`, `weights`, `capacity`, `grid` |
-| `recursion` | `factorial`, `fibonacci`, `hanoi`, `permutations`, `subsets`, `combinations`, `n-queens`, `binary-search-recursive`, `merge-sort-tree`, `flood-fill` | `n` or `values`/`items` |
-| `string` | `kmp`, `rabin-karp`, `z-algorithm`, `expand-palindrome`, `anagram-window`, `reverse-words`, `run-length` | `text`, `pattern` |
-| `bits` | `and-or-xor`, `shift`, `count-bits`, `single-number`, `power-of-two`, `subset-mask` | `values`, `a`, `b` |
-| `network` | `osi-encapsulation`, `tcp-handshake`, `tcp-data-transfer`, `tcp-retransmit`, `tcp-teardown`, `udp-send`, `dns-resolution`, `http-request`, `https-tls-handshake`, `http2-multiplexing`, `websocket-upgrade`, `packet-routing`, `nat`, `load-balancer-round-robin`, `load-balancer-least-conn`, `cdn-cache`, `congestion-slow-start`, `sliding-window-protocol`, `distance-vector`, `link-state`, `bgp-path`, `arp`, `traceroute`, `grpc-stream`, `long-polling-vs-sse` | mostly none; `packets`, `loss: number` where sensible |
+| `graph` | `bfs`, `dfs`, `dijkstra`, `bellman-ford`, `topo-sort-kahn`, `topo-sort-dfs`, `dag-build`, `connected-components`, `cycle-detect`, `bipartite`, `prim`, `kruskal`, `union-find`, `a-star`, `floyd-warshall`, `tarjan-scc`, `bridges`, `grid-islands`, `grid-bfs` | `nodes: [{"id":"A"}]` (x/y optional 0–100), `edges: [{"from":"A","to":"B","w":3}]`, `directed: bool`, `start`, `goal`; `cycle-detect` takes `"method": "floyd"` for the tortoise-and-hare run over a functional graph, and `grid-islands` takes `"method": "bfs"` (default DFS flood fill); grid algorithms take `grid: number[][]` |
+| `dp` | `fibonacci`, `climbing-stairs`, `coin-change`, `house-robber`, `lis`, `lcs`, `edit-distance`, `knapsack-01`, `unique-paths`, `min-path-sum`, `word-break`, `palindrome-substrings`, `max-subarray` | problem-specific: `n`, `coins`, `amount`, `values`, `a`, `b`, `weights`, `capacity`, `grid`; `coin-change` takes `"order": "coin-outer"`; `word-break` takes `"direction": "suffix"` |
+| `recursion` | `factorial`, `fibonacci`, `hanoi`, `permutations`, `subsets`, `combinations`, `n-queens`, `binary-search-recursive`, `merge-sort-tree`, `flood-fill` | `n` or `values`/`items`; `fibonacci` takes `name` and `bases` (e.g. ways with both bases 1); `merge-sort-tree` takes `"split": "even-odd"` (FFT) |
+| `string` | `kmp`, `rabin-karp`, `z-algorithm`, `expand-palindrome`, `anagram-window`, `reverse-words`, `run-length` | `text`, `pattern`; `rabin-karp` takes `base` and `mod` |
+| `bits` | `and-or-xor`, `shift`, `count-bits`, `single-number`, `power-of-two`, `subset-mask` | `values`, `a`, `b`; `shift` takes `left`/`right` shift lists; `and-or-xor` takes `ops` and `carry` (addition by carries); `count-bits` takes `"mode": "leading-zeros"` |
+| `network` | `osi-encapsulation`, `tcp-handshake`, `tcp-data-transfer`, `tcp-retransmit`, `tcp-teardown`, `udp-send`, `dns-resolution`, `http-request`, `https-tls-handshake`, `http2-multiplexing`, `websocket-upgrade`, `packet-routing`, `nat`, `load-balancer-round-robin`, `load-balancer-least-conn`, `cdn-cache`, `congestion-slow-start`, `sliding-window-protocol`, `distance-vector`, `link-state`, `bgp-path`, `arp`, `traceroute`, `grpc-stream`, `long-polling-vs-sse` | mostly none; `packets`, `loss: number` where sensible; `cdn-cache` takes per-lesson labels, asset, lifetime, timings, readouts and closing (see `network.tsx`); `load-balancer` least connections takes a slow-replica mode |
 | `system` | `request-flow`, `cache-aside`, `write-through`, `write-behind`, `cache-stampede`, `consistent-hashing`, `sharding-range`, `sharding-hash`, `replication-leader-follower`, `replication-multi-leader`, `quorum`, `raft-election`, `raft-log-replication`, `two-phase-commit`, `saga`, `outbox`, `message-queue`, `pubsub`, `token-bucket`, `leaky-bucket`, `sliding-window-log`, `circuit-breaker`, `retry-backoff`, `bulkhead`, `backpressure`, `lsm-tree`, `b-tree-index`, `wal`, `mvcc`, `bloom-filter`, `lru-cache`, `lfu-cache`, `mapreduce`, `stream-windowing`, `watermarks`, `kafka-partitions`, `cdc`, `event-sourcing`, `crdt-counter`, `lamport-clock`, `vector-clock`, `gossip`, `distributed-lock`, `leader-lease`, `idempotency-key`, `strangler-fig`, `blue-green`, `canary`, `service-mesh` | mostly none; `nodes`, `replicas`, `keys`, `requests` where sensible |
 | `concurrency` | `race-condition`, `mutex`, `deadlock`, `producer-consumer`, `readers-writers`, `semaphore`, `condition-variable`, `event-loop`, `thread-pool`, `channels`, `cas-loop`, `false-sharing`, `dining-philosophers` | `threads: number` optional |
-| `memory` | `stack-heap`, `call-stack`, `gc-mark-sweep`, `reference-counting`, `ownership-borrowing`, `virtual-memory-paging`, `cache-lines`, `dynamic-array-growth` | none |
-| `ml` | `linear-regression`, `gradient-descent`, `logistic-regression`, `neural-net-forward`, `backprop`, `decision-tree`, `k-means`, `knn`, `embeddings-similarity`, `tokenization`, `attention`, `transformer-block`, `next-token-sampling`, `kv-cache`, `rag-pipeline`, `agent-loop`, `fine-tuning`, `rlhf`, `speculative-decoding`, `vector-search-hnsw` | scenario-specific; `text`, `points`, `k` |
+| `memory` | `stack-heap`, `call-stack`, `gc-mark-sweep`, `reference-counting`, `ownership-borrowing`, `virtual-memory-paging`, `cache-lines`, `dynamic-array-growth` | none required; `call-stack` takes `fn` (`factorial` with `base` 0 or 1 and `name`, `ways`, `reverse` over `values`, or `calls` with `sample: true` for a profiler snapshot); `reference-counting` takes `lang` (`python` or `rust`); `dynamic-array-growth` takes `gc: true` (stale alias, not dangling); `stack-heap` takes `threads` (2 or 3: one stack per thread over a shared heap) |
+| `ml` | `linear-regression`, `gradient-descent`, `logistic-regression`, `neural-net-forward`, `backprop`, `decision-tree`, `k-means`, `knn`, `embeddings-similarity`, `tokenization`, `attention`, `transformer-block`, `next-token-sampling`, `kv-cache`, `rag-pipeline`, `agent-loop`, `fine-tuning`, `rlhf`, `speculative-decoding`, `vector-search-hnsw` | scenario-specific; `text`, `points`, `k`. `agent-loop` takes the task, tools and per-call steps (harness check, refusals, untrusted results, token counts) and a final answer or stop reason; `kv-cache` has paged and prompt-cache modes; see the documented input types in `web/src/viz/families/ml.tsx` |
+
+**System scenario inputs.** Every input below is optional; leaving it out gives the default run. Use them so
+a block shows the lesson's own system (its services, numbers and mechanism) rather than a generic one; a
+title must never promise something the frames do not show.
+
+- `request-flow`: `variant` `redirect`, `latency`, `aggregate`, `chain` (`nodes` 2–6), `trace`, `trace-ascend`,
+  `trust`, `layers`. No variant is the textbook read path.
+- `consistent-hashing`: `keys` (count or names, up to 16), `positions` (node angles), `added` (new node's
+  angle), `replicas`. `sharding-hash`: `keys` count; `variant` `fixed` (`partitions`) or `shuffle` (hot key).
+  `sharding-range`: `keys` count.
+- `idempotency-key`: `requests` (3+ shows a concurrent duplicate's 409); `store` `db` (same transaction),
+  `cache` (SET NX) or `unique` (event ID as primary key); labels `key`, `client`, `service`, `request`,
+  `effect`, `record`, `response`, `db`, `target`, `changed`, `effects`, `downstream`.
+- `quorum`: `variant` `partition` or `paxos`. `raft-log-replication`: `nodes` 3 or 5.
+- `replication-leader-follower`: `mode: "async"`, `pull`, labels `leader`, `follower`, `log`; `variant`
+  `kafka` (acks, ISR, high watermark) or `zones`.
+- `outbox`: labels `service`, `entity`, `event`, `relay`, `consumer`. `saga`: `steps`
+  (`[{service, step, undo, ok, undone, why}]`, 2–4, the last fails).
+- `lsm-tree`: labels `log`, `client`; `grace` (tombstone grace period); `checkpoint`; `variant: "parts"`
+  (ClickHouse). `bloom-filter`: labels `app`, `store`; `keys`; `variant: "digest"` (anti-entropy).
+  `b-tree-index`: `variant: "composite"`. `mvcc`: `variant: "table"` (table-format snapshots).
+- `gossip`: `fanout`, `mode: "push-pull"`, `variant: "suspicion"` (SWIM). `leader-lease`: `fencing`
+  (labels `holders`, `resource`, `epoch`, `writes`) or `variant: "raft"`. `distributed-lock`: labels `holders`,
+  `resource`, `item`, `state`; `fence: "conditional"` (labels `check`, `writeA`, `writeB`).
+- `token-bucket`: `capacity`, `refill` with `unit` (`s` or `min`), `times`, `keys` (a bucket per key),
+  `requests` (up to 20); `mode: "retry-budget"` (`capacity`, `ratio`, `attempts`).
+- `circuit-breaker`: labels `caller`, `dependency`, `fallback`; `timeoutMs`, `openFor`; `contract: true`
+  (4xx not counted, 5xx counted); `mode: "spend"` (`threshold`).
+- `cdc`: `sink` `search`, `read-model`, `new-store`, `cache`, `topic` or `seat-map`.
+  `kafka-partitions`: `mode` `lag` (`topic`, `effect`) or `idempotent` (producer IDs, epochs, sequence numbers). `message-queue`: `flavor: "lease"`, `effect`,
+  `dedupe`. `pubsub`: `flavor` `log` or `presence`. `bulkhead`: `slow`, `slowMs`, `normalMs`. `backpressure`: `mode` `reject` or `spool`.
+- `retry-backoff`: `deadlineMs`, `attemptMs`, `example`. `lru-cache`, `lfu-cache`: `capacity`.
+  `stream-windowing`: `size` (window seconds).
 
 Examples:
 

@@ -37,7 +37,8 @@ Carry these as orders of magnitude. The provenance column is what lets you defen
 Two facts fall out. The round trip dominates almost every request: five sequential same-AZ calls cost 1–2 ms before any work. And a cross-region call costs as much as a hundred same-AZ calls, which is why multi-region designs replicate data rather than call across an ocean on the hot path. [Latency, bandwidth and the math](/learn/networking/networking-in-practice/latency-bandwidth-and-math) derives the network numbers.
 
 ```viz
-{"type": "system", "scenario": "request-flow", "title": "Where a request spends its time",
+{"type": "system", "scenario": "request-flow", "variant": "latency",
+ "title": "Where a request spends its time",
  "caption": "Load balancer to service ~0.5 ms, service to cache ~0.5 ms, cache miss to database ~1 ms, and the client's own RTT of 20–200 ms on top. The database is rarely the slowest hop; the geography is."}
 ```
 
@@ -153,7 +154,9 @@ Round at every step: 1.7 becomes 2, $2.6 \times 10^6$ becomes $3 \times 10^6$. P
 | Origin | 5% CDN misses | 870 req/s, 174 MB/s (1.4 Gbit/s) |
 
 ```viz
-{"type": "network", "scenario": "cdn-cache", "title": "The CDN absorbs the read bandwidth",
+{"type": "network", "scenario": "cdn-cache", "title": "The CDN absorbs the read bandwidth", "user": "Viewer", "edge": "CDN edge", "origin": "Origin (object store)", "path": "/photos/8f3a/1080.jpg", "asset": "a 200 KB photo", "same": "photo", "nearby": "near the same edge", "maxAge": 31536000, "missNote": "Cache miss: the edge fetches the photo from the object store. This is one of the 5% of reads that reach the origin.", "missMs": 120, "hitMs": 10,
+ "stats": {"reads at peak": "17,000/s × 200 KB = 3.5 GB/s at the edge", "origin (5% misses)": "870 req/s, 174 MB/s"},
+ "closing": "Scale it up: 17,000 reads per second at 200 KB is about 3.5 GB/s, all served at the edge, while the origin sees only the 5% that miss, 870 requests and 174 MB per second. Photos never change once uploaded, so a long max-age is safe and the hit ratio is set by how often a photo is viewed again, not by expiry.",
  "caption": "At 17,000 image reads per second and 200 KB each, the edge serves about 3.5 GB/s while the origin sees only the 5% that miss. The origin's capacity is set by the miss rate, not the user count."}
 ```
 

@@ -1,6 +1,6 @@
 ---
 lesson: lru-cache
-source: ec3825821a9410bd
+source: 4aa53462a8f088cd
 fit: partial
 desk:
   - "The capacity-2 trace with every pointer write, and the sentinel-based implementation"

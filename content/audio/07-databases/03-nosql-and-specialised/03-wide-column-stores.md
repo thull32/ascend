@@ -1,6 +1,6 @@
 ---
 lesson: wide-column-stores
-source: 62ae315beeba9d73
+source: 43530d950e7d87ac
 fit: great
 desk:
   - "The readings table definition and the access-pattern and partition-size tables"

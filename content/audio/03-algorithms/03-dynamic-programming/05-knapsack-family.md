@@ -1,6 +1,6 @@
 ---
 lesson: knapsack-family
-source: 297a3a19b3c83b4e
+source: 8301d52f016644be
 fit: partial
 desk:
   - "The 0/1 knapsack table for the four items and capacity 7, the worked cells, and the walk-back"

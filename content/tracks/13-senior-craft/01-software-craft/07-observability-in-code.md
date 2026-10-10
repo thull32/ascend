@@ -267,7 +267,9 @@ Why two layers: the template exists only after routing, but a request refused be
 A trace is a tree of **spans**, each with a start, a duration, attributes and a parent. For the coach request (authenticate, load the conversation, assemble the prompt, open the upstream stream, relay tokens, persist the reply), a trace shows which step took the time.
 
 ```viz
-{"type": "system", "algorithm": "request-flow", "title": "Each hop is a span", "caption": "A trace links the spans for every hop of one request under a single trace ID, so the slow hop is visible instead of inferred."}
+{"type": "system", "algorithm": "request-flow", "variant": "trace-ascend",
+ "title": "Each hop is a span",
+ "caption": "A trace links the spans for every hop of one request under a single trace ID, so the slow hop is visible instead of inferred."}
 ```
 
 Because Ascend logs through the `tracing` crate, the `request` span already existed, and exporting it took one more layer in `telemetry.rs`: the `tracing-opentelemetry` bridge feeding an OTLP exporter to Jaeger. It passes spans, never log events, so learner text in a log line cannot reach the trace store. Inside the API that is still the one span: no function carries `#[tracing::instrument]` yet, so a slow trace shows the total, not the query. The only child is in another process, the grading service's `grade` span, covered below. **OpenTelemetry** is the vendor-neutral standard for the APIs, SDKs and collector, so instrumentation survives a change of backend.

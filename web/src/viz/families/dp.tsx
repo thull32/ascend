@@ -21,6 +21,10 @@ export interface DpInput {
   cols?: number;
   s?: string;
   words?: string[];
+  /** coin-change: "coin-outer" sweeps amounts upward once per coin (unbounded-knapsack order). */
+  order?: string;
+  /** word-break: "suffix" makes dp[i] = can(i), the suffix s[i:] is segmentable, filled from the end. */
+  direction?: string;
 }
 
 type Cell = string | number | null;
@@ -139,7 +143,77 @@ const linearRecurrence = (kind: "fibonacci" | "climbing-stairs"): G => ({ n }) =
   return f.done();
 };
 
-const coinChange: G = ({ coins, amount }) => {
+const coinChangeCoinOuter: G = ({ coins, amount }) => {
+  // Unbounded-knapsack order: for each coin, sweep the amounts upward from c. dp[a - c] may already
+  // include this coin, so a coin can repeat.
+  const cs = [...new Set((coins ?? [1, 3, 4]).map((c) => Math.floor(c)).filter((c) => c > 0))].sort((a, b) => a - b).slice(0, 8);
+  const A = clampInt(amount, 0, 30, 6);
+  const { s, f, row, base, problem } = make();
+  if (cs.length === 0) return problem("Coin change needs at least one positive coin denomination (coins: [1, 3, 4]).");
+  const coinRow = row("coins", cs, cs.map(() => ""));
+  const dp = row("dp[a] = fewest coins that make amount a", nulls(A + 1), undefined, true);
+  const val: number[] = new Array<number>(A + 1).fill(Infinity);
+  const choice: number[] = new Array<number>(A + 1).fill(-1);
+  val[0] = 0;
+  s.vars = { amount: A };
+  f.push(`Minimum coins for ${A} with {${cs.join(", ")}}, coin by coin: for each coin c, sweep a upward from c and set dp[a] = min(dp[a], dp[a − c] + 1). Every amount above 0 starts at ∞.`);
+  dp.values[0] = 0;
+  for (let a = 1; a <= A; a++) dp.values[a] = "∞";
+  base();
+  dp.tones[0] = "active";
+  s.formula = "dp[0] = 0, dp[a > 0] = ∞";
+  f.push("Base case dp[0] = 0: amount 0 needs no coins. Nothing else is reachable yet, so the rest of the row is ∞.", "base");
+  for (let ci = 0; ci < cs.length && !f.full; ci++) {
+    const c = cs[ci]!;
+    for (let a = c; a <= A && !f.full; a++) {
+      const old = val[a]!;
+      const via = val[a - c]! + 1;
+      const better = via < old;
+      if (better) {
+        val[a] = via;
+        choice[a] = c;
+        dp.values[a] = fmt(via);
+      }
+      base();
+      coinRow.tones[ci] = "active";
+      dp.tones[a] = "active";
+      dp.tones[a - c] = "compare";
+      s.vars = { amount: A, coin: c };
+      s.formula = `dp[${a}] = min(dp[${a}], dp[${a - c}] + 1) = min(${fmt(old)}, ${fmt(via)}) = ${fmt(val[a]!)}`;
+      const reused = a - c >= c && choice[a - c] === c;
+      f.push(
+        better
+          ? `Coin ${c}, amount ${a}: dp[${a - c}] + 1 = ${fmt(via)} beats ${fmt(old)}, so dp[${a}] = ${fmt(via)}.${reused ? ` dp[${a - c}] was itself just improved with coin ${c}, so this answer uses coin ${c} more than once.` : ""}`
+          : `Coin ${c}, amount ${a}: dp[${a - c}] + 1 = ${fmt(via)} is no better than ${fmt(old)}, so dp[${a}] stays ${fmt(old)}.`,
+        better ? "improve" : "keep",
+      );
+    }
+  }
+  base();
+  if (val[A] === Infinity) {
+    dp.tones[A] = "danger";
+    s.formula = `dp[${A}] = ∞`;
+    s.vars = { amount: A, answer: -1 };
+    f.push(`dp[${A}] = ∞: amount ${A} cannot be made from {${cs.join(", ")}}, so the answer is −1. O(amount × coins) time.`, "done");
+    return f.done();
+  }
+  const used: number[] = [];
+  for (let a = A; a > 0; a -= choice[a]!) {
+    used.push(choice[a]!);
+    dp.tones[a] = "path";
+  }
+  dp.tones[0] = "path";
+  dp.tones[A] = "done";
+  for (const c of used) coinRow.tones[cs.indexOf(c)] = "done";
+  s.formula = `dp[${A}] = ${val[A]}: ${used.join(" + ")} = ${A}`;
+  s.vars = { amount: A, answer: val[A], coinsUsed: used };
+  f.push(`Fewest coins for ${A} is ${val[A]}: ${used.join(" + ")}. Following the coin that last improved each cell from ${A} back to 0 reconstructs it. Same O(amount × coins) work as the amount-first order, and the same answer.`, "done");
+  return f.done();
+};
+
+const coinChange: G = (input) => {
+  if (input.order === "coin-outer") return coinChangeCoinOuter(input);
+  const { coins, amount } = input;
   const cs = [...new Set((coins ?? [1, 3, 4]).map((c) => Math.floor(c)).filter((c) => c > 0))].sort((a, b) => a - b).slice(0, 8);
   const A = clampInt(amount, 0, 30, 6);
   const { s, f, row, base, problem } = make();
@@ -353,7 +427,8 @@ const maxSubarray: G = ({ values }) => {
   let best = 0;
   for (let i = 1; i < n && !f.full; i++) {
     const prev = d[i - 1]!;
-    const extend = prev > 0;
+    // Ties extend (dp[i-1] = 0 keeps the longer run), as in the lessons' `cur >= 0` rule.
+    const extend = prev >= 0;
     d[i] = v[i]! + Math.max(prev, 0);
     start[i] = extend ? start[i - 1]! : i;
     dp.values[i] = d[i]!;
@@ -363,7 +438,7 @@ const maxSubarray: G = ({ values }) => {
     dp.tones[i - 1] = "compare";
     vr.tones[i] = "compare";
     s.formula = `dp[${i}] = values[${i}] + max(dp[${i - 1}], 0) = ${v[i]} + max(${prev}, 0) = ${d[i]}`;
-    f.push(extend ? `dp[${i - 1}] = ${prev} > 0 helps, so extend: dp[${i}] = ${v[i]} + ${prev} = ${d[i]}. Best so far ${d[best]}.` : `dp[${i - 1}] = ${prev} ≤ 0 would only drag ${v[i]} down, so start fresh: dp[${i}] = ${v[i]}. Best so far ${d[best]}.`, extend ? "extend" : "restart");
+    f.push(prev > 0 ? `dp[${i - 1}] = ${prev} > 0 helps, so extend: dp[${i}] = ${v[i]} + ${prev} = ${d[i]}. Best so far ${d[best]}.` : prev === 0 ? `dp[${i - 1}] = 0 neither helps nor hurts: extending ties starting fresh, and the tie keeps the longer run, so dp[${i}] = ${v[i]} + 0 = ${d[i]}. Best so far ${d[best]}.` : `dp[${i - 1}] = ${prev} < 0 would only drag ${v[i]} down, so start fresh: dp[${i}] = ${v[i]}. Best so far ${d[best]}.`, extend ? "extend" : "restart");
   }
   base();
   for (let i = start[best]!; i <= best; i++) vr.tones[i] = "done";
@@ -374,13 +449,80 @@ const maxSubarray: G = ({ values }) => {
   return f.done();
 };
 
-const wordBreak: G = ({ s: str0, a, words: words0 }) => {
+const wordBreakSuffix = (str: string, words: string[]): Frame<DpState>[] => {
+  // can(i): the suffix s[i:] can be segmented, as in the recursive solution. can(n) is the base case,
+  // and each cell reads only cells to its right, so fill from the end.
+  const n = str.length;
+  const { s, f, row, base } = make();
+  const chars = row("s", [...str], range(n));
+  const dp = row("can(i) = the suffix s[i:] can be segmented", nulls(n + 1), range(n + 1), true);
+  const via: number[] = [];
+  s.vars = { dict: words };
+  f.push(`Word break by suffix: can(i) is true when some dictionary word starts exactly at i and the rest after it, can(i + len), is true. The state is the single index i.`);
+  dp.values[n] = "T";
+  base();
+  dp.tones[n] = "active";
+  s.formula = `can(${n}) = T`;
+  f.push(`Base case can(${n}) = T: the empty suffix at the end of the string is trivially segmentable.`, "base");
+  for (let i = n - 1; i >= 0 && !f.full; i--) {
+    const matches = words.filter((w) => i + w.length <= n && str.startsWith(w, i));
+    const found = matches.find((w) => dp.values[i + w.length] === "T");
+    base();
+    dp.tones[i] = "active";
+    if (found) {
+      const j = i + found.length;
+      via[i] = j;
+      dp.values[i] = "T";
+      for (let k = i; k < j; k++) chars.tones[k] = "compare";
+      dp.tones[j] = "compare";
+      s.formula = `can(${i}) = ("${found}" ∈ dict) ∧ can(${j}) = T ∧ T = T`;
+      f.push(`"${found}" starts at ${i} and can(${j}) = T (${j === n ? "nothing is left after it" : `the rest "${str.slice(j)}" is segmentable`}), so can(${i}) = T.`, "true");
+    } else if (matches.length > 0) {
+      dp.values[i] = "F";
+      const w0 = matches[0]!;
+      for (let k = i; k < i + w0.length; k++) chars.tones[k] = "compare";
+      for (const w of matches) dp.tones[i + w.length] = "compare";
+      s.formula = `can(${i}) = ${matches.map((w) => `"${w}" ∧ can(${i + w.length})`).join(" ∨ ")} = F`;
+      f.push(`${matches.map((w) => `"${w}" starts at ${i} but can(${i + w.length}) = F`).join("; ")}: no word leads to a segmentable rest, so can(${i}) = F.`, "false");
+    } else {
+      dp.values[i] = "F";
+      s.formula = `can(${i}) = F (no word starts at ${i})`;
+      f.push(`No dictionary word starts at index ${i} (suffix "${str.slice(i)}"), so can(${i}) = F.`, "false");
+    }
+  }
+  base();
+  if (dp.values[0] !== "T") {
+    dp.tones[0] = "danger";
+    s.formula = "can(0) = F";
+    s.vars = { dict: words, answer: false };
+    f.push(`can(0) = F: "${str}" cannot be segmented into words from {${words.join(", ")}}. ${n} states, each decided once.`, "done");
+    return f.done();
+  }
+  const parts: string[] = [];
+  let alt = 0;
+  for (let i = 0; i < n; ) {
+    const j = via[i]!;
+    parts.push(str.slice(i, j));
+    for (let k = i; k < j; k++) chars.tones[k] = alt % 2 === 0 ? "done" : "path";
+    dp.tones[i] = "path";
+    alt++;
+    i = j;
+  }
+  dp.tones[0] = "done";
+  s.formula = `can(0) = T: "${str}" = ${parts.join(" | ")}`;
+  s.vars = { dict: words, answer: true, split: parts };
+  f.push(`can(0) = T: "${str}" = ${parts.join(" | ")}, read off by following the recorded words forward from 0. ${n} states, each decided once, plus the base case: O(n · |dict| · L) time.`, "done");
+  return f.done();
+};
+
+const wordBreak: G = ({ s: str0, a, words: words0, direction }) => {
   const str = (str0 ?? a ?? "catsanddog").slice(0, 20);
   const words = [...new Set((words0 ?? ["cat", "cats", "and", "sand", "dog"]).filter((w) => w.length > 0))].slice(0, 12);
   const n = str.length;
   const { s, f, row, base, problem } = make();
   if (n === 0) return problem('Word break needs a non-empty string (s: "catsanddog") and a dictionary (words: ["cat", "sand", "dog"]).');
   if (words.length === 0) return problem('Word break needs a non-empty dictionary (words: ["cat", "sand", "dog"]).');
+  if (direction === "suffix") return wordBreakSuffix(str, words);
   const chars = row("s", [...str], range(n));
   const dp = row("dp[i] = the prefix s[0..i) can be segmented", nulls(n + 1), range(n + 1), true);
   const via: number[] = [];
@@ -972,6 +1114,8 @@ export const dpFamily: Family<DpInput, DpState> = {
       rows: asNum(pick(raw, "rows", "m", "height")),
       cols: asNum(pick(raw, "cols", "columns", "width")),
       s: asStr(pick(raw, "s", "text", "str", "string", "word", "a"), 20),
+      order: typeof raw.order === "string" ? raw.order : undefined,
+      direction: typeof raw.direction === "string" ? raw.direction : undefined,
       words: Array.isArray(words) ? (words as unknown[]).map(String).filter((w) => w.length > 0).slice(0, 12) : typeof words === "string" ? words.split(/[,\s]+/).filter((w) => w.length > 0).slice(0, 12) : undefined,
     };
   },

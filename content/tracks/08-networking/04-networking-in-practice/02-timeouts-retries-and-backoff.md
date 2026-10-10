@@ -247,7 +247,7 @@ After three retries, amplification is exactly 1.0×. When the server heals, toke
 The floor matters for low-traffic clients: at 2 requests per second, 20% is 0.4 retries per second, which would make retries useless, so a fixed minimum keeps them working.
 
 ```viz
-{"type": "system", "scenario": "token-bucket", "title": "A retry budget is a token bucket", "caption": "Successes refill the bucket slowly; each failure drains it. Retries are allowed only while the bucket is above its threshold, so a burst of failures shuts retries off within a handful of attempts and they return only after the dependency has served enough successes."}
+{"type": "system", "scenario": "token-bucket", "mode": "retry-budget", "title": "A retry budget is a token bucket", "caption": "Successes refill the bucket slowly; each failure drains it. Retries are allowed only while the bucket is above its threshold, so a burst of failures shuts retries off within a handful of attempts and they return only after the dependency has served enough successes."}
 ```
 
 ## Exponential backoff with jitter

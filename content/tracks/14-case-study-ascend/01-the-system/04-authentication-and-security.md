@@ -384,7 +384,7 @@ pub struct Limiters {
 Every bucket runs GCRA, the generic cell rate algorithm, which admits the same requests as a token bucket ([Rate-limiting algorithms](/learn/networking/network-algorithms/rate-limiting-algorithms) compares them): `per_minute(10)` is a bucket of 10 tokens that regains one every 6 seconds. `AUTH_PER_IP` wraps `/register`, `/login` and the reset and verification links; `PASSWORD_ATTEMPTS` is charged inside the login and account-deletion handlers, keyed by the trimmed, lowercased email or by a known device; the session buckets wrap the model-calling routes and graded submissions; the general bucket wraps all of `/api`. The daily budget in `ai_usage` (ADR 0004) sits behind the AI limiter as the cost fuse.
 
 ```viz
-{"type": "system", "algorithm": "token-bucket", "title": "The token bucket behind every limiter", "caption": "Capacity sets the burst, refill rate sets the sustained rate. Ascend's per-account password bucket has capacity 10 and refills one token every 6 seconds.", "requests": 12}
+{"type": "system", "algorithm": "token-bucket", "title": "The token bucket behind every limiter", "caption": "Capacity sets the burst, refill rate sets the sustained rate. Ascend's per-account password bucket has capacity 10 and refills one token every 6 seconds.", "capacity": 10, "refill": 6, "requests": 17}
 ```
 
 The IP, where one is used, comes from a single function, and choosing it is a security decision:

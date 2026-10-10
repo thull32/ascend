@@ -211,7 +211,7 @@ Three removals, kept `[2, 3], [3, 5], [6, 7]`. On removal `last_end` is not upda
 Three rooms: at time 4.5, `[1, 5]`, `[2, 6]` and `[4, 8]` are all running.
 
 ```viz
-{"type": "heap", "algorithm": "push-pop", "kind": "min", "operations": [["push", 5], ["push", 6], ["push", 8], ["pop"], ["pop"], ["push", 9], ["pop"], ["push", 10], ["pop"], ["push", 12]], "caption": "End times of meetings in progress. Each pop is a meeting that has ended before the next start; the heap size is the number of rooms in use."}
+{"type": "heap", "algorithm": "push-pop", "kind": "min", "operations": [["push", 5], ["push", 6], ["push", 8], ["pop"], ["pop"], ["push", 9], ["pop"], ["push", 10], ["pop"], ["push", 12]], "title": "Meeting Rooms II: end times in a min-heap", "caption": "End times of meetings in progress. Each pop is a meeting that has ended before the next start; the heap size is the number of rooms in use."}
 ```
 
 The two-sorted-lists sweep gives the same count: starts `[1, 2, 4, 6, 8, 9]`, ends `[5, 6, 8, 9, 10, 12]`; starts 1, 2 and 4 each open a room, then 6, 8 and 9 each find `start >= ends[e]` and reuse one. Replacing the eviction `while` with a single `if` still gives the right *maximum* (the heap only grows when its smallest end is live, so every end in it is live), but the heap size then overstates current use, which breaks the follow-up "how many rooms at time `t`?".
@@ -250,7 +250,7 @@ Trace intervals `[[1, 4], [2, 4], [3, 6], [4, 4]]`, queries `[2, 3, 4, 5]`:
 `O((n + q) log(n + q))`. The expiry is lazy: an expired interval is removed only when it reaches the top, which is safe because queries only increase.
 
 ```viz
-{"type": "heap", "algorithm": "push-pop", "kind": "min", "operations": [["push", 4], ["push", 3], ["push", 4], ["push", 1], ["pop"], ["pop"], ["pop"]], "caption": "Interval lengths in the query heap. Queries 2 to 4 push four intervals; query 5 pops the three whose ends fell behind it, and the remaining top, 4, is the answer."}
+{"type": "heap", "algorithm": "push-pop", "kind": "min", "operations": [["push", 4], ["push", 3], ["push", 4], ["push", 1], ["pop"], ["pop"], ["pop"]], "title": "Minimum interval per query: lengths in a min-heap", "caption": "Interval lengths in the query heap. Queries 2 to 4 push four intervals; query 5 pops the three whose ends fell behind it, and the remaining top, 4, is the answer."}
 ```
 
 ### Partition Labels, a hidden interval problem

@@ -159,7 +159,9 @@ The design consequence: MongoDB is fast when the document boundary is the transa
 A replica set is one primary plus secondaries that pull and apply its **oplog**, with a Raft-like election when the primary is unreachable (`electionTimeoutMillis` is 10,000 ms, and the documentation expects a new primary within about 12 seconds).
 
 ```viz
-{"type": "system", "scenario": "replication-leader-follower", "title": "Replica set write path", "caption": "The primary applies the write and appends it to the oplog; secondaries pull and apply it. With w:1 the client is acknowledged before any secondary has it, so a failover can lose the write."}
+{"type": "system", "scenario": "replication-leader-follower", "leader": "Primary", "follower": "Secondary", "log": "oplog", "pull": true,
+ "title": "Replica set write path",
+ "caption": "The primary applies the write and appends it to the oplog; secondaries pull and apply it. With w:1 the client is acknowledged before any secondary has it, so a failover can lose the write."}
 ```
 
 | Write concern | Acknowledged when | What survives |

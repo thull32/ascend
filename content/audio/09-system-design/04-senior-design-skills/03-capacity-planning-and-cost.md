@@ -1,6 +1,6 @@
 ---
 lesson: capacity-planning-and-cost
-source: b4b95d1af4349e63
+source: b97c0f67329895fd
 fit: great
 desk:
   - "The queueing simulation script and its two tables"

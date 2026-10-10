@@ -1,6 +1,6 @@
 ---
 lesson: connectivity-and-cycles
-source: 62d4487ecf111909
+source: 693db05788c26afb
 fit: partial
 desk:
   - "The component labeller and its nine-vertex, three-component trace"

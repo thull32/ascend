@@ -46,7 +46,7 @@ At the end, indices still on the stack have no greater element to their right.
 **The exact bound.** Each index is pushed once, so there are `n` pushes. Each pop removes an index pushed earlier, so there are at most `n` pops. Each evaluation of the `while` condition either pops (at most `n` times in total) or ends that iteration's loop (once per `i`, `n` times), so there are at most `2n` comparisons. The nested loop is O(n) with a constant you can state; this is the potential-function argument from [Amortised analysis](/learn/foundations/complexity/amortized-analysis) with the stack height as the potential.
 
 ```viz
-{"type": "array", "algorithm": "monotonic-stack-next-greater", "values": [2, 1, 2, 4, 3, 1, 5]}
+{"type": "array", "algorithm": "monotonic-stack-next-greater", "values": [2, 1, 2, 4, 3, 1, 5], "title": "Next greater element with a stack of indices", "caption": "Values on the stack never increase upwards. Each arrival pops every smaller value, and each popped index has found its answer; an equal value does not pop. Every index is pushed once and popped at most once."}
 ```
 
 The direction and the comparison come from the question:
@@ -224,7 +224,7 @@ Trace `num = "4205123"`, `k = 3`:
 [Sliding Window Maximum](/practice/sliding-window-maximum): the decreasing stack plus one move, evicting the front when its index leaves the window. The front is always the window's maximum: anything larger would have popped it, and anything older has been evicted.
 
 ```viz
-{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [1, 3, -1, -3, 5, 3, 6, 7], "k": 3}
+{"type": "stack-queue", "algorithm": "sliding-window-max", "values": [9, 4, 7, 2, 6, 1, 3, 8], "k": 3, "title": "Sliding window maximum: pop smaller values from the back, expire old indices from the front", "caption": "Window size 3. The deque's values stay decreasing, so its front is each window's maximum. 9 and then 7 leave from the front when their indices slide out."}
 ```
 
 ```python

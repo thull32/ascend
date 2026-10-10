@@ -163,7 +163,7 @@ Summing every line in which a function appears gives its **total** (inclusive) s
 A flame graph draws each folded line as a column of boxes. Each sample is one snapshot of a stack like this one:
 
 ```viz
-{"type": "memory", "algorithm": "call-stack", "n": 4,
+{"type": "memory", "algorithm": "call-stack", "fn": "calls", "calls": ["serve", "handle_order", "render_json", "dumps", "encode", "iterencode"], "sample": true,
  "title": "Each sample is one snapshot of this stack",
  "caption": "A sampling profiler freezes the thread and records the frames from main() to the innermost call. A flame graph stacks thousands of these snapshots, merging identical prefixes."}
 ```

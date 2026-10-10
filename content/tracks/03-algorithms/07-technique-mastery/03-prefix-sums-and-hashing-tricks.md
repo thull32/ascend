@@ -26,7 +26,7 @@ Define `P[0]` as the identity and `P[j + 1] = P[j] ⊕ a[j]`. Then the aggregate
 | max, min, gcd, OR, AND | running | none | **No**: use a sparse table, segment tree or deque |
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [4, 5, 0, -2, -3, 1], "title": "Prefix sums of the opening array", "caption": "Any range sum is one subtraction of two prefix values. Two prefixes with the same remainder mod 5 bound a range divisible by 5."}
+{"type": "array", "algorithm": "prefix-sum", "values": [4, 5, 0, -2, -3, 1], "mod": 5, "title": "Prefix sums of the opening array", "caption": "P[0] = 0, then one prefix per element, each with its remainder mod 5. Two prefixes with the same remainder bound a range divisible by 5, so each new prefix adds the number of earlier ones in its bucket: 7 in total."}
 ```
 
 The last row explains why [Product of Array Except Self](/practice/product-except-self) uses a prefix product *and* a suffix product instead of dividing: division is the inverse that zeros take away. When an operation has no inverse, range queries need a structure built for the operation, such as a [sparse table](/learn/advanced-data-structures/range-queries/sparse-tables-and-sqrt-decomposition) for idempotent ones like min and gcd.

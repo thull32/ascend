@@ -244,7 +244,7 @@ All skews reach the design's 99% with day-long TTLs, but organic warm-up takes a
 With a replica in another zone the table is different: clients read the replica on the first timeout, the database never sees the spike, and each read pays a cross-zone round trip (~0.5–1 ms) until the replacement is copied. The price is doubling RAM; the decision follows from the zone row of the estimates, because a gutter pool cannot absorb 43 nodes.
 
 ```viz
-{"type": "system", "scenario": "replication-leader-follower", "nodes": 3,
+{"type": "system", "scenario": "replication-leader-follower", "variant": "zones",
  "title": "A replica per shard in another zone",
  "caption": "Writes go to every copy; each client reads its own zone's copy. When the primary dies, reads fail over to a replica that is already warm, and the replacement is filled by bulk copy rather than by a miss storm on the database."}
 ```

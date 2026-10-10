@@ -1,6 +1,6 @@
 ---
 lesson: merkle-trees-and-ring-buffers
-source: 9135dcb8295d726b
+source: 1bafa846bfb40257
 fit: partial
 desk:
   - "The four-leaf tree diagram and the proof traced hash by hash with FNV-1a, including the two tampered cases"

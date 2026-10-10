@@ -1,6 +1,6 @@
 ---
 lesson: asymptotic-notation
-source: fb32fe6a9abcca01
+source: ffe3b36a60f25b80
 fit: partial
 desk:
   - "The formal definitions, and the worked hunt for the constant and the threshold"

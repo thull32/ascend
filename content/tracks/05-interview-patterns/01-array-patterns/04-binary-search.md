@@ -124,11 +124,11 @@ function exact(nums, target) {
 Watch the exact form work, then the boundary form on an array with duplicates. The boundary form finds the *first* 8, which the exact form cannot promise.
 
 ```viz
-{"type": "array", "algorithm": "binary-search", "values": [1, 3, 4, 7, 9, 12, 15, 20], "target": 12}
+{"type": "array", "algorithm": "binary-search", "values": [1, 3, 4, 7, 9, 12, 15, 20], "target": 12, "title": "Exact search for 12", "caption": "Closed range [lo, hi]: each probe either finds the target or discards the half that cannot hold it."}
 ```
 
 ```viz
-{"type": "array", "algorithm": "binary-search-first-true", "values": [1, 3, 3, 5, 8, 8, 8, 10], "target": 8, "caption": "Predicate: values[i] >= 8. The first true index is 4, the leftmost 8."}
+{"type": "array", "algorithm": "binary-search-first-true", "values": [1, 3, 3, 5, 8, 8, 8, 10], "target": 8, "title": "Boundary search for the first 8", "caption": "Predicate: values[i] >= 8. The first true index is 4, the leftmost 8."}
 ```
 
 | You want | Predicate on `i` | Answer |

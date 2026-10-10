@@ -40,7 +40,7 @@ The five-batch cache is why `max.in.flight.requests.per.connection` must be **at
 Scope, precisely: one producer session, one partition, retries inside the client. A restarted producer gets a new PID, so its application-level resend is a new record; so is the application calling `send` twice; nothing downstream is covered. Idempotence has been on by default in the Java client since Kafka 3.0 (KIP-679), provided `acks=all`; how it behaves when other settings conflict changed across 3.x releases, and clients built on librdkafka still default `enable.idempotence` to false, so set it explicitly.
 
 ```viz
-{"type": "system", "scenario": "kafka-partitions", "nodes": 3,
+{"type": "system", "scenario": "kafka-partitions", "mode": "idempotent",
  "title": "Sequence numbers per producer per partition", "caption": "Each batch carries (producer ID, epoch, first sequence). The partition leader remembers the last five batches per producer and treats a resend as already done. This dedupes the producer's own network retries and nothing else."}
 ```
 
@@ -249,13 +249,15 @@ The crash at offset 2 rolls back evt-c's row and its offset together, so the res
 **Transactional outbox on the producing side.** The checkout service writes the payment row and an outbox row in one transaction; a relay (often CDC) publishes the outbox row with an idempotent producer. A relay that crashes after publishing and before recording progress republishes, so consumers still dedupe on the outbox id. [Distributed transactions](/learn/system-design/distributed-systems/distributed-transactions) covers the outbox in full.
 
 ```viz
-{"type": "system", "scenario": "outbox",
- "title": "The outbox makes the event as durable as the business write", "caption": "The payment row and its event commit in one local transaction. The relay publishes afterwards, at least once, so the event id minted in that transaction is what every downstream sink deduplicates on."}
+{"type": "system", "scenario": "outbox", "service": "Checkout service", "entity": "payment", "event": "PaymentSucceeded",
+ "title": "The outbox makes the event as durable as the business write",
+ "caption": "The payment row and its event commit in one local transaction. The relay publishes afterwards, at least once, so the event id minted in that transaction is what every downstream sink deduplicates on."}
 ```
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "requests": 3,
- "title": "Event ID as the sink's idempotency key", "caption": "The same event delivered three times results in one ledger row: the first insert succeeds, the replays hit the unique constraint and do nothing. No dedupe store, no window, no clock."}
+{"type": "system", "scenario": "idempotency-key", "requests": 3, "store": "unique", "key": "evt-b", "client": "Kafka", "service": "Ledger consumer", "db": "Ledger DB", "record": "acct-2 +1200",
+ "title": "Event ID as the sink's idempotency key",
+ "caption": "The same event delivered three times results in one ledger row: the first insert succeeds, the replays hit the unique constraint and do nothing. No dedupe store, no window, no clock."}
 ```
 
 | Strategy | Atomic with the effect | Extra state | Expiry window | Fences a zombie | Use when |

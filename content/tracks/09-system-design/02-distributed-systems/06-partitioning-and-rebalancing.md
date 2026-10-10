@@ -62,8 +62,9 @@ Imbalance falls roughly with the square root of the token count, and a failure's
 The practical alternative is a fixed number of partitions P, far more than nodes: `hash(key) mod P` picks the partition, and a table assigns partitions to nodes. Kafka topics, Elasticsearch indices and Redis Cluster (16,384 hash slots) work this way. Growth moves whole partitions and rewrites table entries; no key ever changes partition.
 
 ```viz
-{"type": "system", "scenario": "sharding-hash", "nodes": 3, "keys": 12,
- "title": "Fixed partitions assigned to nodes", "caption": "Keys hash to one of a fixed set of partitions; partitions are assigned to nodes by a table. Growing the cluster reassigns partitions, never keys, so the movement is a whole-partition copy with no rehashing."}
+{"type": "system", "scenario": "sharding-hash", "nodes": 3, "keys": 12, "variant": "fixed",
+ "title": "Fixed partitions assigned to nodes",
+ "caption": "Keys hash to one of a fixed set of partitions; partitions are assigned to nodes by a table. Growing the cluster reassigns partitions, never keys, so the movement is a whole-partition copy with no rehashing."}
 ```
 
 The catch is choosing P once. Too few and you cannot grow past P nodes or balance finely; too many and per-partition overhead (files, metadata, replication streams) adds up. Changing P later changes every key's partition, which in Kafka breaks per-key ordering, so pick it for the throughput you expect in a couple of years. Worked: 1 GB/s of expected ingest, consumers that each sustain about 10 MB/s per partition, so at least 100 partitions to keep up, doubled to 200 for growth and for rebalancing granularity; a 12-broker cluster then carries about 17 leaders each.

@@ -99,7 +99,7 @@ Without the retry, a lost step-2 write leaves the new store at 50 while the old 
 The fix is to stop treating the two stores as equals. The old store stays the single source of truth, and the new store is fed from the old store's own commit log, in commit order, by change data capture. For the reordering case the binlog holds position 100 then position 200, because that is the order the old store committed them; the connector applies them in that order and both stores end at 200. A connector that crashes resumes from its last confirmed log position, so a failure delays a change instead of losing it.
 
 ```viz
-{"type": "system", "scenario": "cdc", "requests": 4,
+{"type": "system", "scenario": "cdc", "sink": "new-store", "requests": 4,
  "title": "Feeding the new store from the old store's log", "caption": "The connector turns each committed change into an event in commit order. A restart re-emits events, so the new store must apply them idempotently."}
 ```
 

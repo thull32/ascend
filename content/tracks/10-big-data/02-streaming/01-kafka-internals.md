@@ -75,7 +75,7 @@ The **in-sync replica set (ISR)** is the leader plus every follower that has cau
 `acks=all` alone is weaker than it sounds: if both followers fall out of the ISR, "all in-sync replicas" is one machine. `min.insync.replicas=2` closes that hole. The standard triple (RF 3, `min.insync.replicas=2`, `acks=all`) tolerates one broker down with no loss and refuses writes rather than lose data when two are down; reads continue up to the HW either way. Set `broker.rack` to the availability zone so the three replicas do not share a zone.
 
 ```viz
-{"type": "system", "scenario": "replication-leader-follower", "replicas": 2,
+{"type": "system", "scenario": "replication-leader-follower", "variant": "kafka",
  "title": "Asynchronous versus synchronous acknowledgement",
  "caption": "acks=1 is the asynchronous mode: the leader acknowledges before followers have the record, and a failover in that window loses it. acks=all with min.insync.replicas=2 is the synchronous mode with a quorum floor: slower by one replication round trip, and no acknowledged record is lost when one broker dies."}
 ```
@@ -186,7 +186,7 @@ A rebalance starts when a member joins, leaves, misses heartbeats for `session.t
 **Lag** (log-end offset minus committed offset, per partition) is the health metric. Alert on lag in time, not records: 100,000 records is nothing on one topic and an hour on another.
 
 ```viz
-{"type": "system", "scenario": "message-queue", "requests": 12,
+{"type": "system", "scenario": "kafka-partitions", "mode": "lag", "topic": "playback-events", "effect": "calls handle(msg)",
  "title": "Competing consumers and a growing backlog",
  "caption": "Within one consumer group Kafka behaves like a work queue: each record is handled by one member, an unacknowledged (uncommitted) record is redelivered after a crash, and when producers outpace consumers the backlog grows. Alert on the age of the oldest unprocessed record, not only on depth."}
 ```

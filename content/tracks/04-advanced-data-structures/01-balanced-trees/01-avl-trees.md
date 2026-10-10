@@ -92,7 +92,7 @@ Insert 10, 20, 30, 40, 50, 25 in that order. The table shows each node as `key(b
 Step 6 is the one to study. Before it the tree is `20 → (10, 40 → (30, 50))`. 25 goes under 30's left, making 30 height 2, 40 height 3 with balance +1, and the root 20 balance `1 − 3 = −2`: right-heavy with a right child that leans *left*, the zig-zag. Right-rotate at 40 (30 comes up, 40 becomes its right child keeping 50) and the shape is now RR; left-rotate at 20 and 30 is the root with `20 → (10, 25)` on the left and `40 → (·, 50)` on the right. Level order `30, 20, 40, 10, 25, 50`, height 3 for six nodes, which is optimal. Notice that the height after step 6 (3) equals the height before the insert: that is the property that stops the fix-up from propagating further, explained below.
 
 ```viz
-{"type": "tree", "algorithm": "avl-insert", "values": [10, 20, 30, 40, 50, 25],
+{"type": "tree", "algorithm": "avl-insert", "values": [10, 20, 30, 40, 50, 25], "heightUnit": "nodes",
  "title": "AVL insert with RR then RL rebalancing",
  "caption": "Inserting 30 triggers an RR rotation at 10; inserting 50 triggers RR at 30; inserting 25 triggers an RL double rotation at the root."}
 ```

@@ -1,6 +1,6 @@
 ---
 lesson: ordered-maps-vs-hash-maps
-source: a5cb4d0aaff8ec98
+source: fd154a94ef9955dd
 fit: partial
 desk:
   - "The table of ordered-map operations against their hash-map equivalents"

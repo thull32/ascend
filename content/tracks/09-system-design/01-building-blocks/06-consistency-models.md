@@ -138,8 +138,9 @@ This is the anomaly of multi-leader replication: two regions each apply their lo
 Eventual consistency promises only that replicas converge if writes stop. The honest description of "eventually" is a number:
 
 ```viz
-{"type": "system", "scenario": "replication-leader-follower", "replicas": 2,
- "title": "One leader, two asynchronous followers", "caption": "The leader acknowledges the write before followers apply it. A read routed to a follower in that window returns the old value; that window is the replication lag."}
+{"type": "system", "scenario": "replication-leader-follower", "replicas": 2, "mode": "async",
+ "title": "One leader, two asynchronous followers",
+ "caption": "The leader acknowledges the write before followers apply it. A read routed to a follower in that window returns the old value; that window is the replication lag."}
 ```
 
 | Setting | Lag when healthy | Lag under stress |

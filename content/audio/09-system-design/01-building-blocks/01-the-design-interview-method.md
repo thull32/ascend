@@ -1,6 +1,6 @@
 ---
 lesson: the-design-interview-method
-source: ed18d768b57ed6db
+source: b930919b11065c08
 fit: great
 desk:
   - "The full timestamped run, with the estimates and latency-budget tables"

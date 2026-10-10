@@ -171,7 +171,7 @@ const cycleDetect: G = ({ values, cycleAt }) => {
   s.pointers = { slow, fast };
   f.push(
     hasCycle
-      ? `The tail (${label(tail)}) points back to node ${cycleAt} (value ${label(nodes[cycleAt]!.id)}), so a plain traversal would loop forever. Floyd's tortoise and hare uses two speeds instead of a visited set.`
+      ? `The tail (${label(tail)}) points back to ${label(nodes[cycleAt]!.id)}, so a plain traversal would loop forever. Floyd's tortoise and hare uses two speeds instead of a visited set.`
       : `No node points backwards here. Floyd's tortoise and hare: slow moves one node per step, fast moves two; if fast ever reaches null there is no cycle.`,
   );
   let steps = 0;
@@ -225,7 +225,7 @@ const cycleDetect: G = ({ values, cycleAt }) => {
   if (hasCycle) s.linkTones[tail] = "danger";
   tone(slow, "danger");
   s.pointers = { entry: slow };
-  f.push(`They meet at ${label(slow)} (index ${cycleAt}): the node where the cycle begins. Whole algorithm: O(n) time, O(1) space.`, "done");
+  f.push(`They meet at ${label(slow)}: the node where the cycle begins. Whole algorithm: O(n) time, O(1) space.`, "done");
   return f.done();
 };
 
@@ -248,7 +248,7 @@ const middle: G = ({ values }) => {
     tone(fast, "active");
     s.pointers = { slow, fast };
     s.vars = { steps };
-    f.push(`Step ${steps}: slow → ${label(slow)}, fast → ${label(fast)}. fast has visited ${Math.min(2 * steps, nodes.length - 1)} links, slow ${steps}: exactly half.`, "step");
+    f.push(`Step ${steps}: slow → ${label(slow)}, fast → ${fast === null ? `null (through the tail, ${label(nodes[nodes.length - 1]!.id)}, and off the end)` : label(fast)}. fast has followed ${2 * steps} next pointers, slow ${steps}: exactly half.`, "step");
   }
   clearTones();
   tone(slow, "done");

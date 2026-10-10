@@ -14,6 +14,14 @@ export interface TreeInput {
   target?: number;
   a?: number;
   b?: number;
+  /** Unit for heights in notes and labels (bst-insert, diameter, avl-insert): "edges" (default; leaf 0, empty −1) or "nodes" (leaf 1, empty 0). */
+  heightUnit?: "edges" | "nodes";
+  /** bst-insert: after the inserts, walk the tree in order to show sorted iteration. */
+  thenInorder?: boolean;
+  /** inorder: the iterative version with an explicit stack (push the left spine, pop, visit, go right). */
+  iterative?: boolean;
+  /** serialize: "preorder" (default, recursive with null markers) or "level" (BFS, decoded with a queue). */
+  order?: "preorder" | "level";
 }
 
 export interface TreeNode {
@@ -248,9 +256,41 @@ const bstInsert: G = (input) => {
     if (t.f.full) return t.f.done();
   }
   t.clear();
-  const h = t.height(t.s.root);
-  t.s.vars = { nodes: t.size, height: h, "⌈log₂(n+1)⌉−1": Math.ceil(Math.log2(t.size + 1)) - 1 };
-  t.f.push(`Done: ${t.size} nodes, height ${h}. Each insert costs O(height): O(log n) when the tree is balanced, O(n) for a chain, and the insertion order decides which you get.`, "done");
+  const inNodes = input.heightUnit === "nodes";
+  const h = t.height(t.s.root) + (inNodes ? 1 : 0);
+  const best = Math.ceil(Math.log2(t.size + 1)) - (inNodes ? 0 : 1);
+  t.s.vars = { nodes: t.size, height: h, [inNodes ? "⌈log₂(n+1)⌉" : "⌈log₂(n+1)⌉−1"]: best };
+  t.f.push(`Done: ${t.size} nodes, height ${h} (${inNodes ? "counting nodes" : "counting edges"}; the shortest possible is ${best}). Each insert costs O(height): O(log n) when the tree is balanced, O(n) for a chain, and the insertion order decides which you get.`, "done");
+  if (input.thenInorder && t.s.root !== null) {
+    // Sorted iteration: an in-order walk reads the keys back in order.
+    const order: number[] = [];
+    const go = (id: number | null) => {
+      if (id === null) return;
+      go(t.node(id).left);
+      order.push(id);
+      go(t.node(id).right);
+    };
+    go(t.s.root);
+    const out: number[] = [];
+    t.clear();
+    t.s.vars = {};
+    t.s.readouts = [{ label: "in-order output", values: [] }];
+    t.f.push(`Now iterate: an in-order walk (left subtree, node, right subtree) visits the keys from smallest to largest, because every left subtree holds smaller keys and every right subtree larger ones.`, "inorder");
+    for (const id of order) {
+      out.push(id);
+      t.clear();
+      for (const o of out) t.s.nodeTones[o] = "visited";
+      t.s.nodeTones[id] = "active";
+      t.s.readouts = [{ label: "in-order output", values: out.map((o) => t.node(o).val) }];
+      const n = t.node(id);
+      const leftDone = n.left === null ? "it has no left subtree" : "its left subtree is done";
+      t.f.push(`Visit ${n.val}: ${leftDone}, so it is the next key in sorted order.`, "visit");
+      if (t.f.full) return t.f.done();
+    }
+    t.clear();
+    for (const o of out) t.s.nodeTones[o] = "done";
+    t.f.push(`In-order output ${out.map((o) => t.node(o).val).join(", ")}: sorted, with no sorting step. That walk is the sorted iteration and range scan an ordered map gives and a hash map cannot. O(n) for all keys.`, "done");
+  }
   return t.f.done();
 };
 
@@ -258,8 +298,18 @@ const bstSearch: G = (input) => {
   const t = make(input);
   if (t.s.root === null) return emptyFrame(t, "search");
   const target = input.target ?? t.node(t.s.root).val;
-  t.s.vars = { target };
-  t.f.push(`Search for ${target}: at each node one comparison rules out an entire subtree.`);
+  // Floor (largest key < target) and ceiling (smallest key > target) seen so
+  // far: the last node where the walk turned right, and where it turned left.
+  let floor: number | null = null;
+  let ceil: number | null = null;
+  const show = () => {
+    t.s.labels = {};
+    if (floor !== null) t.s.labels[floor] = "floor";
+    if (ceil !== null) t.s.labels[ceil] = "ceiling";
+  };
+  const fc = () => ({ floor: floor === null ? "none yet" : t.node(floor).val, ceiling: ceil === null ? "none yet" : t.node(ceil).val });
+  t.s.vars = { target, ...fc() };
+  t.f.push(`Search for ${target}: at each node one comparison rules out an entire subtree. Track two candidates on the way: the floor (the last key passed that is smaller than ${target}) and the ceiling (the last key passed that is larger).`);
   const path: number[] = [];
   let cur: number | null = t.s.root;
   let comparisons = 0;
@@ -270,21 +320,37 @@ const bstSearch: G = (input) => {
     t.tonePath(path, "visited");
     t.s.nodeTones[cur] = "active";
     if (path.length) t.s.edgeTones[cur] = "path";
-    t.s.vars = { target, comparisons };
     if (target === n.val) {
       t.s.nodeTones[cur] = "done";
+      t.s.vars = { target, comparisons };
+      t.s.labels = {};
       t.f.push(`${n.val} equals the target: found after ${comparisons} comparison${comparisons === 1 ? "" : "s"} at depth ${path.length}.`, "found");
       return t.f.done();
     }
     const goLeft = target < n.val;
-    t.f.push(`${target} ${goLeft ? "<" : ">"} ${n.val}: the target can only be in the ${goLeft ? "left" : "right"} subtree, so go ${goLeft ? "left" : "right"}.`, "compare");
+    const prev = goLeft ? ceil : floor;
+    if (goLeft) ceil = cur;
+    else floor = cur;
+    show();
+    t.s.vars = { target, comparisons, ...fc() };
+    const role = goLeft ? "ceiling" : "floor";
+    const why = prev === null ? `the first key passed that is ${goLeft ? "larger" : "smaller"} than ${target}` : `${goLeft ? "larger" : "smaller"} than ${target} and closer to it than the previous ${role} candidate, ${t.node(prev).val}`;
+    t.f.push(`${target} ${goLeft ? "<" : ">"} ${n.val}: the target can only be in the ${goLeft ? "left" : "right"} subtree, so go ${goLeft ? "left" : "right"}. ${n.val} is ${why}, so it is the ${role} candidate now.`, "compare");
     path.push(cur);
     cur = goLeft ? n.left : n.right;
     if (t.f.full) return t.f.done();
   }
   t.clear();
   t.tonePath(path, "visited");
-  t.f.push(`Reached an empty child: ${target} is not in the tree. ${comparisons} comparisons, O(height).`, "miss");
+  if (floor !== null) t.s.nodeTones[floor] = "done";
+  if (ceil !== null) t.s.nodeTones[ceil] = "done";
+  const fv = floor === null ? null : t.node(floor).val;
+  const cv = ceil === null ? null : t.node(ceil).val;
+  t.s.vars = { target, comparisons, floor: fv ?? "none", ceiling: cv ?? "none" };
+  t.f.push(
+    `Reached an empty child: ${target} is not in the tree, after ${comparisons} comparisons. The walk has also answered floor and ceiling: ${fv === null ? `no key is smaller than ${target}, so there is no floor` : `the floor is ${fv}, the last node where it turned right`}, and ${cv === null ? `no key is larger, so there is no ceiling` : `the ceiling is ${cv}, the last node where it turned left`}. All O(height).`,
+    "miss",
+  );
   return t.f.done();
 };
 
@@ -379,12 +445,13 @@ const bstDelete: G = (input) => {
 // ---- traversals ----
 
 const traversal = (order: "inorder" | "preorder" | "postorder"): G => (input) => {
+  if (order === "inorder" && input.iterative) return inorderIterative(input);
   const t = make(input);
   if (t.s.root === null) return emptyFrame(t, "traverse");
   const stack: number[] = [];
   const out: number[] = [];
   const sync = () => {
-    t.s.readouts = [stackReadout(t, stack), { label: "output", values: [...out] }];
+    t.s.readouts = [stackReadout(t, stack), { label: "output", values: out.map((id) => t.node(id).val) }];
     t.s.vars = { depth: stack.length, visited: out.length };
   };
   const intro = {
@@ -448,6 +515,50 @@ const traversal = (order: "inorder" | "preorder" | "postorder"): G => (input) =>
   return t.f.done();
 };
 
+/** Iterative in-order: push the left spine, pop and visit, then move to the right child. */
+const inorderIterative: G = (input) => {
+  const t = make(input);
+  if (t.s.root === null) return emptyFrame(t, "traverse");
+  const stack: number[] = [];
+  const out: number[] = [];
+  const sync = () => {
+    t.s.readouts = [stackReadout(t, stack, "stack (bottom → top)"), { label: "output", values: out.map((id) => t.node(id).val) }];
+    t.s.vars = { "stack size": stack.length, visited: out.length };
+  };
+  const paint = (cur: number | null) => {
+    t.clear();
+    for (const id of out) t.s.nodeTones[id] = "visited";
+    for (const id of stack) t.s.nodeTones[id] = "path";
+    if (cur !== null) t.s.nodeTones[cur] = "active";
+  };
+  sync();
+  t.f.push(`Iterative in-order with an explicit stack: push the left spine (the node and every left child below it), pop the top and visit it, then move to its right child and push that subtree's left spine. Each pop yields the next key in ascending order.`);
+  let cur: number | null = t.s.root;
+  while ((cur !== null || stack.length) && !t.f.full) {
+    while (cur !== null && !t.f.full) {
+      const n: TreeNode = t.node(cur);
+      stack.push(cur);
+      sync();
+      paint(cur);
+      t.f.push(`Push ${n.val} and go left${n.left === null ? `: ${n.val} has no left child, so the spine ends here` : ` to ${t.val(n.left)}`}.`, "push");
+      cur = n.left;
+    }
+    const id = stack.pop()!;
+    const n = t.node(id);
+    out.push(id);
+    sync();
+    paint(null);
+    t.s.nodeTones[id] = "done";
+    t.f.push(`Pop ${n.val} and visit it: everything smaller is already output, so it is number ${out.length} in sorted order. Output: ${out.map((i) => t.node(i).val).join(", ")}. ${n.right !== null ? `Move to its right child, ${t.val(n.right)}.` : stack.length ? "It has no right child, so the next pop comes straight from the stack." : "It has no right child and the stack is empty, so the walk is over."}`, "visit");
+    cur = n.right;
+  }
+  t.clear();
+  for (const id of out) t.s.nodeTones[id] = "done";
+  sync();
+  t.f.push(`In-order output: ${out.map((i) => t.node(i).val).join(", ")}. Every node is pushed and popped once: O(n) time, and the stack never holds more than one root-to-leaf path, O(height) space. Stopping after the kth pop gives the kth smallest in O(height + k).`, "done");
+  return t.f.done();
+};
+
 const levelOrder: G = (input) => {
   const t = make(input);
   if (t.s.root === null) return emptyFrame(t, "traverse");
@@ -457,7 +568,7 @@ const levelOrder: G = (input) => {
   const sync = (level: number) => {
     t.s.readouts = [
       { label: "queue (front → back)", values: queue.map((id) => t.node(id).val), tones: queue.map(() => "frontier" as Tone), labels: [] },
-      { label: "output", values: [...out] },
+      { label: "output", values: out.map((id) => t.node(id).val) },
     ];
     t.s.vars = { level, "queue size": queue.length, levels: levels.map((l) => l.map((id) => t.node(id).val)) };
   };
@@ -549,13 +660,22 @@ const diameter: G = (input) => {
   let best = 0;
   let bestAt: number | null = null;
   const hs: Record<number, number> = {};
+  // Heights in nodes (empty 0, leaf 1): the path through a node is hl + hr
+  // edges. Heights in edges (empty −1, leaf 0): it is hl + hr + 2.
+  const inNodes = input.heightUnit === "nodes";
+  const empty = inNodes ? 0 : -1;
+  const plus = inNodes ? 0 : 2;
   const sync = () => {
     t.s.readouts = [stackReadout(t, stack)];
   };
   sync();
-  t.f.push(`Diameter = longest path between two nodes, counted in edges. Each call returns its subtree height (nodes on the longest downward path) and updates a global best with left + right.`);
+  t.f.push(
+    inNodes
+      ? `Diameter = longest path between two nodes, counted in edges. Each call returns its subtree height, counted in nodes (an empty child is 0, a leaf 1), and updates a global best with left + right.`
+      : `Diameter = longest path between two nodes, counted in edges. Each call returns its subtree height in edges (an empty child is −1, a leaf 0) and updates a global best with left + right + 2, the 2 being the edges from the node down into each subtree.`,
+  );
   const go = (id: number | null): number => {
-    if (id === null || t.f.full) return 0;
+    if (id === null || t.f.full) return empty;
     const n = t.node(id);
     stack.push(id);
     sync();
@@ -566,7 +686,7 @@ const diameter: G = (input) => {
     t.f.push(`Enter ${n.val}: it needs the heights of both children before it can do anything, so recurse first (post-order).`, "enter");
     const hl = go(n.left);
     const hr = go(n.right);
-    const through = hl + hr;
+    const through = hl + hr + plus;
     const h = 1 + Math.max(hl, hr);
     hs[id] = h;
     let tag = "return";
@@ -586,7 +706,9 @@ const diameter: G = (input) => {
     if (n.left !== null) t.s.nodeTones[n.left] = "visited";
     if (n.right !== null) t.s.nodeTones[n.right] = "visited";
     t.s.vars = { at: n.val, "h(left)": hl, "h(right)": hr, "path through": through, best, returns: h };
-    t.f.push(`At ${n.val}: the longest path through it is h(left) + h(right) = ${hl} + ${hr} = ${through} edges; ${extra}. Return height 1 + max(${hl}, ${hr}) = ${h}.`, tag);
+    const sgn = (x: number) => (x < 0 ? `−${-x}` : String(x));
+    const sum = inNodes ? `h(left) + h(right) = ${hl} + ${hr}` : `h(left) + h(right) + 2 = ${sgn(hl)} + ${sgn(hr)} + 2`;
+    t.f.push(`At ${n.val}: the longest path through it is ${sum} = ${through} edge${through === 1 ? "" : "s"}; ${extra}. Return height 1 + max(${sgn(hl)}, ${sgn(hr)}) = ${h}.`, tag);
     return h;
   };
   go(t.s.root);
@@ -599,8 +721,8 @@ const diameter: G = (input) => {
       while (cur !== null && guard++ <= MAX_NODES) {
         ids.push(cur);
         const n = t.node(cur);
-        const l = n.left === null ? 0 : (hs[n.left] ?? 0);
-        const r = n.right === null ? 0 : (hs[n.right] ?? 0);
+        const l = n.left === null ? empty : (hs[n.left] ?? empty);
+        const r = n.right === null ? empty : (hs[n.right] ?? empty);
         cur = first ? (l >= r ? n.left : n.right) : (r >= l ? n.right : n.left);
       }
       return ids;
@@ -767,6 +889,8 @@ const validateBst: G = (input) => {
     t.s.vars = { valid: true, inorder: t.inorderVals() };
     t.f.push(`Every node respects its bounds: a valid BST. Equivalent check: the in-order traversal is strictly increasing. O(n).`, "done");
   } else {
+    stack.length = 0;
+    sync();
     t.s.vars = { valid: false };
     t.f.push(`The tree is not a BST. A single violating node is enough; O(n) worst case.`, "done");
   }
@@ -777,11 +901,17 @@ const avlInsert: G = (input) => {
   const t = make(input, false);
   const vals = input.values;
   if (vals.length === 0 && t.s.root === null) return emptyFrame(t, "insert into");
+  const inNodes = input.heightUnit === "nodes";
+  // Heights are kept internally in nodes (empty = 0, leaf = 1) and shown in
+  // the lesson's unit: edges (empty = −1, leaf = 0) unless `heightUnit` says nodes.
   const H: Record<number, number> = {};
   const h = (id: number | null) => (id === null ? 0 : (H[id] ?? 1));
+  const shown = (x: number) => (inNodes ? x : x - 1);
+  const hs = (id: number | null) => shown(h(id));
   const bf = (id: number) => h(t.node(id).left) - h(t.node(id).right);
+  const sign = (b: number) => `${b > 0 ? "+" : ""}${b}`;
   const label = (id: number) => {
-    t.s.labels[id] = `h${h(id)} b${bf(id) > 0 ? "+" : ""}${bf(id)}`;
+    t.s.labels[id] = `h${hs(id)} b${sign(bf(id))}`;
   };
   const update = (id: number) => {
     const n = t.node(id);
@@ -798,8 +928,15 @@ const avlInsert: G = (input) => {
     };
     go(t.s.root);
   };
+  /** Point whatever held `old` (the parent's child slot, or the root) at `id`. */
+  const relink = (parent: number | null, old: number, id: number) => {
+    if (parent === null) t.s.root = id;
+    else if (t.node(parent).left === old) t.node(parent).left = id;
+    else t.node(parent).right = id;
+  };
   relabelAll();
-  t.f.push(`AVL tree: after every insert, each node's balance factor b = height(left) − height(right) must stay in {−1, 0, +1}. Labels show height h and balance b. Insert ${vals.join(", ")}.`);
+  const unit = inNodes ? "counted in nodes: a leaf has height 1, an empty subtree 0" : "counted in edges: a leaf has height 0, an empty subtree −1";
+  t.f.push(`AVL tree: after every insert, each node's balance factor b = height(left) − height(right) must stay in {−1, 0, +1}. Labels show height h (${unit}) and balance b. Insert ${vals.join(", ")}.`);
   const rotateRight = (id: number): number => {
     const x = t.node(id);
     const l = x.left!;
@@ -820,16 +957,26 @@ const avlInsert: G = (input) => {
     update(r);
     return r;
   };
+  // Every structural change is linked into the tree before its frame is
+  // pushed, so each frame draws the whole tree as it really is.
   const insert = (id: number | null, v: number, path: number[]): number => {
+    const parent = path.length ? path[path.length - 1]! : null;
     if (id === null) {
       const nid = t.add(v);
       H[nid] = 1;
       label(nid);
+      if (parent === null) t.s.root = nid;
+      else t.node(parent)[v < t.node(parent).val ? "left" : "right"] = nid;
       t.clear();
       t.tonePath(path, "visited");
       t.s.nodeTones[nid] = "done";
       if (path.length) t.s.edgeTones[nid] = "path";
-      t.f.push(`Empty slot: attach ${v} as a leaf (h1 b0). Now unwind, updating heights and checking balance on the way up.`, "insert");
+      t.f.push(
+        parent === null
+          ? `The tree is empty, so ${v} becomes the root (h${shown(1)} b0).`
+          : `Empty slot: attach ${v} as a leaf (h${shown(1)} b0). Now unwind, updating heights and checking balance on the way up.`,
+        "insert",
+      );
       return nid;
     }
     const n = t.node(id);
@@ -844,6 +991,7 @@ const avlInsert: G = (input) => {
     }
     const goLeft = v < n.val;
     t.f.push(`${v} ${goLeft ? "<" : ">"} ${n.val}: go ${goLeft ? "left" : "right"} (ordinary BST descent).`, "compare");
+    const before = h(id);
     const child = insert(goLeft ? n.left : n.right, v, [...path, id]);
     if (goLeft) n.left = child;
     else n.right = child;
@@ -853,9 +1001,9 @@ const avlInsert: G = (input) => {
     t.tonePath(path, "visited");
     t.s.nodeTones[id] = "active";
     if (path.length) t.s.edgeTones[id] = "path";
-    t.s.vars = { inserting: v, at: n.val, height: h(id), balance: b };
+    t.s.vars = { inserting: v, at: n.val, height: hs(id), balance: b };
     if (Math.abs(b) <= 1) {
-      t.f.push(`Back at ${n.val}: h = 1 + max(${h(n.left)}, ${h(n.right)}) = ${h(id)}, balance ${b > 0 ? "+" : ""}${b} is within ±1, no rotation.`, "unwind");
+      t.f.push(`Back at ${n.val}: h = 1 + max(${hs(n.left)}, ${hs(n.right)}) = ${hs(id)}, balance ${sign(b)} is within ±1, no rotation.`, "unwind");
       return id;
     }
     t.s.nodeTones[id] = "danger";
@@ -864,7 +1012,7 @@ const avlInsert: G = (input) => {
     if (b > 1 && v < t.node(n.left!).val) {
       kind = "LL";
       t.s.nodeTones[n.left!] = "compare";
-      t.f.push(`Back at ${n.val}: balance +${b}, left-heavy, and the new key went into the left child's left side (LL case). One right rotation about ${n.val} fixes it.`, "imbalance");
+      t.f.push(`Back at ${n.val}: balance ${sign(b)}, left-heavy, and the new key went into the left child's left side (LL case). One right rotation about ${n.val} fixes it.`, "imbalance");
       newRoot = rotateRight(id);
     } else if (b < -1 && v > t.node(n.right!).val) {
       kind = "RR";
@@ -876,13 +1024,14 @@ const avlInsert: G = (input) => {
       const l = n.left!;
       t.s.nodeTones[l] = "compare";
       t.s.nodeTones[t.node(l).right!] = "compare";
-      t.f.push(`Back at ${n.val}: balance +${b} but the new key went into the left child's right side (LR case). First rotate ${t.node(l).val} left to turn it into an LL shape.`, "imbalance");
+      t.f.push(`Back at ${n.val}: balance ${sign(b)} but the new key went into the left child's right side (LR case). First rotate ${t.node(l).val} left to turn it into an LL shape.`, "imbalance");
       n.left = rotateLeft(l);
       t.clear();
       t.tonePath(path, "visited");
       t.s.nodeTones[id] = "danger";
       t.s.nodeTones[n.left] = "compare";
-      t.f.push(`After the left rotation the left subtree is left-heavy; now rotate ${n.val} right.`, "rotate");
+      t.s.nodeTones[t.node(n.left).left!] = "compare";
+      t.f.push(`After the left rotation at ${t.node(l).val}, ${t.node(n.left).val} is ${n.val}'s left child and the three keys form a straight left-leaning line (LL shape); now rotate ${n.val} right.`, "rotate");
       newRoot = rotateRight(id);
     } else {
       kind = "RL";
@@ -895,9 +1044,11 @@ const avlInsert: G = (input) => {
       t.tonePath(path, "visited");
       t.s.nodeTones[id] = "danger";
       t.s.nodeTones[n.right] = "compare";
-      t.f.push(`After the right rotation the right subtree is right-heavy; now rotate ${n.val} left.`, "rotate");
+      t.s.nodeTones[t.node(n.right).right!] = "compare";
+      t.f.push(`After the right rotation at ${t.node(r).val}, ${t.node(n.right).val} is ${n.val}'s right child and the three keys form a straight right-leaning line (RR shape); now rotate ${n.val} left.`, "rotate");
       newRoot = rotateLeft(id);
     }
+    relink(parent, id, newRoot);
     t.clear();
     t.tonePath(path, "visited");
     t.s.nodeTones[newRoot] = "done";
@@ -905,8 +1056,10 @@ const avlInsert: G = (input) => {
     if (nr.left !== null) t.s.nodeTones[nr.left] = "visited";
     if (nr.right !== null) t.s.nodeTones[nr.right] = "visited";
     if (path.length) t.s.edgeTones[newRoot] = "path";
-    t.s.vars = { inserting: v, rotation: kind, "new subtree root": nr.val };
-    t.f.push(`${kind} rotation done: ${nr.val} is the new subtree root, heights restored to ${h(newRoot)}. In-order order is unchanged, so it is still a BST.`, "rotate");
+    t.s.vars = { inserting: v, rotation: kind, "new subtree root": nr.val, height: hs(newRoot) };
+    const where = parent === null ? "the new root of the whole tree" : `the new root of this subtree, under ${t.node(parent).val}`;
+    const restored = h(newRoot) === before ? `, back to the height ${shown(before)} it had before this insert, so no ancestor's balance changes` : "";
+    t.f.push(`${kind} rotation done: ${nr.val} is ${where}, with ${t.val(nr.left)} and ${t.val(nr.right)} as its children. Its height is ${hs(newRoot)}${restored}. In-order order is unchanged, so it is still a BST.`, "rotate");
     return newRoot;
   };
   for (const v of vals) {
@@ -918,9 +1071,9 @@ const avlInsert: G = (input) => {
   const plain = new Tree();
   if (input.levelOrder && input.levelOrder.length > 0) plain.fromLevelOrder(input.levelOrder);
   for (const v of vals) plain.bstInsertSilent(v);
-  const plainHeight = plain.height(plain.s.root) + 1;
-  t.s.vars = { nodes: t.size, height: h(t.s.root), "plain BST height": plainHeight };
-  t.f.push(`Final AVL height ${h(t.s.root)} (counting nodes) for ${t.size} keys; a plain BST on the same insertion order would have height ${plainHeight}. AVL height stays ≤ 1.44 log₂ n, so every operation is O(log n).`, "done");
+  const plainHeight = shown(plain.height(plain.s.root) + 1);
+  t.s.vars = { nodes: t.size, height: hs(t.s.root), "plain BST height": plainHeight };
+  t.f.push(`Final AVL height ${hs(t.s.root)} (${inNodes ? "counting nodes" : "counting edges"}) for ${t.size} keys; a plain BST on the same insertion order would have height ${plainHeight}. AVL height stays ≤ 1.44 log₂ n, so every operation is O(log n).`, "done");
   return t.f.done();
 };
 
@@ -959,6 +1112,7 @@ const invert: G = (input) => {
 };
 
 const serialize: G = (input) => {
+  if (input.order === "level") return serializeLevel(input);
   const t = make(input);
   if (t.s.root === null) return emptyFrame(t, "serialise");
   const tokens: string[] = [];
@@ -1011,7 +1165,9 @@ const serialize: G = (input) => {
   const dsync = () => {
     d.s.readouts = [stackReadout(d, dstack, "build stack (bottom → top)"), { label: "tokens (pre-order, # = null)", values: [...tokens], tones: tokens.map((_, j) => (j < i ? "visited" : j === i ? "active" : undefined)), pointers: { i } }];
   };
-  const build = (parent: number | null): number | null => {
+  // Each node is linked to its parent the moment it is created, so the
+  // partial tree is always drawn whole.
+  const build = (parent: number | null, side: "left" | "right"): number | null => {
     if (d.f.full) return null;
     const tok = tokens[i];
     dsync();
@@ -1021,28 +1177,134 @@ const serialize: G = (input) => {
     if (tok === "#") {
       i++;
       dsync();
-      d.f.push(`Token "#": this child is empty, return null.`, "null");
+      d.f.push(`Token "#": ${parent === null ? "the tree is empty" : `${d.val(parent)}'s ${side} child is empty`}, return null.`, "null");
       return null;
     }
     const id = d.add(Number(tok));
-    if (d.s.root === null) d.s.root = id;
+    if (parent === null) d.s.root = id;
+    else d.node(parent)[side] = id;
     i++;
     dstack.push(id);
     dsync();
     d.s.nodeTones[id] = "done";
     if (parent !== null) d.s.edgeTones[id] = "path";
-    d.f.push(`Token "${tok}": create the node${parent === null ? " as the root" : ` under ${d.val(parent)}`}, then read its left subtree, then its right.`, "build");
-    const n = d.node(id);
-    n.left = build(id);
-    n.right = build(id);
+    d.f.push(`Token "${tok}": create the node${parent === null ? " as the root" : ` as ${d.val(parent)}'s ${side} child`}, then read its left subtree, then its right.`, "build");
+    build(id, "left");
+    build(id, "right");
     dstack.pop();
     return id;
   };
-  build(null);
+  build(null, "left");
   d.clear();
   for (const n of d.s.nodes) if (n) d.s.nodeTones[n.id] = "done";
   dsync();
   d.f.push(`Decoded the same tree from the token stream. Both directions are O(n); the encoding is unique because pre-order plus null markers fixes the shape.`, "done");
+  return d.f.done();
+};
+
+/** Level-order (BFS) serialisation, and decoding with a queue of parents. */
+const serializeLevel: G = (input) => {
+  const t = make(input);
+  if (t.s.root === null) return emptyFrame(t, "serialise");
+  const tokens: string[] = [];
+  const LABEL = "tokens (level order, # = null)";
+  // Queue entries remember their parent so a "#" can say whose child it is.
+  let queue: { id: number | null; parent: number | null; side: "left" | "right" }[] = [{ id: t.s.root, parent: null, side: "left" }];
+  const sync = () => {
+    t.s.readouts = [
+      { label: "queue (front → back)", values: queue.map((q) => (q.id === null ? "#" : t.node(q.id).val)), tones: queue.map((q) => (q.id === null ? "muted" : "frontier")), labels: [] },
+      { label: LABEL, values: [...tokens] },
+    ];
+  };
+  const emitted: number[] = [];
+  const paint = () => {
+    t.clear();
+    for (const id of emitted) t.s.nodeTones[id] = "visited";
+    for (const q of queue) if (q.id !== null) t.s.nodeTones[q.id] = "frontier";
+  };
+  sync();
+  paint();
+  t.f.push(`Serialise level by level: a queue starts with the root. Each dequeued node emits its value and enqueues both children, empty ones included; an empty child emits "#" when it reaches the front.`);
+  while (queue.length && !t.f.full) {
+    const q = queue[0]!;
+    queue = queue.slice(1);
+    if (q.id === null) {
+      tokens.push("#");
+      sync();
+      paint();
+      t.f.push(`Dequeue the empty ${q.side} child of ${t.val(q.parent)}: emit "#".`, "null");
+      continue;
+    }
+    const n = t.node(q.id);
+    tokens.push(String(n.val));
+    emitted.push(q.id);
+    queue.push({ id: n.left, parent: q.id, side: "left" }, { id: n.right, parent: q.id, side: "right" });
+    sync();
+    paint();
+    t.s.nodeTones[q.id] = "active";
+    for (const c of [n.left, n.right]) if (c !== null) t.s.edgeTones[c] = "path";
+    const kids = [n.left, n.right].map((c) => (c === null ? "#" : String(t.node(c).val)));
+    t.f.push(`Dequeue ${n.val}: emit "${n.val}" and enqueue its children, ${kids[0]} and ${kids[1]}.`, "emit");
+  }
+  const encoded = tokens.join(",");
+  t.clear();
+  for (const n of t.s.nodes) if (n) t.s.nodeTones[n.id] = "visited";
+  sync();
+  t.s.vars = { encoded };
+  t.f.push(`Encoded: "${encoded}" (${tokens.length} tokens for ${t.size} nodes: n values + n + 1 nulls). Now decode it: every node waiting in a queue takes the next two tokens as its children.`, "encoded");
+  // Decode into the same state.
+  const d = t;
+  d.s.nodes = [];
+  d.s.root = null;
+  d.s.labels = {};
+  d.clear();
+  d.s.vars = { encoded };
+  let dq: number[] = [];
+  let i = 0;
+  const dsync = (span: number) => {
+    d.s.readouts = [
+      { label: "queue: nodes waiting for children", values: dq.map((id) => d.node(id).val), tones: dq.map(() => "frontier" as Tone), labels: [] },
+      { label: LABEL, values: [...tokens], tones: tokens.map((_, j) => (j < i - span ? "visited" : j < i ? "active" : undefined)), pointers: i < tokens.length ? { i } : undefined },
+    ];
+  };
+  const root = d.add(Number(tokens[0]));
+  d.s.root = root;
+  dq = [root];
+  i = 1;
+  dsync(1);
+  d.s.nodeTones[root] = "done";
+  d.f.push(`Token "${tokens[0]}" becomes the root; put it in the queue, since its children have not been read yet.`, "build");
+  while (dq.length && i < tokens.length && !d.f.full) {
+    const p = dq[0]!;
+    dq = dq.slice(1);
+    const made: string[] = [];
+    const before = i;
+    for (const side of ["left", "right"] as const) {
+      const tok = tokens[i];
+      if (tok === undefined) break;
+      i++;
+      if (tok === "#") continue;
+      const id = d.add(Number(tok));
+      d.node(p)[side] = id;
+      dq.push(id);
+      made.push(`${tok} as its ${side} child`);
+    }
+    dsync(i - before);
+    d.clear();
+    d.s.nodeTones[p] = "active";
+    const pn = d.node(p);
+    for (const c of [pn.left, pn.right]) {
+      if (c === null) continue;
+      d.s.nodeTones[c] = "done";
+      d.s.edgeTones[c] = "path";
+    }
+    const pair = tokens.slice(before, i).map((x) => `"${x}"`).join(" and ");
+    d.f.push(`Dequeue ${pn.val}: it takes the next two tokens, ${pair}. ${made.length ? `Create ${made.join(" and ")}, and enqueue ${made.length === 1 ? "it" : "them"}.` : `Both are empty, so ${pn.val} is a leaf.`}`, "build");
+  }
+  d.clear();
+  for (const n of d.s.nodes) if (n) d.s.nodeTones[n.id] = "done";
+  dsync(0);
+  d.f.push(`Decoded the same tree. The queue and the token index advance in lockstep: the queue always holds, in order, exactly the nodes whose children have not been read. O(n) each way.`, "done");
   return d.f.done();
 };
 
@@ -1210,6 +1472,19 @@ export const treeFamily: Family<TreeInput, TreeState> = {
       }
     }
     const target = num(raw.target ?? raw.key ?? raw.value ?? raw.search ?? raw.delete);
-    return { values, levelOrder: levelOrder && levelOrder.length ? levelOrder : undefined, target, a: num(raw.a ?? raw.p), b: num(raw.b ?? raw.q) };
+    const unit = String(raw.heightUnit ?? raw.height_unit ?? "").toLowerCase();
+    const order = String(raw.order ?? "").toLowerCase();
+    const flag = (v: unknown) => v === true || v === "true";
+    return {
+      values,
+      levelOrder: levelOrder && levelOrder.length ? levelOrder : undefined,
+      target,
+      a: num(raw.a ?? raw.p),
+      b: num(raw.b ?? raw.q),
+      heightUnit: unit.startsWith("node") ? "nodes" : unit.startsWith("edge") ? "edges" : undefined,
+      thenInorder: flag(raw.thenInorder ?? raw.then_inorder) || undefined,
+      iterative: flag(raw.iterative) || undefined,
+      order: order.startsWith("level") || order === "bfs" ? "level" : order.startsWith("pre") ? "preorder" : undefined,
+    };
   },
 };

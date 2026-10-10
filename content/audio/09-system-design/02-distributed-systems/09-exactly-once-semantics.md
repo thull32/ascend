@@ -1,6 +1,6 @@
 ---
 lesson: exactly-once-semantics
-source: 23aa51c356e23414
+source: 73453da56b8e4a24
 fit: great
 desk:
   - "The idempotent producer trace, batch by batch, with sequence numbers and log offsets"

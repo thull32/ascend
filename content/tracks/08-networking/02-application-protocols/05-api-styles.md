@@ -176,7 +176,9 @@ print(db.execute("SELECT COUNT(*) FROM orders").fetchone()[0], "orders")
 `BEGIN IMMEDIATE` takes SQLite's write lock before the lookup, so two concurrent requests with one key cannot both see "absent"; in Postgres the equivalent is inserting the key first with `ON CONFLICT DO NOTHING` and checking whether a row was inserted, which serialises duplicates on the primary key. The rollback path releases the key when the order fails, so a retry runs the order again instead of replaying the failure. [Idempotency and retries](/learn/system-design/building-blocks/idempotency-and-retries) covers storage choices and consumer-side deduplication.
 
 ```viz
-{"type": "system", "scenario": "idempotency-key", "title": "A retried request with an idempotency key", "caption": "The first request stores its result under the key; a retry with the same key and body is answered from the store instead of repeating the side effect."}
+{"type": "system", "scenario": "idempotency-key", "service": "Orders API", "request": "POST /orders {amount 10}", "key": "K", "effect": "create order 1", "target": "", "record": "order 1", "response": "201 order-1", "effects": "orders", "changed": "amount 20",
+ "title": "A retried request with an idempotency key",
+ "caption": "The first request stores its result under the key; a retry with the same key and body is answered from the store instead of repeating the side effect."}
 ```
 
 ```exercise

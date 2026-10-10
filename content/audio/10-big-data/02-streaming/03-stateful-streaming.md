@@ -1,6 +1,6 @@
 ---
 lesson: stateful-streaming
-source: 20d9328ac2dae90a
+source: e6fbe1086d27a416
 fit: great
 desk:
   - "The checkpoint-42 barrier trace through source, counter and transactional sink, step by step"

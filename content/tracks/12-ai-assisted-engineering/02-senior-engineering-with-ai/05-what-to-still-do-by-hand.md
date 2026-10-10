@@ -78,7 +78,7 @@ In production the service handles requests on a pool of worker threads. User `u1
 Both exports run. The quota allowed 11, and the stored count says 10, so nothing downstream can even tell. Every row after step 2 is the same bug: A's write in step 7 is computed from a value that stopped being true at step 5. This is the **lost update**, and it is the same anomaly as two database transactions that both read a balance and both write balance minus withdrawal.
 
 ```viz
-{"type": "concurrency", "algorithm": "race-condition", "threads": 2, "title": "The lost update inside try_consume", "caption": "Two threads read the same count before either writes. Both pass the check and both store the same value, so one consumption vanishes. Single-threaded tests never interleave, which is why they cannot see this."}
+{"type": "concurrency", "algorithm": "race-condition", "threads": 2, "quota": {"used": 9, "limit": 10}, "title": "The lost update inside try_consume", "caption": "Two threads read the same count before either writes. Both pass the check and both store the same value, so one consumption vanishes. Single-threaded tests never interleave, which is why they cannot see this."}
 ```
 
 ## Under the hood: why the GIL does not save you

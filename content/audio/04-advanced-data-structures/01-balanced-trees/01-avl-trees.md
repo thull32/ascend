@@ -1,6 +1,6 @@
 ---
 lesson: avl-trees
-source: 5c3ff4e840e8ca5d
+source: 15087abbf629e4bf
 fit: partial
 desk:
   - "The rotation diagrams and the rotate and rebalance code"

@@ -1,6 +1,6 @@
 ---
 lesson: matrix-traversal
-source: ce562f2d71cddc4c
+source: 9878d8e9f2436a1d
 fit: partial
 desk:
   - "The spiral template with its two guards, in Python and JavaScript"

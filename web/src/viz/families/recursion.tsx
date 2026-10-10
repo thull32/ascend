@@ -14,6 +14,14 @@ export interface RecursionInput {
   grid?: number[][];
   start?: [number, number];
   color?: number;
+  /** factorial: the base case is n <= base (0 or 1; default 1). */
+  base?: number;
+  /** fibonacci: the values of f(0) and f(1) (default [0, 1]). */
+  bases?: number[];
+  /** fibonacci: the function name shown on the nodes (default "fib"). */
+  name?: string;
+  /** merge-sort-tree: "even-odd" shows the FFT's split by index parity instead of merge sort. */
+  split?: string;
 }
 
 export interface RecNode {
@@ -92,29 +100,36 @@ function make() {
   const resume = (id: number) => {
     s.nodes[id]!.tone = "active";
   };
+  /** Draw a branch that is considered but never called (a pruned choice). */
+  const ghost = (label: string, parent: number, result: string, tone: Tone = "danger") => {
+    const id = s.nodes.length;
+    s.nodes.push({ id, parent, label, result, tone, depth: s.nodes[parent]!.depth + 1 });
+    return id;
+  };
   const problem = (msg: string) => {
     f.push(msg, "input");
     return f.done();
   };
-  return { s, f, push, enter, leave, resume, problem, calls: () => calls, maxDepth: () => maxDepth };
+  return { s, f, push, enter, leave, resume, ghost, problem, calls: () => calls, maxDepth: () => maxDepth };
 }
 
 // ---- linear recursion ----
 
-const factorial: G = ({ n }) => {
+const factorial: G = ({ n, base }) => {
+  const B = base === 0 ? 0 : 1;
   const N = clampInt(n, 0, 12, 5);
-  const { f, push, enter, leave, problem, calls, maxDepth } = make();
+  const { s, f, push, enter, leave, problem, calls, maxDepth } = make();
   if (!Number.isFinite(Number(n)) && n !== undefined) return problem("factorial needs a non-negative integer n (n: 5).");
   push(`factorial(${N}) = ${N} × factorial(${N - 1}): every call pushes a frame and waits for the smaller answer, so nothing is multiplied until the base case returns.`);
   const rec = (k: number, parent: number | null): number => {
     const id = enter(`fact(${k})`, parent);
-    if (k <= 1) {
-      push(`fact(${k}) is the base case: it returns 1 without recursing. The stack is ${N <= 1 ? 1 : N} frame(s) deep.`, "base");
+    if (k <= B) {
+      push(`fact(${k}) is the base case (n ≤ ${B}): it returns 1 without recursing. The stack is ${s.stack.length} frame${s.stack.length === 1 ? "" : "s"} deep.`, "base");
       leave(id, "1", "done");
       push(parent === null ? "Return 1." : `Pop fact(${k}) and hand 1 back to fact(${k + 1}), which can now finish its multiply.`, "return");
       return 1;
     }
-    push(`fact(${k}) needs fact(${k - 1}) first: push a frame and recurse (depth ${k === N ? 1 : N - k + 1}).`, "call");
+    push(`fact(${k}) needs fact(${k - 1}) first: push a frame and recurse (depth ${s.stack.length}).`, "call");
     const sub = rec(k - 1, id);
     const val = k * sub;
     leave(id, String(val));
@@ -126,39 +141,43 @@ const factorial: G = ({ n }) => {
   return f.done();
 };
 
-const fibonacci: G = ({ n }) => {
+const fibonacci: G = ({ n, bases, name }) => {
   const N = clampInt(n, 0, 10, 5);
+  const F = name && /^[A-Za-z_][A-Za-z0-9_]{0,11}$/.test(name) ? name : "fib";
+  const b0 = Number.isFinite(bases?.[0]) ? bases![0]! : 0;
+  const b1 = Number.isFinite(bases?.[1]) ? bases![1]! : 1;
   const { s, f, push, enter, leave, resume, calls, maxDepth } = make();
   const computed = new Map<number, number>();
   const times = new Map<number, number>();
-  push(`Naive recursive fib(${N}): fib(k) = fib(k−1) + fib(k−2), two calls per node. Watch the same arguments come back again and again.`);
+  push(`Naive recursive ${F}(${N}): ${F}(k) = ${F}(k−1) + ${F}(k−2), two calls per node${F === "fib" && b0 === 0 && b1 === 1 ? "" : `, with base cases ${F}(0) = ${b0} and ${F}(1) = ${b1}`}. Watch the same arguments come back again and again.`);
   const rec = (k: number, parent: number | null): number => {
     const seen = times.get(k) ?? 0;
     times.set(k, seen + 1);
-    const id = enter(`fib(${k})`, parent);
-    const again = seen > 0 && k >= 2 ? ` This is call #${seen + 1} to fib(${k}): its value ${computed.get(k)} is already known, but naive recursion has no memory, so the whole subtree is recomputed.` : "";
+    const id = enter(`${F}(${k})`, parent);
+    const again = seen > 0 && k >= 2 ? ` This is call #${seen + 1} to ${F}(${k}): its value ${computed.get(k)} is already known, but naive recursion has no memory, so the whole subtree is recomputed.` : "";
     if (k <= 1) {
-      leave(id, String(k), "done");
-      push(`fib(${k}) = ${k}: base case, return immediately.`, "base");
-      return k;
+      const bv = k === 0 ? b0 : b1;
+      leave(id, String(bv), "done");
+      push(`${F}(${k}) = ${bv}: base case, return immediately.`, "base");
+      return bv;
     }
-    push(`fib(${k}) needs fib(${k - 1}) and fib(${k - 2}); call fib(${k - 1}) first and leave this frame waiting.${again}`, "call");
+    push(`${F}(${k}) needs ${F}(${k - 1}) and ${F}(${k - 2}); call ${F}(${k - 1}) first and leave this frame waiting.${again}`, "call");
     const a = rec(k - 1, id);
     if (f.full) return 0;
     resume(id);
-    push(`Back in fib(${k}) with fib(${k - 1}) = ${a}; now call fib(${k - 2}).`, "call");
+    push(`Back in ${F}(${k}) with ${F}(${k - 1}) = ${a}; now call ${F}(${k - 2}).`, "call");
     const b = rec(k - 2, id);
     if (f.full) return 0;
     const v = a + b;
     computed.set(k, v);
     leave(id, String(v), seen > 0 ? "compare" : "visited");
-    push(`fib(${k}) = ${a} + ${b} = ${v}: pop and return.`, "return");
+    push(`${F}(${k}) = ${a} + ${b} = ${v}: pop and return.`, "return");
     return v;
   };
   const r = rec(N, null);
   const distinct = N + 1;
   s.vars = { ...s.vars, distinctArguments: distinct };
-  push(`fib(${N}) = ${r} took ${calls()} calls but there are only ${distinct} distinct arguments; the live stack never exceeded ${maxDepth()} frames. Memoising the ${distinct} results makes it O(n).`, "done");
+  push(`${F}(${N}) = ${r} took ${calls()} calls but there are only ${distinct} distinct arguments; the live stack never exceeded ${maxDepth()} frames. Memoising the ${distinct} results makes it O(n).`, "done");
   return f.done();
 };
 
@@ -189,12 +208,12 @@ const hanoi: G = ({ n }) => {
       push(`hanoi(1, ${names[from]}→${names[to]}): a single disc moves directly, disc 1 ${names[from]}→${names[to]} (move #${moves}).`, "move");
       return;
     }
-    push(`hanoi(${k}, ${names[from]}→${names[to]}): first get the ${k - 1} smaller discs out of the way onto ${names[via]}.`, "call");
+    push(`hanoi(${k}, ${names[from]}→${names[to]}): first get the ${k - 1 === 1 ? "smaller disc" : `${k - 1} smaller discs`} out of the way onto ${names[via]}.`, "call");
     rec(k - 1, from, via, to, id);
     if (f.full) return;
     resume(id);
     move(k, from, to);
-    push(`Disc ${k} is now free: move it ${names[from]}→${names[to]} (move #${moves}). Then bring the ${k - 1} discs from ${names[via]} onto it.`, "move");
+    push(`Disc ${k} is now free: move it ${names[from]}→${names[to]} (move #${moves}). Then bring the ${k - 1 === 1 ? "smaller disc" : `${k - 1} smaller discs`} from ${names[via]} onto it.`, "move");
     rec(k - 1, via, to, from, id);
     if (f.full) return;
     leave(id, `${2 ** k - 1} moves`);
@@ -276,7 +295,7 @@ const subsets: G = ({ values }) => {
     rec(i + 1, chosen, id);
     if (f.full) return;
     leave(id, "");
-    push(`Both branches for element ${i} explored; return to the parent.`, "return");
+    push(`Both branches for ${v[i]} explored; return to the parent.`, "return");
   };
   rec(0, [], null);
   push(`${s.results.length} = 2^${n} subsets from ${calls()} calls (the empty set and the full set are both leaves). O(2^n) leaves, O(n) stack depth.`, "done");
@@ -287,7 +306,7 @@ const combinations: G = ({ values, n, k }) => {
   const v: (number | string)[] = values && values.length > 0 ? values.slice(0, 6) : range(clampInt(n, 1, 6, 4)).map((i) => i + 1);
   const N = v.length;
   const K = clampInt(k, 0, N, Math.min(2, N));
-  const { s, f, push, enter, leave, resume, calls } = make();
+  const { s, f, push, enter, leave, resume, ghost, calls } = make();
   const setRows = (start: number, path: (number | string)[]) => {
     s.rows = [{ label: `candidates from index ${start}`, values: [...v], tones: v.map((x, j) => (path.includes(x) ? "done" : j < start ? "muted" : undefined)) }];
   };
@@ -308,9 +327,8 @@ const combinations: G = ({ values, n, k }) => {
       if (f.full) return;
       const left = N - i;
       if (left < need) {
-        const pid = enter(`[${[...path, v[i]!].join(",")}]`, id);
-        leave(pid, "pruned", "danger");
-        push(`Choosing ${v[i]} leaves only ${left - 1} element(s) after it but ${need - 1} more are still needed: prune, this branch can never fill up.`, "prune");
+        ghost(`[${[...path, v[i]!].join(",")}]`, id, "pruned");
+        push(`Choosing ${v[i]} would leave only ${left - 1} element(s) after it, but ${need - 1} more are still needed: prune. This branch could never fill up, so it is never called.`, "prune");
         continue;
       }
       rec(i + 1, [...path, v[i]!], id);
@@ -321,7 +339,7 @@ const combinations: G = ({ values, n, k }) => {
     push(`All candidates from index ${start} tried for [${path.join(",")}]; return.`, "return");
   };
   rec(0, [], null);
-  push(`C(${N}, ${K}) = ${s.results.length} combinations from ${calls()} calls. Pruning branches that cannot reach k is what makes this cheaper than enumerating all 2^${N} subsets.`, "done");
+  push(`C(${N}, ${K}) = ${s.results.length} combinations from ${calls()} calls; pruned branches were never called. Pruning branches that cannot reach k is what makes this cheaper than enumerating all 2^${N} subsets.`, "done");
   return f.done();
 };
 
@@ -359,10 +377,14 @@ const nQueens: G = ({ n }) => {
     push(`Row ${row}: try each column left to right, skipping any attacked by the ${row} queen(s) already placed.`, "call");
     for (let c = 0; c < N; c++) {
       if (f.full) return false;
-      const attacker = queens.findIndex((qc, qr) => qc === c || qr - qc === row - c || qr + qc === row + c);
+      // Report the reason in the order the code checks it: column, then diagonal, then anti-diagonal.
+      const byCol = queens.findIndex((qc) => qc === c);
+      const byDiag = queens.findIndex((qc, qr) => qr - qc === row - c);
+      const byAnti = queens.findIndex((qc, qr) => qr + qc === row + c);
+      const attacker = byCol >= 0 ? byCol : byDiag >= 0 ? byDiag : byAnti;
       if (attacker >= 0) {
         const qc = queens[attacker]!;
-        const why = qc === c ? "same column" : attacker - qc === row - c ? "same diagonal (r − c)" : "same anti-diagonal (r + c)";
+        const why = byCol >= 0 ? "same column" : byDiag >= 0 ? "same diagonal (r − c)" : "same anti-diagonal (r + c)";
         paint();
         s.board!.tones[key(row, c)] = "danger";
         s.board!.tones[key(attacker, qc)] = "compare";
@@ -511,7 +533,58 @@ const binarySearchRecursive: G = ({ values, target }) => {
   return f.done();
 };
 
-const mergeSortTree: G = ({ values }) => {
+/** The FFT's recursion: split coefficients by index parity, combine with n/2 butterflies. */
+const fftSplit: G = ({ values }) => {
+  const raw = (values ?? ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]).slice(0, 8);
+  let n = 1;
+  while (n * 2 <= raw.length) n *= 2;
+  const a = raw.slice(0, n).map(String);
+  const { s, f, push, enter, leave, resume, problem, calls } = make();
+  if (a.length === 0) return problem("merge-sort-tree with split even-odd needs a list of coefficients (values: [\"a0\", \"a1\", \"a2\", \"a3\"]).");
+  const setRow = (idx: number[], tone: Tone) => {
+    s.rows = [{ label: "coefficients (index below)", values: [...a], tones: a.map((_, i) => (idx.includes(i) ? tone : undefined)), labels: range(n) }];
+  };
+  setRow(range(n), "active");
+  let butterflies = 0;
+  push(`The FFT on ${n} coefficients ${a.join(", ")}: split by index parity, A(x) = E(x²) + x·O(x²), where E holds the even-indexed coefficients and O the odd-indexed ones. Recurse on both halves, then combine with n/2 butterflies.`);
+  const rec = (idx: number[], parent: number | null) => {
+    if (f.full) return;
+    const label = `[${idx.map((i) => a[i]).join(",")}]`;
+    const id = enter(label, parent);
+    setRow(idx, "active");
+    if (idx.length === 1) {
+      leave(id, a[idx[0]!]!, "done");
+      push(`[${a[idx[0]!]}] is a constant polynomial: its value at the only point, 1, is ${a[idx[0]!]} itself. Base case, return it.`, "base");
+      return;
+    }
+    const even = idx.filter((_, j) => j % 2 === 0);
+    const odd = idx.filter((_, j) => j % 2 === 1);
+    const names = (xs: number[]) => xs.map((i) => a[i]).join(", ");
+    push(`Split ${label} by position at level ${s.nodes[id]!.depth} of the tree: the even positions (${names(even)}) form E, the odd positions (${names(odd)}) form O. Evaluate E first.`, "split");
+    rec(even, id);
+    if (f.full) return;
+    resume(id);
+    setRow(idx, "active");
+    rec(odd, id);
+    if (f.full) return;
+    resume(id);
+    const half = idx.length / 2;
+    butterflies += half;
+    setRow(idx, "compare");
+    leave(id, `${idx.length} values`);
+    s.vars = { ...s.vars, butterflies };
+    push(`Combine ${label}: ${half === 1 ? "1 butterfly takes" : `${half} butterflies each take`} E's value and O's value times a root of unity ω, and emit E + ωO and E − ωO. That gives ${idx.length} outputs, this polynomial's values at ${idx.length} roots of unity, in O(${idx.length}) work.`, "combine");
+  };
+  rec(range(n), null);
+  setRow(range(n), "done");
+  s.vars = { ...s.vars, butterflies };
+  push(`${calls()} calls, ${Math.log2(n)} levels of splitting, and ${n / 2} butterflies at every level, ${butterflies} in all: two half-size calls plus linear combining, T(n) = 2T(n/2) + O(n) = O(n log n), the same shape as merge sort.`, "done");
+  return f.done();
+};
+
+const mergeSortTree: G = (input) => {
+  if (input.split === "even-odd") return fftSplit(input);
+  const { values } = input;
   const a = (values ?? [38, 27, 43, 3, 9, 82, 10, 5]).map(Number).filter((x) => Number.isFinite(x)).slice(0, 8);
   const n = a.length;
   const { s, f, push, enter, leave, resume, problem, calls, maxDepth } = make();
@@ -531,7 +604,7 @@ const mergeSortTree: G = ({ values }) => {
       return;
     }
     const mid = lo + Math.floor((hi - lo) / 2);
-    push(`Split [${lo}..${hi}] into [${lo}..${mid}] and [${mid + 1}..${hi}] (depth ${s.stack.length}); sort the left half first.`, "split");
+    push(`Split [${lo}..${hi}] into [${lo}..${mid}] and [${mid + 1}..${hi}] at level ${s.nodes[id]!.depth} of the tree (the root is level 0); sort the left half first.`, "split");
     rec(lo, mid, id);
     if (f.full) return;
     resume(id);
@@ -549,7 +622,7 @@ const mergeSortTree: G = ({ values }) => {
       const takeLeft = j >= right.length || (i < left.length && left[i]! <= right[j]!);
       a[k] = takeLeft ? left[i++]! : right[j++]!;
       setRow(lo, hi, "compare", k);
-      push(`Merge: ${takeLeft ? `left ${a[k]} ≤ right ${right[j] ?? "∅"}` : `right ${a[k]} < left ${left[i] ?? "∅"}`}, write ${a[k]} at index ${k}.`, "merge");
+      push(`Merge: ${takeLeft ? (j >= right.length ? `the right half is used up, so copy left ${a[k]}` : `left ${a[k]} ≤ right ${right[j]}`) : i >= left.length ? `the left half is used up, so copy right ${a[k]}` : `right ${a[k]} < left ${left[i]}`}, write ${a[k]} at index ${k}.`, "merge");
       k++;
     }
     leave(id, `[${a.slice(lo, hi + 1).join(",")}]`);
@@ -558,7 +631,7 @@ const mergeSortTree: G = ({ values }) => {
   };
   rec(0, n - 1, null);
   setRow(0, n - 1, "done");
-  push(`Sorted after ${calls()} calls at depth ${maxDepth()}: each level of the tree merges all ${n} elements, and there are ⌈log₂ ${n}⌉ levels, so O(n log n) total.`, "done");
+  push(`Sorted after ${calls()} calls, with at most ${maxDepth()} frames on the stack: each level of the tree merges all ${n} elements, and there are ⌈log₂ ${n}⌉ levels of splitting, so O(n log n) total.`, "done");
   return f.done();
 };
 
@@ -793,6 +866,10 @@ export const recursionFamily: Family<RecursionInput, RecState> = {
       grid: Array.isArray(grid) && grid.every((r) => Array.isArray(r)) ? (grid as unknown[][]).slice(0, 6).map((r) => r.slice(0, 6).map((x) => (Number.isFinite(Number(x)) ? Number(x) : 0))) : undefined,
       start: startPair,
       color: asNum(pick(raw, "color", "colour", "newColor", "newColour", "fill")),
+      base: asNum(raw.base),
+      bases: Array.isArray(raw.bases) ? (raw.bases as unknown[]).map(asNum).filter((x): x is number => x !== undefined).slice(0, 2) : undefined,
+      name: typeof raw.name === "string" ? raw.name : undefined,
+      split: raw.split === "even-odd" ? "even-odd" : undefined,
     };
   },
 };

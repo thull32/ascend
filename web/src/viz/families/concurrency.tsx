@@ -229,7 +229,46 @@ function runLockSim(c: Conc, specs: LockSpec[], opts: { verb: string; release: s
 
 // ---------- scenarios ----------
 
-const raceCondition: G = ({ threads }) => {
+/** Check-then-act race: try_consume reads a per-user count, checks it against a limit, then writes count + 1. */
+const quotaRace = (q: Record<string, unknown>) => {
+  const limit = clampInt(q.limit, 1, 1000, 10);
+  const start = clampInt(q.used, 0, limit - 1, limit - 1);
+  const c = new Conc([{ id: "A", label: "thread A" }, { id: "B", label: "thread B" }]);
+  let used = start;
+  let ran = 0;
+  c.shared({ 'used["u1"]': used, limit, "exports run": 0 });
+  c.note(`try_consume(user) does three things: read used, check used >= ${limit}, write used + 1. User u1 has used ${start} of ${limit} exports and fires two requests at once; two worker threads run try_consume concurrently.`);
+  c.state("A", `used = ${used}`);
+  c.tick({ A: { k: "run", l: "read" } }, `Thread A reads used: ${used}.`, "read");
+  c.state("A", `used = ${used}, check passed`);
+  c.tick({ A: { k: "run", l: "check" } }, `A checks ${used} >= ${limit}? No, so it passes the check and is about to write.`, "check");
+  c.state("B", `used = ${used}`);
+  c.tick({ A: { k: "stall", l: "paused" }, B: { k: "run", l: "read" } }, `The scheduler switches threads before A writes. B reads used: still ${used}.`, "read");
+  c.state("B", `used = ${used}, check passed`);
+  c.tick({ A: { k: "stall", l: "paused" }, B: { k: "run", l: "check" } }, `B checks ${used} >= ${limit}? No: it passes the same check, against the same value.`, "check");
+  const stale = used;
+  used = stale + 1;
+  c.shared({ 'used["u1"]': used });
+  c.state("B", `wrote ${used}`);
+  c.tick({ A: { k: "stall", l: "paused" }, B: { k: "run", l: "write" } }, `B writes ${stale} + 1: used = ${used}. The quota is now exhausted, but A has already passed its check.`, "write");
+  ran++;
+  c.shared({ "exports run": ran });
+  c.finish("B");
+  c.tick({ A: { k: "stall", l: "paused" }, B: { k: "run", l: "True" } }, `B returns True and export B runs.`, "return");
+  c.state("A", `wrote ${stale + 1}`);
+  c.tick({ A: { k: "run", l: "write", t: "danger" } }, `A resumes and writes its own ${stale} + 1: used = ${stale + 1} again. It computed that from a value that stopped being true when B wrote: B's increment is lost.`, "lost");
+  ran++;
+  c.shared({ "exports run": ran });
+  c.finish("A");
+  c.tick({ A: { k: "run", l: "True", t: "danger" } }, `A returns True and export A runs too.`, "return");
+  c.set({ limit, "exports allowed": start + ran, 'used["u1"] says': used, lost: 1 });
+  c.note(`${start + ran} exports against a limit of ${limit}, and the stored count says ${used}, so nothing downstream can tell. A single-threaded test never interleaves and always passes. The fix is to make read, check and write one atomic step: a lock held across all three, or a single conditional update that the store performs atomically.`, "done");
+  return c.f.done();
+};
+
+const raceCondition: G = (input) => {
+  if (input.quota && typeof input.quota === "object") return quotaRace(input.quota as Record<string, unknown>);
+  const { threads } = input;
   const n = clampInt(threads, 2, 4, 2);
   const ids = tids(n);
   const c = new Conc(ids);
@@ -326,7 +365,9 @@ const deadlock: G = ({ threads }) => {
   return c.f.done();
 };
 
-const producerConsumer: G = ({ threads, capacity }) => {
+const producerConsumer: G = (input) => {
+  if (input.mode === "spsc") return spscRing(input);
+  const { threads, capacity } = input;
   const n = clampInt(threads, 2, 4, 2);
   const cap = clampInt(capacity, 1, 5, 3);
   const P = Math.ceil(n / 2);
@@ -352,7 +393,10 @@ const producerConsumer: G = ({ threads, capacity }) => {
     const events: string[] = [];
     const cells: Record<string, Cell> = {};
     for (const p of prods) {
-      if (!(actP || blockedP.has(p))) continue;
+      if (!(actP || blockedP.has(p))) {
+        c.state(p, "paused");
+        continue;
+      }
       if (buffer.length < cap) {
         const item = nextItem++;
         buffer.push(item);
@@ -371,7 +415,10 @@ const producerConsumer: G = ({ threads, capacity }) => {
       }
     }
     for (const q of cons) {
-      if (!(actC || blockedC.has(q))) continue;
+      if (!(actC || blockedC.has(q))) {
+        c.state(q, "not taking yet");
+        continue;
+      }
       if (buffer.length > 0) {
         const item = buffer.shift()!;
         cells[q] = { k: "run", l: `take ${item}` };
@@ -390,11 +437,108 @@ const producerConsumer: G = ({ threads, capacity }) => {
     }
     syncQ();
     c.shared({ count: buffer.length, "not_full waiters": [...blockedP].join(", ") || "–", "not_empty waiters": [...blockedC].join(", ") || "–" });
-    if (events.length === 0) events.push(t < phaseA ? `consumers are busy elsewhere; producers keep filling` : `producers are busy elsewhere; consumers drain`);
+    if (events.length === 0) {
+      if (t < phaseA) events.push(`${list([...blockedP])} ${blockedP.size === 1 ? "stays" : "stay"} parked on not_full; the consumers have not started taking yet, so nothing moves`);
+      else events.push(`${list([...blockedC])} ${blockedC.size === 1 ? "stays" : "stay"} parked on not_empty; the producers are paused, so nothing moves`);
+    }
     c.tick(cells, `${events.join("; ")}.`, t < phaseA ? "fill" : t < phaseB ? "drain" : "steady");
   }
   c.set({ "put() blocked": putsBlocked, "take() blocked": takesBlocked, capacity: cap });
   c.note(`The buffer decouples the two sides: producers never wait unless the buffer is full, consumers never spin on an empty buffer, and the capacity bounds memory (backpressure). This pattern is every work queue, pipe and channel you will use.`, "done");
+  return c.f.done();
+};
+
+/** Lock-free single-producer single-consumer ring: each index has one writer, release/acquire publish. */
+const spscRing: G = () => {
+  const CAP = 4;
+  const c = new Conc([{ id: "P", label: "producer" }, { id: "C", label: "consumer" }]);
+  const slots: (string | null)[] = [null, null, null, null];
+  const published = new Set<number>();
+  let head = 0;
+  let tail = 0;
+  const sync = () => {
+    c.queue(`ring slots (capacity ${CAP}, slot = index & ${CAP - 1})`, slots.map((v) => v ?? "·"), CAP, slots.map((v, i) => (v === null ? "muted" : published.has(i) ? "active" : "compare")));
+    c.shared({ head, tail, "size = tail − head": tail - head });
+  };
+  sync();
+  c.note(`One producer, one consumer, a ring of ${CAP} slots and two indices that only grow: the producer is the only writer of tail, the consumer the only writer of head. There is no mutex and no compare-and-swap; each side reads the other's index and writes only its own.`);
+  const write = (item: string, note: string, other: Record<string, Cell> = {}) => {
+    const s = tail & (CAP - 1);
+    slots[s] = item;
+    published.delete(s);
+    c.state("P", `wrote ${item} to slot ${s}, not yet published`);
+    sync();
+    c.tick({ P: { k: "cs", l: `write ${item}` }, ...other }, note, "write");
+  };
+  const publish = (note: string, other: Record<string, Cell> = {}) => {
+    published.add(tail & (CAP - 1));
+    tail++;
+    c.state("P", `published tail = ${tail}`);
+    sync();
+    c.tick({ P: { k: "run", l: `tail=${tail}` }, ...other }, note, "publish");
+  };
+  c.state("C", `head = 0`);
+  c.log(`consumer: tail (0) == head (0) → None`);
+  write("A", `push A: the producer loads its own tail (0, relaxed: nobody else writes it) and acquires head (0). tail − head = 0 < ${CAP}, so there is room, and it writes A into slot 0. At the same moment the consumer's pop acquires tail = 0, equal to head, and returns None at once: empty is an answer, not a wait. It cannot see A, because tail still says 0.`, { C: { k: "stall", l: "empty" } });
+  publish(`The producer publishes with a release store: tail = 1. Release means everything it wrote before, the bytes of A, is visible to any thread that acquires the new tail.`);
+  const read = (note: string, other: Record<string, Cell>) => {
+    const s = head & (CAP - 1);
+    const item = slots[s]!;
+    c.state("C", `read ${item} from slot ${s}`);
+    sync();
+    c.tick({ C: { k: "cs", l: `read ${item}` }, ...other }, note, "read");
+    return item;
+  };
+  const release = (note: string, other: Record<string, Cell> = {}) => {
+    slots[head & (CAP - 1)] = null;
+    published.delete(head & (CAP - 1));
+    head++;
+    c.state("C", `head = ${head}`);
+    sync();
+    c.tick({ C: { k: "run", l: `head=${head}` }, ...other }, note, "consume");
+  };
+  // Producer writes B while the consumer reads A.
+  {
+    const s = tail & (CAP - 1);
+    slots[s] = "B";
+    published.delete(s);
+    c.state("P", `wrote B to slot ${s}, not yet published`);
+  }
+  read(`Both threads work at once. The producer writes B into slot 1. The consumer acquires tail, sees 1 ≠ head 0, and reads slot 0: because its acquire load saw the release store, A's bytes are guaranteed to be there.`, { P: { k: "cs", l: "write B" } });
+  published.add(tail & (CAP - 1));
+  tail++;
+  c.state("P", `published tail = ${tail}`);
+  release(`The producer publishes tail = 2; the consumer publishes head = 1 with its own release store, handing slot 0 back. Two stores to two different indices, each with exactly one writer: nothing to race on.`, { P: { k: "run", l: "tail=2" } });
+  c.state("C", "processing A");
+  write("C", `The consumer is busy with A. The producer pushes C: tail 2 − head 1 = 1, room, write slot 2.`, { C: { k: "cs", l: "work A" } });
+  publish(`Publish: tail = 3.`, { C: { k: "cs", l: "work A" } });
+  write("D", `Push D into slot 3.`, { C: { k: "cs", l: "work A" } });
+  publish(`Publish: tail = 4. The ring holds B, C and D; slot 0 is free again because head moved past it.`, { C: { k: "cs", l: "work A" } });
+  write("E", `Push E: tail 4 − head 1 = 3 < ${CAP}. Slot = 4 & ${CAP - 1} = 0, so the producer wraps around and reuses A's old slot. The indices keep growing; only the mask wraps.`, { C: { k: "cs", l: "work A" } });
+  publish(`Publish: tail = 5. tail − head = 4: the ring is full.`, { C: { k: "cs", l: "work A" } });
+  c.state("P", "Full: returned Err");
+  sync();
+  c.log(`producer: tail (5) − head (1) == ${CAP} → Err(Full)`);
+  {
+    const s = head & (CAP - 1);
+    c.state("C", `read ${slots[s]} from slot ${s}`);
+  }
+  c.tick({ P: { k: "stall", l: "Full" }, C: { k: "cs", l: "read B" } }, `Push F finds tail − head = ${CAP} and returns Full immediately; the caller decides whether to spin, back off or drop. Meanwhile the consumer reads B from slot 1.`, "full");
+  slots[head & (CAP - 1)] = null;
+  published.delete(head & (CAP - 1));
+  head++;
+  c.state("C", `head = ${head}`);
+  {
+    const s = tail & (CAP - 1);
+    slots[s] = "F";
+    published.delete(s);
+    c.state("P", `wrote F to slot ${s}, not yet published`);
+  }
+  sync();
+  c.tick({ P: { k: "cs", l: "write F" }, C: { k: "run", l: `head=${head}` } }, `The consumer publishes head = 2, freeing slot 1. The producer retries: tail 5 − head 2 = 3, room, so F goes into slot 1.`, "write");
+  publish(`Publish: tail = 6.`, { C: { k: "cs", l: "work B" } });
+  c.set({ locks: 0, "CAS operations": 0, "writers per index": 1, ordering: "release store on publish, acquire load on read" });
+  c.note(`Six pushes, two pops, no lock and no compare-and-swap: each index has one writer, and every operation finishes in a bounded number of steps (wait-free). What it does need is ordering: write the slot, then release-store the index; acquire-load the index, then read the slot. And when head and tail share a cache line, every publish bounces that line between the two cores.`, "done");
   return c.f.done();
 };
 
@@ -512,7 +656,11 @@ const semaphore: G = ({ threads, permits, k, slots }) => {
     }
     c.shared({ permits: free, holders: [...holders.keys()].join(", ") || "–" });
     c.queue("wait queue (FIFO)", waitq);
-    c.tick(cells, `${events.join("; ") || "everyone is using a resource"}.`, "tick");
+    if (!events.length) {
+      const using = [...holders.keys()];
+      events.push(`${list(using)} keep${using.length === 1 ? "s" : ""} using ${using.length === 1 ? "its resource" : "their resources"}${waitq.length ? `; ${list(waitq)} ${waitq.length === 1 ? "stays" : "stay"} blocked with 0 permits` : ""}`);
+    }
+    c.tick(cells, `${events.join("; ")}.`, "tick");
   }
   c.set({ permits: total, threads: n, "max concurrent": total, "ticks": c.s.tick });
   c.note(`At most ${total} threads were ever inside at once; the rest queued in FIFO order. A mutex is a semaphore with one permit plus ownership (only the locker may unlock). Use semaphores for bounded resources and bounded parallelism, not for mutual exclusion.`, "done");
@@ -592,9 +740,9 @@ const eventLoop: G = () => {
   stack.pop();
   stack.push(".then");
   micro.push("m");
-  sync();
-  c.tick({ js: { k: "run", l: ".then" }, net: { k: "cs", l: "GET" } }, `Promise.resolve().then(m): the promise is already settled, so m is queued as a microtask. Meanwhile the timer expired: cb is queued as a macrotask.`, "sync");
   macro.push("cb");
+  sync();
+  c.tick({ js: { k: "run", l: ".then" }, timer: { k: "run", l: "fired" }, net: { k: "cs", l: "GET" } }, `Promise.resolve().then(m): the promise is already settled, so m is queued as a microtask. Meanwhile the 0 ms timer expired on the host, which queues cb as a macrotask. Neither can run yet: the script is still on the stack.`, "sync");
   stack.pop();
   stack.push("log");
   c.log(`> B`);
@@ -615,17 +763,17 @@ const eventLoop: G = () => {
   sync();
   c.tick({ js: { k: "run", l: "cb" }, net: { k: "cs", l: "GET" } }, `Take one macrotask: cb runs and logs "D". After each macrotask the loop drains microtasks again.`, "macrotask");
   stack.length = 0;
-  macro.push("onResponse");
+  micro.push("onResponse");
   sync();
-  c.tick({ js: { k: "idle" }, net: { k: "run", l: "done" } }, `The response arrives on the network thread; onResponse is queued (as a promise reaction it will go through the microtask queue once the promise resolves). The JS thread was idle, not blocked.`, "io");
-  macro.shift();
+  c.tick({ js: { k: "idle" }, net: { k: "run", l: "done" } }, `The response arrives on the network thread. The host resolves fetch's promise, and because onResponse is a promise reaction it is queued as a microtask, not a macrotask. The JS thread was idle, not blocked.`, "io");
+  micro.shift();
   stack.push("onResponse");
   c.log(`> E`);
   sync();
-  c.tick({ js: { k: "run", l: "onResp" } }, `onResponse runs and logs "E".`, "macrotask");
+  c.tick({ js: { k: "run", l: "onResp" } }, `The loop drains the microtask queue: onResponse runs and logs "E".`, "microtask");
   stack.length = 0;
   sync();
-  c.set({ output: "A B C D E", rule: "sync → all microtasks → one macrotask → repeat" });
+  c.set({ output: "A B C D E", rule: "sync → all microtasks → one macrotask → all microtasks → …" });
   c.note(`Output order: A B C D E. Because one thread runs every callback, a 200 ms synchronous loop delays every timer, click and response by 200 ms — move CPU work to a Worker, and never block on I/O.`, "done");
   return c.f.done();
 };
@@ -643,7 +791,7 @@ const threadPool: G = ({ threads, tasks }) => {
   const syncQ = () => c.queue("task queue", queue.map((t) => `${t.id}(${t.d})`));
   syncQ();
   c.shared({ "tasks done": 0, idle: ids.join(", ") });
-  c.note(`${nTasks} tasks (durations in ticks shown in brackets) are submitted to a pool of ${workers} worker thread${workers > 1 ? "s" : ""}. Creating a thread per task would cost ~50 µs and a stack each; the pool reuses ${workers} threads and bounds concurrency.`);
+  c.note(`${nTasks} tasks (durations in ticks shown in brackets) are submitted to a pool of ${workers} worker thread${workers > 1 ? "s" : ""}. Creating a thread per task would cost about 78 µs (pthread_create plus join) and a stack each; the pool reuses ${workers} threads and bounds concurrency.`);
   for (let t = 0; t < 40 && doneCount < nTasks && !c.f.full; t++) {
     const events: string[] = [];
     const cells: Record<string, Cell> = {};
@@ -675,7 +823,12 @@ const threadPool: G = ({ threads, tasks }) => {
     }
     syncQ();
     c.shared({ "tasks done": doneCount, idle: ids.filter((w) => !running.has(w)).join(", ") || "–" });
-    if (events.length === 0) events.push("all workers busy; the queue waits");
+    if (events.length === 0) {
+      const busy = ids.filter((w) => running.has(w));
+      const idle = ids.filter((w) => !running.has(w));
+      if (queue.length && !idle.length) events.push(`all workers busy (${busy.map((w) => `${w} on ${running.get(w)!.id}`).join(", ")}); ${queue.length} task${queue.length > 1 ? "s wait" : " waits"} in the queue`);
+      else events.push(`${list(busy.map((w) => `${w} keeps running ${running.get(w)!.id}`))}${idle.length ? `; ${list(idle)} ${idle.length > 1 ? "are" : "is"} idle because the queue is empty` : ""}`);
+    }
     c.tick(cells, `${events.join("; ")}.`, "tick");
   }
   const makespan = c.s.tick;
@@ -790,7 +943,7 @@ const falseSharing: G = () => {
     if (zeroWrites) writes0++;
     else writes1++;
     c.shared({ "core 0 copy": zeroWrites ? "Modified" : "Invalid", "core 1 copy": zeroWrites ? "Invalid" : "Modified", invalidations });
-    c.tick(zeroWrites ? { c0: { k: "run", l: "a++" }, c1: { k: "stall", l: "RFO" } } : { c0: { k: "stall", l: "RFO" }, c1: { k: "run", l: "b++" } }, zeroWrites ? `Core 0 wants a again: it invalidates core 1's copy and pulls the line back (~40–100 ns across cores). Core 1 stalls.` : `Core 1 writes b: it must invalidate core 0's copy and fetch the line. Core 0 stalls. The line ping-pongs although the two variables are logically unrelated.`, "bounce");
+    c.tick(zeroWrites ? { c0: { k: "run", l: "a++" }, c1: { k: "stall", l: "RFO" } } : { c0: { k: "stall", l: "RFO" }, c1: { k: "run", l: "b++" } }, zeroWrites ? `Core 0 wants a again: it invalidates core 1's copy and pulls the line back (about 35 ns per transfer between cores). Core 1 stalls.` : `Core 1 writes b: it must invalidate core 0's copy and fetch the line. Core 0 stalls. The line ping-pongs although the two variables are logically unrelated.`, "bounce");
   }
   const sharedWrites = writes0 + writes1;
   c.set({ "writes in 6 ticks (shared line)": sharedWrites, invalidations });
@@ -810,17 +963,20 @@ const falseSharing: G = () => {
 
 const diningPhilosophers: G = ({ threads }) => {
   const n = clampInt(threads, 2, 6, 5);
-  const ids = tids(n, "P");
+  // Numbered from 0, as in the classic statement: P_i sits between forks F_i (left) and F_(i+1) mod n (right).
+  const ids = Array.from({ length: n }, (_, i) => `P${i}`);
+  const fork = (i: number) => `F${i % n}`;
   const c = new Conc(ids);
   c.set({ philosophers: n, forks: n });
-  c.note(`${n} philosophers sit around a table with ${n} forks, one between each pair. To eat, P${1} needs forks F1 (left) and F2 (right). Naive rule: pick up your left fork, then your right.`);
-  const naive = ids.map((id, i) => ({ id, needs: [`F${i + 1}`, `F${((i + 1) % n) + 1}`] }));
+  c.note(`${n} philosophers sit around a table with ${n} forks, one between each pair. To eat, P0 needs forks F0 (left) and F1 (right), and P${n - 1} needs F${n - 1} and F0. Naive rule: pick up your left fork, then your right.`);
+  const naive = ids.map((id, i) => ({ id, needs: [fork(i), fork(i + 1)] }));
   runLockSim(c, naive, { verb: "eat", release: "puts down", work: 1, maxTicks: 12, tag: "naive" });
   c.note(`Every philosopher holds one fork and waits for the neighbour's: circular wait with no one able to release. Real programs hit this with two mutexes taken in opposite orders.`, "analysis");
-  c.note(`Fix (Dijkstra's resource hierarchy): number the forks and always pick up the lower-numbered one first. Only P${n} changes behaviour — it now reaches for F1 before F${n} — which is enough to break the cycle. Replay:`, "fix");
-  const ordered = ids.map((id, i) => ({ id, needs: [`F${i + 1}`, `F${((i + 1) % n) + 1}`].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))) }));
+  c.note(`Fix (Dijkstra's resource hierarchy): number the forks and always pick up the lower-numbered one first. Only P${n - 1} changes behaviour: it now reaches for F0 before F${n - 1}, which is enough to break the cycle. Replay:`, "fix");
+  const ordered = ids.map((id, i) => ({ id, needs: [fork(i), fork(i + 1)].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))) }));
+  const t0 = c.s.tick;
   const res = runLockSim(c, ordered, { verb: "eat", release: "puts down", work: 1, maxTicks: 40, tag: "ordered" });
-  c.note(res === "ok" ? `Everyone ate in ${c.s.tick} ticks. Alternatives: a waiter (semaphore of n−1 seats) so at most n−1 philosophers try at once, or try-lock with backoff. All of them break one Coffman condition.` : `Ordering broke the cycle; the simulation stopped at the tick limit.`, "done");
+  c.note(res === "ok" ? `Everyone ate in ${c.s.tick - t0} ticks. Alternatives: a waiter (semaphore of n−1 seats) so at most n−1 philosophers try at once, or try-lock with backoff. All of them break one Coffman condition.` : `Ordering broke the cycle; the simulation stopped at the tick limit.`, "done");
   return c.f.done();
 };
 

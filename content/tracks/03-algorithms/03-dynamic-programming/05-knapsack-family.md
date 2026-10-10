@@ -133,7 +133,7 @@ Trace weights `[2, 3]`, values `[3, 4]`, `W = 6`. Item 2 kg upward: `[0, 0, 3, 3
 The same three lines with the loop reversed. This is the single most useful thing to know about knapsack: **downward sweep = each item at most once; upward sweep = unlimited copies.** The [coin change lesson](/learn/algorithms/dynamic-programming/one-dimensional-dp) was unbounded knapsack all along: coins are items with weight equal to their value, minimising count instead of maximising value, swept upward.
 
 ```viz
-{"type": "dp", "algorithm": "coin-change", "coins": [1, 3, 4], "amount": 6, "title": "Unbounded knapsack in disguise: fewest coins, swept upward", "caption": "Each amount reads smaller amounts already updated for the same coin, so a coin may repeat. The answer for 6 is two coins (3 + 3), not the greedy 4 + 1 + 1."}
+{"type": "dp", "algorithm": "coin-change", "coins": [1, 3, 4], "amount": 6, "order": "coin-outer", "title": "Unbounded knapsack in disguise: fewest coins, swept upward", "caption": "Each amount reads smaller amounts already updated for the same coin, so a coin may repeat. The answer for 6 is two coins (3 + 3), not the greedy 4 + 1 + 1."}
 ```
 
 ## Subset sum and partition: knapsack with booleans

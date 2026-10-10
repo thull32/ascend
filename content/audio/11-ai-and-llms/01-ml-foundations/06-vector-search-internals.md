@@ -1,6 +1,6 @@
 ---
 lesson: vector-search-internals
-source: fb955c01785ec6b5
+source: 3ca016ea15ae374c
 fit: partial
 desk:
   - "The IVF trace on 14 points in two dimensions, and the nlist and nprobe table"

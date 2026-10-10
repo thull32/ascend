@@ -90,7 +90,7 @@ The invariant for the opposite-ends form is the thing to say out loud:
 It holds trivially at the start (`[0, n−1]` is everything). Each branch preserves it: when `s < target`, `nums[hi]` is the largest value still in play, so `nums[lo] + nums[j] ≤ nums[lo] + nums[hi] < target` for every remaining `j`, and index `lo` cannot be in any answer; you drop it and every pair it belongs to in one step. The symmetric argument covers `hi` when `s > target`. **Termination:** `hi − lo` is a non-negative integer that decreases by exactly 1 on every non-returning iteration, so the loop runs at most `n − 1` times. When it exits with `lo == hi`, every index has been ruled out, and returning "no pair" is correct. Watch the pointers eliminate pairs on a real input:
 
 ```viz
-{"type": "array", "algorithm": "two-pointers-sum", "values": [1, 2, 3, 4, 6, 8, 11, 15], "target": 10}
+{"type": "array", "algorithm": "two-pointers-sum", "values": [1, 2, 3, 4, 6, 8, 11, 15], "target": 10, "title": "Eliminating pairs from both ends", "caption": "Target 10. A sum that is too small rules out every pair using lo, so lo moves up; a sum that is too big rules out every pair using hi, so hi moves down."}
 ```
 
 The same-direction form has a different invariant:
@@ -100,7 +100,7 @@ The same-direction form has a different invariant:
 The second clause is what makes overwriting safe: you never clobber an element you have not read yet, because the write index can only fall behind the read index. Here it is partitioning three values in one pass, the Dutch national flag from [Sort Colors](/practice/sort-colors):
 
 ```viz
-{"type": "array", "algorithm": "dutch-flag", "values": [2, 0, 2, 1, 1, 0, 0, 2, 1]}
+{"type": "array", "algorithm": "dutch-flag", "values": [2, 0, 2, 1, 1, 0, 0, 2, 1], "title": "Sort Colors in one pass", "caption": "[0, lo) holds 0s, [lo, mid) 1s and (hi, n) 2s; the unknown region [mid, hi] shrinks by one every step. A value swapped in from hi has not been examined, so mid waits."}
 ```
 
 Both forms are developed further, with their correctness arguments, in [Two-pointers mastery](/learn/algorithms/technique-mastery/two-pointers-mastery) and [Invariants and loop reasoning](/learn/foundations/problem-solving/invariants-and-loop-reasoning). This lesson is about recognising them under pressure and executing without a bug.

@@ -16,9 +16,9 @@ The segment tree splits the difference: `O(log n)` for a point update and `O(log
 Watch the [prefix-sum](/learn/data-structures/arrays-strings/prefix-sums-and-difference-arrays) construction and notice how much of it depends on every earlier element.
 
 ```viz
-{"type": "array", "algorithm": "prefix-sum", "values": [5, 2, 4, 7, 1, 3, 6, 8],
+{"type": "array", "algorithm": "prefix-sum", "values": [5, 2, 4, 7, 1, 3, 6, 8], "query": [2, 5],
  "title": "Prefix sums: one pass to build, one subtraction per query",
- "caption": "sum(2..5) = prefix[5] - prefix[1] = 19 - 7 = 12. Change values[2] and prefix[2..7] are all wrong."}
+ "caption": "sum(2..5) = prefix[5] - prefix[1] = 22 - 7 = 15. Change values[2] and prefix[2..7] are all wrong."}
 ```
 
 Change `values[2]` from 4 to 9 and six of the eight prefix entries move. The dependency is the problem: `prefix[i]` depends on *every* element before it. A segment tree replaces that long chain of dependencies with a tree of short ones, where each element influences only `log n + 1` summaries.

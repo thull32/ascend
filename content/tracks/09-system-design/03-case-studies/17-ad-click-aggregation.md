@@ -139,7 +139,7 @@ The early firing is the design point people miss: with a 30 s watermark bound, a
 **The edge case.** The redirect returns before the event is durable, so a click server that crashes loses whatever sits in its producer buffer. At ~2,000 clicks/s per instance and a 5 ms batching delay, that is about 10 clicks per crash, plus anything queued behind a slow broker. Writing each click to a local append-only file before answering closes the gap at the cost of a disk write on the redirect path; most designs accept the small loss and make it visible by reconciling click-server request logs against the topic.
 
 ```viz
-{"type": "system", "scenario": "stream-windowing",
+{"type": "system", "scenario": "stream-windowing", "size": 60,
  "title": "Tumbling one-minute windows",
  "caption": "Each click is assigned to the window containing its event time, not its arrival time. Partial results can be emitted while a window is open; the final result is emitted when the watermark says the window is complete."}
 ```

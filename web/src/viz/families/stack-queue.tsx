@@ -14,6 +14,8 @@ export interface SQInput {
   /** sliding-window-max: the sequence. */
   values?: number[];
   k?: number;
+  /** min-stack: "on-new-min" (default; push to the min stack only when x ≤ its top) or "parallel" (push min(x, top) on every push). */
+  variant?: "on-new-min" | "parallel";
 }
 
 export interface Container {
@@ -118,7 +120,8 @@ const stackOps: G = ({ operations }) => {
       st.items.push(op.arg ?? 0);
       mark(st, st.items.length - 1, "active");
       s.vars = { size: st.items.length, top: st.items[st.items.length - 1] };
-      f.push(`push(${op.arg}): place it on top; the ${st.items.length - 1} item${st.items.length === 2 ? "" : "s"} below are untouched. size = ${st.items.length}.`, "push");
+      const below = st.items.length - 1;
+      f.push(`push(${op.arg}): place it on top; ${below === 0 ? "the stack was empty, so it is also the bottom" : `the ${below} item${below === 1 ? " below is" : "s below are"} untouched`}. size = ${st.items.length}.`, "push");
     } else if (POP.has(op.name)) {
       if (st.items.length === 0) {
         s.vars = { size: 0, error: "underflow" };
@@ -148,7 +151,7 @@ const stackOps: G = ({ operations }) => {
   }
   clearTones();
   s.opIndex = ops.length;
-  f.push(`Every operation touched only the top: push, pop and peek are O(1) each, and items came out in reverse order of going in.`, "done");
+  f.push(`Every operation touched only the top: push, pop and peek are O(1) each, and every pop returned the most recently pushed item still on the stack.`, "done");
   return f.done();
 };
 
@@ -364,7 +367,16 @@ const queueViaTwoStacks: G = ({ operations }) => {
       clearTones();
       mark(out, out.items.length - 1, "active");
       s.vars = vars();
-      f.push(`"out" is empty, so transfer: pop ${v} from "in" and push it onto "out" (move ${total - inb.items.length} of ${total}). The oldest item ends up on top of "out".`, "move");
+      const k = total - inb.items.length;
+      f.push(
+        `"out" is empty, so transfer: pop ${v} from "in" and push it onto "out" (move ${k} of ${total}). ` +
+          (k === total
+            ? `"in" is now empty and the oldest item, ${v}, is on top of "out", ready to leave first.`
+            : k === 1
+              ? `The newest item moves first, so it ends up at the bottom of "out".`
+              : `It lands on top of ${out.items[out.items.length - 2]}: popping one stack into another reverses the order.`),
+        "move",
+      );
     }
     return true;
   };
@@ -411,7 +423,8 @@ const queueViaTwoStacks: G = ({ operations }) => {
   return f.done();
 };
 
-const minStack: G = ({ operations }) => {
+const minStack: G = ({ operations, variant }) => {
+  if (variant === "parallel") return minStackParallel(operations);
   const ops = parseOps(operations);
   const st: Container = { label: "stack", kind: "stack", items: [] };
   const mn: Container = { label: "min stack", kind: "stack", items: [] };
@@ -451,7 +464,8 @@ const minStack: G = ({ operations }) => {
         mn.items.pop();
         if (mn.items.length) mark(mn, mn.items.length - 1, "compare");
         s.vars = { ...vars(), popped: v };
-        f.push(`pop() → ${v}: it equals the min stack's top, so pop that too; the minimum reverts to ${mn.items[mn.items.length - 1] ?? "none"}.`, "pop");
+        const below = mn.items[mn.items.length - 1];
+        f.push(`pop() → ${v}: it equals the min stack's top, so pop that too; ${below === undefined ? "both stacks are now empty" : num(below) === num(v) ? `the min stack still holds another ${v}, recorded by the tie, so the minimum stays ${v}` : `the minimum reverts to ${below}`}.`, "pop");
       } else {
         if (mn.items.length) mark(mn, mn.items.length - 1, "compare");
         s.vars = { ...vars(), popped: v };
@@ -481,6 +495,71 @@ const minStack: G = ({ operations }) => {
   f.push(`push, pop, top and getMin were all O(1). The cost is O(n) extra space in the worst case (a strictly decreasing sequence of pushes).`, "done");
   return f.done();
 };
+
+/** The parallel min-stack: the min stack is as tall as the main stack and min[i] = min(main[0..i]). */
+function minStackParallel(operations: Op[] | undefined): ReturnType<Frames<SQState>["done"]> {
+  const ops = parseOps(operations);
+  const st: Container = { label: "stack", kind: "stack", items: [] };
+  const mn: Container = { label: "min stack", kind: "stack", items: [] };
+  const { s, f, clearTones, mark } = make([st, mn], ops.map((o) => o.text));
+  const num = (v: string | number | undefined) => (typeof v === "number" ? v : Number(v ?? 0));
+  const vars = () => ({ size: st.items.length, min: mn.items[mn.items.length - 1] });
+  s.vars = vars();
+  f.push(`Min-stack, parallel version: a second stack as tall as the main one, where each entry is the minimum of the main stack from the bottom up to that height. Its top is the current minimum, so getMin is O(1).`);
+  if (ops.length === 0) f.push(`No operations given: both stacks are empty.`, "empty");
+  for (let i = 0; i < ops.length && !f.full; i++) {
+    const op = ops[i]!;
+    s.opIndex = i;
+    clearTones();
+    if (PUSH.has(op.name)) {
+      const v = num(op.arg);
+      const top = mn.items[mn.items.length - 1];
+      const m = top === undefined ? v : Math.min(v, num(top));
+      st.items.push(v);
+      mn.items.push(m);
+      mark(st, st.items.length - 1, "active");
+      mark(mn, mn.items.length - 1, "active");
+      s.vars = vars();
+      f.push(
+        top === undefined
+          ? `push(${v}): both stacks are empty, so ${v} is the minimum so far: push ${v} onto each.`
+          : `push(${v}): ${v} goes onto the main stack and min(${v}, ${top}) = ${m} onto the min stack${v < num(top) ? `: ${v} is a new minimum` : v === num(top) ? `: a tie, recorded again like any other push` : `: the minimum is still ${top}, and it is recorded again at this height`}.`,
+        "push",
+      );
+    } else if (POP.has(op.name)) {
+      if (st.items.length === 0) {
+        f.push(`pop() on an empty stack: underflow.`, "underflow");
+        continue;
+      }
+      const v = st.items.pop()!;
+      mn.items.pop();
+      if (mn.items.length) mark(mn, mn.items.length - 1, "compare");
+      s.vars = { ...vars(), popped: v };
+      f.push(`pop() → ${v}: pop both stacks together, with no comparison; ${mn.items.length ? `the min stack's top, ${mn.items[mn.items.length - 1]}, is the minimum of what remains` : "both stacks are now empty"}.`, "pop");
+    } else if (MIN.has(op.name)) {
+      if (mn.items.length === 0) {
+        f.push(`getMin() on an empty stack: no minimum exists.`, "getMin");
+        continue;
+      }
+      mark(mn, mn.items.length - 1, "done");
+      s.vars = vars();
+      f.push(`getMin() → ${mn.items[mn.items.length - 1]}: read the top of the min stack, O(1), no scan of the main stack.`, "getMin");
+    } else if (PEEK.has(op.name)) {
+      if (st.items.length === 0) {
+        f.push(`top() on an empty stack: nothing to read.`, "peek");
+        continue;
+      }
+      mark(st, st.items.length - 1, "compare");
+      f.push(`top() → ${st.items[st.items.length - 1]}.`, "peek");
+    } else {
+      f.push(`Unknown operation "${op.text}"; skipped. Use push, pop, top or getMin.`, "skip");
+    }
+  }
+  clearTones();
+  s.opIndex = ops.length;
+  f.push(`push, pop, top and getMin were all O(1), and duplicates needed no special case because the two stacks always move together. The cost is a min stack exactly as tall as the main one: O(n) extra space, always.`, "done");
+  return f.done();
+}
 
 const slidingWindowMax: G = ({ values = [], k = 3 }) => {
   const vals = values.slice(0, MAX_LEN);
@@ -515,7 +594,7 @@ const slidingWindowMax: G = ({ values = [], k = 3 }) => {
       syncDq();
       paint(i);
       s.vars = { i, k: kk, deque: idx.map((t) => vals[t]) };
-      f.push(`values[${i}] = ${v} ≥ values[${j}] = ${vals[j]} at the back: evict ${vals[j]} from the back, because it can never be a window max while ${v} is in the same window.`, "evict back");
+      f.push(vals[j] === v ? `values[${i}] = ${v} equals values[${j}] = ${vals[j]} at the back: evict the older ${v} from the back, because the newer one is just as large and stays in the window longer.` : `values[${i}] = ${v} > values[${j}] = ${vals[j]} at the back: evict ${vals[j]} from the back, because it can never be a window max while ${v} is in the same window.`, "evict back");
     }
     idx.push(i);
     syncDq();
@@ -656,6 +735,7 @@ export const stackQueueFamily: Family<SQInput, SQState> = {
       input: str === undefined || str === null ? undefined : String(str).slice(0, MAX_LEN),
       values: Array.isArray(raw.values) ? (raw.values as unknown[]).map(Number).filter((n) => Number.isFinite(n)).slice(0, MAX_LEN) : undefined,
       k: raw.k === undefined ? undefined : Number(raw.k),
+      variant: raw.variant === "parallel" ? "parallel" : undefined,
     };
   },
 };

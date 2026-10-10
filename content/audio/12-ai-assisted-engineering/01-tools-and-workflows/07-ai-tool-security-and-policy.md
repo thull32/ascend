@@ -1,6 +1,6 @@
 ---
 lesson: ai-tool-security-and-policy
-source: b57ba527cfd7e2b6
+source: af84ce2a1f67463e
 fit: great
 desk:
   - "The five-reads-by-five-controls table for one secret file"

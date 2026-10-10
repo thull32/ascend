@@ -1,6 +1,6 @@
 ---
 lesson: resilience-patterns
-source: 748c8f9e1dbd1b0c
+source: 44d853c5045e612f
 fit: great
 desk:
   - "The timeout budget table for the five-layer call chain"

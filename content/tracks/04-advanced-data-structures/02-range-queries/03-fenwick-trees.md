@@ -16,9 +16,9 @@ The trick is to let the binary representation of an index decide which partial s
 Use 1-based indices. Define `lowbit(i) = i & -i`, the value of the lowest set bit of `i`: `lowbit(12) = 4` because `12 = 1100₂`, `lowbit(6) = 2`, `lowbit(8) = 8`, `lowbit(7) = 1`.
 
 ```viz
-{"type": "bits", "algorithm": "and-or-xor", "a": 12, "b": 4,
+{"type": "bits", "algorithm": "and-or-xor", "a": 12, "b": -12, "ops": ["and"],
  "title": "lowbit(12) = 12 & -12 = 4",
- "caption": "In two's complement, -12 flips every bit above the lowest set bit and keeps that bit, so 12 & -12 isolates it: 1100 & 0100 = 0100."}
+ "caption": "In two's complement, -12 = ~12 + 1 flips every bit above the lowest set bit and keeps that bit, so 12 & -12 isolates it: at 8 bits, 00001100 & 11110100 = 00000100."}
 ```
 
 Cell `tree[i]` stores the sum of the `lowbit(i)` elements ending at position `i`, that is, `values[i − lowbit(i) + 1 .. i]`.

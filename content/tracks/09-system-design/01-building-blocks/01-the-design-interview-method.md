@@ -102,7 +102,8 @@ flowchart LR
 ```
 
 ```viz
-{"type": "system", "scenario": "request-flow", "title": "A redirect from browser to database and back",
+{"type": "system", "scenario": "request-flow", "variant": "redirect",
+ "title": "A redirect from browser to database and back",
  "caption": "The hot path: load balancer, stateless service, cache hit or a fall-through to the database. Every hop adds latency; the cache keeps most requests off the database."}
 ```
 

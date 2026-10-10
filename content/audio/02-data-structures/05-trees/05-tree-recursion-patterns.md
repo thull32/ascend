@@ -1,6 +1,6 @@
 ---
 lesson: tree-recursion-patterns
-source: 60fa7119e07c0b4f
+source: 0029f292f4f65480
 fit: partial
 desk:
   - "The nine-node example tree with negative values, and the top-down versus bottom-up table"

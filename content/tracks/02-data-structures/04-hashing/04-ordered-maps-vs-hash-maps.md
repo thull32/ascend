@@ -167,7 +167,7 @@ Bookings `{10: 20, 30: 40, 50: 60}` (start → end):
 With a hash map you would scan every booking: O(n) per request. With a sorted array and `bisect`, each request is O(log n) to find plus O(n) to insert, fine for a calendar and wrong for a reservation system with millions of rows, where the database's B-tree index does the same two lookups. [Meeting Rooms II](/practice/meeting-rooms-ii) and [Minimum Interval to Include Each Query](/practice/minimum-interval-query) are the sorted-order relatives, and [Interval problems](/learn/algorithms/greedy/interval-problems) generalises the sweep.
 
 ```viz
-{"type": "tree", "algorithm": "bst-insert", "values": [50, 30, 70, 20, 40, 60, 80, 35], "title": "A BST keeps keys ordered: in-order traversal is sorted iteration"}
+{"type": "tree", "algorithm": "bst-insert", "values": [50, 30, 70, 20, 40, 60, 80, 35], "thenInorder": true, "title": "A BST keeps keys ordered: in-order traversal is sorted iteration"}
 ```
 
 ## Production failure modes

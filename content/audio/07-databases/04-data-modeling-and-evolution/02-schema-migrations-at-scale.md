@@ -1,6 +1,6 @@
 ---
 lesson: schema-migrations-at-scale
-source: 4ddccaefb1146d6d
+source: 63f38503abb9b4a5
 fit: great
 desk:
   - "The table of locks and rewrites for each common DDL statement, and how to measure your own"

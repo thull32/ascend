@@ -46,7 +46,7 @@ The waste: after matching `she` at node 5, the last two characters consumed, `he
 KMP's failure function says, for each prefix of the pattern, "what is the longest proper suffix of this prefix that is also a prefix of the pattern". Aho-Corasick asks the same question of every trie node, across all patterns at once: for the string spelled by node `u`, what is the longest proper suffix of it that is also a node in the trie? That node is `fail(u)`.
 
 ```viz
-{"type": "string", "algorithm": "kmp", "text": "ushershershe", "pattern": "hers",
+{"type": "string", "algorithm": "kmp", "text": "ushehershers", "pattern": "hers",
  "title": "KMP on a single pattern: the failure function is Aho-Corasick with one trie branch",
  "caption": "Watch how a mismatch slides the pattern instead of restarting the text pointer. Aho-Corasick generalises the slide to a whole trie."}
 ```

@@ -1,6 +1,6 @@
 ---
 lesson: tree-dfs
-source: fb3d3b90a926aa1b
+source: 568337c16e07fdfc
 fit: partial
 desk:
   - "The bottom-up, top-down and side-channel templates in Python and JavaScript"

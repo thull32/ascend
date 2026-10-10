@@ -190,8 +190,8 @@ Read it top to bottom. Training error only ever rises, because the penalty stops
 The visualisation trains a logistic-regression classifier on two separable clusters. Watch the weights: once the data is perfectly separated, the loss keeps shrinking only by making the weights larger and larger, which is exactly the unbounded growth that L2 regularisation exists to stop.
 
 ```viz
-{"type": "ml", "algorithm": "logistic-regression", "steps": 12, "lr": 0.5,
- "points": [[1,2,0],[2,1,0],[2,3,0],[3,2.5,0],[5,5,1],[6,4,1],[6,6,1],[7,5,1]],
+{"type": "ml", "algorithm": "logistic-regression", "steps": 40, "every": 4, "lr": 0.5,
+ "points": [[-3,-1.5,0],[-2,-2.5,0],[-2,-0.5,0],[-1,-1,0],[1,1.5,1],[2,0.5,1],[2,2.5,1],[3,1.5,1]],
  "title": "Training a classifier: loss falls, weights keep growing",
  "caption": "The boundary is found within a few steps; after that, gradient descent only makes the model more confident by scaling up w."}
 ```

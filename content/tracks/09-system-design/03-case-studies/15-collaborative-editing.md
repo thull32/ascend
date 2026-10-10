@@ -294,7 +294,7 @@ hints:
 **Making sure there is only one.** A lease alone is not enough: an owner that pauses longer than its lease (a long GC, a VM migration) can wake up still believing it owns the document. The protection is in storage: the owner appends version N+1 only if no N+1 exists. If a new owner has already written N+1, the stale owner's insert fails and it steps down. The log position is the fencing token ([failure detection and leases](/learn/system-design/distributed-systems/failure-detection-and-leases) explains why a lease always needs a fence).
 
 ```viz
-{"type": "system", "scenario": "distributed-lock", "nodes": 3,
+{"type": "system", "scenario": "distributed-lock", "holders": ["Owner A","Owner B"], "resource": "Op log", "item": "doc d7", "state": "doc d7 · v41", "fence": "conditional", "writeB": "append v42 (B)", "writeA": "append v42 (A)", "check": "append version 42 only if no version 42 exists yet",
  "title": "Why the log, not the lease, is the fence",
  "caption": "A paused holder wakes after its lease has expired and tries to write. Without a fencing check the storage accepts two writers. Here the check is the op log's conditional append on (doc_id, version): the stale owner's write of an already-taken version fails."}
 ```

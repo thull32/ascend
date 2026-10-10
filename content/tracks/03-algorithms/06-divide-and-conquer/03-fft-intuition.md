@@ -53,7 +53,7 @@ $$ T(n) = 2T(n/2) + O(n) = O(n \log n), $$
 the same as merge sort, with the merge replaced by the butterfly `E(ω²) ± ω · O(ω²)`.
 
 ```viz
-{"type": "recursion", "algorithm": "merge-sort-tree", "values": [5, 3, 2, 1, 4, 6, 7, 0],
+{"type": "recursion", "algorithm": "merge-sort-tree", "split": "even-odd", "values": ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"],
  "title": "The FFT's recursion tree has merge sort's shape: split even/odd, combine in O(n)"}
 ```
 

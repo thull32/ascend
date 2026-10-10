@@ -214,7 +214,7 @@ An author with 3,000 followers (1,500 active) posts; a second author with 300,00
 Three edge cases fall out of the trace. **The author's own feed**: the author refreshes at t = 7 ms, before fan-out, so the feed service merges the viewer's own recent posts from `user_posts` into every load, making read-your-writes hold by construction ([Consistency models](/learn/system-design/building-blocks/consistency-models)). **Duplicates**: a worker that crashes after its `LPUSH` but before committing its offset replays the page, and `LPUSH` is not idempotent, so a timeline can hold an ID twice; deduplicating 300 IDs at read time (the `seen` set) is cheaper than a sorted set keyed by post ID, which roughly triples memory. **A new follow**: an async job backfills the followee's last 20 posts, and until it runs the feed service merges them from `user_posts`, exactly like a celebrity pull.
 
 ```viz
-{"type": "system", "scenario": "message-queue", "title": "Fan-out workers drain post_created",
+{"type": "system", "scenario": "kafka-partitions", "mode": "lag", "topic": "post_created", "effect": "pushes the post ID into each follower's timeline with LPUSH", "title": "Fan-out workers drain post_created",
  "caption": "Posts arrive as events; workers consume them, page the author's followers and push the post ID into each active follower's timeline. When producers outrun consumers, lag grows and feeds go stale rather than failing."}
 ```
 
