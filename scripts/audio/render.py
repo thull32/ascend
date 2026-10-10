@@ -155,7 +155,7 @@ def spoken_hash(script: Path) -> str:
 
 def episode_name(script: Path) -> str:
     meta, _ = parse(script)
-    return meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    return meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
 
 
 def up_to_date(script: Path, out: Path) -> bool:
@@ -192,7 +192,7 @@ def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
         print(f"  {ch['title']}: {t - start:.0f}s", file=sys.stderr)
     audio = np.concatenate(pieces)
     out.mkdir(parents=True, exist_ok=True)
-    name = meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    name = meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
     mp3 = out / f"{name}.mp3"
     encode_mp3(audio, mp3, title, marks)
     sidecar = {

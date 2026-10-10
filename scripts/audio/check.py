@@ -113,6 +113,20 @@ def main() -> int:
         return 2
     scripts = sorted(p for root in (paths or [AUDIO]) for p in (root.rglob("*.md") if root.is_dir() else [root]))
     failed = 0
+    # Episode names are file names in the bucket and the feed, so they must
+    # be unique across the curriculum; `episode:` overrides a clashing slug.
+    names = {}
+    for script in sorted(AUDIO.rglob("*.md")):
+        try:
+            meta, _ = parse(script.read_text())
+        except ValueError:
+            continue
+        name = meta.get("episode") or meta.get("lesson") or f"{meta.get('review')}-{script.stem}"
+        names.setdefault(name, []).append(script)
+    for name, owners in names.items():
+        if len(owners) > 1 and any(o in scripts for o in owners):
+            failed += 1
+            print(f"episode name {name!r} is used by {', '.join(str(o.relative_to(ROOT)) for o in owners)}: set `episode:` on one")
     for script in scripts:
         for p in check(script, fix):
             failed += 1

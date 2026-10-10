@@ -1,5 +1,6 @@
 ---
 lesson: binary-search
+episode: binary-search-algorithms
 source: 584b3fc5edfd67b0
 fit: partial
 desk:

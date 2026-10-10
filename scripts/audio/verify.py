@@ -21,24 +21,80 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-SMALL = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
-SPELLING = {"defence": "defense", "defences": "defenses", "acknowledgement": "acknowledgment", "acknowledgements": "acknowledgments"}
+UNITS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split())}
+TENS = {w: 10 * i for i, w in enumerate("_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()) if w != "_"}
+SCALES = {"hundred": 100, "thousand": 1_000, "million": 1_000_000, "billion": 1_000_000_000}
+SPELLING = {"defence": "defense", "defences": "defenses", "acknowledgement": "acknowledgment", "acknowledgements": "acknowledgments",
+            "amortised": "amortized", "catalogue": "catalog", "behaviour": "behavior", "optimise": "optimize", "optimised": "optimized",
+            "normalise": "normalize", "serialise": "serialize", "serialised": "serialized", "memoise": "memoize", "memoised": "memoized"}
+# Bump when the comparison changes, so stored results are recomputed.
+VERSION = 2
+
+
+def number_value(tokens, i):
+    """Reads a number written in words and/or digits starting at tokens[i]:
+    "24", "twenty four", "20 4" (Whisper mixes them), "125 thousand",
+    "1 hundred 20 5000" (one hundred twenty-five thousand), "5 point 6".
+    Returns (value as text, next index), or None if no number starts here."""
+    def atom(t):
+        if t.isdigit():
+            return int(t)
+        return UNITS.get(t, TENS.get(t))
+
+    if re.fullmatch(r"\d+\.\d+", tokens[i]):
+        return tokens[i], i + 1
+    if atom(tokens[i]) is None:
+        return None
+    total, current, prev, j = 0, 0, None, i
+    while j < len(tokens):
+        t, a = tokens[j], atom(tokens[j])
+        if a is not None:
+            tens = 20 <= a < 100 and a % 10 == 0
+            if prev is None:
+                current, prev = a, "tens" if tens else "atom"
+            elif prev == "tens" and 0 < a < 10:
+                current, prev = current + a, "atom"
+            elif prev == "tens" and re.fullmatch(r"[1-9]0{3,}", t):
+                # Whisper's "20 5000" for "twenty-five thousand".
+                scale = 10 ** (len(t) - 1)
+                total, current, prev = total + (current + int(t[0])) * scale, 0, "scale"
+            elif prev == "scale" and a < 100:
+                current, prev = current + a, "tens" if tens else "atom"
+            else:
+                break
+        elif t in SCALES and (prev in ("atom", "tens") or (prev == "scale" and current and SCALES[t] > 100)):
+            if SCALES[t] == 100:
+                current, prev = current * 100, "scale"
+            else:
+                total, current, prev = total + current * SCALES[t], 0, "scale"
+        else:
+            break
+        j += 1
+    value = total + current
+    if j + 1 < len(tokens) and tokens[j] == "point":
+        digits, k = [], j + 1
+        while k < len(tokens) and (tokens[k].isdigit() or tokens[k] in UNITS):
+            digits.append(tokens[k] if tokens[k].isdigit() else str(UNITS[tokens[k]]))
+            k += 1
+        if digits:
+            return f"{value}.{''.join(digits)}", k
+    return str(value), j
 
 
 def words(text):
-    """Normalised words, so that "15 thousand", "fifteen thousand" and "15,000" compare equal."""
+    """Normalised words, so that "15 thousand", "fifteen thousand", "15,000"
+    and Whisper's mixed "20 4" for twenty-four compare equal."""
     text = text.lower().replace("-", " ").replace("%", " percent")
     raw = [w.strip(".,'").replace(",", "") for w in re.findall(r"[a-z0-9.,'%]+", text)]
-    raw = [w for w in raw if w]
+    raw = [w for w in raw if w and w not in (".",)]
     out, i = [], 0
     while i < len(raw):
-        w = raw[i]
-        n = int(w) if w.isdigit() else SMALL.get(w)
-        if n is not None and i + 1 < len(raw) and raw[i + 1] in ("thousand", "million"):
-            out.append(str(n * (1000 if raw[i + 1] == "thousand" else 1_000_000)))
-            i += 2
+        n = number_value(raw, i)
+        if n:
+            out.append(n[0])
+            i = n[1]
             continue
-        out.append(str(n) if n is not None and n <= 20 else SPELLING.get(w, w))
+        out.append(SPELLING.get(raw[i], raw[i]))
         i += 1
     return out
 
@@ -84,7 +140,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
     body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
     body = re.sub(r"^## .*$|^\[(pause|think)\]$", "", body, flags=re.M)
     meta = dict(re.findall(r"^(\w+):\s*(\S+)", script.read_text(), re.M))
-    name = meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    name = meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
     sidecar_path = out / f"{name}.json"
     if not sidecar_path.is_file():
         return
@@ -95,7 +151,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
         done = results / f"{name}.json"
         if done.is_file():
             prev = json.loads(done.read_text())
-            if prev.get("script") == sidecar.get("script") and prev.get("render") == sidecar.get("render"):
+            if (prev.get("script"), prev.get("render"), prev.get("version")) == (sidecar.get("script"), sidecar.get("render"), VERSION):
                 return
     import numpy as np
     import soundfile
@@ -118,6 +174,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
         (results / f"{name}.json").write_text(json.dumps({
             "script": sidecar.get("script"),
             "render": sidecar.get("render"),
+            "version": VERSION,
             "agreement": round(sm.ratio(), 4),
             "differences": [[" ".join(w), " ".join(g)] for w, g in issues],
         }, indent=1) + "\n")

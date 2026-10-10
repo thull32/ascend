@@ -27,6 +27,9 @@ desk:                               # what needs a screen, queued for later; may
 ---
 ```
 
+`episode:` (optional) names the audio file and the feed entry. It defaults to the lesson's slug, which is
+only unique within a module; set it when two lessons share a slug (the checker reports the clash).
+
 `source` makes staleness visible. When a lesson changes, its script's hash no longer matches, and
 `scripts/audio/check.py` reports it until the script is reviewed against the new lesson and updated.
 

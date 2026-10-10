@@ -63,7 +63,7 @@ def episode(script: Path):
     track_dir, module_dir = TRACKS / rel.parts[0], TRACKS / rel.parts[0] / rel.parts[1]
     track, module = front(track_dir / "track.md"), front(module_dir / "module.md")
     review = "review" in meta
-    name = f"{meta['review']}-{script.stem}" if review else meta["lesson"]
+    name = meta.get("episode") or (f"{meta['review']}-{script.stem}" if review else meta["lesson"])
     sidecar_path = OUT / f"{name}.json"
     if not sidecar_path.is_file():
         raise NotReady(f"{rel}: not rendered (uv run scripts/audio/render.py {script.relative_to(ROOT)})")
