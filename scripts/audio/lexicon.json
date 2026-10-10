@@ -900,5 +900,8 @@
   "u09tunr": "U zero nine T U N R",
   "u09tunw": "U zero nine T U N W",
   "u09tuq5": "U zero nine T U Q five",
-  "u10hb53": "U one zero H B five three"
+  "u10hb53": "U one zero H B five three",
+  "HikariCP": "Hikari C P",
+  "ClientHello": "Client Hello",
+  "ServerHello": "Server Hello"
 }
