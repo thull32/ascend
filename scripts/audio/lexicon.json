@@ -946,5 +946,17 @@
   "KD-tree": "K D tree",
   "KD-trees": "K D trees",
   "Gini": "Jee-nee",
-  "Retry-After": "Retry After"
+  "Retry-After": "Retry After",
+  "RO": "R O",
+  "RP": "R P",
+  "SO": "S O",
+  "SP": "S P",
+  "DC": "D C",
+  "FR": "F R",
+  "DB": "D B",
+  "FCT": "F C T",
+  "STG": "S T G",
+  "RPT": "R P T",
+  "MDL": "M D L",
+  "EXP": "E X P"
 }
