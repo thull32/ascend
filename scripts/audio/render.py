@@ -204,6 +204,8 @@ def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None
         "script": spoken_hash(script),
         "voice": voice,
         "render": RENDER,
+        "lexicon": lexicon_stamp(script),
+        "audio_id": audio_id(script, voice),
         "duration": round(t, 1),
         "bytes": mp3.stat().st_size,
         "cues": marks,
@@ -221,12 +223,28 @@ def episode_name(script: Path) -> str:
     return meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
 
 
+def lexicon_stamp(script: Path) -> str:
+    """Hash of the pronunciation entries this script uses, so that changing
+    one re-renders exactly the episodes that say the word."""
+    text = script.read_text()
+    words = json.loads((ROOT / "scripts" / "audio" / "lexicon.json").read_text())
+    words.pop("_comment", None)
+    used = sorted((k, v) for k, v in words.items() if re.search(rf"(?<![\w-]){re.escape(k)}(?![\w-])", text))
+    return hashlib.sha256(json.dumps(used).encode()).hexdigest()[:16]
+
+
+def audio_id(script: Path, voice: str) -> str:
+    """Identity of the audio a render produces: what is said, how it is
+    pronounced, the voice and the render settings."""
+    return hashlib.sha256(f"{spoken_hash(script)}|{lexicon_stamp(script)}|{voice}|{RENDER}".encode()).hexdigest()[:16]
+
+
 def up_to_date(script: Path, out: Path) -> bool:
     sidecar = out / f"{episode_name(script)}.json"
     if not sidecar.is_file():
         return False
     s = json.loads(sidecar.read_text())
-    return s.get("render") == RENDER and s.get("script") == spoken_hash(script)
+    return s.get("audio_id") == audio_id(script, s.get("voice", "af_heart"))
 
 
 def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
@@ -269,6 +287,8 @@ def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
         "script": spoken_hash(script),
         "voice": voice,
         "render": RENDER,
+        "lexicon": lexicon_stamp(script),
+        "audio_id": audio_id(script, voice),
         "duration": round(t, 1),
         "bytes": mp3.stat().st_size,
         "chapters": marks,

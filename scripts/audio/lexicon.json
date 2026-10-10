@@ -8,7 +8,7 @@
   "CDNs": "C D Ns",
   "WAL": "W A L",
   "GC": "G C",
-  "Redis": "Reddis",
+  "Redis": "Red-iss",
   "Memcached": "Mem-cashed",
   "EVCache": "E V cache",
   "TinyLFU": "Tiny L F U",
@@ -600,7 +600,7 @@
   "MOESI": "moe-zee",
   "MESI": "messy",
   "cmov": "C mov",
-  "io_uring": "I O uring",
+  "io_uring": "I O you-ring",
   "bisect": "bye-sect",
   "quickselect": "quick-select",
   "Kadane": "Ka-dane",
@@ -855,5 +855,10 @@
   "Gcc": "G C C",
   "Akra-Bazzi": "Akra Bazzi",
   "mebibyte": "mebby-byte",
-  "kibibyte": "kibby-byte"
+  "kibibyte": "kibby-byte",
+  "io uring": "I O you-ring",
+  "Kegel": "Kay-gel",
+  "uring": "you-ring",
+  "uring's": "you-ring's",
+  "Redis's": "Red-iss's"
 }

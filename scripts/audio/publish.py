@@ -81,7 +81,7 @@ def walkthrough(script: Path):
         "duration": sidecar["duration"],
         "bytes": sidecar["bytes"],
         "cues": sidecar["cues"],
-        "audio": sidecar["script"],
+        "audio": sidecar.get("audio_id") or sidecar["script"],
         "render": sidecar.get("render"),
     }
 
@@ -116,7 +116,7 @@ def episode(script: Path):
         "fit": meta.get("fit"),
         "desk": meta["desk"],
         "chapters": sidecar["chapters"],
-        "audio": sidecar["script"],
+        "audio": sidecar.get("audio_id") or sidecar["script"],
         "render": sidecar.get("render"),
     }
 
@@ -126,7 +126,7 @@ def verified(ep, results: Path, minimum: float) -> bool:
     if not r.is_file():
         return False
     v = json.loads(r.read_text())
-    return v.get("script") == ep["audio"] and v.get("render") == ep["render"] and v.get("agreement", 0) >= minimum
+    return v.get("audio_id") == ep["audio"] and v.get("agreement", 0) >= minimum
 
 
 def main():
@@ -175,9 +175,11 @@ def main():
         if old and old.get("audio") == ep["audio"]:
             ep["published"] = old["published"]
         else:
+            # A re-render of an episode already in the feed keeps its date,
+            # so podcast apps do not list it as a new episode.
             s3.upload_file(str(OUT / f"{ep['name']}.mp3"), bucket, f"audio/{ep['name']}.mp3",
                            ExtraArgs={"ContentType": "audio/mpeg", "CacheControl": "public, max-age=31536000"})
-            ep["published"] = now
+            ep["published"] = old["published"] if old else now
             uploaded += 1
             print(f"uploaded {ep['name']} ({ep['duration'] / 60:.1f} min)")
         table[ep["name"]] = ep

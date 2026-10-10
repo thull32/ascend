@@ -152,7 +152,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
         done = results / f"{name}.json"
         if done.is_file():
             prev = json.loads(done.read_text())
-            if (prev.get("script"), prev.get("render"), prev.get("version")) == (sidecar.get("script"), sidecar.get("render"), VERSION):
+            if (prev.get("audio_id"), prev.get("version")) == (sidecar.get("audio_id"), VERSION) and prev.get("audio_id"):
                 return
     import numpy as np
     import soundfile
@@ -176,6 +176,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
             "script": sidecar.get("script"),
             "render": sidecar.get("render"),
             "version": VERSION,
+            "audio_id": sidecar.get("audio_id"),
             "agreement": round(sm.ratio(), 4),
             "differences": [[" ".join(w), " ".join(g)] for w, g in issues],
         }, indent=1) + "\n")
