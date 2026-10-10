@@ -883,5 +883,22 @@
   "Z-box": "Z box",
   "inorder": "in-order",
   "preorder": "pre-order",
-  "postorder": "post-order"
+  "postorder": "post-order",
+  "RR": "R R",
+  "RL": "R L",
+  "LL": "L L",
+  "LR": "L R",
+  "SST-1": "S S T one",
+  "evt-1": "event one",
+  "evt-100": "event one hundred",
+  "evt-441": "event four forty-one",
+  "gcpuzgq": "G C P U Z G Q",
+  "u09tu": "U zero nine T U",
+  "u09tun": "U zero nine T U N",
+  "u09tunm": "U zero nine T U N M",
+  "u09tunq": "U zero nine T U N Q",
+  "u09tunr": "U zero nine T U N R",
+  "u09tunw": "U zero nine T U N W",
+  "u09tuq5": "U zero nine T U Q five",
+  "u10hb53": "U one zero H B five three"
 }
