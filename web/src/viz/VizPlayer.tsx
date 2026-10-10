@@ -7,7 +7,8 @@ import { cn } from "../lib/utils";
  * start time. In narrated mode the audio drives the frames. */
 export interface Narration {
   src: string;
-  cues: { frame: number; start: number }[];
+  /** `to` makes a range cue: frames `frame`..`to` play evenly across it. */
+  cues: { frame: number; to?: number | null; start: number }[];
   duration: number;
 }
 
@@ -134,8 +135,19 @@ export function VizPlayer<I, S>({ frames, input, Renderer, title, caption, compa
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
           onTimeUpdate={(e) => {
-            const cue = cues[cueAt(e.currentTarget.currentTime)];
-            if (cue && cue.frame !== index) setIndex(Math.min(total - 1, cue.frame));
+            const t = e.currentTarget.currentTime;
+            const k = cueAt(t);
+            const cue = cues[k];
+            if (!cue) return;
+            let f = cue.frame;
+            const to = cue.to ?? cue.frame;
+            if (to > cue.frame) {
+              // Spread the range across the cue's narration.
+              const end = cues[k + 1]?.start ?? narration.duration;
+              const p = Math.max(0, Math.min(1, (t - cue.start) / Math.max(0.1, end - cue.start)));
+              f = cue.frame + Math.min(to - cue.frame, Math.floor(p * (to - cue.frame + 1)));
+            }
+            if (f !== index) setIndex(Math.min(total - 1, f));
           }}
         />
       )}

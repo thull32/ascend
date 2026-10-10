@@ -58,12 +58,17 @@ class NotReady(Exception):
     pass
 
 
+def walk_names(script: Path) -> str:
+    meta = front(script)
+    return meta.get("episode") or f"walk-{re.sub(r'^\d+-', '', script.relative_to(WALK).parts[1])}-{meta['lesson']}-{script.stem}"
+
+
 def walkthrough(script: Path):
     """A narrated walkthrough of one visualisation (content/walkthroughs)."""
     meta = front(script)
     rel = script.relative_to(WALK)
     track, module = front(TRACKS / rel.parts[0] / "track.md"), front(TRACKS / rel.parts[0] / rel.parts[1] / "module.md")
-    name = meta.get("episode") or f"walk-{meta['lesson']}"
+    name = meta.get("episode") or f"walk-{re.sub(r'^\d+-', '', rel.parts[1])}-{meta['lesson']}-{script.stem}"
     sidecar_path = OUT / f"{name}.json"
     if not sidecar_path.is_file():
         raise NotReady(f"{rel}: not rendered (uv run scripts/audio/render.py {script.relative_to(ROOT)})")
@@ -183,6 +188,10 @@ def main():
             uploaded += 1
             print(f"uploaded {ep['name']} ({ep['duration'] / 60:.1f} min)")
         table[ep["name"]] = ep
+    if scope == AUDIO:
+        # A full publish also drops walkthroughs whose script is gone or renamed.
+        current = {walk_names(p) for p in WALK.rglob("*.md")}
+        walks = {k: v for k, v in walks.items() if k in current}
     manifest = {
         "generated": now,
         "episodes": sorted(existing.values(), key=lambda e: e["order"]),

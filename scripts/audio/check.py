@@ -121,14 +121,16 @@ def viz_blocks(lesson: Path) -> dict[str, str]:
 
 def check_walkthrough(script: Path, fix: bool) -> list[str]:
     """A narrated walkthrough of one visualisation: `@N` starts a cue that
-    shows frame N while its text is spoken (content/AUDIO_GUIDE.md). Frame
+    shows frame N while its text is spoken, and `@N-M` plays frames N to M
+    across it (content/AUDIO_GUIDE.md). Frame
     bounds are checked against the generator by web/src/viz/walkthroughs.test.ts."""
     text = script.read_text()
     try:
         meta, body = parse(text)
     except ValueError as e:
         return [str(e)]
-    lesson = TRACKS / script.relative_to(WALK)
+    # content/walkthroughs/<track>/<module>/<lesson file stem>/<n>.md
+    lesson = TRACKS / script.parent.relative_to(WALK).with_suffix(".md")
     if not lesson.is_file():
         return [f"no lesson at {lesson.relative_to(ROOT)}"]
     problems = []
@@ -146,11 +148,12 @@ def check_walkthrough(script: Path, fix: bool) -> list[str]:
         else:
             problems.append(f"stale: the visualisation changed (source {meta.get('source')}, now {current})")
     frames = int(meta.get("frames") or 0)
-    cues = [int(n) for n in re.findall(r"^@(\d+)$", body, re.M)]
-    if not cues or cues[0] != 0 or cues != sorted(set(cues)) or cues[-1] >= frames:
-        problems.append(f"cues {cues} must start at @0, rise, and stay below frames: {frames}")
+    spans = [(int(a), int(b or a)) for a, b in re.findall(r"^@(\d+)(?:-(\d+))?$", body, re.M)]
+    flat = [f for a, b in spans for f in (a, b)]
+    if not spans or spans[0][0] != 0 or any(b < a for a, b in spans) or flat != sorted(flat) or len(set(a for a, _ in spans)) != len(spans) or flat[-1] >= frames:
+        problems.append(f"cues {spans} must start at @0, rise without overlapping, and stay below frames: {frames}")
     for n, line in enumerate(body.splitlines(), 1):
-        if re.fullmatch(r"@\d+", line) or not line.strip():
+        if re.fullmatch(r"@\d+(-\d+)?", line) or not line.strip():
             continue
         if line.startswith(("#", "-", ">", "  ")) or FORBIDDEN.search(line):
             problems.append(f"body line {n}: markup or symbols: {line[:70]!r}")

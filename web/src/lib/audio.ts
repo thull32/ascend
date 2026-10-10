@@ -37,7 +37,7 @@ export interface Walkthrough {
   /** The visualisation's title in the lesson, which identifies it. */
   viz: string;
   duration: number;
-  cues: { frame: number; start: number }[];
+  cues: { frame: number; to?: number | null; start: number }[];
 }
 
 export interface AudioListing {

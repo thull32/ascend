@@ -80,6 +80,9 @@ pub struct Walkthrough {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cue {
     pub frame: u32,
+    /// The last frame of a range cue (`@3-7`), played across the cue.
+    #[serde(default)]
+    pub to: Option<u32>,
     pub start: f64,
 }
 

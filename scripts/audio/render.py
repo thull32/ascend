@@ -156,6 +156,13 @@ def spoken_hash(script: Path) -> str:
 WALK = ROOT / "content" / "walkthroughs"
 
 
+def walk_name(script: Path, lesson: str) -> str:
+    """walk-<module>-<lesson>-<n>: lesson slugs are only unique within a
+    module, and a lesson can have several visualisations."""
+    module = re.sub(r"^\d+-", "", script.parent.parent.name)
+    return f"walk-{module}-{lesson}-{script.stem}"
+
+
 def is_walkthrough(script: Path) -> bool:
     return WALK in script.parents
 
@@ -165,8 +172,8 @@ def parse_walkthrough(script: Path):
     meta_text, body = re.match(r"---\n(.*?)\n---\n(.*)", script.read_text(), re.S).groups()
     meta = {k: v.strip('"') for k, v in re.findall(r"^(\w+):\s*(.*?)\s*$", meta_text, re.M)}
     cues = []
-    for frame, text in re.findall(r"^@(\d+)\n(.*?)(?=^@\d+$|\Z)", body, re.S | re.M):
-        cues.append((int(frame), " ".join(text.split())))
+    for frame, to, text in re.findall(r"^@(\d+)(?:-(\d+))?\n(.*?)(?=^@\d+(?:-\d+)?$|\Z)", body, re.S | re.M):
+        cues.append((int(frame), int(to or frame), " ".join(text.split())))
     return meta, cues
 
 
@@ -186,8 +193,8 @@ def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None
 
     add(synth(tts, f"Walkthrough. {speakable(meta['viz'], lex)}.", voice, speed))
     add(silence(0.8))
-    for frame, text in cues:
-        marks.append({"frame": frame, "start": round(t, 2)})
+    for frame, to, text in cues:
+        marks.append({"frame": frame, "to": to, "start": round(t, 2)})
         add(synth(tts, speakable(text, lex), voice, speed))
         add(silence(0.7))
     audio = np.concatenate(pieces)
@@ -218,7 +225,7 @@ def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None
 def episode_name(script: Path) -> str:
     if is_walkthrough(script):
         meta, _ = parse_walkthrough(script)
-        return meta.get("episode") or f"walk-{meta['lesson']}"
+        return meta.get("episode") or walk_name(script, meta["lesson"])
     meta, _ = parse(script)
     return meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
 

@@ -116,13 +116,16 @@ source: 5d0e3b9a71c2f846            # hash of the module's quiz blocks (check.py
   C: …", and the explanation from the quiz in spoken form, two to four sentences.
 - 1,300 to 2,400 words. All other rules above apply: no symbols, say units, no markup.
 
-## Narrated walkthroughs (pilot)
+## Narrated walkthroughs
 
 A walkthrough narrates one of a lesson's visualisations, step by step, for learners at a screen: the
 traces and animations that the audio editions send to the desk list. The web player plays it on the
 lesson page, and the visualisation follows the voice.
 
-    content/walkthroughs/<track>/<module>/<lesson file>.md
+    content/walkthroughs/<track>/<module>/<lesson file stem>/<n>.md
+
+`<n>` is the visualisation's position in the lesson (1 for the first ```viz block), for humans; the
+`viz:` title is what identifies it. Its audio is published as `walk-<module>-<lesson>-<n>`.
 
 ```yaml
 ---
@@ -134,9 +137,28 @@ source: 9134c853c5219d4b             # hash of the visualisation block (check.py
 ```
 
 The body is cues. `@N` on its own line starts a cue that shows frame N while the paragraph after it is
-spoken. Cues start at `@0`, rise, and stay within the frame count. Describe what is on screen and why
-it matters, in the order the frames show it, so the voice never runs ahead of the picture. Use one or
-two cues per frame, and say every number the frame shows that the listener needs. All the audio rules
-apply: no symbols, units spoken, nothing the lesson does not say. Run
-`web/src/viz/walkthroughs.test.ts` and `scripts/audio/check.py` after writing one, then render,
-verify and publish it like an episode (`walk-<lesson>` in the bucket).
+spoken. `@N-M` plays frames N to M evenly across the paragraph, for a run of similar steps ("the
+window slides right, one element at a time, until it holds a duplicate"). Cues start at `@0`, rise
+without overlapping, and stay within the frame count; frames between cues are skipped, which is fine
+when nothing new happens in them.
+
+To see what each frame shows, dump the lesson's visualisations:
+
+    cd web && FRAMES=../content/tracks/<track>/<module>/<lesson>.md FRAMES_OUT=<file> \
+      pnpm exec vitest run src/viz/frames.dump.test.ts
+
+How to write one (the binary search walkthrough is the model):
+
+- Open with what is on screen and the one idea that makes it work: the invariant, the rule, the race.
+  "Hold onto one sentence, because it is the whole algorithm."
+- Narrate in the order the frames show it, and never ahead of the picture. Say the numbers the frame
+  shows that the listener needs ("the middle is position 3, which holds 7"), and why the step happens.
+- Close by generalising: the cost, the pattern, where it shows up, the trap.
+- Length follows the visualisation: about 150 to 450 words for most; up to about 800 for a long
+  scenario with several phases. One or two short paragraphs per cue.
+- All the audio rules apply: no symbols, units spoken, nothing the lesson does not say.
+- If a frame's note or state is wrong (it contradicts the lesson or itself), do not narrate the error:
+  report it so the visualisation can be fixed.
+
+Run `web/src/viz/walkthroughs.test.ts` and `scripts/audio/check.py` after writing one; render, verify
+and publish it like an episode.

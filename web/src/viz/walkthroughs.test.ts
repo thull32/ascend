@@ -5,7 +5,7 @@
 // frame count is pinned in each walkthrough and checked here against the
 // generator itself.
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { VizSpec } from "./engine";
@@ -27,8 +27,9 @@ const walkthroughs = markdownFiles(WALK).map((file) => {
   const front = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
   if (!front) throw new Error(`${file}: no front matter`);
   const meta = Object.fromEntries([...front[1]!.matchAll(/^(\w+):\s*(.*?)\s*$/gm)].map((m) => [m[1], m[2]!.replace(/^"|"$/g, "")]));
-  const cues = [...front[2]!.matchAll(/^@(\d+)$/gm)].map((m) => Number(m[1]));
-  const lesson = readFileSync(join(CONTENT, "tracks", relative(WALK, file)), "utf8");
+  const cues = [...front[2]!.matchAll(/^@(\d+)(?:-(\d+))?$/gm)].flatMap((m) => [Number(m[1]), Number(m[2] ?? m[1])]);
+  // content/walkthroughs/<track>/<module>/<lesson file stem>/<n>.md
+  const lesson = readFileSync(join(CONTENT, "tracks", `${relative(WALK, dirname(file))}.md`), "utf8");
   const spec = [...lesson.matchAll(/^```viz[^\n]*\n([\s\S]*?)^```/gm)]
     .map((m) => JSON.parse(m[1]!) as VizSpec)
     .find((s) => s.title === meta.viz);
