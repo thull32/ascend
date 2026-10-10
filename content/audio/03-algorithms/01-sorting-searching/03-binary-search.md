@@ -1,7 +1,7 @@
 ---
 lesson: binary-search
 episode: binary-search-algorithms
-source: 584b3fc5edfd67b0
+source: f635ecb4789338db
 fit: partial
 desk:
   - "The half-open template and the two traces, for a present and an absent target"

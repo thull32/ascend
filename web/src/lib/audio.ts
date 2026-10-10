@@ -27,8 +27,22 @@ export interface Episode {
   published: string;
 }
 
+/** A narrated walkthrough of one of a lesson's visualisations. */
+export interface Walkthrough {
+  name: string;
+  title: string;
+  lesson: string;
+  track: string;
+  module: string;
+  /** The visualisation's title in the lesson, which identifies it. */
+  viz: string;
+  duration: number;
+  cues: { frame: number; start: number }[];
+}
+
 export interface AudioListing {
   episodes: Episode[];
+  walkthroughs?: Walkthrough[];
   has_feed: boolean;
 }
 

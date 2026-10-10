@@ -61,9 +61,33 @@ pub struct Episode {
     pub published: DateTime<Utc>,
 }
 
+/// A narrated walkthrough of one of a lesson's visualisations: an MP3 and
+/// the frame each cue shows, which the web player steps in time with it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Walkthrough {
+    pub name: String,
+    pub title: String,
+    pub lesson: String,
+    pub track: String,
+    pub module: String,
+    /// The visualisation's title in the lesson, which identifies it.
+    pub viz: String,
+    pub duration: f64,
+    pub bytes: u64,
+    pub cues: Vec<Cue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Cue {
+    pub frame: u32,
+    pub start: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
     pub episodes: Vec<Episode>,
+    #[serde(default)]
+    pub walkthroughs: Vec<Walkthrough>,
 }
 
 /// The last manifest fetched, and when.
@@ -126,7 +150,7 @@ impl AudioService {
                 retry_after_secs: None,
             })?;
             if res.status() == reqwest::StatusCode::NOT_FOUND {
-                return Ok(Manifest { episodes: Vec::new() });
+                return Ok(Manifest { episodes: Vec::new(), walkthroughs: Vec::new() });
             }
             let res = res.error_for_status().map_err(|e| AppError::Unavailable {
                 message: format!("audio manifest: {e}"),
@@ -159,10 +183,15 @@ impl AudioService {
         self.manifest().await?.episodes.iter().find(|e| e.name == name).cloned().ok_or(AppError::NotFound("episode"))
     }
 
-    /// Where to fetch an episode's MP3 from, for the next few hours.
+    /// Where to fetch an episode's or a walkthrough's MP3 from, for the
+    /// next few hours.
     pub async fn episode_url(&self, name: &str) -> AppResult<url::Url> {
-        let episode = self.episode(name).await?;
-        self.sign(&format!("audio/{}.mp3", episode.name))
+        let manifest = self.manifest().await?;
+        let known = manifest.episodes.iter().any(|e| e.name == name) || manifest.walkthroughs.iter().any(|w| w.name == name);
+        if !known {
+            return Err(AppError::NotFound("episode"));
+        }
+        self.sign(&format!("audio/{name}.mp3"))
     }
 
     /// Makes the learner's feed token, replacing any earlier one. Returned
@@ -327,7 +356,7 @@ mod tests {
 
     #[test]
     fn the_feed_is_escaped_ordered_and_points_beneath_its_own_url() {
-        let m = Manifest { episodes: vec![episode("caching-strategies", 4)] };
+        let m = Manifest { episodes: vec![episode("caching-strategies", 4)], walkthroughs: Vec::new() };
         let xml = rss(&m, "https://ascend.engineering/api/audio/feed/TOKEN", "https://ascend.engineering");
         assert!(xml.contains("<title>Caching &amp; &lt;stampedes&gt;</title>"), "{xml}");
         assert!(xml.contains(r#"<enclosure url="https://ascend.engineering/api/audio/feed/TOKEN/caching-strategies.mp3" length="5400000" type="audio/mpeg"/>"#));

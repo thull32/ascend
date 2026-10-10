@@ -49,7 +49,7 @@ The randomised timeout is the whole mechanism: a split vote happens only when tw
 Two rules fall out. The timeout range must be wide relative to the message delay, or elections collide repeatedly (the 5 ms-wide range needed a median of six terms and, at p99, 28). And the timeout must be far above the round trip, or candidates give up before their votes return. etcd's [tuning guide](https://etcd.io/docs/v3.6/tuning/) asks for an election timeout of at least ten times the round-trip time; its defaults are a 100 ms heartbeat and a 1,000 ms election timeout, which etcd's raft library randomises to between one and two times the configured value. The paper's 150–300 ms assumes a LAN.
 
 ```viz
-{"type": "system", "scenario": "raft-election", "nodes": 5,
+{"type": "system", "scenario": "raft-election", "nodes": 3,
  "title": "Election after leader failure", "caption": "The leader stops sending heartbeats. The follower whose randomised timeout fires first becomes a candidate, increments the term and requests votes. Servers grant a vote only if the candidate's log is at least as current as theirs. A majority makes it leader; it then heartbeats to stop everyone else's timers."}
 ```
 

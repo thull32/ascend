@@ -52,7 +52,7 @@ export function Markdown({ source, lessonSlug, className }: Props) {
           const lang = /language-([\w-]+)/.exec(String(props.className ?? ""))?.[1];
           const raw = String(props.children ?? "").replace(/\n$/, "");
           if (lang === "mermaid") return <Suspense fallback={<Spinner />}><Mermaid source={raw} /></Suspense>;
-          if (lang === "viz") return <Suspense fallback={<Spinner />}><VizBlock source={raw} /></Suspense>;
+          if (lang === "viz") return <Suspense fallback={<Spinner />}><VizBlock source={raw} lessonSlug={lessonSlug} /></Suspense>;
           if (lang === "exercise") return <Suspense fallback={<Spinner />}><ExerciseBlock source={raw} lessonSlug={lessonSlug} /></Suspense>;
           if (lang === "quiz") return <Suspense fallback={<Spinner />}><QuizBlock source={raw} lessonSlug={lessonSlug} /></Suspense>;
         }

@@ -27,6 +27,7 @@ from botocore.exceptions import ClientError
 
 ROOT = Path(__file__).resolve().parents[2]
 AUDIO = ROOT / "content" / "audio"
+WALK = ROOT / "content" / "walkthroughs"
 TRACKS = ROOT / "content" / "tracks"
 OUT = ROOT / "runtimes" / "audio" / "out"
 
@@ -55,6 +56,34 @@ def number(name: str) -> int:
 
 class NotReady(Exception):
     pass
+
+
+def walkthrough(script: Path):
+    """A narrated walkthrough of one visualisation (content/walkthroughs)."""
+    meta = front(script)
+    rel = script.relative_to(WALK)
+    track, module = front(TRACKS / rel.parts[0] / "track.md"), front(TRACKS / rel.parts[0] / rel.parts[1] / "module.md")
+    name = meta.get("episode") or f"walk-{meta['lesson']}"
+    sidecar_path = OUT / f"{name}.json"
+    if not sidecar_path.is_file():
+        raise NotReady(f"{rel}: not rendered (uv run scripts/audio/render.py {script.relative_to(ROOT)})")
+    sidecar = json.loads(sidecar_path.read_text())
+    body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
+    if sidecar["script"] != hashlib.sha256(body.encode()).hexdigest()[:16]:
+        raise NotReady(f"{rel}: the render is of an older version of this walkthrough; render it again")
+    return {
+        "name": name,
+        "title": sidecar["title"],
+        "lesson": meta["lesson"],
+        "track": track["slug"],
+        "module": module["slug"],
+        "viz": meta["viz"].strip('"'),
+        "duration": sidecar["duration"],
+        "bytes": sidecar["bytes"],
+        "cues": sidecar["cues"],
+        "audio": sidecar["script"],
+        "render": sidecar.get("render"),
+    }
 
 
 def episode(script: Path):
@@ -110,7 +139,11 @@ def main():
     minimum = float(args[args.index("--min") + 1]) if "--min" in args else 0.95
     paths = [a for i, a in enumerate(args) if not a.startswith("--") and (i == 0 or args[i - 1] not in ("--verified", "--min"))]
     scope = Path(paths[0]).resolve() if paths else AUDIO
-    scripts = sorted(p for p in scope.rglob("*.md")) if scope.is_dir() else [scope]
+    if scope == AUDIO:
+        scope_items = [AUDIO, WALK]
+    else:
+        scope_items = [scope]
+    scripts = sorted(p for root in scope_items for p in (root.rglob("*.md") if root.is_dir() else [root]))
     endpoint, bucket, key, secret = credentials()
     s3 = boto3.client("s3", endpoint_url=endpoint, aws_access_key_id=key, aws_secret_access_key=secret,
                       region_name="auto", config=Config(s3={"addressing_style": "virtual"}))
@@ -121,12 +154,14 @@ def main():
             raise
         manifest = {"episodes": []}
     existing = {e["name"]: e for e in manifest["episodes"]}
+    walks = {w["name"]: w for w in manifest.get("walkthroughs", [])}
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     uploaded = 0
     skipped = 0
     for script in scripts:
+        is_walk = WALK in script.parents
         try:
-            ep = episode(script)
+            ep = walkthrough(script) if is_walk else episode(script)
         except NotReady as e:
             if not ready:
                 raise SystemExit(str(e))
@@ -135,7 +170,8 @@ def main():
         if results and not verified(ep, results, minimum):
             skipped += 1
             continue
-        old = existing.get(ep["name"])
+        table = walks if is_walk else existing
+        old = table.get(ep["name"])
         if old and old.get("audio") == ep["audio"]:
             ep["published"] = old["published"]
         else:
@@ -144,8 +180,12 @@ def main():
             ep["published"] = now
             uploaded += 1
             print(f"uploaded {ep['name']} ({ep['duration'] / 60:.1f} min)")
-        existing[ep["name"]] = ep
-    manifest = {"generated": now, "episodes": sorted(existing.values(), key=lambda e: e["order"])}
+        table[ep["name"]] = ep
+    manifest = {
+        "generated": now,
+        "episodes": sorted(existing.values(), key=lambda e: e["order"]),
+        "walkthroughs": sorted(walks.values(), key=lambda w: w["name"]),
+    }
     s3.put_object(Bucket=bucket, Key="manifest.json", Body=json.dumps(manifest, indent=1).encode(),
                   ContentType="application/json", CacheControl="no-cache")
     total = sum(e["duration"] for e in manifest["episodes"]) / 3600

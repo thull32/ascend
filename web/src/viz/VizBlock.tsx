@@ -1,13 +1,22 @@
 import { Component, useMemo, type ComponentType, type ErrorInfo, type ReactNode } from "react";
 import { algorithmOf, type Family, type Frame, type RendererProps, type VizSpec } from "./engine";
 import { getFamily } from "./registry";
-import { VizPlayer } from "./VizPlayer";
+import { VizPlayer, type Narration } from "./VizPlayer";
+import { useAudio } from "../lib/audio";
 
-/** Entry point for ```viz fences inside Markdown. */
-export default function VizBlock({ source }: { source: string }) {
+/** Entry point for ```viz fences inside Markdown. In a lesson, a
+ * visualisation with a published walkthrough (matched by lesson and title)
+ * can be played narrated. */
+export default function VizBlock({ source, lessonSlug }: { source: string; lessonSlug?: string }) {
   const spec = useMemo<VizSpec | null>(() => parseSpec(source), [source]);
+  const audio = useAudio();
+  const walk = lessonSlug && spec?.title ? audio.data?.walkthroughs?.find((w) => `${w.track}/${w.module}/${w.lesson}` === lessonSlug && w.viz === spec.title) : undefined;
+  const narration = useMemo<Narration | undefined>(
+    () => (walk ? { src: `/api/audio/play/${encodeURIComponent(walk.name)}`, cues: walk.cues, duration: walk.duration } : undefined),
+    [walk],
+  );
   if (!spec) return <Warn>Visualisation block is not a valid JSON object.</Warn>;
-  return <VizFromSpec spec={spec} />;
+  return <VizFromSpec spec={spec} narration={narration} />;
 }
 
 /** Parses a block's source; anything but a JSON object is rejected. */
@@ -45,7 +54,7 @@ export function runSpec(spec: VizSpec): { frames: Frame<unknown>[]; input: unkno
   }
 }
 
-export function VizFromSpec({ spec, compact }: { spec: VizSpec; compact?: boolean }) {
+export function VizFromSpec({ spec, compact, narration }: { spec: VizSpec; compact?: boolean; narration?: Narration }) {
   const family = getFamily(spec.type) as Family<Record<string, unknown>, unknown> | undefined;
   const algo = algorithmOf(spec);
   const result = useMemo(() => runSpec(spec), [spec]);
@@ -53,7 +62,7 @@ export function VizFromSpec({ spec, compact }: { spec: VizSpec; compact?: boolea
   if ("error" in result || !family) return <Warn>{("error" in result && result.error) || "Unknown visualisation."}</Warn>;
   return (
     <VizErrorBoundary>
-      <VizPlayer frames={result.frames} input={result.input} Renderer={family.Renderer as ComponentType<RendererProps<unknown, unknown>>} title={spec.title ?? family.labels?.[algo] ?? `${family.name}: ${algo}`} caption={spec.caption} compact={compact} />
+      <VizPlayer frames={result.frames} input={result.input} Renderer={family.Renderer as ComponentType<RendererProps<unknown, unknown>>} title={spec.title ?? family.labels?.[algo] ?? `${family.name}: ${algo}`} caption={spec.caption} compact={compact} narration={narration} />
     </VizErrorBoundary>
   );
 }

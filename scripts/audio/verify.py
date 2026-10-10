@@ -138,9 +138,10 @@ def preload_cuda():
 
 def report(model, script: Path, out: Path, results: Path | None = None):
     body = re.match(r"---\n.*?\n---\n(.*)", script.read_text(), re.S).group(1)
-    body = re.sub(r"^## .*$|^\[(pause|think)\]$", "", body, flags=re.M)
+    body = re.sub(r"^## .*$|^\[(pause|think)\]$|^@\d+$", "", body, flags=re.M)
     meta = dict(re.findall(r"^(\w+):\s*(\S+)", script.read_text(), re.M))
-    name = meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
+    walkthrough = "walkthroughs" in script.parts
+    name = meta.get("episode") or (f"walk-{meta['lesson']}" if walkthrough else meta.get("lesson") or f"{meta['review']}-{script.stem}")
     sidecar_path = out / f"{name}.json"
     if not sidecar_path.is_file():
         return

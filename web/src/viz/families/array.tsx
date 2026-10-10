@@ -67,7 +67,7 @@ const binarySearch: G = ({ values, target = 0 }) => {
     const v = values[mid]!;
     if (v === target) {
       s.tones[mid] = "done";
-      f.push(`values[mid] = ${v} equals the target. Found at index ${mid} after ${steps} comparisons (⌈log₂ ${values.length}⌉ = ${Math.ceil(Math.log2(Math.max(2, values.length)))} max).`, "found");
+      f.push(`values[mid] = ${v} equals the target. Found at index ${mid} after ${steps} comparisons (at most ⌊log₂ ${values.length}⌋ + 1 = ${Math.floor(Math.log2(Math.max(1, values.length))) + 1} for ${values.length} elements).`, "found");
       return f.done();
     }
     if (v < target) {

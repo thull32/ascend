@@ -8,7 +8,7 @@
 //! `GET /audio/feed/{token}.xml` is the feed, and beneath it
 //! `/audio/feed/{token}/{name}.mp3` and `{name}.chapters.json`.
 use ascend_core::AppError;
-use ascend_core::services::audio::{self, Episode};
+use ascend_core::services::audio::{self, Episode, Walkthrough};
 use axum::extract::{Path, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
@@ -32,12 +32,17 @@ pub fn router() -> Router<AppState> {
 #[derive(Serialize)]
 struct Listing {
     episodes: Vec<Episode>,
+    walkthroughs: Vec<Walkthrough>,
     has_feed: bool,
 }
 
 async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> ApiResult<Json<Listing>> {
-    let episodes = state.audio.manifest().await?.episodes.clone();
-    Ok(Json(Listing { episodes, has_feed: state.audio.has_feed(user.id).await? }))
+    let manifest = state.audio.manifest().await?;
+    Ok(Json(Listing {
+        episodes: manifest.episodes.clone(),
+        walkthroughs: manifest.walkthroughs.clone(),
+        has_feed: state.audio.has_feed(user.id).await?,
+    }))
 }
 
 async fn play(State(state): State<AppState>, _: CurrentUser, Path(name): Path<String>) -> ApiResult<Redirect> {

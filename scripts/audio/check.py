@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 AUDIO = ROOT / "content" / "audio"
+WALK = ROOT / "content" / "walkthroughs"
 TRACKS = ROOT / "content" / "tracks"
 FORBIDDEN = re.compile(r"[`|$*_]|https?:|\[(?!pause\]|think\])")
 WORDS = {"great": (1300, 2200), "partial": (1300, 2200), "screen": (450, 800), "review": (1300, 2400)}
@@ -103,6 +104,59 @@ def check(script: Path, fix: bool) -> list[str]:
     return problems
 
 
+def viz_blocks(lesson: Path) -> dict[str, str]:
+    """The lesson's ```viz blocks, by title, as their exact source text."""
+    import json
+
+    blocks = {}
+    for raw in re.findall(r"^```viz\n(.*?)^```", lesson.read_text(), re.S | re.M):
+        try:
+            title = json.loads(raw).get("title")
+        except ValueError:
+            continue
+        if title:
+            blocks.setdefault(title, raw)
+    return blocks
+
+
+def check_walkthrough(script: Path, fix: bool) -> list[str]:
+    """A narrated walkthrough of one visualisation: `@N` starts a cue that
+    shows frame N while its text is spoken (content/AUDIO_GUIDE.md). Frame
+    bounds are checked against the generator by web/src/viz/walkthroughs.test.ts."""
+    text = script.read_text()
+    try:
+        meta, body = parse(text)
+    except ValueError as e:
+        return [str(e)]
+    lesson = TRACKS / script.relative_to(WALK)
+    if not lesson.is_file():
+        return [f"no lesson at {lesson.relative_to(ROOT)}"]
+    problems = []
+    slug = re.search(r"^slug:\s*(\S+)", lesson.read_text(), re.M)
+    if not slug or slug.group(1) != meta.get("lesson"):
+        problems.append(f"lesson: {meta.get('lesson')!r} does not match the lesson's slug")
+    title = meta.get("viz", "").strip('"')
+    block = viz_blocks(lesson).get(title)
+    if block is None:
+        return problems + [f"viz: the lesson has no visualisation titled {title!r}"]
+    current = hashlib.sha256(block.encode()).hexdigest()[:16]
+    if meta.get("source") != current:
+        if fix:
+            script.write_text(re.sub(r"^source: \S+", f"source: {current}", text, count=1, flags=re.M))
+        else:
+            problems.append(f"stale: the visualisation changed (source {meta.get('source')}, now {current})")
+    frames = int(meta.get("frames") or 0)
+    cues = [int(n) for n in re.findall(r"^@(\d+)$", body, re.M)]
+    if not cues or cues[0] != 0 or cues != sorted(set(cues)) or cues[-1] >= frames:
+        problems.append(f"cues {cues} must start at @0, rise, and stay below frames: {frames}")
+    for n, line in enumerate(body.splitlines(), 1):
+        if re.fullmatch(r"@\d+", line) or not line.strip():
+            continue
+        if line.startswith(("#", "-", ">", "  ")) or FORBIDDEN.search(line):
+            problems.append(f"body line {n}: markup or symbols: {line[:70]!r}")
+    return problems
+
+
 def main() -> int:
     fix = "--fix-source" in sys.argv
     # Paths (files or directories) narrow the run; --fix-source only ever
@@ -111,7 +165,7 @@ def main() -> int:
     if fix and not paths:
         print("--fix-source needs the scripts or directories you reviewed")
         return 2
-    scripts = sorted(p for root in (paths or [AUDIO]) for p in (root.rglob("*.md") if root.is_dir() else [root]))
+    scripts = sorted(p for root in (paths or [AUDIO]) for p in (root.rglob("*.md") if root.is_dir() else [root]) if AUDIO in p.parents)
     failed = 0
     # Episode names are file names in the bucket and the feed, so they must
     # be unique across the curriculum; `episode:` overrides a clashing slug.
@@ -131,7 +185,12 @@ def main() -> int:
         for p in check(script, fix):
             failed += 1
             print(f"{script.relative_to(ROOT)}: {p}")
-    print(f"{len(scripts)} scripts, {failed} problems")
+    walks = sorted(p for p in WALK.rglob("*.md") if not paths or any(p == r or r in p.parents for r in paths))
+    for walk in walks:
+        for p in check_walkthrough(walk, fix):
+            failed += 1
+            print(f"{walk.relative_to(ROOT)}: {p}")
+    print(f"{len(scripts)} scripts, {len(walks)} walkthroughs, {failed} problems")
     return 1 if failed else 0
 
 

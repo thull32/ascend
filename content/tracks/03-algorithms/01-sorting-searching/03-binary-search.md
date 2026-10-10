@@ -16,7 +16,7 @@ This lesson gives you one template, proves it correct, and then shows that first
 Binary search maintains a range that is guaranteed to contain the answer and halves it on every step by examining the middle element. On a sorted array with `n = 8`:
 
 ```viz
-{"type": "array", "algorithm": "binary-search", "values": [1, 3, 4, 7, 9, 12, 15, 20], "target": 12, "title": "Binary search for 12", "caption": "Each probe eliminates half the remaining range; three probes settle eight elements."}
+{"type": "array", "algorithm": "binary-search", "values": [1, 3, 4, 7, 9, 12, 15, 20], "target": 12, "title": "Binary search for 12", "caption": "Each probe eliminates half the remaining range; eight elements need at most four probes."}
 ```
 
 Each probe removes half the candidates, so after `k` probes at most `n / 2^k` remain, and the search ends after at most $\lceil \log_2 (n+1) \rceil$ probes. For a thousand elements that is 10; for a million, 20; for a billion, 30. That is the whole reason the algorithm exists.

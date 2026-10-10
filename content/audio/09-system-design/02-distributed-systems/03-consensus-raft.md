@@ -1,6 +1,6 @@
 ---
 lesson: consensus-raft
-source: 55cfb6508e8c7a42
+source: 60653557d82ef895
 fit: partial
 desk:
   - "The split-vote election trace, millisecond by millisecond, and the election-time simulation table"

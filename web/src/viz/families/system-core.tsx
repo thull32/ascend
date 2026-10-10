@@ -197,7 +197,7 @@ export const raftElection: SysGen = () => {
   sys.fanin(["B", "C"], "A", "VoteGranted", `Both grant their vote (one vote per term per node, persisted to disk before replying).`, "done");
   sys.set({ "A votes": 3, majority: 2 });
   sys.state("A", "LEADER · term 2", "done");
-  sys.note(`A has a majority (3 of 3): it becomes leader for term 2. A majority guarantees at most one leader per term.`, "elected");
+  sys.note(`A has all 3 votes, more than the 2 a majority of three needs: it becomes leader for term 2. A majority guarantees at most one leader per term.`, "elected");
   sys.fanout("A", ["B", "C"], "AppendEntries (heartbeat)", `The leader sends heartbeats to reset follower timeouts; no new elections while it keeps sending.`, "muted", "heartbeat");
   sys.tone("A", "danger");
   sys.state("A", "LEADER (partitioned)", "danger");

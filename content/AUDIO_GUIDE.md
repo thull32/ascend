@@ -115,3 +115,28 @@ source: 5d0e3b9a71c2f846            # hash of the module's quiz blocks (check.py
   with its meaning unchanged. Then `[think]` (six seconds of silence) on its own line. Then "The answer is
   C: …", and the explanation from the quiz in spoken form, two to four sentences.
 - 1,300 to 2,400 words. All other rules above apply: no symbols, say units, no markup.
+
+## Narrated walkthroughs (pilot)
+
+A walkthrough narrates one of a lesson's visualisations, step by step, for learners at a screen: the
+traces and animations that the audio editions send to the desk list. The web player plays it on the
+lesson page, and the visualisation follows the voice.
+
+    content/walkthroughs/<track>/<module>/<lesson file>.md
+
+```yaml
+---
+lesson: binary-search                # the lesson's slug
+viz: Binary search for 12            # the visualisation's title in the lesson, which identifies it
+frames: 3                            # how many frames its generator produces (checked by a web test)
+source: 9134c853c5219d4b             # hash of the visualisation block (check.py --fix-source)
+---
+```
+
+The body is cues. `@N` on its own line starts a cue that shows frame N while the paragraph after it is
+spoken. Cues start at `@0`, rise, and stay within the frame count. Describe what is on screen and why
+it matters, in the order the frames show it, so the voice never runs ahead of the picture. Use one or
+two cues per frame, and say every number the frame shows that the listener needs. All the audio rules
+apply: no symbols, units spoken, nothing the lesson does not say. Run
+`web/src/viz/walkthroughs.test.ts` and `scripts/audio/check.py` after writing one, then render,
+verify and publish it like an episode (`walk-<lesson>` in the bucket).

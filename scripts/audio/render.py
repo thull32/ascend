@@ -153,7 +153,70 @@ def spoken_hash(script: Path) -> str:
     return hashlib.sha256(body.encode()).hexdigest()[:16]
 
 
+WALK = ROOT / "content" / "walkthroughs"
+
+
+def is_walkthrough(script: Path) -> bool:
+    return WALK in script.parents
+
+
+def parse_walkthrough(script: Path):
+    """Front matter and cues: (frame, text) for each `@N` block."""
+    meta_text, body = re.match(r"---\n(.*?)\n---\n(.*)", script.read_text(), re.S).groups()
+    meta = {k: v.strip('"') for k, v in re.findall(r"^(\w+):\s*(.*?)\s*$", meta_text, re.M)}
+    cues = []
+    for frame, text in re.findall(r"^@(\d+)\n(.*?)(?=^@\d+$|\Z)", body, re.S | re.M):
+        cues.append((int(frame), " ".join(text.split())))
+    return meta, cues
+
+
+def render_walkthrough(script: Path, voice, speed, out: Path, tts=None, lex=None):
+    """One MP3 for the whole walkthrough, and a sidecar giving each cue's
+    frame and start time, which the web player follows to step the
+    visualisation in time with the narration."""
+    meta, cues = parse_walkthrough(script)
+    tts, lex = tts or models(), lex or lexicon()
+    name = episode_name(script)
+    pieces, marks, t = [], [], 0.0
+
+    def add(a):
+        nonlocal t
+        pieces.append(a)
+        t += len(a) / RATE
+
+    add(synth(tts, f"Walkthrough. {speakable(meta['viz'], lex)}.", voice, speed))
+    add(silence(0.8))
+    for frame, text in cues:
+        marks.append({"frame": frame, "start": round(t, 2)})
+        add(synth(tts, speakable(text, lex), voice, speed))
+        add(silence(0.7))
+    audio = np.concatenate(pieces)
+    out.mkdir(parents=True, exist_ok=True)
+    mp3 = out / f"{name}.mp3"
+    encode_mp3(audio, mp3, f"Walkthrough: {meta['viz']}", [])
+    sidecar = {
+        "name": name,
+        "kind": "walkthrough",
+        "lesson": meta["lesson"],
+        "viz": meta["viz"],
+        "title": meta["viz"],
+        "source": meta.get("source"),
+        "script": spoken_hash(script),
+        "voice": voice,
+        "render": RENDER,
+        "duration": round(t, 1),
+        "bytes": mp3.stat().st_size,
+        "cues": marks,
+    }
+    (out / f"{name}.json").write_text(json.dumps(sidecar, indent=2) + "\n")
+    print(f"{mp3.relative_to(ROOT)}: {t / 60:.1f} min walkthrough, {len(marks)} cues", file=sys.stderr)
+    return mp3
+
+
 def episode_name(script: Path) -> str:
+    if is_walkthrough(script):
+        meta, _ = parse_walkthrough(script)
+        return meta.get("episode") or f"walk-{meta['lesson']}"
     meta, _ = parse(script)
     return meta.get("episode") or meta.get("lesson") or f"{meta['review']}-{script.stem}"
 
@@ -167,6 +230,8 @@ def up_to_date(script: Path, out: Path) -> bool:
 
 
 def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
+    if is_walkthrough(script):
+        return render_walkthrough(script, voice, speed, out, tts, lex)
     meta, chapters = parse(script)
     title = lesson_title(meta, script)
     tts, lex = tts or models(), lex or lexicon()
