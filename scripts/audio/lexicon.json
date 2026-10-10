@@ -903,5 +903,8 @@
   "u10hb53": "U one zero H B five three",
   "HikariCP": "Hikari C P",
   "ClientHello": "Client Hello",
-  "ServerHello": "Server Hello"
+  "ServerHello": "Server Hello",
+  "SST-2": "S S T two",
+  "evt-125": "event one twenty-five",
+  "TrueTime": "True Time"
 }
