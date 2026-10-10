@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Checks audio scripts (content/audio) against content/AUDIO_GUIDE.md.
 
-    python3 scripts/audio/check.py                 # check every script
-    python3 scripts/audio/check.py --fix-source    # record each lesson's current hash (after reviewing!)
+    python3 scripts/audio/check.py [PATH...]                # check every script, or those under PATH
+    python3 scripts/audio/check.py --fix-source PATH...     # record the current lesson hash (after reviewing!)
 
 A script is stale when its `source` no longer matches the first 16 hex of its
 lesson file's SHA-256: the lesson changed and the script must be reviewed
@@ -105,7 +105,13 @@ def check(script: Path, fix: bool) -> list[str]:
 
 def main() -> int:
     fix = "--fix-source" in sys.argv
-    scripts = sorted(AUDIO.rglob("*.md"))
+    # Paths (files or directories) narrow the run; --fix-source only ever
+    # touches the scripts named, so one author cannot mark another's current.
+    paths = [Path(a).resolve() for a in sys.argv[1:] if not a.startswith("--")]
+    if fix and not paths:
+        print("--fix-source needs the scripts or directories you reviewed")
+        return 2
+    scripts = sorted(p for root in (paths or [AUDIO]) for p in (root.rglob("*.md") if root.is_dir() else [root]))
     failed = 0
     for script in scripts:
         for p in check(script, fix):

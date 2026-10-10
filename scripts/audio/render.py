@@ -1,14 +1,20 @@
 # /// script
-# requires-python = ">=3.11"
-# dependencies = ["kokoro-onnx>=0.4", "soundfile>=0.12", "numpy", "lameenc>=1.7", "mutagen>=1.47"]
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["kokoro-onnx>=0.4", "onnxruntime-gpu[cuda,cudnn]>=1.20", "soundfile>=0.12", "numpy", "lameenc>=1.7", "mutagen>=1.47"]
+# [tool.uv]
+# # The GPU build replaces the CPU one kokoro-onnx asks for (both are the
+# # `onnxruntime` module). Without a CUDA device it runs on the CPU.
+# override-dependencies = ["onnxruntime; sys_platform == 'never'"]
 # ///
 """Renders an audio script (content/audio, see content/AUDIO_GUIDE.md) to MP3.
 
     uv run scripts/audio/render.py content/audio/<...>.md [--voice af_heart] [--out runtimes/audio/out]
+    uv run scripts/audio/render.py content/audio[/<track>...]      # every script whose render is missing or stale
     uv run scripts/audio/render.py --samples "text" --voices af_heart,am_michael,bf_emma
 
 Speech is synthesised locally with Kokoro (82M parameters, Apache-2.0; the
-model is downloaded once into runtimes/audio/models). The MP3 carries ID3
+model is downloaded once into runtimes/audio/models), on the GPU when CUDA is
+available (about 80 times realtime on an RTX 5090, 11 on 32 CPU cores). The MP3 carries ID3
 chapters, one per `## Chapter`, and a JSON sidecar lists the chapters and
 duration for the feed and the web player. Nothing leaves the machine.
 """
@@ -38,9 +44,17 @@ def models():
         if not path.is_file():
             print(f"downloading {name}…", file=sys.stderr)
             urllib.request.urlretrieve(RELEASE + name, path)
+    import onnxruntime as ort
     from kokoro_onnx import Kokoro
 
-    return Kokoro(str(MODELS / FILES[0]), str(MODELS / FILES[1]))
+    ort.preload_dlls()
+    options = ort.SessionOptions()
+    options.log_severity_level = 3
+    session = ort.InferenceSession(
+        str(MODELS / FILES[0]), options, providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+    )
+    print(f"synthesising on {session.get_providers()[0]}", file=sys.stderr)
+    return Kokoro.from_session(session, str(MODELS / FILES[1]))
 
 
 def lexicon():
@@ -122,10 +136,23 @@ def encode_mp3(audio, path: Path, title, chapters):
     tags.save(path)
 
 
-def render(script: Path, voice, speed, out: Path):
+def episode_name(script: Path) -> str:
+    meta, _ = parse(script)
+    return meta.get("lesson") or f"{meta['review']}-{script.stem}"
+
+
+def up_to_date(script: Path, out: Path) -> bool:
+    sidecar = out / f"{episode_name(script)}.json"
+    if not sidecar.is_file():
+        return False
+    s = json.loads(sidecar.read_text())
+    return s.get("script") == hashlib.sha256(script.read_bytes()).hexdigest()[:16]
+
+
+def render(script: Path, voice, speed, out: Path, tts=None, lex=None):
     meta, chapters = parse(script)
     title = lesson_title(meta, script)
-    tts, lex = models(), lexicon()
+    tts, lex = tts or models(), lex or lexicon()
     pieces, marks, t = [], [], 0.0
 
     def add(a):
@@ -190,6 +217,12 @@ def main():
     a.out = a.out.resolve()
     if a.samples:
         samples(a.samples, a.voices.split(","), a.speed, a.out)
+    elif a.script.is_dir():
+        todo = [p for p in sorted(a.script.resolve().rglob("*.md")) if not up_to_date(p, a.out)]
+        print(f"{len(todo)} to render", file=sys.stderr)
+        tts, lex = models(), lexicon()
+        for p in todo:
+            render(p, a.voice, a.speed, a.out, tts, lex)
     else:
         render(a.script.resolve(), a.voice, a.speed, a.out)
 

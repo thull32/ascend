@@ -19,7 +19,7 @@ One script per lesson, mirroring the lesson's path:
 ```yaml
 ---
 lesson: caching-strategies          # the lesson's slug
-source: 3f9c2a7d1e04b8c6            # first 16 hex of the lesson file's SHA-256 (scripts/audio/check.py --fix-source)
+source: 3f9c2a7d1e04b8c6            # first 16 hex of the lesson file's SHA-256 (scripts/audio/check.py --fix-source <script>)
 fit: great                          # great | partial | screen (below)
 desk:                               # what needs a screen, queued for later; may be empty
   - "The stampede simulation and the single-flight code"
