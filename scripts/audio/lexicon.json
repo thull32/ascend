@@ -906,5 +906,12 @@
   "ServerHello": "Server Hello",
   "SST-2": "S S T two",
   "evt-125": "event one twenty-five",
-  "TrueTime": "True Time"
+  "TrueTime": "True Time",
+  "AppendEntries": "Append Entries",
+  "ReadIndex": "Read Index",
+  "MV-Register": "M V Register",
+  "LWW-Register": "L W W Register",
+  "PN-Counter": "P N Counter",
+  "G-Counter": "G Counter",
+  "Cache-Control": "Cache Control"
 }
