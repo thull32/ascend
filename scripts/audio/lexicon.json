@@ -958,5 +958,8 @@
   "STG": "S T G",
   "RPT": "R P T",
   "MDL": "M D L",
-  "EXP": "E X P"
+  "EXP": "E X P",
+  "HSTS": "H S T S",
+  "tantivy": "tan-tivvy",
+  "EventSource": "Event Source"
 }
