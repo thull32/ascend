@@ -978,5 +978,12 @@
   "LPUSH": "L push",
   "OTLP": "O T L P",
   "x7Kq": "X seven K Q",
-  "7Q": "seven Q"
+  "7Q": "seven Q",
+  "dequeue": "dee-queue",
+  "Dequeue": "Dee-queue",
+  "dequeued": "dee-queued",
+  "Dequeued": "Dee-queued",
+  "dequeues": "dee-queues",
+  "Dequeues": "Dee-queues",
+  "dequeuing": "dee-queuing"
 }

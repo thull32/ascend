@@ -27,8 +27,13 @@ SCALES = {"hundred": 100, "thousand": 1_000, "million": 1_000_000, "billion": 1_
 SPELLING = {"defence": "defense", "defences": "defenses", "acknowledgement": "acknowledgment", "acknowledgements": "acknowledgments",
             "amortised": "amortized", "catalogue": "catalog", "behaviour": "behavior", "optimise": "optimize", "optimised": "optimized",
             "normalise": "normalize", "serialise": "serialize", "serialised": "serialized", "memoise": "memoize", "memoised": "memoized"}
+# British spellings the scripts use and Whisper writes the American way;
+# applied to both sides, so a rare false match costs nothing.
+BRITISH = [(re.compile(r"(?<=\w{3})our(s?)$"), r"or\1"), (re.compile(r"(?<=[^aeiou])re(s?)$"), r"er\1"),
+           (re.compile(r"is(e|es|ed|ing|ation|ations)$"), r"iz\1"), (re.compile(r"ys(e|es|ed|ing)$"), r"yz\1"),
+           (re.compile(r"(?<=\w[aeiou][lt])l(ed|ing|er|ers)$"), r"\1"), (re.compile(r"ueing$"), "uing")]
 # Bump when the comparison changes, so stored results are recomputed.
-VERSION = 2
+VERSION = 3
 
 
 def number_value(tokens, i):
@@ -84,9 +89,12 @@ def number_value(tokens, i):
 def words(text):
     """Normalised words, so that "15 thousand", "fifteen thousand", "15,000"
     and Whisper's mixed "20 4" for twenty-four compare equal."""
-    text = text.lower().replace("-", " ").replace("%", " percent")
+    text = text.lower().replace("-", " ").replace("%", " percent").replace("\u2019", "'")
+    # "a1" is heard as "a 1", and "promise dot then" written "promise.then".
+    text = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", text)
+    text = re.sub(r"(?<=[a-z])\.(?=[a-z])", " dot ", text)
     raw = [w.strip(".,'").replace(",", "") for w in re.findall(r"[a-z0-9.,'%]+", text)]
-    raw = [w for w in raw if w and w not in (".",)]
+    raw = [w.removesuffix("'s").replace("'", "") for w in raw if w and w not in (".",)]
     out, i = [], 0
     while i < len(raw):
         n = number_value(raw, i)
@@ -94,7 +102,10 @@ def words(text):
             out.append(n[0])
             i = n[1]
             continue
-        out.append(SPELLING.get(raw[i], raw[i]))
+        w = SPELLING.get(raw[i], raw[i])
+        for pattern, repl in BRITISH:
+            w = pattern.sub(repl, w)
+        out.append(w)
         i += 1
     return out
 
@@ -170,10 +181,19 @@ def report(model, script: Path, out: Path, results: Path | None = None):
     audio = np.interp(np.linspace(0, len(audio) - 1, n), np.arange(len(audio)), audio).astype(np.float32)
     segments, _ = model.transcribe(audio, language="en", vad_filter=True)
     heard = " ".join(s.text for s in segments)
-    want, got = words(body), words(heard)
+    # The render opens with the title, which is not in the script's body.
+    intro = f"{'Walkthrough' if walkthrough else 'Ascend'}. {sidecar.get('title', '')}."
+    want, got = words(f"{intro}\n{body}"), words(heard)
     sm = difflib.SequenceMatcher(a=want, b=got, autojunk=False)
-    issues = [(want[i1:i2], got[j1:j2]) for op, i1, i2, j1, j2 in sm.get_opcodes() if op != "equal"]
-    print(f"{name}: {sm.ratio():.3f} word agreement, {len(issues)} differences", flush=True)
+    matched, issues = 0, []
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        # "microtasks" heard as "micro tasks" is the same speech.
+        if op == "equal" or "".join(want[i1:i2]) == "".join(got[j1:j2]):
+            matched += (i2 - i1) + (j2 - j1)
+        else:
+            issues.append((want[i1:i2], got[j1:j2]))
+    agreement = matched / max(1, len(want) + len(got))
+    print(f"{name}: {agreement:.3f} word agreement, {len(issues)} differences", flush=True)
     if results:
         results.mkdir(parents=True, exist_ok=True)
         (results / f"{name}.json").write_text(json.dumps({
@@ -181,7 +201,7 @@ def report(model, script: Path, out: Path, results: Path | None = None):
             "render": sidecar.get("render"),
             "version": VERSION,
             "audio_id": sidecar.get("audio_id"),
-            "agreement": round(sm.ratio(), 4),
+            "agreement": round(agreement, 4),
             "differences": [[" ".join(w), " ".join(g)] for w, g in issues],
         }, indent=1) + "\n")
     else:
