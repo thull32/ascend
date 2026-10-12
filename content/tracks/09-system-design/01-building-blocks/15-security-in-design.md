@@ -453,5 +453,5 @@ hints:
   options: ["PBKDF2 output is reversible for password resets", "Each guess costs an attacker 600,000 times more work", "A single SHA-256 is too slow for login at scale", "SHA-256 has known collisions that expose stored passwords"]
   answer: 1
   explanation: >-
-    The lesson measured 0.19 microseconds for one SHA-256 and 49 ms for PBKDF2 at 600,000 iterations: negligible per login, but it cuts an attacker's guess rate by the same factor. SHA-256 has no practical collisions, and password hashes are never reversible.
+    Each guess has to run the hash 600,000 times. The lesson measured 0.19 microseconds for one SHA-256 call and 49 ms for PBKDF2 at 600,000 iterations, about 260,000 times longer in that measurement: negligible per login, but it cuts an attacker's guess rate by that order of magnitude. SHA-256 has no practical collisions, and password hashes are never reversible.
 ```

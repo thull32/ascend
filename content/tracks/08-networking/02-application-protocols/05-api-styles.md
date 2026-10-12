@@ -469,9 +469,9 @@ Mixing is normal: gRPC between services, GraphQL or BFFs for first-party apps, R
   explanation: >-
     GraphQL allows partial success with errors listed in the errors array alongside data, and gRPC puts the call status in the grpc-status trailer after an HTTP 200, so HTTP-level metrics miss both. Monitoring must be protocol-aware.
 - q: >-
-    A public GraphQL API receives a query nesting users(first: 50), orders(first: 20) and items(first: 10). Why do servers compute a cost before executing it?
-  options: ["Page sizes multiply, so it may touch over 20,000 nodes", "Deep queries are rejected by HTTP/2 frame size limits", "Nested queries cannot use DataLoader batching at all", "The response must be cached before it can be sent"]
-  answer: 0
+    A public GraphQL API receives a query nesting users(first: 50), orders(first: 20) and items(first: 10), with each item's product. Why do servers compute a cost before executing it?
+  options: ["The response must be cached before it can be sent", "Page sizes multiply, so it may touch over 20,000 nodes", "Nested queries cannot use DataLoader batching at all", "Deep queries are rejected by HTTP/2 frame size limits"]
+  answer: 1
   explanation: >-
     Worst-case work multiplies down each path: 50 users, 1,000 orders, 10,000 items and 10,000 products, about 21,050 nodes. Estimating that before execution lets the server reject queries above a budget along with overly deep ones. DataLoader still batches such a query per level; it reduces calls, not the number of nodes.
 ```

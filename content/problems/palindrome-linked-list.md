@@ -10,7 +10,7 @@ lesson: interview-patterns/sequence-patterns/in-place-linked-list
 hints:
   - "Copying the values into an array and comparing from both ends is O(n) space. The interviewer wants O(1) space, which means comparing the two halves without an index into the back half."
   - "Find the middle with fast and slow pointers, reverse the second half in place, then walk both halves forwards comparing values."
-  - "The first half may be one node longer than the second (odd length). Compare only while the second half has nodes, and the middle node is skipped automatically."
+  - "For an even length, the first half ends up one node longer than the reversed second half. Compare only while the second half has nodes, and that extra node is never compared."
 signatures:
   python:
     name: is_palindrome
@@ -125,7 +125,7 @@ Time `O(n)`: three passes over at most half the list plus one full pass. Space `
 
 ### Common mistakes
 
-- Comparing `while a is not None`, which for odd lengths runs the first half one node further than the second and dereferences `None`.
+- Comparing `while a is not None`, which for even lengths runs the first half one node further than the second and dereferences `None`.
 - Forgetting to restore the list, which a test harness may not catch but a code reviewer will.
 - Using the `fast.next, fast.next.next` loop condition and then reversing from `slow` (not `slow.next`), which makes the second half one node too long for even lengths and breaks the comparison.
 

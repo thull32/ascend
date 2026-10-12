@@ -1,6 +1,6 @@
 ---
 review: arrays-strings
-source: 73b5be5d468e4b03
+source: f4ca5327f1bd892d
 ---
 ## Introduction
 
@@ -46,7 +46,7 @@ The in-place resize needs a reference count of exactly one after the stack's ref
 
 ## Question 4
 
-A 1,000-character ASCII string occupies 1,041 bytes in CPython 3.14. About how large is it after one emoji is appended?
+A 1,000-character ASCII string occupies 1,041 bytes in CPython 3.14. About how large is it if its last character is replaced by an emoji?
 
 A, 1,045 bytes, because only the emoji needs a 4-byte cell. B, 4,060 bytes, because every code point is now stored in 4 bytes. C, 1,057 bytes, because only the header grows to 56 bytes. D, 2,058 bytes, because the string switches to UTF-16 storage.
 
@@ -54,7 +54,7 @@ A, 1,045 bytes, because only the emoji needs a 4-byte cell. B, 4,060 bytes, beca
 
 The answer is B: 4,060 bytes, because every code point is now stored in 4 bytes.
 
-Python picks one width for the whole string from its widest character. An emoji outside the basic multilingual plane forces 4 bytes for all 1,001 code points, plus the 56-byte header and a terminator cell. An accented Latin letter would only have grown the header, to 1,057, and a character like the euro sign would have doubled the cells, to 2,058.
+Python picks one width for the whole string from its widest character. An emoji outside the basic multilingual plane forces 4 bytes for all 1,000 code points, plus the 56-byte header and a terminator cell. An accented Latin letter would only have grown the header, to 1,057, and a character like the euro sign would have doubled the cells, to 2,058.
 
 ## Question 5
 

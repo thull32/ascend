@@ -1,6 +1,6 @@
 ---
 lesson: strings-in-depth
-source: f5fbbb0ce0d7bb17
+source: 53cb87b062dd51d0
 fit: great
 desk:
   - "The concatenation trace, copy-everything against extend-in-place"

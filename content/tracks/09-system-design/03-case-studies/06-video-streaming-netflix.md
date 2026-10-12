@@ -445,7 +445,7 @@ hints:
   options: ["About 200 Gbps, so a single cloud region's egress can serve it", "About 2 Tbps, comparable to a large API fleet's total outbound traffic", "About 20 Tbps, so a commercial CDN's per-GB pricing is the cheapest", "About 200 Tbps, so bytes must come from edge servers near viewers"]
   answer: 3
   explanation: >-
-    4 x 10^7 x 5 Mbps = 2 x 10^8 Mbps = 200 Tbps, which is 560 PB a day. At that scale the cost per GB and the location of the servers decide the architecture. Dropping a factor of 1,000 by confusing Gbps with Tbps is the classic unit error.
+    4 x 10^7 x 5 Mbps = 2 x 10^8 Mbps = 200 Tbps at the peak, about four times the 52 Tbps daily average that 560 PB a day works out to. At that scale the cost per GB and the location of the servers decide the architecture. Dropping a factor of 1,000 by confusing Gbps with Tbps is the classic unit error.
 - q: >-
     Why does per-title encoding beat a fixed bitrate ladder?
   options: ["It moves every title to a newer codec with better compression", "It lets the client choose each title's bitrate from its buffer", "It encodes every title at a higher top resolution than before", "It picks rungs from each title's measured quality curves"]

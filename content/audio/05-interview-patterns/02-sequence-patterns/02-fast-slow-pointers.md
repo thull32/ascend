@@ -1,6 +1,6 @@
 ---
 lesson: fast-slow-pointers
-source: db13f67c92eeef98
+source: 5d22795d0b2b8291
 fit: partial
 desk:
   - "The cycle-entry, middle and k-th-from-end templates, with the bug-carrying lines annotated"

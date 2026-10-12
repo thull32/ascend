@@ -1,6 +1,6 @@
 ---
 lesson: breadth-first-search
-source: 8c53fa324c25c8f8
+source: 9d3d0c5ba0983244
 fit: partial
 desk:
   - "The BFS code and the eight-vertex hand trace with its queue, distance and parent columns"

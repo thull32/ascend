@@ -90,7 +90,7 @@ Change what you enumerate. Instead of rectangles, enumerate *heights*: the best 
 ```python
 def largest_rectangle(heights: list[int]) -> int:
     best = 0
-    stack: list[int] = []  # indices, heights strictly increasing bottom to top
+    stack: list[int] = []  # indices, heights non-decreasing bottom to top
     extended = heights + [0]  # sentinel forces every bar to be resolved
     for i, h in enumerate(extended):
         while stack and extended[stack[-1]] > h:

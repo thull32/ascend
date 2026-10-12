@@ -1,6 +1,6 @@
 ---
 lesson: prefix-sum
-source: df580ee948666e23
+source: 6ab73dd1148b8317
 fit: partial
 desk:
   - "The three-decisions table: form, key and stored value, seed and order"

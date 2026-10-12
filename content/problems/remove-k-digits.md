@@ -126,7 +126,7 @@ Why is the greedy correct? Suppose an optimal answer keeps a digit `a` that the 
 
 - Forgetting the leftover `k` at the end, which fails on `"123456"`.
 - Stripping leading zeros before the final truncation, or returning `""` instead of `"0"`.
-- Using `>=` in the pop condition. It still gives the right answer here (popping an equal digit changes nothing in value) but wastes removals that could have mattered later; keep it strict and be able to explain why.
+- Using `>=` in the pop condition. Popping an equal digit spends a removal and gains nothing: on `"112"` with `k = 1` it returns `"12"` instead of `"11"`. Keep it strict, and be able to explain why.
 
 ### How to discuss it
 

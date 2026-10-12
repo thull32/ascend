@@ -531,7 +531,7 @@ hints:
   options: ["accumulate uses 32-bit floats internally to save memory on long inputs", "Since 3.12 sum() compensates float rounding; accumulate adds plainly", "accumulate starts from 0.1 rather than 0.0, which shifts every total", "sum() sorts its input before adding, which reduces the rounding error"]
   answer: 1
   explanation: >-
-    CPython 3.12 changed the built-in sum() to use Neumaier compensated summation for floats, so it returns the correctly rounded total here, while accumulate performs ordinary float additions and matches a plain loop. Both use 64-bit doubles, sum() does not sort, and the starting value does not explain an error in the ninth decimal.
+    CPython 3.12 changed the built-in sum() to use Neumaier compensated summation for floats, so it returns the correctly rounded total here, while accumulate performs ordinary float additions and matches a plain loop. Both use 64-bit doubles, sum() does not sort, and the starting value does not explain an error in the sixth decimal place.
 - q: >-
     Follow-up: the array now arrives as a stream, and between queries new elements are appended; nothing already seen is ever edited. What happens to the prefix-array solution?
   options: ["Queries become O(log n), since P must be binary-searched", "Each append extends P in O(1) and queries stay O(1)", "It no longer works, since prefix sums need the whole array first", "Each append forces an O(n) rebuild, so switch to a Fenwick tree"]

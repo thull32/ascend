@@ -1,6 +1,6 @@
 ---
 lesson: kafka-internals
-source: 347572ada8680899
+source: eeec4e1e5909a07d
 fit: great
 desk:
   - "The segment files table and the three-move offset lookup"

@@ -1,6 +1,6 @@
 ---
 lesson: api-styles
-source: ec4225fd654bc37d
+source: 7fbd64d775290516
 fit: great
 desk:
   - "The one-screen comparison table: requests, round trips and bytes per style, and the three requests on the wire"

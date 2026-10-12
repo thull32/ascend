@@ -1,6 +1,6 @@
 ---
 lesson: security-in-design
-source: 29db123f27f686ee
+source: cc1cbe651bc4f077
 fit: great
 desk:
   - "The STRIDE table and the controls-and-residual-risk table for the invoicing design"

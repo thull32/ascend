@@ -463,9 +463,9 @@ hints:
   explanation: >-
     Seeding every hospital at distance 0 is equivalent to BFS from a virtual super-source; each cell is discovered once by its nearest hospital. One pass over the grid, and a plain FIFO queue suffices because all edges still cost 1, so no heap and no log factor is needed.
 - q: >-
-    Word ladder from "hit" to "cog" with a dictionary of 50,000 five-letter words. Why does bidirectional BFS help so much?
-  options: ["It stores half as many vertices per side, so total memory is cut in half", "It expands both endpoints' neighbourhoods in parallel, which halves the wall time", "Each side searches only half the distance, so ~2·b^(d/2) vertices replace b^d", "It skips building the adjacency list, so neighbours cost O(1) to generate"]
-  answer: 2
+    A word ladder between two five-letter words, with a dictionary of 50,000 five-letter words. Why does bidirectional BFS help so much?
+  options: ["It expands both endpoints' neighbourhoods in parallel, which halves the wall time", "It skips building the adjacency list, so neighbours cost O(1) to generate", "It stores half as many vertices per side, so total memory is cut in half", "Each side searches only half the distance, so ~2·b^(d/2) vertices replace b^d"]
+  answer: 3
   explanation: >-
     With branching factor b around 100 and distance d around 6, one-directional BFS may touch b^6 = 10^12 candidates while two half-searches touch about 2 × 10^6. The saving is exponential, not a factor of two, because halving the depth takes the square root of the frontier size. The meeting point gives the shortest path when both sides expand level by level and the level's minimum meeting distance is taken.
 - q: >-

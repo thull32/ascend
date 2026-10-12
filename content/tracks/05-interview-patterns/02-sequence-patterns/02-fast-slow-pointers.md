@@ -494,7 +494,7 @@ hints:
   options: ["Check slow.next and fast.next before each move", "Check fast and fast.next, with slow starting one node ahead", "Check fast and fast.next, then advance slow once more", "Check fast.next and fast.next.next before each move"]
   answer: 3
   explanation: >-
-    With fast.next and fast.next.next the loop runs once (slow 2, fast 3) and stops because 3.next.next is null, leaving slow on the first middle so that slow.next begins the second half. Starting slow ahead or advancing it afterwards lands on node 4, and checking slow.next and fast.next dereferences a null fast on the second test. Five-node lists return node 3 under both standard guards, which is why tracing an odd length hides the difference.
+    With fast.next and fast.next.next the loop runs once (slow 2, fast 3) and stops because 3.next.next is null, leaving slow on the first middle so that slow.next begins the second half. Starting slow ahead or advancing it afterwards lands on node 4, and checking slow.next and fast.next moves fast to null after two steps, then dereferences it on the third check. Five-node lists return node 3 under both standard guards, which is why tracing an odd length hides the difference.
 - q: >-
     In Find the Duplicate Number the array is read as i -> nums[i] starting at index 0. Why is the cycle entry the duplicated value?
   options: ["Because index 0 lies inside the cycle and points to it", "Because phase one always meets exactly at the duplicate", "Because the entry has two incoming edges from two indices", "Because the entry holds the largest value in the array"]

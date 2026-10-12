@@ -348,7 +348,7 @@ hints:
   options: ["Adding a separate single-column index on account_id", "Reordering the index to (account_id, created_at)", "Running CLUSTER so the heap follows created_at order", "Moving account_id into an INCLUDE clause on the index"]
   answer: 1
   explanation: >-
-    Only the leading range column bounds the scan, so every entry from the last week for every account is walked and filtered. Equality first, then range, makes the matching entries one contiguous slice, as the measured 2,300 buffers against 8 showed. The wasted reads are index pages, so clustering the heap cannot help, and INCLUDE columns are never used to bound a scan.
+    Only the leading range column bounds the scan, so every entry from the last week for every account is walked and filtered. Equality first, then range, makes the matching entries one contiguous slice: in the lesson's measurement of the same fix, 2,300 buffers fell to 8. The wasted reads are index pages, so clustering the heap cannot help, and INCLUDE columns are never used to bound a scan.
 - q: >-
     An index-only scan reports Heap Fetches: 22,201 for 20,239 rows and is slower than a plain bitmap scan. What happened?
   options: ["Writes cleared visibility-map bits and vacuum has not reset them", "The index lacks an INCLUDE column, so values come from the heap", "The planner picked a stale index, so every row had to be rechecked", "The query uses SELECT *, which forces every row to the heap"]

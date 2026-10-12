@@ -345,11 +345,11 @@ hints:
   explanation: >-
     U+1F44D is a single code point outside the Basic Multilingual Plane, stored as the two UTF-16 code units D83D DC4D; that is why length is 2. Splitting by code unit separates the pair and reversing produces two lone surrogates. It is not a multi-code-point grapheme cluster. Iterating with `for...of` or `Array.from` splits by code point instead.
 - q: >-
-    A 1,000-character ASCII string occupies 1,041 bytes in CPython 3.14. About how large is it after one emoji is appended?
-  options: ["1,045 bytes, because only the emoji needs a 4-byte cell", "4,060 bytes, because every code point is now stored in 4 bytes", "1,057 bytes, because only the header grows to 56 bytes", "2,058 bytes, because the string switches to UTF-16 storage"]
-  answer: 1
+    A 1,000-character ASCII string occupies 1,041 bytes in CPython 3.14. About how large is it if its last character is replaced by an emoji?
+  options: ["2,058 bytes, because the string switches to UTF-16 storage", "1,045 bytes, because only the emoji needs a 4-byte cell", "4,060 bytes, because every code point is now stored in 4 bytes", "1,057 bytes, because only the header grows to 56 bytes"]
+  answer: 2
   explanation: >-
-    PEP 393 chooses one width for the whole string from its widest character, so an astral-plane emoji forces 4 bytes per code point for all 1,001 of them: 56 + 4 × (1,001 + 1) = 4,060 bytes, measured with sys.getsizeof. A Latin-1 character such as é would only add the 16-byte non-ASCII header (1,057), and a BMP character such as € would double the cells (2,058).
+    PEP 393 chooses one width for the whole string from its widest character, so an astral-plane emoji forces 4 bytes per code point for all 1,000 of them: 56 + 4 × (1,000 + 1) = 4,060 bytes, measured with sys.getsizeof. A Latin-1 character such as é would only add the 16-byte non-ASCII header (1,057), and a BMP character such as € would double the cells (2,058).
 - q: >-
     A recursive palindrome check calls itself with `s[1:-1]`. For a string of length n, what is the time complexity?
   options: ["O(n), because there are n/2 calls that each compare two characters", "O(n), because Python slices are O(1) views into the original buffer", "O(n²), because each call's slice copies the remaining string", "O(n log n), because the string halves at each level of the recursion"]

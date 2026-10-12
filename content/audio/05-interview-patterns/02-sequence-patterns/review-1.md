@@ -1,6 +1,6 @@
 ---
 review: sequence-patterns
-source: ff5c729a8b53eaf8
+source: 7dd7b0f329a27cb3
 ---
 ## Introduction
 
