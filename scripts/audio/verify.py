@@ -27,6 +27,12 @@ SCALES = {"hundred": 100, "thousand": 1_000, "million": 1_000_000, "billion": 1_
 SPELLING = {"defence": "defense", "defences": "defenses", "acknowledgement": "acknowledgment", "acknowledgements": "acknowledgments",
             "amortised": "amortized", "catalogue": "catalog", "behaviour": "behavior", "optimise": "optimize", "optimised": "optimized",
             "normalise": "normalize", "serialise": "serialize", "serialised": "serialized", "memoise": "memoize", "memoised": "memoized"}
+# Words the voice says right that Whisper writes otherwise: variable names
+# read as words, lexicon spellings, homophones, and Roman numerals for
+# small numbers ("dp of ii"). Applied to both sides.
+HEARD_AS = {"lo": "low", "hi": "high", "trie": "try", "tries": "tries", "deque": "deck", "cash": "cache",
+            "right": "write", "rights": "writes", "rider": "writer", "riders": "writers", "weight": "wait",
+            **{r: str(n) for n, r in enumerate("_ _ ii iii iv _ vi vii viii ix _ xi xii".split()) if r != "_"}}
 # British spellings the scripts use and Whisper writes the American way;
 # applied to both sides, so a rare false match costs nothing.
 BRITISH = [(re.compile(r"(?<=\w{3})our(s?)$"), r"or\1"), (re.compile(r"(?<=[^aeiou])re(s?)$"), r"er\1"),
@@ -102,7 +108,8 @@ def words(text):
             out.append(n[0])
             i = n[1]
             continue
-        w = SPELLING.get(raw[i], raw[i])
+        w = HEARD_AS.get(raw[i], raw[i])
+        w = SPELLING.get(w, w)
         for pattern, repl in BRITISH:
             w = pattern.sub(repl, w)
         out.append(w)
